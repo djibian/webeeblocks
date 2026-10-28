@@ -133,7 +133,7 @@ def attest_modules(mapped_paths, required, sdk):
     return result
 
 
-def attest_native_abi_family_locations(mapped_paths, runtime_home):
+def attest_native_abi_family_locations(mapped_paths, runtime_home, verified_modules=()):
     """Reject foreign Qt/MinGW/Controller modules, even when not in required.
 
     Required DLLs have independently pinned hashes in attest_modules().
@@ -142,7 +142,9 @@ def attest_native_abi_family_locations(mapped_paths, runtime_home):
     """
     root = runtime_home.resolve(strict=True)
     observed = {}
-    pinned_names = {name.casefold() for name in QUALIFIED_WINDOWS_MODULE_SHA256}
+    pinned_hashes = {name.casefold(): digest
+                     for name, digest in QUALIFIED_WINDOWS_MODULE_SHA256.items()}
+    verified = {name.casefold() for name in verified_modules}
     for raw in mapped_paths:
         path = Path(raw)
         name = path.name.casefold()
@@ -158,7 +160,13 @@ def attest_native_abi_family_locations(mapped_paths, runtime_home):
             raise ValueError('Native ABI-family DLL loaded outside pinned Webots runtime: ' + name)
         if name in observed and observed[name]['path'] != str(resolved):
             raise ValueError('Multiple native ABI-family DLL paths: ' + name)
-        observed[name] = {'path': str(resolved), 'independently_pinned': name in pinned_names}
+        # attest_modules() has already checked the pinned bytes of required
+        # modules. Verify any *additional* known module, rather than treating
+        # a recognised basename alone as proof of authentic loaded bytes.
+        if name in pinned_hashes and name not in verified and sha256(resolved) != pinned_hashes[name]:
+            raise ValueError('Native ABI-family DLL bytes differ from qualified reference: ' + name)
+        observed[name] = {'path': str(resolved),
+                          'qualified_digest_verified': name in pinned_hashes}
     return dict(sorted(observed.items()))
 
 
@@ -313,8 +321,9 @@ def run(args):
                     if Path(child.exe()).resolve() != expected_exe.resolve():
                         raise ValueError('Wrong native executable path')
                     mapped_paths = [m.path for m in child.memory_maps()]
-                    abi_families = attest_native_abi_family_locations(mapped_paths, home)
                     modules = attest_modules(mapped_paths, expected, sdk)
+                    abi_families = attest_native_abi_family_locations(
+                        mapped_paths, home, verified_modules=modules)
                     graphics = {path: sha256(Path(path)) for path in mapped_paths
                                 if Path(path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
                     qualified_rows.append((role, {'pid': child.pid, 'create_time': identity[1],

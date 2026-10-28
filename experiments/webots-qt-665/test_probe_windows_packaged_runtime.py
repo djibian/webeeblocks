@@ -184,16 +184,21 @@ class ProbeTests(unittest.TestCase):
             windows.mkdir(parents=True)
             opengl = windows / 'opengl32.dll'
             opengl.write_bytes(b'Windows OpenGL system module')
-            family = probe.attest_native_abi_family_locations(
-                [str(qt), str(extra), str(opengl)], home)
-            self.assertEqual(set(family), {'qt6core.dll', 'qt6network.dll'})
-            self.assertTrue(family['qt6core.dll']['independently_pinned'])
-            self.assertFalse(family['qt6network.dll']['independently_pinned'])
+            # Without a verified digest, a known Qt DLL name is not evidence.
+            with self.assertRaisesRegex(ValueError, 'bytes differ from qualified reference'):
+                probe.attest_native_abi_family_locations([str(qt)], home)
+            with mock.patch.dict(probe.QUALIFIED_WINDOWS_MODULE_SHA256,
+                                 {'Qt6Core.dll': sha256(qt)}):
+                family = probe.attest_native_abi_family_locations(
+                    [str(qt), str(extra), str(opengl)], home)
+                self.assertEqual(set(family), {'qt6core.dll', 'qt6network.dll'})
+                self.assertTrue(family['qt6core.dll']['qualified_digest_verified'])
+                self.assertFalse(family['qt6network.dll']['qualified_digest_verified'])
             foreign = root / 'Another Qt/bin/Qt6Network.dll'
             foreign.parent.mkdir(parents=True)
             foreign.write_bytes(extra.read_bytes())
             with self.assertRaisesRegex(ValueError, 'outside pinned Webots runtime'):
-                probe.attest_native_abi_family_locations([str(qt), str(foreign)], home)
+                probe.attest_native_abi_family_locations([str(foreign)], home)
             alternate = home / 'other/Qt6Network.dll'
             alternate.parent.mkdir()
             alternate.write_bytes(extra.read_bytes())
