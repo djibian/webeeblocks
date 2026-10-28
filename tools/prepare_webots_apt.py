@@ -27,17 +27,21 @@ def prepare(sources_root: Path, *, software_rendering: bool) -> list[tuple[str, 
         raise RuntimeError('NVIDIA source may only be disabled with software rendering')
     if not sources_root.is_dir():
         raise RuntimeError('APT configuration directory unavailable')
+    if sources_root.is_symlink():
+        raise RuntimeError('unsafe APT configuration directory: ' + str(sources_root))
     paths = [sources_root / 'sources.list']
     parts = sources_root / 'sources.list.d'
-    if parts.exists():
-        if not parts.is_dir():
+    if parts.exists() or parts.is_symlink():
+        if parts.is_symlink() or not parts.is_dir():
             raise RuntimeError('invalid APT sourceparts directory')
         paths.extend(sorted(p for p in parts.iterdir() if p.suffix in ('.list', '.sources')))
     edits = []
     for path in paths:
+        if path.is_symlink():
+            raise RuntimeError('unsafe APT configuration file: ' + str(path))
         if not path.exists():
             continue
-        if not path.is_file() or path.is_symlink():
+        if not path.is_file():
             raise RuntimeError('unsafe APT configuration file: ' + str(path))
         original = path.read_bytes()
         text = original.decode('utf-8')

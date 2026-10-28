@@ -61,5 +61,37 @@ class AptSourceIsolationTests(unittest.TestCase):
         self.assertEqual(prepare(self.root, software_rendering=True), [])
 
 
+    def test_rejects_symlink_sources_root_without_modification(self):
+        alias = self.root / 'apt-alias'
+        alias.symlink_to(self.root, target_is_directory=True)
+        before = self.cuda.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, 'unsafe APT configuration directory'):
+            prepare(alias, software_rendering=True)
+        self.assertEqual(self.cuda.read_bytes(), before)
+
+    def test_rejects_symlink_sources_directory_without_external_write(self):
+        external = self.root / 'outside-apt'
+        external.mkdir()
+        external_cuda = external / 'cuda.list'
+        external_cuda.write_bytes(self.cuda.read_bytes())
+        self.cuda.unlink()
+        (self.root / 'sources.list.d').rmdir()
+        (self.root / 'sources.list.d').symlink_to(external, target_is_directory=True)
+        before = external_cuda.read_bytes()
+        main_before = self.main.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, 'invalid APT sourceparts directory'):
+            prepare(self.root, software_rendering=True)
+        self.assertEqual(external_cuda.read_bytes(), before)
+        self.assertEqual(self.main.read_bytes(), main_before)
+
+    def test_rejects_dangling_source_symlink_before_exists_guard(self):
+        (self.root / 'sources.list.d' / 'dangling.list').symlink_to(
+            self.root / 'outside-missing.list')
+        before = self.cuda.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, 'unsafe APT configuration file'):
+            prepare(self.root, software_rendering=True)
+        self.assertEqual(self.cuda.read_bytes(), before)
+
+
 if __name__ == '__main__':
     unittest.main()
