@@ -88,7 +88,7 @@ class PoseTests(unittest.TestCase):
             if any(source.count(token)!=1 for token in (receive,guard,reset,mission,files)):
                 return False
             after=source.split(receive,1)[1]
-            return (after.startswith('\\n'+guard+'\\n') and
+            return (after.startswith('\n'+guard+'\n') and
                     0<after.index(guard)<after.index(mission)<after.index(reset)<after.index(files))
         self.assertEqual(product.count('gp_u_filter_raw(message)'),0,
                          'the shared broker must not depend on Grand Prix U')
@@ -96,9 +96,9 @@ class PoseTests(unittest.TestCase):
                         'the generated U broker must reject requests before side effects')
         # Mutation controls: moving the filter after RESET bookkeeping, removing
         # it, or inserting two hooks must *each* fail this same contract.
-        moved=generated.replace('\\n'+guard+'\\n','\\n',1).replace(reset,reset+'\\n'+guard,1)
-        removed=generated.replace('\\n'+guard+'\\n','\\n',1)
-        doubled=generated.replace('\\n'+guard+'\\n','\\n'+guard+'\\n'+guard+'\\n',1)
+        moved=generated.replace('\n'+guard+'\n','\n',1).replace(reset,reset+'\n'+guard,1)
+        removed=generated.replace('\n'+guard+'\n','\n',1)
+        doubled=generated.replace('\n'+guard+'\n','\n'+guard+'\n'+guard+'\n',1)
         for case,mutant in (('late-filter',moved),('missing-filter',removed),('double-filter',doubled)):
             with self.subTest(mutant=case):
                 self.assertFalse(prefiltered(mutant),
