@@ -120,6 +120,64 @@ class RunningConsumerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'outside bundled'):
                 probe.observed_qt_family(row(core) + row(gui), home)
 
+
+    def test_qt_platform_plugin_mapped_identity_is_restricted_and_observed_only(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'webots'
+            plugins = home / 'lib/webots/qt/plugins/platforms'
+            plugins.mkdir(parents=True)
+            foreign = Path(directory) / 'foreign'
+            foreign.mkdir()
+            xcb = plugins / 'libqxcb.so'
+            xcb.write_bytes(b'qualified-location-only')
+            def row(path):
+                st = path.stat()
+                return (f'7fb-8fb r-xp 00000000 '
+                        f'{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x} '
+                        f'{st.st_ino} {path}\n')
+            self.assertEqual(probe.observed_qt_platform_plugins('', home), {},
+                             'missing platform mapping is NOT_OBSERVED, not a fake PASS')
+            mapped = probe.observed_qt_platform_plugins(row(xcb) * 2, home)
+            self.assertEqual(set(mapped), {'libqxcb.so'})
+            self.assertEqual(mapped['libqxcb.so']['mapped_filename'], str(xcb))
+            self.assertEqual(mapped['libqxcb.so']['sha256_observed_only'],
+                             hashlib.sha256(xcb.read_bytes()).hexdigest())
+            self.assertNotIn('qualified_digest_verified', mapped['libqxcb.so'])
+            outsider = foreign / 'libqxcb.so'
+            outsider.write_bytes(xcb.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'outside bundled runtime'):
+                probe.observed_qt_platform_plugins(row(outsider), home)
+            with self.assertRaisesRegex(ValueError, 'deleted'):
+                probe.observed_qt_platform_plugins(row(xcb).strip() + ' (deleted)\n', home)
+            st = xcb.stat()
+            with self.assertRaisesRegex(ValueError, 'mapped inode differs'):
+                probe.observed_qt_platform_plugins(
+                    row(xcb).replace(f' {st.st_ino} ', f' {st.st_ino + 1} ', 1), home)
+            with self.assertRaisesRegex(ValueError, 'malformed Qt platform'):
+                probe.observed_qt_platform_plugins('incomplete libqxcb.so', home)
+            unknown = plugins / 'libqunknown.so'
+            unknown.write_bytes(b'unqualified-platform')
+            with self.assertRaisesRegex(ValueError, 'unknown Qt platform'):
+                probe.observed_qt_platform_plugins(row(xcb) + row(unknown), home)
+            second = plugins / 'libqoffscreen.so'
+            second.write_bytes(b'other-plugin')
+            self.assertEqual(
+                set(probe.observed_qt_platform_plugins(row(xcb) + row(second), home)),
+                {'libqxcb.so', 'libqoffscreen.so'})
+            other = plugins / 'sub'
+            other.mkdir()
+            odd = other / 'libqxcb.so'
+            odd.write_bytes(xcb.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'outside bundled runtime'):
+                probe.observed_qt_platform_plugins(row(xcb) + row(odd), home)
+            # A local SONAME alias resolving outside the bundled plugin tree
+            # must not be accepted just because the text path is local.
+            xcb.unlink()
+            xcb.symlink_to(outsider)
+            with self.assertRaisesRegex(ValueError, 'outside bundled runtime'):
+                probe.observed_qt_platform_plugins(row(xcb), home)
+
     def test_self_process_cannot_be_mislabelled_webots(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)/'webots'

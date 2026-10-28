@@ -134,6 +134,58 @@ def observed_qt_family(maps, runtime_home):
     return dict(sorted(observed.items()))
 
 
+
+def observed_qt_platform_plugins(maps, runtime_home):
+    """Record platform plugins actually mapped by this process, without ABI claims.
+
+    A QPA plugin can bring in a different Qt runtime than the application's
+    Qt6Core/Qt6Widgets DSOs. Check every observed platform-plugin file
+    against the bundled path and actual mapped device:inode. Missing plugins
+    remain NOT_OBSERVED, never silently promoted to qualified.
+    """
+    accepted = frozenset(('libqxcb.so', 'libqoffscreen.so', 'libqminimal.so',
+                          'libqvnc.so', 'libqlinuxfb.so', 'libqeglfs.so'))
+    expected = runtime_home / 'lib/webots/qt/plugins/platforms'
+    observed = {}
+    for line in maps.splitlines():
+        if not any(name in line for name in accepted) and '/platforms/libq' not in line:
+            continue
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or not fields[5].startswith('/'):
+            raise ValueError('malformed Qt platform process mapping')
+        raw = fields[5]
+        if raw.endswith(' (deleted)'):
+            raise ValueError('deleted Qt platform process mapping')
+        path = Path(raw)
+        if path.name not in accepted:
+            raise ValueError('unknown Qt platform plugin: ' + path.name)
+        qualified = expected.resolve(strict=True)
+        if path.resolve(strict=True).parent != qualified:
+            raise ValueError('Qt platform plugin loaded outside bundled runtime: ' + path.name)
+        device = fields[3].split(':')
+        if len(device) != 2:
+            raise ValueError('malformed Qt platform plugin mapped device')
+        try:
+            mapped_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
+        except ValueError as exc:
+            raise ValueError('malformed Qt platform plugin mapped inode') from exc
+        # Bind hash to the exact inode read, instead of two path opens with a
+        # rename race between stat and hash computation.
+        digest = hashlib.sha256()
+        with path.open('rb') as stream:
+            st = os.fstat(stream.fileno())
+            if mapped_id != (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino):
+                raise ValueError('Qt platform plugin mapped inode differs: ' + path.name)
+            for part in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(part)
+        value = {'mapped_filename': str(path),
+                 'sha256_observed_only': digest.hexdigest()}
+        if path.name in observed and observed[path.name] != value:
+            raise ValueError('ambiguous Qt platform plugin mapping: ' + path.name)
+        observed[path.name] = value
+    return dict(sorted(observed.items()))
+
+
 def attest(runtime_home, pid):
     if platform.system() != 'Linux' or platform.machine() != 'x86_64':
         raise ValueError('only native Linux x86_64 consumers supported')
@@ -169,12 +221,15 @@ def attest(runtime_home, pid):
     # Qt6Gui is mandatory, but its digest is evidence-only until independently
     # pinned. The existing Core/Widgets pinned checks above are unchanged.
     qt_family = observed_qt_family(maps, home)
+    qt_platform = observed_qt_platform_plugins(maps, home)
     if starttime(proc) != started or (proc / 'exe').resolve(strict=True) != target:
         raise ValueError('process identity changed during observation')
     return {'verdict': 'PASS', 'scope': 'running-linux-process-elf-and-mapped-qt-only',
             'pid': pid, 'process_starttime_ticks': started,
             'webots_elf_sha256': WEBOTS_SHA256, 'qt_sha256': loaded,
             'qt_family_observed_only': qt_family,
+            'qt_platform_plugins_observed_only': qt_platform,
+            'qt_platform_plugin_presence': 'OBSERVED' if qt_platform else 'NOT_OBSERVED',
             'runtime_home': str(home), 'executable': str(target)}
 
 
