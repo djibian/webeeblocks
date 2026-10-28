@@ -870,6 +870,7 @@ int main(void) {
           trace_takeoff(active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -894,6 +895,7 @@ int main(void) {
           trace_move(active_direction, active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -918,6 +920,7 @@ int main(void) {
           trace_vertical(active_direction, active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -942,6 +945,7 @@ int main(void) {
           trace_turn(active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -964,6 +968,7 @@ int main(void) {
         trace_wait(active_value, now - action_start);
         response_ok(active_id);
         command = CMD_IDLE;
+        active_id = -1;  // Completed request must not be canceled again by a later STOP.
         stable_since = -1.0;
       }
     } else if (command == CMD_LAND) {
@@ -993,6 +998,7 @@ int main(void) {
           trace_land();
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
           previous_time = now;
           previous_x = x;

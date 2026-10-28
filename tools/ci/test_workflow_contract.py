@@ -606,6 +606,91 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("--network none", encoders)
         self.assertIn("/usr/local/webots/projects:ro", encoders)
 
+    def test_historical_cold_provisioning_preserves_native_trial(self) -> None:
+        """#747: cold transport gets bounded headroom, never a weaker native oracle."""
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        sections = (
+            ("encoders-historical", "gyro-gps-historical"),
+            ("light-sensor-historical", "sensor-probing-historical"),
+            ("sensor-probing-historical", "robot-window-roundtrip"),
+        )
+        def check(section: str, expected_network_uses: int) -> None:
+            self.assertIn("timeout-minutes: 12", section)
+            self.assertEqual(section.count("bash tools/ci/pull_pinned_historical_webots.sh"), 1)
+            self.assertNotIn("run: docker pull cyberbotics/webots:R2025a-ubuntu22.04", section)
+            self.assertIn("timeout -k 5s 30s xvfb-run", section)
+            self.assertEqual(section.count("--network none"), expected_network_uses)
+            self.assertIn("Validate ", section)
+            self.assertIn('if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]', section)
+            self.assertIn('exit "$code"', section)
+            self.assertNotIn("continue-on-error:", section)
+        for name, following in sections:
+            with self.subTest(job=name):
+                start, end = "\n  " + name + ":\n", "\n  " + following + ":\n"
+                self.assertEqual(suite.count(start), 1)
+                section = suite.split(start, 1)[1].split(end, 1)[0]
+                expected_network_uses = 2 if name == "light-sensor-historical" else 1
+                check(section, expected_network_uses)
+                for damaged in (
+                    section.replace("timeout -k 5s 30s xvfb-run", "xvfb-run", 1),
+                    section.replace("--network none", "--network host", 1),
+                    section.replace("bash tools/ci/pull_pinned_historical_webots.sh", "true", 1),
+                ):
+                    with self.assertRaises(AssertionError):
+                        check(damaged, expected_network_uses)
+
+    def test_historical_image_digest_provisioning_is_fail_closed(self) -> None:
+        import os
+        helper = ROOT / "tools/ci/pull_pinned_historical_webots.sh"
+        script = helper.read_text(encoding="utf-8")
+        image = "cyberbotics/webots"
+        digest = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+        self.assertIn('DIGEST="' + digest + '"', script)
+        self.assertIn('timeout -k 5s 480s docker pull "$SOURCE"', script)
+        self.assertIn('docker tag "$SOURCE" "$TARGET"', script)
+        self.assertNotIn('docker pull "$TARGET"', script)
+        self.assertIn('[[ "$tag_id" != "$source_id" ]]', script)
+        self.assertIn('set -euo pipefail', script)
+        with tempfile.TemporaryDirectory(prefix="native-webots-oci-747-") as temp:
+            directory = Path(temp)
+            trace = directory / "calls.txt"
+            mock_docker = directory / "docker"
+            mock_docker.write_text("""#!/bin/sh
+echo "$*" >> "$TRACE_FILE"
+case "$1" in
+  pull)
+    [ "$2" = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099" ] || exit 64 ;;
+  tag)
+    [ "$2" = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099" ] || exit 65
+    [ "$3" = "cyberbotics/webots:R2025a-ubuntu22.04" ] || exit 66 ;;
+  image)
+    [ "$2" = inspect ] || exit 67
+    [ "$3" = --format ] || exit 68
+    if [ "$5" = "cyberbotics/webots:R2025a-ubuntu22.04" ] && [ "${BAD_DOCKER_TAG:-0}" = 1 ]; then
+      printf 'sha256:%064d\\n' 1
+    else
+      printf 'sha256:%064d\\n' 2
+    fi ;;
+  *) exit 69 ;;
+esac
+""", encoding="utf-8")
+            mock_docker.chmod(0o755)
+            env = dict(os.environ, PATH=str(directory) + os.pathsep + os.environ["PATH"], TRACE_FILE=str(trace))
+            good = subprocess.run(["bash", str(helper)], cwd=ROOT, env=env,
+                                  text=True, capture_output=True, timeout=12)
+            self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertIn("PASS exact historical Webots R2025a OCI manifest", good.stdout)
+            calls = trace.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(calls), 4)
+            self.assertEqual(calls[0], "pull " + image + "@" + digest)
+            self.assertEqual(calls[2], "tag " + image + "@" + digest + " " + image + ":R2025a-ubuntu22.04")
+            trace.unlink()
+            bad = subprocess.run(["bash", str(helper)], cwd=ROOT,
+                                 env=dict(env, BAD_DOCKER_TAG="1"),
+                                 text=True, capture_output=True, timeout=12)
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertIn("identity mismatch", bad.stderr)
+
     def test_gyro_gps_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         gyro = suite.split("\n  gyro-gps-historical:\n", 1)[1].split(
