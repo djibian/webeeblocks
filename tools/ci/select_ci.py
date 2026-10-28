@@ -67,6 +67,14 @@ SHARED_RUNTIME_WEBOTS = (
     # The pre-controller observer is exercised by Runtime's outcome preflight.
     "tools/ci/observe_outcome_startup.py",
     "tools/ci/test_outcome_startup_observer.py",
+    # The native LAND contact/settling regression is invoked by Runtime's
+    # sequence and neutral-start campaigns. Its real C/PID/PROTO inputs must
+    # not route to the legacy Webots-only suite when edited in isolation.
+    "tools/ci/run_land_contact_regression.py",
+    "tools/ci/fixtures/land_contact_driver.c",
+    "controllers/crazyflie_square/pid_controller.c",
+    "controllers/crazyflie_square/pid_controller.h",
+    "worlds/protos/QualificationCrazyflieR2025a.proto",
     # The sequence LAND diagnostic is compiled and exercised by Runtime's
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
