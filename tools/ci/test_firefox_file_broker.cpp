@@ -170,6 +170,6 @@ int main() {
   assert(state.saveCalls == saveBefore);
   assert(state.releaseCalls == releaseBefore);
 
-  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path/invalid-and-oversize-no-side-effects\\n";
+  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path/invalid-and-oversize-no-side-effects\n";
   return 0;
 }
