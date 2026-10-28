@@ -2,7 +2,8 @@
 """Fail-closed observation of a *running* Linux Webots #665 consumer.
 
 This never installs Webots. Successful observation proves the specific process
-executable and mapped Qt closure, not a natural Qt callback or a complete suite.
+executable and bounded mapped Qt provenance, not independent hashes for all Qt DSOs,
+not a natural Qt callback or a complete suite.
 Windows PE and classroom release verification require a separate native probe.
 """
 import argparse
@@ -85,6 +86,54 @@ def mapped_qt_files(maps, name, lib, expected_sha256):
     return mapped
 
 
+
+def observed_qt_family(maps, runtime_home):
+    """Constrain *all* mapped Qt6 DSO families, not only pinned Core/Widgets.
+
+    The hashes for other same-runtime modules are observed measurements, NOT
+    independent qualified reference hashes or evidence of ABI compatibility.
+    """
+    qualified = (runtime_home / 'lib/webots').resolve(strict=True)
+    observed = {}
+    for line in maps.splitlines():
+        if 'libQt6' not in line:
+            continue
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or not fields[5].startswith('/'):
+            raise ValueError('malformed Qt6 process mapping')
+        raw = fields[5]
+        if raw.endswith(' (deleted)'):
+            raise ValueError('deleted Qt6 process mapping')
+        path = Path(raw)
+        name = path.name
+        if not name.startswith('libQt6') or '.so.' not in name:
+            raise ValueError('unexpected Qt6 mapping identity: ' + name)
+        family, version = name.split('.so.', 1)
+        if version not in ('6', '6.5.3'):
+            raise ValueError('unqualified Qt6 SONAME version: ' + name)
+        actual = path.resolve(strict=True)
+        if not actual.is_relative_to(qualified):
+            raise ValueError('Qt6 module loaded outside bundled Webots runtime: ' + name)
+        st = path.stat()
+        device = fields[3].split(':')
+        if len(device) != 2:
+            raise ValueError('malformed Qt6 device')
+        try:
+            mapped_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
+        except ValueError as exc:
+            raise ValueError('malformed Qt6 mapped inode') from exc
+        if mapped_id != (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino):
+            raise ValueError('Qt6 mapped inode differs from current file: ' + name)
+        digest = sha256(path)
+        current = {'mapped_filename': str(path), 'sha256_observed_only': digest}
+        if family in observed and observed[family] != current:
+            raise ValueError('ambiguous Qt6 family mapping: ' + family)
+        observed[family] = current
+    if 'libQt6Gui' not in observed:
+        raise ValueError('Qt6Gui mapping missing: not a closed Qt6 process observation')
+    return dict(sorted(observed.items()))
+
+
 def attest(runtime_home, pid):
     if platform.system() != 'Linux' or platform.machine() != 'x86_64':
         raise ValueError('only native Linux x86_64 consumers supported')
@@ -116,11 +165,16 @@ def attest(runtime_home, pid):
             raise ValueError('Qt library checksum mismatch: ' + name)
         mapped = mapped_qt_files(maps, name, lib, expected)
         loaded[name] = {'sha256': expected, 'mapped_filename': str(next(iter(mapped)))}
+    # Verify *all* Qt6 DSO paths/inodes before claiming process provenance.
+    # Qt6Gui is mandatory, but its digest is evidence-only until independently
+    # pinned. The existing Core/Widgets pinned checks above are unchanged.
+    qt_family = observed_qt_family(maps, home)
     if starttime(proc) != started or (proc / 'exe').resolve(strict=True) != target:
         raise ValueError('process identity changed during observation')
     return {'verdict': 'PASS', 'scope': 'running-linux-process-elf-and-mapped-qt-only',
             'pid': pid, 'process_starttime_ticks': started,
             'webots_elf_sha256': WEBOTS_SHA256, 'qt_sha256': loaded,
+            'qt_family_observed_only': qt_family,
             'runtime_home': str(home), 'executable': str(target)}
 
 

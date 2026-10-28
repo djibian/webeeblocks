@@ -62,6 +62,64 @@ class RunningConsumerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'deleted'):
                 probe.mapped_qt_files(line.strip()+ ' (deleted)\n', lib.name, lib, expected)
 
+
+    def test_observed_all_qt6_dso_origins_without_inventing_hash_qualification(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'webots'
+            libdir = home / 'lib/webots'
+            libdir.mkdir(parents=True)
+            outside = Path(directory) / 'foreign'
+            outside.mkdir()
+            core = libdir / 'libQt6Core.so.6.5.3'
+            gui = libdir / 'libQt6Gui.so.6'
+            network = libdir / 'libQt6Network.so.6'
+            for file in (core, gui, network):
+                file.write_bytes(file.name.encode())
+            def row(file):
+                st = file.stat()
+                return (f'7fb-8fb r-xp 00000000 '
+                        f'{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x} '
+                        f'{st.st_ino} {file}\n')
+            valid = row(core) + row(gui) + row(gui) + row(network)
+            result = probe.observed_qt_family(valid, home)
+            self.assertEqual(set(result), {'libQt6Core', 'libQt6Gui', 'libQt6Network'})
+            self.assertEqual(result['libQt6Gui']['mapped_filename'], str(gui))
+            self.assertEqual(result['libQt6Gui']['sha256_observed_only'],
+                             hashlib.sha256(gui.read_bytes()).hexdigest())
+            # The same-runtime result is a measurement, not a pinned digest.
+            self.assertNotIn('qualified_digest_verified', result['libQt6Gui'])
+            with self.assertRaisesRegex(ValueError, 'Qt6Gui mapping missing'):
+                probe.observed_qt_family(row(core), home)
+            foreign = outside / gui.name
+            foreign.write_bytes(gui.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'outside bundled'):
+                probe.observed_qt_family(row(core) + row(foreign), home)
+            with self.assertRaisesRegex(ValueError, 'deleted'):
+                probe.observed_qt_family(row(core) + row(gui).strip() + ' (deleted)\n', home)
+            st = gui.stat()
+            altered = row(gui).replace(f' {st.st_ino} ', f' {st.st_ino + 1} ', 1)
+            with self.assertRaisesRegex(ValueError, 'inode differs'):
+                probe.observed_qt_family(row(core) + altered, home)
+            with self.assertRaisesRegex(ValueError, 'malformed Qt6'):
+                probe.observed_qt_family(row(core) + 'incomplete libQt6Gui.so.6', home)
+            wrong_version = libdir / 'libQt6Gui.so.6.6.0'
+            wrong_version.write_bytes(gui.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'SONAME version'):
+                probe.observed_qt_family(row(core) + row(wrong_version), home)
+            other_gui = libdir / 'libQt6Gui.so.6.5.3'
+            other_gui.write_bytes(gui.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'ambiguous Qt6 family'):
+                probe.observed_qt_family(valid + row(other_gui), home)
+            gui_alias = libdir / 'libQt6Gui.so.6.5.3-link'
+            gui_alias.symlink_to(foreign)
+            with self.assertRaisesRegex(ValueError, 'SONAME version'):
+                probe.observed_qt_family(row(core) + row(gui_alias), home)
+            gui.unlink()
+            gui.symlink_to(foreign)
+            with self.assertRaisesRegex(ValueError, 'outside bundled'):
+                probe.observed_qt_family(row(core) + row(gui), home)
+
     def test_self_process_cannot_be_mislabelled_webots(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)/'webots'
