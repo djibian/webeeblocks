@@ -5,6 +5,8 @@ var robotWindow = null;
 var runtimeBackend = null;
 var runtimeRunning = false;
 var runtimeTerminal = false;
+// The interpreter can finish before the live-world evaluator settles.
+var runtimeOutcomePending = false;
 var runtimeResetPending = false;
 var runtimeStopPending = false;
 var runtimeStopRequested = false;
@@ -54,13 +56,13 @@ function updateRuntimeActions() {
   var reset = document.getElementById('resetSimulation');
   var stop = document.getElementById('stopSimulation');
   var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
-  var primaryIsStop = runtimeRunning === true;
+  var primaryIsStop = runtimeRunning === true || runtimeOutcomePending === true;
   var primaryLabel = primaryIsStop ? 'Arrêter le vol' : 'Lancer le vol';
   submit.textContent = primaryLabel;
   if (typeof submit.setAttribute === 'function') submit.setAttribute('aria-label', primaryLabel);
   submit.disabled = primaryIsStop
-    ? (!stopSupported || !ready || runtimeStopPending || runtimeStopRequested)
-    : (!ready || runtimeTerminal || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
+    ? (!stopSupported || !ready || runtimeOutcomePending || runtimeStopPending || runtimeStopRequested)
+    : (!ready || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
   if (stop) {
     stop.hidden = true;
     stop.disabled = true;
@@ -68,7 +70,7 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
   }
 }
 
@@ -268,7 +270,7 @@ async function stopSimulation() {
 }
 
 async function resetSimulation() {
-  if (runtimeRunning || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
     setRuntimeFailure(new Error('Simulation reset unavailable'));
@@ -306,7 +308,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -330,6 +332,8 @@ async function runProgram() {
     if (runtimeStopRequested) throw userStoppedError();
     runtimeRunning = false;
     runtimeTerminal = true;
+    runtimeOutcomePending = true;
+    updateRuntimeActions();
     var missionOutcome = await WebeeBlocksRuntimeOutcome.evaluateMission(runtimeProfile, runtimeBackend);
     if (missionOutcome)
       setRuntimeStatus(missionOutcome.state, missionOutcome.detail);
@@ -338,10 +342,13 @@ async function runProgram() {
   } catch (error) {
     runtimeRunning = false;
     runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
+    runtimeOutcomePending = true;
+    updateRuntimeActions();
     var missionFailure = runtimeStopRequested ? null :
       await WebeeBlocksRuntimeOutcome.readMissionFailure(runtimeProfile, runtimeBackend, error);
     setRuntimeFailure(error, missionFailure);
   } finally {
+    runtimeOutcomePending = false;
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
     updateRuntimeActions();
