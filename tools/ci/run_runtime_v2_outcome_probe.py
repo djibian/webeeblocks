@@ -74,7 +74,13 @@ def main() -> int:
     for proof in proofs:
         began = time.monotonic()
         print(f"BEGIN native R2025a proof {proof}", flush=True)
-        result = subprocess.run([sys.executable, proof], cwd=ROOT, check=False)
+        # One-run #637 native experiment: enable the #744 Webots step probe
+        # solely on the original sequence/collision proof, not other missions.
+        proof_env = os.environ.copy()
+        proof_env.pop("WEBEEBLOCKS_SEQUENCE_CI_STEP_TIMING", None)
+        if proof == PROGRESSION[0]:
+            proof_env["WEBEEBLOCKS_SEQUENCE_CI_STEP_TIMING"] = "1"
+        result = subprocess.run([sys.executable, proof], cwd=ROOT, check=False, env=proof_env)
         seconds = round(time.monotonic() - began, 2)
         print(f"END native R2025a proof {proof}: exit={result.returncode} elapsed={seconds}s", flush=True)
         if result.returncode:
