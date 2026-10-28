@@ -104,6 +104,20 @@ int main() {
          "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 10 ERR INVALID_REQUEST");
   assert(state.releasedReferences.size() == releaseCount);
 
+  // A file REQUEST with a valid ID but no operation is still consumed.
+  // It must reply immediately, rather than silently timing out in the UI.
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 11") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 11 ERR INVALID_REQUEST");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 12   ") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 12 ERR INVALID_REQUEST");
+  // If no valid ID exists, do not fabricate a response to an unknown request.
+  std::string noIdResponse;
+  assert(broker.handleMessage("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST unknown OPEN", &noIdResponse));
+  assert(noIdResponse.empty());
+  // Known operation, wrong arity: same fail-closed, ID-preserving response.
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 13 SAVE_AS") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 13 ERR INVALID_REQUEST");
+
   std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path\n";
   return 0;
 }
