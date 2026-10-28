@@ -356,6 +356,20 @@ function testNativeAirborneIdleSafetyContract() {
   assert.match(runner, /--out \/workspace\/ci-artifacts\/progression-sequence-mission\/airborne-idle-failsafe/);
 }
 
+function testNativeCompletedIdStopContract() {
+  const source = fs.readFileSync(path.join(__dirname, '../..', 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
+  // RESET already releases its id. Every completed motion must likewise
+  // invalidate the one-shot pending id before a later STOP can arrive.
+  const completed = [...source.matchAll(/response_ok\(active_id\);\s*command = CMD_IDLE;\s*active_id = -1;\s*\/\/ Completed request must not be canceled again by a later STOP\./g)];
+  assert.strictEqual(completed.length, 6, 'all six completed motion types must revoke stale IDs');
+  const changed = source.replace('active_id = -1;  // Completed request must not be canceled again by a later STOP.',
+                                 '/* hypothetical stale completed id */');
+  assert.strictEqual([...changed.matchAll(/response_ok\(active_id\);\s*command = CMD_IDLE;\s*active_id = -1;\s*\/\/ Completed request must not be canceled again by a later STOP\./g)].length, 5,
+                     'the missing-clearing mutant must be detected');
+  const runner = fs.readFileSync(path.join(__dirname, 'run_progression_sequence_mission.py'), 'utf8');
+  assert.match(runner, /--case idle-stop/, 'native Webots STOP/ACK regression must remain wired to progression');
+}
+
 function testNativeResetTimeoutSourceContract() {
   const source = fs.readFileSync(path.join(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
   assert.match(source, /#define RESET_TIMEOUT [0-9.]+/);
@@ -390,6 +404,7 @@ function testNativeResetTimeoutSourceContract() {
   testStartupHandshakeSourceContract();
   testNativeResetTimeoutSourceContract();
   testNativeAirborneIdleSafetyContract();
+  testNativeCompletedIdStopContract();
   console.log('PASS: startup readiness is actively recoverable, file-broker readiness starts only after Runtime readiness, reset cancels stale requests, project-file effects stay attached while readiness stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
 })().catch(error => {
   console.error(error.stack || error);

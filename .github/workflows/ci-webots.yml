@@ -1620,7 +1620,9 @@ jobs:
   encoders-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -1657,8 +1659,8 @@ jobs:
             BoxWithEncoders.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -1680,7 +1682,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -1882,7 +1884,9 @@ jobs:
   light-sensor-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -1914,8 +1918,8 @@ jobs:
             BoxWithLightSensor.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -2007,7 +2011,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -2073,7 +2077,9 @@ jobs:
   sensor-probing-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -2112,8 +2118,8 @@ jobs:
             sensorProbing.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -2135,7 +2141,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \

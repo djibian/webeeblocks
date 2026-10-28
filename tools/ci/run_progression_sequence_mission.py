@@ -343,6 +343,11 @@ python3 /workspace/tools/ci/run_land_contact_regression.py \
   --case airborne-idle \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/airborne-idle-failsafe
+# Completed TAKEOFF followed by STOP must not re-emit an error for the old ID.
+python3 /workspace/tools/ci/run_land_contact_regression.py \
+  --case idle-stop \
+  --home /usr/local/webots --xvfb /usr/bin/Xvfb \
+  --out /workspace/ci-artifacts/progression-sequence-mission/idle-stop-response
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \

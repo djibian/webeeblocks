@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--xvfb", required=True)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--step", type=int, choices=(8, 32), default=32)
-    parser.add_argument("--case", choices=("land", "airborne-idle"), default="land")
+    parser.add_argument("--case", choices=("land", "airborne-idle", "idle-stop"), default="land")
     parser.add_argument("--runtime-source", type=Path,
                         help="explicit diagnostic source; CI uses current shared source")
     args = parser.parse_args()
@@ -61,7 +61,9 @@ def main():
               "const char *land_receive(void);\nvoid land_send(const char*);\n")
     (out / "runtime.c").write_text(prefix + source)
     (out / "runtime-original.c").write_bytes(source_path.read_bytes())
-    driver = HERE / "fixtures" / ("land_contact_driver.c" if args.case == "land" else "airborne_idle_failsafe_driver.c")
+    driver = HERE / "fixtures" / {"land": "land_contact_driver.c",
+                                  "airborne-idle": "airborne_idle_failsafe_driver.c",
+                                  "idle-stop": "idle_stop_response_driver.c"}[args.case]
     shutil.copyfile(driver, out / "driver.c")
     shutil.copyfile(Path(__file__), out / "runner.py")
     proto = ROOT / "worlds/protos/QualificationCrazyflieR2025a.proto"
@@ -182,6 +184,18 @@ QualificationCrazyflieR2025a {{
                 "WEBEEBLOCKS_RUNTIME_V2 RESPONSE -1" in text):
             raise RuntimeError("native airborne idle attitude guard/refreshed RESET failed; inspect " + str(out))
         print("PASS native R2025a airborne idle unsafe attitude stops motors, rejects action, and RESET restores fresh access; " + str(out))
+    elif args.case == "idle-stop":
+        if (webots_code != 0 or controller_code != 0 or
+                text.count("IDLE_STOP_RESPONSE_END completed=1 failed=0 ") != 1 or
+                text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK") != 1 or
+                text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK") != 1 or
+                text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR RESET_REQUIRED") != 1 or
+                text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK") != 1 or
+                sum(line.startswith("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 VALUE ") for line in text.splitlines()) != 1 or
+                "WEBEEBLOCKS_RUNTIME_V2 RESPONSE -1" in text or
+                "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR" in text):
+            raise RuntimeError("native idle STOP emitted a stale completion or failed RESET; inspect " + str(out))
+        print("PASS native R2025a STOP after completed TAKEOFF has one ACK per id and RESET-fresh access; " + str(out))
     else:
         if (webots_code != 0 or controller_code != 0 or
                 text.count("LAND_REGRESSION_END completed=1 failed=0 ") != 1):
