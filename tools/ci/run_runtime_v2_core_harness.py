@@ -28,6 +28,12 @@ def main():
     if color_led_visual_test.returncode:
         print('FAIL Color LED deck visual contract',file=sys.stderr);print(color_led_visual_test.stdout,file=sys.stderr);print(color_led_visual_test.stderr,file=sys.stderr);return color_led_visual_test.returncode
     print(color_led_visual_test.stdout.strip())
+    # B4-I0: compile the real Qt-free FileBroker parser and prove that its
+    # browser-path protection is detected by an executable adversarial mutant.
+    file_broker_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_file_broker_native.py'],text=True,capture_output=True)
+    if file_broker_test.returncode:
+        print('FAIL B4 native project-file broker protocol',file=sys.stderr);print(file_broker_test.stdout,file=sys.stderr);print(file_broker_test.stderr,file=sys.stderr);return file_broker_test.returncode
+    print(file_broker_test.stdout.strip())
     expected_starters = {
         '01-sequence.wbb':'progression-sequence-v1',
         '02-precise-movement.wbb':'progression-precise-movement-v1',
