@@ -1,0 +1,53 @@
+# #665/#701: one authentic native negative, comparison with the signed
+# official-Webots shutdown SIGSEGV evidence #40736685323 / #12837499124.
+# Research NON-GATE: does not publish CI Gate or change source/oracles.
+name: Qt665 post-READY console-close unavailable NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-qt-console-unavailable-20261029
+permissions:
+  contents: read
+jobs:
+  reproduce-unavailable-on-corrected-webots:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5514158aa812beeb8446ed09f899dd45358e20e2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Refuse other source, nonimmutable engine or modified native case
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "5514158aa812beeb8446ed09f899dd45358e20e2"
+          python3 - <<'PY'
+          from tools.ci.run_grand_prix_u_geometry import IMAGE, SOURCE
+          assert IMAGE == 'ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          assert SOURCE == 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          PY
+          mkdir -p ci-artifacts/qt665-unavailable
+          printf 'candidate_source=%s\nimage=%s\nmode=%s\n' \
+            "5514158aa812beeb8446ed09f899dd45358e20e2" \
+            'ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca' \
+            'grand-prix-u unavailable seed=0 side=2.0' \
+            > ci-artifacts/qt665-unavailable/provenance.txt
+      - name: Execute unchanged real R2025a unavailable negative
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/run_grand_prix_u_prototype.py --suite unavailable --seed 0 --side 2.0
+      - name: Preserve complete native subject evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-unavailable-native-${{ github.sha }}
+          path: |
+            ci-artifacts/grand-prix-u/
+            ci-artifacts/qt665-unavailable/
+          if-no-files-found: error
+          retention-days: 14
