@@ -36,7 +36,7 @@ jobs:
           mkdir -p ci-artifacts/qt665-composed ci-artifacts/qt665-prebuilt-replay
           test ! -e ci-artifacts/qt665-composed/native
           cp ci-artifacts/qt665-composed-source/webots-bin ci-artifacts/qt665-composed/webots-bin
-          printf 'failed_source_run=40907399724\nfailed_artifact=12912812964\nelf_sha256=2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f\nchanged_condition=R2025a_world_assets_ro\n' > ci-artifacts/qt665-prebuilt-replay/provenance.txt
+          printf 'failed_source_run=40907399724\nfailed_artifact=12912812964\nelf_sha256=2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f\nchanged_condition=Qt665_pinned_OCI_plus_R2025a_world_assets_ro\n' > ci-artifacts/qt665-prebuilt-replay/provenance.txt
           sha256sum ci-artifacts/qt665-composed/webots-bin > ci-artifacts/qt665-prebuilt-replay/loaded-source.sha256
       - name: Native original runner provisions pinned PROTOs and executes unchanged negative
         shell: bash

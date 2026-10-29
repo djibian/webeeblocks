@@ -27,7 +27,7 @@ def digest(path):
     return h.hexdigest()
 
 def main():
-    assert IMAGE == "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+    assert IMAGE == "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca"
     assert SOURCE == "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
     assert gp.IMAGE == IMAGE
     binary = OUT / "webots-bin"
@@ -76,7 +76,7 @@ def main():
         "original_failed_run": FAILED_RUN,
         "original_failed_artifact": FAILED_ARTIFACT,
         "replayed_unchanged_elf_sha256": ELF_SHA,
-        "only_environment_fix": "Canonical pinned R2025a projects/ bind mounted read-only",
+        "environment_difference": "Pinned Qt665 R2025a OCI instead of full-link dev overlay, plus canonical R2025a projects/ bind mounted read-only; exact ELF unchanged",
         "native_result": result,
         "limits": [
             "One unavailable negative only; no full native regression",
