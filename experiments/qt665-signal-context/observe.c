@@ -44,8 +44,9 @@ __attribute__((constructor)) static void initialize(void) {
   if (strcmp(exe+n-11, "/webots-bin")) return;
   const char *path = getenv("QT665_SIGNAL_TRACE");
   if (!path) return;
-  trace_fd = open(path, O_WRONLY|O_APPEND|O_CREAT|O_CLOEXEC, 0600);
+  trace_fd = open(path, O_WRONLY|O_APPEND|O_CREAT|O_CLOEXEC, 0644);
   if (trace_fd < 0) _exit(91);
+  if (fchmod(trace_fd, 0644)) _exit(99);
   real_signal = dlsym(RTLD_NEXT, "signal");
   if (!real_signal) _exit(92);
   active = 1;
@@ -55,8 +56,9 @@ __attribute__((constructor)) static void initialize(void) {
   const char *maps = getenv("QT665_SIGNAL_MAPS");
   if (!maps) _exit(94);
   int input = open("/proc/self/maps", O_RDONLY|O_CLOEXEC);
-  int output = open(maps, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC, 0600);
+  int output = open(maps, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC, 0644);
   if (input < 0 || output < 0) _exit(95);
+  if (fchmod(output, 0644)) _exit(99);
   char buffer[4096];
   while ((n = read(input, buffer, sizeof(buffer))) > 0) {
     if (write(output, buffer, n) != n) _exit(96);
