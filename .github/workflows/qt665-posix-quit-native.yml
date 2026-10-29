@@ -1,0 +1,115 @@
+# Experimental native qualification only; unrelated to canonical CI Gate.
+name: QT665 POSIX quit true source object + Qt handler probe NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-posix-quit-native-20261029
+permissions:
+  contents: read
+jobs:
+  patched-native-object-and-qt6-harness:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          fetch-depth: 1
+          persist-credentials: false
+          path: upstream-webots
+          sparse-checkout: |
+            src/webots
+            include
+            resources/Makefile.os.include
+          sparse-checkout-cone-mode: false
+      - name: Pin exact upstream and record source-only static qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C upstream-webots rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+          test "$(git -C upstream-webots hash-object src/webots/gui/main.cpp)" = "d578afa7cbd27ea13fd9ca0583f5e12170c6fba3"
+          python3 experiments/qt665-posix-signal-safe/qualify_signal_safe_source.py --upstream-tree upstream-webots
+          mkdir -p ci-artifacts/qt665-posix-native
+          git rev-parse HEAD > ci-artifacts/qt665-posix-native/experiment-head.txt
+          sha256sum experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch > ci-artifacts/qt665-posix-native/patch.sha256
+      - name: Build disposable official R2025a development overlay
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker pull 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker build --pull=false -t qt665-posix-native-dev - <<'EOF'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libxcb-cursor0 xvfb xauth && rm -rf /var/lib/apt/lists/*
+          EOF
+      - name: Compile unmodified genuine Webots main.cpp against pinned Qt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm -v "$PWD:/workspace" -w /workspace qt665-posix-native-dev bash -lc '
+            set -Eeuo pipefail
+            root=/usr/local/webots
+            dir=/workspace/upstream-webots/src/webots
+            include=(-I"$dir" -I/workspace/upstream-webots/include -I"$root/include" -I"$root/include/qt")
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util wren; do include+=(-I"$dir/$p"); done
+            for p in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$p"); done
+            for p in wren ode controller/c; do include+=(-I"/workspace/upstream-webots/include/$p"); done
+            include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
+            g++ --version | head -1
+            g++ -std=c++17 -DQT_NO_DEBUG -fPIC -c "${include[@]}" "$dir/gui/main.cpp" -o /workspace/ci-artifacts/qt665-posix-native/original-main.o
+            sha256sum /workspace/ci-artifacts/qt665-posix-native/original-main.o
+            sha256sum "$root/lib/webots/libQt6Core.so.6.5.3" "$root/lib/webots/libQt6Gui.so.6.5.3" "$root/lib/webots/libQt6Widgets.so.6.5.3" > /workspace/ci-artifacts/qt665-posix-native/qt-libraries.sha256
+          ' 2>&1 | tee ci-artifacts/qt665-posix-native/original-compile.log
+      - name: Apply exact source patch only to disposable upstream source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch"
+          git -C upstream-webots diff --check
+          test "$(git -C upstream-webots diff --name-only)" = "src/webots/gui/main.cpp"
+          python3 experiments/qt665-posix-signal-safe/native_probe.py --generate --patched-source upstream-webots/src/webots/gui/main.cpp --harness-out ci-artifacts/qt665-posix-native/signal-harness.cpp
+      - name: Compile patched genuine Webots main.cpp and execute exact Qt 6.5.3 POSIX fragments
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm -v "$PWD:/workspace" -w /workspace qt665-posix-native-dev bash -lc '
+            set -Eeuo pipefail
+            root=/usr/local/webots
+            dir=/workspace/upstream-webots/src/webots
+            out=/workspace/ci-artifacts/qt665-posix-native
+            include=(-I"$dir" -I/workspace/upstream-webots/include -I"$root/include" -I"$root/include/qt")
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util wren; do include+=(-I"$dir/$p"); done
+            for p in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$p"); done
+            for p in wren ode controller/c; do include+=(-I"/workspace/upstream-webots/include/$p"); done
+            include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
+            g++ -std=c++17 -DQT_NO_DEBUG -fPIC -c "${include[@]}" "$dir/gui/main.cpp" -o "$out/patched-main.o"
+            sha256sum "$out/patched-main.o"
+            test "$(sha256sum "$out/patched-main.o" | cut -d" " -f1)" != "$(sha256sum "$out/original-main.o" | cut -d" " -f1)"
+            gcc -O2 -fPIC -shared -Wall -Wextra -Werror /workspace/experiments/qt665-posix-signal-safe/observe.c -o "$out/observe.so" -ldl
+            export LD_LIBRARY_PATH="$root/lib/webots:${LD_LIBRARY_PATH:-}"
+            g++ -std=c++17 -fPIC -DQT_NO_DEBUG -rdynamic \
+              -I"$root/include/qt" -I"$root/include/qt/QtCore" -I"$root/include/qt/QtGui" -I"$root/include/qt/QtWidgets" \
+              "$out/signal-harness.cpp" -L"$root/lib/webots" \
+              -Wl,-rpath,"$root/lib/webots" -lQt6Widgets -lQt6Gui -lQt6Core \
+              -o "$out/webots-bin"
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$root/lib/webots/qt/plugins/platforms"
+            timeout -k 5s 35s xvfb-run -a env QT_QPA_PLATFORM=xcb \
+              LD_PRELOAD="$out/observe.so" QT665_SIGNAL_TRACE="$out/trace.bin" \
+              QT665_SIGNAL_MAPS="$out/loader-maps.txt" \
+              "$out/webots-bin"
+          ' 2>&1 | tee ci-artifacts/qt665-posix-native/qt-harness.log
+          python3 experiments/qt665-posix-signal-safe/native_probe.py --verify \
+            --trace ci-artifacts/qt665-posix-native/trace.bin \
+            --log ci-artifacts/qt665-posix-native/qt-harness.log \
+            --result-out ci-artifacts/qt665-posix-native/RESULT.json
+      - name: Archive native objects, verified observer and Qt harness logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-posix-quit-native-${{ github.sha }}
+          path: ci-artifacts/qt665-posix-native/
+          if-no-files-found: error
+          retention-days: 14
