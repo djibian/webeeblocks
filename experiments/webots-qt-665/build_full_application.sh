@@ -54,6 +54,16 @@ for lib in OIS pico assimp; do
 done
 git apply "$experiment/webots-r2025a-guarded-progress-retirement.patch"
 python3 "$experiment/repair_parent_shutdown.py" --webots-tree "$source_tree" | tee "$evidence/shutdown-lease-application.log"
+# Exact upstream POSIX callback repair, independent of the Qt parent progress lease.
+test "$(git -C "$source_tree" hash-object src/webots/gui/main.cpp)" = d578afa7cbd27ea13fd9ca0583f5e12170c6fba3
+signal_patch="$experiment/../qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch"
+echo "d14be0c1f1906d019d0e6998b1977a18ac15953e7c0e2db953238276debe7359  $signal_patch" | sha256sum -c -
+git -C "$source_tree" apply --check "$signal_patch"
+git -C "$source_tree" apply "$signal_patch"
+sha256sum "$signal_patch" > "$evidence/posix-signal-patch.sha256"
+git -C "$source_tree" diff -- src/webots/gui/main.cpp > "$evidence/applied-posix-main.patch"
+grep -q "QSocketNotifier quitNotifier" "$source_tree/src/webots/gui/main.cpp"
+grep -q "gQuitNotificationFd = quitPipe\[1\]" "$source_tree/src/webots/gui/main.cpp"
 git diff --binary > "$evidence/applied.patch"
 sha256sum "$experiment/webots-r2025a-guarded-progress-retirement.patch" > "$evidence/patch.sha256"
 find include/qt -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/qt-headers.sha256"
