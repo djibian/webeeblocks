@@ -1,0 +1,2 @@
+{"error": null, "log": "GP_U_RESULT valid-negative\n", "mode": "clean", "returncode": 0, "runtime_cleanup": 1, "sealed": true, "startup_cleanup": 1, "world_removed": true}
+{"error": null, "log": "GP_U_RESULT valid-negative\nmalloc(): corrupted top size\n", "mode": "abort", "returncode": -6, "runtime_cleanup": 1, "sealed": true, "startup_cleanup": 1, "world_removed": true}
