@@ -21,7 +21,7 @@ from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
 from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
-from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
+from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash, require_no_fatal_exit_statuses
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def has_native_land_completion(text):
@@ -256,6 +256,14 @@ def retire_trial(children, log, startup, streams, runtime_state, out, target):
             failures.append((stage, error))
 
     attempt('stop_groups', lambda: stop_groups(children))
+    # Record direct launch-process exits only. Webots-internal controller
+    # processes are not child Popen objects; do not infer their status here.
+    attempt('record_direct_process_exits', lambda: (
+        (out / 'direct-process-exits.json').write_text(json.dumps([
+            {'index': index, 'pid': child.pid, 'returncode': child.returncode}
+            for index, child in enumerate(children)
+        ], indent=2) + '\n')))
+    attempt('fatal_direct_exit', lambda: require_no_fatal_exit_statuses(children))
     # A wrapper exit does not prove inherited stdout retirement (#665/#715).
     # Checking for late native crashes is meaningful only after collector EOF.
     if log is not None:

@@ -82,7 +82,7 @@ class NativeTrialTeardownTests(unittest.TestCase):
         target = root/'ci_gp_u_flight_sample.wbt'
         target.write_text('synthetic world')
         target.with_name('.' + target.stem + '.wbproj').write_text('synthetic project')
-        children = [Mock(pid=4242)]
+        children = [Mock(pid=4242, returncode=0)]
         log = Mock()
         startup = Mock()
         streams = [Mock(), Mock()]
@@ -107,8 +107,33 @@ class NativeTrialTeardownTests(unittest.TestCase):
             manifest = json.loads((out/'sha256.json').read_text())
             self.assertEqual(manifest['webots.log'],
                              hashlib.sha256((out/'webots.log').read_bytes()).hexdigest())
-            self.assertEqual(list(manifest), ['webots.log'])
+            self.assertEqual(set(manifest), {'webots.log', 'direct-process-exits.json'})
+            direct = json.loads((out/'direct-process-exits.json').read_text())
+            self.assertEqual(direct, [{'index': 0, 'pid': 4242, 'returncode': 0}])
+            self.assertEqual(manifest['direct-process-exits.json'],
+                             hashlib.sha256((out/'direct-process-exits.json').read_bytes()).hexdigest())
             self.assertFalse((out/'teardown-failures.json').exists())
+
+    def test_fatal_direct_child_exit_refuses_seal_and_preserves_cleanup(self):
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            children[0].returncode = -signal.SIGABRT
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups') as stop:
+                with self.assertRaisesRegex(RuntimeError, 'fatal_direct_exit'):
+                    retire_trial(children, log, startup, streams, runtime, out, target)
+            stop.assert_called_once_with(children)
+            log.finish.assert_called_once_with()
+            startup.after_cleanup.assert_called_once_with(4242)
+            runtime.cleanup.assert_called_once_with()
+            for stream in streams:
+                stream.close.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse((out/'sha256.json').exists())
+            self.assertEqual(json.loads((out/'direct-process-exits.json').read_text()),
+                             [{'index': 0, 'pid': 4242, 'returncode': -signal.SIGABRT}])
+            failures = json.loads((out/'teardown-failures.json').read_text())
+            self.assertEqual([item['stage'] for item in failures], ['fatal_direct_exit'])
 
     def test_stdout_eof_timeout_does_not_skip_diagnostics_or_runtime_cleanup(self):
         from tools.ci.run_grand_prix_u_prototype import retire_trial
