@@ -280,11 +280,11 @@ class RunningConsumerTests(unittest.TestCase):
             # ptrace/Yama policy may forbid reading /proc/<parent>/exe,
             # which would obscure this exact negative with PermissionError.
             launcher = (
-                'import os, runpy, sys\\n'
-                'script, home, manifest = sys.argv[1:]\\n'
+                "import os, runpy, sys; "
+                "script, home, manifest = sys.argv[1:]; "
                 "sys.argv = [script, '--runtime-home', home, '--pid', "
-                "str(os.getpid()), '--manifest', manifest]\\n"
-                "runpy.run_path(script, run_name='__main__')\\n"
+                "str(os.getpid()), '--manifest', manifest]; "
+                "runpy.run_path(script, run_name='__main__')"
             )
             cmd = [sys.executable, '-c', launcher,
                    str(Path(probe.__file__)), str(home), str(manifest)]
