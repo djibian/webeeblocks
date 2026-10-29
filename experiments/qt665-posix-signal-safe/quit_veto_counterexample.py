@@ -58,14 +58,20 @@ int main(int argc,char **argv) {
 endmain=r"""
  QTimer::singleShot(0,&app,[]{++sent; if(raise(SIGTERM))std::_Exit(52);});
  if(veto)QTimer::singleShot(120,&app,[]{++sent; if(raise(SIGTERM))std::_Exit(53);});
- QTimer::singleShot(650,&app,[]{QCoreApplication::quit();});
+ QTimer::singleShot(500,&app,[&] {
+   std::printf("BEFORE_EXIT MODE=%s SENT=%d REQUESTS=%d CLOSES=%d VISIBLE=%d\\n",
+       veto?"veto":"normal",sent,requests,attempts,(int)window.isVisible());
+   std::fflush(stdout);
+   bool lost=veto&&sent==2&&requests==1&&attempts==1&&window.isVisible();
+   if(lost) std::puts("CANCEL_SECOND_SIGTERM_SWALLOWED=OBSERVED");
+   QCoreApplication::exit(lost?0:55);
+ });
  int rc=app.exec();
- std::printf("MODE=%s SENT=%d REQUESTS=%d CLOSES=%d VISIBLE=%d RC=%d\n",
+ std::printf("AFTER_EXIT MODE=%s SENT=%d REQUESTS=%d CLOSES=%d VISIBLE=%d RC=%d\n",
      veto?"veto":"normal",sent,requests,attempts,(int)window.isVisible(),rc);
- bool positive=!veto&&sent==1&&requests==1&&attempts==1&&!window.isVisible();
- bool lost=veto&&sent==2&&requests==1&&attempts==1&&window.isVisible();
+ if(veto) return rc; // Counterexample assertion was recorded pre-teardown.
+ bool positive=sent==1&&requests==1&&attempts==1&&!window.isVisible();
  if(positive){std::puts("NORMAL_QUIT=PASS");return 0;}
- if(lost){std::puts("CANCEL_SECOND_SIGTERM_SWALLOWED=OBSERVED");return 0;}
  return 54;
 }
 """
