@@ -1,7 +1,6 @@
 name: QT665 veto after SIGTERM source-bound Qt6 counterexample NON-GATE
 on:
-  push:
-    branches: [evidence/665-posix-veto-retry-20261029]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
