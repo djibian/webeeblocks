@@ -167,7 +167,7 @@ def inventory(root: Path) -> dict:
         text = path.read_text(encoding="utf-8")
         result[path.name] = {
             "lines": len(text.splitlines()),
-            "explicit_docker_pull": text.count("docker pull cyberbotics/webots:R2025a-ubuntu22.04"),
+            "explicit_docker_pull": text.count("docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca"),
             "apt_get_update": text.count("apt-get update"),
             "runtime_asset_preparation_refs": text.count("prepare_runtime_v2"),
         }

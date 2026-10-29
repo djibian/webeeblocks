@@ -1,0 +1,90 @@
+{
+  "claim": "static-export-parser-truncation-only-not-native-ABI-qualification",
+  "build_artifact": 12695533700,
+  "archive_sha256": "86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e",
+  "dlls": {
+    "Qt6Core.dll": {
+      "sha256": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179",
+      "imports": 633,
+      "scans": [
+        {
+          "cap": 8192,
+          "declared_names": 6817,
+          "parsed_unique_names": 6817,
+          "missing_imports": [],
+          "warnings": []
+        },
+        {
+          "cap": 65536,
+          "declared_names": 6817,
+          "parsed_unique_names": 6817,
+          "missing_imports": [],
+          "warnings": []
+        }
+      ]
+    },
+    "Qt6Gui.dll": {
+      "sha256": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660",
+      "imports": 331,
+      "scans": [
+        {
+          "cap": 8192,
+          "declared_names": 8895,
+          "parsed_unique_names": 8192,
+          "missing_imports": [
+            "_ZTV6QImage",
+            "_ZTV7QPixmap",
+            "_ZThn16_NK7QWindow11surfaceTypeEv",
+            "_ZThn16_NK7QWindow13surfaceHandleEv",
+            "_ZThn16_NK7QWindow6formatEv",
+            "_Zls6QDebugRK5QIcon",
+            "_Zls6QDebugRK6QColor",
+            "_ZlsR11QDataStreamRK5QIcon",
+            "_ZlsR11QDataStreamRK6QColor",
+            "_ZrsR11QDataStreamR5QIcon",
+            "_ZrsR11QDataStreamR6QColor"
+          ],
+          "warnings": [
+            "Export directory contains more than 8192 symbol entries. Assuming corrupt."
+          ]
+        },
+        {
+          "cap": 65536,
+          "declared_names": 8895,
+          "parsed_unique_names": 8895,
+          "missing_imports": [],
+          "warnings": []
+        }
+      ]
+    },
+    "Qt6Widgets.dll": {
+      "sha256": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89",
+      "imports": 817,
+      "scans": [
+        {
+          "cap": 8192,
+          "declared_names": 8463,
+          "parsed_unique_names": 8192,
+          "missing_imports": [
+            "_ZThn16_NK7QWidget10redirectedEP6QPoint",
+            "_ZThn16_NK7QWidget11initPainterEP8QPainter",
+            "_ZThn16_NK7QWidget11paintEngineEv",
+            "_ZThn16_NK7QWidget13sharedPainterEv",
+            "_ZThn16_NK7QWidget6metricEN12QPaintDevice17PaintDeviceMetricE",
+            "_ZThn16_NK7QWidget7devTypeEv"
+          ],
+          "warnings": [
+            "Export directory contains more than 8192 symbol entries. Assuming corrupt."
+          ]
+        },
+        {
+          "cap": 65536,
+          "declared_names": 8463,
+          "parsed_unique_names": 8463,
+          "missing_imports": [],
+          "warnings": []
+        }
+      ]
+    }
+  }
+}

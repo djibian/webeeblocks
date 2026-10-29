@@ -334,6 +334,26 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(result.runtime)
         self.assertTrue(result.webots)
 
+    def test_webots_qt_lifetime_candidate_requires_full_product_ci(self) -> None:
+        # A source patch kept under experiments/ still affects native consumers.
+        # Do not allow a Ready CI Gate with Runtime/Grand Prix silently skipped.
+        for path in (
+            "experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch",
+            "experiments/webots-qt-665/repair_parent_shutdown.py",
+            "experiments/webots-qt-665/qt665_parent_counterprobe.py",
+        ):
+            with self.subTest(path=path):
+                result = select([path])
+                self.assertTrue(result.runtime)
+                self.assertTrue(result.webots)
+                self.assertTrue(result.full)
+
+        # Do not broaden all unrelated research experiments to full coverage.
+        other = select(["experiments/other-research/observations.py"])
+        self.assertFalse(other.runtime)
+        self.assertTrue(other.webots)
+        self.assertFalse(other.full)
+
     def test_workflow_change_is_full(self) -> None:
         result = select([".github/workflows/ci.yml"])
         self.assertTrue(result.runtime)

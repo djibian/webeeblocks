@@ -1,0 +1,409 @@
+#!/usr/bin/env python3
+"""Bounded NON-GATE Windows product startup on the disposable #665 runtime.
+
+Uses the unchanged classroom archive from canonical run 40386450869 (source
+1899293f458f6497dd1c0c024231173bb84f44fe). No flight/program is submitted.
+This is neither current-main acceptance nor a distributable Webots package.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+# SHA-256 of the real corrected Windows R2025a engine built in run 40415782024.
+# The digest from pe.sha256 is self-declared by its artifact and is NOT an
+# authority: a matching archive/installation pair could both be unqualified.
+QUALIFIED_WINDOWS_PE_SHA256 = '52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+# Exact MANIFEST.sha256 in canonical 75-file classroom package run 40386450869.
+# Per-entry integrity checks alone cannot authenticate a self-signed archive.
+QUALIFIED_CLASSROOM_MANIFEST_SHA256 = '000ac88a8f56e0337d9243c13faa226fcc2c8bc434b445899013d7df8ba8efc4'
+
+
+# Exact DLL bytes from the genuine three-process Windows startup report,
+# NON-GATE run 40470490820. A coincidentally matching SDK and installation are
+# not sufficient: both must also match these independently retained identities.
+QUALIFIED_WINDOWS_MODULE_SHA256 = {
+    'Qt6Core.dll': '85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179',
+    'Qt6Gui.dll': 'b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660',
+    'Qt6Widgets.dll': 'ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89',
+    'libstdc++-6.dll': '494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff',
+    'libgcc_s_seh-1.dll': 'd7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7',
+    'libwinpthread-1.dll': '72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0',
+    'qwindows.dll': '9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1',
+    'libopenal-1.dll': 'cb97d2f5a9797ff64db90d0691e4ff9eb2a088026351c9bad7aa26d229a354ce',
+    'Controller.dll': '756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039',
+}
+
+
+def require_pinned_component(name, source):
+    expected = QUALIFIED_WINDOWS_MODULE_SHA256.get(name)
+    if expected is None:
+        raise ValueError('Unqualified Windows module: ' + name)
+    if sha256(source) != expected:
+        raise ValueError('Windows module differs from qualified native startup: ' + name)
+    return expected
+
+
+def attest_qualified_pe(artifact, installed):
+    record = (artifact / 'pe.sha256').read_text(encoding='ascii').strip().split()
+    if len(record) not in (1, 2) or not re.fullmatch(r'[0-9a-f]{64}', record[0]):
+        raise ValueError('Malformed corrected PE digest record')
+    if record[0] != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('PE digest is not the independently qualified corrected Windows build')
+    if sha256(artifact / 'webots-bin.exe') != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('Corrected PE artifact bytes differ from qualified Windows build')
+    if sha256(installed) != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('Installed Webots PE bytes differ from qualified Windows build')
+    return QUALIFIED_WINDOWS_PE_SHA256
+
+
+def verify_package(root):
+    manifest = root / 'MANIFEST.sha256'
+    manifest_hash = sha256(manifest)
+    if manifest_hash != QUALIFIED_CLASSROOM_MANIFEST_SHA256:
+        raise ValueError('Classroom manifest is not the exact canonical archive')
+    entries = {}
+    for line in manifest.read_text(encoding='utf-8-sig').splitlines():
+        match = re.fullmatch(r'([a-f0-9]{64})  (.+)', line)
+        if not match:
+            raise ValueError('Malformed classroom manifest')
+        digest, name = match.groups()
+        path = (root / name).resolve(strict=True)
+        if not path.is_relative_to(root) or name.casefold() in entries:
+            raise ValueError('Escaping or duplicate manifest entry')
+        if sha256(path) != digest:
+            raise ValueError(f'Wrong classroom bytes: {name}')
+        entries[name.casefold()] = digest
+    actual = {p.relative_to(root).as_posix().casefold() for p in root.rglob('*') if p.is_file()}
+    listed = {name.replace('\\', '/') for name in entries}
+    if actual != listed | {'manifest.sha256'}:
+        raise ValueError('Classroom manifest inventory differs from extracted files')
+    world = root / 'worlds/crazyflie_runtime_v2.wbt'
+    if 'DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {' not in world.read_text(encoding='utf-8-sig'):
+        raise ValueError('The untouched classroom neutral world is required')
+    return {'files': len(entries), 'manifest_sha256': manifest_hash}
+
+
+def engine_environment(home, ambient):
+    env = {k.upper(): v for k, v in ambient.items()}
+    for key in list(env):
+        if key.startswith(('QT_', 'QML', 'PYTHON', 'WEBOTS', 'WEBEEBLOCKS', 'QT665')):
+            del env[key]
+    system = Path(env['SYSTEMROOT'])
+    env['PATH'] = os.pathsep.join(str(p) for p in (
+        home / 'msys64/mingw64/bin', home / 'msys64/mingw64/bin/cpp',
+        home / 'msys64/usr/bin', system / 'System32', system))
+    env['WEBOTS_HOME'] = str(home)
+    env['WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE'] = 'true'
+    return env
+
+
+def attest_modules(mapped_paths, required, sdk):
+    """Check exact mapped paths and bytes; a DLL basename alone proves nothing."""
+    paths = {Path(p).resolve() for p in mapped_paths}
+    sdk_root = sdk.parent.parent.resolve()
+    if any(p.is_relative_to(sdk_root) for p in paths):
+        raise ValueError('A native process depends on the external SDK')
+    result = {}
+    for name, (expected, digest) in required.items():
+        matches = [p for p in paths if p.name.casefold() == name.casefold()]
+        if not matches:
+            raise LookupError(f'Module not observed: {name}')
+        if len(matches) != 1 or matches[0] != expected.resolve():
+            raise ValueError(f'Wrong mapped path for {name}: {matches}')
+        if sha256(matches[0]) != digest:
+            raise ValueError(f'Wrong mapped bytes for {name}')
+        result[name] = {'path': str(matches[0]), 'sha256': digest}
+    return result
+
+
+def attest_native_abi_family_locations(mapped_paths, runtime_home, verified_modules=()):
+    """Reject foreign Qt/MinGW/Controller modules, even when not in required.
+
+    Required DLLs have independently pinned hashes in attest_modules().
+    Additional same-runtime family modules are reported, not claimed to have
+    independently qualified hashes or complete C++ ABI compatibility.
+    """
+    root = runtime_home.resolve(strict=True)
+    observed = {}
+    pinned_hashes = {name.casefold(): digest
+                     for name, digest in QUALIFIED_WINDOWS_MODULE_SHA256.items()}
+    verified = {name.casefold() for name in verified_modules}
+    for raw in mapped_paths:
+        path = Path(raw)
+        name = path.name.casefold()
+        if not name.endswith('.dll'):
+            continue
+        is_native_family = (name.startswith(('qt6', 'libstdc++', 'libgcc_s_',
+                                              'libwinpthread-', 'libopenal-'))
+                            or name in ('qwindows.dll', 'controller.dll'))
+        if not is_native_family:
+            continue
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(root):
+            raise ValueError('Native ABI-family DLL loaded outside pinned Webots runtime: ' + name)
+        if name in observed and observed[name]['path'] != str(resolved):
+            raise ValueError('Multiple native ABI-family DLL paths: ' + name)
+        # attest_modules() has already checked the pinned bytes of required
+        # modules. Verify any *additional* known module, rather than treating
+        # a recognised basename alone as proof of authentic loaded bytes.
+        if name in pinned_hashes and name not in verified and sha256(resolved) != pinned_hashes[name]:
+            raise ValueError('Native ABI-family DLL bytes differ from qualified reference: ' + name)
+        observed[name] = {'path': str(resolved),
+                          'qualified_digest_verified': name in pinned_hashes}
+    return dict(sorted(observed.items()))
+
+
+def unique_native_snapshot(qualified_rows):
+    """Use only this poll's attested processes; reject duplicate native roles."""
+    snapshot = {}
+    for role, record in qualified_rows:
+        if role in snapshot:
+            raise ValueError('Duplicate native process role: ' + role)
+        snapshot[role] = record
+    return snapshot
+
+
+def advance_native_stability(ready, snapshot, previous_identity, stable_since, now):
+    """Require the SAME attested native PIDs and creation times for the full window.
+
+    A replaced controller is not continuous startup, even if all three roles
+    were observed again and historical READY remains in the log.
+    """
+    if not ready:
+        return None, None
+    identity = tuple(sorted((role, row['pid'], row['create_time'])
+                            for role, row in snapshot.items()))
+    if identity != previous_identity or stable_since is None:
+        return identity, now
+    return identity, stable_since
+
+
+def attest_native_engine_argv(observed, launcher_command, expected_engine):
+    """Bind the loaded Webots PE to the exact classroom world, port and flags.
+
+    An attested executable and its DLLs are not proof that the engine opened
+    the world passed to webots.exe. The historical Windows native process
+    (windows-startup-native.json) forwards the launcher arguments unchanged.
+    Refuse any difference, including missing/duplicate world or port options.
+    """
+    if not observed or Path(observed[0]).resolve() != expected_engine.resolve():
+        raise ValueError('Unexpected native Webots argv executable')
+    if observed[1:] != launcher_command[1:]:
+        raise ValueError('Native Webots arguments differ from classroom launch')
+
+
+def require_unchanged_ready_generation(snapshot, first_ready_generation):
+    """Do not reuse a historical READY line after any native role is replaced.
+
+    The shared launcher logs retain READY even after a child terminates. A new
+    engine/controller cohort needs its own correlated READY evidence, which this
+    bounded probe cannot establish; reject rather than award another 2 s window.
+    """
+    generation = tuple(sorted((role, row['pid'], row['create_time'])
+                              for role, row in snapshot.items()))
+    if first_ready_generation is not None and generation != first_ready_generation:
+        raise RuntimeError('Native process generation changed after READY; stale READY cannot qualify replacement')
+    return generation
+
+
+def process_role(name, command_line):
+    if name == 'webots-bin.exe':
+        return name
+    if name == 'crazyflie_runtime_v2.exe':
+        if len(command_line) == 1:
+            return 'runtime'
+        if len(command_line) == 2 and command_line[1] == 'sequence-evaluator-v1':
+            return 'sequence-evaluator'
+        raise ValueError('Unexpected classroom controller arguments')
+    return None
+
+
+def run(args):
+    import psutil  # Host observer only. Never added to the product environment.
+    if sys.platform != 'win32':
+        raise RuntimeError('This probe requires genuine Windows process observations')
+    home, package, artifact, sdk = (p.resolve(strict=True) for p in (
+        args.home, args.package, args.pe_artifact, args.sdk))
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    report = {'claim': 'unchanged-canonical-classroom-runtime-startup-on-disposable-patched-Windows',
+              'classroom_source_sha': '1899293f458f6497dd1c0c024231173bb84f44fe',
+              'classroom_run': 40386450869, 'classroom_artifact': 12681442366,
+              'status': 'FAIL', 'processes': {}}
+    process = None
+    observed = {}
+    threads = []
+    capture_errors = []
+    try:
+        report['package'] = verify_package(package)
+        bin_dir = home / 'msys64/mingw64/bin'
+        pe_hash = attest_qualified_pe(artifact, bin_dir / 'webots-bin.exe')
+        shared = {}
+        for name in ('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'libstdc++-6.dll',
+                     'libgcc_s_seh-1.dll', 'libwinpthread-1.dll'):
+            shared[name] = (bin_dir / name, require_pinned_component(name, sdk / name))
+        qwindows = home / 'msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll'
+        plugin_source = sdk.parent / 'share/qt6/plugins/platforms/qwindows.dll'
+        engine_required = dict(shared, **{'webots-bin.exe': (bin_dir / 'webots-bin.exe', pe_hash),
+            'qwindows.dll': (qwindows, require_pinned_component('qwindows.dll', plugin_source)),
+            'libopenal-1.dll': (bin_dir / 'libopenal-1.dll', require_pinned_component('libopenal-1.dll', sdk / 'libopenal-1.dll'))})
+        controller = package / 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.exe'
+        controller_required = dict(shared)
+        controller_required.update({'crazyflie_runtime_v2.exe': (controller, sha256(controller)),
+                                   'Controller.dll': (home / 'lib/controller/Controller.dll',
+                                                      require_pinned_component('Controller.dll', home / 'lib/controller/Controller.dll'))})
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        env = engine_environment(home, os.environ)
+        command = [str(bin_dir / 'webots.exe'), '--stdout', '--stderr', '--batch',
+                   '--mode=fast', f'--port={port}', str(package / 'worlds/crazyflie_runtime_v2.wbt')]
+        report.update(command=command, path=env['PATH'], sdk_excluded=str(sdk.parent.parent))
+
+        def drain(stream, filename):
+            try:
+                with stream, (output / filename).open('wb') as target:
+                    while chunk := stream.read1(65536):
+                        target.write(chunk)
+                        target.flush()
+            except Exception as exc:
+                capture_errors.append(str(exc))
+
+        process = subprocess.Popen(command, cwd=package, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        root = psutil.Process(process.pid)
+        root_time = root.create_time()
+        report['launcher'] = {'pid': root.pid, 'create_time': root_time, 'exe': root.exe()}
+        for stream, filename in ((process.stdout, 'stdout.log'), (process.stderr, 'stderr.log')):
+            thread = threading.Thread(target=drain, args=(stream, filename), daemon=True)
+            thread.start()
+            threads.append(thread)
+        deadline = time.monotonic() + 45
+        stable_since = None
+        stable_identity = None
+        first_ready_generation = None
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f'Webots launcher exited: {process.returncode:#x}')
+            if root.create_time() != root_time:
+                raise RuntimeError('Launcher process identity changed')
+            qualified_rows = []
+            incomplete_snapshot = False
+            for child in root.children(recursive=True):
+                try:
+                    identity = (child.pid, child.create_time())
+                    observed[identity] = child
+                    name = child.name().casefold()
+                    if name not in ('webots-bin.exe', 'crazyflie_runtime_v2.exe'):
+                        continue
+                    command_line = child.cmdline()
+                    role = process_role(name, command_line)
+                    if name == 'webots-bin.exe':
+                        attest_native_engine_argv(command_line, command, bin_dir / name)
+                    expected = engine_required if name == 'webots-bin.exe' else controller_required
+                    expected_exe = bin_dir / name if name == 'webots-bin.exe' else controller
+                    if Path(child.exe()).resolve() != expected_exe.resolve():
+                        raise ValueError('Wrong native executable path')
+                    mapped_paths = [m.path for m in child.memory_maps()]
+                    modules = attest_modules(mapped_paths, expected, sdk)
+                    abi_families = attest_native_abi_family_locations(
+                        mapped_paths, home, verified_modules=modules)
+                    graphics = {path: sha256(Path(path)) for path in mapped_paths
+                                if Path(path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
+                    qualified_rows.append((role, {'pid': child.pid, 'create_time': identity[1],
+                        'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules,
+                        'graphics_modules': graphics, 'native_abi_family_locations': abi_families,
+                        'command_line': command_line}))
+                except (psutil.NoSuchProcess, psutil.AccessDenied, LookupError):
+                    # An incomplete observation cannot qualify this poll.
+                    incomplete_snapshot = True
+                    continue
+            report['processes'] = unique_native_snapshot(qualified_rows)
+            logs = '\n'.join((output / f).read_text(errors='replace') if (output / f).is_file() else ''
+                             for f in ('stdout.log', 'stderr.log'))
+            report['ready_observed'] = bool(re.search(r'WEBEEBLOCKS_RUNTIME_V2 READY(?:\s|$)', logs))
+            ready = (not incomplete_snapshot and report['ready_observed'] and
+                     set(report['processes']) == {'webots-bin.exe', 'runtime', 'sequence-evaluator'})
+            if ready:
+                engine = report['processes']['webots-bin.exe']
+                if (engine['ppid'] != process.pid or
+                        any(report['processes'][role]['ppid'] != engine['pid'] for role in ('runtime', 'sequence-evaluator'))):
+                    raise RuntimeError('Unexpected launcher/engine/controller ancestry')
+                for row in report['processes'].values():
+                    live = psutil.Process(row['pid'])
+                    if live.create_time() != row['create_time'] or not live.is_running():
+                        raise RuntimeError('A qualified process exited or was replaced')
+                first_ready_generation = require_unchanged_ready_generation(
+                    report['processes'], first_ready_generation)
+                stable_identity, stable_since = advance_native_stability(
+                    True, report['processes'], stable_identity, stable_since, time.monotonic())
+                if time.monotonic() - stable_since >= 2:
+                    if re.search(r'^ERROR:|Traceback \(most recent call last\)', logs, re.MULTILINE):
+                        raise RuntimeError('Native startup logged an error')
+                    report['status'] = 'PASS_BOUNDED_STARTUP_ONLY'
+                    return
+            else:
+                stable_identity, stable_since = advance_native_stability(
+                    False, report['processes'], stable_identity, stable_since, time.monotonic())
+            time.sleep(.15)
+        raise RuntimeError('Native classroom READY and complete loaded-module identity not established within 45 s')
+    except Exception as exc:
+        report['error'] = f'{type(exc).__name__}: {exc}'
+        raise
+    finally:
+        cleanup_errors = []
+        if process is not None:
+            # Only the launched tree/observed same-identity descendants; no name-wide kill.
+            try:
+                root = psutil.Process(process.pid)
+                for child in root.children(recursive=True):
+                    observed[(child.pid, child.create_time())] = child
+            except psutil.NoSuchProcess:
+                pass
+            for identity, child in reversed(list(observed.items())):
+                try:
+                    if child.create_time() == identity[1]:
+                        child.kill()
+                        child.wait(timeout=10)
+                except psutil.NoSuchProcess:
+                    pass
+                except Exception as exc:
+                    cleanup_errors.append(str(exc))
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=10)
+            for thread in threads:
+                thread.join(timeout=10)
+            if any(t.is_alive() for t in threads):
+                cleanup_errors.append('Output pipes did not close')
+        report['capture_errors'] = capture_errors
+        report['cleanup_errors'] = cleanup_errors
+        if capture_errors or cleanup_errors:
+            report['status'] = 'FAIL'
+        (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
+        if capture_errors or cleanup_errors:
+            raise RuntimeError('Capture or cleanup incomplete')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    for flag in ('home', 'package', 'pe-artifact', 'sdk', 'output'):
+        parser.add_argument('--' + flag, required=True, type=Path)
+    run(parser.parse_args())
+    print('QT665_WINDOWS_PACKAGED_RUNTIME_STARTUP=PASS_BOUNDED_ONLY')

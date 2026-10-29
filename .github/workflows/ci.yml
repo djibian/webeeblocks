@@ -234,6 +234,7 @@ jobs:
           python3 tools/ci/test_localize_webots_world.py
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
+          python3 experiments/webots-qt-665/test_probe_windows_packaged_runtime.py
           python3 tools/ci/test_controller_contract.py
           # Metrics on real saved Blockly workspaces must have exact-HEAD CI evidence.
           python3 tools/ci/test_measure_wbb.py
