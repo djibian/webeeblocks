@@ -92,6 +92,22 @@ jobs:
               report['frames'][name]={'gdb_runtime_pc':hex(runtime),
                  'elf_pc':hex(pc),'nearest_previous_export':[hex(prior[-1][0]),prior[-1][1]],
                  'distance_from_export':pc-prior[-1][0],'bounded_disassembly':disasm}
+          # The two unknown QtWidgets return PCs must both be the
+          # machine-instruction fall-through of the precise Qt append calls.
+          # An ELF with matching symbols but different instruction flow
+          # is NOT evidence for this historical post-READY core.
+          expected_calls = {
+              'qtwidgets_frame_13': ('3847d0', 'QWidgetTextControl::appendHtml('),
+              'qtwidgets_frame_12': ('3b2c1e', 'QTextCursor::insertHtml('),
+          }
+          for key,(address,callee) in expected_calls.items():
+              matches=[line.strip() for line in report['frames'][key]['bounded_disassembly'].splitlines()
+                       if line.strip().startswith(address+':') and 'call' in line
+                       and callee in line]
+              if len(matches)!=1:
+                  raise ValueError('exact original call site NOT verified: '+key)
+              report['frames'][key]['instruction_call_verified']=matches[0]
+          report['discriminator']='exact original .so bytes and both call-site fallthrough addresses verified'
           out.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
           print('QT665_STATIC_QTWIDGETS_CORE=ASSOCIATED not a runtime/heap verdict')
           for key,row in report['anchor_checks'].items():print('ANCHOR',key,row)
