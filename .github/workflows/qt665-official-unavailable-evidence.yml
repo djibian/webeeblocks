@@ -1,0 +1,68 @@
+# #665 console-close native A/B witness: replay only the official baseline.
+# Corrected candidate already ran exact same source and scenario at 40867804202.
+# NON-GATE; a single failure/success cannot prove a deterministic Qt repair.
+name: Qt665 official unavailable same-source baseline NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-official-unavailable-same-head-20261029
+permissions:
+  contents: read
+jobs:
+  official-same-head-unavailable:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5514158aa812beeb8446ed09f899dd45358e20e2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Attest immutable source and exact native oracle selector
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "5514158aa812beeb8446ed09f899dd45358e20e2"
+          python3 - <<'PY'
+          from tools.ci.run_grand_prix_u_geometry import IMAGE, SOURCE
+          assert IMAGE == 'ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          assert SOURCE == 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          import tools.ci.run_grand_prix_u_prototype as gp
+          assert gp.IMAGE == IMAGE
+          import inspect
+          assert '--suite' in inspect.getsource(gp.main)
+          PY
+          mkdir -p ci-artifacts/qt665-official-unavailable
+          printf 'source_sha=%s\nofficial_oci=%s\ncandidate_control_run=%s\ncase=%s\n' \
+            '5514158aa812beeb8446ed09f899dd45358e20e2' 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099' \
+            '40867804202' 'unavailable seed=0 side=2.0' \
+            > ci-artifacts/qt665-official-unavailable/provenance.txt
+      - name: Execute identical real negative with original official OCI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import sys
+          import tools.ci.run_grand_prix_u_prototype as gp
+          from tools.ci.run_grand_prix_u_geometry import IMAGE as CANDIDATE
+          official = 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          assert gp.IMAGE == CANDIDATE and official != CANDIDATE
+          # Change one process-local OCI selector only. Do not alter the repository,
+          # student .wbb, native controller, world, oracle, reset or terminal logic.
+          gp.IMAGE = official
+          sys.argv = [gp.__file__, '--suite', 'unavailable', '--seed', '0',
+                      '--side', '2.0']
+          gp.main()
+          PY
+      - name: Preserve all native captures even when the official engine crashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-official-unavailable-${{ github.sha }}
+          path: |
+            ci-artifacts/grand-prix-u/
+            ci-artifacts/qt665-official-unavailable/
+          if-no-files-found: error
+          retention-days: 14
