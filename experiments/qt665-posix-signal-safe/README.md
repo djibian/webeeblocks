@@ -1,4 +1,4 @@
-# Webots R2025a POSIX self-pipe candidate — SOURCE_ONLY
+# Webots R2025a POSIX self-pipe candidate — source + bounded native Linux proof
 
 The original live signal allocation evidence is in #665 comment6498840117.
 This experiment changes only upstream src/webots/gui/main.cpp at
@@ -56,8 +56,22 @@ new FD-lifetime condition. source-qualification.json preserves both outputs.
 The old checker required the unsafe reset/close, so retaining that requirement
 would have enforced the refuted lifecycle. No mission oracle was relaxed.
 
-Actual Qt6.5.3 compilation/linking, loaded Webots consumer adoption, event-loop
-signal/teardown tests, full native regression and Windows remain NOT_TESTED.
+Actual full Qt6.5.3 Webots compilation/linking and a loaded native consumer contrast
+are now demonstrated for this SAME e9a6d936 patch: [run40897930515](https://github.com/djibian/webeeblocks/actions/runs/40897930515),
+execution HEAD929ce783..., [durable evidence at1a00b901](https://github.com/djibian/webeeblocks/tree/1a00b901a415163d32b0a9f270260ddda3983536/experiments/qt665-posix-signal-safe/native-build).
+Two complete rebuilt ELF files were actually installed/launched in a disposable
+runtime, not substituted by a Qt double: baseline b9657239... PID135 records
+four allocator calls during two SIGTERM handlers; self-pipe6839dab7... PID195
+records zero. World/AST/events and negative not-achieved/runtime9.288s match;
+24 native seal hashes and both strict capture audits pass. Exact normal-handler
+disassembly corroborates no Qt call in the corrected path. This is the later
+native phase; source-qualification.json retains the earlier SOURCE_ONLY phase.
+
+Full native regression, Windows, product OCI adoption, combination with #701's
+pre-READY repair and exact Ready CI Gate/independent GO remain NOT_TESTED.
+Historical console SIGSEGV causality remains UNPROVEN. See the native evidence
+README for complete hashes, development-overlay limits and original artifact
+retention; this bounded contrast is not general platform qualification.
 No historical memory corruption, #637 RESET repair, hardware action or
 TEST_REQUIRED is claimed. Preserve all negatives and LAND exactly210000ms.
 
