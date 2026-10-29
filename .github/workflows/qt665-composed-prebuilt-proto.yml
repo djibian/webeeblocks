@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD^)" = "a393476e80f12455e412ec2aa132de66dba79a0d"
+          git merge-base --is-ancestor "a393476e80f12455e412ec2aa132de66dba79a0d" HEAD
           echo '2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f  ci-artifacts/qt665-composed-source/webots-bin' | sha256sum -c -
           mkdir -p ci-artifacts/qt665-composed ci-artifacts/qt665-prebuilt-replay
           test ! -e ci-artifacts/qt665-composed/native
