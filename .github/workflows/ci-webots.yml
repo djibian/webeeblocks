@@ -1651,6 +1651,9 @@ jobs:
           python3 tools/ci/localize_webots_world.py \
             worlds/boxChallenge.wbt worlds/.ci-boxChallenge-encoders-local.wbt --expected 5
 
+      - name: Neutralize optional Pioneer wheel sounds in pinned PROTO
+        run: python3 tools/ci/historical_pioneer_audio.py .ci-webots-r2025a/projects
+
       - name: Export exact historical BoxWithEncoders controller
         shell: bash
         run: |
@@ -1712,6 +1715,11 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/webots-box-encoders.log
+
+          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+            echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
+            exit 1
+          fi
 
           if grep -Fq 'ERROR:' "$LOG"; then
             echo '::error::Webots emitted an error while running BoxWithEncoders.'
@@ -1968,29 +1976,10 @@ jobs:
           if missing:
               raise SystemExit('Pinned Webots R2025a checkout is missing required PROTOs: ' + ', '.join(missing))
 
-          # RotationalMotor's default sound is a webots:// resource that Webots
-          # may resolve through raw.githubusercontent.com even when the pinned
-          # projects tree is mounted locally. The historical light-sensor
-          # behavior does not depend on audio, so override only the two Pioneer
-          # wheel motor sounds in the pinned CI copy before running --network none.
-          pioneer = projects / 'robots/adept/pioneer3/protos/Pioneer3dx.proto'
-          pioneer_original = pioneer.read_text(encoding='utf-8')
-          seams = (
-              'RotationalMotor {\n            name "left wheel"\n            maxVelocity 12.3',
-              'RotationalMotor {\n            name "right wheel"\n            maxVelocity 12.3',
-          )
-          pioneer_offline = pioneer_original
-          for seam in seams:
-              if pioneer_offline.count(seam) != 1:
-                  raise SystemExit(f'Pinned Pioneer3dx motor seam changed: {seam!r}')
-              pioneer_offline = pioneer_offline.replace(
-                  seam,
-                  seam + '\n            sound ""',
-                  1,
-              )
-          if pioneer_offline.count('sound ""') != pioneer_original.count('sound ""') + 2:
-              raise SystemExit('Expected exactly two Pioneer motor sound overrides.')
-          pioneer.write_text(pioneer_offline, encoding='utf-8')
+          # Use the same strictly verified two-wheel sound neutralization as
+          # the other historical worlds, without modifying robot physics.
+          from tools.ci.historical_pioneer_audio import neutralize_wheel_sound
+          neutralize_wheel_sound(projects)
 
           target.write_text(localized, encoding='utf-8')
           print(f'PASS: localized exactly {replacements} Webots R2025a EXTERNPROTO references without changing world semantics.')
@@ -2042,6 +2031,11 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/webots-light-sensor.log
+
+          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+            echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
+            exit 1
+          fi
 
           if grep -Fq 'ERROR:' "$LOG"; then
             echo '::error::Webots emitted an error while running BoxWithLightSensor.'
@@ -2110,6 +2104,9 @@ jobs:
             worlds/.ci-empty-sensor-probing-local.wbt \
             --expected 5
 
+      - name: Neutralize optional Pioneer wheel sounds in pinned PROTO
+        run: python3 tools/ci/historical_pioneer_audio.py .ci-webots-r2025a/projects
+
       - name: Export exact historical sensorProbing controller
         shell: bash
         run: |
@@ -2171,6 +2168,11 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/webots-sensor-probing.log
+
+          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+            echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
+            exit 1
+          fi
 
           if grep -Fq 'ERROR:' "$LOG"; then
             echo '::error::Webots emitted an error while running sensorProbing.'

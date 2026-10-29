@@ -593,6 +593,57 @@ class WorkflowTests(unittest.TestCase):
             5,
         )
 
+    def test_historical_pioneer_audio_closure_and_native_offline_oracles(self) -> None:
+        """#747: no optional wheel-audio HTTP fetch, without changing physics."""
+        workflow = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        for job, following, script_call in (
+            ("encoders-historical", "gyro-gps-historical", "run: python3 tools/ci/historical_pioneer_audio.py"),
+            ("light-sensor-historical", "sensor-probing-historical", "neutralize_wheel_sound(projects)"),
+            ("sensor-probing-historical", "robot-window-roundtrip", "run: python3 tools/ci/historical_pioneer_audio.py"),
+        ):
+            with self.subTest(job=job):
+                segment = workflow.split("\n  " + job + ":\n", 1)[1].split("\n  " + following + ":\n", 1)[0]
+                self.assertIn(script_call, segment)
+                self.assertIn("rotational_motor.wav", segment)
+                self.assertIn("Cannot download", segment)
+                self.assertIn("timeout -k 5s 30s xvfb-run", segment)
+                self.assertIn("--network none", segment)
+                self.assertIn("/usr/local/webots/projects:ro", segment)
+                self.assertNotIn("continue-on-error:", segment)
+                # A disabled oracle is caught, not merely counted elsewhere.
+                self.assertEqual(segment.count("Cannot download"), 1)
+                self.assertTrue(segment.index("Cannot download") > segment.index("timeout -k 5s 30s xvfb-run"))
+        script = ROOT / "tools/ci/historical_pioneer_audio.py"
+        with tempfile.TemporaryDirectory(prefix="historical-wheel-audio-") as temp:
+            proto = Path(temp) / "robots/adept/pioneer3/protos/Pioneer3dx.proto"
+            proto.parent.mkdir(parents=True)
+            original = ''.join(
+                f'RotationalMotor {{\n            name "{wheel} wheel"\n            maxVelocity 12.3\n}}\n'
+                for wheel in ("left", "right")
+            )
+            proto.write_text(original, encoding="utf-8")
+            success = subprocess.run([sys.executable, str(script), temp], cwd=ROOT,
+                                     capture_output=True, text=True, timeout=10)
+            self.assertEqual(success.returncode, 0, success.stderr)
+            prepared = proto.read_text(encoding="utf-8")
+            self.assertEqual(prepared.count('sound ""'), 2)
+            self.assertEqual(prepared.replace('\n            sound ""', ''), original)
+            # Re-running a non-idempotent rewrite must not silently duplicate.
+            repeat = subprocess.run([sys.executable, str(script), temp], cwd=ROOT,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(repeat.returncode, 0)
+            self.assertEqual(proto.read_text(encoding="utf-8"), prepared)
+            # All-or-nothing on changed or duplicated source seams.
+            invalids = (original.replace('name "right wheel"', 'name "front wheel"'),
+                        original + original.split('RotationalMotor {', 1)[1].split('}\n', 1)[0].join(('', '')),
+                        original.replace('maxVelocity 12.3', 'maxVelocity 12.4', 1))
+            for candidate in invalids:
+                proto.write_text(candidate, encoding="utf-8")
+                failure = subprocess.run([sys.executable, str(script), temp], cwd=ROOT,
+                                         capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(failure.returncode, 0)
+                self.assertEqual(proto.read_text(encoding="utf-8"), candidate)
+
     def test_encoders_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         encoders = suite.split("\n  encoders-historical:\n", 1)[1].split(
@@ -717,9 +768,7 @@ esac
         self.assertIn("/workspace/worlds/.ci-lightSensorBoxChallenge-local.wbt", light)
         self.assertIn("--network none", light)
         self.assertIn("/usr/local/webots/projects:ro", light)
-        self.assertIn("Pinned Pioneer3dx motor seam changed", light)
-        self.assertIn("seam + '\\n            sound \"\"'", light)
-        self.assertIn("Expected exactly two Pioneer motor sound overrides.", light)
+        self.assertIn("neutralize_wheel_sound(projects)", light)
 
     def test_sensor_probing_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
