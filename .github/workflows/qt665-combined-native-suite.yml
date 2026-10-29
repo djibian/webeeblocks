@@ -1,0 +1,107 @@
+name: Qt665 combined ELF complete native suite NON-GATE
+on:
+  push:
+    branches: [evidence/665-combined-native-suite-20261029]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  existing-complete-native-suite:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: native-assets
+          persist-credentials: false
+          sparse-checkout: |
+            projects/robots/bitcraze/crazyflie
+            projects/objects/backgrounds
+            projects/objects/floors
+            projects/appearances
+            projects/default
+      - uses: actions/checkout@v4
+        with:
+          ref: aba2a2544c764bdca7f3d9bc615e9d9970f0b255
+          path: signal-observer-source
+          persist-credentials: false
+          sparse-checkout: experiments/qt665-signal-context
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '12910969349'
+          run-id: '40906375132'
+          github-token: ${{ github.token }}
+          path: combined-build
+          merge-multiple: true
+      - name: Bind exact successful build, product inputs and original observer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p ci-artifacts/qt665-combined-suite/provenance
+          gh api repos/djibian/webeeblocks/actions/runs/40906375132 > ci-artifacts/qt665-combined-suite/provenance/build-run.json
+          python3 - <<'PY'
+          import json,pathlib
+          r=json.loads(pathlib.Path('ci-artifacts/qt665-combined-suite/provenance/build-run.json').read_text())
+          assert r['head_sha']=='9c17532395d2c857d53e4ef46ed5d869029b855b'
+          assert r['run_attempt']==1 and r['conclusion']=='success' and r['status']=='completed'
+          assert r['path']=='.github/workflows/qt665-posix-native-build.yml'
+          assert pathlib.Path('combined-build/evidence-head.txt').read_text().strip()==r['head_sha']
+          assert pathlib.Path('combined-build/upstream-head.txt').read_text().strip()=='c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          PY
+          echo 'e95dee5feb8503269eb75cf1d729596a2e1fd9f40e993e59e162742c86617699  combined-build/webots-bin' | sha256sum --check
+          echo 'e9a6d9365011e55fe853fea1026d9b83be097feb4ba9a4759639fe75796f54b8  experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch' | sha256sum --check
+          for name in applied.patch applied-posix-main.patch candidate-runtime.sha256 original-runtime.sha256 compiler.txt source.json upstream-head.txt evidence-head.txt posix-signal-patch.sha256; do
+            cp "combined-build/$name" ci-artifacts/qt665-combined-suite/provenance/
+          done
+          git rev-parse HEAD > ci-artifacts/qt665-combined-suite/provenance/campaign-head.txt
+          git -C native-assets rev-parse HEAD > ci-artifacts/qt665-combined-suite/provenance/assets-head.txt
+          test "$(cat ci-artifacts/qt665-combined-suite/provenance/assets-head.txt)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          bash tools/prepare_runtime_v2.sh
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Prepare runtime overlay without SDK or rebuilding Webots
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --pull=false -t qt665-combined-suite-runtime -f - . <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          COPY tools/prepare_webots_apt.py /tmp/prepare_webots_apt.py
+          RUN LIBGL_ALWAYS_SOFTWARE=true python3 /tmp/prepare_webots_apt.py && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xauth xvfb libxcb-cursor0 binutils && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          docker image inspect qt665-combined-suite-runtime > ci-artifacts/qt665-combined-suite/provenance/runtime-image.json
+      - name: Install exact combined ELF and run unchanged complete mission suite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --init \
+            -v "$PWD:/workspace" -w /workspace \
+            -v "$PWD/native-assets/projects:/usr/local/webots/projects:ro" \
+            -v "$(command -v node):/usr/local/bin/node:ro" \
+            -e WEBOTS_HOME=/usr/local/webots -e LIBGL_ALWAYS_SOFTWARE=true -e QT_QPA_PLATFORM=xcb \
+            qt665-combined-suite-runtime bash -c '
+              set -Eeuo pipefail
+              cp combined-build/webots-bin /usr/local/webots/bin/webots-bin
+              chmod 755 /usr/local/webots/bin/webots-bin
+              cc -std=c11 -Wall -Wextra -Werror -shared -fPIC -O2 signal-observer-source/experiments/qt665-signal-context/observe.c -ldl -o ci-artifacts/qt665-combined-suite/observe.so
+              sha256sum signal-observer-source/experiments/qt665-signal-context/observe.c ci-artifacts/qt665-combined-suite/observe.so > ci-artifacts/qt665-combined-suite/provenance/observer.sha256
+              timeout -k 5s 1800s python3 -u experiments/qt665-posix-signal-safe/combined-suite/run_campaign.py \
+                e95dee5feb8503269eb75cf1d729596a2e1fd9f40e993e59e162742c86617699 \
+                ci-artifacts/qt665-combined-suite/observe.so ci-artifacts/qt665-combined-suite/campaign
+            ' 2>&1 | tee ci-artifacts/qt665-combined-suite/native.log
+      - name: Preserve full native evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-combined-suite-${{ github.sha }}
+          path: ci-artifacts/qt665-combined-suite/
+          if-no-files-found: error
+          retention-days: 14
