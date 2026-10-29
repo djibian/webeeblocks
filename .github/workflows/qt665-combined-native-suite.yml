@@ -1,7 +1,6 @@
 name: Qt665 combined ELF complete native suite NON-GATE
 on:
-  push:
-    branches: [evidence/665-combined-native-suite-20261029]
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read
