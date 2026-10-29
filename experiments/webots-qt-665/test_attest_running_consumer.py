@@ -22,6 +22,53 @@ class RunningConsumerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 probe.starttime(proc)
 
+
+    def test_rename_between_map_stat_and_digest_is_rejected(self):
+        """The hash must come from the SAME open inode as /proc/PID/maps."""
+        import os
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'webots'
+            libdir = home / 'lib/webots'
+            libdir.mkdir(parents=True)
+            original_open = Path.open
+
+            def mapped(path):
+                st = path.stat()
+                return (f'7fb-8fb r-xp 00000000 '
+                        f'{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x} '
+                        f'{st.st_ino} {path}\n')
+
+            def race(path, substitute, operation):
+                swapped = [False]
+                def open_after_swap(instance, *args, **kwargs):
+                    if instance == path and not swapped[0]:
+                        swapped[0] = True
+                        os.replace(substitute, path)
+                    return original_open(instance, *args, **kwargs)
+                with mock.patch.object(Path, 'open', new=open_after_swap):
+                    with self.assertRaisesRegex(ValueError, 'inode differs'):
+                        operation()
+                self.assertTrue(swapped[0], 'race injection was not exercised')
+
+            pinned = libdir / 'libQt6Core.so.6.5.3'
+            pinned.write_bytes(b'mapped-untrusted-contents')
+            substitute = libdir / 'replacement-core'
+            substitute.write_bytes(b'expected-verified-contents')
+            maps = mapped(pinned)
+            expected = hashlib.sha256(substitute.read_bytes()).hexdigest()
+            race(pinned, substitute,
+                 lambda: probe.mapped_qt_files(maps, pinned.name, pinned, expected))
+
+            gui = libdir / 'libQt6Gui.so.6'
+            gui.write_bytes(b'mapped-gui-contents')
+            replacement_gui = libdir / 'replacement-gui'
+            replacement_gui.write_bytes(b'new-gui-contents')
+            maps = mapped(gui)
+            race(gui, replacement_gui,
+                 lambda: probe.observed_qt_family(maps, home))
+
     def test_mapped_qt_inode_binding(self):
         with tempfile.TemporaryDirectory() as directory:
             lib = Path(directory)/'libQt6Core.so.6.5.3'

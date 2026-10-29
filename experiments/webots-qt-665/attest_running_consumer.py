@@ -30,6 +30,22 @@ def sha256(path):
     return h.hexdigest()
 
 
+def sha256_mapped(path, mapped_id, identity_failure):
+    """Hash an already-open inode that must match the process maps identity.
+
+    A separate path.stat() then path.open() can attest a newly renamed
+    file's bytes instead of the inode mapped by the live process.
+    """
+    h = hashlib.sha256()
+    with path.open('rb') as stream:
+        st = os.fstat(stream.fileno())
+        if mapped_id != (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino):
+            raise ValueError(identity_failure)
+        for part in iter(lambda: stream.read(1024 * 1024), b''):
+            h.update(part)
+    return h.hexdigest()
+
+
 def starttime(proc):
     # Linux /proc/<pid>/stat: field 22 is starttime. Parenthesized comm may
     # contain spaces and closing parentheses, so split only after last ')'.
@@ -53,6 +69,7 @@ def mapped_qt_files(maps, name, lib, expected_sha256):
     alias_name = family + '.so.6'
     qualified_dir = lib.parent.resolve(strict=True)
     mapped = set()
+    mapped_ids = {}
     for line in maps.splitlines():
         fields = line.split(maxsplit=5)
         if len(fields) != 6 or not fields[5].startswith('/'):
@@ -79,10 +96,14 @@ def mapped_qt_files(maps, name, lib, expected_sha256):
         if observed_file_id != actual_file_id:
             raise ValueError('Qt mapped inode differs from actual SONAME file: ' + name)
         mapped.add(path)
+        mapped_ids[path] = observed_file_id
     if len(mapped) != 1:
         raise ValueError('Qt module missing or ambiguous in process maps: ' + name)
     for path in mapped:
-        if sha256(path) != expected_sha256:
+        digest = sha256_mapped(
+            path, mapped_ids[path],
+            'Qt mapped inode differs from actual SONAME file: ' + name)
+        if digest != expected_sha256:
             raise ValueError('mapped Qt SONAME bytes differ from pinned Qt: ' + name)
     return mapped
 
@@ -125,7 +146,8 @@ def observed_qt_family(maps, runtime_home):
             raise ValueError('malformed Qt6 mapped inode') from exc
         if mapped_id != (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino):
             raise ValueError('Qt6 mapped inode differs from current file: ' + name)
-        digest = sha256(path)
+        digest = sha256_mapped(
+            path, mapped_id, 'Qt6 mapped inode differs from current file: ' + name)
         current = {'mapped_filename': str(path), 'sha256_observed_only': digest}
         if family in observed and observed[family] != current:
             raise ValueError('ambiguous Qt6 family mapping: ' + family)
@@ -170,17 +192,10 @@ def observed_qt_platform_plugins(maps, runtime_home):
             mapped_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
         except ValueError as exc:
             raise ValueError('malformed Qt platform plugin mapped inode') from exc
-        # Bind hash to the exact inode read, instead of two path opens with a
-        # rename race between stat and hash computation.
-        digest = hashlib.sha256()
-        with path.open('rb') as stream:
-            st = os.fstat(stream.fileno())
-            if mapped_id != (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino):
-                raise ValueError('Qt platform plugin mapped inode differs: ' + path.name)
-            for part in iter(lambda: stream.read(1024 * 1024), b''):
-                digest.update(part)
+        digest = sha256_mapped(
+            path, mapped_id, 'Qt platform plugin mapped inode differs: ' + path.name)
         value = {'mapped_filename': str(path),
-                 'sha256_observed_only': digest.hexdigest()}
+                 'sha256_observed_only': digest}
         if path.name in observed and observed[path.name] != value:
             raise ValueError('ambiguous Qt platform plugin mapping: ' + path.name)
         observed[path.name] = value
