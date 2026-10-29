@@ -1,0 +1,39 @@
+# Experiment only. No integration authority and no CI Gate check context.
+name: Qt665 live signal allocator context NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-live-signal-context-20261029
+permissions:
+  contents: read
+jobs:
+  observe-original-signal-handler:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify product source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin c0cb8c1873d48b26a0f67976c65fa92ca5d54f52
+          test -z "$(git diff --name-only c0cb8c1873d48b26a0f67976c65fa92ca5d54f52 -- . ':!experiments/qt665-signal-context' ':!.github/workflows/qt665-signal-context.yml')"
+          mkdir -p ci-artifacts/qt665-signal-context
+          git rev-parse HEAD > ci-artifacts/qt665-signal-context/evidence-head.txt
+      - name: Observe one unchanged unavailable negative in immutable official Webots
+        run: python3 -u experiments/qt665-signal-context/run_probe.py
+      - name: Preserve original logs and identity even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-live-signal-context-${{ github.sha }}
+          path: |
+            ci-artifacts/qt665-signal-context/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: error
+          retention-days: 14
