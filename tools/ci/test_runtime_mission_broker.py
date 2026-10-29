@@ -280,6 +280,27 @@ int main() {
   webeeblocks_file_broker_send(failed_reset.c_str(), static_cast<int>(failed_reset.size() + 1));
   assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
 
+  // B4-I0: the unavailable-provider fallback must preserve the same strict
+  // request-ID grammar as the Qt-free FileBroker parser. Otherwise malformed
+  // "73junk" can forge a response for an unrelated pending browser request 73.
+  reset_harness();
+  provider_available = false;
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 73junk OPEN");
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 2147483648 OPEN");
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 0 OPEN");
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 75 OPEN");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 76 RESET");
+  const char *after_malformed_files = webeeblocks_file_broker_receive_text();
+  assert(after_malformed_files &&
+    std::strcmp(after_malformed_files, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 76 RESET") == 0);
+  assert(provider_creations == 4 && provider_messages == 0);
+  assert(sent_text.size() == 1);
+  assert(sent_text[0] == "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 75 ERR UNAVAILABLE");
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  const std::string no_reset = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 76 ERR RESET_TIMEOUT";
+  webeeblocks_file_broker_send(no_reset.c_str(), static_cast<int>(no_reset.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+
   // A second overlapping RESET B cannot steal pending RESET A, even if B
   // replies first. The first successful matching ID rotates exactly once.
   reset_harness();
