@@ -1,0 +1,59 @@
+# Bounded replay of the exact ELF from failed run, not a second full rebuild.
+name: Qt665 composed same ELF pinned PROTO assets NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-composed-prebuilt-proto-witness-20261029
+permissions:
+  contents: read
+  actions: read
+jobs:
+  unchanged-composed-elf-canonical-assets:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download original FAIL artifact containing immutable composed ELF
+        uses: actions/download-artifact@v4
+        with:
+          name: qt665-composed-native-a393476e80f12455e412ec2aa132de66dba79a0d
+          run-id: 40907399724
+          repository: djibian/webeeblocks
+          github-token: ${{ github.token }}
+          path: ci-artifacts/qt665-composed-source
+      - name: Verify source ancestry, reused ELF and clean output directory
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = "a393476e80f12455e412ec2aa132de66dba79a0d"
+          echo '2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f  ci-artifacts/qt665-composed-source/webots-bin' | sha256sum -c -
+          mkdir -p ci-artifacts/qt665-composed ci-artifacts/qt665-prebuilt-replay
+          test ! -e ci-artifacts/qt665-composed/native
+          cp ci-artifacts/qt665-composed-source/webots-bin ci-artifacts/qt665-composed/webots-bin
+          printf 'failed_source_run=40907399724\nfailed_artifact=12912812964\nelf_sha256=2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f\nchanged_condition=R2025a_world_assets_ro\n' > ci-artifacts/qt665-prebuilt-replay/provenance.txt
+          sha256sum ci-artifacts/qt665-composed/webots-bin > ci-artifacts/qt665-prebuilt-replay/loaded-source.sha256
+      - name: Native original runner provisions pinned PROTOs and executes unchanged negative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -u experiments/qt665-composed/replay_prebuilt.py
+      - name: Preserve honest native evidence on success or failure without duplicating ELF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-composed-prebuilt-proto-${{ github.sha }}
+          path: |
+            ci-artifacts/qt665-prebuilt-replay/
+            ci-artifacts/qt665-composed/RESULT.json
+            ci-artifacts/qt665-composed/trace.bin
+            ci-artifacts/qt665-composed/trace.json
+            ci-artifacts/qt665-composed/loader-maps.txt
+            ci-artifacts/qt665-composed/native/
+          if-no-files-found: warn
+          retention-days: 14
