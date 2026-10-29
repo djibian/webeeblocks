@@ -1,9 +1,7 @@
 # Experiment only. No integration authority and no CI Gate check context.
 name: Qt665 live signal allocator context NON-GATE
 on:
-  push:
-    branches:
-      - evidence/665-live-signal-context-20261029
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
