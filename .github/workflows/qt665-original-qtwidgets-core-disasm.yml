@@ -1,0 +1,109 @@
+# Non-gate original-core QtWidgets instruction analysis, not a new flight.
+name: Qt665 historical original core QtWidgets disassembly NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-original-qtwidgets-core-disasm-20261029
+permissions:
+  contents: read
+jobs:
+  symbolize-exact-original-dso:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5514158aa812beeb8446ed09f899dd45358e20e2
+          persist-credentials: false
+      - name: Extract original QtWidgets from immutable official Webots R2025a
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "5514158aa812beeb8446ed09f899dd45358e20e2"
+          mkdir -p ci-artifacts/qt665-original-core
+          image='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker pull "$image"
+          id="$(docker create "$image")"
+          trap 'docker rm -f "$id" >/dev/null || true' EXIT
+          docker cp "$id":/usr/local/webots/lib/webots/libQt6Widgets.so.6 /tmp/qt665-original-QtWidgets.so.6
+          echo "original_image=$image" > ci-artifacts/qt665-original-core/provenance.txt
+          echo "historical_core_run=40736685323" >> ci-artifacts/qt665-original-core/provenance.txt
+          echo "historical_core_artifact=12837499124" >> ci-artifacts/qt665-original-core/provenance.txt
+          echo "source_checkout=5514158aa812beeb8446ed09f899dd45358e20e2" >> ci-artifacts/qt665-original-core/provenance.txt
+          printf '%s  %s\n' '868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024' /tmp/qt665-original-QtWidgets.so.6 | sha256sum -c -
+      - name: Falsify static QtWidgets branch attribution at exact original GDB PCs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, re, subprocess
+          dso=pathlib.Path('/tmp/qt665-original-QtWidgets.so.6')
+          out=pathlib.Path('ci-artifacts/qt665-original-core/qtwidgets-frame-association.json')
+          expected='868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024'
+          assert hashlib.sha256(dso.read_bytes()).hexdigest()==expected
+          def run(*args):
+              return subprocess.run(args,capture_output=True,text=True,check=True).stdout
+          sections=run('readelf','-W','-S',str(dso))
+          found=re.findall(r'\[\s*\d+\]\s+\.text\s+PROGBITS\s+([0-9a-fA-F]+)\s+',sections)
+          if len(found)!=1:
+              raise ValueError('ELF .text section not uniquely identified')
+          text_vaddr=int(found[0],16)
+          # The original unmodified native core's GDB 'info sharedlibrary'
+          # gives the runtime beginning of the QtWidgets text section.
+          text_runtime=0x7f913d30ad00
+          base=text_runtime-text_vaddr
+          nm=run('nm','-D','-C','-n','--defined-only',str(dso))
+          symbols=[]
+          for line in nm.splitlines():
+              m=re.fullmatch(r'([0-9a-fA-F]+)\s+(\S)\s+(.+)',line)
+              if m: symbols.append((int(m.group(1),16),m.group(3)))
+          if not symbols: raise ValueError('QtWidgets exported symbols unavailable')
+          anchors={
+            'QWidget::event(QEvent*)':0x7f913d368488,
+            'QApplicationPrivate::notify_helper(QObject*, QEvent*)':0x7f913d313fc2
+          }
+          report={'core_run':40736685323,'core_artifact':12837499124,
+             'core_claim':'original official QtWidgets loaded during SIGSEGV',
+             'analysis_scope':'static relocation and return-PC instruction association, no live process or heap proof',
+             'official_image':'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099',
+             'original_elf_sha256':expected,'elf_text_vaddr':hex(text_vaddr),
+             'gdb_text_runtime':hex(text_runtime),'computed_base':hex(base),
+             'anchor_checks':{},'frames':{}}
+          for name, pc in anchors.items():
+              options=[(address,sym) for address,sym in symbols if sym.startswith(name)]
+              offsets=[pc-base-address for address,_ in options]
+              report['anchor_checks'][name]={'runtime_pc':hex(pc),
+                'elf_pc_estimate':hex(pc-base),
+                'exports':[(hex(addr),sym) for addr,sym in options],
+                'delta_from_export':offsets}
+          good=sum(any(0<=d<=4096 for d in a['delta_from_export'])
+                   for a in report['anchor_checks'].values())
+          if good<1:
+              raise ValueError('No runtime-to-ELF symbol anchor verified; reject address association')
+          for name,runtime in [('qtwidgets_frame_13',0x7f913d5197d5),
+                               ('qtwidgets_frame_12',0x7f913d547c23)]:
+              pc=runtime-base
+              prior=[(addr,sym) for addr,sym in symbols if addr<=pc]
+              if not prior or pc<text_vaddr or pc>text_vaddr+20_000_000:
+                  raise ValueError('QtWidgets frame ELF address outside verified text')
+              disasm=run('objdump','-d','-C','--no-show-raw-insn',
+                         '--start-address='+str(pc-224),
+                         '--stop-address='+str(pc+80),str(dso))
+              report['frames'][name]={'gdb_runtime_pc':hex(runtime),
+                 'elf_pc':hex(pc),'nearest_previous_export':[hex(prior[-1][0]),prior[-1][1]],
+                 'distance_from_export':pc-prior[-1][0],'bounded_disassembly':disasm}
+          out.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('QT665_STATIC_QTWIDGETS_CORE=ASSOCIATED not a runtime/heap verdict')
+          for key,row in report['anchor_checks'].items():print('ANCHOR',key,row)
+          for key,row in report['frames'].items():
+              print('FRAME',key,row['elf_pc'],row['nearest_previous_export'])
+              print(row['bounded_disassembly'][-2000:])
+          PY
+      - name: Preserve original-core static association, including partial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-original-qtwidgets-core-${{ github.sha }}
+          path: ci-artifacts/qt665-original-core/
+          if-no-files-found: error
+          retention-days: 14
