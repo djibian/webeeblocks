@@ -680,7 +680,10 @@ class WorkflowTests(unittest.TestCase):
                 start, end = "\n  " + name + ":\n", "\n  " + following + ":\n"
                 self.assertEqual(suite.count(start), 1)
                 section = suite.split(start, 1)[1].split(end, 1)[0]
-                expected_network_uses = 2 if name == "light-sensor-historical" else 1
+                # The legacy light-sensor's second occurrence was a comment,
+                # not another Docker invocation. Only one real --network none
+                # remains after the shared helper removes that documentation.
+                expected_network_uses = 1
                 check(section, expected_network_uses)
                 for damaged in (
                     section.replace("timeout -k 5s 30s xvfb-run", "xvfb-run", 1),
