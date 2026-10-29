@@ -1,0 +1,86 @@
+# NON-GATE integration experiment: both already independently qualified source patches.
+name: Qt665 composed actual Webots POSIX + parent-safe NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-qt-selfpipe-composed-20261029
+permissions:
+  contents: read
+jobs:
+  full-composed-linux-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream-webots
+          persist-credentials: false
+          sparse-checkout: |
+            src
+            include
+            lib
+            bin
+            resources
+          submodules: recursive
+      - name: Verify exact candidate ancestry and fail closed on source composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git merge-base 79370071ff99b871da0e3a9b4c0be6104074783e HEAD)" = "79370071ff99b871da0e3a9b4c0be6104074783e"
+          test "$(git -C upstream-webots rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+          mkdir -p ci-artifacts/qt665-composed
+          sha256sum experiments/qt665-composed/selfpipe.patch > ci-artifacts/qt665-composed/selfpipe-patch.sha256
+          echo 'e9a6d9365011e55fe853fea1026d9b83be097feb4ba9a4759639fe75796f54b8  experiments/qt665-composed/selfpipe.patch' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('experiments/webots-qt-665/build_full_application.sh')
+          target=Path('experiments/webots-qt-665/build_full_qt_selfpipe_composed.sh')
+          value=src.read_text()
+          anchor='git apply "$experiment/webots-r2025a-guarded-progress-retirement.patch"\n'
+          assert value.count(anchor)==1
+          add=anchor+'git apply "$WEBEEBLOCKS_COMPOSED_POSIX_PATCH"\n'
+          target.write_text(value.replace(anchor,add))
+          assert target.read_text().count('git apply "$WEBEEBLOCKS_COMPOSED_POSIX_PATCH"')==1
+          PY
+      - name: Build disposable full Qt 6.5.3 Webots development overlay
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker pull 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker build --pull=false -t qt665-composed-full-dev - <<'EOF'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libopenal-dev git python3-pip curl xauth xvfb libxcb-cursor0 gdb bzip2 && rm -rf /var/lib/apt/lists/*
+          RUN pip3 install aqtinstall==3.1.18 && aqt install-qt --outputdir /opt/Qt linux desktop 6.5.3 gcc_64 -m qtwebsockets
+          EOF
+      - name: Native full Qt and POSIX composed build, launcher and unchanged strict negative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker image inspect qt665-composed-full-dev > ci-artifacts/qt665-composed/build-image.json
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            -e WEBEEBLOCKS_COMPOSED_POSIX_PATCH="/workspace/experiments/qt665-composed/selfpipe.patch" \
+            qt665-composed-full-dev bash -lc '
+              set -Eeuo pipefail
+              bash experiments/webots-qt-665/build_full_qt_selfpipe_composed.sh \
+                upstream-webots ci-artifacts/qt665-composed
+              export WEBOTS_HOME=/usr/local/webots
+              sha256sum /usr/local/webots/bin/webots-bin ci-artifacts/qt665-composed/webots-bin \
+                > ci-artifacts/qt665-composed/installed-binary.sha256
+              cmp /usr/local/webots/bin/webots-bin ci-artifacts/qt665-composed/webots-bin
+              python3 -u experiments/qt665-composed/run_composed.py
+            ' 2>&1 | tee ci-artifacts/qt665-composed/build-and-native.log
+      - name: Preserve exact evidence and failed capture when native verdict is red
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-composed-native-${{ github.sha }}
+          path: ci-artifacts/qt665-composed/
+          if-no-files-found: error
+          retention-days: 14

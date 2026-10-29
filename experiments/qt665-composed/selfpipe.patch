@@ -1,0 +1,91 @@
+--- a/src/webots/gui/main.cpp
++++ b/src/webots/gui/main.cpp
+@@ -26,6 +26,13 @@
+ 
+ #include <csignal>
+ 
++#ifndef _WIN32
++#include <QtCore/QSocketNotifier>
++#include <cerrno>
++#include <fcntl.h>
++#include <unistd.h>
++#endif
++
+ #ifdef _WIN32
+ #include <windows.h>
+ #include <QtCore/QProcess>
+@@ -88,9 +95,36 @@
+   }
+ }
+ 
++#ifndef _WIN32
++// A POSIX handler must not call Qt, acquire a mutex or allocate memory.
++// If the non-blocking pipe is full, it already contains a quit notification.
++// Both descriptors intentionally live until process exit. Revoking a global
++// or resetting signal() cannot retire a handler that already sampled its FD.
++// Keep the read end too: a late writer must not generate SIGPIPE.
++static volatile sig_atomic_t gQuitNotificationFd = -1;
++static void quitApplication(int sig) {
++  const int savedErrno = errno;
++  const sig_atomic_t fd = gQuitNotificationFd;
++  if (fd >= 0) {
++    const unsigned char notification = static_cast<unsigned char>(sig);
++    (void)write(static_cast<int>(fd), &notification, sizeof(notification));
++  }
++  errno = savedErrno;
++}
++
++static bool configureQuitPipeFd(int fd) {
++  const int flags = fcntl(fd, F_GETFL);
++  const int descriptorFlags = fcntl(fd, F_GETFD);
++  return flags != -1 && descriptorFlags != -1 &&
++         fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1 &&
++         fcntl(fd, F_SETFD, descriptorFlags | FD_CLOEXEC) != -1;
++}
++#else
++// Preserve the original Windows Ctrl+C behavior in this POSIX-only experiment.
+ static void quitApplication(int sig) {
+   WbApplication::instance()->simulationQuit(EXIT_SUCCESS);
+ }
++#endif
+ 
+ int main(int argc, char *argv[]) {
+ #ifdef _WIN32
+@@ -191,9 +225,34 @@
+ #endif
+ 
+   WbGuiApplication app(argc, argv);
+-  // Quit the application correctly when receiving POSIX signals.
+-  signal(SIGINT, quitApplication);  // this signal is working on Windows when Ctrl+C from cmd.exe.
+-#ifndef _WIN32
++#ifdef _WIN32
++  signal(SIGINT, quitApplication);  // Preserve Ctrl+C from cmd.exe.
++#else
++  // Configure the self-pipe before enabling any process signal callbacks.
++  int quitPipe[2] = {-1, -1};
++  if (pipe(quitPipe) != 0 || !configureQuitPipeFd(quitPipe[0]) || !configureQuitPipeFd(quitPipe[1])) {
++    fprintf(stderr, "Fatal: cannot initialize Webots POSIX quit notifier.\n");
++    if (quitPipe[0] >= 0)
++      close(quitPipe[0]);
++    if (quitPipe[1] >= 0)
++      close(quitPipe[1]);
++    return EXIT_FAILURE;
++  }
++  QSocketNotifier quitNotifier(quitPipe[0], QSocketNotifier::Read, &app);
++  bool quitRequested = false;
++  QObject::connect(&quitNotifier, &QSocketNotifier::activated, &app, [&]() {
++    if (!quitRequested) {
++      quitRequested = true;
++      quitNotifier.setEnabled(false);
++      // One-shot quit: a bounded read suffices even if writers keep arriving.
++      unsigned char pending;
++      const ssize_t consumed = read(quitPipe[0], &pending, sizeof(pending));
++      (void)consumed;
++      WbApplication::instance()->simulationQuit(EXIT_SUCCESS);
++    }
++  });
++  gQuitNotificationFd = quitPipe[1];
++  signal(SIGINT, quitApplication);
+   signal(SIGTERM, quitApplication);
+   signal(SIGQUIT, quitApplication);
+   signal(SIGHUP, quitApplication);
