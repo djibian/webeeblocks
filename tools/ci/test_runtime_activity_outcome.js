@@ -12,8 +12,8 @@ const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_
 const brokerRuntimeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_runtime.cpp'), 'utf8');
 const interposeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_interpose.h'), 'utf8');
 assert.match(mainSource,
-  /runtimeRunning = false;\s*runtimeTerminal = true;\s*var missionOutcome = await WebeeBlocksRuntimeOutcome\.evaluateMission\(runtimeProfile, runtimeBackend\);/,
-  'Runtime-v2 completion must become terminal before mission evaluation without reopening actions while the outcome is pending');
+  /runtimeRunning = false;\s*runtimeTerminal = true;\s*runtimeOutcomePending = true;\s*updateRuntimeActions\(\);\s*var missionOutcome = await WebeeBlocksRuntimeOutcome\.evaluateMission\(runtimeProfile, runtimeBackend\);/,
+  'Runtime-v2 completion must stay terminal and hold the UI interlock until mission evaluation settles');
 assert.match(mainSource,
   /if \(missionOutcome\)\s*setRuntimeStatus\(missionOutcome\.state, missionOutcome\.detail\);\s*else\s*setRuntimeStatus\('TERMINÉ', 'Programme exécuté'\);/,
   'mission outcome presentation must preserve the existing non-mission completion path');
@@ -256,6 +256,8 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
   assert.strictEqual(element('runtimeState').textContent, 'EN VOL', 'public runtime state must stay in the locked execution state until mission outcome settles');
   assert.strictEqual(element('resetSimulation').disabled, true, 'Reset must stay disabled while the mission outcome provider is pending');
   assert.strictEqual(element('submit').textContent, 'Arrêter le vol', 'primary action must not reopen as Lancer while mission outcome is pending');
+  assert.strictEqual(element('submit').disabled, true,
+    'primary stop must remain disabled until the mission outcome settles, even when simulationStop is supported');
 
   await element('submit').click();
   await element('resetSimulation').click();

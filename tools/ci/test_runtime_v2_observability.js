@@ -133,8 +133,115 @@ async function proveProgramInvalidRetryWithoutReset() {
     'a structural Blockly move must still require simulation reset');
 }
 
+
+async function proveOutcomePendingBlocksResetAndLateVerdicts() {
+  function deferred() {
+    let resolve, reject;
+    const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+    return {promise, resolve, reject};
+  }
+  const elements = {};
+  function element(id) {
+    if (!elements[id]) elements[id] = {
+      id, disabled:false, hidden:false, checked:false, textContent:'', addEventListener(){}
+    };
+    return elements[id];
+  }
+  const missionCompletion = deferred();
+  const failureOutcome = deferred();
+  let failExecution = false;
+  let resetCalls = 0;
+  let outcomeReads = 0;
+  const profile = {runtime:{maxSteps:100}, evaluation:{type:'mission-state-v1'}};
+  const backend = {
+    ready:true,
+    capabilities:{simulationReset:true, simulationStop:false},
+    async completeActivityMission() { await missionCompletion.promise; },
+    async readActivityOutcome() {
+      outcomeReads++;
+      return failExecution ? failureOutcome.promise : {status:'achieved'};
+    },
+    async resetSimulation() { resetCalls++; }
+  };
+  const context = {
+    console:{log(){}, error(){}},
+    Blockly:{
+      Theme:{defineTheme(){return{};}}, Themes:{Classic:{}},
+      Events:{UI:'ui',BLOCK_MOVE:'move'}, Blocks:{},
+      serialization:{workspaces:{save(){return {blocks:[]};}}}
+    },
+    document:{getElementById:element, body:{dataset:{}}, currentScript:null},
+    window:{dispatchEvent(){}, addEventListener(){}},
+    CustomEvent:function(type, init){this.type=type;this.detail=init&&init.detail;},
+    WebeeBlocksRuntimeOutcome:Outcome,
+    WebeeBlocksActivityContract:{
+      async execute(profile, workspace, compiler, interpreter, runtime, options) {
+        options.onAst({version:1, program:[]});
+        if (failExecution) {
+          const error = new Error('native movement refused');
+          error.code = 'UNSAFE_OR_TIMEOUT';
+          throw error;
+        }
+      }
+    },
+    WebeeBlocksSemanticAst:{}, WebeeBlocksInterpreter:{},
+    WebeeBlocksExecutionObserver:{}, WebeeBlocksActivities:{},
+    WebeeBlocksActivityProfiles:{}, WebeeBlocksWwiBackend:function(){},
+    Promise, setTimeout, clearTimeout
+  };
+  vm.createContext(context);
+  vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
+  context.runtimeProfile = profile;
+  context.workspace = {};
+  context.runtimeBackend = backend;
+
+  const firstRun = context.runProgram();
+  await until(() => context.runtimeOutcomePending, 'mission completion wait');
+  assert.strictEqual(context.runtimeRunning,false,'interpreter must have finished before mission outcome');
+  assert.strictEqual(context.runtimeTerminal,true,'outcome wait must retain reset-required terminal state');
+  assert.strictEqual(element('runtimeState').textContent,'EN VOL',
+    'late mission result must not be presented as completed');
+  context.updateRuntimeActions(); // Adversarial delayed UI update.
+  assert.strictEqual(element('resetSimulation').disabled,true,'reset exposed before mission outcome settled');
+  assert.strictEqual(element('submit').disabled,true,'launch/stop exposed while evaluator is pending');
+  await context.resetSimulation(); // Direct/stale callback must be guarded too.
+  assert.strictEqual(resetCalls,0,'RESET overlapped an unsettled mission result');
+  assert.strictEqual(context.runtimeTerminal,true);
+  missionCompletion.resolve();
+  await firstRun;
+  assert.strictEqual(outcomeReads,1);
+  assert.strictEqual(context.runtimeOutcomePending,false);
+  assert.strictEqual(element('runtimeState').textContent,'MISSION RÉUSSIE');
+  assert.strictEqual(element('resetSimulation').disabled,false,'reset remained blocked after valid outcome');
+
+  await context.resetSimulation();
+  assert.strictEqual(resetCalls,1,'real reset should be allowed after outcome');
+  assert.strictEqual(element('runtimeState').textContent,'PRÊT');
+
+  // An UNSAFE_OR_TIMEOUT can await an irreversible world-failure witness.
+  // Its read must also finish before any later RESET invalidates the attempt.
+  failExecution = true;
+  const secondRun = context.runProgram();
+  await until(() => context.runtimeOutcomePending && outcomeReads === 2, 'failure witness wait');
+  assert.strictEqual(context.runtimeRunning,false);
+  context.updateRuntimeActions();
+  assert.strictEqual(element('resetSimulation').disabled,true,
+    'failure-witness read exposed RESET before exact-attempt evidence');
+  await context.resetSimulation();
+  assert.strictEqual(resetCalls,1,'RESET overlapped unresolved failure-witness read');
+  failureOutcome.resolve({status:'not-achieved'});
+  await secondRun;
+  assert.strictEqual(context.runtimeOutcomePending,false,'failure path left UI permanently locked');
+  assert.strictEqual(element('runtimeState').textContent,'MISSION NON RÉUSSIE');
+  assert.strictEqual(element('resetSimulation').disabled,false);
+  await context.resetSimulation();
+  assert.strictEqual(resetCalls,2);
+  assert.strictEqual(element('runtimeState').textContent,'PRÊT');
+}
+
 (async()=>{
   await proveProgramInvalidRetryWithoutReset();
+  await proveOutcomePendingBlocksResetAndLateVerdicts();
   var a=backend([.4,.8,.3]),b=backend([.4,.8,.3]),program=ast();
   await Interpreter.run(program,a,{maxSteps:1000});
   await Interpreter.run(program,b,{maxSteps:1000,hooks:{onNode(){},beforeStep(){},onSensor(){}}});
