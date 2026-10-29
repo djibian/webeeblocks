@@ -1,0 +1,22 @@
+{
+  "scope": "offline predicate replay of two retained real Webots traces",
+  "old_source": "a393476e80f12455e412ec2aa132de66dba79a0d",
+  "old_loop_sha256": "924151c31e65bc871a6277baf374cc85c0c2df9b9898f4310ddb0c144bcb92da",
+  "verdict": "PASS: faulty trace rejected, healthy trace preserved",
+  "cases": {
+    "baseline": {
+      "records": 27,
+      "allocator_events": 4,
+      "old_accepted": true,
+      "repaired_accepted": false,
+      "original_trace_sha256": "38f89dbad3ccb20f5712222a7604c69539ac3e9ca2e11ff7a72a046c7cb5e7df"
+    },
+    "selfpipe": {
+      "records": 19,
+      "allocator_events": 0,
+      "old_accepted": true,
+      "repaired_accepted": true,
+      "original_trace_sha256": "68922512989c48862efd3b8216ef961ad15e81ea596d599a5f49c628c10bfb72"
+    }
+  }
+}

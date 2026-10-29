@@ -1,0 +1,10 @@
+for r in rows:
+    tid=r['tid'];e=r['event']
+    if e=='E':
+        current[tid]=current.get(tid,0)+1
+        assert current[tid]==r['depth']
+    elif e=='L':
+        assert current.get(tid,0)==r['depth']
+        current[tid]-=1
+    elif e in 'MCAmcaF':
+        assert current.get(tid,0)==r['depth'] and r['depth']>0, 'allocator observed in signal handler'

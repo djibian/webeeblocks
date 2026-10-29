@@ -2,9 +2,7 @@
 # The first combined build succeeded but native startup lacked mounted PROTO assets.
 name: Qt665 composed native same-ELF resource repair NON-GATE
 on:
-  push:
-    branches:
-      - evidence/665-qt-selfpipe-composed-20261029
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read

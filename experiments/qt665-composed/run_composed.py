@@ -73,6 +73,7 @@ for r in rows:
         current[tid]-=1
     elif e in 'MCAmcaF':
         assert current.get(tid,0)==r['depth'] and r['depth']>0, 'allocator observed in signal handler'
+        raise AssertionError('allocator observed in signal handler: '+str(r))
 assert all(v==0 for v in current.values()), 'unbalanced native handler'
 signals=[r for r in rows if r['event']=='E' and r['value']==15]
 assert signals, 'no native Webots SIGTERM handled'
@@ -109,3 +110,4 @@ check={'status':'PASS_BOUND_COMPOSED_NATIVE','source_qt_sha':'79370071ff99b871da
 (OUT/'trace.json').write_text(json.dumps(rows,indent=2)+'\n')
 (OUT/'RESULT.json').write_text(json.dumps(check,indent=2)+'\n')
 print('QT665_COMPOSED_ACTUAL_WEBOTS '+json.dumps(check,sort_keys=True),flush=True)
+
