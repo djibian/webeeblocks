@@ -1,8 +1,7 @@
 # One bounded native contrast, no product adoption and no CI Gate authority.
 name: Qt665 compiled selfpipe consumer contrast NON-GATE
 on:
-  push:
-    branches: [evidence/665-selfpipe-compiled-consumer-20261029]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
