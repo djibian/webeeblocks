@@ -1,0 +1,46 @@
+# Isolated, non-product source-only probe. No CI Gate and no flight.
+name: Qt665 POSIX quit self-pipe source probe NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-posix-quit-selfpipe-20261029
+permissions:
+  contents: read
+jobs:
+  exact-upstream-patch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Acquire exact upstream source in disposable sparse checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/qt665-upstream
+          git -C /tmp/qt665-upstream init -q
+          git -C /tmp/qt665-upstream remote add origin https://github.com/cyberbotics/webots.git
+          git -C /tmp/qt665-upstream sparse-checkout init --cone
+          git -C /tmp/qt665-upstream sparse-checkout set src/webots/gui
+          git -C /tmp/qt665-upstream fetch --depth=1 origin c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          git -C /tmp/qt665-upstream checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/qt665-upstream rev-parse HEAD)" = 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+      - name: Falsify exact-source application and POSIX-only Qt boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/qt665-posix-signal-safe/qualify_signal_safe_source.py --upstream-tree /tmp/qt665-upstream
+          mkdir -p ci-artifacts/qt665-posix-quit-source
+          printf 'upstream=%s\noriginal_blob=%s\nexperimental_head=%s\nverdict=SOURCE_ONLY\nnative_binary=NOT_TESTED\n' \
+            'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b' 'd578afa7cbd27ea13fd9ca0583f5e12170c6fba3' "$GITHUB_SHA" \
+            > ci-artifacts/qt665-posix-quit-source/provenance.txt
+          sha256sum experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch > ci-artifacts/qt665-posix-quit-source/patch-sha256.txt
+      - name: Keep source diagnostic on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-posix-quit-source-${{ github.sha }}
+          path: ci-artifacts/qt665-posix-quit-source/
+          if-no-files-found: warn
+          retention-days: 14
