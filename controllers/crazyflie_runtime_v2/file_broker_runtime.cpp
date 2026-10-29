@@ -8,6 +8,7 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -33,10 +34,25 @@ bool isRuntimeHello(const char *message) {
 }
 
 int requestId(const char *message) {
-  int id = -1;
-  if (message)
-    std::sscanf(message, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST %d", &id);
-  return id;
+  if (!message)
+    return -1;
+  const std::string text(message);
+  const std::string prefix = std::string(kPrefix) + "REQUEST ";
+  if (text.compare(0, prefix.size(), prefix) != 0)
+    return -1;
+  // Keep the unavailable-provider fallback aligned with FileBroker's normal
+  // whole-token stoi parsing: "73junk" must not impersonate request 73.
+  std::istringstream stream(text.substr(prefix.size()));
+  std::string token;
+  if (!(stream >> token))
+    return -1;
+  try {
+    std::size_t consumed = 0;
+    const int id = std::stoi(token, &consumed);
+    return consumed == token.size() && id >= 1 ? id : -1;
+  } catch (...) {
+    return -1;
+  }
 }
 
 void sendUnavailable(const char *message) {
