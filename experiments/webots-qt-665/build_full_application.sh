@@ -57,7 +57,7 @@ python3 "$experiment/repair_parent_shutdown.py" --webots-tree "$source_tree" | t
 # Exact upstream POSIX callback repair, independent of the Qt parent progress lease.
 test "$(git -C "$source_tree" hash-object src/webots/gui/main.cpp)" = d578afa7cbd27ea13fd9ca0583f5e12170c6fba3
 signal_patch="$experiment/../qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch"
-echo "d14be0c1f1906d019d0e6998b1977a18ac15953e7c0e2db953238276debe7359  $signal_patch" | sha256sum -c -
+echo "e9a6d9365011e55fe853fea1026d9b83be097feb4ba9a4759639fe75796f54b8  $signal_patch" | sha256sum -c -
 git -C "$source_tree" apply --check "$signal_patch"
 git -C "$source_tree" apply "$signal_patch"
 sha256sum "$signal_patch" > "$evidence/posix-signal-patch.sha256"

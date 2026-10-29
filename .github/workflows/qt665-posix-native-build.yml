@@ -34,8 +34,9 @@ jobs:
           set -Eeuo pipefail
           test "$(git -C upstream-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           test "$(git -C upstream-webots hash-object src/webots/gui/main.cpp)" = d578afa7cbd27ea13fd9ca0583f5e12170c6fba3
-          echo 'd14be0c1f1906d019d0e6998b1977a18ac15953e7c0e2db953238276debe7359  experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch' | sha256sum -c -
+          echo 'e9a6d9365011e55fe853fea1026d9b83be097feb4ba9a4759639fe75796f54b8  experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch' | sha256sum -c -
           git -C upstream-webots apply --check "$GITHUB_WORKSPACE/experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch"
+          python3 experiments/qt665-posix-signal-safe/qualify_signal_safe_source.py --upstream-tree upstream-webots
           mkdir -p ci-artifacts/qt665-posix-native-build
           git rev-parse HEAD > ci-artifacts/qt665-posix-native-build/evidence-head.txt
           git -C upstream-webots rev-parse HEAD > ci-artifacts/qt665-posix-native-build/upstream-head.txt
