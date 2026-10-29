@@ -1,0 +1,90 @@
+# One bounded native contrast, no product adoption and no CI Gate authority.
+name: Qt665 compiled selfpipe consumer contrast NON-GATE
+on:
+  push:
+    branches: [evidence/665-selfpipe-compiled-consumer-20261029]
+permissions:
+  contents: read
+jobs:
+  compile-and-observe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream-webots
+          persist-credentials: false
+          sparse-checkout: |
+            src
+            include
+            lib
+            bin
+            resources
+            projects/robots/bitcraze/crazyflie
+            projects/objects/backgrounds
+            projects/objects/floors
+            projects/appearances
+            projects/default
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          ref: aba2a2544c764bdca7f3d9bc615e9d9970f0b255
+          path: signal-observer-source
+          persist-credentials: false
+          sparse-checkout: experiments/qt665-signal-context
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve product identity and prepare existing Blockly inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/qt665-selfpipe-build
+          git fetch --depth=1 origin c0cb8c1873d48b26a0f67976c65fa92ca5d54f52
+          test -z "$(git diff --name-only c0cb8c1873d48b26a0f67976c65fa92ca5d54f52 -- . ':!experiments/qt665-posix-signal-safe' ':!.github/workflows/qt665-posix-quit-selfpipe-source.yml' ':!.github/workflows/qt665-selfpipe-compiled-consumer.yml')"
+          git rev-parse HEAD > ci-artifacts/qt665-selfpipe-build/evidence-head.txt
+          bash tools/prepare_runtime_v2.sh
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Prepare Qt6.5.3 headers and unchanged official runtime overlay
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --pull=false -t qt665-selfpipe-dev -f - . <<'EOF'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          COPY tools/prepare_webots_apt.py /tmp/prepare_webots_apt.py
+          RUN LIBGL_ALWAYS_SOFTWARE=true python3 /tmp/prepare_webots_apt.py && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libopenal-dev git python3-pip curl xauth xvfb libxcb-cursor0 bzip2 && rm -rf /var/lib/apt/lists/*
+          RUN pip3 install aqtinstall==3.1.18 && aqt install-qt --outputdir /opt/Qt linux desktop 6.5.3 gcc_64 -m qtwebsockets
+          EOF
+          docker image inspect qt665-selfpipe-dev > ci-artifacts/qt665-selfpipe-build/build-image.json
+      - name: Compile baseline then change only the POSIX main.cpp and relink
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --init -v "$PWD:/workspace" -w /workspace qt665-selfpipe-dev \
+            bash experiments/qt665-posix-signal-safe/native-build/build.sh \
+            upstream-webots ci-artifacts/qt665-selfpipe-build \
+            2>&1 | tee ci-artifacts/qt665-selfpipe-build/build.log
+      - name: Exercise both actual compiled consumers against identical native negative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --init \
+            -v "$PWD:/workspace" \
+            -v "$PWD/upstream-webots/projects:/usr/local/webots/projects:ro" \
+            -v "$(command -v node):/usr/local/bin/node:ro" -w /workspace qt665-selfpipe-dev \
+            bash experiments/qt665-posix-signal-safe/native-build/exercise.sh \
+            ci-artifacts/qt665-selfpipe-build \
+            2>&1 | tee ci-artifacts/qt665-selfpipe-build/native.log
+      - name: Preserve binaries, inputs and original native evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-selfpipe-compiled-${{ github.sha }}
+          path: ci-artifacts/qt665-selfpipe-build/
+          if-no-files-found: error
+          retention-days: 14

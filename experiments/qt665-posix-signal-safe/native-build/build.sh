@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Run in the development overlay of the pinned official R2025a image.
+# NON-GATE experiment: produces an application, never adopts it in product paths.
+set -Eeuo pipefail
+source_tree=$(realpath "${1:?pinned expendable upstream checkout}")
+evidence=$(realpath "${2:?existing evidence directory}")
+experiment=$(cd "$(dirname "$0")/.." && pwd)
+runtime=/usr/local/webots
+git config --global --add safe.directory "$source_tree"
+test "$(git -C "$source_tree" rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+python3 "$experiment/qualify_signal_safe_source.py" --upstream-tree "$source_tree" > "$evidence/source.txt"
+g++ --version > "$evidence/compiler.txt"
+git -C "$source_tree" submodule status > "$evidence/submodules.txt"
+sha256sum "$runtime"/lib/webots/libQt6*.so.6.5.3 "$runtime/bin/webots-bin" > "$evidence/original-runtime.sha256"
+
+# Preserve the official runtime libraries; the full SDK supplies headers/moc only.
+cp -a "$runtime/lib/webots/." "$source_tree/lib/webots/"
+mkdir -p "$source_tree/bin/qt" "$source_tree/include/qt"
+cp -a /opt/Qt/6.5.3/gcc_64/include/. "$source_tree/include/qt/"
+cp /opt/Qt/6.5.3/gcc_64/libexec/moc "$source_tree/bin/qt/moc"
+export LD_LIBRARY_PATH="$runtime/lib/webots:${LD_LIBRARY_PATH:-}"
+export WEBOTS_HOME="$source_tree"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$runtime/lib/webots/qt/plugins/platforms"
+
+# Pin the upstream dependency archives, extract only development headers.
+cd "$source_tree"
+for spec in 'libOIS.1.4.tar.bz2 d1482733dce06f6dcc1c062c5c314185' 'libpico.tar.bz2 13ce4d080f1db578cb2b73206b52e4cb' 'libassimp-5.2.3.tar.bz2 25f08ba04d580e8d81a387856d304f4c'; do
+  read -r package digest <<< "$spec"
+  curl --fail --location --max-time 180 "https://cyberbotics.com/files/repository/dependencies/linux64/release/$package" -o "$evidence/$package"
+  echo "$digest  $evidence/$package" | md5sum --check
+  sha256sum "$evidence/$package" >> "$evidence/dependency-archives.sha256"
+  # Upstream R2025a dependencies/Makefile.linux extracts libraries as well
+  # as headers. Extract ONLY the pinned package's corresponding runtime DSOs:
+  # copying headers alone left the full application with an unresolved -lOIS.
+  tar -tjf "$evidence/$package" > "$evidence/$package.members"
+  case "$package" in
+    libOIS.1.4.tar.bz2) library_glob='lib/webots/libOIS*' ;;
+    libpico.tar.bz2) library_glob='lib/webots/libpico*' ;;
+    libassimp-5.2.3.tar.bz2) library_glob='lib/webots/libassimp*' ;;
+    *) echo "unrecognized pinned dependency: $package" >&2; exit 1 ;;
+  esac
+  grep -q '^lib/webots/' "$evidence/$package.members"
+  tar -xjf "$evidence/$package" --wildcards 'include/*' "$library_glob"
+done
+# The linker consumes unversioned -l names; require authentic, resolvable
+# library files, not just headers or dangling versioned SONAME links.
+for lib in OIS pico assimp; do
+  test -r "$source_tree/lib/webots/lib$lib.so" || {
+    echo "missing real linkable dependency: lib$lib.so" >&2
+    exit 1
+  }
+  readlink -f "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-library-targets.txt"
+  sha256sum "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-libraries.sha256"
+done
+
+# Preserve identical SDK/runtime/renderer inputs across the two links.
+find include/qt -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/qt-headers.sha256"
+dpkg-query -W > "$evidence/build-packages.txt"
+make -j2 -C src/glad release
+make -j2 -C src/wren release
+compile_application() {
+  make -j2 -C src/webots release \
+    QT_CORE_INCLUDE="-isystem $source_tree/include/qt/QtCore -isystem $source_tree/include/qt -Ibuild/release" \
+    CFLAGS='-fPIC -O2 -g -DNDEBUG -Wall' LD_FLAGS='-rdynamic'
+}
+compile_application
+test -x bin/webots-bin
+cp bin/webots-bin "$evidence/baseline-webots-bin"
+sha256sum src/webots/gui/main.cpp > "$evidence/baseline-main.sha256"
+nm -an -C bin/webots-bin > "$evidence/baseline-nm.txt"
+ldd bin/webots-bin > "$evidence/baseline-ldd.txt"
+if grep -q 'not found' "$evidence/baseline-ldd.txt"; then exit 1; fi
+
+git apply --check "$experiment/webots-r2025a-posix-quit-selfpipe.patch"
+git apply "$experiment/webots-r2025a-posix-quit-selfpipe.patch"
+git diff -- src/webots/gui/main.cpp > "$evidence/applied-main.patch"
+sha256sum "$experiment/webots-r2025a-posix-quit-selfpipe.patch" > "$evidence/patch.sha256"
+compile_application
+cp bin/webots-bin "$evidence/selfpipe-webots-bin"
+sha256sum src/webots/gui/main.cpp > "$evidence/selfpipe-main.sha256"
+nm -an -C bin/webots-bin > "$evidence/selfpipe-nm.txt"
+ldd bin/webots-bin > "$evidence/selfpipe-ldd.txt"
+if grep -q 'not found' "$evidence/selfpipe-ldd.txt"; then exit 1; fi
+sha256sum "$evidence"/baseline-webots-bin "$evidence"/selfpipe-webots-bin > "$evidence/built-binaries.sha256"
+echo QT665_BOTH_FULL_APPLICATION_LINKS=PASS
