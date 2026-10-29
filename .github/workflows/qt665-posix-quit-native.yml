@@ -1,9 +1,7 @@
 # Experimental native qualification only; unrelated to canonical CI Gate.
 name: QT665 POSIX quit true source object + Qt handler probe NON-GATE
 on:
-  push:
-    branches:
-      - evidence/665-posix-quit-native-20261029
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
