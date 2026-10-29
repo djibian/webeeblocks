@@ -1,0 +1,66 @@
+# One paired, strictly NON-GATE diagnostic. Neither modifies #701 nor creates a PR.
+# Only the outer Python import-bound image selector is replaced for this process;
+# all WebeeBlocks source/world/oracles remain exactly the Draft HEAD below.
+name: Qt665 official same-source unavailable control NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-official-unavailable-paired-20261029
+permissions:
+  contents: read
+jobs:
+  official-same-source-control:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5514158aa812beeb8446ed09f899dd45358e20e2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Refuse source drift and run one original-engine native negative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "5514158aa812beeb8446ed09f899dd45358e20e2"
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          from tools.ci import run_grand_prix_u_geometry as geometry
+          EXPECTED = 'ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          OFFICIAL = 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          SOURCE = 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          if geometry.IMAGE != EXPECTED or geometry.SOURCE != SOURCE:
+              raise RuntimeError('unqualified source/image selector; refuse diagnostic')
+          # In-memory binding only: the checked-out source bytes stay unchanged.
+          geometry.IMAGE = OFFICIAL
+          from tools.ci import run_grand_prix_u_prototype as runner
+          if runner.IMAGE != OFFICIAL or runner.SOURCE != SOURCE:
+              raise RuntimeError('image import binding not exact; refuse diagnostic')
+          out = Path('ci-artifacts/qt665-official-control')
+          out.mkdir(parents=True, exist_ok=True)
+          (out / 'provenance.json').write_text(json.dumps({
+              'source_head': '5514158aa812beeb8446ed09f899dd45358e20e2',
+              'source_image_before_override': EXPECTED,
+              'effective_outer_image': OFFICIAL,
+              'pinned_webots_source': SOURCE,
+              'mode': 'unavailable', 'seed': 0, 'side': 2.0,
+              'scope': 'official-OCI one-shot negative; no Qt process attestation'
+          }, sort_keys=True, indent=2) + '\n')
+          sys.argv = ['tools/ci/run_grand_prix_u_prototype.py',
+                      '--suite', 'unavailable', '--seed', '0', '--side', '2.0']
+          runner.main()
+          PY
+      - name: Retain raw native evidence whether the negative succeeds or crashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-original-matched-unavailable
+          path: |
+            ci-artifacts/grand-prix-u/
+            ci-artifacts/qt665-official-control/
+          if-no-files-found: error
+          retention-days: 14
