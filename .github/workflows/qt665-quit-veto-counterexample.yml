@@ -1,0 +1,71 @@
+name: QT665 veto after SIGTERM source-bound Qt6 counterexample NON-GATE
+on:
+  push:
+    branches: [evidence/665-posix-veto-retry-20261029]
+permissions:
+  contents: read
+jobs:
+  source-bound-qt:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream
+          persist-credentials: false
+          sparse-checkout: |
+            src/webots/gui
+      - name: Pin true source, safety patch and explicit GUI close veto
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C upstream rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          test "$(git -C upstream hash-object src/webots/gui/main.cpp)" = d578afa7cbd27ea13fd9ca0583f5e12170c6fba3
+          echo 'e9a6d9365011e55fe853fea1026d9b83be097feb4ba9a4759639fe75796f54b8  experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch' | sha256sum -c -
+          python3 experiments/qt665-posix-signal-safe/qualify_signal_safe_source.py --upstream-tree upstream
+          git -C upstream apply "$GITHUB_WORKSPACE/experiments/qt665-posix-signal-safe/webots-r2025a-posix-quit-selfpipe.patch"
+          mkdir -p ci-artifacts/qt665-veto
+          python3 experiments/qt665-posix-signal-safe/quit_veto_counterexample.py \
+            upstream/src/webots/gui/main.cpp upstream/src/webots/gui/WbMainWindow.cpp \
+            ci-artifacts/qt665-veto/harness.cpp
+          git rev-parse HEAD > ci-artifacts/qt665-veto/head.txt
+      - name: Run real Qt6.5.3 notifier with allowed and vetoed QWidget close
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --pull=false -t qt665-quit-veto - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends g++ xvfb xauth libxcb-cursor0 && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          docker run --rm -v "$PWD:/workspace" -w /workspace qt665-quit-veto bash -c '
+            set -Eeuo pipefail
+            root=/usr/local/webots
+            out=/workspace/ci-artifacts/qt665-veto
+            export LD_LIBRARY_PATH="$root/lib/webots"
+            g++ -std=c++17 -fPIC -rdynamic -I"$root/include/qt" \
+              -I"$root/include/qt/QtCore" -I"$root/include/qt/QtGui" \
+              -I"$root/include/qt/QtWidgets" \
+              "$out/harness.cpp" -L"$root/lib/webots" \
+              -Wl,-rpath,"$root/lib/webots" -lQt6Widgets -lQt6Gui -lQt6Core \
+              -o "$out/veto-bin"
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$root/lib/webots/qt/plugins/platforms"
+            timeout -k 3s 10s xvfb-run -a env QT_QPA_PLATFORM=xcb \
+              "$out/veto-bin" normal | tee "$out/normal.log"
+            timeout -k 3s 10s xvfb-run -a env QT_QPA_PLATFORM=xcb \
+              "$out/veto-bin" veto | tee "$out/veto.log"
+          '
+          grep -F 'NORMAL_QUIT=PASS' ci-artifacts/qt665-veto/normal.log
+          grep -F 'CANCEL_SECOND_SIGTERM_SWALLOWED=OBSERVED' ci-artifacts/qt665-veto/veto.log
+          grep -F 'MODE=veto SENT=2 REQUESTS=1 CLOSES=1 VISIBLE=1' ci-artifacts/qt665-veto/veto.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-veto-counterexample
+          path: ci-artifacts/qt665-veto/
+          if-no-files-found: warn
+          retention-days: 14
