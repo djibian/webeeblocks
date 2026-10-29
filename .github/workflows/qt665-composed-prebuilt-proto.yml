@@ -1,9 +1,7 @@
 # Bounded replay of the exact ELF from failed run, not a second full rebuild.
 name: Qt665 composed same ELF pinned PROTO assets NON-GATE
 on:
-  push:
-    branches:
-      - evidence/665-composed-prebuilt-proto-witness-20261029
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read
