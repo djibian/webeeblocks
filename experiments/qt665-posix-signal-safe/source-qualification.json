@@ -1,0 +1,12 @@
+{
+  "fixed": {
+    "returncode": 0,
+    "stdout": "QT665_POSIX_QUIT_SOURCE_ONLY=PASS upstream=c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b\nNATIVE_COMPILE=NOT_TESTED QT_SIGNAL_DELIVERY=NOT_TESTED WEBOTS_BINARY=NOT_TESTED\n",
+    "stderr": ""
+  },
+  "old": {
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"/tmp/tmp4bvpukw3/qualify.py\", line 61, in <module>\n    main()\n  File \"/tmp/tmp4bvpukw3/qualify.py\", line 51, in main\n    assert not re.search(r\"\\bclose\\s*\\(|\\bSIG_DFL\\b|gQuitNotificationFd\\s*=\", after_publication)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "candidate": "b8116937179da1a840d8ece9ac15bd3f3323c4fa",
+  "patched_main_sha256": "0581be5f8638371654e870b2c74885e3be11a147fe1fb9e8d6169a4d301104c7",
+  "exact_extracted_handler_sha256": "03f29b0f811b2faabc3577fe684d35a7aed0aea401ba5a2045332057793d4d71",
+  "results": [
+    {
+      "mode": "keep",
+      "sampled_fd": 4,
+      "global_revoked": true,
+      "write_return": 1,
+      "foreign_file_bytes": 0,
+      "byte": 15,
+      "errno_preserved": true
+    },
+    {
+      "mode": "full",
+      "sampled_fd": 4,
+      "global_revoked": true,
+      "write_return": -1,
+      "foreign_file_bytes": 0,
+      "byte": 15,
+      "errno_preserved": true
+    },
+    {
+      "mode": "retire",
+      "sampled_fd": 4,
+      "global_revoked": true,
+      "write_return": 1,
+      "foreign_file_bytes": 1,
+      "byte": 15,
+      "errno_preserved": true
+    }
+  ],
+  "scope": "real POSIX kernel FD lifetime counterexample; Qt/Webots not executed",
+  "intervention": "write wrapper gates scheduling between sampled FD and kernel write"
+}

@@ -43,8 +43,18 @@ def main():
         assert result.count("WbApplication::instance()->simulationQuit(EXIT_SUCCESS)") == 2
         assert "if (!quitRequested)" in result
         assert "#ifdef _WIN32\n  signal(SIGINT, quitApplication);" in result
-        assert "gQuitNotificationFd = -1;" in result
-        assert "signal(SIGTERM, SIG_DFL);" in result
+        # The native FD-reuse counterexample refutes close/reset on app.exec exit.
+        # Retain both ends for process lifetime: also avoids late-writer SIGPIPE.
+        publication = "gQuitNotificationFd = quitPipe[1];"
+        assert result.count(publication) == 1
+        after_publication = result.split(publication, 1)[1]
+        assert not re.search(r"\bclose\s*\(|\bSIG_DFL\b|gQuitNotificationFd\s*=", after_publication)
+        assert result.rstrip().endswith("return app.exec();\n}")
+        notification = result.split("QObject::connect(&quitNotifier", 1)[1].split(publication, 1)[0]
+        assert "quitNotifier.setEnabled(false);" in notification
+        assert notification.count("read(") == 1 and "while (" not in notification
+        assert notification.index("quitRequested = true;") < notification.index("quitNotifier.setEnabled(false);")
+        assert notification.index("quitNotifier.setEnabled(false);") < notification.index("WbApplication::instance()->simulationQuit")
     print("QT665_POSIX_QUIT_SOURCE_ONLY=PASS upstream="+UPSTREAM)
     print("NATIVE_COMPILE=NOT_TESTED QT_SIGNAL_DELIVERY=NOT_TESTED WEBOTS_BINARY=NOT_TESTED")
 if __name__ == "__main__":
