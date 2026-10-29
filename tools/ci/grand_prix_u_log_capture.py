@@ -6,6 +6,7 @@ This is not a generic descendant-lifetime or other-file guarantee (#656).
 """
 import os
 from pathlib import Path
+import signal
 import threading
 
 
@@ -60,8 +61,53 @@ class NativeLogCapture:
             raise RuntimeError('native stdout capture failed; refuse seal') from self._error
 
 
+# A native test may have emitted its required result *before* teardown.
+# Recognize allocator/abort diagnostics too; a result alone is not a healthy exit.
+# Do not classify Webots' ambiguous "controller crashed" warning as fatal: an
+# intentionally SIGTERM'd internal evaluator can produce that message (#665).
+_FATAL_OUTPUT = (
+    'Segmentation fault',
+    'Traceback (most recent call last)',
+    'Aborted (core dumped)',
+    'double free or corruption',
+    'corrupted size vs. prev_size',
+    'corrupted double-linked list',
+    'stack smashing detected',
+    'AddressSanitizer:DEADLYSIGNAL',
+    'terminate called after throwing an instance',
+    'Fatal Python error:',
+    'Fatal glibc error:',
+    'malloc():',
+    'free():',
+    'munmap_chunk():',
+)
+_FATAL_SIGNAL_NUMBERS = frozenset(
+    int(getattr(signal, name)) for name in
+    ('SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGILL', 'SIGSEGV')
+    if hasattr(signal, name)
+)
+
+
 def require_no_terminal_crash(path):
-    """Late stderr appended at Webots wrapper exit is still a native failure."""
+    """Refuse a native fatal marker even after the mission result was recorded."""
     text = Path(path).read_text(errors='replace')
-    if 'Segmentation fault' in text or 'Traceback (most recent call last)' in text:
+    if any(marker in text for marker in _FATAL_OUTPUT):
         raise RuntimeError('native crash reported at stdout retirement; refuse seal')
+
+
+def require_no_fatal_exit_statuses(children):
+    """Refuse fatal direct-child exits, including 128+signal from shell wrappers.
+
+    SIGTERM/SIGKILL may be requested by stop_groups and are NOT proof of
+    spontaneous native failure. Internal Webots controller exits still need
+    separate evidence; a clean direct-child status does not prove their health.
+    """
+    for index, child in enumerate(children):
+        code = child.returncode
+        if code is None:
+            raise RuntimeError('native child retirement status missing: ' + str(index))
+        if any(code == -number or code == 128 + number
+               for number in _FATAL_SIGNAL_NUMBERS):
+            raise RuntimeError(
+                'fatal native direct-child exit at retirement: index=' +
+                str(index) + ' code=' + str(code))

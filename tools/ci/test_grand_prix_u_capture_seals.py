@@ -2,10 +2,13 @@
 import hashlib
 import json
 from pathlib import Path
+import signal
 import tempfile
 import unittest
 
 from grand_prix_u_capture_seals import CaptureSealError, verify_new_capture_seals
+from grand_prix_u_log_capture import require_no_terminal_crash, require_no_fatal_exit_statuses
+from types import SimpleNamespace
 
 
 class SealAuditTests(unittest.TestCase):
@@ -35,6 +38,51 @@ class SealAuditTests(unittest.TestCase):
         self.file.write_text(self.file.read_text() + 'Segmentation fault (core dumped)\n')
         with self.assertRaisesRegex(CaptureSealError, 'post-seal mutation'):
             verify_new_capture_seals(self.root, set(), {self.folder.name})
+
+    def test_post_result_fatal_abort_is_refused(self):
+        # The completed negative result must not excuse a late glibc abort.
+        fatal = (
+            'Segmentation fault (core dumped)',
+            'Traceback (most recent call last)',
+            'Aborted (core dumped)',
+            'malloc(): corrupted top size',
+            'free(): double free detected in tcache 2',
+            'double free or corruption (out)',
+            'corrupted size vs. prev_size',
+            '*** stack smashing detected ***',
+            'Fatal glibc error: malloc assertion failure',
+            'AddressSanitizer:DEADLYSIGNAL',
+        )
+        for message in fatal:
+            with self.subTest(message=message):
+                self.file.write_text('GP_U_RESULT valid-negative\n' + message + '\n')
+                with self.assertRaisesRegex(RuntimeError, 'native crash'):
+                    require_no_terminal_crash(self.file)
+
+    def test_planned_shutdown_warning_not_misclassified(self):
+        # R2025a can report this warning after intentional harness SIGTERM.
+        self.file.write_text(
+            "INFO: grand_prix_u_evaluator: Terminating.\n"
+            "WARNING: 'grand_prix_u_evaluator' controller crashed.\n"
+            'Warning: The X11 connection broke (error 1).\n')
+        require_no_terminal_crash(self.file)
+
+    def test_fatal_native_direct_exit_is_refused_even_without_log_message(self):
+        # Direct ELF: negative signal. xvfb-run/shell wrappers: 128 + signal.
+        fatal = [int(getattr(signal, name)) for name in (
+            'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGILL', 'SIGSEGV')
+            if hasattr(signal, name)]
+        for number in fatal:
+            for code in (-number, 128 + number):
+                with self.subTest(code=code):
+                    with self.assertRaisesRegex(RuntimeError, 'fatal native direct-child'):
+                        require_no_fatal_exit_statuses([SimpleNamespace(returncode=code)])
+        for code in (0, 1, -15, -9, 143, 137):
+            with self.subTest(nonfatal_or_harness_code=code):
+                require_no_fatal_exit_statuses([SimpleNamespace(returncode=code)])
+        with self.assertRaisesRegex(RuntimeError, 'status missing'):
+            require_no_fatal_exit_statuses([SimpleNamespace(returncode=None)])
+
 
     def test_unsealed_extra_file_refused(self):
         (self.folder / 'native_trace.csv').write_text('late')
