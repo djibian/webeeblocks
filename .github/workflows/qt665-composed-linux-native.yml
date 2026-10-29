@@ -1,9 +1,7 @@
 # NON-GATE integration experiment: both already independently qualified source patches.
 name: Qt665 composed actual Webots POSIX + parent-safe NON-GATE
 on:
-  push:
-    branches:
-      - evidence/665-qt-selfpipe-composed-20261029
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

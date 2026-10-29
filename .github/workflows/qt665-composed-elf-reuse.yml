@@ -1,0 +1,111 @@
+# One corrective NON-GATE trial on exactly the previously compiled full ELF.
+# The first combined build succeeded but native startup lacked mounted PROTO assets.
+name: Qt665 composed native same-ELF resource repair NON-GATE
+on:
+  push:
+    branches:
+      - evidence/665-qt-selfpipe-composed-20261029
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reuse-exact-composed-webots:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream-webots
+          persist-credentials: false
+          sparse-checkout: |
+            projects/robots/bitcraze/crazyflie
+            projects/objects/backgrounds
+            projects/objects/floors
+            projects/appearances
+            projects/default
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare original Blockly interpreter and pinned world assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git merge-base 79370071ff99b871da0e3a9b4c0be6104074783e HEAD)" = '79370071ff99b871da0e3a9b4c0be6104074783e'
+          test "$(git -C upstream-webots rev-parse HEAD)" = 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          for file in \
+            upstream-webots/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto \
+            upstream-webots/projects/objects/backgrounds/protos/TexturedBackground.proto \
+            upstream-webots/projects/objects/floors/protos/Floor.proto; do
+            test -r "$file"
+          done
+          bash tools/prepare_runtime_v2.sh
+          node tools/grand_prix/pupil_workspace_u.js
+          mkdir -p ci-artifacts/qt665-composed
+          printf 'candidate_run=%s\ncandidate_artifact=%s\ncandidate_head=%s\nincident=%s\nsource_upstream=%s\n' \
+            '40907399724' '12912812964' 'a393476e80f12455e412ec2aa132de66dba79a0d' \
+            'missing mounted PROTO assets; no READY' 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b' \
+            > ci-artifacts/qt665-composed/artifact-provenance.txt
+          git rev-parse HEAD > ci-artifacts/qt665-composed/experiment-head.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: qt665-composed-native-a393476e80f12455e412ec2aa132de66dba79a0d
+          run-id: 40907399724
+          repository: djibian/webeeblocks
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ci-artifacts/qt665-original-build
+      - name: Verify exact native ELF from the first evidence archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -r ci-artifacts/qt665-original-build/webots-bin
+          echo '2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f  ci-artifacts/qt665-original-build/webots-bin' | sha256sum -c -
+          test -s ci-artifacts/qt665-original-build/webots-bin
+          cp ci-artifacts/qt665-original-build/webots-bin ci-artifacts/qt665-composed/webots-bin
+          sha256sum ci-artifacts/qt665-composed/webots-bin > ci-artifacts/qt665-composed/input-binary.sha256
+          test "$(grep -c '^2742d900' ci-artifacts/qt665-composed/input-binary.sha256)" = 1
+          docker pull 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+      - name: Install the unchanged composed ELF into immutable official R2025a and execute native negative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --init \
+            -v "$PWD:/workspace" \
+            -v "$PWD/upstream-webots/projects:/usr/local/webots/projects:ro" \
+            -v "$(command -v node):/usr/local/bin/node:ro" \
+            -w /workspace --entrypoint /bin/bash 'cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099' -lc '
+              set -Eeuo pipefail
+              test -r /workspace/upstream-webots/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto
+              install -m 0755 ci-artifacts/qt665-composed/webots-bin /usr/local/webots/bin/webots-bin
+              test "$(sha256sum /usr/local/webots/bin/webots-bin | cut -d" " -f1)" = "2742d90041fccb4b24fba4558662ecf17d15c092bf28dd93bf014f748cf01c9f"
+              ldd /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-composed/runtime-ldd.txt
+              if grep -q "not found" ci-artifacts/qt665-composed/runtime-ldd.txt; then
+                cat ci-artifacts/qt665-composed/runtime-ldd.txt; exit 1
+              fi
+              export WEBOTS_HOME=/usr/local/webots
+              python3 -u experiments/qt665-composed/run_composed.py
+            ' 2>&1 | tee ci-artifacts/qt665-composed/native-reuse.log
+      - name: Preserve bounded exact-ELF capture and incident evidence, without duplicating 202MB binary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-composed-native-reuse-${{ github.sha }}
+          path: |
+            ci-artifacts/qt665-composed/RESULT.json
+            ci-artifacts/qt665-composed/trace.bin
+            ci-artifacts/qt665-composed/trace.json
+            ci-artifacts/qt665-composed/loader-maps.txt
+            ci-artifacts/qt665-composed/native/
+            ci-artifacts/qt665-composed/native-reuse.log
+            ci-artifacts/qt665-composed/runtime-ldd.txt
+            ci-artifacts/qt665-composed/input-binary.sha256
+            ci-artifacts/qt665-composed/artifact-provenance.txt
+            ci-artifacts/qt665-composed/experiment-head.txt
+          if-no-files-found: error
+          retention-days: 14
