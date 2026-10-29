@@ -644,6 +644,40 @@ class WorkflowTests(unittest.TestCase):
                 self.assertNotEqual(failure.returncode, 0)
                 self.assertEqual(proto.read_text(encoding="utf-8"), candidate)
 
+    def test_historical_pioneer_warning_guard_rejects_under_pipefail(self) -> None:
+        """Exercise the real shell guard, including a SIGPIPE-producing log."""
+        workflow = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        for job, following in (
+            ("encoders-historical", "gyro-gps-historical"),
+            ("light-sensor-historical", "sensor-probing-historical"),
+            ("sensor-probing-historical", "robot-window-roundtrip"),
+        ):
+            section = workflow.split("\n  " + job + ":\n", 1)[1].split(
+                "\n  " + following + ":\n", 1)[0]
+            start_token = "if grep -F 'Cannot download' \"$LOG\" | "
+            self.assertEqual(section.count(start_token), 1)
+            start = section.index(start_token)
+            end = section.index("\n          fi", start) + len("\n          fi")
+            real_guard = section[start:end]
+            with tempfile.TemporaryDirectory(prefix="pioneer-audio-guard-") as temp:
+                log = Path(temp) / "webots.log"
+                for count, expected_exit in ((0, 0), (1, 1), (5000, 1)):
+                    with self.subTest(job=job, forbidden_warnings=count):
+                        log.write_text(
+                            "normal Webots log\n" +
+                            "WARNING Cannot download rotational_motor.wav\n" * count,
+                            encoding="utf-8",
+                        )
+                        result = subprocess.run(
+                            ["bash", "-e", "-o", "pipefail", "-c",
+                             'LOG="$1"\n' + real_guard, "guard", str(log)],
+                            cwd=ROOT, text=True, capture_output=True, timeout=10,
+                        )
+                        self.assertEqual(
+                            result.returncode, expected_exit,
+                            f"{job} count={count}: {result.stdout} {result.stderr}",
+                        )
+
     def test_encoders_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         encoders = suite.split("\n  encoders-historical:\n", 1)[1].split(

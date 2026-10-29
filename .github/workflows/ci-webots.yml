@@ -1716,7 +1716,7 @@ jobs:
         run: |
           LOG=ci-artifacts/webots-box-encoders.log
 
-          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+          if grep -F 'Cannot download' "$LOG" | grep -F 'rotational_motor.wav' >/dev/null; then
             echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
             exit 1
           fi
@@ -2032,7 +2032,7 @@ jobs:
         run: |
           LOG=ci-artifacts/webots-light-sensor.log
 
-          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+          if grep -F 'Cannot download' "$LOG" | grep -F 'rotational_motor.wav' >/dev/null; then
             echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
             exit 1
           fi
@@ -2169,7 +2169,7 @@ jobs:
         run: |
           LOG=ci-artifacts/webots-sensor-probing.log
 
-          if grep -F 'Cannot download' "$LOG" | grep -Fq 'rotational_motor.wav'; then
+          if grep -F 'Cannot download' "$LOG" | grep -F 'rotational_motor.wav' >/dev/null; then
             echo '::error::The historical Pioneer wheel requested external audio despite offline qualification.'
             exit 1
           fi
