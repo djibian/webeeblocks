@@ -33,11 +33,11 @@ def generate(src:Path,dest:Path):
     for fragment in (handler,setup,cleanup):
         assert fragment and 'QSocketNotifier' not in handler
     harness=r"""
-#include <QApplication>
-#include <QCoreApplication>
-#include <QSocketNotifier>
-#include <QTimer>
-#include <QThread>
+#include <QtWidgets/QApplication>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QSocketNotifier>
+#include <QtCore/QTimer>
+#include <QtCore/QThread>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
