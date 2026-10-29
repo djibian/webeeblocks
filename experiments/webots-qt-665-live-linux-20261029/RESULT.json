@@ -1,0 +1,114 @@
+{
+  "scope": "experimental-running-linux-process-identity-only-not-ready-ci",
+  "main_source": "019b5843212d61d05d11a520587a3cdb6bb27d22",
+  "attester_source": "fbf6031b81d81250e9b2ad5e7956481fc51400de",
+  "attester_git_blob": "3d7fee2e94c1be5795e5ff3c6c5fc70104abb03f",
+  "attester_sha256": "b16eebc01c50689eb47845eb1b2c6d0d61b60d81d02fa681ae889da33fb7a0ac",
+  "image": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
+  "host": {
+    "os_release": "PRETTY_NAME=\"Ubuntu 24.04.3 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.3 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+    "uname": [
+      "Linux",
+      "7b25d054524c",
+      "6.18.55",
+      "#1 SMP Wed Oct 14 19:45:18 UTC 2026",
+      "x86_64"
+    ]
+  },
+  "candidate": {
+    "executable": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/bin/webots-bin",
+    "pid": 3220,
+    "process_starttime_ticks": "138268",
+    "qt_family_observed_only": {
+      "libQt6Core": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Core.so.6",
+        "sha256_observed_only": "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8"
+      },
+      "libQt6DBus": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6DBus.so.6",
+        "sha256_observed_only": "35ac929819cff9152390be197827a711451c2a79f5c689a06ca16d7e10165fb1"
+      },
+      "libQt6Gui": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Gui.so.6",
+        "sha256_observed_only": "f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9"
+      },
+      "libQt6Network": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Network.so.6",
+        "sha256_observed_only": "44ee995d62c390e497a41f006aea750a504da19ca978a1631df3e5b38e502b90"
+      },
+      "libQt6OpenGL": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6OpenGL.so.6",
+        "sha256_observed_only": "b44ff317f652885819d45fd700755a2732dd6404f5c340063ff29a7b778ba5cf"
+      },
+      "libQt6OpenGLWidgets": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6OpenGLWidgets.so.6",
+        "sha256_observed_only": "a6de5cdb0dd56dd85d5d771230743d9030eddeabd528d32186ed25991b567fd1"
+      },
+      "libQt6PrintSupport": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6PrintSupport.so.6",
+        "sha256_observed_only": "82d06b6266d1aa020227ef981f77ffac51cf5443a5c2ef40de41654d56eea9ff"
+      },
+      "libQt6Qml": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Qml.so.6",
+        "sha256_observed_only": "cad56943ede82436f07de5b83194c6e7964c12164ad16e00650d41c8fc7d07f0"
+      },
+      "libQt6WebSockets": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6WebSockets.so.6",
+        "sha256_observed_only": "49606ca3ca00dc1395739bf582d487228dd6e9e9fd4111324b5c960a5f42cf47"
+      },
+      "libQt6Widgets": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Widgets.so.6",
+        "sha256_observed_only": "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024"
+      },
+      "libQt6XcbQpa": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6XcbQpa.so.6",
+        "sha256_observed_only": "34acd9f739b16498fdf6f2f670155d3f6a1136351402f417c82329bc9d49ab57"
+      },
+      "libQt6Xml": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Xml.so.6",
+        "sha256_observed_only": "f1a37eb79f01b01374104ed51357e88bbee2e27a3e8b76e4e65fd57611e15204"
+      }
+    },
+    "qt_platform_plugin_presence": "OBSERVED",
+    "qt_platform_plugins_observed_only": {
+      "libqxcb.so": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/qt/plugins/platforms/libqxcb.so",
+        "sha256_observed_only": "238b0c632cabfc5fdfe793dad0780ad233b832aa5b297039a83d140b119ccf3d"
+      }
+    },
+    "qt_sha256": {
+      "libQt6Core.so.6.5.3": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Core.so.6",
+        "sha256": "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8"
+      },
+      "libQt6Gui.so.6.5.3": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Gui.so.6",
+        "sha256": "f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9"
+      },
+      "libQt6Widgets.so.6.5.3": {
+        "mapped_filename": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots/lib/webots/libQt6Widgets.so.6",
+        "sha256": "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024"
+      }
+    },
+    "runtime_home": "/workspace/scratch/5ccc92c234c2/native-qt665/root/usr/local/webots",
+    "scope": "running-linux-process-elf-and-mapped-qt-only",
+    "verdict": "PASS",
+    "webots_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545"
+  },
+  "native": {
+    "mode": "baseline",
+    "reset_acknowledgements": 7,
+    "collision_attempt7_observed": true,
+    "scope": "diagnostic-only; no historical failure reproduction or main-health claim"
+  },
+  "native_candidate_sealed_files": 26,
+  "native_candidate_original_manifest_reverified": true,
+  "official_control": "attester rejected unpatched official ELF; mission result NOT QUALIFIED: original events.jsonl changed after sealing",
+  "unit_preflight": "direct script invocation: 7 pass, 1 fail: self-process negative received /proc/2/exe PermissionError instead of the expected error substring; not counted PASS",
+  "teardown": "existing runner terminated its child process groups; no observed SIGSEGV marker; no core or natural unavailable-console shutdown proof",
+  "product_changes": false,
+  "ready_ci": false,
+  "windows_qualified": false,
+  "reset_cause_resolved": false,
+  "shutdown_cause_resolved": false
+}
