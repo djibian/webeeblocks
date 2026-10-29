@@ -6,6 +6,10 @@ from unittest.mock import patch
 from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch, has_native_land_completion
 import run_grand_prix_u_geometry as geometry
 from pathlib import Path
+import sys
+ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT))
+from tools.grand_prix.prepare_u_runtime import prepare
 
 
 def observations(accepted):
@@ -27,6 +31,38 @@ NATIVE=('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n'
 
 
 class TimeoutEvidenceTests(unittest.TestCase):
+    def test_composed_broker_filters_before_any_reset_or_mission_dispatch(self):
+        # The GP U compiler consumes the *actual* common broker after textual
+        # composition. An early rejected RESET must never enter the broker's
+        # pending-reset state; a rejected file operation must never create Qt.
+        prepare()
+        generated=(ROOT/'controllers/grand_prix_u_flight/build/file_broker_u.cpp').read_text()
+        product=(ROOT/'controllers/crazyflie_runtime_v2/file_broker_runtime.cpp').read_text()
+        receive='  while ((message = wb_robot_wwi_receive_text()) != nullptr) {'
+        guard='    if (!gp_u_filter_raw(message)) continue;'
+        reset='    if (resetRequestId(message, &resetId) && gPendingResetRequest < 1)'
+        mission='    if (handleMissionCompletionRequest(message))'
+        files='    if (!isBrokerMessage(message))'
+        def prefiltered(source):
+            if any(source.count(token)!=1 for token in (receive,guard,reset,mission,files)):
+                return False
+            after=source.split(receive,1)[1]
+            return (after.startswith('\n'+guard+'\n') and
+                    0<after.index(guard)<after.index(mission)<after.index(reset)<after.index(files))
+        self.assertEqual(product.count('gp_u_filter_raw(message)'),0,
+                         'the shared broker must not depend on Grand Prix U')
+        self.assertTrue(prefiltered(generated),
+                        'the generated U broker must reject requests before side effects')
+        # Mutation controls: moving the filter after RESET bookkeeping, removing
+        # it, or inserting two hooks must *each* fail this same contract.
+        moved=generated.replace('\n'+guard+'\n','\n',1).replace(reset,reset+'\n'+guard,1)
+        removed=generated.replace('\n'+guard+'\n','\n',1)
+        doubled=generated.replace('\n'+guard+'\n','\n'+guard+'\n'+guard+'\n',1)
+        for case,mutant in (('late-filter',moved),('missing-filter',removed),('double-filter',doubled)):
+            with self.subTest(mutant=case):
+                self.assertFalse(prefiltered(mutant),
+                                 'broken Grand Prix filter placement escaped the oracle')
+
     def test_touchdown_does_not_prove_terminal_land(self):
         diagnostic = 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=212.3\n'
         self.assertTrue(has_native_land_completion(NATIVE))

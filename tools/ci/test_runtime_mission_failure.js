@@ -76,6 +76,31 @@ function harness(options = {}) {
   return {context, backend, element, sent, events};
 }
 
+// B4-I0: the product Makefile forcibly preincludes this C boundary.
+// Interposition must affect only the three C symbols, never C++ or wb_robot_step.
+function proveNativeCInterpositionBoundary() {
+  const header = path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_interpose.h');
+  const tokens = 'wb_robot_wwi_receive_text wb_robot_wwi_send wb_robot_cleanup wb_robot_step';
+  const cases = [
+    {compiler:process.env.CC || 'cc', language:'c', standard:'c11',
+      expected:'webeeblocks_file_broker_receive_text webeeblocks_file_broker_send webeeblocks_file_broker_robot_cleanup wb_robot_step'},
+    {compiler:process.env.CXX || 'c++', language:'c++', standard:'c++17', expected:tokens}
+  ];
+  for (const item of cases) {
+    const result = childProcess.spawnSync(item.compiler,
+      ['-std=' + item.standard, '-E', '-P', '-x', item.language, '-include', header, '-'],
+      {input:tokens + '\n', encoding:'utf8'});
+    assert.strictEqual(result.status, 0,
+      item.language + ' interposition preprocess failed: ' + String(result.stderr || result.error));
+    assert.strictEqual(result.stdout.trim(), item.expected,
+      item.language + ' unexpectedly changed the C/WWI interposition boundary');
+  }
+  const makefile = fs.readFileSync(path.resolve(__dirname,
+    '../../controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
+  assert.match(makefile, /-include file_broker_interpose\.h/,
+    'production native C builds must still use the tested interception header');
+}
+
 function proveNativeBrokerRetention() {
   const script = path.resolve(__dirname, 'test_runtime_mission_broker.py');
   const result = childProcess.spawnSync(process.env.PYTHON || 'python3', [script], {
@@ -88,6 +113,7 @@ function proveNativeBrokerRetention() {
 }
 
 async function proveMissionFailure() {
+  proveNativeCInterpositionBoundary();
   proveNativeBrokerRetention();
 
   const collision = harness();
