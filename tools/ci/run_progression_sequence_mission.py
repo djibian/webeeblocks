@@ -196,6 +196,25 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
     return source
 
 
+def instrument_sequence_step(source: str, *, selected: str) -> str:
+    """Opt-in #637 step timing on the real sequence-collision R2025a path.
+
+    The default source remains byte-identical. In the explicit diagnostic
+    mode reuse the same timed wb_robot_step wrapper as the autonomous probe,
+    without adding its extra RESET_PHASE instrumentation.
+    """
+    if selected == "0":
+        return source
+    if selected != "1":
+        raise ValueError("invalid native sequence step timing selection")
+    import importlib.util
+    instrument_path = ROOT / "experiments/runtime-reset-phase/instrument.py"
+    spec = importlib.util.spec_from_file_location("reset_step_probe", instrument_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.instrument_step(source)
+
+
 def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
@@ -223,6 +242,9 @@ def cleanup_temp_world() -> None:
 
 
 def main() -> int:
+    timing_selection = os.environ.get("WEBEEBLOCKS_SEQUENCE_CI_STEP_TIMING", "0")
+    if timing_selection not in ("0", "1"):
+        return fail("invalid native sequence step timing selection")
     if shutil.which("docker") is None:
         return fail("docker is unavailable")
     cleanup_temp_world()
@@ -280,12 +302,14 @@ def main() -> int:
 
         controller = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
         original = controller.read_bytes()
-        diagnostic = instrument_position(original.decode("utf-8")).encode("utf-8")
+        diagnostic_source = instrument_position(original.decode("utf-8"))
+        diagnostic = instrument_sequence_step(diagnostic_source, selected=timing_selection).encode("utf-8")
         (ARTIFACT_ROOT / "runtime-original.c").write_bytes(original)
         (ARTIFACT_ROOT / "runtime-instrumented.c").write_bytes(diagnostic)
         (ARTIFACT_ROOT / "runtime-source-sha256.json").write_text(json.dumps({
             "original": hashlib.sha256(original).hexdigest(),
             "instrumented": hashlib.sha256(diagnostic).hexdigest(),
+            "step_timing_enabled": timing_selection == "1",
         }, indent=2) + "\n", encoding="utf-8")
         try:
             controller.write_bytes(diagnostic)
@@ -314,6 +338,16 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/n
 python3 /workspace/tools/ci/run_land_contact_regression.py \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/land-contact-regression
+# Separate adversarial native attitude fail-safe; original LAND oracle above unchanged.
+python3 /workspace/tools/ci/run_land_contact_regression.py \
+  --case airborne-idle \
+  --home /usr/local/webots --xvfb /usr/bin/Xvfb \
+  --out /workspace/ci-artifacts/progression-sequence-mission/airborne-idle-failsafe
+# Completed TAKEOFF followed by STOP must not re-emit an error for the old ID.
+python3 /workspace/tools/ci/run_land_contact_regression.py \
+  --case idle-stop \
+  --home /usr/local/webots --xvfb /usr/bin/Xvfb \
+  --out /workspace/ci-artifacts/progression-sequence-mission/idle-stop-response
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \

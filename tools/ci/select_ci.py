@@ -93,6 +93,11 @@ SHARED_RUNTIME_WEBOTS = (
     "tools/ci/test_runtime_mission_failure.js",
     "tools/ci/test_runtime_outcome_settling.js",
     "tools/ci/test_runtime_mission_broker.py",
+    # B4 Qt-free file parser test is executed by run_runtime_v2_core_harness.py.
+    # Edits to either the C++ fake-provider oracle or its runner must not run
+    # Webots-only and silently skip the native Runtime owner.
+    "tools/ci/test_firefox_file_broker.cpp",
+    "tools/ci/test_runtime_v2_file_broker_native.py",
     "tools/ci/test_simulation_clock.py",
     "tools/ci/test_teacher_decision_channel.py",
     "tools/ci/test_post_reset_teacher_decision.py",

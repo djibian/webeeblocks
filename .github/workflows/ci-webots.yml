@@ -1620,7 +1620,9 @@ jobs:
   encoders-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -1657,8 +1659,8 @@ jobs:
             BoxWithEncoders.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -1882,7 +1884,9 @@ jobs:
   light-sensor-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -1914,8 +1918,8 @@ jobs:
             BoxWithLightSensor.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -2073,7 +2077,9 @@ jobs:
   sensor-probing-historical:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    # Cold checkout, verified OCI pull and native sidecar build are outside the
+    # separately enforced 30s Webots trial. See #747.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -2112,8 +2118,8 @@ jobs:
             sensorProbing.xml \
             controllers/my_controller/my_controller.py
 
-      - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+      - name: Pull exact historical Webots R2025a image
+        run: bash tools/ci/pull_pinned_historical_webots.sh
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash

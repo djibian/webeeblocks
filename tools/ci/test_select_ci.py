@@ -167,6 +167,17 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(selection.webots)
         self.assertFalse(selection.full)
 
+    def test_native_file_broker_protocol_oracles_select_their_runtime_owner(self) -> None:
+        for path in (
+            "tools/ci/test_firefox_file_broker.cpp",
+            "tools/ci/test_runtime_v2_file_broker_native.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime, "native file parser probe skipped")
+                self.assertTrue(selection.webots, "historical Webots coverage lost")
+                self.assertFalse(selection.full, "native Qt-free parser has a scoped owner")
+
     def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
         for path in (
             "tools/ci/observe_outcome_startup.py",

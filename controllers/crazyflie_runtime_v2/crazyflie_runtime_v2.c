@@ -755,6 +755,26 @@ int main(void) {
       }
     }
 
+    // The PID also drives motors while airborne with no active request.
+    // An unsafe attitude in that state has no request id to fail: latch the
+    // fail-safe without inventing a WWI response or a successful RESET.
+    if (command == CMD_IDLE && airborne &&
+        (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2)) {
+      fprintf(stderr, PREFIX " FATAL unsafe airborne idle attitude\n");
+      fflush(stderr);
+      stop_motors(m1, m2, m3, m4);
+      airborne = 0;
+      simulation_clock_revoke(&program_clock);
+      failsafe_latched = 1;
+      active_id = -1;
+      stable_since = -1.0;
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
     if (command != CMD_IDLE && command != CMD_RESET &&
         (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)) {
       response_error(active_id, "UNSAFE_OR_TIMEOUT");
@@ -850,6 +870,7 @@ int main(void) {
           trace_takeoff(active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -874,6 +895,7 @@ int main(void) {
           trace_move(active_direction, active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -898,6 +920,7 @@ int main(void) {
           trace_vertical(active_direction, active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -922,6 +945,7 @@ int main(void) {
           trace_turn(active_value);
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
         }
       } else {
@@ -944,6 +968,7 @@ int main(void) {
         trace_wait(active_value, now - action_start);
         response_ok(active_id);
         command = CMD_IDLE;
+        active_id = -1;  // Completed request must not be canceled again by a later STOP.
         stable_since = -1.0;
       }
     } else if (command == CMD_LAND) {
@@ -973,6 +998,7 @@ int main(void) {
           trace_land();
           response_ok(active_id);
           command = CMD_IDLE;
+          active_id = -1;  // Completed request must not be canceled again by a later STOP.
           stable_since = -1.0;
           previous_time = now;
           previous_x = x;

@@ -151,8 +151,8 @@ bool FileBroker::handleMessage(const char *message, std::string *response) {
     return true;
   const std::string tail = text.substr(requestPrefix.size());
   const std::vector<std::string> parts = split(tail);
-  if (parts.size() < 2)
-    return true;
+  if (parts.empty())
+    return true;  // No request ID can be recovered.
 
   int id = -1;
   try {
@@ -161,6 +161,11 @@ bool FileBroker::handleMessage(const char *message, std::string *response) {
     if (consumed != parts[0].size() || id < 1)
       return true;
   } catch (...) {
+    return true;
+  }
+
+  if (parts.size() < 2) {
+    *response = operationError(id, "INVALID_REQUEST");
     return true;
   }
 
