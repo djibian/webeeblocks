@@ -635,7 +635,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(proto.read_text(encoding="utf-8"), prepared)
             # All-or-nothing on changed or duplicated source seams.
             invalids = (original.replace('name "right wheel"', 'name "front wheel"'),
-                        original + original.split('RotationalMotor {', 1)[1].split('}\n', 1)[0].join(('', '')),
+                        original + original.split('}\n', 1)[0] + '}\n',
                         original.replace('maxVelocity 12.3', 'maxVelocity 12.4', 1))
             for candidate in invalids:
                 proto.write_text(candidate, encoding="utf-8")
