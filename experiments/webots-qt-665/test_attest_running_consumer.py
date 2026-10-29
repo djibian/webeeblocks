@@ -276,8 +276,18 @@ class RunningConsumerTests(unittest.TestCase):
             (home/'resources/version.txt').write_text('R2025a\n')
             (home/'bin/webots-bin').write_bytes(b'not-qualified-webots')
             manifest = Path(directory)/'manifest.json'
-            cmd = [sys.executable, str(Path(probe.__file__)), '--runtime-home', str(home),
-                   '--pid', str(__import__('os').getpid()), '--manifest', str(manifest)]
+            # The child must attest ITS OWN PID, not its parent. Linux
+            # ptrace/Yama policy may forbid reading /proc/<parent>/exe,
+            # which would obscure this exact negative with PermissionError.
+            launcher = (
+                'import os, runpy, sys\\n'
+                'script, home, manifest = sys.argv[1:]\\n'
+                "sys.argv = [script, '--runtime-home', home, '--pid', "
+                "str(os.getpid()), '--manifest', manifest]\\n"
+                "runpy.run_path(script, run_name='__main__')\\n"
+            )
+            cmd = [sys.executable, '-c', launcher,
+                   str(Path(probe.__file__)), str(home), str(manifest)]
             run = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
             self.assertNotEqual(run.returncode, 0)
             payload = json.loads(manifest.read_text())
