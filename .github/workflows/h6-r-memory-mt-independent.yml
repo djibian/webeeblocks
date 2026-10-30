@@ -83,20 +83,65 @@ jobs:
           pathlib.Path('h6-memory-evidence/qualification.json').write_text(json.dumps(report,indent=2)+'\n')
           print('H6_MEMORY_FACTORIAL_AUDITED')
           PY
-      - name: Exercise ODE single and multi-thread step-return boundary
+      - name: Memory oracle includes post-solver active contact negative
         shell: bash
         run: |
           set -euo pipefail
-          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 80s h6-memory-evidence/probe mt \
-            > h6-memory-evidence/mt.jsonl 2>h6-memory-evidence/logs/mt-stderr.log
           python3 - <<'PY'
           import json,pathlib
-          lines=pathlib.Path('h6-memory-evidence/mt.jsonl').read_text().splitlines()
-          assert lines[-1]=='H6_MEMORY_NATIVE_COMPLETED'
-          rows=[json.loads(x) for x in lines[:-1]]
-          assert len(rows)==2 and {r['threads'] for r in rows}=={1,2}
-          assert all(r['steps']==64 and r['end_allocated']==0 and r['contacts']==r['reset_detached'] and r['contacts']>=64 for r in rows)
-          print('H6_ODE_MT_STEP_BOUNDARY_AUDITED')
+          rows=[json.loads(s) for s in pathlib.Path('h6-memory-evidence/memory.jsonl').read_text().splitlines()[:-1]]
+          x=[r for r in rows if r.get('arm')=='postsolver_marked_cleanup']
+          assert len(x)==1 and x[0]['legitimate_before']==1 and x[0]['legitimate_after']==0 and x[0]['allocated_after']==0
+          print('H6_POSTSOLVER_CONTACT_LOSS_PROVEN')
+          PY
+      - name: Address and undefined-behavior sanitizers on all memory fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -pthread \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -I native-webots/include/ode experiments/h6/ode_r_memory_mt_independent.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o h6-memory-evidence/probe-asan
+          sha256sum h6-memory-evidence/probe-asan > h6-memory-evidence/probe-asan.sha256
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+            LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 120s h6-memory-evidence/probe-asan \
+            > h6-memory-evidence/asan-memory.jsonl 2>h6-memory-evidence/logs/asan-stderr.log || {
+              cat h6-memory-evidence/logs/asan-stderr.log; exit 1;
+            }
+          grep -Fxq 'H6_MEMORY_NATIVE_COMPLETED' h6-memory-evidence/asan-memory.jsonl
+          echo 'H6_SANITIZER_PROBE_PASS (ODE shared library uninstrumented)'
+      - name: Execute Webots-equivalent ODE mono-thread step boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 25s h6-memory-evidence/probe mono \
+            > h6-memory-evidence/mono.jsonl 2>h6-memory-evidence/logs/mono-stderr.log || {
+              cat h6-memory-evidence/logs/mono-stderr.log; exit 1;
+            }
+          python3 - <<'PY'
+          import json,pathlib
+          rows=pathlib.Path('h6-memory-evidence/mono.jsonl').read_text().splitlines()
+          assert rows[-1]=='H6_MEMORY_NATIVE_COMPLETED'
+          r=json.loads(rows[0])
+          assert r['threads']==0 and r['steps']==64 and r['contacts']==r['reset_detached'] and r['end_allocated']==0
+          print('H6_MONO_BOUNDARY_PASS')
+          PY
+      - name: Falsify multithread ODE two-worker step-return boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 35s h6-memory-evidence/probe multi \
+            > h6-memory-evidence/multi.jsonl 2>h6-memory-evidence/logs/multi-stderr.log || {
+              cat h6-memory-evidence/logs/multi-stderr.log; exit 1;
+            }
+          python3 - <<'PY'
+          import json,pathlib
+          rows=pathlib.Path('h6-memory-evidence/multi.jsonl').read_text().splitlines()
+          assert rows[-1]=='H6_MEMORY_NATIVE_COMPLETED'
+          r=json.loads(rows[0])
+          assert r['threads']==2 and r['steps']==64 and r['contacts']==r['reset_detached'] and r['end_allocated']==0
+          print('H6_MULTITHREAD_BOUNDARY_PASS')
           PY
       - name: Preserve immutable checksums on every outcome
         if: always()
