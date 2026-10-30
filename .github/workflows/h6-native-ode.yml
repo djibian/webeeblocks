@@ -2,11 +2,11 @@ name: H6 Native ODE causal experiment (isolated)
 on:
   push:
     branches:
-      - experiment/h6-native-ode-20261030
+      - experiment/h6-atomic-causal-20261030
 permissions:
   contents: read
 concurrency:
-  group: h6-native-ode-20261030
+  group: h6-atomic-causal-20261030
   cancel-in-progress: false
 jobs:
   h6:
@@ -35,6 +35,7 @@ jobs:
           # Apply an authenticated, purely observational I/O fix to extracted probe scripts.
           # Original kit and source digests are retained unchanged for audit.
           python3 experiments/h6/h6_termination_observability.py experiments/h6/payload > h6-evidence/logs/observability-patch.log
+          python3 experiments/h6/h6_atomic_native.py experiments/h6/payload > h6-evidence/logs/atomic-native-patch.log
           cp -a experiments/h6/payload/source/. h6-evidence/kit-source/
           cp -a experiments/h6/payload/controllers h6-evidence/kit-source/controllers
           cp -a experiments/h6/payload/worlds h6-evidence/kit-source/worlds
@@ -80,7 +81,7 @@ jobs:
           sha256sum native-webots/bin/webots-bin native-webots/webots > h6-evidence/compiled-executables.sha256
           find native-webots/lib -type f \( -iname '*ode*.so*' -o -iname '*physics*.so*' \) -exec sha256sum '{}' ';' > h6-evidence/compiled-physics-candidates.sha256
           grep -aF 'H6 event=armed body=' native-webots/bin/webots-bin || grep -RalF 'H6 event=armed body=' native-webots/lib
-      - name: Execute A then gated B on real instrumented Webots
+      - name: Execute three independently launched A/B pairs with single native build
         shell: bash
         env:
           WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
@@ -89,7 +90,10 @@ jobs:
           set -euo pipefail
           export WEBOTS_HOME="$PWD/native-webots"
           export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
-          xvfb-run -a -s '-screen 0 1280x800x24' bash experiments/h6/payload/source/run_ab.sh "$PWD/h6-evidence/ab-run"
+          for pair in 1 2 3; do
+            xvfb-run -a -s '-screen 0 1280x800x24' bash experiments/h6/payload/source/run_ab.sh "$PWD/h6-evidence/ab-run-$pair"
+          done
+          python3 experiments/h6/h6_qualify_replicates.py "$PWD/h6-evidence" > h6-evidence/logs/replication-audit.log
       - name: Authenticate retained results on every termination
         if: always()
         shell: bash
