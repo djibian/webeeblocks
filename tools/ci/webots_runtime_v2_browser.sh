@@ -5,6 +5,7 @@ mkdir -p "$artifact_dir"
 printf 'BROWSER_LAUNCHED args=' >> "$artifact_dir/browser-launch.log"
 printf '%q ' "$@" >> "$artifact_dir/browser-launch.log"
 printf '\n' >> "$artifact_dir/browser-launch.log"
+# One isolated CI browser profile reused by new Robot Windows after world reload.
 exec /usr/bin/google-chrome \
   --headless=new \
   --no-sandbox \
@@ -13,7 +14,7 @@ exec /usr/bin/google-chrome \
   --disable-background-networking \
   --no-first-run \
   --no-default-browser-check \
-  # Stable within ONE isolated Docker CI run: required to preserve Robot Window localStorage on native world reload.\n  --user-data-dir=/tmp/webeeblocks-ci-persistent-robot-window \
+  --user-data-dir=/tmp/webeeblocks-ci-persistent-robot-window \
   --enable-logging=stderr \
   --v=1 \
   "$@"
