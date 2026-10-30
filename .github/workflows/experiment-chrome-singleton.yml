@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/experiment-chrome-singleton.yml'
       - 'tools/ci/probe_browser_document.py'
+      - 'tools/ci/cdp_reopen_once.py'
       - 'tools/ci/guard_negative_browser.sh'
       - 'tools/ci/prepare_guard_negative.py'
       - 'controllers/crazyflie_runtime_v2/**'
@@ -269,7 +270,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [direct, after_exit]
+        mode: [direct, cdp_rescue]
         attempt: [1, 2]
     steps:
       - uses: actions/checkout@v4
