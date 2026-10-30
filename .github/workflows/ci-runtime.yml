@@ -713,6 +713,9 @@ jobs:
           from pathlib import Path
 
           events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-reset/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          for event in events:
+              if event.get('event', '').endswith('_PROBE'):
+                  print('WEBEEBLOCKS_BROWSER_PROBE ' + json.dumps(event, ensure_ascii=True, sort_keys=True), flush=True)
           errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
           assert not errors, errors[:1]
           names = [e.get('event') for e in events]
