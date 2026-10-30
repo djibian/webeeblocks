@@ -378,6 +378,9 @@ extern "C" void wb_supervisor_node_reset_physics(void*){}
 extern "C" void wb_supervisor_world_reload(void){std::fputs("GP_U_UNEXPECTED_WORLD_RELOAD\n",stderr);std::abort();}
 // This pose fixture has no activity groups. Link the production scene module,
 // but reject any unexpected scene API entry; import behavior has its own probe.
+// The fixture models a stable native world identity without introducing a real
+// reload. Its transient-recovery witness must remain absent in ordinary tests.
+extern "C" const char* wb_robot_get_world_path(){return "/synthetic/gp_u_pose_stable.wbt";}
 extern "C" const char* wb_robot_get_project_path(){assert(false);return nullptr;}
 extern "C" void* wb_supervisor_node_get_root(){assert(false);return nullptr;}
 extern "C" const char* wb_supervisor_node_get_type_name(void* node){assert(node==(void*)3);return "WorldInfo";}
