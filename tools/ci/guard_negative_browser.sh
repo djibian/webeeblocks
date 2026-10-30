@@ -25,6 +25,58 @@ printf '\n' >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-launch.log"
   fi
   ps -eo pid,ppid,stat,etime,args | grep -E '[g]oogle-chrome|[c]hrome --' | head -n 40 || true
 } >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-process-snapshots.log" 2>&1
-exec /usr/bin/google-chrome --headless=new --no-sandbox --disable-gpu \
+# Research-only reproducible ProcessSingleton teardown race. The original
+# negative modes continue to use the unmodified launch path.
+if [ "${WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE:-}" != "" ] && [ "$count" -eq 2 ]; then
+  lock_target=""
+  if [ -L "$profile/SingletonLock" ]; then
+    lock_target=$(readlink "$profile/SingletonLock")
+  fi
+  old_pid="${lock_target##*-}"
+  if ! [[ "$old_pid" =~ ^[0-9]+$ ]] || ! kill -0 "$old_pid" 2>/dev/null; then
+    echo "FAULT_PRECONDITION_MISSING old_pid=$old_pid lock=$lock_target" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+    exit 69
+  fi
+  printf 'OLD_CHROME_PID=%s lock=%s mode=%s epoch_ns=%s\n' "$old_pid" "$lock_target" "$WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE" "$(date +%s%N)" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+  # Freeze the old process exactly at the already-observed overlap.
+  # A guaranteed bounded SIGCONT is scheduled before testing a new launch;
+  # never send SIGTERM/SIGKILL and never unlink a profile file.
+  kill -STOP "$old_pid"
+  (sleep 7; kill -CONT "$old_pid" 2>/dev/null || true;
+    printf 'OLD_CHROME_RESUMED epoch_ns=%s\n' "$(date +%s%N)" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log") &
+  if [ "$WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE" = after_exit ]; then
+    # Instead of forwarding to an owner that cannot accept a notification,
+    # require observable termination (bounded, fail closed on uncertainty).
+    settled=0
+    for i in $(seq 1 150); do
+      state=$(ps -p "$old_pid" -o stat= 2>/dev/null || true)
+      if [ -z "$state" ] || [[ "$state" = Z* ]]; then
+        settled=1
+        printf 'OLD_CHROME_EXIT_OBSERVED epoch_ns=%s iteration=%s\n' "$(date +%s%N)" "$i" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+        break
+      fi
+      sleep .1
+    done
+    if [ "$settled" != 1 ]; then
+      echo 'OLD_CHROME_STILL_LIVE_AFTER_BOUNDED_WAIT' >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+      exit 70
+    fi
+  fi
+fi
+# CDP is research-only and allows independent document-target confirmation.
+chrome_args=()
+if [ -n "${WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE:-}" ]; then
+  chrome_args=(--remote-debugging-port=9222)
+  if [ "$count" -eq 2 ]; then
+    python3 /workspace/tools/ci/probe_browser_document.py \
+      "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-document-probe.jsonl" &
+  fi
+fi
+set +e
+/usr/bin/google-chrome --headless=new --no-sandbox --disable-gpu \
+  "${chrome_args[@]}" \
   --disable-dev-shm-usage --disable-background-networking --no-first-run \
   --no-default-browser-check --user-data-dir="$profile" "$@" 2>> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/chrome-stderr.log"
+exit_code=$?
+printf 'CHROME_LAUNCH_RETURNED epoch_ns=%s count=%s exit=%s\n' "$(date +%s%N)" "$count" "$exit_code" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+exit "$exit_code"
