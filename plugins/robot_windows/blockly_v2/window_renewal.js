@@ -9,6 +9,7 @@
   'use strict';
   var armed = null;
   var started = false;
+  var attempted = false;
   var navigation = false;
   var timeout = null;
   var MAX_CHECKS = 24; // At most 12 seconds of HTTP read-only probes.
@@ -37,11 +38,13 @@
     timeout = null;
     armed = null;
     started = false;
+    attempted = false;
   }
 
   async function renew() {
-    if (started || navigation || !armed) return;
+    if (started || attempted || navigation || !armed) return;
     started = true;
+    attempted = true;
     var token = armed;
     for (var check = 0; check < MAX_CHECKS; ++check) {
       if (token !== armed || !validCheckpoint(token) || !validUrl()) break;
@@ -83,7 +86,7 @@
 
   return Object.freeze({
     arm: function(token) {
-      if (armed || started || navigation || !validUrl() || !validCheckpoint(token))
+      if (armed || started || attempted || navigation || !validUrl() || !validCheckpoint(token))
         return false;
       armed = token;
       return true;
