@@ -1,0 +1,105 @@
+name: H6 Native ODE causal experiment (isolated)
+on:
+  push:
+    branches:
+      - experiment/h6-native-ode-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-native-ode-20261030
+  cancel-in-progress: false
+jobs:
+  h6:
+    name: Build pinned Webots and attempt H6 A/B
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - name: Checkout experimental branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unpack and authenticate exact H6 kit sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h6-evidence/logs experiments/h6/payload
+          printf '%s  %s\n' bf98f802fd60a6dad1137280ebe3512bd9f38f73c60f4a72b4296c66628a553e experiments/h6/h6_payload.tar.xz | sha256sum -c -
+          tar -xJf experiments/h6/h6_payload.tar.xz -C experiments/h6/payload
+          (cd experiments/h6/payload && find . -type f -print0 | sort -z | xargs -0 sha256sum) > h6-evidence/kit_sources.sha256
+          printf 'experiment_commit=%s\n' "$(git rev-parse HEAD)" > h6-evidence/identity.txt
+          printf 'webots_pin=%s\n' "$WEBOTS_PIN" >> h6-evidence/identity.txt
+          python3 -m py_compile experiments/h6/payload/source/*.py experiments/h6/payload/controllers/h6_supervisor/*.py
+          bash -n experiments/h6/payload/source/run_ab.sh
+      - name: Acquire exact Webots R2025a source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots 2>&1 | tee h6-evidence/logs/clone.log
+          git -C native-webots checkout --detach "$WEBOTS_PIN" 2>&1 | tee h6-evidence/logs/checkout.log
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          git -C native-webots submodule update --init --recursive --jobs 4 2>&1 | tee h6-evidence/logs/submodules.log
+          printf '%s\n' "$(git -C native-webots rev-parse HEAD)" > h6-evidence/webots_source_sha.txt
+          git -C native-webots status --porcelain=v1 > h6-evidence/webots_prepatch_status.txt
+          test ! -s h6-evidence/webots_prepatch_status.txt
+      - name: Install pinned-source Linux build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update 2>&1 | tee h6-evidence/logs/apt-update.log
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 2>&1 | tee h6-evidence/logs/apt-xvfb.log
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) 2>&1 | tee h6-evidence/logs/compile-dependencies.log
+      - name: Apply H6 instrumentation to source checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6/payload/source/patch_webots_h6.py "$PWD/native-webots" 2>&1 | tee h6-evidence/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > h6-evidence/instrumentation.patch
+          sha256sum h6-evidence/instrumentation.patch > h6-evidence/instrumentation.patch.sha256
+          find native-webots/src -path '*h6_probe.h' -print -exec sha256sum '{}' ';' > h6-evidence/probe_header_sha.txt
+      - name: Compile authentic patched Webots and bundled ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd native-webots && make -j2) > h6-evidence/logs/webots-build.log 2>&1 || {
+            tail -n 180 h6-evidence/logs/webots-build.log
+            exit 1
+          }
+          test -x native-webots/bin/webots-bin
+          test -x native-webots/webots
+          sha256sum native-webots/bin/webots-bin native-webots/webots > h6-evidence/compiled-executables.sha256
+          find native-webots/lib -type f \( -iname '*ode*.so*' -o -iname '*physics*.so*' \) -exec sha256sum '{}' ';' > h6-evidence/compiled-physics-candidates.sha256
+          grep -aF 'H6 event=armed body=' native-webots/bin/webots-bin || grep -RalF 'H6 event=armed body=' native-webots/lib
+      - name: Execute A then gated B on real instrumented Webots
+        shell: bash
+        env:
+          WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+          QT_QPA_PLATFORM: xcb
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          xvfb-run -a -s '-screen 0 1280x800x24' bash experiments/h6/payload/source/run_ab.sh "$PWD/h6-evidence/ab-run"
+      - name: Authenticate retained results on every termination
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p h6-evidence/logs
+          df -h . > h6-evidence/logs/disk.txt
+          git rev-parse HEAD > h6-evidence/experiment_commit.txt
+          if test -d native-webots/.git; then
+            git -C native-webots rev-parse HEAD > h6-evidence/webots_source_actual.txt
+            git -C native-webots diff --stat HEAD > h6-evidence/webots_source_diff_stat.txt
+            find native-webots/lib -type f \( -iname '*ode*.so*' -o -iname '*physics*.so*' \) -exec sha256sum '{}' ';' > h6-evidence/native_physics_libs.sha256 || true
+          fi
+          find h6-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > h6-evidence/SHA256SUMS.txt
+      - name: Publish raw proof or precise failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-native-ODE-build-and-AB-evidence
+          path: h6-evidence/
+          if-no-files-found: error
+          retention-days: 30
