@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p h6-evidence/logs experiments/h6/payload
-          printf '%s  %s\n' 20f0dff2f7737dfaf4d1f5b3f26d56a9b6de0940fbcebdb637fb01aaa865c34f experiments/h6/h6_payload.tar.xz | sha256sum -c -
+          printf '%s  %s\n' 124fe0149d1bcebf0175a4fd45642476ca8b06ba10c16a28d5a27d2b62896ec5 experiments/h6/h6_payload.tar.xz | sha256sum -c -
           tar -xJf experiments/h6/h6_payload.tar.xz -C experiments/h6/payload
           (cd experiments/h6/payload && find . -type f -print0 | sort -z | xargs -0 sha256sum) > h6-evidence/kit_sources.sha256
           printf 'experiment_commit=%s\n' "$(git rev-parse HEAD)" > h6-evidence/identity.txt
