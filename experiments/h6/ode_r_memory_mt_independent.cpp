@@ -3,6 +3,7 @@
 #include <ode/ode.h>
 #include <ode/ode_MT.h>
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
@@ -152,6 +153,7 @@ static void near_callback(void *user, dGeomID x, dGeomID y) {
   dJointAttach(j,a,b);s->created++;
 }
 static void mt_boundary(int count) {
+  std::fprintf(stderr,"H6_MT_ENTRY mode=%d\n",count);std::fflush(stderr);
   dToggleODE_MT(count);
   dWorldID w=dWorldCreate(); dWorldSetGravity(w,0,0,0);
   dSpaceID space=dSimpleSpaceCreate(nullptr);
@@ -166,7 +168,9 @@ static void mt_boundary(int count) {
   for(int i=0;i<64;++i) {
     dBodySetPosition(a,0,0,0);dBodySetPosition(b,.05,0,0);
     dBodySetLinearVel(a,0,0,0);dBodySetLinearVel(b,0,0,0);
+    std::fprintf(stderr,"H6_MT_BEFORE_STEP mode=%d i=%d\n",count,i);std::fflush(stderr);
     dWorldStepAndSpaceCollide(space,&ctx,near_callback,w,.01,&dWorldStep,nullptr);
+    std::fprintf(stderr,"H6_MT_AFTER_STEP mode=%d i=%d\n",count,i);std::fflush(stderr);
     { std::lock_guard<std::mutex> lock(ctx.creation_mutex);
       const int before=dJointGroupGetCount(g);
       require(before>=1,"MT no callback after completed step");
@@ -186,8 +190,10 @@ static void mt_boundary(int count) {
 }
 int main(int argc,char **argv) {
   require(dInitODE2(0)!=0,"ODE init");
-  if(argc==2 && argv[1][0]=='m') {
-    mt_boundary(1);mt_boundary(2);
+  if(argc==2 && !std::strcmp(argv[1],"mono")) {
+    mt_boundary(0);
+  } else if(argc==2 && !std::strcmp(argv[1],"multi")) {
+    mt_boundary(2);
   } else {
     require(argc==1,"usage: probe [mt]");
     memory_arm("R_only_disabled_owner",true,false,false);
