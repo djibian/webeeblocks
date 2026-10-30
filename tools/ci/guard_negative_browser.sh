@@ -10,6 +10,34 @@ count=$((count + 1))
 printf '%s\n' "$count" > "$count_file"
 profile="/tmp/webeeblocks-native-guard-profile"
 if [ "$WEBEEBLOCKS_GUARD_FAULT_MODE" = lost_profile ] && [ "$count" -gt 1 ]; then
+  # A renewed *old* tab still has its original profile. Merely changing the
+  # second Chrome CLI --user-data-dir no longer injects actual data loss.
+  # For this disposable native negative ONLY, first terminate the EXACT
+  # Chrome profile owner of the CI fixture; do not touch any unrelated browser.
+  lock="/tmp/webeeblocks-native-guard-profile/SingletonLock"
+  if [ -L "$lock" ]; then
+    target=$(readlink "$lock")
+    pid="${target##*-}"
+    if ! [[ "$pid" =~ ^[0-9]+$ ]]; then exit 65; fi
+    args=$(ps -p "$pid" -o args= 2>/dev/null || true)
+    case "$args" in
+      *"/tmp/webeeblocks-native-guard-profile"*)
+        printf 'NEGATIVE_DESTROY_OLD_BROWSER owner_pid=%s\n' "$pid" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/profile-fault.log"
+        kill -TERM "$pid" 2>/dev/null || true
+        ;;
+      *) echo "Unsafe/unverified Chrome owner: $pid" >&2; exit 66 ;;
+    esac
+    exited=0
+    for i in $(seq 1 40); do
+      state=$(ps -p "$pid" -o stat= 2>/dev/null || true)
+      if [ -z "$state" ] || [[ "$state" = Z* ]]; then exited=1; break; fi
+      sleep .1
+    done
+    if [ "$exited" -ne 1 ]; then
+      echo "Original profile owner did not exit: $pid" >&2
+      exit 67
+    fi
+  fi
   profile="/tmp/webeeblocks-native-guard-new-profile-$count"
 fi
 printf 'NATIVE_GUARD_BROWSER_LAUNCH mode=%s count=%s profile=%s args=' "$WEBEEBLOCKS_GUARD_FAULT_MODE" "$count" "$profile" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-launch.log"
