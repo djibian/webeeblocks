@@ -18,6 +18,8 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Research-only recovery oracle. Never a CI Gate or merge decision.
+    "experiment-recovery-guard.yml": {"guard-fast", "reset-replay-webots", "native-fail-closed"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -97,6 +99,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("pull-requests: write", workflow)
         self.assertNotIn("issues: write", workflow)
         self.assertNotIn("name: CI Gate\n", workflow)
+
+    def test_recovery_experiment_has_no_merge_authority(self):
+        workflow = (WORKFLOWS / "experiment-recovery-guard.yml").read_text(encoding="utf-8")
+        self.assertTrue(workflow.startswith("name: EXPERIMENT ONLY"))
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertIn("  contents: read\n", workflow)
+        self.assertIn("mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness, early_clear]", workflow)
+        self.assertIn("      fail-fast: false\n", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertNotIn("name: CI Gate", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("pull-requests: write", workflow)
+        self.assertNotIn("issues: write", workflow)
+        self.assertNotIn("continue-on-error:", workflow)
 
     def test_parametric_obstacle_browser_archive_is_reused_with_integrity(self):
         # A second HTTP GET between direct and detour silently failed with wget
