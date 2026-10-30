@@ -1,0 +1,76 @@
+name: H6 P5 historic Runtime collision RESET replay (isolated)
+on:
+  push:
+    branches:
+      - experiment/h6-p5-historical-runtime-replay-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-p5-historic-replay-20261030
+  cancel-in-progress: false
+jobs:
+  historic:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    env:
+      HISTORIC_SHA: 8b12e52b6a0fe1fa9f929b157a07f081a0964d5b
+      ORIGINAL_R2025A_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+    steps:
+      - name: Checkout isolated experimental workflow
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout exact historical Runtime sources
+        uses: actions/checkout@v4
+        with:
+          ref: 8b12e52b6a0fe1fa9f929b157a07f081a0964d5b
+          path: historical
+          persist-credentials: false
+      - name: Authenticate historical source and immutable replay procedure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p5-evidence/logs
+          printf 'experiment_commit=%s\n' "$(git rev-parse HEAD)" > p5-evidence/identity.txt
+          printf 'historic_commit=%s\n' "$(git -C historical rev-parse HEAD)" >> p5-evidence/identity.txt
+          printf 'webots_image=%s\n' "$ORIGINAL_R2025A_IMAGE" >> p5-evidence/identity.txt
+          test "$(git -C historical rev-parse HEAD)" = "$HISTORIC_SHA"
+          test -z "$(git -C historical status --porcelain)"
+          grep -Fq "$ORIGINAL_R2025A_IMAGE" historical/tools/ci/run_progression_autonomous_mission.py
+          python3 -m py_compile historical/tools/ci/run_progression_autonomous_mission.py
+          sha256sum historical/tools/ci/run_progression_autonomous_mission.py historical/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c historical/worlds/crazyflie_runtime_v2.wbt > p5-evidence/historical-sources.sha256
+          docker info > p5-evidence/logs/docker-info.txt
+          df -h . > p5-evidence/logs/disk-before.txt
+      - name: Execute original historical autonomous collision RESET campaign once
+        shell: bash
+        working-directory: historical
+        run: |
+          set -uo pipefail
+          python3 tools/ci/run_progression_autonomous_mission.py > ../p5-evidence/logs/historic-replay-driver.log 2>&1
+          rc=$?
+          printf '%s\n' "$rc" > ../p5-evidence/historic-driver-exit-code.txt
+          tail -n 80 ../p5-evidence/logs/historic-replay-driver.log || true
+          exit "$rc"
+      - name: Preserve native evidence even when historical failure reproduces
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p p5-evidence/logs
+          if test -d historical/ci-artifacts/progression-autonomous-mission; then
+            cp -a historical/ci-artifacts/progression-autonomous-mission p5-evidence/native-run
+          fi
+          if test -f p5-evidence/native-run/webots.log; then
+            grep -E 'AUTONOMOUS_COLLISION|TRACE RESET|RESET_TIMEOUT|UNSAFE_OR_TIMEOUT|RESET_TIMEOUT_DIAGNOSTIC' p5-evidence/native-run/webots.log > p5-evidence/logs/reset-collision-events.txt || true
+          fi
+          git rev-parse HEAD > p5-evidence/actual-experimental-head.txt
+          git -C historical rev-parse HEAD > p5-evidence/actual-historical-head.txt
+          df -h . > p5-evidence/logs/disk-after.txt
+          find p5-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > p5-evidence/SHA256SUMS.txt
+      - name: Publish complete historical replay, including unsuccessful negative result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-P5-historical-runtime-replay
+          path: p5-evidence/
+          if-no-files-found: error
+          retention-days: 30
