@@ -28,7 +28,7 @@
   function validUrl() {
     var location = root.location;
     return /^(https?:)$/.test(location.protocol) &&
-      /\\/robot_windows\\/[^/]+\\/[^/]+\\.html$/.test(location.pathname) &&
+      /\/robot_windows\/[^/]+\/[^/]+\.html$/.test(location.pathname) &&
       location.hostname === 'localhost';
   }
 
