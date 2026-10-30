@@ -1,0 +1,90 @@
+name: H6 G sufficiency narrow Webots native window
+on:
+  push:
+    branches: [experiment/h6-g-sufficiency-window-20261030]
+permissions:
+  contents: read
+concurrency:
+  group: h6-g-sufficiency-window
+  cancel-in-progress: true
+jobs:
+  audit-static:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Retrieve source exact-pinned (no Webots recompilation)
+        run: |
+          set -euo pipefail
+          mkdir -p h6-g-evidence
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-source
+          git -C native-source checkout --detach "$WEBOTS_PIN"
+          test "$(git -C native-source rev-parse HEAD)" = "$WEBOTS_PIN"
+          python3 experiments/h6/g_window/audit_static.py native-source h6-g-evidence/source_order.json
+          printf '%s\n' "$(git rev-parse HEAD)" > h6-g-evidence/experiment_sha.txt
+          printf '%s\n' "$WEBOTS_PIN" > h6-g-evidence/source_pin.txt
+      - if: always()
+        run: |
+          find h6-g-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > h6-g-evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-g-static-source-order
+          path: h6-g-evidence/
+          if-no-files-found: error
+
+  native-observation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Retain source manifest and build separate physics plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h6-g-native-evidence
+          git rev-parse HEAD > h6-g-native-evidence/experiment_sha.txt
+          docker pull cyberbotics/webots:R2025a-ubuntu22.04
+          docker image inspect cyberbotics/webots:R2025a-ubuntu22.04 --format '{{index .RepoDigests 0}}' > h6-g-native-evidence/image_digest.txt
+          docker run --rm -v "$PWD:/workspace" -w /workspace/experiments/h6/g_window             cyberbotics/webots:R2025a-ubuntu22.04 bash -lc '
+              set -euo pipefail
+              echo "WEBOTS_HOME=$WEBOTS_HOME"
+              make -C plugins/physics/h6_g_window
+              test -s plugins/physics/h6_g_window/h6_g_window.so
+            ' > h6-g-native-evidence/build.log 2>&1
+          sha256sum experiments/h6/g_window/plugins/physics/h6_g_window/h6_g_window.so             > h6-g-native-evidence/plugin_sha256.txt
+      - name: Run distinct real Supervisor global/node resets in A and plugin-R intervention
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in global-A global-R node-A node-R; do
+            path="${spec%-*}"
+            arm="${spec#*-}"
+            r=0
+            if [ "$arm" = "R" ]; then r=1; fi
+            mkdir -p "h6-g-native-evidence/$spec"
+            set +e
+            docker run --rm               -e LIBGL_ALWAYS_SOFTWARE=true               -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true               -e H6_G_WINDOW_PATH="$path" -e H6_G_WINDOW_R="$r"               -e H6_G_WINDOW_NATIVE_LOG="/workspace/h6-g-native-evidence/$spec/native.log"               -v "$PWD:/workspace" -w /workspace/experiments/h6/g_window               cyberbotics/webots:R2025a-ubuntu22.04               bash -lc 'timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=fast worlds/h6_g_window.wbt'               > "h6-g-native-evidence/$spec/webots.log" 2>&1
+            exit_code=$?
+            set -e
+            echo "$exit_code" > "h6-g-native-evidence/$spec/exit_code.txt"
+            if [ "$exit_code" != 0 ]; then echo "H6 G native arm $spec nonzero exit=$exit_code"; fi
+          done
+          python3 experiments/h6/g_window/qualify_native.py h6-g-native-evidence
+      - name: Preserve native evidence even on failure
+        if: always()
+        run: |
+          mkdir -p h6-g-native-evidence
+          find h6-g-native-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > h6-g-native-evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-g-supervisor-real-native-observation
+          path: h6-g-native-evidence/
+          if-no-files-found: error
