@@ -10,8 +10,6 @@ Viewpoint {
   orientation -0.47 0.83 0.29 1.44
   position 2.3 2.2 2.3
 }
-TexturedBackground { }
-TexturedBackgroundLight { }
 DEF FLOOR Solid {
   translation 0 0 -0.1
   children [
