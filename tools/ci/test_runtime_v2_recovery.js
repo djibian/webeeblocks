@@ -42,7 +42,7 @@ module.exports = async function testWorldRecovery() {
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await again;
   backend.requestWorldReload('a'.repeat(64));
-  const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,timeoutMs:1000});
+  const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,simulationWorldReload:true,timeoutMs:1000});
   fresh.nextId = backend.nextId;
   fresh.handleMessage(p + 'READY');
   const newRequest = fresh.resetSimulation(true);
