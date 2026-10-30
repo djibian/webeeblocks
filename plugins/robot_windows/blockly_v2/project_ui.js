@@ -59,7 +59,7 @@
   }
 
   async function operation(name, action) {
-    if (busy || !supported || runtimeLocked) return null;
+    if (busy || !supported || runtimeLocked || recoveryPending()) return null;
     busy = true;
     runtimeProjectPending = true;
     updateRuntimeActions();

@@ -27,3 +27,22 @@ RESET extension, checkpoint/UI code and recovery-only test after a
 future official Webots release makes the original strict RESET reliable.
 No Webots or physical backend is modified. V5 exact-HEAD CI, independent
 review and explicit owner permission are prerequisites to merge.
+
+## Native Linux research evidence and remaining fail-closed gap (2026-10-30)
+
+PR #757, Webots R2025a native run `41074106931`, demonstrated one reload,
+restoration of an unsaved Blockly program, strict RESET and a second real
+unsafe/colliding execution (22,208 ms observed). PR #758 control, run
+`41075623035`, removed only the explicit CI Chrome profile and restored the
+failure. CI's headless browser must therefore reuse the same *isolated test*
+profile on both sides of the reload. This is a CI environment fix, not a
+Webots change or evidence of persistent storage in Windows Robot Window.
+
+**NO_GO for production until resolved:** if localStorage disappears across
+reincarnation, the new Robot Window cannot distinguish a lost recovery
+checkpoint from a legitimate first launch. Under that condition the unsaved
+pupil program is lost and the default clean interface may permit execution.
+A successful CI profile does not eliminate this safety/data-loss boundary.
+Qualification requires a durable cross-incarnation intent signal and a
+negative test where browser profile/checkpoint disappears, or an equivalent
+provable fail-closed contract, plus Windows user-path evidence.

@@ -13,6 +13,7 @@ exec /usr/bin/google-chrome \
   --disable-background-networking \
   --no-first-run \
   --no-default-browser-check \
+  # Stable within ONE isolated Docker CI run: required to preserve Robot Window localStorage on native world reload.\n  --user-data-dir=/tmp/webeeblocks-ci-persistent-robot-window \
   --enable-logging=stderr \
   --v=1 \
   "$@"
