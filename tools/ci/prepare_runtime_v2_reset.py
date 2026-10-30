@@ -100,7 +100,32 @@ SCRIPT = r'''
   window.addEventListener('webeeblocks-runtime-v2', event => report('STATE', event.detail));
   window.addEventListener('webeeblocks-runtime-v2-reset', event => report('RESET_EVENT', event.detail));
 
+  // A new Robot Window must independently validate the restored scene and RESET.
+  const RECOVERY_STAGE = 'webeeblocks-ci-world-reload-native-v1';
   try {
+    const old = localStorage.getItem(RECOVERY_STAGE);
+    if (old) {
+      const expected = JSON.parse(old);
+      await waitFor(() => window.workspace && runtimeBackend && runtimeBackend.ready &&
+        document.getElementById('runtimeState').textContent === 'PRÊT' && !runtimeRecoveryPending,
+        'reconstructed real world', 70000);
+      if (workspaceState() !== expected.workspace || astState() !== expected.ast ||
+          runtimeProfile.id !== expected.profileId || WebeeBlocksSimulationRecovery.peek() !== null)
+        throw new Error('Recovered project, scene, or checkpoint mismatch');
+      if (document.getElementById('submit').disabled) throw new Error('Rerun still locked');
+      await report('WORLD_RECOVERY_READY', {workspace:workspaceState(), ast:JSON.parse(astState()),
+        profileId:runtimeProfile.id, milliseconds:Date.now()-expected.started, snapshot:snapshot()});
+      document.getElementById('submit').click();
+      await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
+        'real colliding program after full reload', 45000);
+      if (workspaceState() !== expected.workspace || astState() !== expected.ast)
+        throw new Error('Rerun modified student Blockly');
+      await report('WORLD_RECOVERY_RERUN', {workspace:workspaceState(), snapshot:snapshot()});
+      localStorage.removeItem(RECOVERY_STAGE);
+      await chain;
+      console.log('WEBEEBLOCKS_CI_WORLD_RECOVERY_DONE');
+      return;
+    }
     await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true,
       'Runtime v2 READY', 20000);
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true)
@@ -138,6 +163,21 @@ SCRIPT = r'''
     if (workspaceState() !== blockedWorkspace || astState() !== blockedAst)
       throw new Error('unsafe replay changed workspace or AST');
     await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
+    // Select recovery after an actual collision, without forging RESET_TIMEOUT.
+    const beforeReload = {workspace:blockedWorkspace, ast:blockedAst,
+      profileId:runtimeProfile.id, started:Date.now()};
+    localStorage.setItem(RECOVERY_STAGE, JSON.stringify(beforeReload));
+    if (localStorage.getItem(RECOVERY_STAGE) !== JSON.stringify(beforeReload))
+      throw new Error('Recovery native expectation not stored');
+    runtimeNeedsRebuild = true;
+    updateRuntimeActions();
+    if (document.getElementById('resetSimulation').disabled ||
+        document.getElementById('resetSimulation').textContent !== 'Reconstruire')
+      throw new Error('Recovery button unavailable');
+    await report('WORLD_RELOAD_REQUEST', {workspace:blockedWorkspace, ast:JSON.parse(blockedAst)});
+    await chain;
+    document.getElementById('resetSimulation').click();
+    if (!document.getElementById('submit').disabled) throw new Error('Old program admitted');
     await chain;
     console.log('WEBEEBLOCKS_CI_RESET_REPLAY_DONE');
   } catch (error) {
