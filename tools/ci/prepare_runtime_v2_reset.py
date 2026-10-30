@@ -100,7 +100,56 @@ SCRIPT = r'''
   window.addEventListener('webeeblocks-runtime-v2', event => report('STATE', event.detail));
   window.addEventListener('webeeblocks-runtime-v2-reset', event => report('RESET_EVENT', event.detail));
 
+  // A new Robot Window must independently validate the restored scene and RESET.
+  const RECOVERY_STAGE = 'webeeblocks-ci-world-reload-native-v1';
+  const RELOAD_SENTINEL = 'webeeblocks-ci-reload-sentinel-v1';
+  function browserProbe(phase) {
+    function stored(area, key) {
+      try {
+        const value = area.getItem(key);
+        return {available: true, present: value !== null, length: value === null ? 0 : value.length};
+      } catch (error) {
+        return {available: false, error: String(error)};
+      }
+    }
+    return {
+      phase, url: location.href, origin: location.origin,
+      userAgent: navigator.userAgent, windowName: window.name,
+      navigation: performance.getEntriesByType('navigation').map(e => e.type),
+      ciCheckpoint: stored(localStorage, RECOVERY_STAGE),
+      productCheckpoint: stored(localStorage, 'webeeblocks-world-recovery-v1'),
+      sentinel: stored(localStorage, RELOAD_SENTINEL),
+      sessionSentinel: stored(sessionStorage, RELOAD_SENTINEL)
+    };
+  }
+  await report('BROWSER_BOOT_PROBE', browserProbe('new-document'));
   try {
+    const old = localStorage.getItem(RECOVERY_STAGE);
+    if (old) {
+      const expected = JSON.parse(old);
+      await waitFor(() => window.workspace && runtimeBackend && runtimeBackend.ready &&
+        document.getElementById('runtimeState').textContent === 'PRÊT' && !runtimeRecoveryPending,
+        'reconstructed real world', 70000);
+      if (workspaceState() !== expected.workspace || astState() !== expected.ast ||
+          runtimeProfile.id !== expected.profileId || WebeeBlocksSimulationRecovery.peek() !== null)
+        throw new Error('Recovered project, scene, or checkpoint mismatch');
+      if (runtimeBackend.nextId <= expected.nextRequestId)
+        throw new Error('WWI numeric request identity reused after reconstruction');
+      if (document.getElementById('submit').disabled) throw new Error('Rerun still locked');
+      await report('WORLD_RECOVERY_READY', {workspace:workspaceState(), ast:JSON.parse(astState()),
+        profileId:runtimeProfile.id, milliseconds:Date.now()-expected.started,
+        nextRequestId:runtimeBackend.nextId, snapshot:snapshot()});
+      document.getElementById('submit').click();
+      await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
+        'real colliding program after full reload', 45000);
+      if (workspaceState() !== expected.workspace || astState() !== expected.ast)
+        throw new Error('Rerun modified student Blockly');
+      await report('WORLD_RECOVERY_RERUN', {workspace:workspaceState(), snapshot:snapshot()});
+      localStorage.removeItem(RECOVERY_STAGE);
+      await chain;
+      console.log('WEBEEBLOCKS_CI_WORLD_RECOVERY_DONE');
+      return;
+    }
     await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true,
       'Runtime v2 READY', 20000);
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true)
@@ -138,6 +187,33 @@ SCRIPT = r'''
     if (workspaceState() !== blockedWorkspace || astState() !== blockedAst)
       throw new Error('unsafe replay changed workspace or AST');
     await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
+    // Select recovery after an actual collision, without forging RESET_TIMEOUT.
+    const beforeReload = {workspace:blockedWorkspace, ast:blockedAst,
+      profileId:runtimeProfile.id, started:Date.now(), nextRequestId:runtimeBackend.nextId};
+    localStorage.setItem(RECOVERY_STAGE, JSON.stringify(beforeReload));
+    const sentinel = 'reload-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    localStorage.setItem(RELOAD_SENTINEL, sentinel);
+    sessionStorage.setItem(RELOAD_SENTINEL, sentinel);
+    window.name = sentinel;
+    await report('BROWSER_BEFORE_RELOAD_PROBE', browserProbe('old-document'));
+    if (localStorage.getItem(RECOVERY_STAGE) !== JSON.stringify(beforeReload))
+      throw new Error('Recovery native expectation not stored');
+    runtimeNeedsRebuild = true;
+    updateRuntimeActions();
+    if (document.getElementById('resetSimulation').disabled ||
+        document.getElementById('resetSimulation').textContent !== 'Reconstruire')
+      throw new Error('Recovery button unavailable');
+    await report('WORLD_RELOAD_REQUEST', {workspace:blockedWorkspace, ast:JSON.parse(blockedAst)});
+    await chain;
+    const originalRequestWorldReload = runtimeBackend.requestWorldReload;
+    runtimeBackend.requestWorldReload = function() {
+      if (WebeeBlocksSimulationRecovery.peek() === null)
+        throw new Error('Product checkpoint absent at native reload dispatch');
+      report('BROWSER_PRODUCT_SAVED_PROBE', browserProbe('after-product-checkpoint'));
+      return originalRequestWorldReload.call(this);
+    };
+    document.getElementById('resetSimulation').click();
+    if (!document.getElementById('submit').disabled) throw new Error('Old program admitted');
     await chain;
     console.log('WEBEEBLOCKS_CI_RESET_REPLAY_DONE');
   } catch (error) {
