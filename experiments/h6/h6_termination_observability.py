@@ -26,6 +26,7 @@ def sample(label):
 """),
         ('    print("H6_CONTROLLER " + json.dumps(d, sort_keys=True), flush=True)\n', '    emit("H6_CONTROLLER " + json.dumps(d, sort_keys=True))\n'),
         ("print(json.dumps({'kind':'H6_HEADER'", "emit(json.dumps({'kind':'H6_HEADER'"),
+        ("                  'source':'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'}),flush=True)", "                  'source':'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'}))"),
         ("print('H6_CONTROLLER native Supervisor RESET requested',flush=True)", "emit('H6_CONTROLLER native Supervisor RESET requested')"),
         ("print('H6_CONTROLLER end_of_one_shot_experiment',flush=True)", "emit('H6_CONTROLLER end_of_one_shot_experiment')"),
     ],
