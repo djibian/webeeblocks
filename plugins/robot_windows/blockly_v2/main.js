@@ -12,6 +12,8 @@ var runtimeStopPending = false;
 var runtimeStopRequested = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
+var runtimeRecoveryPending = false;
+var runtimeNeedsRebuild = false;
 var runtimeDebug = null;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
 
@@ -54,6 +56,7 @@ function updateRuntimeActions() {
   var ready = !!(runtimeBackend && runtimeBackend.ready);
   var submit = document.getElementById('submit');
   var reset = document.getElementById('resetSimulation');
+  if (reset) reset.textContent = runtimeNeedsRebuild ? 'Reconstruire' : 'Réinitialiser';
   var stop = document.getElementById('stopSimulation');
   var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
   var primaryIsStop = runtimeRunning === true || runtimeOutcomePending === true;
@@ -62,7 +65,7 @@ function updateRuntimeActions() {
   if (typeof submit.setAttribute === 'function') submit.setAttribute('aria-label', primaryLabel);
   submit.disabled = primaryIsStop
     ? (!stopSupported || !ready || runtimeOutcomePending || runtimeStopPending || runtimeStopRequested)
-    : (!ready || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
+    : (!ready || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || runtimeRecoveryPending);
   if (stop) {
     stop.hidden = true;
     stop.disabled = true;
@@ -70,7 +73,7 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || runtimeRecoveryPending || !runtimeTerminal;
   }
 }
 
@@ -269,9 +272,40 @@ async function stopSimulation() {
   }
 }
 
-async function resetSimulation() {
-  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+async function rebuildSimulation() {
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeRecoveryPending ||
+      !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready ||
+      !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationWorldReload !== true)
     return;
+  // The checkpoint must survive loss of both the controller and Robot Window.
+  // An unavailable/full storage refuses reload rather than losing unsaved blocks.
+  try {
+    WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace());
+  } catch (error) {
+    setRuntimeFailure(error);
+    return;
+  }
+  runtimeRecoveryPending = true;
+  runtimeTerminal = true;
+  setDebugControls(false);
+  if (runtimeDebug) runtimeDebug.finish();
+  setRuntimeStatus('RECONSTRUCTION', 'Rechargement complet du monde — programme conservé');
+  try {
+    runtimeBackend.requestWorldReload();
+    // No success transition on the old incarnation: navigation is mandatory.
+  } catch (error) {
+    setRuntimeFailure(error);
+    // Remain terminal; the checkpoint stays available for another attempt.
+    runtimeRecoveryPending = false;
+    runtimeNeedsRebuild = true;
+    updateRuntimeActions();
+  }
+}
+
+async function resetSimulation() {
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeRecoveryPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+    return;
+  if (runtimeNeedsRebuild) return rebuildSimulation();
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
     setRuntimeFailure(new Error('Simulation reset unavailable'));
     return;
@@ -290,6 +324,7 @@ async function resetSimulation() {
     if (runtimeProfile !== profile)
       throw new Error('Simulation reset changed activity profile');
     runtimeTerminal = false;
+    runtimeNeedsRebuild = false;
     runtimeStopRequested = false;
     renderSensorValues({});
     renderVariables(null);
@@ -299,6 +334,7 @@ async function resetSimulation() {
     window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-reset', {detail: {workspacePreserved: true}}));
   } catch (error) {
     runtimeTerminal = true;
+    runtimeNeedsRebuild = true; // No second superficial RESET after an unknown physical failure.
     setRuntimeFailure(error);
   } finally {
     runtimeResetPending = false;
@@ -308,7 +344,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || runtimeRecoveryPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -410,20 +446,72 @@ window.onload = async function() {
     });
   });
   profileFieldOptions.applyWorkspace(workspace);
+  var recovery = null;
+  try {
+    recovery = WebeeBlocksSimulationRecovery.peek();
+    if (recovery) {
+      runtimeRecoveryPending = true;
+      runtimeTerminal = true;
+      runtimeNeedsRebuild = true;
+      runtimeProfile = WebeeBlocksActivityProfiles.resolveById(
+        WebeeBlocksActivities.DOCUMENT, recovery.profileId, WebeeBlocksActivities.BLOCK_CATALOG);
+      profileFieldOptions.setProfile(runtimeProfile, workspace);
+      workspace.updateToolbox(buildToolbox(runtimeProfile));
+      Blockly.serialization.workspaces.load(JSON.parse(recovery.workspace), workspace);
+      if (serializedWorkspace() !== recovery.workspace)
+        throw new Error('Recovery altered the unsaved Blockly program');
+      document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
+      document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;
+      setRuntimeStatus('RECONSTRUCTION', 'Vérification du nouveau monde et de la scène');
+    }
+  } catch (error) {
+    runtimeRecoveryPending = true;
+    runtimeTerminal = true;
+    setRuntimeFailure(error);
+    return; // Never start a program or overwrite a damaged checkpoint.
+  }
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {
     var module = await import(new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href);
     robotWindow = new module.default();
-    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true, simulationScenes: true});
+    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true, simulationScenes: true, simulationWorldReload: true});
     robotWindow.receive = receiveMessage;
-    setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
+    if (!recovery) setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();
+    if (recovery) {
+      // READY alone is insufficient: this new incarnation must demonstrate
+      // the unchanged strict physical stability and the restored scene.
+      await runtimeBackend.resetSimulation(true);
+      await runtimeBackend.prepareActivity(runtimeProfile);
+      await runtimeBackend.resetSimulation(true);
+      await runtimeBackend.prepareActivity(runtimeProfile);
+      if (serializedWorkspace() !== recovery.workspace || runtimeProfile.id !== recovery.profileId)
+        throw new Error('Recovery changed the pupil project');
+      WebeeBlocksSimulationRecovery.clear(recovery);
+      runtimeTerminal = false;
+      runtimeNeedsRebuild = false;
+      runtimeRecoveryPending = false;
+      renderSensorValues({});
+      renderVariables(null);
+      setRuntimeStatus('PRÊT', 'Monde reconstruit — programme à relancer');
+      window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-reset', {
+        detail: {workspacePreserved: true, worldRebuilt: true}
+      }));
+    } else {
+      setRuntimeStatus('PRÊT', 'Simulation connectée');
+    }
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
     updateRuntimeActions();
-    setRuntimeStatus('PRÊT', 'Simulation connectée');
-  } catch (error) { setRuntimeFailure(error); }
+  } catch (error) {
+    if (recovery) {
+      runtimeTerminal = true;
+      runtimeNeedsRebuild = true;
+      runtimeRecoveryPending = false;
+    }
+    setRuntimeFailure(error);
+  }
 };
 
 document.getElementById('submit').onclick = activatePrimaryExecution;

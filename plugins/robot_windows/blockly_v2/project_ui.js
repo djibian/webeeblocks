@@ -34,9 +34,9 @@
     var open = document.getElementById('projectOpen');
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
-    var locked = busy || !supported || runtimeLocked;
+    var locked = busy || !supported || runtimeLocked || runtimeRecoveryPending;
     var blocklyDiv = document.getElementById('blocklyDiv');
-    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked;
+    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked || runtimeRecoveryPending;
     if (activity) activity.disabled = locked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
@@ -85,7 +85,7 @@
   async function prepareProfileScene(profile) {
     if (!runtimeBackend || !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
       return; // Existing non-scene test/transport composition is unchanged.
-    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending)
+    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeRecoveryPending || runtimeNeedsRebuild)
       throw new Error('Simulation occupée');
     if (runtimeTerminal) {
       await resetSimulation();
@@ -298,7 +298,7 @@
 
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
-    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION' || state === 'RECONSTRUCTION');
     if (state === 'PRÉPARATION') setRuntimeLocked(true);
   });
 
