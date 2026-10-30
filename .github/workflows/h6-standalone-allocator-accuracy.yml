@@ -1,0 +1,96 @@
+name: H6 standalone allocation accurate arena + RSS checkpoints
+on:
+  push:
+    branches: [experiment/h6-individual-contact-lifetime-20261030]
+    paths:
+      - '.github/workflows/h6-standalone-allocator-accuracy.yml'
+permissions:
+  contents: read
+jobs:
+  ode-allocator:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Audit source pin and improve measurement accuracy without changing any invariant
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p allocator-evidence/logs
+          git rev-parse HEAD > allocator-evidence/commit.txt
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots \
+            > allocator-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b \
+            > allocator-evidence/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          s=Path('experiments/h6_standalone/ode_individual_stress.cpp').read_text()
+          old='static_cast<size_t>(s.uordblks+s.hblkhd),rss()'
+          new='static_cast<size_t>(s.arena+s.hblkhd),rss()'
+          assert s.count(old)==1 and new not in s
+          t=s.replace(old,new)
+          assert t.count('H6_INDIVIDUAL_8192_PASS')==1
+          assert t.count('const int n=std::fscanf')==1
+          # Same contact lifecycle, exact same 8192 stress, only arena byte metric fixed.
+          Path('allocator-evidence/ode-allocator-accurate.cpp').write_text(t)
+          Path('allocator-evidence/scope.txt').write_text(
+              'active_used_bytes=mallinfo2.uordblks; reserved_bytes=mallinfo2.arena+hblkhd; '
+              'rss_bytes=/proc/self/statm * page_size. No oracle or stress changed.\n')
+          print('H6_ARENA_METRIC_ONLY',hashlib.sha256(t.encode()).hexdigest())
+          PY
+          sha256sum experiments/h6_standalone/ode_individual_stress.cpp \
+            allocator-evidence/ode-allocator-accurate.cpp > allocator-evidence/sources.sha256
+      - name: Compile exact pinned ODE and remeasure original 8192 stress
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > allocator-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 100 allocator-evidence/logs/ode-build.log; exit 1;
+          }
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror -pthread \
+            -I native-webots/include/ode allocator-evidence/ode-allocator-accurate.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o allocator-evidence/ode-accurate-probe
+          sha256sum native-webots/lib/webots/libode.so allocator-evidence/ode-accurate-probe \
+            > allocator-evidence/binaries.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 45s \
+            allocator-evidence/ode-accurate-probe > allocator-evidence/accurate-memory.jsonl \
+            2> allocator-evidence/logs/probe-stderr.log
+          python3 - <<'PY'
+          import json,pathlib
+          f=pathlib.Path('allocator-evidence/accurate-memory.jsonl')
+          s=f.read_text().splitlines()
+          assert s[-1]=='H6_INDIVIDUAL_8192_PASS'
+          d=[json.loads(x) for x in s[:-1]]
+          assert [x['cycle'] for x in d]==[0,1,64,512,2048,8192]
+          for x in d:
+              assert x['A_contact']==1 and x['B_contact']==0 and x['C_contact']==1 and x['group_joints']==0
+              assert x['reserved_bytes']>=x['active_used_bytes'],x
+          for field in ('active_used_bytes','reserved_bytes','rss_bytes'):
+              assert d[-1][field]<=d[2][field]+(4*1024*1024 if field=='rss_bytes' else 262144),field
+          print(json.dumps({'status':'PASS', 'scope':'pinned-ODE 8192 selective standalone cycles only',
+              'measurement':'mallinfo2 arena+hblkhd, uordblks, /proc statm RSS',
+              'checkpoints':d},sort_keys=True,indent=2))
+          pathlib.Path('allocator-evidence/qualification.json').write_text(json.dumps({
+              'status':'PASS','scope':'ODE native 8192, NOT Webots allocation total bound',
+              'checkpoints':d},sort_keys=True,indent=2)+'\n')
+          PY
+      - name: Retain immutable original data even on RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p allocator-evidence
+          find allocator-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > allocator-evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-standalone-native-glibc-true-arena-metrics
+          path: allocator-evidence/
+          if-no-files-found: error
+          retention-days: 90
