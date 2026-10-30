@@ -389,7 +389,7 @@
     var probeTimeout = Math.min(2500, this.timeoutMs);
     function probe(attempt) {
       return self._request(['RECOVERY_STATUS', candidate], probeTimeout).catch(function(error) {
-        if (attempt < 3 && error && /^Runtime v2 request timeout id=\\d+$/.test(error.message || ''))
+        if (attempt < 3 && error && /^Runtime v2 request timeout id=\d+$/.test(error.message || ''))
           return probe(attempt + 1);
         throw error;
       });

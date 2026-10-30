@@ -76,10 +76,10 @@ module.exports = async function testWorldRecovery() {
   let statusAttempts = 0;
   lossBackend = new Backend({send: text => {
     delayed.push(text);
-    const match = text.match(/ REQUEST (\\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+    const match = text.match(/ REQUEST (\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
     if (match && ++statusAttempts === 2) {
       queueMicrotask(() => {
-        const old = delayed[0].match(/ REQUEST (\\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+        const old = delayed[0].match(/ REQUEST (\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
         if (old) lossBackend.handleMessage(p + 'RESPONSE ' + old[1] + ' RECOVERY_STATUS ' + old[3] + ' NONE');
         assert.strictEqual(Object.keys(lossBackend.pending).length, 1, 'stale first status ACK unlocked retry');
         lossBackend.handleMessage(p + 'RESPONSE ' + match[1] + ' RECOVERY_STATUS ' + match[3] + ' PENDING_OTHER');
