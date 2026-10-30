@@ -56,9 +56,9 @@ jobs:
               set -euo pipefail
               echo "WEBOTS_HOME=$WEBOTS_HOME"
               make -C plugins/physics/h6_g_window
-              test -s plugins/physics/h6_g_window/h6_g_window.so
+              test -s plugins/physics/h6_g_window/libh6_g_window.so
             ' > h6-g-native-evidence/build.log 2>&1
-          sha256sum experiments/h6/g_window/plugins/physics/h6_g_window/h6_g_window.so             > h6-g-native-evidence/plugin_sha256.txt
+          sha256sum experiments/h6/g_window/plugins/physics/h6_g_window/libh6_g_window.so             > h6-g-native-evidence/plugin_sha256.txt
       - name: Run distinct real Supervisor global/node resets in A and plugin-R intervention
         shell: bash
         run: |
