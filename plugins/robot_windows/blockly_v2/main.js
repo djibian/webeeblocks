@@ -499,10 +499,10 @@ window.onload = async function() {
     robotWindow.receive = receiveMessage;
     if (!recovery) setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();
-    var nativeRecovery = await runtimeBackend.readRecoveryStatus();
+    var nativeRecovery = await runtimeBackend.readRecoveryStatus(recovery ? recovery.token : undefined);
     if (!nativeRecovery || nativeRecovery.state === 'INVALID')
       throw new Error('Témoin natif de reconstruction absent, endommagé ou inaccessible — exécution verrouillée');
-    if (nativeRecovery.state === 'PENDING' && (!recovery || recovery.token !== nativeRecovery.token))
+    if (nativeRecovery.state === 'PENDING' && (!recovery || nativeRecovery.matched !== true))
       throw new Error('Reconstruction inachevée : programme Blockly non disponible ou témoin incohérent — exécution verrouillée');
     if (recovery && nativeRecovery.state !== 'PENDING')
       throw new Error('Checkpoint Blockly sans témoin natif correspondant — exécution verrouillée');

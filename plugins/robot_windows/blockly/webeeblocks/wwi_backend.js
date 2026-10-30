@@ -174,14 +174,14 @@
       }
       return true;
     }
-    var recoveryStateAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_STATUS ([0-9a-f]{64}) (NONE|INVALID|PENDING(?: ([0-9a-f]{64})))$/);
+    var recoveryStateAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_STATUS ([0-9a-f]{64}) (NONE|INVALID|PENDING_MATCH|PENDING_OTHER)$/);
     if (recoveryStateAck) {
       var statePending = this.pending[Number(recoveryStateAck[1])];
       if (statePending && statePending.sceneNonce === recoveryStateAck[2]) {
         clearTimeout(statePending.timer);
         delete this.pending[Number(recoveryStateAck[1])];
-        statePending.resolve({state: recoveryStateAck[3].startsWith('PENDING') ? 'PENDING' : recoveryStateAck[3],
-          token: recoveryStateAck[4] || null});
+        statePending.resolve({state: recoveryStateAck[3].startsWith('PENDING_') ? 'PENDING' : recoveryStateAck[3],
+          matched: recoveryStateAck[3] === 'PENDING_MATCH'});
       }
       return true;
     }
@@ -375,10 +375,13 @@
 
   // Irreversible one-way request: never acknowledge recovery on the OLD world.
   // The new Robot Window must independently validate strict RESET and scene.
-  RuntimeV2WwiBackend.prototype.readRecoveryStatus = function() {
+  RuntimeV2WwiBackend.prototype.readRecoveryStatus = function(token) {
     if (!this.capabilities.simulationWorldReload)
       return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
-    return this._request(['RECOVERY_STATUS']);
+    if (token !== undefined && (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)))
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN'));
+    // No checkpoint => only ask whether a witness exists; never learn its token.
+    return this._request(['RECOVERY_STATUS', token || '0'.repeat(64)]);
   };
   RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token) {
     if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token))

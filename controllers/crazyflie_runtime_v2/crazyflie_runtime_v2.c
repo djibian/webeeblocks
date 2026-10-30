@@ -523,14 +523,16 @@ int main(void) {
         wb_supervisor_world_reload();
         continue;
       }
-      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_STATUS %64s %1s",
-                 &guardian_id, challenge, extra) == 2 &&
-          guardian_id >= 1 && wb_rg_hex64(challenge)) {
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_STATUS %64s %64s %1s",
+                 &guardian_id, witness_token, challenge, extra) == 3 &&
+          guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
         char reply[256];
         int state = wb_rg_refresh(&recovery_guard);
         if (state == WB_RG_PENDING)
-          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s PENDING %s",
-                   guardian_id, challenge, recovery_guard.token);
+          // Never disclose the recovery token to a new browser that lost Blockly.
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
+                   guardian_id, challenge, strcmp(witness_token, recovery_guard.token) == 0 ?
+                   "PENDING_MATCH" : "PENDING_OTHER");
         else
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
                    guardian_id, challenge, state == WB_RG_NONE ? "NONE" : "INVALID");
@@ -540,8 +542,9 @@ int main(void) {
       if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %1s",
                  &guardian_id, witness_token, challenge, extra) == 3 &&
           guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
-        // Only the browser that demonstrated the matching physical recovery
-        // may request consumption; correlated ACK cannot come from old WWI.
+        // Caller must present the token itself, not a value disclosed by
+        // RECOVERY_STATUS. UI additionally requires strict physical recovery.
+        // This native handler alone does not prove that UI postcondition.
         char reply[192];
         if (wb_rg_clear(&recovery_guard, witness_token))
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);

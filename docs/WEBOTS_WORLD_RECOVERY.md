@@ -46,3 +46,25 @@ A successful CI profile does not eliminate this safety/data-loss boundary.
 Qualification requires a durable cross-incarnation intent signal and a
 negative test where browser profile/checkpoint disappears, or an equivalent
 provable fail-closed contract, plus Windows user-path evidence.
+
+## Native recovery witness: boundary and protocol (2026-10-30)
+
+PR #759 experimental run 41089006268 demonstrated a one-file per-user/per-world
+native witness written and flushed before the official Webots world reload.
+With the witness pending, a browser that loses or corrupts its Blockly
+checkpoint must stay locked even if Webots reports READY. Tests also cover a
+stale witness at legitimate boot. The witness contains only a random recovery
+token, NOT a second copy of Blockly. Total browser-profile loss therefore
+causes **explicit data loss + fail-closed**, not guaranteed program recovery.
+
+The status response intentionally never discloses the witness token: a new
+browser without the saved checkpoint may observe PENDING but cannot learn the
+token needed to clear it. A matching checkpoint must prove possession in the
+status query. This improves stale-browser isolation but is not a native proof
+that the caller completed RESET/SCENE; the UI verifies those postconditions.
+The gap between consuming the native witness and clearing browser storage is
+also a fail-closed interrupted-transaction case, not a reason to auto-discard.
+
+Canonical Ready-HEAD CI, Windows native/GUI qualification, native stale-ACK
+interception and interrupted-transaction fault injection are still required.
+A Linux Draft experiment is never authorization to merge or claim Windows GO.
