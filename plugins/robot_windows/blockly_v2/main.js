@@ -301,9 +301,15 @@ async function rebuildSimulation() {
   if (runtimeDebug) runtimeDebug.finish();
   setRuntimeStatus('RECONSTRUCTION', 'Rechargement complet du monde — programme conservé');
   try {
+    // Arm in the original browser document BEFORE the native controller can
+    // close its WWI socket. The token must match durable localStorage.
+    if (!window.WebeeBlocksWindowRenewal || !window.WebeeBlocksWindowRenewal.arm(nativeCheckpoint.token))
+      throw new Error('Impossible de préparer le renouvellement de la fenêtre Blockly');
     runtimeBackend.requestWorldReload(nativeCheckpoint.token);
-    // No success transition on the old incarnation: navigation is mandatory.
+    window.WebeeBlocksWindowRenewal.begin();
+    // No success transition on the old incarnation: new-page native verification remains mandatory.
   } catch (error) {
+    if (window.WebeeBlocksWindowRenewal) window.WebeeBlocksWindowRenewal.disarm();
     setRuntimeFailure(error);
     // Remain terminal; the checkpoint stays available for another attempt.
     runtimeRecoveryPending = false;
