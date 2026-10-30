@@ -57,7 +57,7 @@
             redirect: 'error', signal: controller.signal
           });
         } finally { root.clearTimeout(watchdog); }
-        if (response.ok && /text\\/html/i.test(response.headers.get('content-type') || '')) {
+        if (response.ok && (response.headers.get('content-type') || '').toLowerCase().includes('text/html')) {
           navigation = true;
           if (typeof root.dispatchEvent === 'function' && typeof root.CustomEvent === 'function')
             root.dispatchEvent(new root.CustomEvent('webeeblocks-window-renewal', {
