@@ -4,6 +4,9 @@ from pathlib import Path
 import sys
 if len(sys.argv) != 3: raise SystemExit("usage: setup_wakeup.py NATIVE_WEBOTS GENERATED_PROJECT")
 root, out = map(Path,sys.argv[1:])
+header=(root/"include/ode/ode/collision.h").read_text()
+if "typedef int dWorldStepFunction(dWorldID, dReal);" not in header:
+    raise SystemExit("REFUSED: pinned ODE solver callback return signature changed")
 src=root/"src/webots/engine/WbSimulationCluster.cpp"
 s=src.read_text()
 needle="                            WbWorld::instance()->basicTimeStep() * 0.001, &dWorldStep, spaceUpdateFunc);"
@@ -31,11 +34,12 @@ static void h6WakeObserve(dWorldID world, const char *phase) {
   }
   std::fflush(stderr);
 }
-static void h6WakeWorldStep(dWorldID world,dReal dt) {
+static int h6WakeWorldStep(dWorldID world,dReal dt) {
   ++h6WakeTick;
   h6WakeObserve(world,"pre");
-  dWorldStep(world,dt); // exact original solver, unchanged
+  const int result=dWorldStep(world,dt); // exact original solver, unchanged
   h6WakeObserve(world,"post"); // BEFORE collision detection
+  return result; // unchanged original solver result
 }
 
 '''
