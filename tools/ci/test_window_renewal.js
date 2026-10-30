@@ -72,6 +72,20 @@ async function flush(){await new Promise(r=>setImmediate(r));}
   assert.strictEqual(e.reloads,0,'non HTML response cannot authorize renewal');
   e.control.disarm();
   assert.strictEqual(e.control.onTransportClose(),false,'disarmed stale close denied');
+  // Transport never recovers: one bounded series and NO further attempt on
+  // repeated close/replay, no navigation and no forgotten pupil data.
+  e=environment({httpUnavailable:true});
+  assert.strictEqual(e.control.arm(token),true);
+  assert.strictEqual(e.control.onTransportClose(),true);
+  for (let n=0;n<25;n++) { await flush(); e.nextTimer(); }
+  await flush();
+  assert.strictEqual(e.reloads,0,'HTTP outage may not be interpreted as success');
+  const attempts=e.fetched;
+  assert.strictEqual(attempts,24,'HTTP attempts must be bounded');
+  assert.strictEqual(e.control.onTransportClose(),true,'old tab stays safely gated');
+  await flush();
+  assert.strictEqual(e.fetched,attempts,'duplicate close must not retry indefinitely');
+  assert.strictEqual(e.control.arm(token),false,'failed generation is single use');
   e=environment();
   assert.strictEqual(e.control.arm(token),true);
   assert.strictEqual(e.control.begin(),true);
