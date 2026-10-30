@@ -50,5 +50,8 @@ s = s.replace(old, new)
 
 if s.count('void WbOdeContext::clearResetBodyContactJointGroups(dBodyID body)')!=1:
     raise SystemExit('H6 REFUSED multiple cleanup candidates')
+compile(s, str(p), "exec")  # Python patcher syntax before any Webots source build
+if s.count(new) != 2:
+    raise SystemExit("H6 REFUSED G cleanup code not applied twice")
 p.write_text(s)
 print('H6 R PATCH',p,hashlib.sha256(p.read_bytes()).hexdigest())
