@@ -24,7 +24,7 @@ def events(path):
         t = int(m.group(2))
         check(t >= timestamp, f"{path}:{no} time out of order")
         timestamp = t
-        row = dict(re.findall(r"(?<!\\S)([A-Za-z_0-9]+)=([^ ]+)", ln))
+        row = dict(re.findall(r"(?<!\S)([A-Za-z_0-9]+)=([^ ]+)", ln))
         row["_line"] = no
         records.append(row)
     check(len(pids) == 1, str(path)+" mixed native process IDs")
