@@ -133,6 +133,7 @@
     var controller = new root.AbortController();
     var acquiring = true;
     var expired = false;
+    var lockDeadline = now() + LOCK_WAIT_MAX_MS;
     var lockTimer = null;
     var expiry = new Promise(function(_, reject) {
       lockTimer = root.setTimeout(function() {
@@ -147,8 +148,13 @@
       request = root.navigator.locks.request('webeeblocks-recovery-v1',
         {mode: 'exclusive', signal: controller.signal},
         async function() {
-          if (expired || controller.signal.aborted)
+          // A suspended tab may run an already-queued lock callback BEFORE
+          // its overdue timer task. Reject on monotonic deadline as well.
+          if (expired || controller.signal.aborted || now() >= lockDeadline) {
+            expired = true;
+            controller.abort();
             throw new Error('Verrou de reprise accordé après expiration — vol interdit');
+          }
           acquiring = false;
           if (lockTimer !== null) root.clearTimeout(lockTimer);
           lockTimer = null;
