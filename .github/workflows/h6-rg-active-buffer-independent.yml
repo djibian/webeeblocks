@@ -81,12 +81,18 @@ jobs:
           assert table['current',0,1]['target_attached_pre_solve']==1
           assert table['current',1,0]['target_attached_pre_solve']==0
           assert table['retired',0,1]['target_attached_pre_solve']==0
+          assert table['current',0,0]['target_speed']>1.0, 'negative physics must be observed'
+          assert table['current',0,1]['target_speed']==table['current',0,0]['target_speed'], 'G-only current must not appear fixed'
+          assert table['retired',0,0]['target_speed']==table['current',0,0]['target_speed'], 'control conditions changed'
+          for key,r in table.items():
+            if r['target_attached_pre_solve']==0:
+              assert r['target_speed']==0.0, (key,'contact fixed but residual impulse')
           out={'scope':'bundled Webots R2025a ODE single-thread',
                'native_arms':records,
                'current_buffer_G_insufficient':'PROVEN structural',
                'foreign_owner_R_selective':'PROVEN structural',
                'general_Webots_nonregression':'UNPROVEN'}
-          pathlib.Path('g-evidence/qualification.json').write_text(json.dumps(out,indent=2)+'\\n')
+          pathlib.Path('g-evidence/qualification.json').write_text(json.dumps(out,indent=2)+chr(10))
           print('H6_RG_ODE_ADVERSARIAL_PASS')
           PY
       - name: Always retain SHA manifest
