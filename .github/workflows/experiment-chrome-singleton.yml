@@ -170,6 +170,27 @@ jobs:
           print('PASS: real Webots R2025a RESET, world reload, restored Blockly and colliding rerun.')
           PY
 
+      - name: Falsify false-positive CDP recovery not triggered
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          base = Path('ci-artifacts/runtime-v2-reset')
+          handoff = (base / 'browser-handoff.log').read_text()
+          assert 'STOP_OLD_CHROME' in handoff, handoff
+          assert 'CONT_OLD_CHROME' in handoff, handoff
+          assert 'CHROME_LAUNCH_RETURNED count=2 exit=21' in handoff, handoff
+          assert 'CDP_DOCUMENT_TARGET_CREATED' in handoff, handoff
+          probe = [json.loads(x) for x in (base/'cdp-rescue.jsonl').read_text().splitlines()]
+          assert len(probe) == 1 and probe[0].get('target_id') and probe[0].get('type') == 'page', probe
+          events = [json.loads(x) for x in (base/'browser-events.jsonl').read_text().splitlines()]
+          assert sum(e['event']=='BROWSER_BOOT_PROBE' for e in events) == 2, events
+          assert sum(e['event']=='WORLD_RECOVERY_READY' for e in events) == 1
+          assert sum(e['event']=='WORLD_RECOVERY_RERUN' for e in events) == 1
+          print('PASS: genuine exit-21 => one CDP target => new Blockly document => strict native recovery and rerun')
+          PY
       - name: Upload reset/replay diagnostics
         if: always()
         uses: actions/upload-artifact@v4
