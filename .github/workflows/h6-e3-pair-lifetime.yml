@@ -1,0 +1,91 @@
+name: H6 E3 native pair-owned contact group lifetime (isolated)
+on:
+  push:
+    branches:
+      - experiment/h6-e3-pair-contact-lifetime-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-e3-pair-lifetime-20261030
+  cancel-in-progress: true
+jobs:
+  e3:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare and authenticate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e3-evidence/logs
+          git rev-parse HEAD > e3-evidence/commit.txt
+          sha256sum experiments/h6/ode_pair_group_lifetime_probe.cpp > e3-evidence/source.sha256
+          grep -q H6_E3_NATIVE_PASS experiments/h6/ode_pair_group_lifetime_probe.cpp
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > e3-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$WEBOTS_PIN" > e3-evidence/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          git -C native-webots rev-parse HEAD > e3-evidence/webots-source-commit.txt
+      - name: Syntax-only C++ preflight BEFORE ODE build
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+              -I native-webots/include/ode experiments/h6/ode_pair_group_lifetime_probe.cpp \
+              > e3-evidence/logs/syntax.txt 2>&1 || {
+            cat e3-evidence/logs/syntax.txt
+            exit 1
+          }
+      - name: Build exact bundled ODE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > e3-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 100 e3-evidence/logs/ode-build.log;exit 1
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > e3-evidence/libode.sha256
+      - name: Real ODE pair-group experiment and fail-closed result audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -Wall -Wextra -Werror \
+              -I native-webots/include/ode experiments/h6/ode_pair_group_lifetime_probe.cpp \
+              -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+              -lode -o e3-evidence/h6-e3-native
+          sha256sum e3-evidence/h6-e3-native > e3-evidence/binary.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 120s e3-evidence/h6-e3-native \
+            > e3-evidence/results.jsonl 2>e3-evidence/logs/native-stderr.log
+          python3 - <<'PY'
+          import json,pathlib
+          lines=pathlib.Path('e3-evidence/results.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_E3_NATIVE_PASS'
+          rows=[json.loads(s) for s in lines[:-1]]
+          samples={x['cycle']:x for x in rows if x['phase'] in ('initial','pair_reset')}
+          assert set(samples)=={0,1,64,512,2048,8192}
+          assert all(r['reset_pair_group_joints']==0 and r['unrelated_pair_group_joints']==1
+            and r['target_attached_contact_joints']==0 and r['permanent_joint_kept']==1
+            and r['owner_disabled']==1 for r in samples.values())
+          assert rows[-1]['phase']=='destroyed'
+          print('H6_E3_PAIRED_AUDIT_PASS')
+          PY
+      - name: Authenticate even on failure
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p e3-evidence/logs
+          git rev-parse HEAD > e3-evidence/actual-commit.txt
+          find e3-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > e3-evidence/SHA256SUMS.txt
+      - name: Upload original evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-E3-pinned-ODE-pair-groups-evidence
+          path: e3-evidence/
+          retention-days: 30
+          if-no-files-found: error
