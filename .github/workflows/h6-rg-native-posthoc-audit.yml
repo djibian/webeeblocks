@@ -1,0 +1,104 @@
+name: H6 R-G independent posthoc native artifact qualification
+on:
+  push:
+    branches:
+      - experiment/h6-rg-posthoc-audit-20261030
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: h6-rg-posthoc-audit-20261030
+  cancel-in-progress: false
+jobs:
+  audit:
+    name: Reanalyze exact native Webots data without recompilation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download immutable failed-run native evidence (does NOT rerun Webots)
+        uses: actions/download-artifact@v4
+        with:
+          name: H6-independent-RG-factorial-native-evidence
+          run-id: 41055539892
+          repository: djibian/webeeblocks
+          github-token: ${{ github.token }}
+          path: raw-evidence
+      - name: Authenticate primary run, source, all SHA256, and unmodified original P4
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p posthoc-evidence
+          printf '%s\n' 41055539892 > posthoc-evidence/native-run-id.txt
+          printf '%s\n' 13162a891e190dd735ccc3b5e0074dabe5064d3c > posthoc-evidence/native-run-commit.txt
+          printf '%s\n' c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b > posthoc-evidence/webots-commit.txt
+          test "$(cat raw-evidence/experiment_commit.txt)" = '13162a891e190dd735ccc3b5e0074dabe5064d3c'
+          test "$(cat raw-evidence/webots_source_actual.txt)" = 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          (cd raw-evidence && sed 's|  h6-evidence/|  |' SHA256SUMS.txt | sha256sum -c -) > posthoc-evidence/manifest-verify.log
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          root=pathlib.Path('raw-evidence')
+          listed=root.joinpath('SHA256SUMS.txt').read_text().splitlines()
+          expected=set()
+          for line in listed:
+            digest,path=line.split('  ',1)
+            assert path.startswith('h6-evidence/')
+            rel=path.removeprefix('h6-evidence/')
+            assert rel not in expected
+            expected.add(rel)
+            assert hashlib.sha256((root/rel).read_bytes()).hexdigest()==digest
+          actual={str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
+          assert actual==expected|{'SHA256SUMS.txt'}
+          assert len(expected)>200
+          p4=json.loads((root/'factorial/R10/p4_qualification.json').read_text())
+          assert p4['complete'] and p4['p4'].startswith('PROVEN')
+          assert p4['arms']['F']['omega_rad_s']==0
+          for name,flags in [('A00','R=0 G=0'),('G01','R=0 G=1'),('R10','R=1 G=0'),('RG11','R=1 G=1')]:
+            assert (root/f'factorial/{name}.flags.txt').read_text().startswith(flags)
+            assert (root/f'logs/{name}-run.exit').read_text().strip()=='0'
+          print('H6_RG_SOURCE_SHA_MANIFEST_P4_PASS',len(expected))
+          PY
+      - name: Run additional independent exact-data factorial oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile experiments/h6/h6_rg_factorial_reanalysis.py
+          python3 experiments/h6/h6_rg_factorial_reanalysis.py "$PWD/raw-evidence/factorial" > posthoc-evidence/factorial-posthoc-verdict.json
+          grep -F 'H6_RG_FACTORIAL_PASS' posthoc-evidence/factorial-posthoc-verdict.json >/dev/null
+          python3 - <<'PY'
+          import json,pathlib
+          content=pathlib.Path('posthoc-evidence/factorial-posthoc-verdict.json').read_text()
+          # Script also prints one success line: parse the *preceding* JSON only.
+          d=json.loads(content.rsplit('H6_RG_FACTORIAL_PASS',1)[0])
+          arms=d['factorial']
+          assert set(arms)=={'A00','G01','R10','RG11'}
+          for name,expected_R,expected_G,omega,removedR,removedG in [
+            ('A00',0,0,True,0,0),('G01',0,1,False,0,2),
+            ('R10',1,0,False,2,0),('RG11',1,1,False,0,2)]:
+            item=arms[name]
+            assert item['R']==expected_R and item['G']==expected_G
+            assert (item['omega_rad_s']>0.25)==omega
+            assert item['R_detached_contacts']==removedR
+            # Note: this oracle reports G cleanup events, not actual effects;
+            # actual G effect is proven by at_R_boundary, NOT event count.
+            assert item['at_R_boundary']==(0 if expected_G else 2)
+          print('H6_RG_POSTHOC_NATIVE_PASS')
+          PY
+      - name: Retain verifiable report and original failure status
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'Original Webots run 41055539892 remains FAILURE due false positive in newly added oracle; original historical P4 remains unchanged and passed on R10.' > posthoc-evidence/PROVENANCE_AND_CI_STATUS.txt
+          git rev-parse HEAD > posthoc-evidence/audit-commit.txt
+          find posthoc-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > posthoc-evidence/SHA256SUMS.txt
+      - name: Publish requalification (not a retroactive green native run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-RG-posthoc-independent-native-qualification
+          path: posthoc-evidence/
+          if-no-files-found: error
+          retention-days: 30
