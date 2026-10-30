@@ -16,6 +16,7 @@
 
 #include "pid_controller.h"
 #include "activity_scene.h"
+#include "recovery_guard.h"
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -348,6 +349,8 @@ static void trace_reset(double x, double y, double z, double origin_x, double or
 
 int main(void) {
   wb_robot_init();
+  wb_recovery_guard_t recovery_guard;
+  wb_rg_setup(&recovery_guard, wb_robot_get_world_path());
   const int step = (int)wb_robot_get_basic_time_step();
 
   WbDeviceTag m1 = wb_robot_get_device("m1_motor");
@@ -499,8 +502,16 @@ int main(void) {
     while ((message = wb_robot_wwi_receive_text()) != NULL) {
       if (world_reload_requested)
         continue; // No old command or ACK may survive the reload request.
-      if (strcmp(message, PREFIX " RELOAD_WORLD") == 0) {
-        // World reload is a separate emergency path, never a successful RESET.
+      char witness_token[65] = {0}, challenge[65] = {0}, extra[2] = {0};
+      int guardian_id = -1;
+      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %1s", witness_token, extra) == 1 &&
+          wb_rg_hex64(witness_token)) {
+        // Persist BEFORE world reload. Losing the browser can never erase this
+        // witness. A write failure must not destroy the existing world.
+        if (!wb_rg_arm(&recovery_guard, witness_token)) {
+          send_text(PREFIX " WORLD_RELOAD_DENIED");
+          continue;
+        }
         simulation_clock_revoke(&program_clock);
         stop_motors(m1, m2, m3, m4);
         world_reload_requested = 1;
@@ -512,6 +523,33 @@ int main(void) {
         wb_supervisor_world_reload();
         continue;
       }
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_STATUS %64s %1s",
+                 &guardian_id, challenge, extra) == 2 &&
+          guardian_id >= 1 && wb_rg_hex64(challenge)) {
+        char reply[256];
+        int state = wb_rg_refresh(&recovery_guard);
+        if (state == WB_RG_PENDING)
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s PENDING %s",
+                   guardian_id, challenge, recovery_guard.token);
+        else
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
+                   guardian_id, challenge, state == WB_RG_NONE ? "NONE" : "INVALID");
+        send_text(reply);
+        continue;
+      }
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %1s",
+                 &guardian_id, witness_token, challenge, extra) == 3 &&
+          guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
+        // Only the browser that demonstrated the matching physical recovery
+        // may request consumption; correlated ACK cannot come from old WWI.
+        char reply[192];
+        if (wb_rg_clear(&recovery_guard, witness_token))
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);
+        else
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d ERR RECOVERY_LOCKED", guardian_id);
+        send_text(reply);
+        continue;
+      }
       if (strncmp(message, PREFIX " REQUEST ", strlen(PREFIX " REQUEST ")) != 0)
         continue;
       request_t request = parse_request(message);
@@ -519,6 +557,16 @@ int main(void) {
         continue;
       if (request.kind == REQUEST_INVALID) {
         response_error(request.id, "INVALID_REQUEST");
+        continue;
+      }
+      int recovery_state = wb_rg_refresh(&recovery_guard);
+      if (recovery_state != WB_RG_NONE && request.kind != REQUEST_RESET &&
+          request.kind != REQUEST_SCENE && request.kind != REQUEST_STOP) {
+        response_error(request.id, "RECOVERY_LOCKED");
+        continue;
+      }
+      if (recovery_state == WB_RG_INVALID && request.kind != REQUEST_STOP) {
+        response_error(request.id, "RECOVERY_LOCKED");
         continue;
       }
       if (request.kind == REQUEST_STOP) {

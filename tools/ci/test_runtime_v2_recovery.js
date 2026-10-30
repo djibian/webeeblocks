@@ -41,8 +41,8 @@ module.exports = async function testWorldRecovery() {
   assert(m);
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await again;
-  backend.requestWorldReload();
-  const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,timeoutMs:1000});
+  backend.requestWorldReload('a'.repeat(64));
+  const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,simulationWorldReload:true,timeoutMs:1000});
   fresh.nextId = backend.nextId;
   fresh.handleMessage(p + 'READY');
   const newRequest = fresh.resetSimulation(true);
@@ -52,11 +52,26 @@ module.exports = async function testWorldRecovery() {
   assert.strictEqual(fresh.ready, false, 'old numeric ACK unlocked new RESET');
   fresh.handleMessage(p + 'RESPONSE ' + newId[1] + ' RESET_OK ' + newId[2]);
   await newRequest;
-  assert.strictEqual(sent[5], p + 'RELOAD_WORLD');
+  assert.strictEqual(sent[5], p + 'RELOAD_WORLD ' + 'a'.repeat(64));
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(backend.simulationStopped, true);
+  const status = fresh.readRecoveryStatus();
+  const statusMessage = sent[sent.length-1];
+  const statusMatch = statusMessage.match(/ REQUEST (\d+) RECOVERY_STATUS ([0-9a-f]{64})$/);
+  assert(statusMatch);
+  fresh.handleMessage(p + 'RESPONSE ' + statusMatch[1] + ' RECOVERY_STATUS ' + '0'.repeat(64) + ' NONE');
+  assert(Object.keys(fresh.pending).length === 1, 'old status ACK was accepted');
+  fresh.handleMessage(p + 'RESPONSE ' + statusMatch[1] + ' RECOVERY_STATUS ' + statusMatch[2] + ' PENDING ' + 'a'.repeat(64));
+  assert.deepStrictEqual(await status, {state:'PENDING',token:'a'.repeat(64)});
+  const clear = fresh.clearRecoveryWitness('a'.repeat(64));
+  const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(clearMatch);
+  fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + '0'.repeat(64));
+  assert(Object.keys(fresh.pending).length === 1, 'old clear ACK accepted');
+  fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + clearMatch[3]);
+  await clear;
   const noReload = new Backend({send(){}},{simulationReset:true});
-  assert.throws(() => noReload.requestWorldReload(), /unavailable/);
+  assert.throws(() => noReload.requestWorldReload('a'.repeat(64)), /unavailable/);
   const beforeResetSource = fs.readFileSync(path.join(__dirname,'../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'),'utf8');
   assert.match(beforeResetSource, /wb_supervisor_world_reload\(\);/);
   assert.match(beforeResetSource, /if \(world_reload_requested\)\s*continue;/);
@@ -85,10 +100,10 @@ module.exports = async function testWorldRecovery() {
     saved.set(saved.keys().next().value, JSON.stringify(damaged));
     assert.throws(() => Recovery.peek());
     saved.clear();
-    Recovery.save('progression-sequence-v1', workspace, 41);
-    assert.throws(() => Recovery.clear({...checkpoint, workspace:'{}'}), /changed/);
+    const renewed = Recovery.save('progression-sequence-v1', workspace, 41);
+    assert.throws(() => Recovery.clear({...renewed, workspace:'{}'}), /changed/);
     assert(Recovery.peek(), 'bad token erased pupil blocks');
-    Recovery.clear(checkpoint);
+    Recovery.clear(renewed);
     assert.strictEqual(Recovery.peek(), null);
     global.localStorage = {
       getItem: key => saved.get(key) || null,

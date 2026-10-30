@@ -8,7 +8,7 @@
   var KEY = 'webeeblocks-world-recovery-v1';
 
   function validate(value) {
-    if (!value || value.version !== 1 || !Number.isSafeInteger(value.nextRequestId) ||
+    if (!value || value.version !== 2 || typeof value.token !== 'string' || !/^[0-9a-f]{64}$/.test(value.token) || !Number.isSafeInteger(value.nextRequestId) ||
         value.nextRequestId < 1 || value.nextRequestId > 2147483647 ||
         typeof value.profileId !== 'string' ||
         !/^[A-Za-z0-9_-]{1,100}$/.test(value.profileId) ||
@@ -26,7 +26,13 @@
   }
 
   function save(profileId, workspace, nextRequestId) {
-    var checkpoint = validate({version: 1, profileId: profileId, workspace: workspace, nextRequestId: nextRequestId});
+    // Correlates the browser checkpoint with the independent native witness.
+    if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== 'function')
+      throw new Error('Recovery correlation randomness unavailable');
+    var random = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(random);
+    var token = Array.from(random, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    var checkpoint = validate({version: 2, token: token, profileId: profileId, workspace: workspace, nextRequestId: nextRequestId});
     var encoded = JSON.stringify(checkpoint);
     localStorage.setItem(KEY, encoded);
     if (localStorage.getItem(KEY) !== encoded)

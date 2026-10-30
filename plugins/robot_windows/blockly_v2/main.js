@@ -174,6 +174,15 @@ function buildToolbox(profile) {
 }
 
 function receiveMessage(value) {
+  if (value === 'WEBEEBLOCKS_RUNTIME_V2 WORLD_RELOAD_DENIED') {
+    runtimeTerminal = true;
+    runtimeRecoveryPending = true;
+    runtimeNeedsRebuild = true;
+    setRuntimeFailure(new Error('Le témoin natif n’a pas pu être enregistré : reconstruction refusée'));
+    document.getElementById('runtimeDetail').textContent =
+      'Reconstruction refusée : impossible de protéger le programme hors du navigateur. Exécution verrouillée.';
+    return;
+  }
   if (runtimeBackend && runtimeBackend.handleMessage(value)) {
     window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
     return;
@@ -279,8 +288,9 @@ async function rebuildSimulation() {
     return;
   // The checkpoint must survive loss of both the controller and Robot Window.
   // An unavailable/full storage refuses reload rather than losing unsaved blocks.
+  var nativeCheckpoint;
   try {
-    WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace(), runtimeBackend.nextId);
+    nativeCheckpoint = WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace(), runtimeBackend.nextId);
   } catch (error) {
     setRuntimeFailure(error);
     return;
@@ -291,7 +301,7 @@ async function rebuildSimulation() {
   if (runtimeDebug) runtimeDebug.finish();
   setRuntimeStatus('RECONSTRUCTION', 'Rechargement complet du monde — programme conservé');
   try {
-    runtimeBackend.requestWorldReload();
+    runtimeBackend.requestWorldReload(nativeCheckpoint.token);
     // No success transition on the old incarnation: navigation is mandatory.
   } catch (error) {
     setRuntimeFailure(error);
@@ -446,6 +456,11 @@ window.onload = async function() {
     });
   });
   profileFieldOptions.applyWorkspace(workspace);
+  // Liveness does not authorize running: every incarnation must obtain a
+  // fresh nonce-correlated verdict from the native witness before unlocking.
+  runtimeRecoveryPending = true;
+  runtimeTerminal = true;
+  updateRuntimeActions();
   var recovery = null;
   try {
     recovery = WebeeBlocksSimulationRecovery.peek();
@@ -468,6 +483,8 @@ window.onload = async function() {
     runtimeRecoveryPending = true;
     runtimeTerminal = true;
     setRuntimeFailure(error);
+    document.getElementById('runtimeDetail').textContent =
+      'Checkpoint Blockly de reconstruction endommagé ou indisponible — exécution verrouillée. Aucune donnée n’a été effacée.';
     return; // Never start a program or overwrite a damaged checkpoint.
   }
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
@@ -482,6 +499,13 @@ window.onload = async function() {
     robotWindow.receive = receiveMessage;
     if (!recovery) setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();
+    var nativeRecovery = await runtimeBackend.readRecoveryStatus();
+    if (!nativeRecovery || nativeRecovery.state === 'INVALID')
+      throw new Error('Témoin natif de reconstruction absent, endommagé ou inaccessible — exécution verrouillée');
+    if (nativeRecovery.state === 'PENDING' && (!recovery || recovery.token !== nativeRecovery.token))
+      throw new Error('Reconstruction inachevée : programme Blockly non disponible ou témoin incohérent — exécution verrouillée');
+    if (recovery && nativeRecovery.state !== 'PENDING')
+      throw new Error('Checkpoint Blockly sans témoin natif correspondant — exécution verrouillée');
     if (recovery) {
       // READY alone is insufficient: this new incarnation must demonstrate
       // the unchanged strict physical stability and the restored scene.
@@ -491,6 +515,9 @@ window.onload = async function() {
       await runtimeBackend.prepareActivity(runtimeProfile);
       if (serializedWorkspace() !== recovery.workspace || runtimeProfile.id !== recovery.profileId)
         throw new Error('Recovery changed the pupil project');
+      // Native commitment is consumed only after both physical RESETs, scene
+      // acknowledgements, and exact Blockly identity were demonstrated.
+      await runtimeBackend.clearRecoveryWitness(recovery.token);
       WebeeBlocksSimulationRecovery.clear(recovery);
       runtimeTerminal = false;
       runtimeNeedsRebuild = false;
@@ -502,17 +529,19 @@ window.onload = async function() {
         detail: {workspacePreserved: true, worldRebuilt: true}
       }));
     } else {
+      runtimeRecoveryPending = false;
+      runtimeTerminal = false;
       setRuntimeStatus('PRÊT', 'Simulation connectée');
     }
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
     updateRuntimeActions();
   } catch (error) {
-    if (recovery) {
-      runtimeTerminal = true;
-      runtimeNeedsRebuild = true;
-      runtimeRecoveryPending = false;
-    }
+    runtimeTerminal = true;
+    runtimeNeedsRebuild = true;
+    runtimeRecoveryPending = true; // No status, no execution; even if READY arrived.
     setRuntimeFailure(error);
+    document.getElementById('runtimeDetail').textContent =
+      'Récupération non vérifiée — exécution interdite. ' + (error && error.message ? error.message : String(error));
   }
 };
 
