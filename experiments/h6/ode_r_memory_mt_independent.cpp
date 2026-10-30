@@ -145,7 +145,8 @@ static void mt_boundary(int count) {
   mass(a);mass(b);
   dGeomID ga=dCreateSphere(space,.035),gb=dCreateSphere(space,.035);
   dGeomSetBody(ga,a);dGeomSetBody(gb,b);
-  MtState ctx{w,g,a,b};
+  MtState ctx{};
+  ctx.world=w;ctx.group=g;ctx.a=a;ctx.b=b;
   int invalidated=0, created=0;
   for(int i=0;i<64;++i) {
     dBodySetPosition(a,0,0,0);dBodySetPosition(b,.05,0,0);
