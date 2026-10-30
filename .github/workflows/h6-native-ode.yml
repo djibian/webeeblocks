@@ -2,11 +2,11 @@ name: H6 Native ODE causal experiment (isolated)
 on:
   push:
     branches:
-      - experiment/h6-reset-lifecycle-p4-20261030
+      - experiment/h6-reset-attached-native-20261030
 permissions:
   contents: read
 concurrency:
-  group: h6-reset-lifecycle-p4-20261030
+  group: h6-reset-attached-native-20261030
   cancel-in-progress: false
 jobs:
   h6:
@@ -37,6 +37,7 @@ jobs:
           python3 experiments/h6/h6_termination_observability.py experiments/h6/payload > h6-evidence/logs/observability-patch.log
           python3 experiments/h6/h6_atomic_native.py experiments/h6/payload > h6-evidence/logs/atomic-native-patch.log
           python3 experiments/h6/h6_p4_controls_patch.py experiments/h6/payload > h6-evidence/logs/p4-controls-patch.log
+          python3 experiments/h6/h6_attachment_cleanup_patch.py experiments/h6/payload > h6-evidence/logs/r-attachment-patch.log
           cp -a experiments/h6/payload/source/. h6-evidence/kit-source/
           cp -a experiments/h6/payload/controllers h6-evidence/kit-source/controllers
           cp -a experiments/h6/payload/worlds h6-evidence/kit-source/worlds
@@ -82,7 +83,7 @@ jobs:
           sha256sum native-webots/bin/webots-bin native-webots/webots > h6-evidence/compiled-executables.sha256
           find native-webots/lib -type f \( -iname '*ode*.so*' -o -iname '*physics*.so*' \) -exec sha256sum '{}' ';' > h6-evidence/compiled-physics-candidates.sha256
           grep -aF 'H6 event=armed body=' native-webots/bin/webots-bin || grep -RalF 'H6 event=armed body=' native-webots/lib
-      - name: Execute causal A baseline, P placebo, B targeted deletion and F Webots reset fix
+      - name: Execute A/P/B and Webots R attachment-selective reset fix
         shell: bash
         env:
           WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
@@ -93,6 +94,7 @@ jobs:
           export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
           xvfb-run -a -s '-screen 0 1280x800x24' bash experiments/h6/payload/source/run_ab.sh "$PWD/h6-evidence/p4-run"
           python3 experiments/h6/h6_qualify_p4.py "$PWD/h6-evidence/p4-run" "$PWD/experiments/h6/payload/source/analyze_ab.py" > h6-evidence/logs/p4-qualification.log
+          python3 experiments/h6/h6_validate_attachment_fix.py "$PWD/h6-evidence" > h6-evidence/logs/r-qualification.log
       - name: Authenticate retained results on every termination
         if: always()
         shell: bash
