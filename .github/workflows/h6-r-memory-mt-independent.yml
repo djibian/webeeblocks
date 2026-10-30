@@ -143,6 +143,38 @@ jobs:
           assert r['threads']==2 and r['steps']==64 and r['contacts']==r['reset_detached'] and r['end_allocated']==0
           print('H6_MULTITHREAD_BOUNDARY_PASS')
           PY
+      - name: Probe actual ODE arena allocator retention and reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -Wall -Wextra -Werror \
+            -I native-webots/include/ode experiments/h6/ode_arena_lifetime_independent.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o h6-memory-evidence/arena-probe
+          sha256sum experiments/h6/ode_arena_lifetime_independent.cpp > h6-memory-evidence/arena-source.sha256
+          sha256sum h6-memory-evidence/arena-probe > h6-memory-evidence/arena-binary.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 40s h6-memory-evidence/arena-probe \
+            > h6-memory-evidence/arena.jsonl 2>h6-memory-evidence/logs/arena-stderr.log || {
+              cat h6-memory-evidence/logs/arena-stderr.log; exit 1;
+            }
+          python3 - <<'PY'
+          import json,pathlib
+          raw=pathlib.Path('h6-memory-evidence/arena.jsonl').read_text().splitlines()
+          assert raw[-1]=='H6_ODE_ARENA_ALLOCATION_PASS'
+          rows=[json.loads(x) for x in raw[:-1]]
+          assert [x['phase'] for x in rows]==[
+            'before_first','after_first_8192','after_group_empty',
+            'after_refill_8192','after_second_empty','after_group_destroy']
+          a={x['phase']:x for x in rows}
+          assert a['after_first_8192']['group_joint_count']==8192
+          assert a['after_group_empty']['group_joint_count']==0
+          assert a['after_refill_8192']['group_joint_count']==8192
+          assert a['after_second_empty']['group_joint_count']==0
+          assert a['after_group_empty']['allocated_bytes']+131072>=a['after_first_8192']['allocated_bytes']
+          assert a['after_refill_8192']['allocated_bytes']<=a['after_first_8192']['allocated_bytes']+131072
+          assert a['after_second_empty']['allocated_bytes']>a['after_group_destroy']['allocated_bytes']+131072
+          print('H6_ARENA_RETAIN_REUSE_DEALLOCATE_PASS')
+          PY
       - name: Preserve immutable checksums on every outcome
         if: always()
         shell: bash
