@@ -9,7 +9,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: h6-adversarial-independent-20261030
+  group: h6-adversarial-independent-native-20261030
   cancel-in-progress: true
 jobs:
   falsify:
