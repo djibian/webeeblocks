@@ -2,7 +2,7 @@ name: H6 Native ODE causal experiment (isolated)
 on:
   push:
     branches:
-      - experiment/h6-reset-attached-native-20261030
+      - experiment/h6-r-retired-buffer-clean-20261030
 permissions:
   contents: read
 concurrency:
