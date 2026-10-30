@@ -99,7 +99,7 @@
   RuntimeV2WwiBackend.prototype._request = function(parts) {
     var self = this;
     var sceneNonce = null;
-    if (parts[0] === 'SCENE' || (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
+    if (parts[0] === 'SCENE' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' || (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
       // Numeric request IDs restart at each Robot Window. A fresh correlation
       // token must survive routing an old connection's ACK to this receiver.
       var bytes = new Uint8Array(32);
@@ -171,6 +171,27 @@
         clearTimeout(scenePending.timer);
         delete this.pending[Number(sceneAck[1])];
         scenePending.resolve(null);
+      }
+      return true;
+    }
+    var recoveryStateAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_STATUS ([0-9a-f]{64}) (NONE|INVALID|PENDING(?: ([0-9a-f]{64})))$/);
+    if (recoveryStateAck) {
+      var statePending = this.pending[Number(recoveryStateAck[1])];
+      if (statePending && statePending.sceneNonce === recoveryStateAck[2]) {
+        clearTimeout(statePending.timer);
+        delete this.pending[Number(recoveryStateAck[1])];
+        statePending.resolve({state: recoveryStateAck[3].startsWith('PENDING') ? 'PENDING' : recoveryStateAck[3],
+          token: recoveryStateAck[4] || null});
+      }
+      return true;
+    }
+    var clearAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_CLEARED ([0-9a-f]{64})$/);
+    if (clearAck) {
+      var clearPending = this.pending[Number(clearAck[1])];
+      if (clearPending && clearPending.sceneNonce === clearAck[2]) {
+        clearTimeout(clearPending.timer);
+        delete this.pending[Number(clearAck[1])];
+        clearPending.resolve(null);
       }
       return true;
     }
@@ -354,7 +375,19 @@
 
   // Irreversible one-way request: never acknowledge recovery on the OLD world.
   // The new Robot Window must independently validate strict RESET and scene.
-  RuntimeV2WwiBackend.prototype.requestWorldReload = function() {
+  RuntimeV2WwiBackend.prototype.readRecoveryStatus = function() {
+    if (!this.capabilities.simulationWorldReload)
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
+    return this._request(['RECOVERY_STATUS']);
+  };
+  RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token) {
+    if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token))
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
+    return this._request(['RECOVERY_CLEAR', token]);
+  };
+  RuntimeV2WwiBackend.prototype.requestWorldReload = function(token) {
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token))
+      throw new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN');
     if (!this.capabilities || this.capabilities.simulationWorldReload !== true)
       throw new Error('Runtime v2 world reload unavailable');
     this.timeObservationEpoch += 1;
@@ -362,7 +395,7 @@
     this._cancelPendingForReset();
     this.ready = false;
     this.simulationStopped = true;
-    this.robotWindow.send(PREFIX + ' RELOAD_WORLD');
+    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + token);
   };
 
   RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;
