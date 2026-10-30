@@ -1,0 +1,117 @@
+name: H6 advanced Webots native foreign-group and 1-vs-2-thread falsification
+on:
+  push:
+    branches: [experiment/h6-native-reset-boundaries-20261030]
+    paths:
+      - experiments/h6_advanced/**
+      - .github/workflows/h6-native-rg-advanced.yml
+permissions:
+  contents: read
+concurrency:
+  group: h6-native-rg-advanced-20261030
+  cancel-in-progress: true
+jobs:
+  foreign-and-threads:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Obtain source pin and apply same canonical native R G
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/advanced/logs
+          git rev-parse HEAD > evidence/advanced/commit.txt
+          python3 -m py_compile experiments/h6/native_rg/patch_webots_rg.py experiments/h6_advanced/*.py
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > evidence/advanced/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/advanced/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 > evidence/advanced/logs/submodule.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 experiments/h6/native_rg/patch_webots_rg.py native-webots > evidence/advanced/logs/patch.log
+          python3 experiments/h6_advanced/instrument_mt.py native-webots > evidence/advanced/logs/trace-patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/advanced/native-rg-mt-trace.patch
+          python3 experiments/h6_advanced/generate_foreign_world.py experiments/h6/g_window/worlds/h6_g_window.wbt \
+            > evidence/advanced/logs/world-generation.log
+          sha256sum experiments/h6/g_window/worlds/h6_rg_foreign_threads*.wbt > evidence/advanced/worlds.sha256
+          cp experiments/h6/g_window/worlds/h6_rg_foreign_threads*.wbt evidence/advanced/
+      - name: Compile native Webots R2025a with physics plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/advanced/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 > evidence/advanced/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) \
+            > evidence/advanced/logs/apt-compile.log 2>&1 || {
+              tail -n 120 evidence/advanced/logs/apt-compile.log; exit 1;
+            }
+          (cd native-webots && make -j2) > evidence/advanced/logs/compile.log 2>&1 || {
+            tail -n 120 evidence/advanced/logs/compile.log; exit 1;
+          }
+          test -x native-webots/bin/webots-bin
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so > evidence/advanced/native-binaries.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C experiments/h6/g_window/plugins/physics/h6_g_window > evidence/advanced/logs/plugin.log 2>&1 || {
+            tail -n 80 evidence/advanced/logs/plugin.log; exit 1;
+          }
+      - name: Test normal collision foreign dynamic group, global and node, mono and MT
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: xcb
+          WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for threads in 1 2; do
+            for path in global node; do
+              for arm in A R G RG; do
+                g=0; r=0
+                [[ "$arm" == "G" || "$arm" == "RG" ]] && g=1
+                [[ "$arm" == "R" || "$arm" == "RG" ]] && r=1
+                spec="t${threads}-${path}-${arm}"
+                mkdir -p "evidence/advanced/$spec"
+                printf 'threads=%s path=%s arm=%s r=%s g=%s\n' "$threads" "$path" "$arm" "$r" "$g" > "evidence/advanced/$spec/flags.txt"
+                set +e
+                H6_NATIVE_R="$r" H6_NATIVE_G="$g" H6_NATIVE_TRACE=1 \
+                H6_G_WINDOW_R=0 H6_G_WINDOW_PATH="$path" \
+                H6_G_WINDOW_NATIVE_LOG="$PWD/evidence/advanced/$spec/native.log" \
+                timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_HOME/webots" --batch --mode=fast --stdout --stderr \
+                "$PWD/experiments/h6/g_window/worlds/h6_rg_foreign_threads${threads}.wbt" \
+                > "evidence/advanced/$spec/webots.log" 2>&1
+                code=$?
+                set -e
+                printf '%s\n' "$code" > "evidence/advanced/$spec/exit_code.txt"
+                echo "H6_NATIVE_ADVANCED $spec exit=$code"
+                if [[ "$code" != 0 ]]; then
+                  tail -n 90 "evidence/advanced/$spec/webots.log"; exit 94
+                fi
+                test -s "evidence/advanced/$spec/native.log" || exit 95
+              done
+            done
+          done
+          python3 experiments/h6_advanced/qualify_advanced.py evidence/advanced \
+            > evidence/advanced/logs/qualification.log 2>&1 || {
+              cat evidence/advanced/logs/qualification.log; exit 96;
+            }
+          cat evidence/advanced/logs/qualification.log
+      - name: Preserve all original evidence hashes even on failure
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/advanced/logs
+          git rev-parse HEAD > evidence/advanced/observed-commit.txt
+          test ! -d native-webots/.git || git -C native-webots rev-parse HEAD > evidence/advanced/observed-pin.txt
+          find evidence/advanced -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > evidence/advanced/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-native-rg-advanced-multibody-mt
+          path: evidence/advanced/
+          retention-days: 90
+          if-no-files-found: error

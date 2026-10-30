@@ -1,0 +1,117 @@
+name: H6 native Webots R/G patch - real Supervisor A R G RG
+on:
+  push:
+    branches: [experiment/h6-native-reset-boundaries-20261030]
+    paths:
+      - 'experiments/h6/native_rg/**'
+      - 'experiments/h6/g_window/**'
+      - '.github/workflows/h6-native-rg-boundaries.yml'
+permissions:
+  contents: read
+concurrency:
+  group: h6-native-rg-boundaries-20261030
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pinned Webots and fail-closed source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/native/logs
+          git rev-parse HEAD > evidence/native/experiment-head.txt
+          python3 -m py_compile experiments/h6/native_rg/*.py experiments/h6/g_window/controllers/h6_g_window/*.py
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > evidence/native/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/native/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          git -C native-webots submodule update --init --recursive --jobs 4 > evidence/native/logs/submodules.log 2>&1
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 experiments/h6/native_rg/patch_webots_rg.py native-webots > evidence/native/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/native/native-rg.patch
+          test -s evidence/native/native-rg.patch
+          sha256sum evidence/native/native-rg.patch > evidence/native/native-rg.patch.sha256
+          grep -q 'detachResetBodyContacts' native-webots/src/webots/nodes/WbSolid.cpp
+      - name: Build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/native/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 > evidence/native/logs/apt-xvfb.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) > evidence/native/logs/apt-build.log 2>&1 || {
+            tail -n 120 evidence/native/logs/apt-build.log; exit 1;
+          }
+      - name: Build one exact native Webots binary for 8 arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd native-webots && make -j2) > evidence/native/logs/webots-build.log 2>&1 || {
+            tail -n 130 evidence/native/logs/webots-build.log; exit 1;
+          }
+          test -x native-webots/bin/webots-bin
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so > evidence/native/native-binaries.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C experiments/h6/g_window/plugins/physics/h6_g_window > evidence/native/logs/plugin-build.log 2>&1 || {
+            tail -n 70 evidence/native/logs/plugin-build.log; exit 1;
+          }
+          sha256sum experiments/h6/g_window/plugins/physics/h6_g_window/libh6_g_window.so > evidence/native/plugin.so.sha256
+      - name: Eight native factor arms global node A R G RG
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: xcb
+          WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for path in global node; do
+            for arm in A R G RG; do
+              g=0; r=0
+              [[ "$arm" == "G" || "$arm" == "RG" ]] && g=1
+              [[ "$arm" == "R" || "$arm" == "RG" ]] && r=1
+              spec="$path-$arm"
+              mkdir -p "evidence/native/$spec"
+              printf 'g=%s r=%s path=%s\n' "$g" "$r" "$path" > "evidence/native/$spec/flags.txt"
+              set +e
+              H6_NATIVE_R="$r" H6_NATIVE_G="$g" H6_NATIVE_TRACE=1 \
+              H6_G_WINDOW_R=0 H6_G_WINDOW_PATH="$path" \
+              H6_G_WINDOW_NATIVE_LOG="$PWD/evidence/native/$spec/native.log" \
+                timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_HOME/webots" --batch --mode=fast --stdout --stderr \
+                "$PWD/experiments/h6/g_window/worlds/h6_g_window.wbt" \
+                > "evidence/native/$spec/webots.log" 2>&1
+              code=$?
+              set -e
+              printf '%s\n' "$code" > "evidence/native/$spec/exit_code.txt"
+              echo "H6_NATIVE_RG arm=$spec exit=$code"
+              if [[ "$code" != 0 ]]; then
+                tail -n 80 "evidence/native/$spec/webots.log"
+                exit 92
+              fi
+              test -s "evidence/native/$spec/native.log" || exit 93
+            done
+          done
+          python3 experiments/h6/native_rg/qualify_native_rg.py evidence/native > evidence/native/logs/qualification-console.log 2>&1 || {
+            cat evidence/native/logs/qualification-console.log; exit 95;
+          }
+          cat evidence/native/logs/qualification-console.log
+      - name: Preserve raw proof even on failure
+        if: always()
+        run: |
+          mkdir -p evidence/native/logs
+          git rev-parse HEAD > evidence/native/actual-head.txt
+          test ! -d native-webots/.git || git -C native-webots rev-parse HEAD > evidence/native/actual-webots-pin.txt
+          find evidence/native -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > evidence/native/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-native-rg-boundaries-eight-arm
+          path: evidence/native/
+          if-no-files-found: error
+          retention-days: 90
