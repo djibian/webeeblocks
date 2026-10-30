@@ -55,6 +55,15 @@ async function flush(){await new Promise(r=>setImmediate(r));}
 
   e=environment({hostname:'evil.example'});
   assert.strictEqual(e.control.arm(token),false,'cross-origin navigation refused');
+  // Windows classroom release uses content-addressed directory+HTML names;
+  // a mismatched digest is NOT an allowed Webots Robot Window identity.
+  e=environment({path:'/robot_windows/blockly_v2_0123456789abcdef/blockly_v2_0123456789abcdef.html'});
+  assert.strictEqual(e.control.arm(token),true,'fingerprinted Windows Blockly page admitted');
+  e.control.disarm();
+  e=environment({path:'/robot_windows/blockly_v2_0123456789abcdef/blockly_v2_deadbeef01234567.html'});
+  assert.strictEqual(e.control.arm(token),false,'mismatched Windows release identity denied');
+  e=environment({path:'/robot_windows/other_robot/other_robot.html'});
+  assert.strictEqual(e.control.arm(token),false,'non Blockly Robot Window denied');
   e=environment({path:'/evil/origin/forged.html'});
   assert.strictEqual(e.control.arm(token),false,'unapproved HTML path refused');
   e=environment();
