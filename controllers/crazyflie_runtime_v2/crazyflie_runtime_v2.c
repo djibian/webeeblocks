@@ -16,6 +16,7 @@
 
 #include "pid_controller.h"
 #include "activity_scene.h"
+#include "recovery_guard.h"
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -185,6 +186,15 @@ static request_t parse_request(const char *message) {
   char extra[2] = {0};
 
   char scene_nonce[65] = {0};
+  // Recovery-only strict RESET: correlation survives a Robot Window restart.
+  if (sscanf(message, PREFIX " REQUEST %d RESET %64s %1s", &id, scene_nonce, extra) == 2 &&
+      strlen(scene_nonce) == 64 && strspn(scene_nonce, "0123456789abcdef") == 64) {
+    request.id = id;
+    request.kind = REQUEST_RESET;
+    memcpy(request.scene_nonce, scene_nonce, sizeof(scene_nonce));
+    return request;
+  }
+
   if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %64s %1s", &id, direction, scene_nonce, extra) == 3 &&
       strlen(scene_nonce) == 64 && strspn(scene_nonce, "0123456789abcdef") == 64) {
     request.id = id;
@@ -339,6 +349,8 @@ static void trace_reset(double x, double y, double z, double origin_x, double or
 
 int main(void) {
   wb_robot_init();
+  wb_recovery_guard_t recovery_guard;
+  wb_rg_setup(&recovery_guard, wb_robot_get_world_path());
   const int step = (int)wb_robot_get_basic_time_step();
 
   WbDeviceTag m1 = wb_robot_get_device("m1_motor");
@@ -416,6 +428,11 @@ int main(void) {
   int failsafe_latched = 0;
   command_t command = CMD_IDLE;
   int active_id = -1;
+  char active_reset_nonce[65] = {0};
+  int world_reload_requested = 0;
+  // Recovery-only native authorization: strict RESET, scene, strict RESET, scene.
+  // A token alone may never clear the independent witness.
+  int recovery_phase = 0;
   double active_value = 0.0;
   double move_speed_limit = VX_MAX;
   char active_direction[32] = {0};
@@ -486,6 +503,59 @@ int main(void) {
 
     const char *message;
     while ((message = wb_robot_wwi_receive_text()) != NULL) {
+      if (world_reload_requested)
+        continue; // No old command or ACK may survive the reload request.
+      char witness_token[65] = {0}, challenge[65] = {0}, extra[2] = {0};
+      int guardian_id = -1;
+      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %1s", witness_token, extra) == 1 &&
+          wb_rg_hex64(witness_token)) {
+        // Persist BEFORE world reload. Losing the browser can never erase this
+        // witness. A write failure must not destroy the existing world.
+        if (!wb_rg_arm(&recovery_guard, witness_token)) {
+          send_text(PREFIX " WORLD_RELOAD_DENIED");
+          continue;
+        }
+        simulation_clock_revoke(&program_clock);
+        stop_motors(m1, m2, m3, m4);
+        world_reload_requested = 1;
+        failsafe_latched = 1;
+        command = CMD_IDLE;
+        active_id = -1;
+        fprintf(stderr, PREFIX " WORLD_RELOAD_REQUESTED (not a recovery ACK)\n");
+        fflush(stderr);
+        wb_supervisor_world_reload();
+        continue;
+      }
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_STATUS %64s %64s %1s",
+                 &guardian_id, witness_token, challenge, extra) == 3 &&
+          guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
+        char reply[256];
+        int state = wb_rg_refresh(&recovery_guard);
+        if (state == WB_RG_PENDING)
+          // Never disclose the recovery token to a new browser that lost Blockly.
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
+                   guardian_id, challenge, strcmp(witness_token, recovery_guard.token) == 0 ?
+                   "PENDING_MATCH" : "PENDING_OTHER");
+        else
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
+                   guardian_id, challenge, state == WB_RG_NONE ? "NONE" : "INVALID");
+        send_text(reply);
+        continue;
+      }
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %1s",
+                 &guardian_id, witness_token, challenge, extra) == 3 &&
+          guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
+        // Caller must present the undisclosed token AND complete the native
+        // correlated RESET -> SCENE -> RESET -> SCENE postcondition sequence.
+        // The UI separately verifies exact Blockly workspace/profile identity.
+        char reply[192];
+        if (recovery_phase == 4 && wb_rg_clear(&recovery_guard, witness_token))
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);
+        else
+          snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d ERR RECOVERY_LOCKED", guardian_id);
+        send_text(reply);
+        continue;
+      }
       if (strncmp(message, PREFIX " REQUEST ", strlen(PREFIX " REQUEST ")) != 0)
         continue;
       request_t request = parse_request(message);
@@ -495,7 +565,18 @@ int main(void) {
         response_error(request.id, "INVALID_REQUEST");
         continue;
       }
+      int recovery_state = wb_rg_refresh(&recovery_guard);
+      if (recovery_state != WB_RG_NONE && request.kind != REQUEST_RESET &&
+          request.kind != REQUEST_SCENE && request.kind != REQUEST_STOP) {
+        response_error(request.id, "RECOVERY_LOCKED");
+        continue;
+      }
+      if (recovery_state == WB_RG_INVALID && request.kind != REQUEST_STOP) {
+        response_error(request.id, "RECOVERY_LOCKED");
+        continue;
+      }
       if (request.kind == REQUEST_STOP) {
+        recovery_phase = 0;
         simulation_clock_revoke(&program_clock);
         if (command == CMD_RESET) {
           response_error(request.id, "NOT_RUNNING");
@@ -524,6 +605,10 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_RESET) {
+        // Only RESET #1 or #2 in the native sequence can continue an arm.
+        if (recovery_state != WB_RG_PENDING || !request.scene_nonce[0] ||
+            (recovery_phase != 0 && recovery_phase != 2))
+          recovery_phase = 0;
         simulation_clock_revoke(&program_clock);
         stop_motors(m1, m2, m3, m4);
         wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
@@ -538,6 +623,7 @@ int main(void) {
         target_z = origin_z;
         target_yaw = origin_yaw;
         active_id = request.id;
+        memcpy(active_reset_nonce, request.scene_nonce, sizeof(active_reset_nonce));
         active_value = 0.0;
         active_direction[0] = '\0';
         move_speed_limit = VX_MAX;
@@ -557,10 +643,17 @@ int main(void) {
       if (request.kind == REQUEST_SCENE) {
         if (airborne || hypot(x - origin_x, y - origin_y) > POSITION_TOL ||
             fabs(z - origin_z) > ALT_TOL || hypot(vx_global, vy_global) > SPEED_TOL || fabs(vz) > VZ_TOL) {
+          recovery_phase = 0;
           response_error(request.id, "RESET_REQUIRED");
         } else if (!webeeblocks_select_activity_scene(request.direction)) {
+          recovery_phase = 0;
           response_error(request.id, "SCENE_UNAVAILABLE");
         } else {
+          // Scene must be confirmed after each fresh RESET; unrelated calls reset proof.
+          if (recovery_state == WB_RG_PENDING && request.scene_nonce[0])
+            recovery_phase = recovery_phase == 1 ? 2 : recovery_phase == 3 ? 4 : 0;
+          else
+            recovery_phase = 0;
           if (request.scene_nonce[0]) {
             char acknowledgement[192];
             snprintf(acknowledgement, sizeof(acknowledgement), PREFIX " RESPONSE %d SCENE_OK %s", request.id, request.scene_nonce);
@@ -811,6 +904,8 @@ int main(void) {
               reset_both_ready_samples, reset_max_stable);
       fflush(stderr);
       response_error(active_id, "RESET_TIMEOUT");
+      recovery_phase = 0;
+      active_reset_nonce[0] = '\0';
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
       simulation_clock_revoke(&program_clock);
@@ -844,7 +939,20 @@ int main(void) {
           reset_max_stable = now - stable_since;
         if (now - stable_since >= RESET_WINDOW) {
           trace_reset(x, y, z, origin_x, origin_y, origin_z);
-          response_ok(active_id);
+          if (active_reset_nonce[0]) {
+            if (wb_rg_refresh(&recovery_guard) == WB_RG_PENDING)
+              recovery_phase = recovery_phase == 0 ? 1 : recovery_phase == 2 ? 3 : 0;
+            else
+              recovery_phase = 0;
+            char acknowledgement[192];
+            snprintf(acknowledgement, sizeof(acknowledgement),
+                     PREFIX " RESPONSE %d RESET_OK %s", active_id, active_reset_nonce);
+            send_text(acknowledgement);
+          } else {
+            recovery_phase = 0;
+            response_ok(active_id);
+          }
+          active_reset_nonce[0] = '\0';
           command = CMD_IDLE;
           active_id = -1;
           stable_since = -1.0;
