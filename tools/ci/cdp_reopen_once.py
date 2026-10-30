@@ -32,7 +32,7 @@ else:
     record["error"] = last or "CDP timed out"
 with open(out, "a", encoding="utf-8") as f:
     f.write(json.dumps(record, sort_keys=True) + "\n")
-if record.get("target_id") and record.get("type") == "page" and record.get("url") == url:
+if (record.get("target_id") and record.get("type") == "page" and\n        record.get("url") in (url, url.replace(" ", "%20"))):
     print("CDP_DOCUMENT_TARGET_CREATED", record["target_id"], flush=True)
     sys.exit(0)
 print("CDP_DOCUMENT_TARGET_NOT_CREATED", record, file=sys.stderr)
