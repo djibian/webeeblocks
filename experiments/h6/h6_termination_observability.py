@@ -16,7 +16,7 @@ changes = {
     if not path:
         raise RuntimeError('H6 INVALID: missing independent Supervisor log path')
     with open(path, 'a', encoding='utf-8') as output:
-        output.write(line + '\n')
+        output.write(line + '\\n')
         output.flush()
         os.fsync(output.fileno())
     print(line, flush=True)
