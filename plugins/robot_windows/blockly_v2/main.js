@@ -174,6 +174,15 @@ function buildToolbox(profile) {
 }
 
 function receiveMessage(value) {
+  if (value === 'WEBEEBLOCKS_RUNTIME_V2 WORLD_RELOAD_DENIED') {
+    runtimeTerminal = true;
+    runtimeRecoveryPending = true;
+    runtimeNeedsRebuild = true;
+    setRuntimeFailure(new Error('Le témoin natif n’a pas pu être enregistré : reconstruction refusée'));
+    document.getElementById('runtimeDetail').textContent =
+      'Reconstruction refusée : impossible de protéger le programme hors du navigateur. Exécution verrouillée.';
+    return;
+  }
   if (runtimeBackend && runtimeBackend.handleMessage(value)) {
     window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
     return;
@@ -474,6 +483,8 @@ window.onload = async function() {
     runtimeRecoveryPending = true;
     runtimeTerminal = true;
     setRuntimeFailure(error);
+    document.getElementById('runtimeDetail').textContent =
+      'Checkpoint Blockly de reconstruction endommagé ou indisponible — exécution verrouillée. Aucune donnée n’a été effacée.';
     return; // Never start a program or overwrite a damaged checkpoint.
   }
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
