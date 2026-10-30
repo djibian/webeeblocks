@@ -80,7 +80,6 @@ static void memory_arm(const char *name, bool legit, bool clean_all, bool empty_
     require(dBodyGetNumJoints(s.b)==1 && touches(s.permanent,s.b), "permanent joint altered");
     // Test at a post-solver boundary, not during a solver.
     // The full-group strategy may erase a legitimate A-C contact.
-    if (clean_all && legit && i==1) dWorldStep(s.w, .01); // prove post-solver contact survival before cleanup
     if (clean_all || (empty_only && !legit)) dJointGroupEmpty(s.g);
     const int expected = clean_all || (empty_only && !legit) ? 0 : i + (legit?1:0);
     require(dJointGroupGetCount(s.g)==expected, "unexpected allocation count");
@@ -99,6 +98,21 @@ static void memory_arm(const char *name, bool legit, bool clean_all, bool empty_
   dJointGroupEmpty(s.g);
   require(dJointGroupGetCount(s.g)==0,"group cleanup ineffective");
   std::puts(",\"after\":0}");
+}
+static void postsolver_mixed_group() {
+  Scene s;
+  contact(s.w,s.g,s.ga,s.gc,s.a,s.c);
+  contact(s.w,s.g,s.ga,s.gb,s.a,s.b);
+  dBodySetPosition(s.b,2,0,0);
+  require(reset_target(s.b)==1,"postsolver R");
+  dWorldStep(s.w,.01);
+  const bool before=dBodyGetNumJoints(s.c)==2;
+  require(before && dJointGroupGetCount(s.g)==2,"legitimate postsolver contact disappeared spontaneously");
+  dJointGroupEmpty(s.g);
+  const bool after=dBodyGetNumJoints(s.c)==2;
+  require(!after && dBodyGetNumJoints(s.c)==1,"marked cleanup did not lose legitimate postsolver contact");
+  std::printf("{\"arm\":\"postsolver_marked_cleanup\",\"legitimate_before\":%d,\"legitimate_after\":%d,\"allocated_after\":%d}\n",
+              int(before),int(after),dJointGroupGetCount(s.g));
 }
 static double ordinary_speed(bool unconditional_g) {
   dWorldID w=dWorldCreate(); dWorldSetGravity(w,0,0,0);
@@ -180,6 +194,7 @@ int main(int argc,char **argv) {
     memory_arm("R_marked_cleanup_mixed",true,true,false);
     memory_arm("R_empty_only_mixed",true,false,true);
     memory_arm("R_empty_only_simple",false,false,true);
+    postsolver_mixed_group();
     const double baseline=ordinary_speed(false);
     const double g=ordinary_speed(true);
     require(baseline>0.5 && g==0,"G ordinary physics contrast absent");
