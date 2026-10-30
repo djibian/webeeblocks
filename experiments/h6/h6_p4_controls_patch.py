@@ -65,7 +65,7 @@ once(p,'''      WbOdeContext::instance()->h6BeforeResume(mSolidMerger->body());
       mSolidMerger->setBodyArtificiallyDisabled(false);''')
 once(p, """    solid = 'src/webots/nodes/WbSolid.cpp'
     change(solid, ""","""    solid = 'src/webots/nodes/WbSolid.cpp'
-    change(solid, '#include "WbSolid.hpp"', '#include "WbSolid.hpp"\\n#include <cstdlib>\\n#include <cstring>')
+    change(solid, '#include "WbSolid.hpp"', '#include "WbSolid.hpp"\n#include <cstdlib>\n#include <cstring>')
     change(solid, """)
 p='source/run_ab.sh'
 once(p,'for MODE in A B; do','for MODE in A P B F; do')
