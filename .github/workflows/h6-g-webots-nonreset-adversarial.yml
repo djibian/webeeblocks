@@ -33,6 +33,44 @@ jobs:
           git -C native-webots submodule update --init --recursive --jobs 4 > g-webots-evidence/logs/submodules.log 2>&1
           python3 experiments/h6_g_nonreset/setup_webots_nonreset.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup.log
           python3 -m py_compile g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py
+          # Fail before installing/compiling Webots if generated local calls
+          # are incompatible with their Python signature (py_compile alone
+          # cannot detect unexpected keywords such as record(..., flush=True)).
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path('g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py')
+          tree=ast.parse(p.read_text(),filename=str(p))
+          definitions={n.name:n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
+          assert 'record' in definitions, 'missing durability function'
+          assert [a.arg for a in definitions['record'].args.args]==['line'], 'record signature changed'
+          assert definitions['record'].args.kwarg is None, 'record unexpectedly variadic'
+          def check(node):
+              for n in ast.walk(node):
+                  if not isinstance(n,ast.Call) or not isinstance(n.func,ast.Name) or n.func.id not in definitions:
+                      continue
+                  fn=definitions[n.func.id]
+                  positional=[a.arg for a in fn.args.posonlyargs+fn.args.args]
+                  keyword_only=[a.arg for a in fn.args.kwonlyargs]
+                  for k in n.keywords:
+                      if k.arg is None or (k.arg not in positional+keyword_only and fn.args.kwarg is None):
+                          raise ValueError(f'{n.func.id} unexpected keyword {k.arg!r} line {n.lineno}')
+                  if fn.args.vararg is None and len(n.args)>len(positional):
+                      raise ValueError(f'{n.func.id} too many positional args line {n.lineno}')
+                  if any(k.arg in positional[:len(n.args)] for k in n.keywords):
+                      raise ValueError(f'{n.func.id} duplicate positional and keyword line {n.lineno}')
+          check(tree)
+          # Prove the semantic guard rejects the historical crash condition.
+          try:
+              check(ast.parse("record('negative', flush=True)"))
+          except ValueError:
+              pass
+          else:
+              raise AssertionError('negative keyword-argument preflight did not reject')
+          body=ast.unparse(definitions['record'])
+          assert 'trace.flush()' in body and 'os.fsync(trace.fileno())' in body, 'durable trace contract changed'
+          print('H6_G_PREFLIGHT_PASS: generated local call signatures and negative fixture')
+          PY
           sha256sum g-webots-case/worlds/*.wbt g-webots-case/controllers/h6_g_nonreset/*.py > g-webots-evidence/fixture.sha256
           git -C native-webots diff --check
           git -C native-webots diff --binary HEAD > g-webots-evidence/test-only-webots.diff

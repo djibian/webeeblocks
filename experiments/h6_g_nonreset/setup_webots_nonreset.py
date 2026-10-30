@@ -133,7 +133,7 @@ for frame in range(140):
         'arm':arm,'frame':frame,'time':round(supervisor.getTime(), 7),
         'a_position':pa,'b_position':pb,
         'a_velocity':va,'b_velocity':vb
-    },sort_keys=True,separators=(',',':')), flush=True)
+    },sort_keys=True,separators=(',',':')))
 record('H6_G_NONRESET_DONE arm='+arm)
 print('H6_G_NONRESET_DONE arm='+arm, flush=True)
 supervisor.simulationQuit(0)
