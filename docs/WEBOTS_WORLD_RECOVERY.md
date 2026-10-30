@@ -88,3 +88,24 @@ query has up to three bounded 2.5-second attempts; each retry advances the
 WWI numeric request ID and uses a new random nonce. Old responses cannot
 complete a new probe and exhaustion remains fail-closed. Strict RESET,
 LAND, physical oracles and action timeouts are untouched.
+
+## Native browser lifecycle contrast, research PR #761 (2026-10-30)
+
+PR #761's exact native A/B run 41098578681 yielded 3/3 verified full
+reconstructions with --new-window, and 3/3 with the old control launcher.
+The later stable_exit/control run 41100024546 also completed successfully,
+3/3 in each arm. No causal advantage for either launch flag or a 15-second
+Chrome SingletonLock wait has been established. Neither is shipped as a
+production workaround. An independent native failure in PR #761's
+lost_checkpoint test (run 41100024625) reproduced two browser launcher calls
+and a native READY but no second-document browser event. The intermittent
+lifecycle defect remains open, and successful samples are not a proof of
+reliability.
+
+The CI launchers now capture *passive* timestamps, PID/PPID,
+Chrome SingletonLock and process snapshots, and Chrome stderr into separate
+artifacts. Browser flags, same-profile preservation, Webots world reload,
+strict RESET/LAND and all negative acceptance criteria are unchanged.
+A future failing run should establish whether the second Chrome process
+forwarded to a shutting-down singleton or loaded a document that failed to
+connect. Experimental job termination / retry is not an acceptance oracle.
