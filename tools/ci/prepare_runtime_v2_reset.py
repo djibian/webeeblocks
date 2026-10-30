@@ -112,9 +112,12 @@ SCRIPT = r'''
       if (workspaceState() !== expected.workspace || astState() !== expected.ast ||
           runtimeProfile.id !== expected.profileId || WebeeBlocksSimulationRecovery.peek() !== null)
         throw new Error('Recovered project, scene, or checkpoint mismatch');
+      if (runtimeBackend.nextId <= expected.nextRequestId)
+        throw new Error('WWI numeric request identity reused after reconstruction');
       if (document.getElementById('submit').disabled) throw new Error('Rerun still locked');
       await report('WORLD_RECOVERY_READY', {workspace:workspaceState(), ast:JSON.parse(astState()),
-        profileId:runtimeProfile.id, milliseconds:Date.now()-expected.started, snapshot:snapshot()});
+        profileId:runtimeProfile.id, milliseconds:Date.now()-expected.started,
+        nextRequestId:runtimeBackend.nextId, snapshot:snapshot()});
       document.getElementById('submit').click();
       await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
         'real colliding program after full reload', 45000);
@@ -165,7 +168,7 @@ SCRIPT = r'''
     await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
     // Select recovery after an actual collision, without forging RESET_TIMEOUT.
     const beforeReload = {workspace:blockedWorkspace, ast:blockedAst,
-      profileId:runtimeProfile.id, started:Date.now()};
+      profileId:runtimeProfile.id, started:Date.now(), nextRequestId:runtimeBackend.nextId};
     localStorage.setItem(RECOVERY_STAGE, JSON.stringify(beforeReload));
     if (localStorage.getItem(RECOVERY_STAGE) !== JSON.stringify(beforeReload))
       throw new Error('Recovery native expectation not stored');

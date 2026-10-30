@@ -109,6 +109,8 @@
       sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       parts = parts[0] === 'RESET' ? ['RESET', sceneNonce] : parts.concat([sceneNonce]);
     }
+    if (!Number.isSafeInteger(this.nextId) || this.nextId < 1 || this.nextId > 2147483647)
+      return Promise.reject(new RuntimeV2BackendError('REQUEST_ID_EXHAUSTED'));
     var id = this.nextId++;
     return new Promise(function(resolve, reject) {
       var timer = setTimeout(function() {

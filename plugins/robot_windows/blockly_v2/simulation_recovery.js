@@ -8,7 +8,9 @@
   var KEY = 'webeeblocks-world-recovery-v1';
 
   function validate(value) {
-    if (!value || value.version !== 1 || typeof value.profileId !== 'string' ||
+    if (!value || value.version !== 1 || !Number.isSafeInteger(value.nextRequestId) ||
+        value.nextRequestId < 1 || value.nextRequestId > 2147483647 ||
+        typeof value.profileId !== 'string' ||
         !/^[A-Za-z0-9_-]{1,100}$/.test(value.profileId) ||
         typeof value.workspace !== 'string' || value.workspace.length > 5000000)
       throw new Error('Invalid WebeeBlocks recovery checkpoint');
@@ -23,8 +25,8 @@
     return raw === null ? null : validate(JSON.parse(raw));
   }
 
-  function save(profileId, workspace) {
-    var checkpoint = validate({version: 1, profileId: profileId, workspace: workspace});
+  function save(profileId, workspace, nextRequestId) {
+    var checkpoint = validate({version: 1, profileId: profileId, workspace: workspace, nextRequestId: nextRequestId});
     var encoded = JSON.stringify(checkpoint);
     localStorage.setItem(KEY, encoded);
     if (localStorage.getItem(KEY) !== encoded)

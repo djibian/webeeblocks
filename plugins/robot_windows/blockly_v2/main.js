@@ -280,7 +280,7 @@ async function rebuildSimulation() {
   // The checkpoint must survive loss of both the controller and Robot Window.
   // An unavailable/full storage refuses reload rather than losing unsaved blocks.
   try {
-    WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace());
+    WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace(), runtimeBackend.nextId);
   } catch (error) {
     setRuntimeFailure(error);
     return;
@@ -477,6 +477,8 @@ window.onload = async function() {
     var module = await import(new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href);
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true, simulationScenes: true, simulationWorldReload: true});
+    // Keep every request ID greater than all IDs allocated before world reload.
+    if (recovery) runtimeBackend.nextId = recovery.nextRequestId;
     robotWindow.receive = receiveMessage;
     if (!recovery) setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();

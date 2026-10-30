@@ -42,6 +42,16 @@ module.exports = async function testWorldRecovery() {
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await again;
   backend.requestWorldReload();
+  const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,timeoutMs:1000});
+  fresh.nextId = backend.nextId;
+  fresh.handleMessage(p + 'READY');
+  const newRequest = fresh.resetSimulation(true);
+  const newId = sent[sent.length-1].match(/ REQUEST (\d+) RESET ([0-9a-f]{64})$/);
+  assert(newId && Number(newId[1]) >= backend.nextId);
+  fresh.handleMessage(p + 'RESPONSE 1 OK');
+  assert.strictEqual(fresh.ready, false, 'old numeric ACK unlocked new RESET');
+  fresh.handleMessage(p + 'RESPONSE ' + newId[1] + ' RESET_OK ' + newId[2]);
+  await newRequest;
   assert.strictEqual(sent[5], p + 'RELOAD_WORLD');
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(backend.simulationStopped, true);
@@ -54,7 +64,7 @@ module.exports = async function testWorldRecovery() {
   assert.match(beforeResetSource, /#define RESET_TIMEOUT 5\.0/);
   assert.match(beforeResetSource, /#define RESET_WINDOW 0\.25/);
   const uiSource = fs.readFileSync(path.join(__dirname,'../../plugins/robot_windows/blockly_v2/main.js'),'utf8');
-  assert.match(uiSource, /WebeeBlocksSimulationRecovery\.save\(runtimeProfile\.id, serializedWorkspace\(\)\)/);
+  assert.match(uiSource, /WebeeBlocksSimulationRecovery\.save\(runtimeProfile\.id, serializedWorkspace\(\), runtimeBackend\.nextId\)/);
   assert.match(uiSource, /await runtimeBackend\.resetSimulation\(true\);[\s\S]*await runtimeBackend\.prepareActivity\(runtimeProfile\);[\s\S]*await runtimeBackend\.resetSimulation\(true\);/);
   assert.match(uiSource, /WebeeBlocksSimulationRecovery\.clear\(recovery\);[\s\S]*runtimeTerminal = false;/);
 
@@ -67,14 +77,15 @@ module.exports = async function testWorldRecovery() {
   };
   try {
     const workspace = JSON.stringify({blocks:{blocks:[{type:'math_number',id:'unsaved'}]}});
-    const checkpoint = Recovery.save('progression-sequence-v1', workspace);
+    const checkpoint = Recovery.save('progression-sequence-v1', workspace, 41);
+    assert.strictEqual(Recovery.peek().nextRequestId, 41);
     assert.deepStrictEqual(Recovery.peek(), checkpoint);
     const damaged = JSON.parse(saved.values().next().value);
     damaged.workspace = '{';
     saved.set(saved.keys().next().value, JSON.stringify(damaged));
     assert.throws(() => Recovery.peek());
     saved.clear();
-    Recovery.save('progression-sequence-v1', workspace);
+    Recovery.save('progression-sequence-v1', workspace, 41);
     assert.throws(() => Recovery.clear({...checkpoint, workspace:'{}'}), /changed/);
     assert(Recovery.peek(), 'bad token erased pupil blocks');
     Recovery.clear(checkpoint);
@@ -84,7 +95,7 @@ module.exports = async function testWorldRecovery() {
       setItem() { throw new Error('quota'); },
       removeItem: key => saved.delete(key)
     };
-    assert.throws(() => Recovery.save('progression-sequence-v1', workspace), /quota/);
+    assert.throws(() => Recovery.save('progression-sequence-v1', workspace, 41), /quota/);
     assert.strictEqual(Recovery.peek(), null);
   } finally { delete global.localStorage; }
   console.log('PASS: recovery RESET correlation, scene revalidation, reload fail-closed, durable Blockly checkpoint');
