@@ -19,6 +19,7 @@ ALLOWED = {
     "wb_supervisor_field_set_sf_vec3f",
     "wb_supervisor_field_set_sf_rotation",
     "wb_supervisor_node_reset_physics",
+    "wb_supervisor_world_reload",
     "wb_supervisor_node_get_contact_points",
 }
 
