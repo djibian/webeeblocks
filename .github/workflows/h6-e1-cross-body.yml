@@ -1,0 +1,100 @@
+name: H6 E1 exact R2025a ODE cross-body coverage (isolated)
+on:
+  push:
+    branches:
+      - experiment/h6-p5-cross-body-ode-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-e1-exact-ode-20261030
+  cancel-in-progress: false
+jobs:
+  e1:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate experiment, inspect C++ before building ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e1-evidence/logs
+          git rev-parse HEAD > e1-evidence/experiment-commit.txt
+          sha256sum experiments/h6/ode_cross_body_probe.cpp > e1-evidence/probe-source.sha256
+          grep -Fq 'H6_E1_NATIVE_PASS' experiments/h6/ode_cross_body_probe.cpp
+          grep -Fq 'dJointAttach(x,0,0)' experiments/h6/ode_cross_body_probe.cpp
+          grep -Fq 'group_count' experiments/h6/ode_cross_body_probe.cpp
+      - name: Checkout pinned native Webots ODE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots 2>&1 | tee e1-evidence/logs/clone.log
+          git -C native-webots checkout --detach "$WEBOTS_PIN" 2>&1 | tee e1-evidence/logs/checkout.log
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          test -f native-webots/src/ode/Makefile
+          test -f native-webots/include/ode/ode/ode.h
+          git -C native-webots rev-parse HEAD > e1-evidence/webots-source-commit.txt
+      - name: Native C++ preflight before any compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -I native-webots/include/ode experiments/h6/ode_cross_body_probe.cpp 2>&1 | tee e1-evidence/logs/syntax.log
+      - name: Compile exact pinned bundled ODE without full Webots rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > e1-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 100 e1-evidence/logs/ode-build.log
+            exit 1
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > e1-evidence/libode-binary.sha256
+      - name: Run real pinned ODE counterexamples and negative controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -Wall -Wextra -Werror \
+            -I native-webots/include/ode experiments/h6/ode_cross_body_probe.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o e1-evidence/h6-cross-body-ode
+          sha256sum e1-evidence/h6-cross-body-ode > e1-evidence/probe-binary.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" \
+            timeout 30s e1-evidence/h6-cross-body-ode > e1-evidence/results.jsonl 2>e1-evidence/logs/native-stderr.log
+          grep -Fxq 'H6_E1_NATIVE_PASS' e1-evidence/results.jsonl
+          python3 - <<'PY'
+          import json, pathlib
+          rows=pathlib.Path('e1-evidence/results.jsonl').read_text().splitlines()
+          assert rows[-1]=='H6_E1_NATIVE_PASS' and len(rows)==13
+          records=[json.loads(r) for r in rows[:-1]]
+          assert {r['scenario'] for r in records}=={'foreign_owner_disabled','foreign_owner_enabled','reset_owner'}
+          assert all({r['arm'] for r in records if r['scenario']==s}=={'A','P','F','R'} for s in ('foreign_owner_disabled','foreign_owner_enabled','reset_owner'))
+          for s in ('foreign_owner_disabled','foreign_owner_enabled'):
+            d={r['arm']:r for r in records if r['scenario']==s}
+            assert d['A']['old_attached']==1 and d['F']['old_attached']==1
+            assert d['R']['old_attached']==0 and d['R']['unrelated_contact_preserved']==1
+            assert d['R']['new_contact_created']==1
+            assert d['A']['omega_rad_s']>0 and d['F']['omega_rad_s']==d['A']['omega_rad_s']
+            assert d['R']['omega_rad_s']==0
+          print('H6_E1_RESULT_AUDIT_PASS')
+          PY
+      - name: Manifest even if native experiment fails
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p e1-evidence/logs
+          git rev-parse HEAD > e1-evidence/actual-experiment-commit.txt
+          find e1-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > e1-evidence/SHA256SUMS.txt
+      - name: Retain authentic source and native results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-E1-exact-ODE-crossbody-evidence
+          path: e1-evidence/
+          retention-days: 30
+          if-no-files-found: error
