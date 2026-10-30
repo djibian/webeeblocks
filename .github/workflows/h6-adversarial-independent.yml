@@ -1,0 +1,119 @@
+name: H6 adversarial review — immutable Webots evidence and native mixed-group ODE
+on:
+  push:
+    branches: [experiment/h6-adversarial-review-20261030]
+    paths:
+      - experiments/h6_adversarial/**
+      - .github/workflows/h6-adversarial-independent.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: h6-adversarial-independent-20261030
+  cancel-in-progress: true
+jobs:
+  falsify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      CANDIDATE: 2fa4984242230659d6d4f688480fc6f09e65fc84
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Preflight independent experiment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-evidence/logs
+          git rev-parse HEAD > independent-evidence/reviewer-commit.txt
+          git merge-base --is-ancestor "$CANDIDATE" HEAD
+          python3 -m py_compile experiments/h6_adversarial/audit_advanced.py
+          sha256sum experiments/h6_adversarial/*.py experiments/h6_adversarial/*.cpp > independent-evidence/reviewer-sources.sha256
+      - name: Fetch immutable candidate's ORIGINAL qualified native Webots evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: h6-native-rg-advanced-multibody-mt
+          run-id: 41089341711
+          repository: djibian/webeeblocks
+          github-token: ${{ github.token }}
+          path: input-original
+      - name: Independently falsify original green test coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_adversarial/audit_advanced.py input-original independent-evidence \
+            | tee independent-evidence/logs/independent-coverage.log
+          test -s independent-evidence/review.json
+          echo 'H6_ADVERSARIAL_ORIGINAL_NATIVE_COVERAGE_REFUTATION_PASS'
+      - name: Verify exact Webots R2025a ODE, compile standalone native counterexample
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git pinned-webots \
+            > independent-evidence/logs/webots-clone.log 2>&1
+          git -C pinned-webots checkout --detach "$PIN" > independent-evidence/logs/webots-checkout.log 2>&1
+          test "$(git -C pinned-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C pinned-webots status --porcelain)"
+          git -C pinned-webots rev-parse HEAD > independent-evidence/webots-source-pin.txt
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -I pinned-webots/include/ode \
+            experiments/h6_adversarial/ode_mixed_retirement.cpp > independent-evidence/logs/syntax.log 2>&1 || {
+              cat independent-evidence/logs/syntax.log; exit 1;
+            }
+          export WEBOTS_HOME="$PWD/pinned-webots"
+          make -C pinned-webots/src/ode -j2 release > independent-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 110 independent-evidence/logs/ode-build.log; exit 1;
+          }
+          test -f pinned-webots/lib/webots/libode.so
+          sha256sum pinned-webots/lib/webots/libode.so > independent-evidence/ode-library.sha256
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror \
+            -I pinned-webots/include/ode experiments/h6_adversarial/ode_mixed_retirement.cpp \
+            -L "$PWD/pinned-webots/lib/webots" -Wl,-rpath,"$PWD/pinned-webots/lib/webots" \
+            -lode -o independent-evidence/ode-mixed-retirement
+          sha256sum independent-evidence/ode-mixed-retirement > independent-evidence/probe-binary.sha256
+      - name: Falsify RESET and no-RESET mixed group retention in native pinned ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/pinned-webots/lib/webots" timeout 40s \
+            independent-evidence/ode-mixed-retirement > independent-evidence/mixed-groups.jsonl \
+            2> independent-evidence/logs/probe-stderr.log || {
+              cat independent-evidence/logs/probe-stderr.log; exit 1;
+            }
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('independent-evidence/mixed-groups.jsonl')
+          lines=p.read_text().splitlines()
+          assert lines[-1]=='H6_ADVERSARIAL_NATIVE_ODE_PASS',lines[-1]
+          d=[json.loads(x) for x in lines[:-1]]
+          assert len(d)==4
+          k={(v['reset_B'],v['G']):v for v in d}
+          assert set(k)=={(0,0),(0,1),(1,0),(1,1)}
+          for reset in (0,1):
+            a,g=k[reset,0],k[reset,1]
+            assert a['foreign_owner_disabled']==g['foreign_owner_disabled']==1
+            assert a['legitimate_AC_attached']==1 and g['legitimate_AC_attached']==0
+            assert a['third_body_speed']>0.5 and g['third_body_speed']==0.0
+            assert a['stale_B_attached']==g['stale_B_attached']==0
+            assert a['permanent_ball_joint']==g['permanent_ball_joint']==1
+            assert a['group_owned_joints']==reset+1 and g['group_owned_joints']==0
+          print('H6_ADVERSARIAL_NATIVE_ODE_PHYSICS_LOSS_PROVEN')
+          PY
+      - name: Retain exact evidence even after fail
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-evidence/logs
+          git rev-parse HEAD > independent-evidence/reviewer-observed-head.txt
+          find independent-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > independent-evidence/SHA256SUMS.txt
+      - name: Upload independent original artifacts and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-adversarial-review-exact-candidate-evidence
+          path: independent-evidence/
+          retention-days: 90
+          if-no-files-found: error
