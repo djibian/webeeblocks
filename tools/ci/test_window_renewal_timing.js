@@ -46,6 +46,7 @@ function clockEnvironment() {
     await flush();
   }
   return {root, advance, late,
+    warp(ms){now+=ms;}, // blocked event loop: due timers have NOT run
     get now(){return now;},get reloads(){return reloads;},
     get requests(){return requests;},
     set checkpoint(v){checkpoint=v;},
@@ -169,6 +170,26 @@ async function test() {
     unblock();await held;await flush();
     assert.equal(invoked,0,'late lock grant after expiration is rejected before native calls');
     assert(locks.peak<=1);
+  }
+  // Event-loop suspension can delay the timer task while Web Locks itself
+  // grants a queued request. A monotonic check INSIDE the callback must deny
+  // this grant even when the abort callback has never run.
+  {
+    const e=clockEnvironment(),locks=new SharedLocks(true);e.root.navigator.locks=locks;
+    let release;
+    const first=locks.request('webeeblocks-recovery-v1',
+      {mode:'exclusive',signal:new AbortController().signal},
+      ()=>new Promise(resolve=>release=resolve));
+    await flush();
+    let nativeCalls=0;
+    const late=make(e.root).withRecoveryLock(()=>{nativeCalls++;})
+      .then(()=>null,err=>err);
+    e.warp(11000); // simulate a frozen browser tab, no timer delivery
+    release();
+    await first;await flush();
+    const verdict=await late;
+    assert.match(verdict.message,/après expiration/);
+    assert.equal(nativeCalls,0,'grant after 10s cannot start native work');
   }
   // A holder may legitimately take >10 s doing physical RESET/SCENE checks:
   // the acquisition timer is disarmed as soon as the lock is granted.
