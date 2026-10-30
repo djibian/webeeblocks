@@ -71,7 +71,7 @@ module.exports = async function testWorldRecovery() {
   fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + clearMatch[3]);
   await clear;
   const noReload = new Backend({send(){}},{simulationReset:true});
-  assert.throws(() => noReload.requestWorldReload(), /unavailable/);
+  assert.throws(() => noReload.requestWorldReload('a'.repeat(64)), /unavailable/);
   const beforeResetSource = fs.readFileSync(path.join(__dirname,'../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'),'utf8');
   assert.match(beforeResetSource, /wb_supervisor_world_reload\(\);/);
   assert.match(beforeResetSource, /if \(world_reload_requested\)\s*continue;/);
