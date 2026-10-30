@@ -1,0 +1,90 @@
+name: H6 G no-RESET native ODE artifact independent requalification
+on:
+  push:
+    branches:
+      - experiment/h6-rg-posthoc-audit-20261030
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: h6-g-noreset-posthoc-audit-20261030
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download exact ODE native evidence from red test (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: H6-G-no-RESET-ODE-adversarial
+          run-id: 41058855830
+          repository: djibian/webeeblocks
+          github-token: ${{ github.token }}
+          path: input
+      - name: Verify full original SHA256 and four native A/G no-RESET contrasts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualified
+          (cd input && sed 's|  g-evidence/|  |' SHA256SUMS.txt | sha256sum -c -) > qualified/manifest-check.log
+          python3 - <<'PY'
+          import pathlib,hashlib,json,math
+          root=pathlib.Path('input')
+          lines=(root/'SHA256SUMS.txt').read_text().splitlines()
+          expected=set()
+          for line in lines:
+            digest,path=line.split('  ',1)
+            assert path.startswith('g-evidence/')
+            name=path.removeprefix('g-evidence/')
+            assert name not in expected
+            expected.add(name)
+            assert hashlib.sha256((root/name).read_bytes()).hexdigest()==digest
+          actual={str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
+          assert actual == expected|{'SHA256SUMS.txt'}
+          assert (root/'actual-commit.txt').read_text().strip()=='b7b102e84fd8fb99c6517d5ed32566ca3ed40d0c'
+          assert (root/'webots-source-commit.txt').read_text().strip()=='c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          assert not (root/'logs/stderr.txt').read_text().strip()
+          lines=(root/'results.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_G_NO_RESET_NATIVE_PASS'
+          records=[json.loads(x) for x in lines[:-1]]
+          assert len(records)==4
+          arms={(r['G'],r['fresh']):r for r in records}
+          assert set(arms)=={(0,0),(1,0),(0,1),(1,1)}
+          for (g,f),r in arms.items():
+            assert r['RESET']==0 and r['owner_disabled']==1
+            assert r['old_group_contacts']==(0 if g else 1)
+            assert r['fresh_group_contacts']==f
+            assert math.isfinite(r['other_speed_m_s'])
+          assert arms[0,0]['other_speed_m_s']>0.5
+          assert arms[1,0]['other_speed_m_s']==0.0
+          assert arms[0,1]['other_speed_m_s'] != arms[1,1]['other_speed_m_s']
+          assert arms[1,1]['other_speed_m_s']>0.5
+          report={'scope':'No-RESET native ODE fixture with disabled owner; NOT Webots production regression',
+            'origin_workflow_run':41058855830,'origin_workflow_conclusion':'failure (arbitrary >1.0 m/s oracle contradicted measured 0.85)',
+            'origin_commit':'b7b102e84fd8fb99c6517d5ed32566ca3ed40d0c',
+            'webots_source':'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b',
+            'manifest_files_checked':len(expected),'arms':records,
+            'no_RESET_physical_impact_in_ODE':'PROVEN',
+            'real_Webots_no_RESET_regression':'UNPROVEN',
+            'oracle':'H6_G_NO_RESET_POSTHOC_AUDIT_PASS'}
+          pathlib.Path('qualified/no_reset_qualification.json').write_text(json.dumps(report,indent=2)+chr(10))
+          print(report['oracle'])
+          PY
+      - name: Stamp status and provenance
+        if: always()
+        run: |
+          echo 'Original 41058855830 is RED; the independent artifact audit does not change that status.' > qualified/ORIGINAL_RUN_STATUS.txt
+          git rev-parse HEAD > qualified/audit_commit.txt
+          find qualified -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > qualified/SHA256SUMS.txt
+      - name: Preserve independent posthoc proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-G-no-RESET-independent-posthoc-qualification
+          path: qualified/
+          if-no-files-found: error
+          retention-days: 30
