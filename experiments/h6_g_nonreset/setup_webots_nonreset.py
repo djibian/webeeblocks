@@ -116,6 +116,67 @@ sleep_world = (world.replace("physicsDisableTime 0.032", "physicsDisableTime 0.0
                    .replace("physicsDisableAngularThreshold 0.005", "physicsDisableAngularThreshold 0.05")
                    .replace("mass 0.05 }", "mass 5.0 }", 1))
 (worlds / "h6_g_nonreset_sleep.wbt").write_text(sleep_world)
+
+# Genuine ordinary persistent contacts: both boxes have Physics and
+# settle by gravity/damping on a static floor. No RESET, no fabricated ODE
+# joint, no controller velocity mutation. `optimalThreadCount=1` is explicit.
+stack = """#VRML_SIM R2025a utf8
+WorldInfo {
+  basicTimeStep 16
+  randomSeed 1
+  gravity 9.81
+  optimalThreadCount 1
+  physicsDisableTime 0.032
+  physicsDisableLinearThreshold 0.15
+  physicsDisableAngularThreshold 0.15
+  defaultDamping Damping { linear 0.7 angular 0.7 }
+}
+Viewpoint {
+  orientation 0.3 0.5 0.8 0.7
+  position 1.2 1.2 1.2
+}
+DEF FLOOR Solid {
+  translation 0 0 -0.05
+  name "floor"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.5 0.5 0.5 roughness 1 }
+      geometry Box { size 3 3 0.1 }
+    }
+  ]
+  boundingObject Box { size 3 3 0.1 }
+}
+DEF OWNER Solid {
+  translation 0 0 0.1
+  name "owner"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.2 0.3 0.9 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { density -1 mass 0.5 }
+}
+DEF OTHER Solid {
+  translation 0 0 0.3
+  name "other"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.9 0.3 0.2 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { density -1 mass 0.05 }
+}
+Robot {
+  name "observer"
+  supervisor TRUE
+  controller "h6_g_nonreset"
+}
+"""
+(worlds / "h6_g_nonreset_stack.wbt").write_text(stack)
 py = """from controller import Supervisor
 import json, math, os, sys
 supervisor = Supervisor()
@@ -127,7 +188,8 @@ if a is None or b is None:
 arm = os.environ.get('WEBOTS_H6_TEST_G', '0')
 if arm not in ('0', '1'):
     sys.exit(2)
-b.setVelocity([-0.5, 0, 0, 0, 0, 0])  # initial condition, no RESET or contact injection
+if os.environ.get('WEBOTS_H6_REST') != '1':
+    b.setVelocity([-0.5, 0, 0, 0, 0, 0])  # initial condition, no RESET or contact injection
 trace_path = os.environ.get('WEBOTS_H6_TRACE_PATH')
 if not trace_path:
     print('H6_G_FATAL no trace path', flush=True)

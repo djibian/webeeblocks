@@ -33,6 +33,7 @@ jobs:
           git -C native-webots submodule update --init --recursive --jobs 4 > g-webots-evidence/logs/submodules.log 2>&1
           python3 experiments/h6_g_nonreset/setup_webots_nonreset.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup.log
           python3 -m py_compile g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py
+          python3 -m py_compile experiments/h6_g_nonreset/qualify_stack.py
           # Fail before installing/compiling Webots if generated local calls
           # are incompatible with their Python signature (py_compile alone
           # cannot detect unexpected keywords such as record(..., flush=True)).
@@ -254,6 +255,33 @@ jobs:
           if other==0:
             raise SystemExit('REFUSED: disabled-owner active-other dynamic contact not demonstrated')
           PY
+      - name: Observe gravity stack A/G under natural sleep (three independent repeats)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          export WEBOTS_H6_REST=1
+          for trial in 1 2 3; do
+            for arm in 0 1; do
+              export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/stack-trace-A${arm}-trial${trial}.jsonl"
+              log="g-webots-evidence/logs/stack-webots-A${arm}-trial${trial}.log"
+              timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/g-webots-case/worlds/h6_g_nonreset_stack.wbt" > "$log" 2>&1 || {
+                  tail -n 100 "$log"; exit 1;
+                }
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
+                tail -n 100 "$log"; exit 1;
+              }
+            done
+          done
+      - name: Independently qualify contact-retirement contrast with fail-closed stack oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_g_nonreset/qualify_stack.py g-webots-evidence
       - name: Retain complete SHA256 manifests including failed runs
         if: always()
         shell: bash
