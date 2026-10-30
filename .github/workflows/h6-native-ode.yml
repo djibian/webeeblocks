@@ -32,6 +32,13 @@ jobs:
           printf 'webots_pin=%s\n' "$WEBOTS_PIN" >> h6-evidence/identity.txt
           python3 -m py_compile experiments/h6/payload/source/*.py experiments/h6/payload/controllers/h6_supervisor/*.py
           bash -n experiments/h6/payload/source/run_ab.sh
+          # Evidence-only, bounded source inspection: no second native build before diagnosis.
+          mkdir -p h6-evidence/kit-source
+          cp -a experiments/h6/payload/source/. h6-evidence/kit-source/
+          cp -a experiments/h6/payload/controllers h6-evidence/kit-source/controllers
+          cp -a experiments/h6/payload/worlds h6-evidence/kit-source/worlds
+          printf 'H6 DIAGNOSTIC: retained exact unpacked protocol source; native build not started\n'
+          exit 81
       - name: Acquire exact Webots R2025a source
         shell: bash
         run: |
