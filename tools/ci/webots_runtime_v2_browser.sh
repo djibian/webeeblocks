@@ -13,7 +13,6 @@ exec /usr/bin/google-chrome \
   --disable-background-networking \
   --no-first-run \
   --no-default-browser-check \
-  --user-data-dir=/tmp/webeeblocks-ci-persistent-robot-window \
   --enable-logging=stderr \
   --v=1 \
   "$@"
