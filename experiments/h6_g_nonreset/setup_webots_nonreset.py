@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""H6 non-RESET Webots experiment: fail-closed source patch + ordinary world."""
+from pathlib import Path
+import sys
+
+if len(sys.argv) != 3:
+    raise SystemExit("usage: setup_webots_nonreset.py WEBOTS_SOURCE_ROOT OUTPUT_ROOT")
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+p = root / "src/webots/ode/WbOdeContext.cpp"
+s = p.read_text()
+needle = "    if (dBodyIsEnabled(it.key()))\n      dJointGroupEmpty(it.value());"
+if s.count(needle) != 2:
+    raise SystemExit(f"REFUSED: exact pinned cleanup code expected twice, found {s.count(needle)}")
+if s.count("#include <cassert>") != 1:
+    raise SystemExit("REFUSED: native includes differ")
+s = s.replace("#include <cassert>", "#include <cassert>\n#include <cstdlib>\n#include <cstdio>\n#include <cstring>")
+replacement = """    const bool ownerEnabled = dBodyIsEnabled(it.key());
+    const int count = dJointGroupGetCount(it.value());
+    // Purely observational and bounded: identify naturally occurring
+    // disabled-owner contact groups before attempting any deletion.
+    if (!ownerEnabled && count > 0) {
+      static int reported = 0;
+      if (reported < 400) {
+        int attachedContactJoints = 0, contactsWithEnabledOther = 0;
+        const int n = dBodyGetNumJoints(it.key());
+        for (int i = 0; i < n; ++i) {
+          dJointID j = dBodyGetJoint(it.key(), i);
+          if (dJointGetType(j) != dJointTypeContact)
+            continue;
+          ++attachedContactJoints;
+          dBodyID x = dJointGetBody(j, 0), y = dJointGetBody(j, 1);
+          dBodyID other = x == it.key() ? y : x;
+          if (other && dBodyIsEnabled(other))
+            ++contactsWithEnabledOther;
+        }
+        // In a real naturally disabled owner, report attached bodies and their
+        // enabled states. These joints are OWNER-attached observations, not
+        // proof that every joint belongs to the retired group.
+        for (int i = 0; i < n; ++i) {
+          dJointID j = dBodyGetJoint(it.key(), i);
+          if (dJointGetType(j) != dJointTypeContact)
+            continue;
+          dBodyID b0 = dJointGetBody(j, 0), b1 = dJointGetBody(j, 1);
+          std::fprintf(stderr,
+              "H6_G_JOINT group=%p owner=%p joint=%p body0=%p enabled0=%d body1=%p enabled1=%d arm=%s\\n",
+              (void *)it.value(), (void *)it.key(), (void *)j,
+              (void *)b0, b0 ? dBodyIsEnabled(b0) : -1,
+              (void *)b1, b1 ? dBodyIsEnabled(b1) : -1,
+              (std::getenv("WEBOTS_H6_TEST_G") && !std::strcmp(std::getenv("WEBOTS_H6_TEST_G"), "1")) ? "G" : "A");
+        }
+        std::fprintf(stderr,
+              "H6_G_META retired=1 group=%p owner=%p owner_enabled=%d group_count=%d arm=%s\\n",
+              (void *)it.value(), (void *)it.key(), (int)ownerEnabled, count,
+              (std::getenv("WEBOTS_H6_TEST_G") && !std::strcmp(std::getenv("WEBOTS_H6_TEST_G"), "1")) ? "G" : "A");
+        std::fprintf(stderr,
+                     "H6_G_CONTACT owner_disabled=1 group_contacts=%d owner_contacts=%d active_other_contacts=%d arm=%s\\n",
+                     count, attachedContactJoints, contactsWithEnabledOther,
+                     (std::getenv("WEBOTS_H6_TEST_G") && !std::strcmp(std::getenv("WEBOTS_H6_TEST_G"), "1")) ? "G" : "A");
+        ++reported;
+      }
+    }
+    // Exact one-bit intervention: the ordinary enabled-owner behavior stays intact.
+    const char *g = std::getenv("WEBOTS_H6_TEST_G");
+    if (ownerEnabled || (g && !std::strcmp(g, "1")))
+      dJointGroupEmpty(it.value());
+    // Read-back is observation only; G acts strictly after this retired
+    // buffer's solver, never before the solver's contact use.
+    if (!ownerEnabled && count > 0) {
+      const int after = dJointGroupGetCount(it.value());
+      std::fprintf(stderr, "H6_G_EFFECT retired=1 owner_disabled=1 before=%d after=%d arm=%s\\n",
+                   count, after, (g && !std::strcmp(g, "1")) ? "G" : "A");
+    }"""
+s = s.replace(needle, replacement)
+assert s.count("H6_G_CONTACT") == 2
+p.write_text(s)
+worlds = out / "worlds"
+ctrl = out / "controllers" / "h6_g_nonreset"
+worlds.mkdir(parents=True, exist_ok=True)
+ctrl.mkdir(parents=True, exist_ok=True)
+# Zero gravity allows an unforced body to sleep automatically, while the
+# other body travels into it. No teleports, resetPhysics or injected joints.
+world = """#VRML_SIM R2025a utf8
+WorldInfo {
+  basicTimeStep 16
+  randomSeed 1
+  gravity 0
+  physicsDisableTime 0.032
+  physicsDisableLinearThreshold 0.005
+  physicsDisableAngularThreshold 0.005
+}
+Viewpoint {
+  orientation 0 1 0 1.5708
+  position 0 0 2
+}
+DEF OWNER Solid {
+  translation 0 0 0
+  name "owner"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.1 0.1 1 roughness 1 metalness 0 }
+      geometry Sphere { radius 0.05 }
+    }
+  ]
+  boundingObject Sphere { radius 0.05 }
+  physics Physics { density -1 mass 0.05 }
+}
+DEF OTHER Solid {
+  translation 0.18 0 0
+  name "other"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 1 0.1 0.1 roughness 1 metalness 0 }
+      geometry Sphere { radius 0.05 }
+    }
+  ]
+  boundingObject Sphere { radius 0.05 }
+  physics Physics { density -1 mass 0.05 }
+}
+Robot {
+  name "observer"
+  supervisor TRUE
+  controller "h6_g_nonreset"
+}
+"""
+(worlds / "h6_g_nonreset.wbt").write_text(world)
+# Natural physics-only secondary fixture. The equal-mass, zero-damping
+# control has completed 3x A/G with zero disabled-owner retired groups.
+# Heavy owner receives <5 cm/s during ordinary impact and may auto-sleep;
+# light incoming OTHER stays active. No RESET, joint injection or solver patch.
+assert world.count("physicsDisableTime 0.032")==1
+assert world.count("physicsDisableLinearThreshold 0.005")==1
+assert world.count("mass 0.05 }")==2
+sleep_world = (world.replace("physicsDisableTime 0.032", "physicsDisableTime 0.016")
+                   .replace("physicsDisableLinearThreshold 0.005", "physicsDisableLinearThreshold 0.05")
+                   .replace("physicsDisableAngularThreshold 0.005", "physicsDisableAngularThreshold 0.05")
+                   .replace("mass 0.05 }", "mass 5.0 }", 1))
+(worlds / "h6_g_nonreset_sleep.wbt").write_text(sleep_world)
+
+# Genuine ordinary persistent contacts: both boxes have Physics and
+# settle by gravity/damping on a static floor. No RESET, no fabricated ODE
+# joint, no controller velocity mutation. `optimalThreadCount=1` is explicit.
+stack = """#VRML_SIM R2025a utf8
+WorldInfo {
+  basicTimeStep 16
+  randomSeed 1
+  gravity 9.81
+  optimalThreadCount 1
+  physicsDisableTime 0.032
+  physicsDisableLinearThreshold 0.15
+  physicsDisableAngularThreshold 0.15
+  defaultDamping Damping { linear 0.7 angular 0.7 }
+}
+Viewpoint {
+  orientation 0.3 0.5 0.8 0.7
+  position 1.2 1.2 1.2
+}
+DEF FLOOR Solid {
+  translation 0 0 -0.05
+  name "floor"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.5 0.5 0.5 roughness 1 }
+      geometry Box { size 3 3 0.1 }
+    }
+  ]
+  boundingObject Box { size 3 3 0.1 }
+}
+DEF OWNER Solid {
+  translation 0 0 0.1
+  name "owner"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.2 0.3 0.9 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { density -1 mass 0.5 }
+}
+DEF OTHER Solid {
+  translation 0 0 0.3
+  name "other"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.9 0.3 0.2 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { density -1 mass 0.05 }
+}
+Robot {
+  name "observer"
+  supervisor TRUE
+  controller "h6_g_nonreset"
+}
+"""
+(worlds / "h6_g_nonreset_stack.wbt").write_text(stack)
+py = """from controller import Supervisor
+import json, math, os, sys
+supervisor = Supervisor()
+a = supervisor.getFromDef('OWNER')
+b = supervisor.getFromDef('OTHER')
+if a is None or b is None:
+    print('H6_G_FATAL missing bodies', flush=True)
+    sys.exit(2)
+arm = os.environ.get('WEBOTS_H6_TEST_G', '0')
+if arm not in ('0', '1'):
+    sys.exit(2)
+if os.environ.get('WEBOTS_H6_REST') != '1':
+    b.setVelocity([-0.5, 0, 0, 0, 0, 0])  # initial condition, no RESET or contact injection
+trace_path = os.environ.get('WEBOTS_H6_TRACE_PATH')
+if not trace_path:
+    print('H6_G_FATAL no trace path', flush=True)
+    sys.exit(2)
+trace = open(trace_path, 'w', buffering=1)
+def record(line):
+    trace.write(line + '\\n')
+    trace.flush()
+    os.fsync(trace.fileno())
+dt = int(supervisor.getBasicTimeStep())
+for frame in range(140):
+    code = supervisor.step(dt)
+    if code == -1:
+        print('H6_G_FATAL terminated early', flush=True)
+        sys.exit(2)
+    pa, pb = a.getPosition(), b.getPosition()
+    va, vb = a.getVelocity(), b.getVelocity()
+    if not all(math.isfinite(x) for x in pa + pb + va + vb):
+        print('H6_G_FATAL nonfinite physics', flush=True)
+        sys.exit(2)
+    record('H6_G_STEP ' + json.dumps({
+        'arm':arm,'frame':frame,'time':round(supervisor.getTime(), 7),
+        'a_position':pa,'b_position':pb,
+        'a_velocity':va,'b_velocity':vb
+    },sort_keys=True,separators=(',',':')))
+record('H6_G_NONRESET_DONE arm='+arm)
+print('H6_G_NONRESET_DONE arm='+arm, flush=True)
+supervisor.simulationQuit(0)
+"""
+(ctrl / "h6_g_nonreset.py").write_text(py)
+print("H6_G_SETUP_OK native source modified, world and supervisor generated")

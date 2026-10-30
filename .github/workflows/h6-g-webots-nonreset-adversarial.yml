@@ -1,0 +1,341 @@
+name: H6 Webots non-RESET G physics falsification
+on:
+  push:
+    branches: [experiment/h6-g-webots-nonreset-adversarial-20261030]
+permissions:
+  contents: read
+concurrency:
+  group: h6-webots-nonreset-g-20261030
+  cancel-in-progress: true
+jobs:
+  webots-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+      QT_QPA_PLATFORM: xcb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify pinned source and prepare reproducible fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g-webots-evidence/logs
+          git rev-parse HEAD > g-webots-evidence/experiment_commit.txt
+          sha256sum experiments/h6_g_nonreset/setup_webots_nonreset.py > g-webots-evidence/setup.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > g-webots-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$WEBOTS_PIN" > g-webots-evidence/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots submodule update --init --recursive --jobs 4 > g-webots-evidence/logs/submodules.log 2>&1
+          python3 experiments/h6_g_nonreset/setup_webots_nonreset.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup.log
+          python3 experiments/h6_g_nonreset/setup_wakeup.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup-wakeup.log
+          python3 -m py_compile g-webots-case/controllers/h6_wakeup/h6_wakeup.py experiments/h6_g_nonreset/qualify_wakeup.py
+          python3 -m py_compile g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py
+          python3 -m py_compile experiments/h6_g_nonreset/qualify_stack.py
+          # Fail before installing/compiling Webots if generated local calls
+          # are incompatible with their Python signature (py_compile alone
+          # cannot detect unexpected keywords such as record(..., flush=True)).
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path('g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py')
+          tree=ast.parse(p.read_text(),filename=str(p))
+          definitions={n.name:n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
+          assert 'record' in definitions, 'missing durability function'
+          assert [a.arg for a in definitions['record'].args.args]==['line'], 'record signature changed'
+          assert definitions['record'].args.kwarg is None, 'record unexpectedly variadic'
+          def check(node):
+              for n in ast.walk(node):
+                  if not isinstance(n,ast.Call) or not isinstance(n.func,ast.Name) or n.func.id not in definitions:
+                      continue
+                  fn=definitions[n.func.id]
+                  positional=[a.arg for a in fn.args.posonlyargs+fn.args.args]
+                  keyword_only=[a.arg for a in fn.args.kwonlyargs]
+                  for k in n.keywords:
+                      if k.arg is None or (k.arg not in positional+keyword_only and fn.args.kwarg is None):
+                          raise ValueError(f'{n.func.id} unexpected keyword {k.arg!r} line {n.lineno}')
+                  if fn.args.vararg is None and len(n.args)>len(positional):
+                      raise ValueError(f'{n.func.id} too many positional args line {n.lineno}')
+                  if any(k.arg in positional[:len(n.args)] for k in n.keywords):
+                      raise ValueError(f'{n.func.id} duplicate positional and keyword line {n.lineno}')
+          check(tree)
+          # Prove the semantic guard rejects the historical crash condition.
+          try:
+              check(ast.parse("record('negative', flush=True)"))
+          except ValueError:
+              pass
+          else:
+              raise AssertionError('negative keyword-argument preflight did not reject')
+          body=ast.unparse(definitions['record'])
+          assert 'trace.flush()' in body and 'os.fsync(trace.fileno())' in body, 'durable trace contract changed'
+          print('H6_G_PREFLIGHT_PASS: generated local call signatures and negative fixture')
+          PY
+          sha256sum g-webots-case/worlds/*.wbt g-webots-case/controllers/h6_g_nonreset/*.py > g-webots-evidence/fixture.sha256
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > g-webots-evidence/test-only-webots.diff
+          test "$(grep -c 'H6_G_CONTACT' native-webots/src/webots/ode/WbOdeContext.cpp)" = 2
+          cp -a g-webots-case g-webots-evidence/fixture
+      - name: Install source compilation prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > g-webots-evidence/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 > g-webots-evidence/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) > g-webots-evidence/logs/apt-build.log 2>&1 || {
+            tail -n 70 g-webots-evidence/logs/apt-build.log; exit 1;
+          }
+      - name: Compile one Webots binary for both treatment arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd native-webots && make -j2) > g-webots-evidence/logs/build.log 2>&1 || {
+            tail -n 100 g-webots-evidence/logs/build.log; exit 1;
+          }
+          test -x native-webots/webots
+          test -x native-webots/bin/webots-bin
+          sha256sum native-webots/bin/webots-bin > g-webots-evidence/webots-bin.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C g-webots-case/plugins/physics/h6_wakeup > g-webots-evidence/logs/build-wakeup-plugin.log 2>&1 || { tail -n 80 g-webots-evidence/logs/build-wakeup-plugin.log; exit 1; }
+          test -s g-webots-case/plugins/physics/h6_wakeup/libh6_wakeup.so
+          sha256sum g-webots-case/plugins/physics/h6_wakeup/libh6_wakeup.so > g-webots-evidence/wakeup-plugin.sha256
+      - name: Observe gravity stack A/G under natural sleep (three independent repeats)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          export WEBOTS_H6_REST=1
+          for trial in 1 2 3; do
+            for arm in 0 1; do
+              export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/stack-trace-A${arm}-trial${trial}.jsonl"
+              log="g-webots-evidence/logs/stack-webots-A${arm}-trial${trial}.log"
+              timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/g-webots-case/worlds/h6_g_nonreset_stack.wbt" > "$log" 2>&1 || {
+                  tail -n 100 "$log"; exit 1;
+                }
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
+                tail -n 100 "$log"; exit 1;
+              }
+            done
+          done
+      - name: Independently qualify contact-retirement contrast with fail-closed stack oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_g_nonreset/qualify_stack.py g-webots-evidence
+      - name: Qualify first solver after actual disabled-body wakeup with native plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          mkdir -p g-webots-evidence/wake
+          for case in wake no_disable no_initial no_wake; do
+            max=1
+            test "$case" != wake || max=3
+            for trial in $(seq 1 "$max"); do
+              for arm in A G; do
+                d="$PWD/g-webots-evidence/wake/${case}-${trial}-${arm}"
+                mkdir -p "$d"
+                export H6_WAKE_CASE="$case" H6_WAKE_NATIVE_LOG="$d/plugin.log" H6_WAKE_CONTROLLER_LOG="$d/controller.jsonl"
+                export WEBOTS_H6_TEST_G=0
+                test "$arm" != G || export WEBOTS_H6_TEST_G=1
+                world=h6_wakeup.wbt
+                test "$case" != no_initial || world=h6_wakeup_no_initial.wbt
+                set +e
+                timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                   "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                   "$PWD/g-webots-case/worlds/$world" > "$d/webots.log" 2>&1
+                ret=$?
+                set -e
+                echo "$ret" > "$d/exit.txt"
+                test "$ret" = 0 || { tail -n 100 "$d/webots.log"; exit 91; }
+                grep -q 'H6_WAKE_CONTROLLER_DONE' "$d/controller.jsonl" || { tail -n 100 "$d/webots.log"; exit 92; }
+              done
+            done
+          done
+          python3 experiments/h6_g_nonreset/qualify_wakeup.py g-webots-evidence > g-webots-evidence/wake/qualifier-stdout.log 2>&1 || { tail -n 150 g-webots-evidence/wake/qualifier-stdout.log; exit 93; }
+          cat g-webots-evidence/wake/qualifier-stdout.log
+      - name: Execute genuine non-RESET Webots world three times in each arm
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          for trial in 1 2 3; do
+            for arm in 0 1; do
+              export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/trace-A${arm}-trial${trial}.jsonl"
+              log="g-webots-evidence/logs/webots-A${arm}-trial${trial}.log"
+              timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/g-webots-case/worlds/h6_g_nonreset.wbt" > "$log" 2>&1 || {
+                  tail -n 100 "$log"; exit 1;
+                }
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
+                tail -n 100 "$log"; exit 1;
+              }
+            done
+          done
+      - name: Evaluate physical differences without assuming nonregression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,glob,pathlib,math
+          root=pathlib.Path('g-webots-evidence/logs')
+          reports={}
+          for trial in (1,2,3):
+            data={}
+            for arm in (0,1):
+              log=(root/f'webots-A{arm}-trial{trial}.log').read_text(errors='replace')
+              trace=(root/f'trace-A{arm}-trial{trial}.jsonl').read_text()
+              lines=[x[len('H6_G_STEP '):] for x in trace.splitlines() if x.startswith('H6_G_STEP {')]
+              rows=[json.loads(x) for x in lines]
+              assert len(rows)==140, (trial,arm,len(rows))
+              assert [r['frame'] for r in rows]==list(range(140))
+              assert all(r['arm']==str(arm) for r in rows)
+              assert f'H6_G_NONRESET_DONE arm={arm}' in trace
+              data[arm]=rows
+              reports[f'trial{trial}-A{arm}']={
+                 'disabled_owner_live_contact_events':log.count('H6_G_CONTACT owner_disabled=1'),
+                 'disabled_owner_with_enabled_other_events':sum(
+                    int(x.rsplit('active_other_contacts=',1)[1].split(' ',1)[0])>0
+                    for x in log.splitlines() if 'H6_G_CONTACT owner_disabled=1' in x),
+                 'final_a_position':rows[-1]['a_position'],
+                 'final_b_position':rows[-1]['b_position']}
+            distances=[]
+            speeds=[]
+            for a,b in zip(data[0],data[1]):
+              assert a['frame']==b['frame'] and a['time']==b['time']
+              differences=[a['a_position'][i]-b['a_position'][i] for i in range(3)]+[a['b_position'][i]-b['b_position'][i] for i in range(3)]
+              dv=[a['a_velocity'][i]-b['a_velocity'][i] for i in range(6)]+[a['b_velocity'][i]-b['b_velocity'][i] for i in range(6)]
+              distances.append(math.sqrt(sum(x*x for x in differences)))
+              speeds.append(math.sqrt(sum(x*x for x in dv)))
+            reports[f'trial{trial}-contrast']={'max_position_delta_m':max(distances),
+              'max_six_dof_velocity_delta':max(speeds),
+              'largest_position_delta_frame':distances.index(max(distances)),
+              'trajectories_exactly_equal':max(distances)==0 and max(speeds)==0}
+          outcome={'scope':'Real pinned-source Webots scheduler, natural auto-disable, native collision, no RESET',
+            'experiment_commit':pathlib.Path('g-webots-evidence/experiment_commit.txt').read_text().strip(),
+            'pinned_webots':'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b',
+            'results':reports,
+            'qualification':'OBSERVATION_ONLY: difference alone is not automatically an unsafe regression'}
+          pathlib.Path('g-webots-evidence/qualification.json').write_text(json.dumps(outcome,indent=2)+'\n')
+          print(json.dumps(outcome,indent=2))
+          PY
+      - name: Run only necessary natural sleep contrast (three complete A/G repeats)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g-webots-evidence/logs
+          # If ordinary baseline naturally exercised G, don't multiply scenarios.
+          if grep -q 'H6_G_EFFECT retired=1 owner_disabled=1' g-webots-evidence/logs/webots-A0-trial*.log; then
+            printf 'baseline-active\n' > g-webots-evidence/fixture-selection.txt
+            exit 0
+          fi
+          printf 'natural-sleep-mass-contrast\n' > g-webots-evidence/fixture-selection.txt
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          for trial in 1 2 3; do
+            for arm in 0 1; do
+              export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/sleep-trace-A${arm}-trial${trial}.jsonl"
+              log="g-webots-evidence/logs/sleep-webots-A${arm}-trial${trial}.log"
+              timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/g-webots-case/worlds/h6_g_nonreset_sleep.wbt" > "$log" 2>&1 || {
+                  tail -n 100 "$log"; exit 1;
+                }
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
+                tail -n 100 "$log"; exit 1;
+              }
+            done
+          done
+      - name: Qualify retired disabled-owner groups and physics (never infer general safety)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, re, math
+          root=pathlib.Path('g-webots-evidence')
+          choice=(root/'fixture-selection.txt').read_text().strip()
+          prefix='' if choice=='baseline-active' else 'sleep-'
+          logs=root/'logs'
+          reports={}
+          for trial in (1,2,3):
+            pair={}
+            for arm in (0,1):
+              stem=f'{prefix}webots-A{arm}-trial{trial}.log'
+              raw=(logs/stem).read_text(errors='replace')
+              trace=(logs/f'{prefix}trace-A{arm}-trial{trial}.jsonl').read_text()
+              assert trace.endswith('\n')
+              rows=[json.loads(s.removeprefix('H6_G_STEP ')) for s in trace.splitlines()
+                    if s.startswith('H6_G_STEP {')]
+              assert len(rows)==140 and [r['frame'] for r in rows]==list(range(140))
+              assert all(r['arm']==str(arm) for r in rows)
+              assert trace.count(f'H6_G_NONRESET_DONE arm={arm}')==1
+              events=[]
+              for s in raw.splitlines():
+                if not s.startswith('H6_G_EFFECT '): continue
+                match=re.fullmatch(r'H6_G_EFFECT retired=1 owner_disabled=1 before=(\d+) after=(\d+) arm=(A|G)',s)
+                if match:
+                  events.append((int(match[1]),int(match[2]),match[3]))
+              for before,after,mode in events:
+                assert before>0
+                assert mode==('A' if arm==0 else 'G')
+                assert after==(before if arm==0 else 0), (stem,before,after)
+              contacts=[s for s in raw.splitlines() if 'H6_G_CONTACT owner_disabled=1' in s]
+              active_other=sum(int(re.search(r'active_other_contacts=(\d+)',s)[1])>0
+                               for s in contacts)
+              reports[f'trial{trial}-A{arm}']={'events':len(events),
+                 'removed_contacts':sum(before-after for before,after,_ in events),
+                 'retained_contacts':sum(after for before,after,_ in events),
+                 'active_other_contact_events':active_other}
+              pair[arm]=rows
+            ds=[];dv=[]
+            for p,q in zip(pair[0],pair[1]):
+              assert p['time']==q['time'] and p['frame']==q['frame']
+              ds.append(math.sqrt(sum((p[k][i]-q[k][i])**2 for k in ('a_position','b_position') for i in range(3))))
+              dv.append(math.sqrt(sum((p[k][i]-q[k][i])**2 for k in ('a_velocity','b_velocity') for i in range(6))))
+            reports[f'trial{trial}-contrast']={'max_position_delta_m':max(ds),
+                 'max_velocity_delta':max(dv),'first_position_delta_frame':next((i for i,x in enumerate(ds) if x>1e-10),None)}
+          effectsA=sum(reports[f'trial{t}-A0']['retained_contacts'] for t in (1,2,3))
+          effectsG=sum(reports[f'trial{t}-A1']['removed_contacts'] for t in (1,2,3))
+          other=sum(reports[f'trial{t}-A1']['active_other_contact_events'] for t in (1,2,3))
+          out={'source':'pinned Webots R2025a', 'scope':'no RESET, 1-thread, 2 dynamic sphere solids',
+               'fixture':choice,'results':reports, 'A_retained':effectsA, 'G_removed':effectsG,
+               'G_active_other_contact_events':other, 'G_fired':effectsG>0,
+               'inference':'only this real-world fixture; no general nonregression inference'}
+          (root/'sleep_qualification.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out,indent=2))
+          if effectsA==0 or effectsG==0:
+            raise SystemExit('REFUSED: G never exercised; cannot claim physical sufficiency')
+          # An active dynamic OTHER contact is a stronger counterexample surface.
+          if other==0:
+            raise SystemExit('REFUSED: disabled-owner active-other dynamic contact not demonstrated')
+          PY
+      - name: Retain complete SHA256 manifests including failed runs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p g-webots-evidence/logs
+          git rev-parse HEAD > g-webots-evidence/actual-commit.txt
+          if test -f native-webots/src/webots/ode/WbOdeContext.cpp; then
+            sha256sum native-webots/src/webots/ode/WbOdeContext.cpp > g-webots-evidence/context-patched.sha256
+          fi
+          find g-webots-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > g-webots-evidence/SHA256SUMS.txt
+      - name: Upload all raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-G-Webots-noRESET-A-G-native-physics
+          path: g-webots-evidence/
+          retention-days: 30
+          if-no-files-found: error
