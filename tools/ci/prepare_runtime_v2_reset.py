@@ -102,6 +102,14 @@ SCRIPT = r'''
 
   // A new Robot Window must independently validate the restored scene and RESET.
   const RECOVERY_STAGE = 'webeeblocks-ci-world-reload-native-v1';
+  // Captured before any recovery JS can block: distinguishes missing Robot
+  // Window launch from a launched page with unavailable browser checkpoint.
+  await report('BROWSER_BOOT_PROBE', {
+    href: location.href, origin: location.origin,
+    ciCheckpointPresent: localStorage.getItem(RECOVERY_STAGE) !== null,
+    productCheckpointPresent: localStorage.getItem('webeeblocks-world-recovery-v1') !== null,
+    navigation: performance.getEntriesByType('navigation').map(entry => entry.type)
+  });
   try {
     const old = localStorage.getItem(RECOVERY_STAGE);
     if (old) {
