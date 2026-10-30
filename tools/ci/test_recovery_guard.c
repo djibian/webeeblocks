@@ -30,7 +30,7 @@ int main(void) {
   assert(f);
   assert(fputs("WEBEEBLOCKS_RECOVERY_V1 bad", f) > 0);
   assert(fclose(f) == 0);
-  assert(wb_rg_setup(&b, world) && b.state == WB_RG_INVALID);
+  assert(!wb_rg_setup(&b, world) && b.state == WB_RG_INVALID);
   assert(!wb_rg_arm(&b, token));
   assert(!wb_rg_clear(&b, token));
   assert(remove(a.path) == 0); // test cleanup only
