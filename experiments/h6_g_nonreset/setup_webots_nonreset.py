@@ -33,6 +33,25 @@ replacement = """    const bool ownerEnabled = dBodyIsEnabled(it.key());
           if (other && dBodyIsEnabled(other))
             ++contactsWithEnabledOther;
         }
+        // In a real naturally disabled owner, report attached bodies and their
+        // enabled states. These joints are OWNER-attached observations, not
+        // proof that every joint belongs to the retired group.
+        for (int i = 0; i < n; ++i) {
+          dJointID j = dBodyGetJoint(it.key(), i);
+          if (dJointGetType(j) != dJointTypeContact)
+            continue;
+          dBodyID b0 = dJointGetBody(j, 0), b1 = dJointGetBody(j, 1);
+          std::fprintf(stderr,
+              "H6_G_JOINT group=%p owner=%p joint=%p body0=%p enabled0=%d body1=%p enabled1=%d arm=%s\\n",
+              (void *)it.value(), (void *)it.key(), (void *)j,
+              (void *)b0, b0 ? dBodyIsEnabled(b0) : -1,
+              (void *)b1, b1 ? dBodyIsEnabled(b1) : -1,
+              (std::getenv("WEBOTS_H6_TEST_G") && !std::strcmp(std::getenv("WEBOTS_H6_TEST_G"), "1")) ? "G" : "A");
+        }
+        std::fprintf(stderr,
+              "H6_G_META retired=1 group=%p owner=%p owner_enabled=%d group_count=%d arm=%s\\n",
+              (void *)it.value(), (void *)it.key(), (int)ownerEnabled, count,
+              (std::getenv("WEBOTS_H6_TEST_G") && !std::strcmp(std::getenv("WEBOTS_H6_TEST_G"), "1")) ? "G" : "A");
         std::fprintf(stderr,
                      "H6_G_CONTACT owner_disabled=1 group_contacts=%d owner_contacts=%d active_other_contacts=%d arm=%s\\n",
                      count, attachedContactJoints, contactsWithEnabledOther,
