@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: h6-reset-attached-native-20261030
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   h6:
     name: Build pinned Webots and attempt H6 A/B
