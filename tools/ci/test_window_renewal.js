@@ -5,7 +5,7 @@ const token = 'a'.repeat(64);
 
 function environment(options = {}) {
   let data = JSON.stringify({version:2,token,profileId:'reactive-obstacle-v2',workspace:'{}'});
-  let reloads = 0, fetched = 0, clocks = 0;
+  let reloads = 0, fetched = 0, clocks = 0, ms = 0;
   const location = {
     protocol:'http:', hostname:'localhost',
     pathname:'/robot_windows/blockly_v2/blockly_v2.html',
@@ -16,7 +16,7 @@ function environment(options = {}) {
   if (options.hostname) location.hostname = options.hostname;
   const timers = new Map();
   const env = {
-    location, localStorage:{getItem(key) {
+    location, performance:{now:()=>ms}, localStorage:{getItem(key) {
       assert.strictEqual(key,'webeeblocks-world-recovery-v1'); return data;
     }},
     AbortController, fetch: async (url, init) => {
@@ -26,13 +26,13 @@ function environment(options = {}) {
       if(options.httpUnavailable) throw Error('HTTP unavailable');
       return {ok:true,headers:{get:()=>options.mime||'text/html; charset=utf-8'}};
     },
-    setTimeout: fn=>{ const id=++clocks;timers.set(id,fn);return id; },
+    setTimeout: (fn,delay)=>{ const id=++clocks;timers.set(id,{fn,delay});return id; },
     clearTimeout:id=>timers.delete(id),
     document:{getElementById:()=>({textContent:''})}
   };
   return {env, control:make(env), get reloads(){return reloads;},
     get fetched(){return fetched;}, set checkpoint(value){data=value;},
-    nextTimer(){const x=timers.entries().next().value;if(x){timers.delete(x[0]); x[1]();}},
+    nextTimer(){const x=timers.entries().next().value;if(x){timers.delete(x[0]);ms+=x[1].delay;x[1].fn();}},
     timers
   };
 }
@@ -86,11 +86,11 @@ async function testWindowRenewal() {
   e=environment({httpUnavailable:true});
   assert.strictEqual(e.control.arm(token),true);
   assert.strictEqual(e.control.onTransportClose(),true);
-  for (let n=0;n<25;n++) { await flush(); e.nextTimer(); }
+  for (let n=0;n<70;n++) { await flush(); e.nextTimer(); }
   await flush();
   assert.strictEqual(e.reloads,0,'HTTP outage may not be interpreted as success');
   const attempts=e.fetched;
-  assert.strictEqual(attempts,24,'HTTP attempts must be bounded');
+  assert(attempts >= 40 && attempts <= 61,'HTTP attempts must fit the absolute 30s deadline');
   assert.strictEqual(e.control.onTransportClose(),true,'old tab stays safely gated');
   await flush();
   assert.strictEqual(e.fetched,attempts,'duplicate close must not retry indefinitely');
