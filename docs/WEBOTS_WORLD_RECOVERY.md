@@ -109,3 +109,82 @@ strict RESET/LAND and all negative acceptance criteria are unchanged.
 A future failing run should establish whether the second Chrome process
 forwarded to a shutting-down singleton or loaded a document that failed to
 connect. Experimental job termination / retry is not an acceptance oracle.
+
+
+## Chromium ProcessSingleton handoff: causal native discrimination (#762)
+
+At pinned Webots R2025a, a spontaneous guard-negative failure on exact
+#755 head `9e9d56c0` occurred in native run `41103223478`
+(`corrupt_checkpoint`, artifact `12999394928`): the second launcher
+was invoked, the new native controller was READY, but no new Blockly
+document was observed. Chrome stderr included
+`process_singleton_posix.cc:349 ... SingletonLock: File exists (17)`.
+That message alone does **not** prove the failure mechanism.
+
+Research #762 independently caught a second, *unmodified* native
+`lost_checkpoint` failure (`41110822361`, artifact `13002729667`)
+with the second Chromium process exiting **21** and no post-reload
+document event. For a discriminating intervention, #762 froze the old
+Chromium profile owner for 7 seconds on an actual Webots second launch
+and guaranteed its resumption. In the same exact native research run
+`41113877775` at SHA `d03341fff8d7e7b43ae87888d044d29ab3627335`:
+
+- Unmodified second-Chrome launch under injected contention: **0/2**
+  (process exit 21, no second document).
+- One explicit CDP creation of a document in the *existing profile
+  owner*, triggered only after exit 21: **2/2**, with the independently
+  observed `NEGATIVE_LOCKED` after missing checkpoint.
+- Full collision, real `world_reload`, two nonce-correlated strict
+  RESET/scene cycles, byte-identical Blockly/AST, explicit new colliding
+  run under the same injected exit-21 fault: **3/3** (artifacts
+  `13004029557`, `13005302016`, `13004862905`). All five
+  unchanged native recovery negatives passed. The research workflow's
+  overall conclusion is deliberately FAILURE because its two negative
+  *control* jobs failed as expected. This is not a green CI Gate.
+- Measured full reconstruction times: 22.149, 17.245, and 16.835 s,
+  **including** the deliberately injected 7-second freeze, not a
+  production latency estimate.
+
+The joint observations establish **one actual causal class**: Chrome's
+same-profile ProcessSingleton handoff can fail to create a new page
+even with functioning Webots HTTP and a new native controller. They do
+not prove that all possible Robot Window startup failures have this
+cause.
+
+**Integration decision: NO_GO for #762's raw CDP rescue.** Its
+`--remote-debugging-port=9222` exposes browser-debugging power on a
+fixed local port, is Chromium-specific and unqualified on Windows; it
+is suitable only in isolated research CI. The native observer's early
+HTML marker and synthetic SIGSTOP are also research-only. Do not import
+these into the classroom launcher or #755.
+
+### Production-design acceptance boundary
+
+A replacement should explicitly create a new document in an *already
+running browser owner* on failed same-profile handoff, without a
+publicly listening unauthenticated DevTools endpoint. One candidate
+is a lifecycle-bound per-Webots-session browser broker with
+same-user authenticated local IPC and a private Chromium debugging
+pipe; it needs a bounded process lifetime, URL/origin allowlisting,
+single-use request correlation, preservation of the actual Blockly
+profile, cleanup after Webots exits, and an independently specified
+Windows implementation. This is a **candidate architecture, not a
+validated solution**. A native Webots/browser API offering the same
+private new-document action would be preferable if demonstrated.
+
+Required before any GO: reproduce the exact exit-21 counterexample
+against the production candidate; show failed untreated control and
+passing treatment on identical faults; repeat real full reload/Blockly
+restoration and the five native negatives; demonstrate fail-closed
+behavior on broker failure, unauthorized URL, wrong/stale session and
+missing profile; qualify Windows and the canonical Ready exact-HEAD
+CI; obtain independent review and owner approval. In particular, a
+new browser profile without a preserved Blockly checkpoint must
+**never** be treated as successful recovery. The per-world native
+witness currently stores only the authorization token, **not**
+unsaved Blockly bytes.
+
+Current #755 `main` merge verdict remains **NO_GO** and reliable
+classroom reconstruction **UNPROVEN** despite the mechanistic Linux
+research GO. No Webots/ODE, physical RESET/LAND, GP tests or program
+serialization are changed by this documentation.
