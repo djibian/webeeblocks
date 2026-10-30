@@ -125,7 +125,16 @@ script = r"""
 source = html.read_text()
 if "<head>" not in source or "</body>" not in source:
     raise SystemExit("unexpected Robot Window HTML")
-source = source.replace("<head>", "<head>\n" + prelude, 1)
+# Earliest executable script in the real HTML parser: differentiates a CDP
+# target merely being created from the page actually executing JavaScript.
+early = """<script>
+fetch('http://127.0.0.1:8765/event', {
+  method: 'POST', headers: {'Content-Type':'application/json'},
+  body: JSON.stringify({event:'DOCUMENT_EARLY_JS', wall_ms:Date.now(),
+    detail:{href:location.href, hasBlockly:typeof window.Blockly !== 'undefined'}})
+}).catch(() => {});
+</script>"""
+source = source.replace("<head>", "<head>\n" + early + "\n" + prelude, 1)
 source = source.replace("</body>", script + "\n</body>", 1)
 html.write_text(source)
 print("PREPARED_NATIVE_GUARD_NEGATIVE", args.mode, flush=True)
