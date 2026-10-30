@@ -89,7 +89,7 @@ DEF OTHER Solid {
     }
   ]
   boundingObject Sphere { radius 0.05 }
-  physics Physics { density -1 mass 0.05 linearVelocity -0.5 0 0 }
+  physics Physics { density -1 mass 0.05 }
 }
 Robot {
   name "observer"
@@ -109,6 +109,7 @@ if a is None or b is None:
 arm = os.environ.get('WEBOTS_H6_TEST_G', '0')
 if arm not in ('0', '1'):
     sys.exit(2)
+b.setVelocity([-0.5, 0, 0, 0, 0, 0])  # initial condition, no RESET or contact injection
 dt = int(supervisor.getBasicTimeStep())
 for frame in range(140):
     code = supervisor.step(dt)
