@@ -43,7 +43,14 @@ replacement = """    const bool ownerEnabled = dBodyIsEnabled(it.key());
     // Exact one-bit intervention: the ordinary enabled-owner behavior stays intact.
     const char *g = std::getenv("WEBOTS_H6_TEST_G");
     if (ownerEnabled || (g && !std::strcmp(g, "1")))
-      dJointGroupEmpty(it.value());"""
+      dJointGroupEmpty(it.value());
+    // Read-back is observation only; G acts strictly after this retired
+    // buffer's solver, never before the solver's contact use.
+    if (!ownerEnabled && count > 0) {
+      const int after = dJointGroupGetCount(it.value());
+      std::fprintf(stderr, "H6_G_EFFECT retired=1 owner_disabled=1 before=%d after=%d arm=%s\\n",
+                   count, after, (g && !std::strcmp(g, "1")) ? "G" : "A");
+    }"""
 s = s.replace(needle, replacement)
 assert s.count("H6_G_CONTACT") == 2
 p.write_text(s)
@@ -97,6 +104,18 @@ Robot {
 }
 """
 (worlds / "h6_g_nonreset.wbt").write_text(world)
+# Natural physics-only secondary fixture. The equal-mass, zero-damping
+# control has completed 3x A/G with zero disabled-owner retired groups.
+# Heavy owner receives <5 cm/s during ordinary impact and may auto-sleep;
+# light incoming OTHER stays active. No RESET, joint injection or solver patch.
+assert world.count("physicsDisableTime 0.032")==1
+assert world.count("physicsDisableLinearThreshold 0.005")==1
+assert world.count("mass 0.05 }")==2
+sleep_world = (world.replace("physicsDisableTime 0.032", "physicsDisableTime 0.016")
+                   .replace("physicsDisableLinearThreshold 0.005", "physicsDisableLinearThreshold 0.05")
+                   .replace("physicsDisableAngularThreshold 0.005", "physicsDisableAngularThreshold 0.05")
+                   .replace("mass 0.05 }", "mass 5.0 }", 1))
+(worlds / "h6_g_nonreset_sleep.wbt").write_text(sleep_world)
 py = """from controller import Supervisor
 import json, math, os, sys
 supervisor = Supervisor()

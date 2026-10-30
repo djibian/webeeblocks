@@ -163,6 +163,97 @@ jobs:
           pathlib.Path('g-webots-evidence/qualification.json').write_text(json.dumps(outcome,indent=2)+'\n')
           print(json.dumps(outcome,indent=2))
           PY
+      - name: Run only necessary natural sleep contrast (three complete A/G repeats)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g-webots-evidence/logs
+          # If ordinary baseline naturally exercised G, don't multiply scenarios.
+          if grep -q 'H6_G_EFFECT retired=1 owner_disabled=1' g-webots-evidence/logs/webots-A0-trial*.log; then
+            printf 'baseline-active\n' > g-webots-evidence/fixture-selection.txt
+            exit 0
+          fi
+          printf 'natural-sleep-mass-contrast\n' > g-webots-evidence/fixture-selection.txt
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          for trial in 1 2 3; do
+            for arm in 0 1; do
+              export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/sleep-trace-A${arm}-trial${trial}.jsonl"
+              log="g-webots-evidence/logs/sleep-webots-A${arm}-trial${trial}.log"
+              timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/g-webots-case/worlds/h6_g_nonreset_sleep.wbt" > "$log" 2>&1 || {
+                  tail -n 100 "$log"; exit 1;
+                }
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
+                tail -n 100 "$log"; exit 1;
+              }
+            done
+          done
+      - name: Qualify retired disabled-owner groups and physics (never infer general safety)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, re, math
+          root=pathlib.Path('g-webots-evidence')
+          choice=(root/'fixture-selection.txt').read_text().strip()
+          prefix='' if choice=='baseline-active' else 'sleep-'
+          logs=root/'logs'
+          reports={}
+          for trial in (1,2,3):
+            pair={}
+            for arm in (0,1):
+              stem=f'{prefix}webots-A{arm}-trial{trial}.log'
+              raw=(logs/stem).read_text(errors='replace')
+              trace=(logs/f'{prefix}trace-A{arm}-trial{trial}.jsonl').read_text()
+              assert trace.endswith('\n')
+              rows=[json.loads(s.removeprefix('H6_G_STEP ')) for s in trace.splitlines()
+                    if s.startswith('H6_G_STEP {')]
+              assert len(rows)==140 and [r['frame'] for r in rows]==list(range(140))
+              assert all(r['arm']==str(arm) for r in rows)
+              assert trace.count(f'H6_G_NONRESET_DONE arm={arm}')==1
+              events=[]
+              for s in raw.splitlines():
+                if not s.startswith('H6_G_EFFECT '): continue
+                match=re.fullmatch(r'H6_G_EFFECT retired=1 owner_disabled=1 before=(\d+) after=(\d+) arm=(A|G)',s)
+                if match:
+                  events.append((int(match[1]),int(match[2]),match[3]))
+              for before,after,mode in events:
+                assert before>0
+                assert mode==('A' if arm==0 else 'G')
+                assert after==(before if arm==0 else 0), (stem,before,after)
+              contacts=[s for s in raw.splitlines() if 'H6_G_CONTACT owner_disabled=1' in s]
+              active_other=sum(int(re.search(r'active_other_contacts=(\d+)',s)[1])>0
+                               for s in contacts)
+              reports[f'trial{trial}-A{arm}']={'events':len(events),
+                 'removed_contacts':sum(before-after for before,after,_ in events),
+                 'retained_contacts':sum(after for before,after,_ in events),
+                 'active_other_contact_events':active_other}
+              pair[arm]=rows
+            ds=[];dv=[]
+            for p,q in zip(pair[0],pair[1]):
+              assert p['time']==q['time'] and p['frame']==q['frame']
+              ds.append(math.sqrt(sum((p[k][i]-q[k][i])**2 for k in ('a_position','b_position') for i in range(3))))
+              dv.append(math.sqrt(sum((p[k][i]-q[k][i])**2 for k in ('a_velocity','b_velocity') for i in range(6))))
+            reports[f'trial{trial}-contrast']={'max_position_delta_m':max(ds),
+                 'max_velocity_delta':max(dv),'first_position_delta_frame':next((i for i,x in enumerate(ds) if x>1e-10),None)}
+          effectsA=sum(reports[f'trial{t}-A0']['retained_contacts'] for t in (1,2,3))
+          effectsG=sum(reports[f'trial{t}-A1']['removed_contacts'] for t in (1,2,3))
+          other=sum(reports[f'trial{t}-A1']['active_other_contact_events'] for t in (1,2,3))
+          out={'source':'pinned Webots R2025a', 'scope':'no RESET, 1-thread, 2 dynamic sphere solids',
+               'fixture':choice,'results':reports, 'A_retained':effectsA, 'G_removed':effectsG,
+               'G_active_other_contact_events':other, 'G_fired':effectsG>0,
+               'inference':'only this real-world fixture; no general nonregression inference'}
+          (root/'sleep_qualification.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out,indent=2))
+          if effectsA==0 or effectsG==0:
+            raise SystemExit('REFUSED: G never exercised; cannot claim physical sufficiency')
+          # An active dynamic OTHER contact is a stronger counterexample surface.
+          if other==0:
+            raise SystemExit('REFUSED: disabled-owner active-other dynamic contact not demonstrated')
+          PY
       - name: Retain complete SHA256 manifests including failed runs
         if: always()
         shell: bash
