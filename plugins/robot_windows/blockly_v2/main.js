@@ -552,9 +552,9 @@ window.onload = async function() {
       }
     }
     if (recovery) {
-      if (!navigator.locks || typeof navigator.locks.request !== 'function')
-        throw new Error('Verrou de reprise partagé indisponible — vol interdit');
-      await navigator.locks.request('webeeblocks-recovery-v1', {mode: 'exclusive'}, authorizeIncarnation);
+      if (!window.WebeeBlocksWindowRenewal)
+        throw new Error('Verrou de reprise indisponible — vol interdit');
+      await window.WebeeBlocksWindowRenewal.withRecoveryLock(authorizeIncarnation);
     } else {
       await authorizeIncarnation();
     }
