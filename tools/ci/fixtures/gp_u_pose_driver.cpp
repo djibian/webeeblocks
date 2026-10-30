@@ -374,6 +374,8 @@ extern "C" const double* wb_supervisor_field_get_sf_rotation(void*){return rot;}
 extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double* v){std::memcpy(pos,v,sizeof(pos));}
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double* v){std::memcpy(rot,v,sizeof(rot));}
 extern "C" void wb_supervisor_node_reset_physics(void*){}
+// Any world reload in the bounded GP-U stub scenario is an unexpected unsafe path.
+extern "C" void wb_supervisor_world_reload(void){std::fputs("GP_U_UNEXPECTED_WORLD_RELOAD\n",stderr);std::abort();}
 // This pose fixture has no activity groups. Link the production scene module,
 // but reject any unexpected scene API entry; import behavior has its own probe.
 extern "C" const char* wb_robot_get_project_path(){assert(false);return nullptr;}
