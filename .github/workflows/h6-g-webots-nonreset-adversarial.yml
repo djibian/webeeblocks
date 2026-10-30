@@ -6,7 +6,7 @@ permissions:
   contents: read
 concurrency:
   group: h6-webots-nonreset-g-20261030
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   webots-native:
     runs-on: ubuntu-22.04
@@ -68,7 +68,7 @@ jobs:
               export WEBOTS_H6_TEST_G="$arm"
               log="g-webots-evidence/logs/webots-A${arm}-trial${trial}.log"
               timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
-                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering \
+                "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
                 "$PWD/g-webots-case/worlds/h6_g_nonreset.wbt" > "$log" 2>&1 || {
                   tail -n 100 "$log"; exit 1;
                 }
