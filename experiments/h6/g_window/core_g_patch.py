@@ -33,7 +33,7 @@ for group in ("1","2"):
         raise SystemExit("REFUSED group method missing")
     start=s.index(marker)
     anchor=s.index(needle,start)
-    if s.find("}",start)>anchor:
+    if s.find("}",start)<anchor:
         # first closing brace may be the iterator loop one: anchor must be before it
         raise SystemExit("REFUSED group anchor out of loop")
     replacement=(
