@@ -102,6 +102,27 @@ SCRIPT = r'''
 
   // A new Robot Window must independently validate the restored scene and RESET.
   const RECOVERY_STAGE = 'webeeblocks-ci-world-reload-native-v1';
+  const RELOAD_SENTINEL = 'webeeblocks-ci-reload-sentinel-v1';
+  function browserProbe(phase) {
+    function stored(area, key) {
+      try {
+        const value = area.getItem(key);
+        return {available: true, present: value !== null, length: value === null ? 0 : value.length};
+      } catch (error) {
+        return {available: false, error: String(error)};
+      }
+    }
+    return {
+      phase, url: location.href, origin: location.origin,
+      userAgent: navigator.userAgent, windowName: window.name,
+      navigation: performance.getEntriesByType('navigation').map(e => e.type),
+      ciCheckpoint: stored(localStorage, RECOVERY_STAGE),
+      productCheckpoint: stored(localStorage, 'webeeblocks-world-recovery-v1'),
+      sentinel: stored(localStorage, RELOAD_SENTINEL),
+      sessionSentinel: stored(sessionStorage, RELOAD_SENTINEL)
+    };
+  }
+  await report('BROWSER_BOOT_PROBE', browserProbe('new-document'));
   try {
     const old = localStorage.getItem(RECOVERY_STAGE);
     if (old) {
@@ -170,6 +191,11 @@ SCRIPT = r'''
     const beforeReload = {workspace:blockedWorkspace, ast:blockedAst,
       profileId:runtimeProfile.id, started:Date.now(), nextRequestId:runtimeBackend.nextId};
     localStorage.setItem(RECOVERY_STAGE, JSON.stringify(beforeReload));
+    const sentinel = 'reload-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    localStorage.setItem(RELOAD_SENTINEL, sentinel);
+    sessionStorage.setItem(RELOAD_SENTINEL, sentinel);
+    window.name = sentinel;
+    await report('BROWSER_BEFORE_RELOAD_PROBE', browserProbe('old-document'));
     if (localStorage.getItem(RECOVERY_STAGE) !== JSON.stringify(beforeReload))
       throw new Error('Recovery native expectation not stored');
     runtimeNeedsRebuild = true;
@@ -179,6 +205,13 @@ SCRIPT = r'''
       throw new Error('Recovery button unavailable');
     await report('WORLD_RELOAD_REQUEST', {workspace:blockedWorkspace, ast:JSON.parse(blockedAst)});
     await chain;
+    const originalRequestWorldReload = runtimeBackend.requestWorldReload;
+    runtimeBackend.requestWorldReload = function() {
+      if (WebeeBlocksSimulationRecovery.peek() === null)
+        throw new Error('Product checkpoint absent at native reload dispatch');
+      report('BROWSER_PRODUCT_SAVED_PROBE', browserProbe('after-product-checkpoint'));
+      return originalRequestWorldReload.call(this);
+    };
     document.getElementById('resetSimulation').click();
     if (!document.getElementById('submit').disabled) throw new Error('Old program admitted');
     await chain;
