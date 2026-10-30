@@ -290,3 +290,38 @@ jobs:
           name: guardian-negative-${{ matrix.mode }}
           path: ci-artifacts/guard-negative/
           if-no-files-found: warn
+
+  windows-static-qualification:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Windows JS syntax and fail-closed URL/nonce/HTTP behavior
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly_v2/window_renewal.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly_v2/main.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/ci/test_window_renewal.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prove Windows classroom release includes the new dependency and no debug port
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $builder = Get-Content tools/build_windows_classroom_release.ps1 -Raw
+          if ($builder -notmatch "'window_renewal\.js'") { throw 'Windows classroom package omits renewal module' }
+          $html = Get-Content plugins/robot_windows/blockly_v2/blockly_v2.html -Raw
+          if ($html -notmatch 'src="window_renewal\.js"') { throw 'Classroom HTML omits renewal module' }
+          $files = @('plugins/robot_windows/blockly_v2/main.js',
+                     'plugins/robot_windows/blockly_v2/window_renewal.js',
+                     'plugins/robot_windows/blockly_v2/webots/RobotWindow.js')
+          foreach ($file in $files) {
+            $src = Get-Content $file -Raw
+            if ($src -match 'remote-debugging-port|remote-debugging-pipe|/json/new') {
+              throw "Privileged Chromium debugging in product source: $file"
+            }
+          }
+          Write-Host 'PASS: Windows release dependency, no privileged browser channel, Node security suite'
