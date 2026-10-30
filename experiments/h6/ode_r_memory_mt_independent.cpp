@@ -80,6 +80,7 @@ static void memory_arm(const char *name, bool legit, bool clean_all, bool empty_
     require(dBodyGetNumJoints(s.b)==1 && touches(s.permanent,s.b), "permanent joint altered");
     // Test at a post-solver boundary, not during a solver.
     // The full-group strategy may erase a legitimate A-C contact.
+    if (clean_all && legit && i==1) dWorldStep(s.w, .01); // prove post-solver contact survival before cleanup
     if (clean_all || (empty_only && !legit)) dJointGroupEmpty(s.g);
     const int expected = clean_all || (empty_only && !legit) ? 0 : i + (legit?1:0);
     require(dJointGroupGetCount(s.g)==expected, "unexpected allocation count");
@@ -87,7 +88,7 @@ static void memory_arm(const char *name, bool legit, bool clean_all, bool empty_
       require(dBodyGetNumJoints(s.c)==1, "bad permanent joint count");
     }
     if (i==1 || i==64 || i==512 || i==2048 || i==8192) {
-      const bool survives = dBodyGetNumJoints(s.c)==(legit && !clean_all ? 2 : 1);
+      const bool survives = legit && dBodyGetNumJoints(s.c)==2;
       std::printf("{\"arm\":\"%s\",\"cycle\":%d,\"group_allocated\":%d,\"legitimate_survives\":%d,\"permanent_survives\":1,\"owner_disabled\":%d}\n",
         name,i,dJointGroupGetCount(s.g),static_cast<int>(survives),!dBodyIsEnabled(s.a));
     }
