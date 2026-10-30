@@ -39,9 +39,14 @@ once("ctx_h","  QHash<dBodyID, dJointGroupID> mBodyContactJointGroupList1, mBody
   // survive the original retirement gate. RESET joints are freed immediately.
   QHash<dJointID, dBodyID> mBodyContacts1, mBodyContacts2;''',"map storage")
 once("ctx_c","#include <cassert>","#include <cassert>\n#include <cstdlib>\n#include <cstring>\n#include <cstdio>","includes")
-once("ctx_c",'''  mBodyContactJointGroupList1.clear();
-  mBodyContactJointGroupList2.clear();''','''  mBodyContacts1.clear();
-  mBodyContacts2.clear();''',"constructor")
+# Both the constructor and the destructor clear the same two maps.
+# Replace exactly these two sites before replacing the destructor wholesale.
+old_clear='''  mBodyContactJointGroupList1.clear();
+  mBodyContactJointGroupList2.clear();'''
+new_clear='''  mBodyContacts1.clear();
+  mBodyContacts2.clear();'''
+if d["ctx_c"].count(old_clear)!=2: raise SystemExit("REFUSED bad ctor/dtor clear anchors")
+d["ctx_c"]=d["ctx_c"].replace(old_clear,new_clear)
 begin=d["ctx_c"].index("  QList<dJointGroupID> groups(mBodyContactJointGroupList1.values());")
 end=d["ctx_c"].index("  dJointGroupDestroy(mPhysicsPluginContactJointGroup1);",begin)
 d["ctx_c"]=d["ctx_c"][:begin]+'''  // All remaining contacts are standalone and must be destroyed explicitly.
