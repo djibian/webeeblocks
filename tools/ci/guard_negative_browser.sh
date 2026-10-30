@@ -79,4 +79,11 @@ set +e
   --no-default-browser-check --user-data-dir="$profile" "$@" 2>> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/chrome-stderr.log"
 exit_code=$?
 printf 'CHROME_LAUNCH_RETURNED epoch_ns=%s count=%s exit=%s\n' "$(date +%s%N)" "$count" "$exit_code" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log"
+if [ "$count" -eq 2 ] && [ "${WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE:-}" = cdp_rescue ] && [ "$exit_code" -eq 21 ]; then
+  # Explicitly open a document in the SAME incumbent Chromium profile.
+  # This is a single conditional attempt: no re-launch and no profile purge.
+  python3 /workspace/tools/ci/cdp_reopen_once.py \
+    "$WEBEEBLOCKS_CI_ARTIFACT_DIR/cdp-rescue.jsonl" "$1"
+  exit "$?"
+fi
 exit "$exit_code"
