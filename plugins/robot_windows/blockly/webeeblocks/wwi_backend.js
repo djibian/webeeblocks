@@ -96,7 +96,7 @@
     });
   };
 
-  RuntimeV2WwiBackend.prototype._request = function(parts) {
+  RuntimeV2WwiBackend.prototype._request = function(parts, timeoutOverrideMs) {
     var self = this;
     var sceneNonce = null;
     if (parts[0] === 'SCENE' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' || (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
@@ -117,7 +117,7 @@
         if (!self.pending[id]) return;
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
-      }, self.timeoutMs);
+      }, timeoutOverrideMs === undefined ? self.timeoutMs : timeoutOverrideMs);
       self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
@@ -380,8 +380,21 @@
       return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
     if (token !== undefined && (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)))
       return Promise.reject(new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN'));
-    // No checkpoint => only ask whether a witness exists; never learn its token.
-    return this._request(['RECOVERY_STATUS', token || '0'.repeat(64)]);
+    // A controller can emit READY before the first WWI browser request arrives.
+    // An observed native run (41094229271) lost request id=1 but accepted id=2.
+    // Retry ONLY status probes, with independent IDs/nonces, for <= 3 x 2.5s.
+    // Stale replies cannot unlock a later attempt; any exhaustion stays locked.
+    var self = this;
+    var candidate = token || '0'.repeat(64);
+    var probeTimeout = Math.min(2500, this.timeoutMs);
+    function probe(attempt) {
+      return self._request(['RECOVERY_STATUS', candidate], probeTimeout).catch(function(error) {
+        if (attempt < 3 && error && /^Runtime v2 request timeout id=\\d+$/.test(error.message || ''))
+          return probe(attempt + 1);
+        throw error;
+      });
+    }
+    return probe(1);
   };
   RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token) {
     if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token))

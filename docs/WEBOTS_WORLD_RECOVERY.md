@@ -78,3 +78,13 @@ physical sequence is a negative test (`early_clear`) and must be rejected.
 The counter resets on failed RESET, rejected scene, STOP and incompatible
 sequence transitions. This strengthens fail-closed enforcement independently
 of browser correctness; it does not change RESET/LAND physics or timeouts.
+
+## Bounded native status handshake (2026-10-30)
+
+The browser must never unlock merely on READY. Native run 41094229271
+captured a real first RECOVERY_STATUS request dropped after READY while the
+subsequent request was answered. Only the nonce-correlated recovery-status
+query has up to three bounded 2.5-second attempts; each retry advances the
+WWI numeric request ID and uses a new random nonce. Old responses cannot
+complete a new probe and exhaustion remains fail-closed. Strict RESET,
+LAND, physical oracles and action timeouts are untouched.

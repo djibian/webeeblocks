@@ -68,6 +68,35 @@ module.exports = async function testWorldRecovery() {
   assert(noCheckpointMsg && noCheckpointMsg[2] === '0'.repeat(64));
   fresh.handleMessage(p + 'RESPONSE ' + noCheckpointMsg[1] + ' RECOVERY_STATUS ' + noCheckpointMsg[3] + ' PENDING_OTHER');
   assert.deepStrictEqual(await noCheckpoint, {state:'PENDING',matched:false});
+  // On an actual native runner, the first STATUS probe was dropped after READY
+  // while a subsequent probe reached the controller. Retry must be bounded,
+  // use a new numeric ID and nonce, and reject the stale first response.
+  const delayed = [];
+  let lossBackend;
+  let statusAttempts = 0;
+  lossBackend = new Backend({send: text => {
+    delayed.push(text);
+    const match = text.match(/ REQUEST (\\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+    if (match && ++statusAttempts === 2) {
+      queueMicrotask(() => {
+        const old = delayed[0].match(/ REQUEST (\\d+) RECOVERY_STATUS ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+        if (old) lossBackend.handleMessage(p + 'RESPONSE ' + old[1] + ' RECOVERY_STATUS ' + old[3] + ' NONE');
+        assert.strictEqual(Object.keys(lossBackend.pending).length, 1, 'stale first status ACK unlocked retry');
+        lossBackend.handleMessage(p + 'RESPONSE ' + match[1] + ' RECOVERY_STATUS ' + match[3] + ' PENDING_OTHER');
+      });
+    }
+  }}, {simulationWorldReload:true, timeoutMs:15});
+  lossBackend.handleMessage(p + 'READY');
+  assert.deepStrictEqual(await lossBackend.readRecoveryStatus(), {state:'PENDING',matched:false});
+  assert.strictEqual(statusAttempts, 2, 'status should stop after successful correlated reply');
+  assert.notStrictEqual(delayed[0], delayed[1], 'status retry reused numeric ID or nonce');
+  let failedStatusCount = 0;
+  const failedStatusBackend = new Backend({send: text => {
+    if (/ RECOVERY_STATUS /.test(text)) ++failedStatusCount;
+  }}, {simulationWorldReload:true, timeoutMs:10});
+  failedStatusBackend.handleMessage(p + 'READY');
+  await assert.rejects(failedStatusBackend.readRecoveryStatus(), /request timeout/);
+  assert.strictEqual(failedStatusCount, 3, 'native status retry must be bounded');
   const clear = fresh.clearRecoveryWitness('a'.repeat(64));
   const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR ([0-9a-f]{64}) ([0-9a-f]{64})$/);
   assert(clearMatch);
