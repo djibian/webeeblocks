@@ -696,7 +696,7 @@ jobs:
               sleep 0.5
               # READY (20s), four programs (45s each) and three resets (12s each)
               # already allow 236s, before browser startup. Native RESET stays 5s.
-              timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              timeout -k 5s 420s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-reset/webots.log
           code=${PIPESTATUS[0]}
@@ -722,6 +722,20 @@ jobs:
           reset_events = [e for e in events if e.get('event') == 'RESET_EVENT']
           assert len(reset_events) >= 3, reset_events
           assert all(e.get('detail', {}).get('workspacePreserved') is True for e in reset_events), reset_events
+          assert names.count('WORLD_RELOAD_REQUEST') == 1, names
+          assert names.count('WORLD_RECOVERY_READY') == 1, names
+          assert names.count('WORLD_RECOVERY_RERUN') == 1, names
+          assert sum(e.get('detail', {}).get('worldRebuilt') is True for e in reset_events) == 1, reset_events
+          before = next(e['detail'] for e in events if e['event'] == 'WORLD_RELOAD_REQUEST')
+          after = next(e['detail'] for e in events if e['event'] == 'WORLD_RECOVERY_READY')
+          rerun = next(e['detail'] for e in events if e['event'] == 'WORLD_RECOVERY_RERUN')
+          assert after['workspace'] == before['workspace'], 'unsaved Blockly changed'
+          assert after['ast'] == before['ast'], 'Blockly AST changed'
+          assert after['snapshot']['state'] == 'PRÊT' and after['snapshot']['backendReady'] is True
+          assert after['snapshot']['submitDisabled'] is False
+          assert after['milliseconds'] > 0, 'measured recovery time missing'
+          assert rerun['workspace'] == before['workspace'], 'real rerun changed workspace'
+          assert rerun['snapshot']['state'] == 'ARRÊTÉ', 'real Blockly program not rerun'
 
           reset_proofs = [e['detail'] for e in events if e.get('event') == 'RESET_OK']
           for proof in reset_proofs:
@@ -734,15 +748,16 @@ jobs:
           traces = re.findall(
               r'WEBEEBLOCKS_RUNTIME_V2 TRACE RESET x=([-0-9.]+) y=([-0-9.]+) z=([-0-9.]+) origin_x=([-0-9.]+) origin_y=([-0-9.]+) origin_z=([-0-9.]+)',
               log)
-          assert len(traces) >= 3, traces
+          assert len(traces) >= 5, traces  # 3 old + 2 new strict RESETs
           for values in traces:
               x, y, z, ox, oy, oz = map(float, values)
               assert abs(x - ox) < 0.03, values
               assert abs(y - oy) < 0.03, values
               assert abs(z - oz) < 0.05, values
-          assert log.count('ERR UNSAFE_OR_TIMEOUT') >= 2, 'unsafe fail-safe not exercised twice'
+          assert log.count('WORLD_RELOAD_REQUESTED') == 1, 'native world reload missing or duplicate'
+          assert log.count('ERR UNSAFE_OR_TIMEOUT') >= 3, 'missing actual collision after reload'
           assert log.count('FATAL unsafe attitude or action timeout') >= 2, 'native fail-safe trace missing'
-          print('PASS: real R2025a reset preserves Blockly program, restores the Crazyflie, and supports replay after TERMINÉ and ARRÊTÉ.')
+          print('PASS: real Webots R2025a RESET, world reload, restored Blockly and colliding rerun.')
           PY
 
       - name: Upload reset/replay diagnostics

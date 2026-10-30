@@ -1,0 +1,256 @@
+name: EXPERIMENT ONLY — Native reload recovery guard
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-recovery-guard.yml'
+      - 'controllers/crazyflie_runtime_v2/**'
+      - 'plugins/robot_windows/blockly_v2/**'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'tools/ci/test_runtime_v2_recovery.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard-fast:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check guardian transport and recovery contracts
+        run: |
+          set -euo pipefail
+          node --check plugins/robot_windows/blockly_v2/main.js
+          node --check plugins/robot_windows/blockly_v2/simulation_recovery.js
+          node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          node tools/ci/test_runtime_v2_reset.js
+          mkdir -p /tmp/wb-guard-host
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -o /tmp/wb-guard-host/check tools/ci/test_recovery_guard.c
+          WEBEEBLOCKS_RECOVERY_STATE_DIR=/tmp/wb-guard-host /tmp/wb-guard-host/check
+
+# These jobs are NOT the canonical CI Gate; no production GO is implied.
+  reset-replay-webots:
+    needs: guard-fast
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        run: ./tools/prepare_runtime_v2.sh
+
+      - name: Build Runtime v2 controller with official Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-reset
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-reset/build.log
+
+      - name: Prepare reset/replay Robot Window harness
+        run: python3 tools/ci/prepare_runtime_v2_reset.py
+
+      - name: Run real Webots reset/replay scenario
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-reset /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-reset/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              # READY (20s), four programs (45s each) and three resets (12s each)
+              # already allow 236s, before browser startup. Native RESET stays 5s.
+              timeout -k 5s 420s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-reset/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-reset/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate workspace preservation, reset pose and replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-reset/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          names = [e.get('event') for e in events]
+          assert names.count('RESET_OK') >= 3, names
+          for required in ('NORMAL_FIRST_DONE', 'NORMAL_REPLAY_DONE', 'UNSAFE_FIRST_DONE', 'UNSAFE_REPLAY_DONE'):
+              assert required in names, (required, names)
+          reset_events = [e for e in events if e.get('event') == 'RESET_EVENT']
+          assert len(reset_events) >= 3, reset_events
+          assert all(e.get('detail', {}).get('workspacePreserved') is True for e in reset_events), reset_events
+          assert names.count('WORLD_RELOAD_REQUEST') == 1, names
+          assert names.count('WORLD_RECOVERY_READY') == 1, names
+          assert names.count('WORLD_RECOVERY_RERUN') == 1, names
+          assert sum(e.get('detail', {}).get('worldRebuilt') is True for e in reset_events) == 1, reset_events
+          before = next(e['detail'] for e in events if e['event'] == 'WORLD_RELOAD_REQUEST')
+          after = next(e['detail'] for e in events if e['event'] == 'WORLD_RECOVERY_READY')
+          rerun = next(e['detail'] for e in events if e['event'] == 'WORLD_RECOVERY_RERUN')
+          assert after['workspace'] == before['workspace'], 'unsaved Blockly changed'
+          assert after['ast'] == before['ast'], 'Blockly AST changed'
+          assert after['snapshot']['state'] == 'PRÊT' and after['snapshot']['backendReady'] is True
+          assert after['snapshot']['submitDisabled'] is False
+          assert after['milliseconds'] > 0, 'measured recovery time missing'
+          assert rerun['workspace'] == before['workspace'], 'real rerun changed workspace'
+          assert rerun['snapshot']['state'] == 'ARRÊTÉ', 'real Blockly program not rerun'
+
+          reset_proofs = [e['detail'] for e in events if e.get('event') == 'RESET_OK']
+          for proof in reset_proofs:
+              snap = proof['snapshot']
+              assert snap['state'] == 'PRÊT', snap
+              assert snap['backendReady'] is True and snap['pending'] == 0, snap
+              assert snap['submitDisabled'] is False, snap
+
+          log = Path('ci-artifacts/runtime-v2-reset/webots.log').read_text(errors='replace')
+          traces = re.findall(
+              r'WEBEEBLOCKS_RUNTIME_V2 TRACE RESET x=([-0-9.]+) y=([-0-9.]+) z=([-0-9.]+) origin_x=([-0-9.]+) origin_y=([-0-9.]+) origin_z=([-0-9.]+)',
+              log)
+          assert len(traces) >= 5, traces  # 3 old + 2 new strict RESETs
+          for values in traces:
+              x, y, z, ox, oy, oz = map(float, values)
+              assert abs(x - ox) < 0.03, values
+              assert abs(y - oy) < 0.03, values
+              assert abs(z - oz) < 0.05, values
+          assert log.count('WORLD_RELOAD_REQUESTED') == 1, 'native world reload missing or duplicate'
+          assert log.count('ERR UNSAFE_OR_TIMEOUT') >= 3, 'missing actual collision after reload'
+          assert log.count('FATAL unsafe attitude or action timeout') >= 2, 'native fail-safe trace missing'
+          print('PASS: real Webots R2025a RESET, world reload, restored Blockly and colliding rerun.')
+          PY
+
+      - name: Upload reset/replay diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-reset-replay-r2025a
+          path: ci-artifacts/runtime-v2-reset/
+          if-no-files-found: error
+
+
+  native-fail-closed:
+    needs: guard-fast
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare pinned Blockly
+        run: ./tools/prepare_runtime_v2.sh
+      - name: Build native controller
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace/controllers/crazyflie_runtime_v2 cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make'
+      - name: Run native negative fault
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/guard-negative
+          docker run --rm \
+            -e WEBEEBLOCKS_GUARD_FAULT_MODE=${{ matrix.mode }} \
+            -e WEBEEBLOCKS_RECOVERY_STATE_DIR=/workspace/ci-artifacts/guard-negative/witness \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/guard-negative \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -lc '
+              set -euo pipefail
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              mkdir -p "$WEBEEBLOCKS_CI_ARTIFACT_DIR/witness" /root/.config/Cyberbotics
+              python3 tools/ci/prepare_guard_negative.py --mode "$WEBEEBLOCKS_GUARD_FAULT_MODE"
+              chmod +x tools/ci/guard_negative_browser.sh
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/guard_negative_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 tools/ci/runtime_wwi_event_server.py --output "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-events.jsonl" &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 120s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt > "$WEBEEBLOCKS_CI_ARTIFACT_DIR/webots.log" 2>&1 &
+              sim=$!
+              found=0
+              for n in $(seq 1 500); do
+                if grep -q "NEGATIVE_LOCKED" "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-events.jsonl"; then found=1; break; fi
+                if grep -q "NEGATIVE_ERROR" "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-events.jsonl"; then break; fi
+                sleep .2
+              done
+              kill $sim 2>/dev/null || true
+              wait $sim 2>/dev/null || true
+              if [ "$found" != 1 ]; then
+                echo "Native lock witness not seen"
+                cat "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-events.jsonl"
+                tail -60 "$WEBEEBLOCKS_CI_ARTIFACT_DIR/webots.log"
+                exit 1
+              fi
+            '
+      - name: Verify native lock and retained witness
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          mode = '${{ matrix.mode }}'
+          base = Path('ci-artifacts/guard-negative')
+          events = [json.loads(s) for s in (base/'browser-events.jsonl').read_text().splitlines() if s.strip()]
+          negatives = [e for e in events if e['event'] == 'NEGATIVE_LOCKED']
+          errors = [e for e in events if e['event'] == 'NEGATIVE_ERROR']
+          assert not errors and len(negatives) == 1, (errors, negatives, events)
+          d = negatives[0]['detail']
+          assert d['submitDisabled'] is True and d['recoveryPending'] is True and d['state'] != 'PRÊT', d
+          if mode != 'stale_witness':
+              assert any(e['event'] == 'NEGATIVE_BEFORE_RELOAD' for e in events), events
+              assert 'WORLD_RELOAD_REQUESTED' in (base/'webots.log').read_text()
+          else:
+              assert not any(e['event'] == 'NEGATIVE_BEFORE_RELOAD' for e in events), events
+          witness = list((base/'witness').glob('*.state'))
+          assert len(witness) == 1 and witness[0].read_text().startswith('WEBEEBLOCKS_RECOVERY_V1 '), witness
+          print('PASS: real native Webots R2025a fail-closed', mode, d)
+          PY
+      - name: Retain native negative evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-negative-${{ matrix.mode }}
+          path: ci-artifacts/guard-negative/
+          if-no-files-found: warn
