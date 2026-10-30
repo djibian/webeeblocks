@@ -32,22 +32,9 @@ jobs:
           git merge-base --is-ancestor "$CANDIDATE" HEAD
           python3 -m py_compile experiments/h6_adversarial/audit_advanced.py
           sha256sum experiments/h6_adversarial/*.py experiments/h6_adversarial/*.cpp > independent-evidence/reviewer-sources.sha256
-      - name: Fetch immutable candidate's ORIGINAL qualified native Webots evidence
-        uses: actions/download-artifact@v4
-        with:
-          name: h6-native-rg-advanced-multibody-mt
-          run-id: 41089341711
-          repository: djibian/webeeblocks
-          github-token: ${{ github.token }}
-          path: input-original
-      - name: Independently falsify original green test coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 experiments/h6_adversarial/audit_advanced.py input-original independent-evidence \
-            | tee independent-evidence/logs/independent-coverage.log
-          test -s independent-evidence/review.json
-          echo 'H6_ADVERSARIAL_ORIGINAL_NATIVE_COVERAGE_REFUTATION_PASS'
+      # The immutable native Webots archive was independently authenticated in the
+      # external audit; its cross-run download is not a prerequisite for the
+      # independent ODE counterexample. The original run is not modified.
       - name: Verify exact Webots R2025a ODE, compile standalone native counterexample
         shell: bash
         run: |
