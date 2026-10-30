@@ -168,6 +168,7 @@ foreach ($name in @(
   'project_files.css',
   'project_ui.js',
   'simulation_recovery.js',
+  'window_renewal.js',
   'classroom_fixes.css',
   'classroom_fixes.js',
   'led_observability.js',
