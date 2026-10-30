@@ -1,0 +1,35 @@
+{
+  "status": "NATIVE_8_ARM_FACTORIAL_PASS",
+  "date": "2026-10-30",
+  "repo": "djibian/webeeblocks",
+  "branch": "experiment/h6-g-sufficiency-window-20261030",
+  "experiment_sha": "2e72ab5ccae5189bc95a4e12917a262a48c2f84b",
+  "webots_pin": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "workflow_run": 41074430050,
+  "artifact_id": 12985979800,
+  "artifact_sha256": "46db6bb01f8b045e603ae6390bf08997bcc419ba701608d2bfc785e26a3b1a27",
+  "patch_sha256": "2363fe37f0aab7938a8ca7379f65582a8d05680a25aa721a3b37e05265ea5359",
+  "webots_bin_sha256": "96e62fbc635e32c8ec441624ae0d97e9ac6ec8d30904ebe9544c458a6a6414ba",
+  "ode_so_sha256": "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201",
+  "scope": "one synthetic Webots R2025a world, Supervisor real API, ODE 1-thread, two RESET paths, eight arms, 44 steps",
+  "omega_rad_s": {
+    "global": {
+      "A": 0.7430816475286371,
+      "G": 0.7430816475286371,
+      "R": 0,
+      "RG": 0
+    },
+    "node": {
+      "A": 0.7430816475286371,
+      "G": 0,
+      "R": 0,
+      "RG": 0
+    }
+  },
+  "physical_verdict": {
+    "R_necessary": "PROVEN_IN_TESTED_GLOBAL_RESET_VS_G",
+    "G_alone_physically_sufficient": "REFUTED"
+  },
+  "R_implementation": "pre-solver dJointAttach joint-specific plugin analogue, not production core patch",
+  "strict_oracle": "errors=[]; eight arms complete and equal prestate"
+}
