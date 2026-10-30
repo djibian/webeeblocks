@@ -56,6 +56,7 @@ ctrl.mkdir(parents=True, exist_ok=True)
 world = """#VRML_SIM R2025a utf8
 WorldInfo {
   basicTimeStep 16
+  randomSeed 1
   gravity 0
   physicsDisableTime 0.032
   physicsDisableLinearThreshold 0.005
@@ -65,8 +66,6 @@ Viewpoint {
   orientation 0 1 0 1.5708
   position 0 0 2
 }
-TexturedBackground { }
-TexturedBackgroundLight { }
 DEF OWNER Solid {
   translation 0 0 0
   name "owner"
@@ -110,6 +109,15 @@ arm = os.environ.get('WEBOTS_H6_TEST_G', '0')
 if arm not in ('0', '1'):
     sys.exit(2)
 b.setVelocity([-0.5, 0, 0, 0, 0, 0])  # initial condition, no RESET or contact injection
+trace_path = os.environ.get('WEBOTS_H6_TRACE_PATH')
+if not trace_path:
+    print('H6_G_FATAL no trace path', flush=True)
+    sys.exit(2)
+trace = open(trace_path, 'w', buffering=1)
+def record(line):
+    trace.write(line + '\\n')
+    trace.flush()
+    os.fsync(trace.fileno())
 dt = int(supervisor.getBasicTimeStep())
 for frame in range(140):
     code = supervisor.step(dt)
@@ -121,11 +129,12 @@ for frame in range(140):
     if not all(math.isfinite(x) for x in pa + pb + va + vb):
         print('H6_G_FATAL nonfinite physics', flush=True)
         sys.exit(2)
-    print('H6_G_STEP ' + json.dumps({
+    record('H6_G_STEP ' + json.dumps({
         'arm':arm,'frame':frame,'time':round(supervisor.getTime(), 7),
         'a_position':pa,'b_position':pb,
         'a_velocity':va,'b_velocity':vb
     },sort_keys=True,separators=(',',':')), flush=True)
+record('H6_G_NONRESET_DONE arm='+arm)
 print('H6_G_NONRESET_DONE arm='+arm, flush=True)
 supervisor.simulationQuit(0)
 """
