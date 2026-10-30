@@ -68,3 +68,13 @@ also a fail-closed interrupted-transaction case, not a reason to auto-discard.
 Canonical Ready-HEAD CI, Windows native/GUI qualification, native stale-ACK
 interception and interrupted-transaction fault injection are still required.
 A Linux Draft experiment is never authorization to merge or claim Windows GO.
+
+## Native commit gate against premature witness removal
+
+The controller enforces two nonce-correlated strict RESET completions with
+two confirmed scene selections in that order before accepting RECOVERY_CLEAR.
+A direct raw-WWI clear attempt with the correct known token before the
+physical sequence is a negative test (`early_clear`) and must be rejected.
+The counter resets on failed RESET, rejected scene, STOP and incompatible
+sequence transitions. This strengthens fail-closed enforcement independently
+of browser correctness; it does not change RESET/LAND physics or timeouts.

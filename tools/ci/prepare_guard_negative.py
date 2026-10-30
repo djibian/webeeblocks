@@ -8,11 +8,11 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 html = root / "plugins/robot_windows/blockly_v2/blockly_v2.html"
 parser = argparse.ArgumentParser()
-parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness"])
+parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness", "early_clear"])
 args = parser.parse_args()
 
 # The deliberately stale native witness is injected BEFORE Webots starts.
-if args.mode == "stale_witness":
+if args.mode in ("stale_witness", "early_clear"):
     world = "/workspace/worlds/crazyflie_runtime_v2.wbt"
     h = 14695981039346656037
     for b in world.encode():
@@ -95,6 +95,15 @@ script = r"""
     }
     if (guardian.state !== 'PENDING' && guardian.state !== 'INVALID')
       throw new Error('unexpected native witness: ' + guardian.state);
+    if (mode === 'early_clear') {
+      try {
+        await runtimeBackend.clearRecoveryWitness('b'.repeat(64));
+        throw new Error('native witness cleared without physical RESET/scene evidence');
+      } catch (error) {
+        if (!error || error.code !== 'RECOVERY_LOCKED') throw error;
+      }
+      await report('EARLY_CLEAR_DENIED', evidence());
+    }
     await waitFor(() => runtimeRecoveryPending && document.getElementById('submit').disabled &&
       document.getElementById('runtimeState').textContent !== 'PRÊT' &&
       document.getElementById('runtimeDetail').textContent.includes('Récupération non vérifiée'),

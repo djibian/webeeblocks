@@ -430,6 +430,9 @@ int main(void) {
   int active_id = -1;
   char active_reset_nonce[65] = {0};
   int world_reload_requested = 0;
+  // Recovery-only native authorization: strict RESET, scene, strict RESET, scene.
+  // A token alone may never clear the independent witness.
+  int recovery_phase = 0;
   double active_value = 0.0;
   double move_speed_limit = VX_MAX;
   char active_direction[32] = {0};
@@ -542,11 +545,11 @@ int main(void) {
       if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %1s",
                  &guardian_id, witness_token, challenge, extra) == 3 &&
           guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
-        // Caller must present the token itself, not a value disclosed by
-        // RECOVERY_STATUS. UI additionally requires strict physical recovery.
-        // This native handler alone does not prove that UI postcondition.
+        // Caller must present the undisclosed token AND complete the native
+        // correlated RESET -> SCENE -> RESET -> SCENE postcondition sequence.
+        // The UI separately verifies exact Blockly workspace/profile identity.
         char reply[192];
-        if (wb_rg_clear(&recovery_guard, witness_token))
+        if (recovery_phase == 4 && wb_rg_clear(&recovery_guard, witness_token))
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);
         else
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d ERR RECOVERY_LOCKED", guardian_id);
@@ -573,6 +576,7 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_STOP) {
+        recovery_phase = 0;
         simulation_clock_revoke(&program_clock);
         if (command == CMD_RESET) {
           response_error(request.id, "NOT_RUNNING");
@@ -601,6 +605,10 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_RESET) {
+        // Only RESET #1 or #2 in the native sequence can continue an arm.
+        if (recovery_state != WB_RG_PENDING || !request.scene_nonce[0] ||
+            (recovery_phase != 0 && recovery_phase != 2))
+          recovery_phase = 0;
         simulation_clock_revoke(&program_clock);
         stop_motors(m1, m2, m3, m4);
         wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
@@ -635,10 +643,17 @@ int main(void) {
       if (request.kind == REQUEST_SCENE) {
         if (airborne || hypot(x - origin_x, y - origin_y) > POSITION_TOL ||
             fabs(z - origin_z) > ALT_TOL || hypot(vx_global, vy_global) > SPEED_TOL || fabs(vz) > VZ_TOL) {
+          recovery_phase = 0;
           response_error(request.id, "RESET_REQUIRED");
         } else if (!webeeblocks_select_activity_scene(request.direction)) {
+          recovery_phase = 0;
           response_error(request.id, "SCENE_UNAVAILABLE");
         } else {
+          // Scene must be confirmed after each fresh RESET; unrelated calls reset proof.
+          if (recovery_state == WB_RG_PENDING && request.scene_nonce[0])
+            recovery_phase = recovery_phase == 1 ? 2 : recovery_phase == 3 ? 4 : 0;
+          else
+            recovery_phase = 0;
           if (request.scene_nonce[0]) {
             char acknowledgement[192];
             snprintf(acknowledgement, sizeof(acknowledgement), PREFIX " RESPONSE %d SCENE_OK %s", request.id, request.scene_nonce);
@@ -889,6 +904,7 @@ int main(void) {
               reset_both_ready_samples, reset_max_stable);
       fflush(stderr);
       response_error(active_id, "RESET_TIMEOUT");
+      recovery_phase = 0;
       active_reset_nonce[0] = '\0';
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
@@ -924,11 +940,16 @@ int main(void) {
         if (now - stable_since >= RESET_WINDOW) {
           trace_reset(x, y, z, origin_x, origin_y, origin_z);
           if (active_reset_nonce[0]) {
+            if (wb_rg_refresh(&recovery_guard) == WB_RG_PENDING)
+              recovery_phase = recovery_phase == 0 ? 1 : recovery_phase == 2 ? 3 : 0;
+            else
+              recovery_phase = 0;
             char acknowledgement[192];
             snprintf(acknowledgement, sizeof(acknowledgement),
                      PREFIX " RESPONSE %d RESET_OK %s", active_id, active_reset_nonce);
             send_text(acknowledgement);
           } else {
+            recovery_phase = 0;
             response_ok(active_id);
           }
           active_reset_nonce[0] = '\0';

@@ -174,7 +174,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness]
+        mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness, early_clear]
     steps:
       - uses: actions/checkout@v4
       - name: Prepare pinned Blockly
@@ -238,7 +238,10 @@ jobs:
           assert not errors and len(negatives) == 1, (errors, negatives, events)
           d = negatives[0]['detail']
           assert d['submitDisabled'] is True and d['recoveryPending'] is True and d['state'] != 'PRÊT', d
-          if mode != 'stale_witness':
+          if mode == 'early_clear':
+              assert sum(e['event'] == 'EARLY_CLEAR_DENIED' for e in events) == 1, events
+              assert 'RECOVERY_LOCKED' in (base/'webots.log').read_text(), 'native early clear denial missing'
+          if mode not in ('stale_witness', 'early_clear'):
               assert any(e['event'] == 'NEGATIVE_BEFORE_RELOAD' for e in events), events
               assert 'WORLD_RELOAD_REQUESTED' in (base/'webots.log').read_text()
           else:
