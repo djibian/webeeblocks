@@ -32,6 +32,8 @@ jobs:
           test -z "$(git -C native-webots status --porcelain)"
           git -C native-webots submodule update --init --recursive --jobs 4 > g-webots-evidence/logs/submodules.log 2>&1
           python3 experiments/h6_g_nonreset/setup_webots_nonreset.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup.log
+          python3 experiments/h6_g_nonreset/setup_wakeup.py "$PWD/native-webots" "$PWD/g-webots-case" > g-webots-evidence/logs/setup-wakeup.log
+          python3 -m py_compile g-webots-case/controllers/h6_wakeup/h6_wakeup.py experiments/h6_g_nonreset/qualify_wakeup.py
           python3 -m py_compile g-webots-case/controllers/h6_g_nonreset/h6_g_nonreset.py
           python3 -m py_compile experiments/h6_g_nonreset/qualify_stack.py
           # Fail before installing/compiling Webots if generated local calls
@@ -96,6 +98,10 @@ jobs:
           test -x native-webots/webots
           test -x native-webots/bin/webots-bin
           sha256sum native-webots/bin/webots-bin > g-webots-evidence/webots-bin.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C g-webots-case/plugins/physics/h6_wakeup > g-webots-evidence/logs/build-wakeup-plugin.log 2>&1 || { tail -n 80 g-webots-evidence/logs/build-wakeup-plugin.log; exit 1; }
+          test -s g-webots-case/plugins/physics/h6_wakeup/libh6_wakeup.so
+          sha256sum g-webots-case/plugins/physics/h6_wakeup/libh6_wakeup.so > g-webots-evidence/wakeup-plugin.sha256
       - name: Observe gravity stack A/G under natural sleep (three independent repeats)
         shell: bash
         run: |
@@ -123,6 +129,39 @@ jobs:
         run: |
           set -euo pipefail
           python3 experiments/h6_g_nonreset/qualify_stack.py g-webots-evidence
+      - name: Qualify first solver after actual disabled-body wakeup with native plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export WEBOTS_EXECUTABLE="$WEBOTS_HOME/webots"
+          mkdir -p g-webots-evidence/wake
+          for case in wake no_disable no_initial no_wake; do
+            max=1
+            test "$case" != wake || max=3
+            for trial in $(seq 1 "$max"); do
+              for arm in A G; do
+                d="$PWD/g-webots-evidence/wake/${case}-${trial}-${arm}"
+                mkdir -p "$d"
+                export H6_WAKE_CASE="$case" H6_WAKE_NATIVE_LOG="$d/plugin.log" H6_WAKE_CONTROLLER_LOG="$d/controller.jsonl"
+                export WEBOTS_H6_TEST_G=0
+                test "$arm" != G || export WEBOTS_H6_TEST_G=1
+                world=h6_wakeup.wbt
+                test "$case" != no_initial || world=h6_wakeup_no_initial.wbt
+                set +e
+                timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                   "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
+                   "$PWD/g-webots-case/worlds/$world" > "$d/webots.log" 2>&1
+                ret=$?
+                set -e
+                echo "$ret" > "$d/exit.txt"
+                test "$ret" = 0 || { tail -n 100 "$d/webots.log"; exit 91; }
+                grep -q 'H6_WAKE_CONTROLLER_DONE' "$d/controller.jsonl" || { tail -n 100 "$d/webots.log"; exit 92; }
+              done
+            done
+          done
+          python3 experiments/h6_g_nonreset/qualify_wakeup.py g-webots-evidence > g-webots-evidence/wake/qualifier-stdout.log 2>&1 || { tail -n 150 g-webots-evidence/wake/qualifier-stdout.log; exit 93; }
+          cat g-webots-evidence/wake/qualifier-stdout.log
       - name: Execute genuine non-RESET Webots world three times in each arm
         shell: bash
         run: |
