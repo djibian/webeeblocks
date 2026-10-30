@@ -37,6 +37,15 @@ void WbOdeContext::clearResetBodyContactJointGroups(dBodyID body) {
 
 '''
 s=s[:s.index(start)]+replacement+s[s.index(end):]
+# H6 G candidate: release ONLY retired contact buffer regardless of owner enabled,
+# while retaining R's attachment-selective immediate reset invalidation.
+# Only the F experiment arm enables G, after the H6 body is armed.
+old = "    if (dBodyIsEnabled(it.key()))\\n      dJointGroupEmpty(it.value());''')"
+new = "    if (dBodyIsEnabled(it.key()) || (h6ArmedBody && h6Mode() && !std::strcmp(h6Mode(), \\"F\\")))\\n      dJointGroupEmpty(it.value());''')"
+if s.count(old) != 2:
+    raise SystemExit('H6 REFUSED expected two retired buffer substitutions')
+s = s.replace(old, new)
+
 if s.count('void WbOdeContext::clearResetBodyContactJointGroups(dBodyID body)')!=1:
     raise SystemExit('H6 REFUSED multiple cleanup candidates')
 p.write_text(s)
