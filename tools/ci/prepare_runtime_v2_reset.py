@@ -129,8 +129,12 @@ SCRIPT = r'''
       console.log('WEBEEBLOCKS_CI_WORLD_RECOVERY_DONE');
       return;
     }
-    await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true,
-      'Runtime v2 READY', 20000);
+    // READY is only controller liveness. The new native recovery-status query
+    // must complete before a first-boot or recovered program may be submitted.
+    await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true &&
+      !runtimeRecoveryPending && document.getElementById('runtimeState').textContent === 'PRÊT' &&
+      !document.getElementById('submit').disabled,
+      'Runtime v2 READY plus native recovery authority', 20000);
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true)
       throw new Error('simulation-only reset capability missing');
     if (document.getElementById('resetSimulation').hidden)
