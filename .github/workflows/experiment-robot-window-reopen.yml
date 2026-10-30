@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [new_window, control]
+        mode: [stable_exit, control]
         attempt: [1, 2, 3]
     runs-on: ubuntu-22.04
     timeout-minutes: 20
