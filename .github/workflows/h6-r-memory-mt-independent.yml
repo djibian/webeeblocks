@@ -1,0 +1,115 @@
+name: H6 independent R memory and MT adversarial ODE (NON-GATE)
+on:
+  push:
+    branches:
+      - experiment/h6-r-memory-mt-20261030
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: h6-r-memory-mt-20261030
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate exact experiment and upstream sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p h6-memory-evidence/logs
+          git rev-parse HEAD > h6-memory-evidence/experiment-commit.txt
+          sha256sum experiments/h6/ode_r_memory_mt_independent.cpp > h6-memory-evidence/probe-source.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > h6-memory-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$WEBOTS_PIN" > h6-memory-evidence/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots rev-parse HEAD > h6-memory-evidence/webots-source-commit.txt
+      - name: Compile pinned ODE and run syntax preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -I native-webots/include/ode experiments/h6/ode_r_memory_mt_independent.cpp > h6-memory-evidence/logs/syntax.log 2>&1 || {
+            cat h6-memory-evidence/logs/syntax.log; exit 1;
+          }
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > h6-memory-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 120 h6-memory-evidence/logs/ode-build.log; exit 1;
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > h6-memory-evidence/libode.sha256
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror -pthread -I native-webots/include/ode \
+            experiments/h6/ode_r_memory_mt_independent.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o h6-memory-evidence/probe
+          sha256sum h6-memory-evidence/probe > h6-memory-evidence/probe-binary.sha256
+      - name: Execute memory-arm factorial with precise group counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 120s h6-memory-evidence/probe \
+            > h6-memory-evidence/memory.jsonl 2>h6-memory-evidence/logs/memory-stderr.log
+          python3 - <<'PY'
+          import json,pathlib
+          ls=pathlib.Path('h6-memory-evidence/memory.jsonl').read_text().splitlines()
+          assert ls[-1]=='H6_MEMORY_NATIVE_COMPLETED',ls[-1]
+          rows=[json.loads(x) for x in ls[:-1]]
+          for arm in ('R_only_disabled_owner','R_marked_cleanup_mixed','R_empty_only_mixed','R_empty_only_simple'):
+              t={r['cycle']:r for r in rows if r.get('arm')==arm and 'cycle' in r}
+              assert set(t)=={1,64,512,2048,8192}, (arm,t)
+              for n,r in t.items():
+                  assert r['owner_disabled']==1 and r['permanent_survives']==1
+                  expected=0 if arm in ('R_marked_cleanup_mixed','R_empty_only_simple') else n+1
+                  assert r['group_allocated']==expected,(arm,n,r)
+                  if arm=='R_marked_cleanup_mixed': assert r['legitimate_survives']==0
+                  if arm in ('R_only_disabled_owner','R_empty_only_mixed'): assert r['legitimate_survives']==1
+          physics={r['G']:r for r in rows if r['arm']=='no_RESET'}
+          assert set(physics)=={0,1} and physics[0]['speed']>0.5 and physics[1]['speed']==0
+          report={
+            'qualification':'MODELS ONLY: Webots-pinned native ODE, not Webots scheduler/RESET timing',
+            'R_only_allocation_unbounded_under_disabling':'PROVEN for this fixture',
+            'R_marked_cleanup_destroys_legitimate_contact':'PROVEN for this fixture',
+            'R_empty_only_simple_bounded':'PROVEN for this fixture',
+            'R_empty_only_mixed_not_bounded':'PROVEN for this fixture',
+            'G_no_reset_changes_solver':'PROVEN for this fixture',
+            'webots_real_reachability':'UNPROVEN',
+            'memory_rows':rows}
+          pathlib.Path('h6-memory-evidence/qualification.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('H6_MEMORY_FACTORIAL_AUDITED')
+          PY
+      - name: Exercise ODE single and multi-thread step-return boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 80s h6-memory-evidence/probe mt \
+            > h6-memory-evidence/mt.jsonl 2>h6-memory-evidence/logs/mt-stderr.log
+          python3 - <<'PY'
+          import json,pathlib
+          lines=pathlib.Path('h6-memory-evidence/mt.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_MEMORY_NATIVE_COMPLETED'
+          rows=[json.loads(x) for x in lines[:-1]]
+          assert len(rows)==2 and {r['threads'] for r in rows}=={1,2}
+          assert all(r['steps']==64 and r['end_allocated']==0 and r['contacts']==r['reset_detached'] and r['contacts']>=64 for r in rows)
+          print('H6_ODE_MT_STEP_BOUNDARY_AUDITED')
+          PY
+      - name: Preserve immutable checksums on every outcome
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p h6-memory-evidence/logs
+          git rev-parse HEAD > h6-memory-evidence/observed-commit.txt
+          find h6-memory-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > h6-memory-evidence/SHA256SUMS.txt
+      - name: Archive raw evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-R-memory-MT-independent-ODE
+          path: h6-memory-evidence/
+          retention-days: 30
+          if-no-files-found: error
