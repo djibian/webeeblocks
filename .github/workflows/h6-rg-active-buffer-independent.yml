@@ -1,0 +1,106 @@
+name: H6 R-G active-vs-retired adversarial ODE
+on:
+  push:
+    branches:
+      - experiment/h6-rg-active-buffer-independent-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-rg-current-vs-retired-independent-20261030
+  cancel-in-progress: false
+jobs:
+  stress:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate and fetch pinned ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g-evidence/logs
+          git rev-parse HEAD > g-evidence/experiment-commit.txt
+          sha256sum experiments/h6/ode_rg_active_retired_adversarial.cpp > g-evidence/source.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > g-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$WEBOTS_PIN" > g-evidence/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots rev-parse HEAD > g-evidence/webots-source-commit.txt
+      - name: C++ syntax preflight BEFORE bundled ODE compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+            -I native-webots/include/ode experiments/h6/ode_rg_active_retired_adversarial.cpp \
+            > g-evidence/logs/syntax.txt 2>&1 || {
+              cat g-evidence/logs/syntax.txt
+              exit 1
+            }
+      - name: Build only pinned ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > g-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 120 g-evidence/logs/ode-build.log;exit 1
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > g-evidence/libode.sha256
+      - name: Execute 8192 reset cycles, compare resource snapshots and negative oracles
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -Wall -Wextra -Werror \
+            -I native-webots/include/ode experiments/h6/ode_rg_active_retired_adversarial.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o g-evidence/h6-g-native
+          sha256sum g-evidence/h6-g-native > g-evidence/probe-binary.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 120s g-evidence/h6-g-native \
+            > g-evidence/results.jsonl 2>g-evidence/logs/stderr.txt
+          python3 - <<'PY'
+          import json,pathlib,math
+          lines=pathlib.Path('g-evidence/results.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_RG_ODE_ADVERSARIAL_COMPLETE'
+          records=[json.loads(x) for x in lines[:-1]]
+          assert len(records)==8
+          table={(r['buffer'],r['R'],r['G']):r for r in records}
+          assert len(table)==8
+          for kind in ('current','retired'):
+            for R in (0,1):
+              for G in (0,1):
+                x=table[kind,R,G]
+                expected_attached= int((not R) and (kind=='current' or not G))
+                assert x['target_attached_pre_solve']==expected_attached,(kind,R,G,x)
+                assert x['legitimate_third_contact']==1
+                assert x['foreign_owner_disabled']==1
+                assert math.isfinite(x['target_speed'])
+          assert table['current',0,1]['target_attached_pre_solve']==1
+          assert table['current',1,0]['target_attached_pre_solve']==0
+          assert table['retired',0,1]['target_attached_pre_solve']==0
+          out={'scope':'bundled Webots R2025a ODE single-thread',
+               'native_arms':records,
+               'current_buffer_G_insufficient':'PROVEN structural',
+               'foreign_owner_R_selective':'PROVEN structural',
+               'general_Webots_nonregression':'UNPROVEN'}
+          pathlib.Path('g-evidence/qualification.json').write_text(json.dumps(out,indent=2)+'\\n')
+          print('H6_RG_ODE_ADVERSARIAL_PASS')
+          PY
+      - name: Always retain SHA manifest
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p g-evidence/logs
+          git rev-parse HEAD > g-evidence/actual-commit.txt
+          find g-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > g-evidence/SHA256SUMS.txt
+      - name: Upload raw evidence even upon failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-RG-ODE-active-retired-adversarial
+          path: g-evidence/
+          retention-days: 30
+          if-no-files-found: error
