@@ -12,8 +12,19 @@
   var attempted = false;
   var navigation = false;
   var timeout = null;
-  var MAX_CHECKS = 24; // At most 12 seconds of HTTP read-only probes.
-  var intervalMs = 500;
+  // Webots R2025a native recovery is typically 15–23 s with the injected
+  // 7 s Chrome stall. This 30 s deadline bounds the entire HTTP probe phase,
+  // including slow/hung HTTP responses and polling intervals, not merely sleeps.
+  var RENEW_DEADLINE_MS = 30000;
+  var HTTP_REQUEST_MAX_MS = 1200;
+  var POLL_MS = 500;
+  var LOCK_WAIT_MAX_MS = 10000;
+  var activeController = null;
+
+  function now() {
+    // Monotonic clock: wall-clock corrections cannot prolong the deadline.
+    return root.performance.now();
+  }
 
   function validCheckpoint(token) {
     if (!/^[0-9a-f]{64}$/.test(token || '')) return false;
@@ -37,8 +48,41 @@
     if (timeout !== null) root.clearTimeout(timeout);
     timeout = null;
     armed = null;
-    started = false;
-    attempted = false;
+    // An invalidated generation cannot navigate after an already in-flight
+    // fetch resolves, even if the browser ignores AbortSignal cancellation.
+    if (activeController) activeController.abort();
+  }
+
+  async function probeHtml(url, remaining) {
+    var controller = new root.AbortController();
+    var watchdog = null;
+    activeController = controller;
+    try {
+      // Race the fetch against a real timer. AbortSignal alone does not
+      // guarantee settlement when a transport/browser ignores cancellation.
+      var result = await Promise.race([
+        root.fetch(url, {
+          method: 'GET', cache: 'no-store', credentials: 'same-origin',
+          redirect: 'error', signal: controller.signal
+        }).then(function(response) { return {response: response}; },
+                function() { return {error: true}; }),
+        new Promise(function(resolve) {
+          watchdog = root.setTimeout(function() {
+            controller.abort();
+            resolve({expired: true});
+          }, Math.min(HTTP_REQUEST_MAX_MS, remaining));
+        })
+      ]);
+      return result.response &&
+        result.response.ok &&
+        (result.response.headers.get('content-type') || '').toLowerCase().includes('text/html');
+    } catch (_) {
+      return false;
+    } finally {
+      if (watchdog !== null) root.clearTimeout(watchdog);
+      if (activeController === controller) activeController = null;
+      controller.abort();
+    }
   }
 
   async function renew() {
@@ -46,41 +90,80 @@
     started = true;
     attempted = true;
     var token = armed;
-    for (var check = 0; check < MAX_CHECKS; ++check) {
+    var deadline = now() + RENEW_DEADLINE_MS;
+    while (now() < deadline && token === armed && validCheckpoint(token) && validUrl()) {
+      var url = root.location.href;
+      var html = await probeHtml(url, deadline - now());
+      // Validation AFTER every await is indispensable: the user may close the
+      // session or the checkpoint may be altered while HTTP is still pending.
       if (token !== armed || !validCheckpoint(token) || !validUrl()) break;
-      try {
-        // HTTP availability merely permits an attempt to create a document.
-        // It is NEVER interpreted as Webots READY, scene/RESET or flight authority.
-        var controller = new root.AbortController();
-        var watchdog = root.setTimeout(function() { controller.abort(); }, 1200);
-        var response;
-        try {
-          response = await root.fetch(root.location.href, {
-            method: 'GET', cache: 'no-store', credentials: 'same-origin',
-            redirect: 'error', signal: controller.signal
-          });
-        } finally { root.clearTimeout(watchdog); }
-        if (response.ok && (response.headers.get('content-type') || '').toLowerCase().includes('text/html')) {
-          navigation = true;
-          if (typeof root.dispatchEvent === 'function' && typeof root.CustomEvent === 'function')
-            root.dispatchEvent(new root.CustomEvent('webeeblocks-window-renewal', {
-              detail: {phase: 'same-document-navigation'}
-            }));
-          root.location.reload(); // *same browser tab, same origin and profile*
-          return;
-        }
-      } catch (_) {
-        // The world may be between incarnations. Keep Run disabled.
+      if (now() >= deadline) break;
+      if (html) {
+        navigation = true;
+        if (typeof root.dispatchEvent === 'function' && typeof root.CustomEvent === 'function')
+          root.dispatchEvent(new root.CustomEvent('webeeblocks-window-renewal', {
+            detail: {phase: 'same-document-navigation'}
+          }));
+        root.location.reload(); // Same browser tab, origin and profile.
+        return;
       }
-      await new Promise(function(resolve) { root.setTimeout(resolve, intervalMs); });
+      var remaining = deadline - now();
+      if (remaining <= 0) break;
+      await new Promise(function(resolve) {
+        root.setTimeout(resolve, Math.min(POLL_MS, remaining));
+      });
     }
-    // Never clear the checkpoint or native witness on failure.
-    // The old UI is already locked by rebuildSimulation().
+    // Failure must NOT clear localStorage, the native witness or unlock Run.
     started = false;
-    if (root.document) {
+    if (root.document && token === armed) {
       var detail = root.document.getElementById('runtimeDetail');
       if (detail) detail.textContent =
-        'Réouverture impossible : programme conservé, vol interdit. Redémarrez Webots pour rétablir la connexion.';
+        'Réouverture impossible après 30 secondes : programme conservé, vol interdit. Redémarrez Webots pour rétablir la connexion.';
+    }
+  }
+
+  // Bound ONLY lock acquisition, NOT the physical operation after acquisition.
+  // Abort a queued request after 10 s, then reject independently of whether
+  // the browser correctly settles an aborted navigator.locks.request promise.
+  // A late grant is checked before touching the native controller.
+  async function withRecoveryLock(authorize) {
+    if (!root.navigator || !root.navigator.locks ||
+        typeof root.navigator.locks.request !== 'function')
+      throw new Error('Verrou de reprise partagé indisponible — vol interdit');
+    var controller = new root.AbortController();
+    var acquiring = true;
+    var expired = false;
+    var lockTimer = null;
+    var expiry = new Promise(function(_, reject) {
+      lockTimer = root.setTimeout(function() {
+        if (!acquiring) return;
+        expired = true;
+        controller.abort();
+        reject(new Error('Attente du verrou de reprise expirée après 10 secondes — vol interdit'));
+      }, LOCK_WAIT_MAX_MS);
+    });
+    var request;
+    try {
+      request = root.navigator.locks.request('webeeblocks-recovery-v1',
+        {mode: 'exclusive', signal: controller.signal},
+        async function() {
+          if (expired || controller.signal.aborted)
+            throw new Error('Verrou de reprise accordé après expiration — vol interdit');
+          acquiring = false;
+          if (lockTimer !== null) root.clearTimeout(lockTimer);
+          lockTimer = null;
+          // Once acquired, neither the timeout nor AbortSignal interrupts
+          // ongoing strict RESET and independent SCENE attestations.
+          return await authorize();
+        });
+    } catch (error) {
+      if (lockTimer !== null) root.clearTimeout(lockTimer);
+      throw error;
+    }
+    try {
+      return await Promise.race([request, expiry]);
+    } finally {
+      if (lockTimer !== null) root.clearTimeout(lockTimer);
     }
   }
 
@@ -105,6 +188,7 @@
       renew();
       return true; // Do NOT close the browser tab during this world reload.
     },
-    disarm: disarm
+    disarm: disarm,
+    withRecoveryLock: withRecoveryLock
   });
 });
