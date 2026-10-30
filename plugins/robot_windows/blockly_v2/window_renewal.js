@@ -29,7 +29,7 @@
   function validUrl() {
     var location = root.location;
     return /^(https?:)$/.test(location.protocol) &&
-      /\/robot_windows\/[^/]+\/[^/]+\.html$/.test(location.pathname) &&
+      /^\/robot_windows\/(blockly_v2(?:_[0-9a-f]{16})?)\/\1\.html$/.test(location.pathname) &&
       location.hostname === 'localhost';
   }
 
