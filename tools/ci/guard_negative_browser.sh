@@ -83,7 +83,7 @@ if [ "$count" -eq 2 ] && [ "${WEBEEBLOCKS_CI_CHROME_HANDOFF_MODE:-}" = cdp_rescu
   # Explicitly open a document in the SAME incumbent Chromium profile.
   # This is a single conditional attempt: no re-launch and no profile purge.
   python3 /workspace/tools/ci/cdp_reopen_once.py \
-    "$WEBEEBLOCKS_CI_ARTIFACT_DIR/cdp-rescue.jsonl" "$1"
+    "$WEBEEBLOCKS_CI_ARTIFACT_DIR/cdp-rescue.jsonl" "$1" >> "$WEBEEBLOCKS_CI_ARTIFACT_DIR/handshake.log" 2>&1
   exit "$?"
 fi
 exit "$exit_code"
