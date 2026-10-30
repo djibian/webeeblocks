@@ -2,11 +2,11 @@
 set -eu
 artifact_dir="${WEBEEBLOCKS_CI_ARTIFACT_DIR:-/workspace/ci-artifacts/runtime-v2-webots}"
 mkdir -p "$artifact_dir"
-printf 'BROWSER_LAUNCHED epoch_ns=%s pid=%s ppid=%s mode=%s args=' "$(date +%s%N)" "$" "$PPID" "${WEBEEBLOCKS_REOPEN_MODE:-new_window}" >> "$artifact_dir/browser-launch.log"
+printf 'BROWSER_LAUNCHED epoch_ns=%s pid=%s ppid=%s mode=%s args=' "$(date +%s%N)" "$BASHPID" "$PPID" "${WEBEEBLOCKS_REOPEN_MODE:-new_window}" >> "$artifact_dir/browser-launch.log"
 printf '%q ' "$@" >> "$artifact_dir/browser-launch.log"
 printf '\n' >> "$artifact_dir/browser-launch.log"
 {
-  printf 'LAUNCH_SNAPSHOT epoch_ns=%s pid=%s mode=%s\n' "$(date +%s%N)" "$" "${WEBEEBLOCKS_REOPEN_MODE:-new_window}"
+  printf 'LAUNCH_SNAPSHOT epoch_ns=%s pid=%s mode=%s\n' "$(date +%s%N)" "$BASHPID" "${WEBEEBLOCKS_REOPEN_MODE:-new_window}"
   if [ -L /tmp/webeeblocks-ci-persistent-robot-window/SingletonLock ]; then
     printf 'SINGLETON_LOCK=%s\n' "$(readlink /tmp/webeeblocks-ci-persistent-robot-window/SingletonLock)"
   else
