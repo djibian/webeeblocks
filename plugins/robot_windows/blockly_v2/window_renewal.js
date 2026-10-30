@@ -59,6 +59,10 @@
         } finally { root.clearTimeout(watchdog); }
         if (response.ok && /text\\/html/i.test(response.headers.get('content-type') || '')) {
           navigation = true;
+          if (typeof root.dispatchEvent === 'function' && typeof root.CustomEvent === 'function')
+            root.dispatchEvent(new root.CustomEvent('webeeblocks-window-renewal', {
+              detail: {phase: 'same-document-navigation'}
+            }));
           root.location.reload(); // *same browser tab, same origin and profile*
           return;
         }
