@@ -301,9 +301,15 @@ async function rebuildSimulation() {
   if (runtimeDebug) runtimeDebug.finish();
   setRuntimeStatus('RECONSTRUCTION', 'Rechargement complet du monde — programme conservé');
   try {
+    // Arm in the original browser document BEFORE the native controller can
+    // close its WWI socket. The token must match durable localStorage.
+    if (!window.WebeeBlocksWindowRenewal || !window.WebeeBlocksWindowRenewal.arm(nativeCheckpoint.token))
+      throw new Error('Impossible de préparer le renouvellement de la fenêtre Blockly');
     runtimeBackend.requestWorldReload(nativeCheckpoint.token);
-    // No success transition on the old incarnation: navigation is mandatory.
+    window.WebeeBlocksWindowRenewal.begin();
+    // No success transition on the old incarnation: new-page native verification remains mandatory.
   } catch (error) {
+    if (window.WebeeBlocksWindowRenewal) window.WebeeBlocksWindowRenewal.disarm();
     setRuntimeFailure(error);
     // Remain terminal; the checkpoint stays available for another attempt.
     runtimeRecoveryPending = false;
@@ -498,40 +504,59 @@ window.onload = async function() {
     if (recovery) runtimeBackend.nextId = recovery.nextRequestId;
     robotWindow.receive = receiveMessage;
     if (!recovery) setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
-    await runtimeBackend.waitUntilReady();
-    var nativeRecovery = await runtimeBackend.readRecoveryStatus(recovery ? recovery.token : undefined);
-    if (!nativeRecovery || nativeRecovery.state === 'INVALID')
-      throw new Error('Témoin natif de reconstruction absent, endommagé ou inaccessible — exécution verrouillée');
-    if (nativeRecovery.state === 'PENDING' && (!recovery || nativeRecovery.matched !== true))
-      throw new Error('Reconstruction inachevée : programme Blockly non disponible ou témoin incohérent — exécution verrouillée');
-    if (recovery && nativeRecovery.state !== 'PENDING')
-      throw new Error('Checkpoint Blockly sans témoin natif correspondant — exécution verrouillée');
+    // Multiple tabs can exist when Webots' second browser launch succeeds.
+    // A Web Lock is scoped to one browser storage partition and ensures that
+    // only one matching checkpoint holder performs the native RESET/scene
+    // sequence. A late duplicate detects the consumed checkpoint and FAILS
+    // CLOSED rather than obtaining a second unrelated initial-boot authority.
+    async function authorizeIncarnation() {
+      if (recovery) {
+        var latest = WebeeBlocksSimulationRecovery.peek();
+        if (!latest || JSON.stringify(latest) !== JSON.stringify(recovery))
+          throw new Error('Reconstruction déjà reprise par un autre document Blockly — ce document reste verrouillé');
+      }
+      await runtimeBackend.waitUntilReady();
+      var nativeRecovery = await runtimeBackend.readRecoveryStatus(recovery ? recovery.token : undefined);
+      if (!nativeRecovery || nativeRecovery.state === 'INVALID')
+        throw new Error('Témoin natif de reconstruction absent, endommagé ou inaccessible — exécution verrouillée');
+      if (nativeRecovery.state === 'PENDING' && (!recovery || nativeRecovery.matched !== true))
+        throw new Error('Reconstruction inachevée : programme Blockly non disponible ou témoin incohérent — exécution verrouillée');
+      if (recovery && nativeRecovery.state !== 'PENDING')
+        throw new Error('Checkpoint Blockly sans témoin natif correspondant — exécution verrouillée');
+      if (recovery) {
+        // READY alone is insufficient: this new incarnation must demonstrate
+        // the unchanged strict physical stability and the restored scene.
+        await runtimeBackend.resetSimulation(true);
+        await runtimeBackend.prepareActivity(runtimeProfile);
+        await runtimeBackend.resetSimulation(true);
+        await runtimeBackend.prepareActivity(runtimeProfile);
+        if (serializedWorkspace() !== recovery.workspace || runtimeProfile.id !== recovery.profileId)
+          throw new Error('Recovery changed the pupil project');
+        // Native commitment is consumed only after both physical RESETs, scene
+        // acknowledgements, and exact Blockly identity were demonstrated.
+        await runtimeBackend.clearRecoveryWitness(recovery.token);
+        WebeeBlocksSimulationRecovery.clear(recovery);
+        runtimeTerminal = false;
+        runtimeNeedsRebuild = false;
+        runtimeRecoveryPending = false;
+        renderSensorValues({});
+        renderVariables(null);
+        setRuntimeStatus('PRÊT', 'Monde reconstruit — programme à relancer');
+        window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-reset', {
+          detail: {workspacePreserved: true, worldRebuilt: true}
+        }));
+      } else {
+        runtimeRecoveryPending = false;
+        runtimeTerminal = false;
+        setRuntimeStatus('PRÊT', 'Simulation connectée');
+      }
+    }
     if (recovery) {
-      // READY alone is insufficient: this new incarnation must demonstrate
-      // the unchanged strict physical stability and the restored scene.
-      await runtimeBackend.resetSimulation(true);
-      await runtimeBackend.prepareActivity(runtimeProfile);
-      await runtimeBackend.resetSimulation(true);
-      await runtimeBackend.prepareActivity(runtimeProfile);
-      if (serializedWorkspace() !== recovery.workspace || runtimeProfile.id !== recovery.profileId)
-        throw new Error('Recovery changed the pupil project');
-      // Native commitment is consumed only after both physical RESETs, scene
-      // acknowledgements, and exact Blockly identity were demonstrated.
-      await runtimeBackend.clearRecoveryWitness(recovery.token);
-      WebeeBlocksSimulationRecovery.clear(recovery);
-      runtimeTerminal = false;
-      runtimeNeedsRebuild = false;
-      runtimeRecoveryPending = false;
-      renderSensorValues({});
-      renderVariables(null);
-      setRuntimeStatus('PRÊT', 'Monde reconstruit — programme à relancer');
-      window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-reset', {
-        detail: {workspacePreserved: true, worldRebuilt: true}
-      }));
+      if (!navigator.locks || typeof navigator.locks.request !== 'function')
+        throw new Error('Verrou de reprise partagé indisponible — vol interdit');
+      await navigator.locks.request('webeeblocks-recovery-v1', {mode: 'exclusive'}, authorizeIncarnation);
     } else {
-      runtimeRecoveryPending = false;
-      runtimeTerminal = false;
-      setRuntimeStatus('PRÊT', 'Simulation connectée');
+      await authorizeIncarnation();
     }
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
     updateRuntimeActions();
