@@ -28,6 +28,7 @@ jobs:
       - name: Check guardian transport and recovery contracts
         run: |
           set -euo pipefail
+          python3 -m py_compile tools/ci/cdp_reopen_once.py tools/ci/probe_browser_document.py tools/ci/prepare_guard_negative.py
           node --check plugins/robot_windows/blockly_v2/main.js
           node --check plugins/robot_windows/blockly_v2/simulation_recovery.js
           node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
