@@ -1,0 +1,55 @@
+name: H6 posthoc exact native R-G eight-arm evidence qualification
+on:
+  push:
+    branches: [experiment/h6-native-reset-boundaries-20261030]
+    paths:
+      - experiments/h6_native_rg_posthoc/audit_run_41086041857.py
+      - .github/workflows/h6-native-rg-posthoc.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download EXACT original RED eight-arm native evidence (never rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: h6-native-rg-boundaries-eight-arm
+          run-id: 41086041857
+          repository: djibian/webeeblocks
+          github-token: ${{ github.token }}
+          path: input
+      - name: Audit ALL original SHA256, real native physics and stronger termination oracles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualified
+          (cd input && sed 's|  evidence/native/|  |' SHA256SUMS.txt | sha256sum -c -) > qualified/original-sha-manifest-check.txt
+          python3 -m py_compile experiments/h6_native_rg_posthoc/audit_run_41086041857.py
+          python3 experiments/h6_native_rg_posthoc/audit_run_41086041857.py input \
+            > qualified/qualification-console.txt 2>&1 || {
+              cat qualified/qualification-console.txt; exit 1;
+            }
+          cp input/posthoc_native_rg_qualification.json qualified/posthoc_native_rg_qualification.json
+          grep -q H6_NATIVE_RG_POSTHOC_PASS qualified/qualification-console.txt
+          printf '%s\n' 'Original run 41086041857 stays RED. Audit never upgrades its CI conclusion.' \
+            > qualified/original-run-status.txt
+      - name: Archive audit provenance even on failure
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p qualified
+          git rev-parse HEAD > qualified/audit-head.txt
+          find qualified -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > qualified/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-native-rg-original-eight-arm-posthoc-audit
+          path: qualified/
+          retention-days: 90
+          if-no-files-found: error
