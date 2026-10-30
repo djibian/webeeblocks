@@ -1,0 +1,104 @@
+name: H6 E2 native ODE group-owned joint lifetime (isolated)
+on:
+  push:
+    branches:
+      - experiment/h6-e2-joint-lifetime-20261030
+permissions:
+  contents: read
+concurrency:
+  group: h6-e2-joint-lifetime-20261030
+  cancel-in-progress: true
+jobs:
+  e2:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      WEBOTS_PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Preflight exact experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e2-evidence/logs
+          git rev-parse HEAD > e2-evidence/experiment-commit.txt
+          sha256sum experiments/h6/ode_joint_lifetime_probe.cpp > e2-evidence/probe-source.sha256
+          grep -Fq 'H6_E2_NATIVE_PASS' experiments/h6/ode_joint_lifetime_probe.cpp
+          grep -Fq 'constexpr int CYCLES=8192;' experiments/h6/ode_joint_lifetime_probe.cpp
+          grep -Fq 'dJointAttach(j,nullptr,nullptr)' experiments/h6/ode_joint_lifetime_probe.cpp
+      - name: Checkout exact native Webots ODE source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots 2>&1 | tee e2-evidence/logs/clone.log
+          git -C native-webots checkout --detach "$WEBOTS_PIN" 2>&1 | tee e2-evidence/logs/checkout.log
+          test "$(git -C native-webots rev-parse HEAD)" = "$WEBOTS_PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots rev-parse HEAD > e2-evidence/webots-source-commit.txt
+      - name: C++ syntax-only and native API preflight before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -I native-webots/include/ode \
+            experiments/h6/ode_joint_lifetime_probe.cpp > e2-evidence/logs/syntax.txt 2>&1 || {
+              cat e2-evidence/logs/syntax.txt
+              exit 1
+            }
+      - name: Build exact bundled ODE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > e2-evidence/logs/ode-build.log 2>&1 || {
+            tail -n 100 e2-evidence/logs/ode-build.log
+            exit 1
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > e2-evidence/libode-binary.sha256
+      - name: Execute repeated native collisions, R reset and resource audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -Wall -Wextra -Werror \
+            -I native-webots/include/ode experiments/h6/ode_joint_lifetime_probe.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o e2-evidence/h6-lifetime-native
+          sha256sum e2-evidence/h6-lifetime-native > e2-evidence/probe-binary.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 120s \
+            e2-evidence/h6-lifetime-native > e2-evidence/results.jsonl 2>e2-evidence/logs/native-stderr.log
+          grep -Fxq 'H6_E2_NATIVE_PASS' e2-evidence/results.jsonl
+          python3 - <<'PY'
+          import json,pathlib
+          lines=pathlib.Path('e2-evidence/results.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_E2_NATIVE_PASS'
+          a=[json.loads(x) for x in lines[:-1]]
+          for arm in ('R_detach','A_no_detach'):
+            m={r['cycle']:r for r in a if r['arm']==arm and r['stage']=='disabled_owner'}
+            assert set(m)=={0,1,64,512,2048,8192}
+            assert all(r['owner_enabled']==0 for r in m.values())
+            assert all(m[n]['group_owned_allocated']==n+1 for n in m)
+            assert all(m[n]['unrelated_attached']==1 and m[n]['permanent_joints']==1 for n in m)
+            assert all(m[n]['target_attached_contacts']==(0 if arm=='R_detach' else n) for n in m)
+            assert all(m[n]['detached']==(n if arm=='R_detach' else 0) for n in m)
+            post={r['stage']:r for r in a if r['arm']==arm and r['stage']!='disabled_owner'}
+            assert post['reactivation_empty']['group_owned_allocated']==0
+            assert post['world_destroyed']['heap_bytes']>=0
+          print('H6_E2_AUDIT_PASS allocation monotonic with R and cleanup verified')
+          PY
+      - name: Authenticate evidence even upon failure
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p e2-evidence/logs
+          git rev-parse HEAD > e2-evidence/actual-commit.txt
+          find e2-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > e2-evidence/SHA256SUMS.txt
+      - name: Upload raw evidence or failure proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: H6-E2-pinned-ODE-lifetime-evidence
+          path: e2-evidence/
+          retention-days: 30
+          if-no-files-found: error
