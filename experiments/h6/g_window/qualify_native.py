@@ -30,10 +30,10 @@ for path in ("global", "node"):
             if "event=plugin_cleanup " not in raw:
                 raise ValueError("native plugin cleanup missing")
             previous = [x for x in pre if "reset=0 " in x and
-                        int(re.search(r"contacts=(\\d+)", x).group(1)) > 0]
+                        int(re.search(r"contacts=(\d+)", x).group(1)) > 0]
             if not previous:
                 raise ValueError("no real contact observed before reset")
-            bc = int(re.search(r"active_attached=(\\d+)", bound[0]).group(1))
+            bc = int(re.search(r"active_attached=(\d+)", bound[0]).group(1))
             interventions = len([x for x in rows if "event=r_detach " in x])
             if arm == "A" and interventions:
                 raise ValueError("baseline was not observational")
