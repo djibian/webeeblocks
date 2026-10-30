@@ -100,10 +100,10 @@ module.exports = async function testWorldRecovery() {
     saved.set(saved.keys().next().value, JSON.stringify(damaged));
     assert.throws(() => Recovery.peek());
     saved.clear();
-    Recovery.save('progression-sequence-v1', workspace, 41);
-    assert.throws(() => Recovery.clear({...checkpoint, workspace:'{}'}), /changed/);
+    const renewed = Recovery.save('progression-sequence-v1', workspace, 41);
+    assert.throws(() => Recovery.clear({...renewed, workspace:'{}'}), /changed/);
     assert(Recovery.peek(), 'bad token erased pupil blocks');
-    Recovery.clear(checkpoint);
+    Recovery.clear(renewed);
     assert.strictEqual(Recovery.peek(), null);
     global.localStorage = {
       getItem: key => saved.get(key) || null,
