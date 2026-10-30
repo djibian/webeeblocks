@@ -66,13 +66,14 @@ jobs:
           for trial in 1 2 3; do
             for arm in 0 1; do
               export WEBOTS_H6_TEST_G="$arm"
+              export WEBOTS_H6_TRACE_PATH="$PWD/g-webots-evidence/logs/trace-A${arm}-trial${trial}.jsonl"
               log="g-webots-evidence/logs/webots-A${arm}-trial${trial}.log"
               timeout 120s xvfb-run -a -s '-screen 0 1280x800x24' \
                 "$WEBOTS_EXECUTABLE" --batch --mode=fast --no-rendering --stdout --stderr \
                 "$PWD/g-webots-case/worlds/h6_g_nonreset.wbt" > "$log" 2>&1 || {
                   tail -n 100 "$log"; exit 1;
                 }
-              grep -q 'H6_G_NONRESET_DONE arm=' "$log" || {
+              grep -q "H6_G_NONRESET_DONE arm=$arm" "$WEBOTS_H6_TRACE_PATH" || {
                 tail -n 100 "$log"; exit 1;
               }
             done
@@ -89,12 +90,13 @@ jobs:
             data={}
             for arm in (0,1):
               log=(root/f'webots-A{arm}-trial{trial}.log').read_text(errors='replace')
-              lines=[x[x.index('H6_G_STEP ')+len('H6_G_STEP '):] for x in log.splitlines() if 'H6_G_STEP {' in x]
+              trace=(root/f'trace-A{arm}-trial{trial}.jsonl').read_text()
+              lines=[x[len('H6_G_STEP '):] for x in trace.splitlines() if x.startswith('H6_G_STEP {')]
               rows=[json.loads(x) for x in lines]
               assert len(rows)==140, (trial,arm,len(rows))
               assert [r['frame'] for r in rows]==list(range(140))
               assert all(r['arm']==str(arm) for r in rows)
-              assert f'H6_G_NONRESET_DONE arm={arm}' in log
+              assert f'H6_G_NONRESET_DONE arm={arm}' in trace
               data[arm]=rows
               reports[f'trial{trial}-A{arm}']={
                  'disabled_owner_live_contact_events':log.count('H6_G_CONTACT owner_disabled=1'),
