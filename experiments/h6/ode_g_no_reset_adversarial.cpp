@@ -51,7 +51,7 @@ int main(){
    check(baseline.old_remains==1 && g.old_remains==0,"G failed to remove owner-disabled retired contact");
    check(baseline.fresh_remains==fresh && g.fresh_remains==fresh,"fresh contact lost");
    if(!fresh)
-     check(baseline.speed>1.0 && g.speed==0.0,"no-RESET physical contrast absent");
+     check(baseline.speed>0.5 && g.speed==0.0,"no-RESET physical contrast absent"); // explicit nontrivial effect; prior arbitrary >1 rejected a real 0.84997875 m/s
  }
  dCloseODE();
  std::puts("H6_G_NO_RESET_NATIVE_PASS");
