@@ -1,0 +1,143 @@
+name: EXPERIMENT ONLY - R3 interprocess OS lifetime, Linux and Windows
+on:
+  pull_request:
+    paths:
+      - 'controllers/crazyflie_runtime_v2/recovery_guard.h'
+      - 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'
+      - 'tools/ci/test_recovery_guard.c'
+      - 'tools/ci/test_r3_lock_race.c'
+      - '.github/workflows/experiment-r3-lifetime.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-os-lock:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native guard tests and barrier-synchronized competing controllers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/r3-unit" "$RUNNER_TEMP/r3-race"
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
+             -o "$RUNNER_TEMP/r3-unit/test_guard" tools/ci/test_recovery_guard.c
+          WEBEEBLOCKS_RECOVERY_STATE_DIR="$RUNNER_TEMP/r3-unit" "$RUNNER_TEMP/r3-unit/test_guard"
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-function \
+             -o "$RUNNER_TEMP/r3-race/race" tools/ci/test_r3_lock_race.c
+          export WEBEEBLOCKS_RECOVERY_STATE_DIR="$RUNNER_TEMP/r3-race"
+          "$RUNNER_TEMP/r3-race/race" one &
+          p1=$!
+          "$RUNNER_TEMP/r3-race/race" two &
+          p2=$!
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-one" &&
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-two" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-one"
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-two"
+          touch "$WEBEEBLOCKS_RECOVERY_STATE_DIR/go"
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/result-one" &&
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/result-two" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/result-one"
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/result-two"
+          grep -h '^OWNER$' "$WEBEEBLOCKS_RECOVERY_STATE_DIR"/result-* > "$RUNNER_TEMP/owners"
+          grep -h '^DENIED$' "$WEBEEBLOCKS_RECOVERY_STATE_DIR"/result-* > "$RUNNER_TEMP/denials"
+          test "$(wc -l < "$RUNNER_TEMP/owners")" -eq 1
+          test "$(wc -l < "$RUNNER_TEMP/denials")" -eq 1
+          touch "$WEBEEBLOCKS_RECOVERY_STATE_DIR/stop"
+          wait "$p1"; wait "$p2"
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/../r3-race/race" restart
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" crash-owner &
+          crashed=$!
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-owner" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-owner"
+          kill -9 "$crashed"
+          wait "$crashed" || true
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" restart
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" crash-pending &
+          crashed=$!
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-pending" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-pending"
+          kill -9 "$crashed"
+          wait "$crashed" || true
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" check-pending
+          sha256sum "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race"
+  windows-os-lock:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Compile native Win32 kernel-lock harness
+        shell: pwsh
+        run: |
+          cl /nologo /TC /W3 /Fe:"$env:RUNNER_TEMP\r3-lock-race.exe" tools\ci\test_r3_lock_race.c
+          if ($LASTEXITCODE -ne 0) { throw "MSVC compile failed" }
+          Get-FileHash "$env:RUNNER_TEMP\r3-lock-race.exe" -Algorithm SHA256
+          cl /nologo /TC /W3 /Fe:"$env:RUNNER_TEMP\r3-guard-test.exe" tools\ci\test_recovery_guard.c
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native guard compilation failed" }
+          $guardDir = Join-Path $env:RUNNER_TEMP 'r3-guard'
+          New-Item -ItemType Directory -Path $guardDir -Force | Out-Null
+          $env:WEBEEBLOCKS_RECOVERY_STATE_DIR = $guardDir
+          & "$env:RUNNER_TEMP\r3-guard-test.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Win32 partial-write/PENDING guard failed" }
+          Write-Host "WIN32_NATIVE_GUARD=PASS"
+      - name: Start two synchronized independent native Windows processes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'r3-race'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $env:WEBEEBLOCKS_RECOVERY_STATE_DIR = $dir
+          $exe = Join-Path $env:RUNNER_TEMP 'r3-lock-race.exe'
+          $p1 = Start-Process -FilePath $exe -ArgumentList 'one' -PassThru -NoNewWindow
+          $p2 = Start-Process -FilePath $exe -ArgumentList 'two' -PassThru -NoNewWindow
+          function AwaitFile($name) {
+            $target = Join-Path $dir $name
+            for ($i=0; $i -lt 600; $i++) {
+              if (Test-Path $target) { return }
+              Start-Sleep -Milliseconds 50
+            }
+            throw "Missing barrier/result $name"
+          }
+          AwaitFile 'ready-one'
+          AwaitFile 'ready-two'
+          New-Item -ItemType File -Path (Join-Path $dir 'go') | Out-Null
+          AwaitFile 'result-one'
+          AwaitFile 'result-two'
+          $outcomes = @((Get-Content (Join-Path $dir 'result-one')).Trim(), (Get-Content (Join-Path $dir 'result-two')).Trim())
+          if (@($outcomes | Where-Object { $_ -eq 'OWNER' }).Count -ne 1 -or
+              @($outcomes | Where-Object { $_ -eq 'DENIED' }).Count -ne 1) {
+            throw "Win32 race invalid: $outcomes"
+          }
+          New-Item -ItemType File -Path (Join-Path $dir 'stop') | Out-Null
+          $p1.WaitForExit(); $p2.WaitForExit()
+          if ($p1.ExitCode -ne 0 -or $p2.ExitCode -ne 0) {
+            throw "Unexpected process failure: $($p1.ExitCode), $($p2.ExitCode)"
+          }
+          & $exe restart
+          if ($LASTEXITCODE -ne 0) { throw "Second Windows session cannot claim" }
+          Write-Host "WIN32_LOCK_RACE=PASS OWNER=1 DENIED=1 RESTART=PASS"
+          $crashed = Start-Process -FilePath $exe -ArgumentList 'crash-owner' -PassThru -NoNewWindow
+          AwaitFile 'ready-crash-owner'
+          Stop-Process -Id $crashed.Id -Force
+          $crashed.WaitForExit()
+          & $exe restart
+          if ($LASTEXITCODE -ne 0) { throw "Win32 crash release/OWNED restart failed" }
+          $crashed = Start-Process -FilePath $exe -ArgumentList 'crash-pending' -PassThru -NoNewWindow
+          AwaitFile 'ready-crash-pending'
+          Stop-Process -Id $crashed.Id -Force
+          $crashed.WaitForExit()
+          & $exe check-pending
+          if ($LASTEXITCODE -ne 0) { throw "Win32 crash PENDING preservation failed" }
+          Write-Host "WIN32_FORCE_KILL=PASS RESTART=PASS PENDING=PROTECTED"

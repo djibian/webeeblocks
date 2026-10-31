@@ -12,10 +12,11 @@ module.exports = async function testWorldRecovery() {
     timeoutMs: 1000, simulationReset: true, simulationScenes: true, simulationWorldReload: true
   });
   backend.handleMessage(p + 'READY');
+  backend.authorized = true; // Existing proof starts after simulated native claim.
   let rejected = backend.move('forward', 0.2).then(() => assert.fail('old command succeeded'), e => e);
   let reset = backend.resetSimulation(true);
   assert.strictEqual((await rejected).code, 'RESET_CANCELLED');
-  let m = sent[1].match(/ REQUEST (\d+) RESET ([0-9a-f]{64})$/);
+  let m = sent[1].match(/ REQUEST (\d+) AUTH [0-9a-f]{64} RESET ([0-9a-f]{64})$/);
   assert(m, 'Recovery RESET must use fresh 256-bit correlation');
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' OK');
   assert.strictEqual(backend.ready, false, 'stale numeric ACK unlocked recovery');
@@ -25,19 +26,19 @@ module.exports = async function testWorldRecovery() {
   await reset;
   assert.strictEqual(backend.ready, true);
   const scene = backend.prepareActivity({runtime:{scene:'sequence-v1'}});
-  m = sent[2].match(/ REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
+  m = sent[2].match(/ REQUEST (\d+) AUTH [0-9a-f]{64} SCENE sequence-v1 ([0-9a-f]{64})$/);
   assert(m);
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' OK');
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await scene;
   const subsequent = backend.resetSimulation(true);
-  m = sent[3].match(/ REQUEST (\d+) RESET ([0-9a-f]{64})$/);
+  m = sent[3].match(/ REQUEST (\d+) AUTH [0-9a-f]{64} RESET ([0-9a-f]{64})$/);
   assert(m);
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' RESET_OK ' + m[2]);
   await subsequent;
   assert.strictEqual(backend.sceneIdentity, null);
   const again = backend.prepareActivity({runtime:{scene:'sequence-v1'}});
-  m = sent[4].match(/ REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
+  m = sent[4].match(/ REQUEST (\d+) AUTH [0-9a-f]{64} SCENE sequence-v1 ([0-9a-f]{64})$/);
   assert(m);
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await again;
@@ -45,14 +46,15 @@ module.exports = async function testWorldRecovery() {
   const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,simulationWorldReload:true,timeoutMs:1000});
   fresh.nextId = backend.nextId;
   fresh.handleMessage(p + 'READY');
+  fresh.authorized = true; // Mock of unique AUTH_RECOVER native admission.
   const newRequest = fresh.resetSimulation(true);
-  const newId = sent[sent.length-1].match(/ REQUEST (\d+) RESET ([0-9a-f]{64})$/);
+  const newId = sent[sent.length-1].match(/ REQUEST (\d+) AUTH [0-9a-f]{64} RESET ([0-9a-f]{64})$/);
   assert(newId && Number(newId[1]) >= backend.nextId);
   fresh.handleMessage(p + 'RESPONSE 1 OK');
   assert.strictEqual(fresh.ready, false, 'old numeric ACK unlocked new RESET');
   fresh.handleMessage(p + 'RESPONSE ' + newId[1] + ' RESET_OK ' + newId[2]);
   await newRequest;
-  assert.strictEqual(sent[5], p + 'RELOAD_WORLD ' + 'a'.repeat(64) + ' ' + 'c'.repeat(64));
+  assert.match(sent[5], /^WEBEEBLOCKS_RUNTIME_V2 RELOAD_WORLD [0-9a-f]{64} a{64} c{64}$/);
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(backend.simulationStopped, true);
   const status = fresh.readRecoveryStatus('a'.repeat(64));
@@ -98,7 +100,7 @@ module.exports = async function testWorldRecovery() {
   await assert.rejects(failedStatusBackend.readRecoveryStatus(), /request timeout/);
   assert.strictEqual(failedStatusCount, 3, 'native status retry must be bounded');
   const clear = fresh.clearRecoveryWitness('a'.repeat(64), 'c'.repeat(64));
-  const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR ([0-9a-f]{64}) ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR [0-9a-f]{64} ([0-9a-f]{64}) ([0-9a-f]{64}) ([0-9a-f]{64})$/);
   assert(clearMatch);
   fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + '0'.repeat(64));
   assert(Object.keys(fresh.pending).length === 1, 'old clear ACK accepted');

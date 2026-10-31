@@ -236,6 +236,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
+          import subprocess
           from pathlib import Path
           mode = '${{ matrix.mode }}'
           base = Path('ci-artifacts/guard-negative')
@@ -263,7 +264,12 @@ jobs:
           else:
               assert not any(e['event'] == 'NEGATIVE_BEFORE_RELOAD' for e in events), events
           witness = list((base/'witness').glob('*.state'))
-          assert len(witness) == 1 and witness[0].read_text().startswith('WEBEEBLOCKS_RECOVERY_V2 '), witness
+          assert len(witness) == 1, witness
+          # The V3 file is owned by container root and mode 0600 by design.
+          # Do not weaken its permissions or emit its bearer secret into logs.
+          prefix = subprocess.run(['sudo', 'head', '-c', '24', str(witness[0])],
+                                  check=True, capture_output=True).stdout
+          assert prefix.startswith(b'WEBEEBLOCKS_RECOVERY_V3 '), 'native witness prefix changed'
           print('PASS: real native Webots R2025a fail-closed', mode, d)
           PY
       - name: Retain native negative evidence
