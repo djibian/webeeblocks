@@ -1,7 +1,7 @@
 name: H6 P0 E5 native boundaries - research only (no integration gate)
 on:
   pull_request:
-    branches: [main]
+    branches: [experiment/h6-p0-standalone-feasibility-20261031]
     paths:
       - 'experiments/h6_p0_e5/**'
       - '.github/workflows/h6-p0-e5-boundaries.yml'
