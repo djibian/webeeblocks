@@ -6,6 +6,31 @@ const vm = require('vm');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 const WwiProjectFileTransport = require('../../plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js');
 
+async function testR3ClaimProtocol() {
+  const p='WEBEEBLOCKS_RUNTIME_V2 ',sent=[];
+  const a=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:1000});
+  const b=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:1000});
+  assert.notStrictEqual(a.authorityKey,b.authorityKey);
+  await assert.rejects(a.setLight('blue'),e=>e.code==='AUTH_REQUIRED');
+  const claimed=a.claimAuthority();
+  const m=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(m && m[2]===a.authorityKey);
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_OK '+'0'.repeat(64));
+  assert.strictEqual(a.authorized,false);
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_OK '+m[3]);
+  await claimed;
+  const light=a.setLight('red');
+  assert.match(sent.at(-1),/ REQUEST 2 AUTH [0-9a-f]{64} LIGHT red$/);
+  a.handleMessage(p+'RESPONSE 2 OK');
+  await light;
+  const denied=b.claimAuthority();
+  const n=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM [0-9a-f]{64} ([0-9a-f]{64})$/);
+  assert(n);
+  b.handleMessage(p+'RESPONSE '+n[1]+' ERR AUTH_DENIED');
+  await assert.rejects(denied,e=>e.code==='AUTH_DENIED');
+  assert.strictEqual(b.authorized,false);
+}
+
 async function testBackendReadyHandshake() {
   const sent = [];
   const backend = new WwiBackend({send: message => sent.push(String(message))}, {timeoutMs: 1000});
@@ -34,6 +59,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     const backend = new WwiBackend({send:m=>sent.push(m)}, {
       simulationScenes:true, simulationReset:true, timeoutMs:1000
     });
+    backend.authorized = true; // Mock C grant for legacy liveness oracle.
     backend.handleMessage(prefix + 'READY HELLO');
     assert.strictEqual(backend.ready, false, 'unsolicited liveness reply created readiness');
     const ready = backend.waitUntilReady();
@@ -41,7 +67,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     await ready;
     const epoch = backend.timeObservationEpoch;
     const scene = backend.prepareActivity({id:'progression-sequence-v1', runtime:{scene:'sequence-v1'}});
-    const request = sent[1].match(/REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
+    const request = sent[1].match(/REQUEST (\d+) AUTH [0-9a-f]{64} SCENE sequence-v1 ([0-9a-f]{64})$/);
     assert(request);
     if (replyBeforeAck) backend.handleMessage(prefix + 'READY HELLO');
     backend.handleMessage(prefix + 'RESPONSE ' + request[1] + ' SCENE_OK ' + request[2]);
@@ -62,6 +88,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     assert.strictEqual(backend.sceneIdentity, null);
     assert.strictEqual(backend.timeObservationEpoch, epoch + 1);
 
+    backend.authorized = true; // Simulated native grant after real restart.
     const reset = backend.resetSimulation();
     backend.handleMessage(prefix + 'READY HELLO');
     assert.strictEqual(backend.ready, false, 'late liveness reply completed a pending RESET');
@@ -79,6 +106,7 @@ async function testBackendResetContract() {
   });
 
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  backend.authorized = true; // Mock C admission for legacy RESET oracle.
   assert.strictEqual(backend.ready, true);
   assert.strictEqual(backend.capabilities.simulationReset, true);
 
@@ -86,7 +114,7 @@ async function testBackendResetContract() {
     () => { throw new Error('old request unexpectedly resolved'); },
     error => error
   );
-  assert.match(sent[0], / REQUEST 1 MOVE forward /);
+  assert.match(sent[0], / REQUEST 1 AUTH [0-9a-f]{64} MOVE forward /);
   assert.strictEqual(Object.keys(backend.pending).length, 1);
 
   const reset = backend.resetSimulation();
@@ -94,7 +122,7 @@ async function testBackendResetContract() {
   assert.strictEqual(cancelled.code, 'RESET_CANCELLED');
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(Object.keys(backend.pending).length, 1);
-  assert.match(sent[1], / REQUEST 2 RESET$/);
+  assert.match(sent[1], / REQUEST 2 AUTH [0-9a-f]{64} RESET$/);
 
   // A response from the pre-reset generation must be harmless.
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
@@ -111,7 +139,7 @@ async function testBackendResetContract() {
     () => { throw new Error('timed-out reset unexpectedly resolved'); },
     error => error
   );
-  assert.match(sent[2], / REQUEST 3 RESET$/);
+  assert.match(sent[2], / REQUEST 3 AUTH [0-9a-f]{64} RESET$/);
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR RESET_TIMEOUT');
   const resetError = await timedOutReset;
   assert.strictEqual(resetError.code, 'RESET_TIMEOUT');
@@ -119,7 +147,7 @@ async function testBackendResetContract() {
   assert.strictEqual(Object.keys(backend.pending).length, 0);
 
   const retryReset = backend.resetSimulation();
-  assert.match(sent[3], / REQUEST 4 RESET$/);
+  assert.match(sent[3], / REQUEST 4 AUTH [0-9a-f]{64} RESET$/);
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');
   await retryReset;
   assert.strictEqual(backend.ready, true);
@@ -433,6 +461,7 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendReadyHandshake();
+  await testR3ClaimProtocol();
   await testHelloReplyDoesNotForgeRestart();
   await testBackendResetContract();
   await require('./test_runtime_v2_recovery.js')();
