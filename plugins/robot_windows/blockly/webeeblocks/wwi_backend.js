@@ -187,7 +187,7 @@
       });
       return true;
     }
-    var authorizationAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\\d+) AUTH_OK ([0-9a-f]{64})$/);
+    var authorizationAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) AUTH_OK ([0-9a-f]{64})$/);
     if (authorizationAck) {
       var authPending = this.pending[Number(authorizationAck[1])];
       if (authPending && (authPending.requestType === 'AUTH_CLAIM' ||

@@ -53,7 +53,7 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
 });
 
 function updateRuntimeActions() {
-  var ready = !!(runtimeBackend && runtimeBackend.ready);
+  var ready = !!(runtimeBackend && runtimeBackend.ready && runtimeBackend.authorized);
   var submit = document.getElementById('submit');
   var reset = document.getElementById('resetSimulation');
   if (reset) reset.textContent = runtimeNeedsRebuild ? 'Reconstruire' : 'Réinitialiser';
@@ -312,6 +312,11 @@ async function rebuildSimulation() {
         profileId, original, runtimeBackend.nextId, digest);
       if (!window.WebeeBlocksWindowRenewal.arm(checkpoint.token))
         throw new Error('Impossible de préparer le renouvellement de la fenêtre Blockly');
+      // window.name belongs to this browsing context, unlike origin-wide
+      // localStorage or clonable sessionStorage. It is cleared synchronously
+      // by the successor before opening any WebSocket. A new popup has its
+      // own name, and must not inherit the old native authority.
+      window.name = 'webeeblocks-r3-handoff:' + runtimeBackend.authorityHandoff();
       runtimeBackend.requestWorldReload(checkpoint.token, digest);
       window.WebeeBlocksWindowRenewal.begin();
     });
@@ -476,8 +481,17 @@ window.onload = async function() {
   runtimeTerminal = true;
   updateRuntimeActions();
   var recovery = null;
+  var authorityHandoff = null;
   try {
+    if (window.name.startsWith('webeeblocks-r3-handoff:')) {
+      authorityHandoff = window.name.slice('webeeblocks-r3-handoff:'.length);
+      window.name = ''; // Single use, before any await/network/browser popup.
+      if (!/^[0-9a-f]{64}$/.test(authorityHandoff))
+        throw new Error('Invalid document-specific native authority handoff');
+    }
     recovery = WebeeBlocksSimulationRecovery.peek();
+    if (authorityHandoff && !recovery)
+      throw new Error('Native handoff without Blockly checkpoint: fail closed');
     if (recovery) {
       runtimeRecoveryPending = true;
       runtimeTerminal = true;
@@ -531,6 +545,12 @@ window.onload = async function() {
         throw new Error('Reconstruction inachevée : programme Blockly non disponible ou témoin incohérent — exécution verrouillée');
       if (recovery && nativeRecovery.state !== 'PENDING')
         throw new Error('Checkpoint Blockly sans témoin natif correspondant — exécution verrouillée');
+      // Admission is C-native, not derived from READY, NONE or any browser lock.
+      // During PENDING the previous document's capability is rotated before
+      // RESET #1; after CLEAR it remains exclusively held in this JS document.
+      if (recovery && !authorityHandoff)
+        throw new Error('Native recovery requires the original browsing context');
+      await runtimeBackend.claimAuthority(recovery ? authorityHandoff : undefined);
       if (recovery) {
         // READY alone is insufficient: this new incarnation must demonstrate
         // the unchanged strict physical stability and the restored scene.
