@@ -19,7 +19,7 @@ if args.mode in ("stale_witness", "early_clear"):
         h = ((h ^ b) * 1099511628211) & ((1 << 64) - 1)
     out = Path(os.environ["WEBEEBLOCKS_RECOVERY_STATE_DIR"]) / f".webeeblocks-recovery-{h:016x}.state"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("WEBEEBLOCKS_RECOVERY_V2 " + "b" * 64 + " " + "c" * 64 + "\n")
+    out.write_text("WEBEEBLOCKS_RECOVERY_V3 " + "b" * 64 + " " + "c" * 64 + " " + "d" * 64 + "\n")
     print("PRESEEDED_NATIVE_STALE_WITNESS", out.name, flush=True)
 
 prelude = """
@@ -85,7 +85,17 @@ script = r"""
       await report('NEGATIVE_LOCKED', evidence());
       return;
     }
-    await waitFor(() => window.runtimeBackend && runtimeBackend.ready, 'native READY', 25000);
+    await waitFor(() => (window.runtimeBackend && runtimeBackend.ready) ||
+      (window.runtimeRecoveryPending && document.getElementById('submit').disabled &&
+        document.getElementById('runtimeState').textContent !== 'PRÊT' &&
+        document.getElementById('runtimeDetail').textContent.includes('Checkpoint')),
+      'native READY or fail-closed before native binding', 25000);
+    if (!window.runtimeBackend) {
+      // A lost checkpoint can fail safely BEFORE constructing a WWI backend.
+      // Never require a READY from a transport that correctly was not opened.
+      await report('NEGATIVE_LOCKED', {guardian:'PENDING', ...evidence()});
+      return;
+    }
     if (mode === 'semantic_tamper' && window.__guardSemanticTampered) {
       // The product owns native RESET/SCENE/clear. A second status query from
       // this adversarial harness would be cancelled by the product's RESET
@@ -123,6 +133,9 @@ script = r"""
     if (guardian.state !== 'PENDING' && guardian.state !== 'INVALID')
       throw new Error('unexpected native witness: ' + guardian.state);
     if (mode === 'early_clear') {
+      // The fixture owns the seeded V3's previous key. Rebind this browser
+      // experimentally, then prove CLEAR still needs two native RESET/SCENE.
+      await runtimeBackend.claimAuthority('d'.repeat(64));
       try {
         await runtimeBackend.clearRecoveryWitness('b'.repeat(64), 'c'.repeat(64));
         throw new Error('native witness cleared without physical RESET/scene evidence');
