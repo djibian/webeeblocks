@@ -29,6 +29,7 @@ jobs:
             controllers/crazyflie_runtime_v2 plugins/robot_windows/blockly_v2/main.js \
             plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
           ./tools/prepare_runtime_v2.sh
+          chmod +x tools/ci/webots_runtime_v2_browser.sh
           docker run --rm -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_runtime_v2 \
             cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make' \
