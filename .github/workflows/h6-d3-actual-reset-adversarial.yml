@@ -1,14 +1,14 @@
 name: H6 independent D3 real Webots reset(id) and registry teardown
 on:
   push:
-    branches: [experiment/h6-d3-actual-reset-adversarial-20261031]
+    branches: [experiment/h6-d3-postload-solver-independent-20261031]
     paths:
       - experiments/h6_d3_adversarial/**
       - .github/workflows/h6-d3-actual-reset-adversarial.yml
 permissions:
   contents: read
 concurrency:
-  group: h6-d3-actual-reset-independent-20261031
+  group: h6-d3-postload-solver-independent-20261031
   cancel-in-progress: true
 jobs:
   native-reset-id:
@@ -32,10 +32,14 @@ jobs:
           git rev-parse HEAD > evidence/d3/reviewer-head.txt
           git merge-base --is-ancestor "$CANDIDATE" HEAD
           python3 -m py_compile experiments/h6_d3_adversarial/instrument.py \
+            experiments/h6_d3_adversarial/instrument_post.py \
+            experiments/h6_d3_adversarial/qualify_post.py \
             experiments/h6_d3_adversarial/controllers/h6_d3_true_reset/h6_d3_true_reset.py
           sha256sum experiments/h6_standalone/patch_corrected.py \
             experiments/h6_standalone/patch_standalone.py \
             experiments/h6_d3_adversarial/instrument.py \
+            experiments/h6_d3_adversarial/instrument_post.py \
+            experiments/h6_d3_adversarial/qualify_post.py \
             experiments/h6_d3_adversarial/worlds/true_reset.wbt \
             experiments/h6_d3_adversarial/controllers/h6_d3_true_reset/h6_d3_true_reset.py \
             > evidence/d3/input-sources.sha256
@@ -47,7 +51,7 @@ jobs:
           test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
           test -z "$(git -C native-webots status --porcelain)"
           git -C native-webots rev-parse HEAD > evidence/d3/native-pin.txt
-          python3 experiments/h6_d3_adversarial/instrument.py native-webots \
+          python3 experiments/h6_d3_adversarial/instrument_post.py native-webots \
             > evidence/d3/logs/instrument.log
           git -C native-webots diff --check
           git -C native-webots diff --binary HEAD > evidence/d3/instrumented-native.patch
@@ -88,41 +92,15 @@ jobs:
             printf '%s\n' "$code" > "$dir/exit.txt"
             if [ "$code" != 0 ]; then tail -n 100 "$dir/webots.log"; exit 91; fi
           done
-      - name: Independently check actual reset trigger, registry bijection, buffer retirement and teardown
+      - name: Strict post-load actual native first-solver oracle and negative controls
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re,json
-          root=Path('evidence/d3')
-          results={}
-          for arm in ('0','1'):
-              p=root/('arm-'+arm)
-              log=(p/'webots.log').read_text(errors='replace')
-              assert (p/'exit.txt').read_text().strip()=='0'
-              for token in ('H6_D3_TRUE_CONTROLLER_BEGIN','H6_D3_TRUE_BEFORE_SAVE',
-                            'H6_D3_TRUE_REQUEST_LOAD','H6_D3_TRUE_CONTROLLER_COMPLETE'):
-                  assert token in log,(arm,'missing controller',token)
-              begins=re.findall(r'H6_D3_ACTUAL_RESET_ID_BEGIN solid=(\S+) body=(\S+) contacts=(\d+)',log)
-              ends=re.findall(r'H6_D3_ACTUAL_RESET_ID_END solid=(\S+) body=(\S+) contacts=(\d+)',log)
-              checks=re.findall(r'H6_D3_REGISTRY_CHECK body=(\S+) before1=(\d+) before2=(\d+) after1=(\d+) after2=(\d+) beforeAttached=(\d+) ownedRemoved=(\d+) remainingContacts=(\d+)',log)
-              assert begins and ends and checks,(arm,'real WbSolid reset(id) not exercised')
-              assert any(int(b[2])>=1 for b in begins),(arm,'no real joint before actual reset')
-              assert any(int(c[6])>=1 and int(c[7])==0 and
-                 int(c[1])+int(c[2])-int(c[3])-int(c[4])==int(c[6]) for c in checks), (arm,'no positive tracked registry deletion',checks)
-              assert len(ends)==len(begins),(arm,'unbalanced true reset')
-              assert 'H6_D3_RETIRE buffer=' in log,(arm,'no buffer retired')
-              assert 'H6_D3_FINAL_CONTEXT_BEGIN' in log and 'H6_D3_FINAL_CONTEXT_END count1=0 count2=0' in log,(arm,'missing final destruction')
-              results[arm]={'reset_begin':begins,'reset_end':ends,
-                           'registry_checks':checks,'retire_count':log.count('H6_D3_RETIRE buffer='),
-                           'finished':True}
-          (root/'qualification.json').write_text(json.dumps({
-            'candidate':'8d8d644b2bc6d5821572d87d474e59f533ec3260',
-            'exact_test':'WbSupervisorUtilities C_SUPERVISOR_NODE_RESET_STATE -> WbSolid reset(id)',
-            'results':results,'status':'PASS'},indent=2)+'\n')
-          print('H6_D3_REAL_WEBOTS_RESET_ID_REGISTRY_TEARDOWN_PASS')
-          PY
+          python3 experiments/h6_d3_adversarial/qualify_post.py evidence/d3 \
+            > evidence/d3/logs/qualify-postload.log 2>&1 || {
+              cat evidence/d3/logs/qualify-postload.log; exit 92;
+            }
+          cat evidence/d3/logs/qualify-postload.log
       - name: Preserve all original negative and positive traces
         if: always()
         shell: bash
@@ -134,7 +112,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: h6-d3-true-reset-actual-webots-adversarial
+          name: h6-d3-postload-native-solver-independent
           path: evidence/d3/
           if-no-files-found: error
           retention-days: 90
