@@ -394,7 +394,7 @@ function testNativeWebotsWwiSequenceOracle() {
   ];
   assert.equal(check(makeMessages()).length, 10, 'native guardian handshake is NOT optional');
   assert.equal(check(makeMessages(3)).length, 12, 'bounded native status retries must be visible');
-  assert.throws(()=>check(makeMessages().slice(1)), /unexpected WWI request sequence/, 'missing guardian is a failure');
+  assert.throws(()=>check(makeMessages().slice(1)), /missing, duplicated or unbounded native status challenge/, 'missing guardian is a failure');
   assert.throws(()=>check(makeMessages(4)), /unbounded native status challenge/, 'unbounded retries are forbidden');
   assert.throws(()=>check(makeMessages().map(x=>x.replace('RECOVERY_STATUS ' + '0'.repeat(64),
       'RECOVERY_STATUS ' + 'a'.repeat(64)))), /unexpected WWI request command/, 'unknown token cannot pass');
