@@ -28,6 +28,8 @@ jobs:
           node --check plugins/robot_windows/blockly_v2/simulation_recovery.js
           node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
           node tools/ci/test_runtime_v2_reset.js
+          node tools/ci/test_observability_authorization_gate.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_observability.py
           mkdir -p /tmp/wb-guard-host
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -o /tmp/wb-guard-host/check tools/ci/test_recovery_guard.c
           WEBEEBLOCKS_RECOVERY_STATE_DIR=/tmp/wb-guard-host /tmp/wb-guard-host/check
@@ -158,6 +160,18 @@ jobs:
           assert log.count('FATAL unsafe attitude or action timeout') >= 2, 'native fail-safe trace missing'
           print('PASS: real Webots R2025a RESET, world reload, restored Blockly and colliding rerun.')
           PY
+
+      - name: Native A/B of the historical observability unsafe race
+        shell: bash
+        run: bash tools/ci/run_observability_authorized_contrast.sh
+
+      - name: Retain targeted unsafe authorization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-unsafe-authorization-r2025a
+          path: ci-artifacts/observability-unsafe/
+          if-no-files-found: warn
 
       - name: Upload reset/replay diagnostics
         if: always()
