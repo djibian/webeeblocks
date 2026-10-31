@@ -26,7 +26,7 @@ jobs:
           mkdir -p ownership-proof/logs
           git rev-parse HEAD > ownership-proof/research-head.txt
           python3 -m py_compile experiments/h6_protocol/instrument_ode.py
-          sha256sum experiments/h6_protocol/* > ownership-proof/research-sources.sha256
+          sha256sum experiments/h6_protocol/*.py experiments/h6_protocol/*.cpp > ownership-proof/research-sources.sha256
           git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > ownership-proof/logs/clone.log 2>&1
           git -C native-webots checkout --detach "$PIN" > ownership-proof/logs/pin.log 2>&1
           git -C native-webots submodule update --init --recursive --jobs 4 > ownership-proof/logs/submodules.log 2>&1
