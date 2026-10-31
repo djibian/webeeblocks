@@ -38,6 +38,8 @@ jobs:
           from pathlib import Path
           s=Path('native-webots/src/ode/ode/src/ode.cpp').read_text()
           m=Path('native-webots/src/webots/nodes/utils/WbSolidMerger.cpp').read_text()
+          gui=Path('native-webots/src/webots/gui/WbDragSolidEvent.cpp').read_text()
+          solid=Path('native-webots/src/webots/nodes/WbSolid.cpp').read_text()
           p=Path('experiments/h6_standalone/patch_standalone.py').read_text()
           assert 'void dBodyDestroy_ST (dxBody *b)' in s
           assert 'removeJointReferencesFromAttachedBodies (n->joint);' in s
@@ -46,6 +48,10 @@ jobs:
           assert 'if (it.value() == b) {' in p
           assert 'if (dBodyIsEnabled(it.value())) {' in p
           assert 'dJointCreateContact(jointWorld, NULL, &contact[i])' in p
+          assert 'mSelectedSolid->resumePhysics();' in gui
+          assert 'mSelectedSolid->pausePhysics();' in gui
+          assert 'void WbSolid::resumePhysics() {\n  resetSingleSolidPhysics();' in solid
+          assert 'void WbSolid::resetSingleSolidPhysics() {' in p
           print('H6_FOREIGN_DESTROY_SOURCE_PATH_RECONSTRUCTED')
           PY
       - name: Compile pinned Cyberbotics bundled ODE and independent probe
@@ -60,6 +66,11 @@ jobs:
           sha256sum native-webots/lib/webots/libode.so > evidence/foreign-destroy/libode.sha256
           g++ -std=c++17 -O0 -g -Wall -Wextra -Werror             -I native-webots/include/ode experiments/h6_standalone_adversarial/foreign_owner_destroy.cpp             -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots"             -lode -o evidence/foreign-destroy/foreign-owner-destroy
           sha256sum evidence/foreign-destroy/foreign-owner-destroy > evidence/foreign-destroy/binary.sha256
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror \
+            -I native-webots/include/ode experiments/h6_standalone_adversarial/resume_nonreset_contact.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o evidence/foreign-destroy/resume-nonreset-contact
+          sha256sum evidence/foreign-destroy/resume-nonreset-contact > evidence/foreign-destroy/resume-binary.sha256
       - name: Run 8192-body deletion with sleeping owner and TWO bounded controls
         shell: bash
         run: |
@@ -90,6 +101,29 @@ jobs:
                   'scope':'bundled native ODE plus exact-source branch logic, not full Webots scene'}
           (base/'report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
           print('H6_STANDALONE_I3_FOREIGN_BODY_DESTROY_COUNTEREXAMPLE_PROVEN')
+          PY
+      - name: No-RESET physical pause/resume negative after real collision
+        shell: bash
+        run: |
+          set -euo pipefail
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 40s \
+            evidence/foreign-destroy/resume-nonreset-contact \
+            > evidence/foreign-destroy/resume-nonreset.jsonl \
+            2> evidence/foreign-destroy/logs/resume.stderr || {
+              cat evidence/foreign-destroy/logs/resume.stderr; exit 1;
+            }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          lines=Path('evidence/foreign-destroy/resume-nonreset.jsonl').read_text().splitlines()
+          assert lines[-1]=='H6_RESUME_WITHOUT_RESET_PHYSICAL_CONTRAST_PROVEN'
+          a,r=[json.loads(x) for x in lines[:-1]]
+          assert a['resume_without_RESET'] and r['resume_without_RESET']
+          assert a['standalone_R']==0 and r['standalone_R']==1
+          assert a['pre_attached_contacts']==1 and r['pre_attached_contacts']==0
+          assert abs(a['post_vz']-r['post_vz'])>0.1
+          assert abs(a['post_z']-r['post_z'])>0.002
+          print('H6_GUI_RESUME_CONTACT_LOSS_PHYSICAL_ORACLE_PASS')
           PY
       - name: Preserve all raw and hashed evidence
         if: always()
