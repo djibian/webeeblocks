@@ -532,8 +532,9 @@ int main(void) {
       if (sscanf(message, PREFIX " REQUEST %d AUTH_CLAIM %64s %64s %1s",
                  &guardian_id, key_a, challenge, extra) == 3 &&
           guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(challenge)) {
-        if (wb_rg_refresh(&recovery_guard) == WB_RG_NONE &&
-            (!owner_claimed || owner_key_equal(owner_key, key_a))) {
+        const int state = wb_rg_refresh(&recovery_guard);
+        if ((state == WB_RG_NONE && !owner_claimed && wb_rg_claim(&recovery_guard)) ||
+            (state == WB_RG_OWNED && owner_claimed && owner_key_equal(owner_key, key_a))) {
           if (!owner_claimed) {
             memcpy(owner_key, key_a, sizeof(owner_key));
             owner_claimed = 1;
@@ -592,7 +593,7 @@ int main(void) {
                    "PENDING_MATCH" : "PENDING_OTHER");
         else
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_STATUS %s %s",
-                   guardian_id, challenge, state == WB_RG_NONE ? "NONE" : "INVALID");
+                   guardian_id, challenge, (state == WB_RG_NONE || state == WB_RG_OWNED) ? "NONE" : "INVALID");
         send_text(reply);
         continue;
       }
@@ -650,7 +651,8 @@ int main(void) {
         continue;
       }
       int recovery_state = wb_rg_refresh(&recovery_guard);
-      if (recovery_state != WB_RG_NONE && request.kind != REQUEST_RESET &&
+      if (recovery_state != WB_RG_NONE && recovery_state != WB_RG_OWNED &&
+          request.kind != REQUEST_RESET &&
           request.kind != REQUEST_SCENE && request.kind != REQUEST_STOP) {
         response_error(request.id, "RECOVERY_LOCKED");
         continue;
