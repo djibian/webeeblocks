@@ -366,7 +366,11 @@ static void trace_reset(double x, double y, double z, double origin_x, double or
 int main(void) {
   wb_robot_init();
   wb_recovery_guard_t recovery_guard;
-  wb_rg_setup(&recovery_guard, wb_robot_get_world_path());
+  if (!wb_rg_setup(&recovery_guard, wb_robot_get_world_path())) {
+    fprintf(stderr, PREFIX " FATAL native authority lock or recovery witness unavailable\n");
+    wb_robot_cleanup();
+    return 1; // No READY, no receiver, no effect without a lifetime lock.
+  }
   const int step = (int)wb_robot_get_basic_time_step();
 
   WbDeviceTag m1 = wb_robot_get_device("m1_motor");
@@ -527,13 +531,27 @@ int main(void) {
       char witness_token[65] = {0}, witness_digest[65] = {0}, challenge[65] = {0}, extra[2] = {0};
       char key_a[65] = {0}, key_b[65] = {0};
       int guardian_id = -1;
-      // The C controller serializes WWI processing: the first valid claim is
-      // the only transition unowned -> owned. NONE is never a new grant.
+      // A correlated public namespace is scoped to this OS-locked native
+      // incarnation. Old raw keys must not be accepted as fresh CLAIM keys.
+      if (sscanf(message, PREFIX " REQUEST %d AUTH_EPOCH %64s %1s",
+                 &guardian_id, challenge, extra) == 2 &&
+          guardian_id >= 1 && wb_rg_hex64(challenge)) {
+        char reply[192];
+        snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d AUTH_EPOCH %s %s",
+                 guardian_id, challenge, recovery_guard.epoch);
+        send_text(reply);
+        continue;
+      }
+      // The C controller serializes WWI processing: one owner per locked
+      // incarnation; residual OWNED can be reclaimed only by this new C.
       if (sscanf(message, PREFIX " REQUEST %d AUTH_CLAIM %64s %64s %1s",
                  &guardian_id, key_a, challenge, extra) == 3 &&
           guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(challenge)) {
         const int state = wb_rg_refresh(&recovery_guard);
-        if ((state == WB_RG_NONE && !owner_claimed && wb_rg_claim(&recovery_guard)) ||
+        const int fresh = memcmp(key_a, recovery_guard.epoch, 32) == 0;
+        if ((fresh && !owner_claimed &&
+             (state == WB_RG_NONE || state == WB_RG_OWNED) &&
+             wb_rg_claim(&recovery_guard)) ||
             (state == WB_RG_OWNED && owner_claimed && owner_key_equal(owner_key, key_a))) {
           if (!owner_claimed) {
             memcpy(owner_key, key_a, sizeof(owner_key));
@@ -551,7 +569,8 @@ int main(void) {
                  &guardian_id, key_a, key_b, challenge, extra) == 4 &&
           guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(key_b) &&
           wb_rg_hex64(challenge)) {
-        if (!owner_claimed && wb_rg_refresh(&recovery_guard) == WB_RG_PENDING &&
+        if (!owner_claimed && memcmp(key_b, recovery_guard.epoch, 32) == 0 &&
+            wb_rg_refresh(&recovery_guard) == WB_RG_PENDING &&
             owner_key_equal(key_a, recovery_guard.owner_key)) {
           memcpy(owner_key, key_b, sizeof(owner_key));
           owner_claimed = 1;
@@ -657,7 +676,9 @@ int main(void) {
         response_error(request.id, "RECOVERY_LOCKED");
         continue;
       }
-      if (recovery_state == WB_RG_INVALID && request.kind != REQUEST_STOP) {
+      if ((recovery_state == WB_RG_INVALID ||
+           (recovery_state == WB_RG_NONE && owner_claimed)) &&
+          request.kind != REQUEST_STOP) {
         response_error(request.id, "RECOVERY_LOCKED");
         continue;
       }
@@ -1237,6 +1258,7 @@ int main(void) {
 
   stop_motors(m1, m2, m3, m4);
   wb_led_set(color_led, 0);
-  wb_robot_cleanup();
+  wb_robot_cleanup(); // No future WWI or motor effects before OS lock release.
+  wb_rg_release(&recovery_guard);
   return 0;
 }
