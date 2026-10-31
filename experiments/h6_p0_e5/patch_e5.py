@@ -98,8 +98,24 @@ s = once(s, '''  // remove contact joints
 assert s.count("E5_reset_id_enter") == 1
 assert "dJointDestroy(joints[i])" not in s
 assert c.count("h6_p0_destroy_owned(joint)") >= 4
+# Instrument the REAL WbSolidMerger destructor before/after dBodyDestroy.
+merger = root / "src/webots/nodes/utils/WbSolidMerger.cpp"
+m = merger.read_text()
+m = once(m, '''WbSolidMerger::~WbSolidMerger() {
+  WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
+  dBodyDestroy(mBody);''', '''WbSolidMerger::~WbSolidMerger() {
+  h6_p0_trace("E5_body_destructor_enter", (unsigned long long)(uintptr_t)mBody);
+  WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
+  h6_p0_trace("E5_before_dBodyDestroy", (unsigned long long)(uintptr_t)mBody);
+  dBodyDestroy(mBody);
+  h6_p0_trace("E5_after_dBodyDestroy", 0);''',
+  "true Webots body destructor")
+m = once(m, '#include "WbSolidMerger.hpp"',
+ '''extern "C" void h6_p0_trace(const char *, unsigned long long);
+#include "WbSolidMerger.hpp"''', "merger trace declaration")
 ctx.write_text(c)
 solid.write_text(s)
-for p in (ctx,solid):
+merger.write_text(m)
+for p in (ctx,solid,merger):
     print("E5_PATCHED", p.relative_to(root), hashlib.sha256(p.read_bytes()).hexdigest())
 print("H6_E5_OVERLAY_READY research-only; require native execution")
