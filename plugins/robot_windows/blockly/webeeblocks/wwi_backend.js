@@ -21,10 +21,20 @@
   RuntimeV2BackendError.prototype = Object.create(Error.prototype);
   RuntimeV2BackendError.prototype.constructor = RuntimeV2BackendError;
 
+  function freshAuthorityKey() {
+    if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== 'function')
+      throw new RuntimeV2BackendError('AUTH_RANDOM_UNAVAILABLE');
+    var bytes = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+
   function RuntimeV2WwiBackend(robotWindow, options) {
     if (!robotWindow || typeof robotWindow.send !== 'function')
       throw new Error('Runtime v2 RobotWindow transport unavailable');
     this.robotWindow = robotWindow;
+    this.authorityKey = freshAuthorityKey(); // Never in localStorage, URL, broadcast or logs.
+    this.authorized = false;
     this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
     // World evaluators settle in simulation time. A separate 2 s wall budget
     // incorrectly rejected valid negative results on a slower classroom PC.
@@ -99,7 +109,9 @@
   RuntimeV2WwiBackend.prototype._request = function(parts, timeoutOverrideMs) {
     var self = this;
     var sceneNonce = null;
-    if (parts[0] === 'SCENE' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' || (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
+    if (parts[0] === 'SCENE' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' ||
+        parts[0] === 'AUTH_CLAIM' || parts[0] === 'AUTH_RECOVER' ||
+        (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
       // Numeric request IDs restart at each Robot Window. A fresh correlation
       // token must survive routing an old connection's ACK to this receiver.
       var bytes = new Uint8Array(32);
@@ -109,6 +121,14 @@
       sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       parts = parts[0] === 'RESET' ? ['RESET', sceneNonce] : parts.concat([sceneNonce]);
     }
+    var requestType = parts[0];
+    var unauthenticated = requestType === 'RECOVERY_STATUS' || requestType === 'AUTH_CLAIM' || requestType === 'AUTH_RECOVER';
+    if (!unauthenticated && !this.authorized)
+      return Promise.reject(new RuntimeV2BackendError('AUTH_REQUIRED'));
+    if (requestType === 'RECOVERY_CLEAR')
+      parts = ['RECOVERY_CLEAR', this.authorityKey].concat(parts.slice(1));
+    else if (!unauthenticated)
+      parts = ['AUTH', this.authorityKey].concat(parts);
     if (!Number.isSafeInteger(this.nextId) || this.nextId < 1 || this.nextId > 2147483647)
       return Promise.reject(new RuntimeV2BackendError('REQUEST_ID_EXHAUSTED'));
     var id = this.nextId++;
@@ -118,7 +138,7 @@
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
       }, timeoutOverrideMs === undefined ? self.timeoutMs : timeoutOverrideMs);
-      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce, requestType: requestType};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -153,7 +173,10 @@
       // No scene identity survives that liveness message as positive evidence.
       if (startupReady) {
         this.timeObservationEpoch += 1;
-        if (this.ready) this._cancelPendingForReset();
+        if (this.ready) {
+          this._cancelPendingForReset();
+          this.authorized = false; // A new native process must claim again.
+        }
         this.sceneIdentity = null;
       }
       this.ready = true;
@@ -162,6 +185,18 @@
         clearTimeout(waiter.timer);
         waiter.resolve();
       });
+      return true;
+    }
+    var authorizationAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\\d+) AUTH_OK ([0-9a-f]{64})$/);
+    if (authorizationAck) {
+      var authPending = this.pending[Number(authorizationAck[1])];
+      if (authPending && (authPending.requestType === 'AUTH_CLAIM' ||
+          authPending.requestType === 'AUTH_RECOVER') &&
+          authPending.sceneNonce === authorizationAck[2]) {
+        clearTimeout(authPending.timer);
+        delete this.pending[Number(authorizationAck[1])];
+        authPending.resolve(null);
+      }
       return true;
     }
     var sceneAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) SCENE_OK ([0-9a-f]{64})$/);
@@ -233,6 +268,24 @@
       pending.reject(new RuntimeV2BackendError(match[5]));
     }
     return true;
+  };
+
+  RuntimeV2WwiBackend.prototype.claimAuthority = function(oldKey) {
+    if (this.authorized)
+      return Promise.reject(new RuntimeV2BackendError('AUTH_ALREADY_CLAIMED'));
+    if (oldKey !== undefined && !/^[0-9a-f]{64}$/.test(oldKey))
+      return Promise.reject(new RuntimeV2BackendError('AUTH_INVALID_HANDOFF'));
+    var self = this;
+    var parts = oldKey === undefined ? ['AUTH_CLAIM', this.authorityKey] :
+      ['AUTH_RECOVER', oldKey, this.authorityKey];
+    return this._request(parts).then(function() {
+      self.authorized = true;  // Only a matching native claim ACK can arm JS.
+    });
+  };
+
+  RuntimeV2WwiBackend.prototype.authorityHandoff = function() {
+    if (!this.authorized) throw new RuntimeV2BackendError('AUTH_REQUIRED');
+    return this.authorityKey;
   };
 
   RuntimeV2WwiBackend.prototype._guardSimulationStopped = function() {
@@ -413,7 +466,9 @@
     this._cancelPendingForReset();
     this.ready = false;
     this.simulationStopped = true;
-    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + token + ' ' + digest);
+    if (!this.authorized) throw new RuntimeV2BackendError('AUTH_REQUIRED');
+    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + this.authorityKey + ' ' + token + ' ' + digest);
+    this.authorized = false; // Never authorize old commands after requesting reload.
   };
 
   RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;
