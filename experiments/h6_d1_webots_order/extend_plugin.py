@@ -31,6 +31,19 @@ new='''void webots_physics_step(void){
       dBodyEnable(a);
       h6_wake_test=1;
     }
+    // Test-only controlled closing velocity. No mutation of joint owners, maps,
+    // attachments or spatial positions; physical response becomes observable.
+    if(h6_ac_count && getenv("H6_D1_EXCITE_AC") &&
+       strcmp(getenv("H6_D1_EXCITE_AC"),"1")==0){
+      const dReal *ap=dBodyGetPosition(a),*cp=dBodyGetPosition(c);
+      const double dx=cp[0]-ap[0],dy=cp[1]-ap[1],dz=cp[2]-ap[2];
+      const double len=sqrt(dx*dx+dy*dy+dz*dz);
+      if(len<1e-7)abort();
+      dBodySetLinearVel(c,0,0,0);
+      dBodySetLinearVel(a,6*dx/len,6*dy/len,6*dz/len);
+      fprintf(stderr,"H6_D1_EXCITE tick=4 speed=6 distance=%.17g ac=%d\\n",
+        len,h6_ac_count);
+    }
     fprintf(stderr,"H6_D1_FIRST_SOLVER_BEFORE tick=%d enabled_before=%d ac=%d forcedWake=%d\\n",
             tick,initially_enabled,h6_ac_count,h6_wake_test);
   }

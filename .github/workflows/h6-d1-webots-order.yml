@@ -85,7 +85,7 @@ jobs:
             force=0
             [[ "$arm" != forced ]] || force=1
             set +e
-            H6_D1_ORDER_AUDIT=1 H6_D1_WAKE_FIRST_SOLVER=1 \
+            H6_D1_ORDER_AUDIT=1 H6_D1_WAKE_FIRST_SOLVER=1 H6_D1_EXCITE_AC=1 \
             H6_D1_FIXTURE_SLEEP_AT_TEARDOWN="$force" \
             H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
               timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \

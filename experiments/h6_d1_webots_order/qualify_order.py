@@ -44,6 +44,8 @@ def classify(log,rc,forced):
   pre=re.search(r"H6_D1_FIRST_SOLVER_BEFORE tick=4 enabled_before=(\d+) ac=(\d+) forcedWake=(\d+)",log[after:])
   aft=re.search(r"H6_D1_FIRST_SOLVER_AFTER tick=4 ac=(\d+) forcedWake=(\d+) forceL1=([\d.eE+-]+) enabled=(\d+)",log[after:])
   assert pre and aft, "NO_FIRST_POST_REMOVE_SOLVER_OBSERVATION"
+  exc=re.search(r"H6_D1_EXCITE tick=4 speed=6 distance=([\d.eE+-]+) ac=(\d+)",log[after:])
+  assert exc and float(exc.group(1))>0 and int(exc.group(2))==int(pre.group(2)), "PHYSICAL_EXCITATION_NOT_APPLIED"
   assert pre.group(1)=="0" and int(pre.group(2))>=1 and pre.group(3)=="1","NO_A_C_AT_A_WAKE"
   assert int(aft.group(1))==int(pre.group(2)) and aft.group(2)=="1","SOLVER_FEEDBACK_MISSING"
   f=float(aft.group(3))
@@ -73,6 +75,7 @@ mutations={
  "no_B_destroy":log.replace("H6_D1_REAL_BODY_DESTROY_AFTER_ODE","MISSING_AFTER_ODE"),
  "wrong_registry":log.replace("H6_D1_REGISTRY_AFTER","UNVERIFIED_REGISTRY"),
  "no_solver":log.replace("H6_D1_FIRST_SOLVER_AFTER","MISSING_FIRST_SOLVER"),
+ "no_excitation":log.replace("H6_D1_EXCITE","MISSING_EXCITATION"),
  "no_force":re.sub(r"(forceL1=)[\d.eE+-]+",r"\g<1>0",log)
 }
 for name,damage in mutations.items():
