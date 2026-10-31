@@ -18,12 +18,12 @@ int main(void) {
   memset(stale, 'b', 64); stale[64] = 0;
   memset(digest, 'c', 64); digest[64] = 0;
   memset(wrong, 'd', 64); wrong[64] = 0;
-  assert(!wb_rg_arm(&a, "broken", digest));
-  assert(!wb_rg_arm(&a, token, "broken"));
-  assert(wb_rg_arm(&a, token, digest));
+  assert(!wb_rg_arm(&a, "broken", digest, wrong));
+  assert(!wb_rg_arm(&a, token, "broken", wrong));
+  assert(wb_rg_arm(&a, token, digest, wrong));
   assert(wb_rg_setup(&b, world) && b.state == WB_RG_PENDING);
-  assert(strcmp(b.token, token) == 0 && strcmp(b.digest, digest) == 0);
-  assert(!wb_rg_arm(&b, stale, wrong)); // no overwrite
+  assert(strcmp(b.token, token) == 0 && strcmp(b.digest, digest) == 0 && strcmp(b.owner_key, wrong) == 0);
+  assert(!wb_rg_arm(&b, stale, wrong, wrong)); // no overwrite
   assert(!wb_rg_clear(&b, stale, digest)); // wrong token
   assert(!wb_rg_clear(&b, token, wrong)); // semantic alteration
   assert(!wb_rg_clear(&b, token, "")); // missing digest
@@ -33,20 +33,20 @@ int main(void) {
 
   // Interrupted record and mismatching old format must remain INVALID.
   FILE *f = fopen(a.path, "wb");
-  assert(f && fputs("WEBEEBLOCKS_RECOVERY_V2 ", f) > 0);
+  assert(f && fputs("WEBEEBLOCKS_RECOVERY_V3 ", f) > 0);
   assert(fclose(f) == 0);
   assert(!wb_rg_setup(&b, world) && b.state == WB_RG_INVALID);
-  assert(!wb_rg_arm(&b, token, digest));
+  assert(!wb_rg_arm(&b, token, digest, wrong));
   assert(!wb_rg_clear(&b, token, digest));
   assert(remove(a.path) == 0);
   f = fopen(a.path, "wb");
   assert(f && fprintf(f, "WEBEEBLOCKS_RECOVERY_V1 %s\n", stale) > 0);
   assert(fclose(f) == 0);
   assert(!wb_rg_setup(&b, world) && b.state == WB_RG_INVALID);
-  assert(!wb_rg_arm(&b, token, digest)); // cannot auto-migrate V1
+  assert(!wb_rg_arm(&b, token, digest, wrong)); // cannot auto-migrate V1
   assert(remove(a.path) == 0);
   // A valid but stale witness requires the exact token AND exact digest.
-  assert(wb_rg_arm(&a, stale, digest));
+  assert(wb_rg_arm(&a, stale, digest, wrong));
   assert(wb_rg_setup(&b, world) && b.state == WB_RG_PENDING);
   assert(!wb_rg_clear(&b, token, digest));
   assert(!wb_rg_clear(&b, stale, wrong));
