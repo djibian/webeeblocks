@@ -322,6 +322,10 @@ async function rebuildSimulation() {
     });
     // Never declare the old incarnation ready after requesting world reload.
   } catch (error) {
+    // Handoff may already be written while arm/reload/navigation fails.
+    // Keep the durable checkpoint untouched; discard the no-longer-needed
+    // document-name capability immediately for every controlled failure.
+    if (window.name.startsWith('webeeblocks-r3-handoff:')) window.name = '';
     window.WebeeBlocksWindowRenewal && window.WebeeBlocksWindowRenewal.disarm();
     runtimeTerminal = true;
     runtimeRecoveryPending = true; // Preserve checkpoint/witness; fail closed.
