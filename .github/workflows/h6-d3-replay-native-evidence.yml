@@ -1,0 +1,60 @@
+name: H6 D3 offline replay exact real native post-load evidence
+on:
+  push:
+    branches: [experiment/h6-d3-postload-solver-independent-20261031]
+    paths:
+      - 'experiments/h6_d3_requalification/**'
+      - '.github/workflows/h6-d3-replay-native-evidence.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-native-artifact-replay:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate frozen GitHub native artifact without recompilation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p native-original replay
+          git rev-parse HEAD > replay/reviewer-head.txt
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/13041450574" \
+            --jq '.digest' > replay/github-archive-digest.txt
+          grep -Fxq 'sha256:7b703b80f7c9d2f032345ae310e29089c8764b1d59502d45f04490ddf5719f31' \
+            replay/github-archive-digest.txt
+          gh run download 41196404220 \
+            --name h6-d3-postload-native-solver-independent \
+            --dir native-original
+          (cd native-original && \
+             sed 's@  evidence/d3/@  @' SHA256SUMS.txt | sha256sum -c -) \
+            > replay/original-manifest-verification.txt
+          test "$(grep -c ': OK$' replay/original-manifest-verification.txt)" -eq 20
+          test "$(cat native-original/observed-reviewer-head.txt)" = '2e1968ae8229ec8e74c38fe2d7285961c5ba125f'
+          test "$(cat native-original/native-pin.txt)" = 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          cp native-original/native-binaries.sha256 replay/native-binaries.sha256
+          cp native-original/instrumented-native.patch.sha256 replay/instrumented-native.patch.sha256
+      - name: Requalify actual first solver and target registry — strict negative mutation tests
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_d3_requalification/qualify_v2.py \
+            native-original replay/qualification-postload-v2.json \
+            | tee replay/requalification.log
+      - name: Preserve replay fingerprints on RED or GREEN
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p replay
+          find replay -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > replay/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-d3-exact-original-native-artifact-requalification
+          path: replay/
+          if-no-files-found: error
+          retention-days: 90
