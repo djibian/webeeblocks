@@ -1,0 +1,111 @@
+name: H6 P0 LIVE standalone - feasibility only (not an integration gate)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'experiments/h6_p0_feasibility/**'
+      - '.github/workflows/h6-p0-standalone-feasibility.yml'
+permissions:
+  contents: read
+jobs:
+  pinned-webots-observation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      PR760_FIXTURE: 2fa4984242230659d6d4f688480fc6f09e65fc84
+      PR777_OBSERVER: 8704cb3795f2e2a929d958d11039dc5fe42c42b2
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Qualify oracle against negative mutants before native build
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/h6-p0-prototype/logs
+          git rev-parse HEAD > evidence/h6-p0-prototype/experiment-head.txt
+          python3 -m py_compile experiments/h6_p0_feasibility/*.py
+          python3 experiments/h6_p0_feasibility/qualify_p0.py --selftest | tee evidence/h6-p0-prototype/oracle-selftest.txt
+      - name: Compose exact pinned observer and standalone/P0 experimental overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fixtures/g_window/worlds             fixtures/g_window/plugins/physics/h6_g_window             fixtures/g_window/controllers/h6_g_window
+          git fetch --no-tags --depth=1 origin "$PR760_FIXTURE" > evidence/h6-p0-prototype/logs/fixture-fetch.log 2>&1
+          for p in plugins/physics/h6_g_window/h6_g_window.c                    plugins/physics/h6_g_window/Makefile                    controllers/h6_g_window/h6_g_window.py                    worlds/h6_g_window.wbt; do
+            git show "$PR760_FIXTURE:experiments/h6/g_window/$p" > "fixtures/g_window/$p"
+          done
+          git fetch --no-tags --depth=1 origin "$PR777_OBSERVER" > evidence/h6-p0-prototype/logs/observer-fetch.log 2>&1
+          for f in prepare_fixture.py patch_observe.py; do
+            git show "$PR777_OBSERVER:experiments/h6_p0_scheduler/$f" > "fixtures/$f"
+          done
+          python3 fixtures/prepare_fixture.py fixtures/g_window > evidence/h6-p0-prototype/logs/fixture-prepare.log 2>&1
+          python3 experiments/h6_p0_feasibility/prepare_p0_fixture.py fixtures/g_window >> evidence/h6-p0-prototype/logs/fixture-prepare.log 2>&1
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots             > evidence/h6-p0-prototype/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN"             > evidence/h6-p0-prototype/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4             > evidence/h6-p0-prototype/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 fixtures/patch_observe.py native-webots > evidence/h6-p0-prototype/logs/observer-patch.log 2>&1
+          python3 experiments/h6_p0_feasibility/patch_p0.py native-webots > evidence/h6-p0-prototype/logs/p0-patch.log 2>&1
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/h6-p0-prototype/standalone-p0-only.patch
+          sha256sum evidence/h6-p0-prototype/standalone-p0-only.patch             > evidence/h6-p0-prototype/standalone-p0-only.patch.sha256
+          find fixtures/g_window -type f -print0 | sort -z | xargs -0 sha256sum             > evidence/h6-p0-prototype/fixture-sha256.txt
+      - name: Build pinned Webots with EXPLICIT P0 experimental ABI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/h6-p0-prototype/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3             > evidence/h6-p0-prototype/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh)             > evidence/h6-p0-prototype/logs/apt-build.log 2>&1 || {
+              tail -n 120 evidence/h6-p0-prototype/logs/apt-build.log; exit 1;
+            }
+          (cd native-webots && make -j2)             > evidence/h6-p0-prototype/logs/webots-build.log 2>&1 || {
+              tail -n 120 evidence/h6-p0-prototype/logs/webots-build.log; exit 1;
+            }
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C fixtures/g_window/plugins/physics/h6_g_window             > evidence/h6-p0-prototype/logs/plugin-build.log 2>&1 || {
+              tail -n 100 evidence/h6-p0-prototype/logs/plugin-build.log; exit 1;
+            }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so             fixtures/g_window/plugins/physics/h6_g_window/libh6_g_window.so             > evidence/h6-p0-prototype/binary-sha256.txt
+      - name: Exercise P0 on REAL standalone contact with one and two worker callbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for n in 1 2; do
+            mkdir -p "evidence/h6-p0-prototype/workers$n"
+            dir="$PWD/evidence/h6-p0-prototype/workers$n"
+            set +e
+            H6_P0_FORCE_ONE_WORKER=1 H6_P0_HOLD_M=1 H6_STANDALONE_R=0             H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0             H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log"               timeout -k 5s 95s xvfb-run -a -s '-screen 0 1280x800x24'                 "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr                 "$PWD/fixtures/g_window/worlds/h6_p0_workers$n.wbt"                 > "$dir/webots.log" 2>&1
+            code=$?
+            set -e
+            echo "$code" > "$dir/exit.txt"
+            if [ "$code" -ne 0 ]; then
+              echo "H6_P0_UNPROVEN worker case $n exited $code"
+              tail -n 70 "$dir/webots.log"
+              exit 80
+            fi
+            python3 experiments/h6_p0_feasibility/qualify_p0.py "$dir/webots.log" "$n"               | tee "$dir/qualification.txt"
+          done
+      - name: Keep complete traces, source diff and SHA-256 and raw failure logs even on RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/h6-p0-prototype/logs
+          git rev-parse HEAD > evidence/h6-p0-prototype/observed-head.txt
+          if [ -d native-webots/.git ]; then
+            git -C native-webots rev-parse HEAD > evidence/h6-p0-prototype/observed-pin.txt
+          fi
+          find evidence/h6-p0-prototype -type f ! -name SHA256SUMS.txt -print0 | sort -z             | xargs -0 -r sha256sum > evidence/h6-p0-prototype/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-p0-live-standalone-feasibility
+          path: evidence/h6-p0-prototype
+          retention-days: 90
+          if-no-files-found: error
