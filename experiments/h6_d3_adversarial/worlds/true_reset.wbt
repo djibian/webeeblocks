@@ -27,6 +27,24 @@ DEF TARGET Solid {
       appearance PBRAppearance { baseColor 0.8 0.2 0.2 roughness 1 }
       geometry Box { size 0.2 0.2 0.2 }
     }
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        anchor 0 0 0.15
+        axis 0 1 0
+      }
+      endPoint Solid {
+        translation 0 0 0.35
+        children [
+          Shape {
+            appearance PBRAppearance { baseColor 0.1 0.6 0.8 roughness 1 }
+            geometry Box { size 0.06 0.06 0.06 }
+          }
+        ]
+        name "hinge_child"
+        boundingObject Box { size 0.06 0.06 0.06 }
+        physics Physics { mass 0.015 }
+      }
+    }
   ]
   name "target"
   boundingObject Box { size 0.2 0.2 0.2 }
