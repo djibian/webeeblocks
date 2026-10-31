@@ -166,6 +166,22 @@ static void response_error(int id, const char *reason) {
   send_text(message);
 }
 
+// 256-bit bearer: private upstream WWI only. Never send key in ACK or log.
+// Model excludes active same-origin script compromise, DevTools and native FS.
+static int owner_key_equal(const char *a, const char *b) {
+  if (!wb_rg_hex64(a) || !wb_rg_hex64(b)) return 0;
+  unsigned int diff = 0;
+  for (int i = 0; i < 64; ++i)
+    diff |= (unsigned char)a[i] ^ (unsigned char)b[i];
+  return diff == 0;
+}
+
+static void response_auth_ok(int id, const char *challenge) {
+  char reply[192];
+  snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d AUTH_OK %s", id, challenge);
+  send_text(reply); // public correlation only
+}
+
 static int extract_id(const char *message) {
   int id = -1;
   if (message)
@@ -430,6 +446,9 @@ int main(void) {
   int active_id = -1;
   char active_reset_nonce[65] = {0};
   int world_reload_requested = 0;
+  char owner_key[65] = {0};
+  int owner_claimed = 0;
+  int last_owner_id = 0;
   // Recovery-only native authorization: strict RESET, scene, strict RESET, scene.
   // A token alone may never clear the independent witness.
   int recovery_phase = 0;
@@ -506,13 +525,47 @@ int main(void) {
       if (world_reload_requested)
         continue; // No old command or ACK may survive the reload request.
       char witness_token[65] = {0}, witness_digest[65] = {0}, challenge[65] = {0}, extra[2] = {0};
+      char key_a[65] = {0}, key_b[65] = {0};
       int guardian_id = -1;
-      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %64s %1s",
-                 witness_token, witness_digest, extra) == 2 &&
+      // The C controller serializes WWI processing: the first valid claim is
+      // the only transition unowned -> owned. NONE is never a new grant.
+      if (sscanf(message, PREFIX " REQUEST %d AUTH_CLAIM %64s %64s %1s",
+                 &guardian_id, key_a, challenge, extra) == 3 &&
+          guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(challenge)) {
+        if (wb_rg_refresh(&recovery_guard) == WB_RG_NONE &&
+            (!owner_claimed || owner_key_equal(owner_key, key_a))) {
+          if (!owner_claimed) {
+            memcpy(owner_key, key_a, sizeof(owner_key));
+            owner_claimed = 1;
+            last_owner_id = guardian_id;
+          }
+          response_auth_ok(guardian_id, challenge);
+        } else response_error(guardian_id, "AUTH_DENIED");
+        continue;
+      }
+      // Recovery rebinds exactly once to a FRESH document-only capability.
+      // The old capability in the private native witness never authorizes an
+      // ordinary effect after rebind, even if a popup cloned a handoff.
+      if (sscanf(message, PREFIX " REQUEST %d AUTH_RECOVER %64s %64s %64s %1s",
+                 &guardian_id, key_a, key_b, challenge, extra) == 4 &&
+          guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(key_b) &&
+          wb_rg_hex64(challenge)) {
+        if (!owner_claimed && wb_rg_refresh(&recovery_guard) == WB_RG_PENDING &&
+            owner_key_equal(key_a, recovery_guard.owner_key)) {
+          memcpy(owner_key, key_b, sizeof(owner_key));
+          owner_claimed = 1;
+          last_owner_id = guardian_id;
+          response_auth_ok(guardian_id, challenge);
+        } else response_error(guardian_id, "AUTH_DENIED");
+        continue;
+      }
+      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %64s %64s %1s",
+                 key_a, witness_token, witness_digest, extra) == 3 &&
+          owner_claimed && owner_key_equal(key_a, owner_key) &&
           wb_rg_hex64(witness_token) && wb_rg_hex64(witness_digest)) {
         // Persist BEFORE world reload. Losing the browser can never erase this
         // witness. A write failure must not destroy the existing world.
-        if (!wb_rg_arm(&recovery_guard, witness_token, witness_digest)) {
+        if (!wb_rg_arm(&recovery_guard, witness_token, witness_digest, owner_key)) {
           send_text(PREFIX " WORLD_RELOAD_DENIED");
           continue;
         }
@@ -543,26 +596,55 @@ int main(void) {
         send_text(reply);
         continue;
       }
-      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %64s %1s",
-                 &guardian_id, witness_token, witness_digest, challenge, extra) == 4 &&
-          guardian_id >= 1 && wb_rg_hex64(witness_token) &&
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %64s %64s %1s",
+                 &guardian_id, key_a, witness_token, witness_digest, challenge, extra) == 5 &&
+          guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(witness_token) &&
           wb_rg_hex64(witness_digest) && wb_rg_hex64(challenge)) {
         // Caller must present the undisclosed token AND complete the native
         // correlated RESET -> SCENE -> RESET -> SCENE postcondition sequence.
         // The UI separately verifies exact Blockly workspace/profile identity.
         char reply[192];
-        if (recovery_phase == 4 && wb_rg_clear(&recovery_guard, witness_token, witness_digest))
+        if (owner_claimed && owner_key_equal(key_a, owner_key) &&
+            guardian_id > last_owner_id && recovery_phase == 4 &&
+            wb_rg_clear(&recovery_guard, witness_token, witness_digest))
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);
         else
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d ERR RECOVERY_LOCKED", guardian_id);
+        if (owner_claimed && owner_key_equal(key_a, owner_key) && guardian_id > last_owner_id)
+          last_owner_id = guardian_id;
         send_text(reply);
         continue;
       }
       if (strncmp(message, PREFIX " REQUEST ", strlen(PREFIX " REQUEST ")) != 0)
         continue;
-      request_t request = parse_request(message);
+      int parsed_id = -1, body_offset = 0, authenticated = 0;
+      char provided_key[65] = {0}, canonical[768];
+      const char *effective_message = message;
+      // The envelope is validated BEFORE the existing command parser.
+      if (sscanf(message, PREFIX " REQUEST %d AUTH %64s %n",
+                 &parsed_id, provided_key, &body_offset) == 2 && body_offset > 0) {
+        if (snprintf(canonical, sizeof(canonical), PREFIX " REQUEST %d %s",
+                     parsed_id, message + body_offset) >= (int)sizeof(canonical)) {
+          response_error(parsed_id, "INVALID_REQUEST");
+          continue;
+        }
+        effective_message = canonical;
+        authenticated = owner_claimed && owner_key_equal(provided_key, owner_key);
+      }
+      request_t request = parse_request(effective_message);
       if (request.id < 1)
         continue;
+      // Only RANGE and ELAPSED may be probed without granting any authority.
+      if (request.kind != REQUEST_RANGE && request.kind != REQUEST_ELAPSED && !authenticated) {
+        response_error(request.id, "AUTH_DENIED");
+        continue;
+      }
+      if (authenticated && request.id <= last_owner_id) {
+        response_error(request.id, "REPLAY_DENIED");
+        continue;
+      }
+      if (authenticated)
+        last_owner_id = request.id;  // Reject replays, including failed commands.
       if (request.kind == REQUEST_INVALID) {
         response_error(request.id, "INVALID_REQUEST");
         continue;
