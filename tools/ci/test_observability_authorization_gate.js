@@ -10,7 +10,10 @@ const main = fs.readFileSync(path.join(__dirname, '../../plugins/robot_windows/b
 
 // This MUST fail on the historical fixture which calls runProgram() as soon
 // as backend.ready becomes true.
-const match = src.match(/await waitFor\(\(\) => ([\s\S]*?),\s*'explicit post-native execution authorization', 20000\);/);
+const anchor = '    await waitFor(() => window.runtimeBackend && runtimeBackend.ready === true &&';
+const start = src.indexOf(anchor);
+assert(start >= 0, 'unsafe harness must have explicit student-authorization gate');
+const match = src.slice(start).match(/^    await waitFor\(\(\) => ([\s\S]*?),\s*'explicit post-native execution authorization', 20000\);/);
 assert(match, 'unsafe fixture must wait for exact post-native authorization, not READY only');
 const gate = match[1];
 for (const necessary of [
