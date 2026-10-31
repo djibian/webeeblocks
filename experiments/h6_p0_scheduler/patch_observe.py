@@ -33,7 +33,7 @@ header = """#include <atomic>
 #include <sys/syscall.h>
 #include <unistd.h>
 static std::atomic<unsigned long long> h6_p0_seq{0}, h6_p0_step{0};
-extern "C" void h6_p0_trace(const char *ev, unsigned long long arg) {
+extern "C" __attribute__((visibility("default"))) void h6_p0_trace(const char *ev, unsigned long long arg) {
   if (!std::strcmp(ev, "step_enter")) ++h6_p0_step;
   unsigned long long seq = ++h6_p0_seq;
   char line[256];
