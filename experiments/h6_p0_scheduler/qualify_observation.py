@@ -128,8 +128,10 @@ def selftest():
             print("ORACLE_NEGATIVE_REJECTED",name)
         else:
             raise SystemExit("ORACLE_FAILED_TO_REJECT "+name)
+    two = [dict(x) for x in base]
+    two[0]["arg"]=2  # correctly configured two, but still just one exercised TID
     try:
-        validate(base,2)
+        validate(two,2)
     except Reject as ex:
         require("WORKER_CALLBACKS_NOT_EXERCISED" in str(ex), "BAD_2_WORKER_NEGATIVE")
         print("ORACLE_NEGATIVE_REJECTED fake_two_workers")
