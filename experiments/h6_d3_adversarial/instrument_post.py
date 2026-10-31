@@ -40,10 +40,10 @@ void WbSimulationCluster::step() {
     std::fprintf(stderr,"H6_D3_FIRST_SOLVER_BEFORE body=%p contacts=%d permanent=%d\\n",
                  static_cast<void *>(h6PostBody),contacts,permanent);
   }''',"native first physics witness");
-cl=replace_once(cl,'''                             WbWorld::instance()->basicTimeStep() * 0.001, &dWorldStep, spaceUpdateFunc);
+cl=replace_once(cl,'''                            WbWorld::instance()->basicTimeStep() * 0.001, &dWorldStep, spaceUpdateFunc);
 
   // every step''',
-'''                             WbWorld::instance()->basicTimeStep() * 0.001, &dWorldStep, spaceUpdateFunc);
+'''                            WbWorld::instance()->basicTimeStep() * 0.001, &dWorldStep, spaceUpdateFunc);
   if (h6PostBody) {
     int contacts=0,permanent=0;
     h6D3CountJoints(h6PostBody,contacts,permanent);
