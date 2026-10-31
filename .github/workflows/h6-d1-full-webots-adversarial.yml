@@ -71,25 +71,34 @@ jobs:
             }
           sha256sum experiments/h6_d1_adversarial/plugins/physics/h6_d1_owner_sleep/libh6_d1_owner_sleep.so \
             > evidence/d1/plugin-binary.sha256
-      - name: Two real native arms — observed control and adversarial teardown intervention
+      - name: Real native geometry variants × observed and intervention arms
         shell: bash
         run: |
           set -euo pipefail
           export WEBOTS_HOME="$PWD/native-webots"
-          for arm in control forced; do
-            mkdir -p "evidence/d1/$arm"
-            force=0; [[ "$arm" != forced ]] || force=1
-            set +e
-            H6_D1_FIXTURE_SLEEP_AT_TEARDOWN="$force" \
-            H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
-              timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
-              "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
-              "$PWD/experiments/h6_d1_adversarial/worlds/real_delete.wbt" \
-              > "evidence/d1/$arm/webots.log" 2>&1
-            rc=$?
-            set -e
-            echo "$rc" > "evidence/d1/$arm/exit.txt"
-            echo "H6_D1_ARM $arm rc=$rc"
+          for scene in left_pair mirrored vertical; do
+            case "$scene" in
+              left_pair) world=real_delete.wbt ;;
+              mirrored) world=real_delete_mirrored.wbt ;;
+              vertical) world=real_delete_vertical.wbt ;;
+              *) exit 101 ;;
+            esac
+            for arm in control forced; do
+              dir="$PWD/evidence/d1/$scene/$arm"
+              mkdir -p "$dir"
+              force=0; [[ "$arm" != forced ]] || force=1
+              set +e
+              H6_D1_FIXTURE_SLEEP_AT_TEARDOWN="$force" \
+              H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
+                timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
+                "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+                "$PWD/experiments/h6_d1_adversarial/worlds/$world" \
+                > "$dir/webots.log" 2>&1
+              rc=$?
+              set -e
+              echo "$rc" > "$dir/exit.txt"
+              echo "H6_D1_SCENE $scene arm=$arm rc=$rc"
+            done
           done
       - name: Strict fail-closed owner=A disabled at real B destruction with negative controls
         shell: bash
