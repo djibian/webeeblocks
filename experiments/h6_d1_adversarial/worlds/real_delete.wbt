@@ -10,7 +10,7 @@ Viewpoint {
   position 2 2 2
 }
 DEF B Solid {
-  translation 0.14 0 0.2
+  translation -0.14 0.12 0.2
   children [
     Shape {
       appearance PBRAppearance { baseColor 0.1 0.9 0.1 roughness 1 }
@@ -34,7 +34,7 @@ DEF A Solid {
   physics Physics { mass 0.12 }
 }
 DEF C Solid {
-  translation -0.14 0 0.2
+  translation -0.14 -0.12 0.2
   children [
     Shape {
       appearance PBRAppearance { baseColor 0.1 0.1 0.9 roughness 1 }
