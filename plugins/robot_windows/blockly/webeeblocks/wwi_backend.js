@@ -109,7 +109,7 @@
   RuntimeV2WwiBackend.prototype._request = function(parts, timeoutOverrideMs) {
     var self = this;
     var sceneNonce = null;
-    if (parts[0] === 'SCENE' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' ||
+    if (parts[0] === 'SCENE' || parts[0] === 'AUTH_EPOCH' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' ||
         parts[0] === 'AUTH_CLAIM' || parts[0] === 'AUTH_RECOVER' ||
         (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
       // Numeric request IDs restart at each Robot Window. A fresh correlation
@@ -122,7 +122,8 @@
       parts = parts[0] === 'RESET' ? ['RESET', sceneNonce] : parts.concat([sceneNonce]);
     }
     var requestType = parts[0];
-    var unauthenticated = requestType === 'RECOVERY_STATUS' || requestType === 'AUTH_CLAIM' || requestType === 'AUTH_RECOVER';
+    var unauthenticated = requestType === 'AUTH_EPOCH' || requestType === 'RECOVERY_STATUS' ||
+      requestType === 'AUTH_CLAIM' || requestType === 'AUTH_RECOVER';
     if (!unauthenticated && !this.authorized)
       return Promise.reject(new RuntimeV2BackendError('AUTH_REQUIRED'));
     if (requestType === 'RECOVERY_CLEAR')
@@ -185,6 +186,17 @@
         clearTimeout(waiter.timer);
         waiter.resolve();
       });
+      return true;
+    }
+    var epochAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) AUTH_EPOCH ([0-9a-f]{64}) ([0-9a-f]{32})$/);
+    if (epochAck) {
+      var epochPending = this.pending[Number(epochAck[1])];
+      if (epochPending && epochPending.requestType === 'AUTH_EPOCH' &&
+          epochPending.sceneNonce === epochAck[2]) {
+        clearTimeout(epochPending.timer);
+        delete this.pending[Number(epochAck[1])];
+        epochPending.resolve(epochAck[3]);
+      }
       return true;
     }
     var authorizationAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) AUTH_OK ([0-9a-f]{64})$/);
@@ -276,9 +288,16 @@
     if (oldKey !== undefined && !/^[0-9a-f]{64}$/.test(oldKey))
       return Promise.reject(new RuntimeV2BackendError('AUTH_INVALID_HANDOFF'));
     var self = this;
-    var parts = oldKey === undefined ? ['AUTH_CLAIM', this.authorityKey] :
-      ['AUTH_RECOVER', oldKey, this.authorityKey];
-    return this._request(parts).then(function() {
+    // Never reuse an authority from an earlier native incarnation. The C
+    // controller generates a fresh CSPRNG epoch while holding its OS lock.
+    return this._request(['AUTH_EPOCH']).then(function(epoch) {
+      if (!/^[0-9a-f]{32}$/.test(epoch))
+        throw new RuntimeV2BackendError('AUTH_INVALID_EPOCH');
+      self.authorityKey = epoch + freshAuthorityKey().slice(32);
+      var parts = oldKey === undefined ? ['AUTH_CLAIM', self.authorityKey] :
+        ['AUTH_RECOVER', oldKey, self.authorityKey];
+      return self._request(parts);
+    }).then(function() {
       self.authorized = true;  // Only a matching native claim ACK can arm JS.
     });
   };
