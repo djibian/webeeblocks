@@ -44,6 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
           make -C native-webots/src/ode -j2 release > ownership-evidence/logs/ode-stock-build.log 2>&1 || {
             tail -n 150 ownership-evidence/logs/ode-stock-build.log; exit 1;
           }
@@ -56,6 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
           python3 experiments/h6_ownership/patch_ode_hook.py native-webots \
             > ownership-evidence/logs/ode-hook-patch.log
           git -C native-webots diff --check
