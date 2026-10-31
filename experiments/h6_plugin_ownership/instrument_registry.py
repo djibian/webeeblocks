@@ -21,7 +21,7 @@ replacement='''    while (it.hasNext()) {
       dJointID joint = it.key();
       // Observation only. The *value* is a raw stale-safe key, never dereferenced.
       std::fprintf(stderr,
-        "H6_C_REGISTRY_SCAN joint=%p owner=%p victim=%p owner_is_victim=%d\\\\n",
+        "H6_C_REGISTRY_SCAN joint=%p owner=%p victim=%p owner_is_victim=%d\\n",
         (void *)joint, (void *)it.value(), (void *)b, int(it.value() == b));
       std::fflush(stderr);
       // A sleeping owner may hold an A-B contact while B is being destroyed.'''
@@ -29,7 +29,7 @@ s=s.replace(anchor,replacement)
 needle='''        it.remove();  // unregister before freeing: no stale pointer after free
         dJointDestroy(joint);'''
 if s.count(needle)!=1:raise SystemExit("REFUSED: exact D1 free not found")
-s=s.replace(needle,'''        std::fprintf(stderr, "H6_C_REGISTRY_FREE joint=%p owner=%p victim=%p\\\\n",
+s=s.replace(needle,'''        std::fprintf(stderr, "H6_C_REGISTRY_FREE joint=%p owner=%p victim=%p\\n",
           (void *)joint, (void *)it.value(), (void *)b);
         std::fflush(stderr);
         it.remove();  // unchanged original registry cleanup before ODE release
