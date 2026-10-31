@@ -67,7 +67,7 @@ jobs:
               export DISPLAY=:99
               first=0
               second=0
-              trap "kill \$first \$second \$witness \$display 2>/dev/null || true" EXIT
+              trap "for p in \$first \$second \$witness \$display; do if test \$p -gt 0; then kill \$p 2>/dev/null || true; fi; done" EXIT
               sleep 1
               wait_event() {
                 local tag="$1"
@@ -84,7 +84,7 @@ jobs:
                 return 1
               }
               close_webots_normally() {
-                local pid="$1", window=""
+                local pid="$1" window=""
                 window=$(xdotool search --onlyvisible --name Webots 2>/dev/null | head -1 || true)
                 if test -z "$window"; then echo "NORMAL_CLOSE_UNPROVEN_NO_GUI"; return 1; fi
                 echo "GUI_CLOSE_REQUEST window=$window pid=$pid" >>"$out/closure.txt"
