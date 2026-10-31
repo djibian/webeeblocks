@@ -12,23 +12,38 @@ async function testR3ClaimProtocol() {
   const b=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:1000});
   assert.notStrictEqual(a.authorityKey,b.authorityKey);
   await assert.rejects(a.setLight('blue'),e=>e.code==='AUTH_REQUIRED');
+  const firstEpoch='a'.repeat(32), secondEpoch='b'.repeat(32);
   const claimed=a.claimAuthority();
-  const m=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
-  assert(m && m[2]===a.authorityKey);
-  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_OK '+'0'.repeat(64));
+  let m=sent.at(-1).match(/REQUEST (\d+) AUTH_EPOCH ([0-9a-f]{64})$/);
+  assert(m, 'must request a correlated native epoch before claim');
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+'0'.repeat(64)+' '+firstEpoch);
+  assert.strictEqual(a.authorized,false,'stale epoch correlation granted authority');
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+m[2]+' '+firstEpoch);
+  await Promise.resolve();
+  const claim=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(claim && claim[2]===a.authorityKey && claim[2].startsWith(firstEpoch));
+  a.handleMessage(p+'RESPONSE '+claim[1]+' AUTH_OK '+'0'.repeat(64));
   assert.strictEqual(a.authorized,false);
-  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_OK '+m[3]);
+  a.handleMessage(p+'RESPONSE '+claim[1]+' AUTH_OK '+claim[3]);
   await claimed;
+  const stale=a.authorityKey;
   const light=a.setLight('red');
-  assert.match(sent.at(-1),/ REQUEST 2 AUTH [0-9a-f]{64} LIGHT red$/);
-  a.handleMessage(p+'RESPONSE 2 OK');
+  const lightMessage=sent.at(-1).match(/ REQUEST (\d+) AUTH ([0-9a-f]{64}) LIGHT red$/);
+  assert(lightMessage && lightMessage[2]===stale);
+  a.handleMessage(p+'RESPONSE '+lightMessage[1]+' OK');
   await light;
   const denied=b.claimAuthority();
-  const n=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM [0-9a-f]{64} ([0-9a-f]{64})$/);
-  assert(n);
+  m=sent.at(-1).match(/REQUEST (\d+) AUTH_EPOCH ([0-9a-f]{64})$/);
+  assert(m);
+  b.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+m[2]+' '+secondEpoch);
+  await Promise.resolve();
+  const n=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(n && n[2].startsWith(secondEpoch) && n[2]!==stale,
+    'new C incarnation must not reuse old bearer');
   b.handleMessage(p+'RESPONSE '+n[1]+' ERR AUTH_DENIED');
   await assert.rejects(denied,e=>e.code==='AUTH_DENIED');
   assert.strictEqual(b.authorized,false);
+  assert.notStrictEqual(firstEpoch,secondEpoch);
 }
 
 async function testBackendReadyHandshake() {
