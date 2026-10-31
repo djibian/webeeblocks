@@ -191,6 +191,12 @@ static int wb_rg_hex64(const char *s) {
   return strspn(s, "0123456789abcdef") == 64;
 }
 
+/* Admission key namespace validation, shared by C protocol and native tests. */
+static int wb_rg_current_key(const wb_recovery_guard_t *g, const char *key) {
+  return g && g->lock_held && wb_rg_hex64(key) &&
+         memcmp(key, g->epoch, 32) == 0;
+}
+
 static int wb_rg_refresh(wb_recovery_guard_t *g) {
   g->state = WB_RG_INVALID;
   g->token[0] = '\0';
