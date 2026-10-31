@@ -93,7 +93,7 @@ jobs:
                   H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
                   timeout -k 5s 95s xvfb-run -a -s '-screen 0 1280x800x24' \
                   "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
-                  "$PWD/fixtures/g_window/worlds/h6_e5_$scenario_workers$n.wbt" \
+                  "$PWD/fixtures/g_window/worlds/h6_e5_${scenario}_workers$n.wbt" \
                   > "$dir/webots.log" 2>&1
                 code=$?
                 set -e
@@ -138,7 +138,7 @@ jobs:
               H6_P0_FORCE_ONE_WORKER=1 H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
               timeout -k 5s 95s xvfb-run -a -s '-screen 0 1280x800x24' \
               "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
-              "$PWD/fixtures/g_window/worlds/h6_e5_$scenario_workers1.wbt" \
+              "$PWD/fixtures/g_window/worlds/h6_e5_${scenario}_workers1.wbt" \
               > "$dir/webots.log" 2>&1
             code=$?
             set -e
