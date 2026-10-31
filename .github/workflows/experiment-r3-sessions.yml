@@ -54,7 +54,7 @@ jobs:
               mkdir -p /root/.config/Cyberbotics "$WEBEEBLOCKS_RECOVERY_STATE_DIR"
               apt-get update >/dev/null
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                wget ca-certificates xdotool xvfb >/dev/null
+                wget ca-certificates xdotool xvfb openbox >/dev/null
               wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
               DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/chrome.deb >/dev/null
               printf "%s\n" "[RobotWindow]" \
@@ -67,9 +67,12 @@ jobs:
               Xvfb :99 -screen 0 1600x900x24 -nolisten tcp >"$out/xvfb.log" 2>&1 &
               display=$!
               export DISPLAY=:99
+              sleep 0.5
+              openbox --sm-disable >"$out/openbox.log" 2>&1 &
+              wm=$!
               first=0
               second=0
-              trap "for p in \$first \$second \$witness \$display; do if test \$p -gt 0; then kill \$p 2>/dev/null || true; fi; done" EXIT
+              trap "for p in \$first \$second \$witness \$display \$wm; do if test \$p -gt 0; then kill \$p 2>/dev/null || true; fi; done" EXIT
               sleep 1
               wait_event() {
                 local tag="$1"
