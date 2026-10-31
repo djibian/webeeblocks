@@ -1,0 +1,139 @@
+name: H6 independent D3 plugin-direct dJointDestroy native falsification
+on:
+  push:
+    branches: [experiment/h6-d3-external-ode-destroy-adversarial-20261031]
+    paths:
+      - experiments/h6_d3_external/**
+      - .github/workflows/h6-d3-plugin-direct-destroy-adversarial.yml
+permissions:
+  contents: read
+concurrency:
+  group: h6-d3-external-ode-destroy-20261031
+  cancel-in-progress: true
+jobs:
+  plugin-direct-destroy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      CANDIDATE: 8d8d644b2bc6d5821572d87d474e59f533ec3260
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 9
+          persist-credentials: false
+      - name: Verify pinned candidate, plugin and original patch identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/plugin/logs
+          git rev-parse HEAD > evidence/plugin/reviewer-head.txt
+          git merge-base --is-ancestor "$CANDIDATE" HEAD
+          python3 -m py_compile experiments/h6_d3_external/controllers/h6_d3_external/h6_d3_external.py
+          sha256sum experiments/h6_standalone/patch_corrected.py \
+            experiments/h6_d3_external/plugins/physics/h6_d3_external/h6_d3_external.c \
+            experiments/h6_d3_external/worlds/external.wbt > evidence/plugin/sources.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots \
+            > evidence/plugin/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/plugin/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 \
+            > evidence/plugin/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots rev-parse HEAD > evidence/plugin/native-pin.txt
+          python3 experiments/h6_standalone/patch_corrected.py native-webots > evidence/plugin/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/plugin/native.patch
+          sha256sum evidence/plugin/native.patch > evidence/plugin/native.patch.sha256
+      - name: Build authentic candidate Webots and plugin without ODE code mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/plugin/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 \
+            > evidence/plugin/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) \
+            > evidence/plugin/logs/apt-build.log 2>&1 || {
+              tail -n 110 evidence/plugin/logs/apt-build.log; exit 1;
+            }
+          (cd native-webots && make -j2) > evidence/plugin/logs/webots-build.log 2>&1 || {
+            tail -n 120 evidence/plugin/logs/webots-build.log; exit 1;
+          }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so \
+            > evidence/plugin/binaries.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C experiments/h6_d3_external/plugins/physics/h6_d3_external \
+            > evidence/plugin/logs/plugin-build.log 2>&1 || {
+              tail -n 100 evidence/plugin/logs/plugin-build.log; exit 1;
+            }
+          sha256sum experiments/h6_d3_external/plugins/physics/h6_d3_external/libh6_d3_external.so \
+            > evidence/plugin/plugin-binary.sha256
+      - name: Execute identical native Webots A vs destructive ODE plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for enabled in 0 1; do
+            mkdir -p "evidence/plugin/arm-$enabled"
+            d="$PWD/evidence/plugin/arm-$enabled"
+            set +e
+            H6_EXTERNAL_DESTROY="$enabled" H6_STANDALONE_R=1 MALLOC_CHECK_=3 \
+              timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+              "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+              "$PWD/experiments/h6_d3_external/worlds/external.wbt" \
+              > "$d/webots.log" 2>&1
+            code=$?
+            set -e
+            echo "$code" > "$d/exit.txt"
+            echo "H6_D3_EXTERNAL_ARM enabled=$enabled exit=$code"
+          done
+      - name: Strictly classify observed direct destruction and post-step fate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          root=Path('evidence/plugin')
+          arms={}
+          for n in ('0','1'):
+            p=root/('arm-'+n)
+            text=(p/'webots.log').read_text(errors='replace')
+            rc=int((p/'exit.txt').read_text())
+            assert 'H6_EXT_INIT' in text,('plugin never initialized',n)
+            if n=='0':
+              assert rc==0 and 'H6_EXT_CONTROLLER_COMPLETE' in text,('negative baseline invalid',rc)
+              assert 'H6_EXT_DESTROY_BEFORE' not in text,('baseline polluted')
+            else:
+              assert 'H6_EXT_DESTROY_BEFORE' in text,('plugin never destroyed a real contact')
+              assert 'H6_EXT_DESTROY_AFTER' in text,('dJointDestroy did not return')
+            arms[n]={'exit':rc,'destroy_observed': 'H6_EXT_DESTROY_AFTER' in text,
+              'completed': 'H6_EXT_CONTROLLER_COMPLETE' in text,
+              'cleanup': 'H6_EXT_CLEANUP' in text,
+              'last_lines':text.splitlines()[-25:]}
+          if arms['1']['exit']!=0:
+            verdict='PHYSICAL_PROCESS_FAILURE_AFTER_EXTERNAL_DESTRUCTION'
+          else:
+            verdict='NO_CRASH_OBSERVED_REGISTRY_CONSISTENCY_NOT_ESTABLISHED'
+          report={'candidate':'8d8d644b2bc6d5821572d87d474e59f533ec3260',
+             'scope':'real pinned Webots physics plugin direct destruction of Webots-created standalone ODE contact',
+             'verdict':verdict,'arms':arms}
+          (root/'qualification.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('H6_D3_EXTERNAL_NATIVE_RESULT '+verdict)
+          PY
+      - name: Preserve original output even after incomplete or RED
+        if: always()
+        run: |
+          mkdir -p evidence/plugin/logs
+          git rev-parse HEAD > evidence/plugin/observed-head.txt
+          find evidence/plugin -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > evidence/plugin/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-d3-external-ODE-contact-destroy-adversarial
+          path: evidence/plugin/
+          retention-days: 90
+          if-no-files-found: error
