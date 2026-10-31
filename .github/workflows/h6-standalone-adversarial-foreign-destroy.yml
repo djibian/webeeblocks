@@ -1,0 +1,107 @@
+name: H6 independent foreign-body deletion / standalone orphan-joint falsification
+on:
+  push:
+    branches: [experiment/h6-standalone-foreign-body-destroy-adversarial-20261031]
+    paths:
+      - experiments/h6_standalone_adversarial/**
+      - .github/workflows/h6-standalone-adversarial-foreign-destroy.yml
+permissions:
+  contents: read
+concurrency:
+  group: h6-standalone-adversarial-foreign-destroy
+  cancel-in-progress: true
+jobs:
+  standalone-ode:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      CANDIDATE: 072c583c29227b0c8a31f7ab33ba8dd058c260d6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 9
+          persist-credentials: false
+      - name: Validate exact PR765 ancestry and verify native source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/foreign-destroy/logs
+          git rev-parse HEAD > evidence/foreign-destroy/reviewer-head.txt
+          git merge-base --is-ancestor "$CANDIDATE" HEAD
+          sha256sum experiments/h6_standalone/patch_standalone.py experiments/h6_standalone_adversarial/*.cpp > evidence/foreign-destroy/input-sources.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > evidence/foreign-destroy/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/foreign-destroy/logs/checkout.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          git -C native-webots rev-parse HEAD > evidence/foreign-destroy/webots-pin.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('native-webots/src/ode/ode/src/ode.cpp').read_text()
+          m=Path('native-webots/src/webots/nodes/utils/WbSolidMerger.cpp').read_text()
+          p=Path('experiments/h6_standalone/patch_standalone.py').read_text()
+          assert 'void dBodyDestroy_ST (dxBody *b)' in s
+          assert 'removeJointReferencesFromAttachedBodies (n->joint);' in s
+          assert 'removeBodyContactJointGroup(mBody);' in m
+          assert 'dBodyDestroy(mBody);' in m
+          assert 'if (it.value() == b) {' in p
+          assert 'if (dBodyIsEnabled(it.value())) {' in p
+          assert 'dJointCreateContact(jointWorld, NULL, &contact[i])' in p
+          print('H6_FOREIGN_DESTROY_SOURCE_PATH_RECONSTRUCTED')
+          PY
+      - name: Compile pinned Cyberbotics bundled ODE and independent probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > evidence/foreign-destroy/logs/build-ode.log 2>&1 || {
+            tail -n 120 evidence/foreign-destroy/logs/build-ode.log; exit 1;
+          }
+          test -f native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > evidence/foreign-destroy/libode.sha256
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror             -I native-webots/include/ode experiments/h6_standalone_adversarial/foreign_owner_destroy.cpp             -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots"             -lode -o evidence/foreign-destroy/foreign-owner-destroy
+          sha256sum evidence/foreign-destroy/foreign-owner-destroy > evidence/foreign-destroy/binary.sha256
+      - name: Run 8192-body deletion with sleeping owner and TWO bounded controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mode in disabled enabled direct; do
+            LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 40s               evidence/foreign-destroy/foreign-owner-destroy "$mode"               > "evidence/foreign-destroy/$mode.jsonl"               2> "evidence/foreign-destroy/logs/$mode.stderr"
+            grep -q "H6_FOREIGN_DESTROY_COMPLETED $mode" "evidence/foreign-destroy/$mode.jsonl"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          base=Path('evidence/foreign-destroy')
+          data={}
+          for mode in ('disabled','enabled','direct'):
+            ls=(base/(mode+'.jsonl')).read_text().splitlines()
+            assert ls[-1]=='H6_FOREIGN_DESTROY_COMPLETED '+mode
+            d=[json.loads(s) for s in ls[:-1]]
+            assert [x['cycle'] for x in d]==[64,512,2048,8192,8193]
+            data[mode]=d
+          assert [(x['registered'],x['orphan_detached']) for x in data['disabled'][:4]]==[(x,x) for x in (64,512,2048,8192)]
+          assert all(x['registered']==0 and x['orphan_detached']==0 for mode in ('direct','enabled') for x in data[mode])
+          assert data['disabled'][3]['used']>data['disabled'][0]['used']+500000
+          assert data['disabled'][3]['reserved']>=data['disabled'][0]['reserved']
+          report={'candidate_sha':'072c583c29227b0c8a31f7ab33ba8dd058c260d6',
+                  'ode_pin':'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b',
+                  'case':'delete foreign B while disabled A retains ownership of now detached standalone joint',
+                  'checkpoints':data,
+                  'scope':'bundled native ODE plus exact-source branch logic, not full Webots scene'}
+          (base/'report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('H6_STANDALONE_I3_FOREIGN_BODY_DESTROY_COUNTEREXAMPLE_PROVEN')
+          PY
+      - name: Preserve all raw and hashed evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/foreign-destroy/logs
+          git rev-parse HEAD > evidence/foreign-destroy/reviewer-observed-head.txt
+          find evidence/foreign-destroy -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > evidence/foreign-destroy/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-standalone-foreign-body-destroy-adversarial
+          path: evidence/foreign-destroy/
+          retention-days: 90
+          if-no-files-found: error
