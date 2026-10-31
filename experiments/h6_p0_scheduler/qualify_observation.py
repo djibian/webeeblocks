@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-PATTERN = re.compile(r"^H6_P0 seq=(\d+) step=(\d+) tid=(\d+) event=([a-z0-9_]+) arg=(\d+)$")
+PATTERN = re.compile(r"^H6_P0 seq=(\d+) step=(\d+) tid=(\d+) event=([A-Za-z0-9_]+) arg=(\d+)$")
 class Reject(Exception):
     pass
 
@@ -12,14 +12,18 @@ def require(b, why):
     if not b:
         raise Reject(why)
 
-def read(path):
+def parse_lines(lines):
     result = []
-    for line in Path(path).read_text(errors="replace").splitlines():
-        m = PATTERN.match(line.strip())
-        if m:
-            seq, step, tid, ev, arg = m.groups()
-            result.append(dict(seq=int(seq), step=int(step),
-                               tid=int(tid), ev=ev, arg=int(arg)))
+    for lineno, line in enumerate(lines, 1):
+        # Ignore normal Webots messages; never silently discard a malformed
+        # H6_P0 diagnostic (including concatenated/partially written lines).
+        if "H6_P0" not in line:
+            continue
+        m = PATTERN.fullmatch(line.strip())
+        require(m is not None, "MALFORMED_TRACE_LINE:" + str(lineno))
+        seq, step, tid, ev, arg = m.groups()
+        result.append(dict(seq=int(seq), step=int(step),
+                           tid=int(tid), ev=ev, arg=int(arg)))
     require(result, "MISSING_TRACE")
     seqs = [x["seq"] for x in result]
     require(len(seqs) == len(set(seqs)), "DUPLICATE_SEQ")
@@ -27,6 +31,9 @@ def read(path):
     require([x["seq"] for x in result] == list(range(1, len(result)+1)),
             "MISSING_NOTIFICATION_OR_SEQ")
     return result
+
+def read(path):
+    return parse_lines(Path(path).read_text(errors="replace").splitlines())
 
 def validate(ev, requested):
     events = [x["ev"] for x in ev]
@@ -95,6 +102,28 @@ def e(ev, tid, step=1):
     return dict(ev=ev, tid=tid, step=step, seq=0, arg=0)
 
 def selftest():
+    # Exercise the ORIGINAL transport contract: uppercase M is a real event;
+    # missing, duplicate and malformed events must be rejected, not skipped.
+    sample = [
+        "H6_P0 seq=1 step=4 tid=111 event=M_acquired arg=0",
+        "H6_P0 seq=2 step=4 tid=111 event=M_release arg=0",
+        "H6_P0 seq=3 step=4 tid=111 event=M_released arg=0",
+    ]
+    require(len(parse_lines(["Webots ordinary log"] + sample)) == 3,
+            "UPPERCASE_M_NOT_PARSED")
+    mutations = {
+        "missing_sequence": sample[:1] + sample[2:],
+        "duplicate_sequence": sample[:2] + [sample[1]],
+        "corrupt_line": sample[:1] + ["H6_P0 seq=oops step=4 tid=111 event=M_release arg=0"] + sample[2:],
+        "concatenated_line": [sample[0] + sample[1], sample[2]],
+    }
+    for name, lines in mutations.items():
+        try:
+            parse_lines(lines)
+        except Reject:
+            print("ORACLE_NEGATIVE_REJECTED", name)
+        else:
+            raise SystemExit("ORACLE_FAILED_TO_REJECT " + name)
     # Mutants model the discriminants, NOT physical evidence.
     base = [e("configured_threads",1),e("step_enter",1),e("main_b1_before",1),
             e("worker_task_enter",2),e("plugin_callback_enter",2),
