@@ -1,0 +1,124 @@
+name: H6 P0 P1 native ODE pre-dereference ownership protocol falsification
+on:
+  push:
+    branches: [experiment/h6-contact-ownership-protocol-20261031]
+    paths:
+      - 'experiments/h6_protocol/**'
+      - '.github/workflows/h6-ownership-protocol.yml'
+permissions:
+  contents: read
+concurrency:
+  group: h6-ownership-protocol-20261031
+  cancel-in-progress: true
+jobs:
+  native-gate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify original immutable Webots/ODE source pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ownership-proof/logs
+          git rev-parse HEAD > ownership-proof/research-head.txt
+          python3 -m py_compile experiments/h6_protocol/instrument_ode.py
+          sha256sum experiments/h6_protocol/* > ownership-proof/research-sources.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > ownership-proof/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > ownership-proof/logs/pin.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 > ownership-proof/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          sha256sum native-webots/src/ode/ode/src/ode.cpp > ownership-proof/original-ode-source.sha256
+      - name: Build and verify unchanged historical libode
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release > ownership-proof/logs/stock-build.log 2>&1 || {
+            tail -n 110 ownership-proof/logs/stock-build.log; exit 1;
+          }
+          sha256sum native-webots/lib/webots/libode.so > ownership-proof/stock-ode-binary.sha256
+          test "$(cut -d' ' -f1 ownership-proof/stock-ode-binary.sha256)" = \
+            "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201"
+      - name: Patch ONLY ODE native destruction admission for research
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          python3 experiments/h6_protocol/instrument_ode.py native-webots > ownership-proof/logs/instrument.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > ownership-proof/native-protocol.patch
+          sha256sum ownership-proof/native-protocol.patch > ownership-proof/native-protocol.patch.sha256
+          make -C native-webots/src/ode -j2 release > ownership-proof/logs/patch-build.log 2>&1 || {
+            tail -n 150 ownership-proof/logs/patch-build.log; exit 1;
+          }
+          sha256sum native-webots/lib/webots/libode.so > ownership-proof/instrumented-libode.sha256
+          for sym in h6SetPolicy h6SetBeforeFree h6CreateEngineContact h6EngineDestroyContact; do
+            nm -D native-webots/lib/webots/libode.so | grep -w "$sym" >> ownership-proof/new-export-symbols.txt
+          done
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+            -I native-webots/include/ode \
+            experiments/h6_protocol/ode_ownership_test.cpp \
+            -L "$PWD/native-webots/lib/webots" \
+            -Wl,-rpath,"$PWD/native-webots/lib/webots" -lode -pthread \
+            -o ownership-proof/ode_ownership_test
+          sha256sum ownership-proof/ode_ownership_test > ownership-proof/test-binary.sha256
+      - name: P0 and P1 native counterexperiments, repeated independent processes
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > ownership-proof/results.jsonl
+          : > ownership-proof/logs/executions.log
+          for mode in p0 p1; do
+            for repeat in $(seq 1 15); do
+              echo "H6_CASE mode=$mode repeat=$repeat" >> ownership-proof/logs/executions.log
+              LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" \
+                timeout 25s ownership-proof/ode_ownership_test "$mode" \
+                  >> ownership-proof/results.jsonl 2>> ownership-proof/logs/executions.log
+            done
+          done
+      - name: Reject unexecuted/unsafe tests and preserve ABA as an explicit counterexample
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib,collections
+          root=pathlib.Path('ownership-proof')
+          results=[json.loads(line) for line in (root/'results.jsonl').read_text().splitlines() if line.strip()]
+          checks={'total':len(results),'modes':dict(collections.Counter(x['policy'] for x in results)),
+                  'errors':[],'plugin_destroy_counterexamples':0}
+          if len(results)!=30 or checks['modes']!={'p0':15,'p1':15}:checks['errors'].append('incomplete processes')
+          for x in results:
+            if x['verdict']!='BOUNDED_PASS' or x['wrong_buffer']!=0 or x['reentrant_calls']<1 or x['callback_count']<3:
+              checks['errors'].append('bad callback or registration oracle')
+            if not x['plugin_standalone_destroyed']:
+              checks['plugin_destroy_counterexamples']+=1
+            if x['effective_engine_free']<3:
+              checks['errors'].append('no real native engine frees')
+          checks['full_plugin_compatibility_proven']=False
+          checks['workers_barrier_proven']=False
+          checks['aba_reuse_safe']=False
+          checks['result']='BOUNDED_NATIVE_GATE_VALID' if not checks['errors'] else 'REJECTED'
+          (root/'qualification.json').write_text(json.dumps(checks,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(checks,indent=2))
+          if checks['errors']:raise SystemExit(3)
+          PY
+      - name: Preserve all negative and positive evidence, including RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ownership-proof/logs
+          git rev-parse HEAD > ownership-proof/observed-head.txt
+          find ownership-proof -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > ownership-proof/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-p0-p1-ode-native-ownership-gate
+          path: ownership-proof/
+          retention-days: 90
+          if-no-files-found: error
