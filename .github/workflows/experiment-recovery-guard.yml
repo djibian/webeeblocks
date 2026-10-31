@@ -124,6 +124,12 @@ jobs:
           assert names.count('WORLD_RELOAD_REQUEST') == 1, names
           assert names.count('WORLD_RECOVERY_READY') == 1, names
           assert names.count('WORLD_RECOVERY_RERUN') == 1, names
+          # Record URL availability without substituting it for physical proof.
+          before_http = [e['detail'] for e in events if e['event'] == 'FORMER_URL_HTTP_BEFORE_WORLD_RELOAD']
+          after_http = [e['detail'] for e in events if e['event'] == 'FORMER_URL_HTTP_AFTER_WORLD_RELOAD']
+          assert len(before_http) == len(after_http) == 1, (before_http, after_http)
+          assert before_http[0]['originalHref'] == after_http[0]['formerHref'], (before_http, after_http)
+          print('DISCRIMINATOR: former Robot Window URL before/after native world reload:', before_http, after_http)
           assert sum(e.get('detail', {}).get('worldRebuilt') is True for e in reset_events) == 1, reset_events
           before = next(e['detail'] for e in events if e['event'] == 'WORLD_RELOAD_REQUEST')
           after = next(e['detail'] for e in events if e['event'] == 'WORLD_RECOVERY_READY')
