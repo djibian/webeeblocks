@@ -123,27 +123,46 @@ def evaluate(log,case,mode,workers):
         require(select("E5_before_dBodyDestroy") and select("E5_after_dBodyDestroy"),
                 "NO_REAL_WBSOLIDMERGER_DTOR")
         require(scans,"NO_REGISTERED_CONTACT_SCAN")
-        cross=[s for s in scans if s["owner"]!=s["b"] and
-               (s["v0"]==s["b"] or s["v1"]==s["b"])]
-        require(cross,"NO_DISCRIMINATING_OWNER_FOREIGN_ATTACHMENT")
+        initial = next((x for x in plugin if x[0]=="body" and x[1]<=36 and
+                        x[3] not in ("(nil)","0x0") and x[5] not in ("(nil)","0x0")),None)
+        require(initial is not None,"NO_INITIAL_ATTACHED_PLUGIN_REFERENCE")
+        victim=int(initial[3],16)  # FOREIGN body alive before delete
+        owner_a=int(initial[5],16) # TARGET body, evidenced by plugin permanent AMotor
+        require(any(x["arg"]==victim for x in select("E5_before_dBodyDestroy")),
+                "FOREIGN_VICTIM_NEVER_REALLY_DESTROYED")
+        cross=[s for s in scans if s["owner"]==owner_a and s["b"]==victim and
+               (s["v0"]==victim or s["v1"]==victim)]
+        require(cross,"NO_DISCRIMINATING_OWNER_A_FOREIGN_B_ATTACHMENT")
         require(all(s["mode"]==mode for s in scans),"MIXED_DROP_MODES")
         if mode=="owner":
             require(any(s["drop"]==0 for s in cross),"NEGATIVE_OWNER_ARM_NOT_REFUTED")
             require(any(s["j"]==e["arg"] for s in cross for e in select("E5_keep")),
                     "OWNER_RETAIN_EVENT_MISSING")
+            bound=min(e["seq"] for e in select("E5_before_dBodyDestroy")
+                      if e["arg"]==victim)
+            enter=max(e["seq"] for e in select("E5_body_destructor_enter")
+                      if e["arg"]==victim and e["seq"]<bound)
+            require(all(not any(e["arg"]==s["j"] and enter<e["seq"]<bound
+                                for e in select("P0_unregister")) for s in cross),
+                    "OWNER_NEGATIVE_ARM_NOT_ACTUALLY_RETAINED")
         else:
             require(mode=="attached","INVALID_BODY_MODE")
             require(all(s["drop"]==1 for s in cross),"ATTACHED_CROSS_BODY_NOT_DROPPED")
             drops={e["arg"]:e["seq"] for e in select("E5_drop")}
             unreg={e["arg"]:e["seq"] for e in select("P0_unregister")}
             frees={e["arg"]:e["seq"] for e in select("P0_internal_free")}
-            bound=min(e["seq"] for e in select("E5_before_dBodyDestroy"))
-            require(all(s["j"] in drops and drops[s["j"]] < unreg.get(s["j"],0)
-                        < frees.get(s["j"],0) < bound for s in cross),
+            bound=min(e["seq"] for e in select("E5_before_dBodyDestroy")
+                      if e["arg"]==victim)
+            enter=max(e["seq"] for e in select("E5_body_destructor_enter")
+                      if e["arg"]==victim and e["seq"]<bound)
+            require(all(s["j"] in drops and enter<drops[s["j"]]
+                        < unreg.get(s["j"],0)<frees.get(s["j"],0)<bound for s in cross),
                     "DROPPED_CONTACT_NOT_UNREGISTERED_AND_FREED_BEFORE_BODY_DESTROY")
             # A-C feedback is evidence of an actual solver contribution, not registry count.
             require(any(a==case and t>36 and f>0 for a,t,f in feedback),
-                    "NO_FIRST_POST_DELETE_AC_PHYSICAL_FEEDBACK")
+                    "NO_POST_DELETE_AC_PHYSICAL_FEEDBACK")
+            require(any(e["seq"]>bound for e in select("solver_return")),
+                    "NO_SOLVER_AFTER_REAL_BODY_DESTRUCTION")
     else:
         require(case=="reset" and mode=="attached","UNSUPPORTED_RESET_MODE")
         require("target_loadState_requested" in log and select("E5_reset_id_enter")
