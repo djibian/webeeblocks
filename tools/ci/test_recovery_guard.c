@@ -40,7 +40,7 @@ int main(void) {
   assert(!wb_rg_clear(&b, token, digest));
   assert(remove(a.path) == 0);
   f = fopen(a.path, "wb");
-  assert(f && fprintf(f, "WEBEEBLOCKS_RECOVERY_V1 %s\\n", stale) > 0);
+  assert(f && fprintf(f, "WEBEEBLOCKS_RECOVERY_V1 %s\n", stale) > 0);
   assert(fclose(f) == 0);
   assert(!wb_rg_setup(&b, world) && b.state == WB_RG_INVALID);
   assert(!wb_rg_arm(&b, token, digest)); // cannot auto-migrate V1

@@ -8,7 +8,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 html = root / "plugins/robot_windows/blockly_v2/blockly_v2.html"
 parser = argparse.ArgumentParser()
-parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness", "early_clear"])
+parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness", "early_clear", "semantic_tamper"])
 args = parser.parse_args()
 
 # The deliberately stale native witness is injected BEFORE Webots starts.
@@ -26,6 +26,21 @@ prelude = """
 <script>
 window.__guardFaultMode = __MODE__;
 window.__guardCheckpointCorrupt = false;
+window.__guardSemanticTampered = false;
+if (window.__guardFaultMode === 'semantic_tamper') {
+  const key = 'webeeblocks-world-recovery-v1';
+  const raw = localStorage.getItem(key);
+  if (raw !== null) {
+    const checkpoint = JSON.parse(raw);
+    const before = checkpoint.workspace;
+    const after = before.replace(/"NUM":1(?=[,}])/, '"NUM":2');
+    if (after === before) throw new Error('semantic tamper fixture NUM:1 missing');
+    checkpoint.workspace = after;
+    localStorage.setItem(key, JSON.stringify(checkpoint));
+    window.__guardSemanticTampered = true;
+    window.__guardSemanticContrast = {before:1, after:2};
+  }
+}
 if (window.__guardFaultMode === 'lost_checkpoint' || window.__guardFaultMode === 'corrupt_checkpoint') {
   const key = 'webeeblocks-world-recovery-v1';
   if (localStorage.getItem(key)) {
@@ -77,7 +92,7 @@ script = r"""
       await waitFor(() => !window.runtimeRecoveryPending &&
         !document.getElementById('submit').disabled, 'initial authorization', 10000);
       // A genuine unsaved student program, not a project-file round-trip.
-      const xml = __BLOCKED__;
+      const xml = mode === 'semantic_tamper' ? __BLOCKED_NUMBER__ : __BLOCKED__;
       workspace.clear();
       Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), workspace);
       const saved = JSON.stringify(Blockly.serialization.workspaces.save(workspace));
@@ -108,6 +123,10 @@ script = r"""
       document.getElementById('runtimeState').textContent !== 'PRÊT' &&
       document.getElementById('runtimeDetail').textContent.includes('Récupération non vérifiée'),
       'native recovery fail-closed', 10000);
+    if (mode === 'semantic_tamper') {
+      if (!window.__guardSemanticTampered) throw new Error('semantic NUM field not mutated on new document');
+      await report('SEMANTIC_TAMPER_APPLIED', window.__guardSemanticContrast);
+    }
     await report('NEGATIVE_LOCKED', {guardian:guardian.state, ...evidence()});
   } catch (error) {
     await report('NEGATIVE_ERROR', String(error.stack || error));
@@ -120,7 +139,15 @@ script = r"""
 <block type="webeeblocks_v2_move" id="native_guard_move">
 <field name="DIRECTION">forward</field><field name="DISTANCE">2</field>
 <next><block type="webeeblocks_v2_land" id="native_guard_land"/></next>
-</block></next></block></xml>"""))
+</block></next></block></xml>""")).replace("__BLOCKED_NUMBER__", json.dumps("""<xml xmlns="https://developers.google.com/blockly/xml">
+<block type="webeeblocks_v2_takeoff" id="native_guard_takeoff" x="20" y="20">
+<field name="HEIGHT">0.5</field><next>
+<block type="webeeblocks_v2_move" id="native_guard_move">
+<field name="DIRECTION">forward</field><field name="DISTANCE">2</field>
+<next><block type="webeeblocks_v2_land" id="native_guard_land"/></next>
+</block></next></block>
+<block type="math_number" id="r2_semantic_number" x="400" y="300">
+<field name="NUM">1</field></block></xml>"""))
 
 source = html.read_text()
 if "<head>" not in source or "</body>" not in source:
