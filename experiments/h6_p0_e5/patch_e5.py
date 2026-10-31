@@ -11,6 +11,8 @@ root = Path(sys.argv[1])
 ctx = root / "src/webots/ode/WbOdeContext.cpp"
 solid = root / "src/webots/nodes/WbSolid.cpp"
 c, s = ctx.read_text(), solid.read_text()
+# h6_p0_trace is implemented by the pinned observer; WbSolid does not declare it.
+s = s.replace("#include <QtCore/QQueue>", 'extern "C" void h6_p0_trace(const char *, unsigned long long);\n#include <QtCore/QQueue>', 1)
 def once(src, old, new, label):
     n = src.count(old)
     if n != 1:
