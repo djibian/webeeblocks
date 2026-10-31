@@ -370,6 +370,42 @@ function testNativeCompletedIdStopContract() {
   assert.match(runner, /--case idle-stop/, 'native Webots STOP/ACK regression must remain wired to progression');
 }
 
+
+function testNativeWebotsWwiSequenceOracle() {
+  // Evaluate the ACTUAL CI browser normalizer and sequence oracle shipped
+  // in the Python HTML fixture, not a duplicate permissive test parser.
+  const source = fs.readFileSync(path.join(__dirname, 'prepare_runtime_v2_webots.py'), 'utf8');
+  const normalize = source.match(/  function normalizeWwiRequest\(message\) \{[\s\S]*?\n  \}/);
+  const sequence = source.match(/  function assertWwiRequestSequence\(messages\) \{[\s\S]*?\n  \}/);
+  assert(normalize && sequence, 'strict real-browser WWI oracle missing');
+  const check = new Function(normalize[0] + '\n' + sequence[0] + '\nreturn assertWwiRequestSequence;')();
+  const hex = 'a'.repeat(64);
+  const status = i => 'WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + i +
+    ' RECOVERY_STATUS ' + '0'.repeat(64) + ' ' + i.toString(16).padStart(64, '0');
+  const physical = [
+    'SCENE legacy-v1 ' + hex, 'TAKEOFF 0.50000000000000000',
+    'RANGE front', 'MOVE left 0.29999999999999999', 'RANGE front',
+    'MOVE forward 0.29999999999999999', 'RANGE front',
+    'MOVE left 0.29999999999999999', 'LAND'
+  ];
+  const makeMessages = (count=1) => [
+    ...Array.from({length:count},(_,i)=>status(i+1)),
+    ...physical.map((cmd,i)=>'WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + (count+i+1) + ' ' + cmd)
+  ];
+  assert.equal(check(makeMessages()).length, 10, 'native guardian handshake is NOT optional');
+  assert.equal(check(makeMessages(3)).length, 12, 'bounded native status retries must be visible');
+  assert.throws(()=>check(makeMessages().slice(1)), /unexpected WWI request sequence/, 'missing guardian is a failure');
+  assert.throws(()=>check(makeMessages(4)), /unbounded native status challenge/, 'unbounded retries are forbidden');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('RECOVERY_STATUS ' + '0'.repeat(64),
+      'RECOVERY_STATUS ' + 'a'.repeat(64)))), /unexpected WWI request command/, 'unknown token cannot pass');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('RECOVERY_STATUS ' + '0'.repeat(64) + ' ' + '0'.repeat(63) + '1',
+      'RECOVERY_STATUS ' + '0'.repeat(64) + ' broken'))), /unexpected WWI request command/, 'malformed nonce rejected');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('REQUEST 2 SCENE','REQUEST 17 SCENE'))),
+    /unexpected WWI request ids/, 'stale/noncontiguous WWI ids fail');
+  const reordered = makeMessages(); [reordered[0],reordered[1]] = [reordered[1],reordered[0]];
+  assert.throws(()=>check(reordered), /unexpected WWI request sequence/, 'guardian MUST precede the flight scene');
+}
+
 function testNativeResetTimeoutSourceContract() {
   const source = fs.readFileSync(path.join(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
   assert.match(source, /#define RESET_TIMEOUT [0-9.]+/);
@@ -400,6 +436,7 @@ function testNativeResetTimeoutSourceContract() {
   await testHelloReplyDoesNotForgeRestart();
   await testBackendResetContract();
   await require('./test_runtime_v2_recovery.js')();
+  testNativeWebotsWwiSequenceOracle();
   await require('./test_window_renewal.js')();
   await require('./test_window_renewal_timing.js')();
   await testProjectFileOperationsOutliveReadinessTimeout();

@@ -215,7 +215,15 @@ script = r'''
     if (!match)
       throw new Error('unexpected WWI request framing: ' + String(message));
     const id = Number(match[1]);
+    if (!Number.isSafeInteger(id) || id < 1)
+      throw new Error('invalid WWI request id: ' + String(match[1]));
     const command = match[2];
+    // Every incarnation must query the independent native guardian before
+    // enabling Run. This administrative request is required evidence, not a
+    // flight command to ignore or filter out of the WWI sequence oracle.
+    const recovery = command.match(/^RECOVERY_STATUS (0{64}) ([0-9a-f]{64})$/);
+    if (recovery)
+      return {id, command: 'RECOVERY_STATUS', challenge: recovery[2]};
     if (/^SCENE legacy-v1 [0-9a-f]{64}$/.test(command))
       return {id, command: 'SCENE_LEGACY'};
     if (command.startsWith('TAKEOFF '))
@@ -229,6 +237,29 @@ script = r'''
     if (command === 'LAND')
       return {id, command: 'LAND'};
     throw new Error('unexpected WWI request command: ' + command);
+  }
+
+  function assertWwiRequestSequence(messages) {
+    const normalized = messages.map(normalizeWwiRequest);
+    const statuses = normalized.filter(entry => entry.command === 'RECOVERY_STATUS');
+    // The native status handshake makes one bounded attempt, with up to two
+    // retries on delayed/lost replies. Every attempt remains visible and must
+    // precede EVERY flight command; never discard unknown administrative WWI.
+    if (statuses.length < 1 || statuses.length > 3 ||
+        new Set(statuses.map(entry => entry.challenge)).size !== statuses.length)
+      throw new Error('missing, duplicated or unbounded native status challenge');
+    const expectedCommands = Array(statuses.length).fill('RECOVERY_STATUS').concat([
+      'SCENE_LEGACY','TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD',
+      'RANGE','MOVE_LEFT','LAND'
+    ]);
+    const commands = normalized.map(entry => entry.command);
+    const ids = normalized.map(entry => entry.id);
+    const expectedIds = normalized.map((_, index) => index + 1);
+    if (JSON.stringify(commands) !== JSON.stringify(expectedCommands))
+      throw new Error('unexpected WWI request sequence: ' + JSON.stringify(commands));
+    if (JSON.stringify(ids) !== JSON.stringify(expectedIds))
+      throw new Error('unexpected WWI request ids: ' + JSON.stringify(ids));
+    return normalized;
   }
 
   window.addEventListener('error', event => report('WINDOW_ERROR', {
@@ -352,14 +383,7 @@ script = r'''
     await report('SUBMIT', 'clicked');
     await waitFor(() => document.getElementById('runtimeState').textContent === 'TERMINÉ', 'Runtime v2 completion', 70000);
 
-    const normalized = wwiTx.map(normalizeWwiRequest);
-    const expectedCommands = ['SCENE_LEGACY','TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'];
-    const actualCommands = normalized.map(entry => entry.command);
-    const actualIds = normalized.map(entry => entry.id);
-    if (JSON.stringify(actualCommands) !== JSON.stringify(expectedCommands))
-      throw new Error('unexpected WWI request sequence: ' + JSON.stringify(actualCommands));
-    if (JSON.stringify(actualIds) !== JSON.stringify([1,2,3,4,5,6,7,8,9]))
-      throw new Error('unexpected WWI request ids: ' + JSON.stringify(actualIds));
+    const normalized = assertWwiRequestSequence(wwiTx);
     await report('WWI_SEQUENCE_OK', normalized);
 
     const lateralRanges = {};
