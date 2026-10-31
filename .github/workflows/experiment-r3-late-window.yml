@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/experiment-r3-late-window.yml'
       - 'tools/ci/prepare_r3_late_window_probe.py'
+      - 'tools/ci/r3_independent_launcher.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -63,7 +64,9 @@ jobs:
               printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_r3_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
               python3 tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/r3-native/events.jsonl &
               server=$!
-              trap "kill $server 2>/dev/null || true" EXIT
+              python3 tools/ci/r3_independent_launcher.py --events /workspace/ci-artifacts/r3-native/events.jsonl --evidence /workspace/ci-artifacts/r3-native/b2-launch.json > /workspace/ci-artifacts/r3-native/b2-launcher.log 2>&1 &
+              launcher=$!
+              trap "kill $server $launcher 2>/dev/null || true" EXIT
               sleep 0.5
               timeout -k 5s 420s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' > ci-artifacts/r3-native/webots.log 2>&1 || code=$?
@@ -90,6 +93,13 @@ jobs:
           assert before['workspace'] == after['workspace'] and before['ast'] == after['ast']
           opened, boot = only('R3_A_OPENED_B_AFTER_CLEAR'), only('R3_B_BOOT')
           b, a = only('R3_B_NATIVE_EFFECT'), only('R3_A_NATIVE_EFFECT')
+          b2boot, b2 = only('R3_B2_BOOT'), only('R3_B2_NATIVE_EFFECT')
+          assert b2boot['checkpointPresent'] is False
+          assert b2boot['href'].endswith('#webeeblocks-r3-profile-b2')
+          assert b2['nativeStatus'] == 'NONE' and b2['status'] == 'PRÊT'
+          assert b2['runDisabled'] is False and b2['socketOpen'] is True
+          launch = json.loads((p/'b2-launch.json').read_text())
+          assert b2boot['href'] == launch['url']
           assert opened['href'] == boot['href'] and boot['checkpointPresent'] is False
           assert b['nativeStatus'] == 'NONE' and b['status'] == 'PRÊT'
           assert b['runDisabled'] is False and b['socketOpen'] is True
@@ -100,10 +110,11 @@ jobs:
           assert log.count('RECOVERY_CLEARED') == 1
           assert log.count(' RESET_OK ') >= 2 and log.count(' SCENE_OK ') >= 2
           blue = log.find('TRACE LIGHT color=blue rgb=0000ff')
+          green = log.find('TRACE LIGHT color=green rgb=00ff00')
           red = log.find('TRACE LIGHT color=red rgb=ff0000')
-          assert 0 <= blue < red, 'native effects missing or misordered'
+          assert 0 <= blue < green < red, 'three native effects missing or misordered'
           assert log.count('WORLD_RELOAD_REQUESTED') == 1
-          print('NATIVE_R3_REPRODUCED',json.dumps({'A':a,'B':b,'effect_order':['B blue','A red']}))
+          print('NATIVE_R3_REPRODUCED',json.dumps({'A':a,'B':b,'B2':b2,'effect_order':['B blue','B2 green','A red']}))
           PY
       - uses: actions/upload-artifact@v4
         if: always()
