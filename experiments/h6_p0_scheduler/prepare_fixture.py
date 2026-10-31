@@ -47,7 +47,7 @@ p = plugin.read_text()
 if p.count("#include <plugins/physics.h>") != 1 or "webots_physics_collide" in p:
     raise SystemExit("REFUSED unexpected inherited plugin")
 p=p.replace("#include <plugins/physics.h>", '#include <plugins/physics.h>\nextern void h6_p0_trace(const char *, unsigned long long);')
-p=p.replace("static FILE *trace = NULL;", "static FILE *trace = NULL;\\nstatic dJointID h6_selected = NULL;\\nstatic volatile int h6_once = 0;")
+p=p.replace("static FILE *trace = NULL;", "static FILE *trace = NULL;\nstatic dJointID h6_selected = NULL;\nstatic volatile int h6_once = 0;")
 p=p.replace("  ++tick;", """  ++tick;
   /* Capture a LIVE engine contact before workers execute. */
   h6_selected = NULL;
