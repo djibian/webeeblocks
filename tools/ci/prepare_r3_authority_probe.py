@@ -50,6 +50,26 @@ boot_replacement = r"""
       if (!native || native.state !== 'NONE') throw new Error('R3 A native state changed');
       const aRequestId = runtimeBackend.nextId;
       await runtimeBackend.setLight('red');
+      // Same owner, identical id and authenticated effect body: C must reject
+      // the duplicate, not merely suppress an accidental second ACK in JS.
+      const replay = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          window.removeEventListener('webeeblocks-wwi', onReply);
+          reject(new Error('native owner replay timed out'));
+        }, 7000);
+        function onReply(event) {
+          if (event.detail !== 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + aRequestId + ' ERR REPLAY_DENIED')
+            return;
+          clearTimeout(timer);
+          window.removeEventListener('webeeblocks-wwi', onReply);
+          resolve();
+        }
+        window.addEventListener('webeeblocks-wwi', onReply);
+      });
+      robotWindow.send('WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + aRequestId +
+        ' AUTH ' + runtimeBackend.authorityKey + ' LIGHT red');
+      await replay;
+      await report('R3_A_NATIVE_REPLAY_DENIED', {requestId:aRequestId});
       await report('R3_A_NATIVE_EFFECT', {
         nonceA, bNonce:b.nonceB, aRequestId, aStatus:document.getElementById('runtimeState').textContent,
         aRunDisabled:document.getElementById('submit').disabled,

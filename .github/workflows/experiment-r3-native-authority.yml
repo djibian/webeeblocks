@@ -96,6 +96,8 @@ jobs:
           assert before['workspace'] == after['workspace'] and before['ast'] == after['ast']
           opened, boot = only('R3_A_OPENED_B_AFTER_CLEAR'), only('R3_B_BOOT')
           b, a = only('R3_B_NATIVE_REFUSED'), only('R3_A_NATIVE_EFFECT')
+          replay = only('R3_A_NATIVE_REPLAY_DENIED')
+          assert replay['requestId'] == a['aRequestId'], 'native duplicate oracle used a different id'
           b2boot, b2 = only('R3_B2_BOOT'), only('R3_B2_NATIVE_REFUSED')
           assert b2boot['checkpointPresent'] is False
           assert b2boot['href'].endswith('#webeeblocks-r3-profile-b2')
@@ -116,6 +118,10 @@ jobs:
           green = log.find('TRACE LIGHT color=green rgb=00ff00')
           red = log.find('TRACE LIGHT color=red rgb=ff0000')
           assert blue == -1 and green == -1 and red >= 0, 'native owner boundary bypassed or owner blocked'
+          assert log.count('TRACE LIGHT color=red rgb=ff0000') == 1, 'replayed owner effect reached C twice'
+          import re
+          assert not re.search(r'(?:AUTH_CLAIM|AUTH_RECOVER) [0-9a-f]{64}', log), 'authority capability leaked to native logs'
+          assert not re.search(r'REQUEST \\d+ AUTH [0-9a-f]{64}', log), 'effect capability leaked to native logs'
           assert log.count('WORLD_RELOAD_REQUESTED') == 1
           print('NATIVE_R3_AUTHORITY_REJECTED',json.dumps({'A':a,'B':b,'B2':b2,'effect_order':['B refused','B2 refused','A red']}))
           PY
