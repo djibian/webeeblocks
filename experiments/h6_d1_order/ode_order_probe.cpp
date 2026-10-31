@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+// The pinned Cyberbotics ODE fork exports the MT entry point, not public dHashSpaceCreate.
+// This is a test-only call to the same internal hash-space implementation.
+extern dSpaceID dHashSpaceCreate_MT(dSpaceID);
+
 struct CaseData {
   dBodyID a = nullptr, b = nullptr, c = nullptr;
   int abCount = 0, acCount = 0;
@@ -41,7 +45,7 @@ static void near(void *ptr, dGeomID o1, dGeomID o2) {
 static bool run(const char *label, bool hash, const char *order, bool bigB,
                 char expectedAB) {
   dWorldID world = dWorldCreate();
-  dSpaceID space = hash ? dHashSpaceCreate(nullptr) : dSimpleSpaceCreate(nullptr);
+  dSpaceID space = hash ? dHashSpaceCreate_MT(nullptr) : dSimpleSpaceCreate(nullptr);
   CaseData d;
   d.label = label;
   struct Object { char id; dBodyID body; dGeomID geom; };
