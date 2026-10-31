@@ -80,7 +80,7 @@ async function testWindowRenewal() {
     {hostname:'127.0.0.2',path:winPath},
     {hostname:'[::1]',path:winPath}, // Not observed / not admitted implicitly.
     {hostname:'0.0.0.0',path:winPath},
-    {hostname:'127.0.0.1',path:winPath.replace(/\\.html$/, '_other.html')},
+    {hostname:'127.0.0.1',path:winPath.slice(0, -5) + '_other.html'},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_284_ffff')},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_foo_')},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_12345678901_')},
