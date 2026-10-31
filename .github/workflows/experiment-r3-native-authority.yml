@@ -34,7 +34,7 @@ jobs:
           docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace/controllers/crazyflie_runtime_v2 \
             cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make' \
             > ci-artifacts/r3-native/build.log 2>&1
-          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 > ci-artifacts/r3-native/controller.sha256
+          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 | tee ci-artifacts/r3-native/controller.sha256
           python3 tools/ci/prepare_runtime_v2_reset.py
           python3 tools/ci/prepare_r3_authority_probe.py
           python3 - <<'PY'
