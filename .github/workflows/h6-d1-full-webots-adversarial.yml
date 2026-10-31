@@ -1,14 +1,14 @@
 name: H6 independent D1 full Webots foreign body deletion
 on:
   push:
-    branches: [experiment/h6-d1-actual-delete-adversarial-20261031]
+    branches: [experiment/h6-d1-foreign-asleep-discriminant-20261031]
     paths:
       - experiments/h6_d1_adversarial/**
       - .github/workflows/h6-d1-full-webots-adversarial.yml
 permissions:
   contents: read
 concurrency:
-  group: h6-d1-full-webots-adversarial-20261031
+  group: h6-d1-foreign-asleep-discriminant-20261031
   cancel-in-progress: true
 jobs:
   full-webots:
@@ -32,6 +32,8 @@ jobs:
           git rev-parse HEAD > evidence/d1/reviewer-commit.txt
           git merge-base --is-ancestor "$CANDIDATE" HEAD
           python3 -m py_compile experiments/h6_d1_adversarial/instrument_d1.py \
+            experiments/h6_d1_adversarial/instrument_asleep.py \
+            experiments/h6_d1_adversarial/qualify_asleep.py \
             experiments/h6_d1_adversarial/controllers/h6_d1_real_remove/h6_d1_real_remove.py
           find experiments/h6_d1_adversarial -type f ! -path '*/__pycache__/*' -print0 \
             | sort -z | xargs -0 sha256sum > evidence/d1/reviewer-sources.sha256
@@ -43,7 +45,7 @@ jobs:
           test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
           test -z "$(git -C native-webots status --porcelain)"
           git -C native-webots rev-parse HEAD > evidence/d1/native-pin.txt
-          python3 experiments/h6_d1_adversarial/instrument_d1.py native-webots > evidence/d1/logs/patch.log
+          python3 experiments/h6_d1_adversarial/instrument_asleep.py native-webots > evidence/d1/logs/patch.log
           git -C native-webots diff --check
           git -C native-webots diff --binary HEAD > evidence/d1/instrumented.patch
           sha256sum evidence/d1/instrumented.patch > evidence/d1/instrumented.patch.sha256
@@ -69,56 +71,35 @@ jobs:
             }
           sha256sum experiments/h6_d1_adversarial/plugins/physics/h6_d1_owner_sleep/libh6_d1_owner_sleep.so \
             > evidence/d1/plugin-binary.sha256
-      - name: Real Supervisor remove(B) and WbSolidMerger destructor while A asleep
+      - name: Two real native arms — observed control and adversarial teardown intervention
         shell: bash
         run: |
           set -euo pipefail
           export WEBOTS_HOME="$PWD/native-webots"
-          set +e
-          H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
-            timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
-            "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
-            "$PWD/experiments/h6_d1_adversarial/worlds/real_delete.wbt" \
-            > evidence/d1/webots.log 2>&1
-          rc=$?
-          set -e
-          echo "$rc" > evidence/d1/exit.txt
-          test "$rc" = 0 || { tail -n 130 evidence/d1/webots.log; exit 91; }
-      - name: Strict confirm foreign-owner destruction AND unrelated A-C persistence
+          for arm in control forced; do
+            mkdir -p "evidence/d1/$arm"
+            force=0; [[ "$arm" != forced ]] || force=1
+            set +e
+            H6_D1_FIXTURE_SLEEP_AT_TEARDOWN="$force" \
+            H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
+              timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
+              "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+              "$PWD/experiments/h6_d1_adversarial/worlds/real_delete.wbt" \
+              > "evidence/d1/$arm/webots.log" 2>&1
+            rc=$?
+            set -e
+            echo "$rc" > "evidence/d1/$arm/exit.txt"
+            echo "H6_D1_ARM $arm rc=$rc"
+          done
+      - name: Strict fail-closed owner=A disabled at real B destruction with negative controls
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re,json
-          root=Path('evidence/d1')
-          log=(root/'webots.log').read_text(errors='replace')
-          for word in ('H6_D1_CONTROLLER_READY','H6_D1_CONTROLLER_REMOVE_B',
-                       'H6_D1_CONTROLLER_COMPLETE','H6_D1_PLUGIN_INIT',
-                       'H6_D1_REAL_BODY_DESTROY_START','H6_D1_REAL_BODY_DESTROY_BEFORE_ODE',
-                       'H6_D1_REAL_BODY_DESTROY_AFTER_ODE','H6_D1_FINAL_CONTEXT_END'):
-             # final context instrument emits H6_D3_FINAL_CONTEXT_END
-             if word=='H6_D1_FINAL_CONTEXT_END':
-               word='H6_D3_FINAL_CONTEXT_END count1=0 count2=0'
-             assert word in log,('missing',word)
-          match=re.search(r'H6_D1_PLUGIN_INIT a=(\S+) b=(\S+) c=(\S+)',log)
-          assert match,('missing IDs')
-          a,b,c=match.groups()
-          sleep=re.findall(r'H6_D1_PLUGIN_SLEEP tick=(\d+) a=(\S+) enabled=(\d+) ab=(\d+) ac=(\d+) total=(\d+)',log)
-          assert sleep,('no sleeping event')
-          assert any(x[2]=='0' and int(x[3])>0 and int(x[4])>0 for x in sleep),('no simultaneous A-B and A-C contacts while A asleep',sleep)
-          scans=re.findall(r'H6_D1_FOREIGN_SCAN victim=(\S+) joint=(\S+) owner=(\S+) ownerEnabled=(\d+) b0=(\S+) b1=(\S+) destroy=(\d+)',log)
-          foreign=[s for s in scans if s[0]==b and s[2]==a and s[3]=='0' and s[6]=='1' and b in (s[4],s[5])]
-          kept=[s for s in scans if s[0]==b and s[2]==a and s[6]=='0' and c in (s[4],s[5])]
-          assert foreign,('no foreign-owner A-B contact destroyed',scans)
-          assert kept,('no legitimate A-C kept',scans)
-          report={'candidate':'8d8d644b2bc6d5821572d87d474e59f533ec3260',
-                  'scope':'real Webots Robot Supervisor Node.remove + WbSolidMerger destructor',
-                  'bodyIDs':{'A':a,'B':b,'C':c},'sleep':sleep,'foreign_drops':foreign,
-                  'independent_kept':kept,'status':'PASS'}
-          (root/'qualification.json').write_text(json.dumps(report,indent=2)+'\n')
-          print('H6_D1_REAL_WEBOTS_FOREIGN_CLEANUP_PASS')
-          PY
+          python3 experiments/h6_d1_adversarial/qualify_asleep.py evidence/d1 \
+            > evidence/d1/logs/qualification-asleep.log 2>&1 || {
+              cat evidence/d1/logs/qualification-asleep.log; exit 92;
+            }
+          cat evidence/d1/logs/qualification-asleep.log
       - name: Retain traces and binary hashes on success or RED
         if: always()
         run: |
@@ -129,7 +110,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: h6-d1-full-Webots-foreign-owner-destruction
+          name: h6-d1-foreign-asleep-real-Webots-native-discriminant
           path: evidence/d1/
           retention-days: 90
           if-no-files-found: error
