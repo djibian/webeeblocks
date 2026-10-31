@@ -51,6 +51,17 @@ def evaluate(log,case,mode,workers):
         require("E5_plugin_group_empty" in {e["ev"] for e in ev} and
                 "E5_plugin_permanent_destroyed" in {e["ev"] for e in ev},
                 "BASELINE_PLUGIN_CLEANUP_MISSING")
+        standalone=[e["arg"] for e in ev if e["ev"]=="E5_plugin_attached_standalone_before"]
+        require(len(standalone)==1,"BASELINE_ATTACHED_PLUGIN_STANDALONE_MISSING")
+        if case=="reset":
+            require(any(e["ev"]=="public_destroy_enter" and
+                        e["arg"]==standalone[0] for e in ev),
+                    "BASELINE_ORIGINAL_RESET_DID_NOT_DESTROY_STANDALONE")
+            require(any(e["ev"]=="E5_plugin_standalone_reset_no_use" for e in ev),
+                    "BASELINE_PLUGIN_DANGLING_HANDLE_NOT_QUARANTINED")
+        else:
+            require(any(e["ev"]=="E5_plugin_standalone_owner_free" for e in ev),
+                    "BASELINE_BODY_PLUGIN_STANDALONE_OWNER_CLEANUP_MISSING")
         require(any(a==case and n==1 and b0 not in ("(nil)","0x0") and
                     p not in ("(nil)","0x0") for a,t,n,b0,b1,p in plugin),
                 "BASELINE_PLUGIN_ATTACHMENT_NOT_EXERCISED")
@@ -109,7 +120,9 @@ def evaluate(log,case,mode,workers):
     require(len(worker_tids)>=workers,"FALSE_SECOND_WORKER")
     require(engine_frees>0,"NO_ENGINE_FREE")
     require(select("E5_plugin_attached_group_before") and
-            select("E5_plugin_permanent_before"),"PLUGIN_ATTACHED_WITNESS_MISSING")
+            select("E5_plugin_permanent_before") and
+            len(select("E5_plugin_attached_standalone_before"))==1,
+            "PLUGIN_ATTACHED_WITNESS_MISSING")
     require(select("E5_plugin_group_empty") and
             select("E5_plugin_permanent_destroyed"),"PLUGIN_GROUP_OR_PERMANENT_CLEANUP_MISSING")
     require(any(a==case and n==1 and b0 not in ("(nil)","0x0") and
@@ -175,6 +188,22 @@ def evaluate(log,case,mode,workers):
         require(select("E5_reset_plugin_detached"),"ATTACHED_PLUGIN_CONTACT_NOT_ROUTED")
         require(select("P0_reset_M_acquired") and select("P0_reset_M_released"),
                 "RESET_M_NOT_EXERCISED")
+        group=select("E5_plugin_attached_group_before")[0]["arg"]
+        standalone=select("E5_plugin_attached_standalone_before")[0]["arg"]
+        staged={e["arg"] for e in select("E5_reset_plugin_native_destroy")}
+        allowed={e["arg"] for e in select("P0_public_allowed")}
+        class_plugin={e["arg"] for e in select("P0_class_plugin")}
+        require(group in staged and standalone in staged,
+                "RESET_PLUGIN_GROUP_AND_STANDALONE_NOT_NATIVE_DESTROYED")
+        require({group,standalone}.issubset(allowed & class_plugin),
+                "PLUGIN_MISCLASSIFIED_ENGINE_OR_PUBLIC_GATE_BLOCKED")
+        releases=[e["seq"] for e in select("P0_reset_M_released")]
+        require(all(any(u<e["seq"] for u in releases)
+                    for e in select("E5_reset_plugin_native_destroy")),
+                "PUBLIC_PLUGIN_GATE_CALLED_WHILE_NONRECURSIVE_M_HELD")
+        require(select("E5_plugin_standalone_reset_no_use") and
+                not select("E5_plugin_standalone_owner_free"),
+                "RESET_PLUGIN_STANDALONE_USED_AFTER_ENGINE_FREE")
     return {"case":case,"mode":mode,"workers":workers,"events":len(ev),
             "scans":len(scans),"engine_frees":engine_frees,
             "attached_plugin_steps":len(plugin),
