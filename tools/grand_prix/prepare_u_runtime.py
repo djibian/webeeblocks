@@ -196,8 +196,12 @@ static double wrap_angle(double angle) {
        '''        /* The administrative RESET window cannot finalize recovery.
            Every observation since teleport/loss must confirm the full pose. */
         if (now - stable_since >= STOP_WINDOW) {'''),
-      ('          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);',
-       '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();')]
+      ('''          active_reset_nonce[0] = '\\0';
+          command = CMD_IDLE;''',
+       '''          active_reset_nonce[0] = '\\0';
+          gp_ground_since = -1.0;
+          gp_u_reset_complete();
+          command = CMD_IDLE;''')]
     result=source
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')

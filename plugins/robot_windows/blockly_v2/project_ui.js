@@ -29,14 +29,22 @@
     return !!error && (error.name === 'AbortError' || error.code === 20);
   }
 
+  // Project-file unit tests load this module without the simulation runtime.
+  function recoveryPending() {
+    return typeof runtimeRecoveryPending !== 'undefined' && runtimeRecoveryPending === true;
+  }
+  function rebuildRequired() {
+    return typeof runtimeNeedsRebuild !== 'undefined' && runtimeNeedsRebuild === true;
+  }
+
   function renderButtons() {
     var activity = document.getElementById('projectActivity');
     var open = document.getElementById('projectOpen');
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
-    var locked = busy || !supported || runtimeLocked;
+    var locked = busy || !supported || runtimeLocked || recoveryPending();
     var blocklyDiv = document.getElementById('blocklyDiv');
-    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked;
+    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked || recoveryPending();
     if (activity) activity.disabled = locked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
@@ -51,7 +59,7 @@
   }
 
   async function operation(name, action) {
-    if (busy || !supported || runtimeLocked) return null;
+    if (busy || !supported || runtimeLocked || recoveryPending()) return null;
     busy = true;
     runtimeProjectPending = true;
     updateRuntimeActions();
@@ -85,7 +93,7 @@
   async function prepareProfileScene(profile) {
     if (!runtimeBackend || !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
       return; // Existing non-scene test/transport composition is unchanged.
-    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending)
+    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending || recoveryPending() || rebuildRequired())
       throw new Error('Simulation occupée');
     if (runtimeTerminal) {
       await resetSimulation();
@@ -298,7 +306,7 @@
 
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
-    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION' || state === 'RECONSTRUCTION');
     if (state === 'PRÉPARATION') setRuntimeLocked(true);
   });
 
