@@ -1,0 +1,179 @@
+name: EXPERIMENT ONLY - R3 independent native T1 and T3
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-r3-sessions.yml'
+      - 'tools/ci/prepare_r3_sessions_probe.py'
+      - 'tools/ci/r3_session_witness.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-two-real-webots-sessions:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify unchanged native candidate and compile pinned official R2025a
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/r3-sessions/state
+          git fetch --no-tags --depth=1 origin f243b2b597a2a6bd6af38e895787d9dd4bdfef5e
+          git diff --quiet f243b2b597a2a6bd6af38e895787d9dd4bdfef5e HEAD -- \
+            controllers/crazyflie_runtime_v2 plugins/robot_windows/blockly_v2/main.js \
+            plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          ./tools/prepare_runtime_v2.sh
+          chmod +x tools/ci/webots_runtime_v2_browser.sh
+          docker run --rm -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make' \
+            > ci-artifacts/r3-sessions/build.log 2>&1
+          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 | tee ci-artifacts/r3-sessions/controller.sha256
+          test "$(cut -d' ' -f1 ci-artifacts/r3-sessions/controller.sha256)" = \
+            "2bdbd4c22c0ba300cca3643786eb3b9d42b35fcfdd57354cc4c4ab1581f871f4"
+          python3 tools/ci/prepare_r3_sessions_probe.py
+      - name: Close Webots normally then launch same world and state dir; challenge old bearer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/r3-sessions \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -lc '
+              set -euo pipefail
+              export WEBEEBLOCKS_RECOVERY_STATE_DIR=/workspace/ci-artifacts/r3-sessions/state
+              out=/workspace/ci-artifacts/r3-sessions
+              mkdir -p /root/.config/Cyberbotics "$WEBEEBLOCKS_RECOVERY_STATE_DIR"
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                wget ca-certificates xdotool xvfb openbox >/dev/null
+              wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/chrome.deb >/dev/null
+              printf "%s\n" "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" >/root/.config/Cyberbotics/Webots-R2025a.conf
+              printf "1\n" > "$out/phase.txt"
+              python3 tools/ci/r3_session_witness.py --events "$out/events.jsonl" \
+                --phase-file "$out/phase.txt" >"$out/witness.log" 2>&1 &
+              witness=$!
+              Xvfb :99 -screen 0 1600x900x24 -nolisten tcp >"$out/xvfb.log" 2>&1 &
+              display=$!
+              export DISPLAY=:99
+              sleep 0.5
+              openbox --sm-disable >"$out/openbox.log" 2>&1 &
+              wm=$!
+              first=0
+              second=0
+              trap "for p in \$first \$second \$witness \$display \$wm; do if test \$p -gt 0; then kill \$p 2>/dev/null || true; fi; done" EXIT
+              sleep 1
+              wait_event() {
+                local tag="$1"
+                for i in $(seq 1 600); do
+                  if test -f "$out/events.jsonl" && grep -Fq "\"event\": \"$tag\"" "$out/events.jsonl"; then
+                    return 0
+                  fi
+                  if test -f "$out/events.jsonl" && grep -Fq "\"event\": \"T1_T3_ERROR\"" "$out/events.jsonl"; then
+                    echo "BROWSER_ERROR during $tag"; cat "$out/events.jsonl"; return 1
+                  fi
+                  sleep 0.25
+                done
+                echo "MISSING_EVENT: $tag"; tail -30 "$out/session1.log" "$out/session2.log" 2>/dev/null || true
+                return 1
+              }
+              close_webots_normally() {
+                local pid="$1" window=""
+                window=$(xdotool search --onlyvisible --name Webots 2>/dev/null | head -1 || true)
+                if test -z "$window"; then echo "NORMAL_CLOSE_UNPROVEN_NO_GUI"; return 1; fi
+                echo "GUI_CLOSE_REQUEST window=$window pid=$pid" >>"$out/closure.txt"
+                xdotool windowactivate --sync "$window" key --clearmodifiers ctrl+q
+                for i in $(seq 1 120); do
+                  if ! kill -0 "$pid" 2>/dev/null; then return 0; fi
+                  if ps -o stat= -p "$pid" 2>/dev/null | grep -q Z; then return 0; fi
+                  sleep 0.25
+                done
+                echo "NORMAL_CLOSE_UNPROVEN_PROCESS_STILL_ALIVE"; return 1
+              }
+              timeout -k 5s 300s webots --stdout --stderr --batch --mode=realtime \
+                /workspace/worlds/crazyflie_runtime_v2.wbt >"$out/session1.log" 2>&1 &
+              first=$!
+              wait_event T1_SESSION1_EFFECT
+              test "$(find "$WEBEEBLOCKS_RECOVERY_STATE_DIR" -name "*.state" | wc -l)" -eq 1
+              state=$(find "$WEBEEBLOCKS_RECOVERY_STATE_DIR" -name "*.state" -print -quit)
+              grep -Fxq WEBEEBLOCKS_OWNER_V1 "$state"
+              sha256sum "$state" >"$out/witness-before-close.sha256"
+              close_webots_normally "$first"
+              wait "$first"
+              first=0
+              echo NORMAL_WEBOTS1_EXIT=0 >>"$out/closure.txt"
+              sha256sum "$state" >"$out/witness-after-close.sha256"
+              cmp "$out/witness-before-close.sha256" "$out/witness-after-close.sha256"
+              grep -Fxq WEBEEBLOCKS_OWNER_V1 "$state"
+              test -f "$state.lock"
+              echo "2" > "$out/phase.txt"
+              timeout -k 5s 300s webots --stdout --stderr --batch --mode=realtime \
+                /workspace/worlds/crazyflie_runtime_v2.wbt >"$out/session2.log" 2>&1 &
+              second=$!
+              wait_event T1_T3_SESSION2_EFFECT
+              grep -Fq "TRACE LIGHT color=red rgb=ff0000" "$out/session1.log"
+              grep -Fq "TRACE LIGHT color=blue rgb=0000ff" "$out/session2.log"
+              grep -Fq "TRACE LIGHT color=red rgb=ff0000" "$out/session2.log"
+              if grep -Fq "TRACE LIGHT color=green rgb=00ff00" "$out/session2.log"; then
+                echo OLD_BEARER_EFFECT_REACHED_NATIVE_C; exit 1
+              fi
+              close_webots_normally "$second"
+              wait "$second"
+              second=0
+              echo NORMAL_WEBOTS2_EXIT=0 >>"$out/closure.txt"
+              grep -Fxq WEBEEBLOCKS_OWNER_V1 "$state"
+              echo T1_T3_REAL_WEBOTS_SESSIONS=PASS
+            ' > ci-artifacts/r3-sessions/orchestration.log 2>&1 || {
+              tail -120 ci-artifacts/r3-sessions/orchestration.log
+              exit 1
+            }
+      - name: Validate exact native observations, document-survival separately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ci-artifacts/r3-sessions')
+          events=[json.loads(x) for x in (p/'events.jsonl').read_text().splitlines() if x]
+          assert not [e for e in events if e.get('event')=='T1_T3_ERROR'], 'browser probe failure'
+          def one(tag):
+              matches=[e['detail'] for e in events if e.get('event')==tag]
+              assert len(matches)==1, (tag,matches)
+              return matches[0]
+          first=one('T1_SESSION1_EFFECT')
+          second=one('T1_T3_SESSION2_EFFECT')
+          assert first['ready'] and first['blocklyUnchanged'] and first['astUnchanged']
+          assert all(second[k] for k in ('ready','blueAccepted','secondRedAccepted',
+              'oldClaimDenied','oldLightDenied','oldStopDenied','freshEpoch',
+              'blocklyUnchanged','astUnchanged','socketOpen'))
+          assert (p/'closure.txt').read_text().count('NORMAL_WEBOTS')==2
+          assert 'FATAL native authority lock' not in (p/'session2.log').read_text()
+          alive=[e['detail'] for e in events if e.get('event')=='T3_OLD_DOCUMENT_ATTEMPT']
+          if alive:
+              assert len(alive)==1 and alive[0]['result']!='UNEXPECTED_ACCEPTANCE'
+          for f in ('session1.log','session2.log','orchestration.log','events.jsonl','browser-launch.log'):
+              path=p/f
+              if path.exists():
+                  import re
+                  assert not re.search(r'\\bAUTH(?:_CLAIM|_RECOVER)? [0-9a-f]{64}',path.read_text(errors='replace')),f
+          print('T1_NATIVE_SECOND_SESSION=PASS; T3_OLD_BEARER_REPLAY=PASS')
+          print('T3_SURVIVING_ORIGINAL_DOCUMENT=', 'OBSERVED' if alive else 'UNPROVEN')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experiment-r3-native-two-sessions
+          path: ci-artifacts/r3-sessions/
+          if-no-files-found: warn
