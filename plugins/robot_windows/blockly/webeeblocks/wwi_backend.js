@@ -396,13 +396,15 @@
     }
     return probe(1);
   };
-  RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token) {
-    if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token))
+  RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token, digest) {
+    if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token) ||
+        !/^[0-9a-f]{64}$/.test(digest || ''))
       return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
-    return this._request(['RECOVERY_CLEAR', token]);
+    return this._request(['RECOVERY_CLEAR', token, digest]);
   };
-  RuntimeV2WwiBackend.prototype.requestWorldReload = function(token) {
-    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token))
+  RuntimeV2WwiBackend.prototype.requestWorldReload = function(token, digest) {
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token) ||
+        !/^[0-9a-f]{64}$/.test(digest || ''))
       throw new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN');
     if (!this.capabilities || this.capabilities.simulationWorldReload !== true)
       throw new Error('Runtime v2 world reload unavailable');
@@ -411,7 +413,7 @@
     this._cancelPendingForReset();
     this.ready = false;
     this.simulationStopped = true;
-    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + token);
+    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + token + ' ' + digest);
   };
 
   RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;

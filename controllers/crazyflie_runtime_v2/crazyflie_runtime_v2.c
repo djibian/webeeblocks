@@ -505,13 +505,14 @@ int main(void) {
     while ((message = wb_robot_wwi_receive_text()) != NULL) {
       if (world_reload_requested)
         continue; // No old command or ACK may survive the reload request.
-      char witness_token[65] = {0}, challenge[65] = {0}, extra[2] = {0};
+      char witness_token[65] = {0}, witness_digest[65] = {0}, challenge[65] = {0}, extra[2] = {0};
       int guardian_id = -1;
-      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %1s", witness_token, extra) == 1 &&
-          wb_rg_hex64(witness_token)) {
+      if (sscanf(message, PREFIX " RELOAD_WORLD %64s %64s %1s",
+                 witness_token, witness_digest, extra) == 2 &&
+          wb_rg_hex64(witness_token) && wb_rg_hex64(witness_digest)) {
         // Persist BEFORE world reload. Losing the browser can never erase this
         // witness. A write failure must not destroy the existing world.
-        if (!wb_rg_arm(&recovery_guard, witness_token)) {
+        if (!wb_rg_arm(&recovery_guard, witness_token, witness_digest)) {
           send_text(PREFIX " WORLD_RELOAD_DENIED");
           continue;
         }
@@ -542,14 +543,15 @@ int main(void) {
         send_text(reply);
         continue;
       }
-      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %1s",
-                 &guardian_id, witness_token, challenge, extra) == 3 &&
-          guardian_id >= 1 && wb_rg_hex64(witness_token) && wb_rg_hex64(challenge)) {
+      if (sscanf(message, PREFIX " REQUEST %d RECOVERY_CLEAR %64s %64s %64s %1s",
+                 &guardian_id, witness_token, witness_digest, challenge, extra) == 4 &&
+          guardian_id >= 1 && wb_rg_hex64(witness_token) &&
+          wb_rg_hex64(witness_digest) && wb_rg_hex64(challenge)) {
         // Caller must present the undisclosed token AND complete the native
         // correlated RESET -> SCENE -> RESET -> SCENE postcondition sequence.
         // The UI separately verifies exact Blockly workspace/profile identity.
         char reply[192];
-        if (recovery_phase == 4 && wb_rg_clear(&recovery_guard, witness_token))
+        if (recovery_phase == 4 && wb_rg_clear(&recovery_guard, witness_token, witness_digest))
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d RECOVERY_CLEARED %s", guardian_id, challenge);
         else
           snprintf(reply, sizeof(reply), PREFIX " RESPONSE %d ERR RECOVERY_LOCKED", guardian_id);
