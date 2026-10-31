@@ -32,7 +32,7 @@
       var raw = root.localStorage.getItem('webeeblocks-world-recovery-v1');
       if (!raw) return false;
       var checkpoint = JSON.parse(raw);
-      return checkpoint.version === 2 && checkpoint.token === token;
+      return checkpoint.version === 3 && checkpoint.token === token;
     } catch (_) { return false; }
   }
 

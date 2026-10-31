@@ -10,7 +10,7 @@ async function flush() {
 }
 function clockEnvironment() {
   let now = 0, seq = 0, reloads = 0, requests = 0;
-  let checkpoint = JSON.stringify({version:2,token:TOKEN});
+  let checkpoint = JSON.stringify({version:3,token:TOKEN});
   const timers = new Map(), late = [];
   const location = {
     protocol:'http:',hostname:'localhost',
