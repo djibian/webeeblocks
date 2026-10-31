@@ -19,7 +19,10 @@
 #include <unistd.h>
 #endif
 
-enum { WB_RG_INVALID = -1, WB_RG_NONE = 0, WB_RG_PENDING = 1 };
+enum { WB_RG_INVALID = -1, WB_RG_NONE = 0, WB_RG_PENDING = 1, WB_RG_OWNED = 2 };
+// An owner tombstone deliberately contains NO secret. It survives CLEAR and
+// an unexpected controller-process crash. Only a clean *absent* file is first boot.
+#define WB_RG_OWNED_RECORD "WEBEEBLOCKS_OWNER_V1\n"
 typedef struct {
   char path[1024];
   char token[65];
@@ -52,6 +55,11 @@ static int wb_rg_refresh(wb_recovery_guard_t *g) {
   int bad = ferror(f);
   fclose(f);
   const size_t p = strlen(prefix);
+  if (!bad && eof && n == strlen(WB_RG_OWNED_RECORD) &&
+      memcmp(record, WB_RG_OWNED_RECORD, n) == 0) {
+    g->state = WB_RG_OWNED;
+    return g->state;
+  }
   // Exactly one complete record, never accept truncation or extra bytes.
   if (!bad && eof && n == p + 64 + 1 + 64 + 1 + 64 + 1 &&
       memcmp(record, prefix, p) == 0 && record[p + 64] == ' ' &&
@@ -93,14 +101,36 @@ static int wb_rg_setup(wb_recovery_guard_t *g, const char *world) {
   return g->state != WB_RG_INVALID;
 }
 
-static int wb_rg_arm(wb_recovery_guard_t *g, const char *token, const char *digest, const char *owner_key) {
-  if (!wb_rg_hex64(token) || !wb_rg_hex64(digest) || !wb_rg_hex64(owner_key) ||
-      wb_rg_refresh(g) != WB_RG_NONE) return 0;
-  // A crash during this write leaves an INVALID witness, never an absent one.
-  // Capability material resides only in native state; mode 0600 is mandatory
-  // on POSIX. A preexisting path cannot be rewritten (refresh above fails).
+static int wb_rg_claim(wb_recovery_guard_t *g) {
+  if (wb_rg_refresh(g) != WB_RG_NONE) return 0;
+  // A crash at any point during writing leaves an invalid file, not NONE.
 #ifndef _WIN32
   int fd = open(g->path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+  FILE *f = fd < 0 ? NULL : fdopen(fd, "wb");
+  if (fd >= 0 && !f) close(fd);
+#else
+  FILE *f = fopen(g->path, "wb");
+#endif
+  if (!f) { g->state = WB_RG_INVALID; return 0; }
+  int ok = fputs(WB_RG_OWNED_RECORD, f) >= 0 && fflush(f) == 0;
+  if (ok) {
+#ifdef _WIN32
+    ok = _commit(_fileno(f)) == 0;
+#else
+    ok = fsync(fileno(f)) == 0;
+#endif
+  }
+  if (fclose(f) != 0) ok = 0;
+  return ok && wb_rg_refresh(g) == WB_RG_OWNED;
+}
+
+static int wb_rg_arm(wb_recovery_guard_t *g, const char *token, const char *digest, const char *owner_key) {
+  if (!wb_rg_hex64(token) || !wb_rg_hex64(digest) || !wb_rg_hex64(owner_key) ||
+      wb_rg_refresh(g) != WB_RG_OWNED) return 0;
+  // Replace only our existing owner tombstone. A partial/truncated write is
+  // INVALID on restart; never regarded as NONE or a successful clearance.
+#ifndef _WIN32
+  int fd = open(g->path, O_WRONLY | O_TRUNC);
   FILE *f = fd < 0 ? NULL : fdopen(fd, "wb");
   if (fd >= 0 && !f) close(fd);
 #else
@@ -126,7 +156,20 @@ static int wb_rg_arm(wb_recovery_guard_t *g, const char *token, const char *dige
 static int wb_rg_clear(wb_recovery_guard_t *g, const char *token, const char *digest) {
   if (!wb_rg_hex64(digest) || wb_rg_refresh(g) != WB_RG_PENDING ||
       strcmp(g->token, token) != 0 || strcmp(g->digest, digest) != 0) return 0;
-  if (remove(g->path) != 0) { g->state = WB_RG_INVALID; return 0; }
-  return wb_rg_refresh(g) == WB_RG_NONE;
+  // Never unlink the last owner evidence. After CLEAR the controller still
+  // holds the ephemeral key in memory, and an unplanned native restart must
+  // refuse late CLAIM rather than silently grant B.
+  FILE *f = fopen(g->path, "wb");
+  if (!f) { g->state = WB_RG_INVALID; return 0; }
+  int ok = fputs(WB_RG_OWNED_RECORD, f) >= 0 && fflush(f) == 0;
+  if (ok) {
+#ifdef _WIN32
+    ok = _commit(_fileno(f)) == 0;
+#else
+    ok = fsync(fileno(f)) == 0;
+#endif
+  }
+  if (fclose(f) != 0) ok = 0;
+  return ok && wb_rg_refresh(g) == WB_RG_OWNED;
 }
 #endif
