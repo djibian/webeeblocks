@@ -32,6 +32,10 @@ b='''      const dBodyID v0 = dJointGetBody(joint, 0);
         dJointDestroy(joint);
       }'''
 c=once(c,a,b,"foreign scan")
+for buffer in ("1","2"):
+    old=f'std::fprintf(stderr,"H6_D3_RETIRE buffer={buffer} before=%d after=%d\\n",before,mBodyContacts{buffer}.size());'
+    new=f'if (before > 0) std::fprintf(stderr,"H6_D3_RETIRE buffer={buffer} before=%d after=%d\\n",before,mBodyContacts{buffer}.size());'
+    c=once(c,old,new,f"no empty-retirement log buffer{buffer}")
 a='''WbSolidMerger::~WbSolidMerger() {
   WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
   dBodyDestroy(mBody);
