@@ -1,0 +1,208 @@
+name: H6 standalone contact lifetime — first wake and bounded RESET allocations
+on:
+  push:
+    branches: [experiment/h6-individual-contact-lifetime-20261030]
+    paths:
+      - 'experiments/h6_standalone/**'
+      - '.github/workflows/h6-standalone-lifetime.yml'
+permissions:
+  contents: read
+concurrency:
+  group: h6-standalone-lifetime-20261030
+  cancel-in-progress: true
+jobs:
+  exact-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      PR760_HEAD: 2fa4984242230659d6d4f688480fc6f09e65fc84
+      PR756_HEAD: dbd4d82d2cabee443a9edd161811a7c1ee442a59
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify provenance and reuse exact historical fixtures read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/standalone/logs fixtures/g_window/worlds \
+            fixtures/g_window/plugins/physics/h6_g_window \
+            fixtures/g_window/controllers/h6_g_window fixtures/wake
+          git rev-parse HEAD > evidence/standalone/experiment-commit.txt
+          python3 -m py_compile experiments/h6_standalone/*.py
+          git fetch --no-tags --depth=1 origin "$PR760_HEAD" "$PR756_HEAD" \
+            > evidence/standalone/logs/fetch-fixtures.log 2>&1
+          for p in plugins/physics/h6_g_window/h6_g_window.c \
+                   plugins/physics/h6_g_window/Makefile \
+                   controllers/h6_g_window/h6_g_window.py \
+                   worlds/h6_g_window.wbt; do
+            git show "$PR760_HEAD:experiments/h6/g_window/$p" > "fixtures/g_window/$p"
+          done
+          git show "$PR760_HEAD:experiments/h6_advanced/generate_foreign_world.py" \
+            > fixtures/generate_foreign_world.py
+          git show "$PR756_HEAD:experiments/h6_g_nonreset/setup_wakeup.py" \
+            > fixtures/setup_wakeup_reference.py
+          sha256sum fixtures/generate_foreign_world.py fixtures/setup_wakeup_reference.py \
+            > evidence/standalone/ref-fixture-sha256.txt
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots \
+            > evidence/standalone/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" \
+            > evidence/standalone/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 \
+            > evidence/standalone/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 experiments/h6_standalone/patch_standalone.py native-webots \
+            > evidence/standalone/logs/patch.log
+          python3 experiments/h6_standalone/adapt_wakeup.py \
+            fixtures/setup_wakeup_reference.py native-webots fixtures/wake \
+            > evidence/standalone/logs/wakeup-adaptation.log
+          python3 fixtures/generate_foreign_world.py fixtures/g_window/worlds/h6_g_window.wbt \
+            > evidence/standalone/logs/foreign-worlds.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/standalone/standalone-native.patch
+          sha256sum evidence/standalone/standalone-native.patch \
+            > evidence/standalone/standalone-native.patch.sha256
+          find fixtures -type f -print0 | sort -z | xargs -0 sha256sum \
+            > evidence/standalone/fixture-sources.sha256
+      - name: Compile pinned ODE standalone and execute 8192 mixed-contact cycles
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+            -I native-webots/include/ode experiments/h6_standalone/ode_individual_stress.cpp \
+            > evidence/standalone/logs/ode-syntax.log 2>&1 || {
+              cat evidence/standalone/logs/ode-syntax.log; exit 1;
+            }
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C native-webots/src/ode -j2 release \
+            > evidence/standalone/logs/ode-build.log 2>&1 || {
+              tail -n 120 evidence/standalone/logs/ode-build.log; exit 1;
+            }
+          g++ -std=c++17 -O0 -g -Wall -Wextra -Werror -pthread \
+            -I native-webots/include/ode experiments/h6_standalone/ode_individual_stress.cpp \
+            -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" \
+            -lode -o evidence/standalone/ode-probe
+          sha256sum evidence/standalone/ode-probe native-webots/lib/webots/libode.so \
+            > evidence/standalone/ode-binaries.sha256
+          LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 50s \
+            evidence/standalone/ode-probe > evidence/standalone/ode-8192.jsonl \
+            2> evidence/standalone/logs/ode-stderr.log || {
+              cat evidence/standalone/logs/ode-stderr.log; exit 1;
+            }
+          grep -Fxq H6_INDIVIDUAL_8192_PASS evidence/standalone/ode-8192.jsonl
+      - name: Compile native Webots and both read-only existing physics plugins
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/standalone/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 \
+            > evidence/standalone/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) \
+            > evidence/standalone/logs/apt-build.log 2>&1 || {
+              tail -n 100 evidence/standalone/logs/apt-build.log; exit 1;
+            }
+          (cd native-webots && make -j2) \
+            > evidence/standalone/logs/webots-build.log 2>&1 || {
+              tail -n 130 evidence/standalone/logs/webots-build.log; exit 1;
+            }
+          test -x native-webots/bin/webots-bin
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so \
+            > evidence/standalone/webots-binaries.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C fixtures/g_window/plugins/physics/h6_g_window \
+            > evidence/standalone/logs/robot-plugin-build.log 2>&1 || {
+              tail -n 120 evidence/standalone/logs/robot-plugin-build.log; exit 1;
+            }
+          make -C fixtures/wake/plugins/physics/h6_wakeup \
+            > evidence/standalone/logs/wake-plugin-build.log 2>&1 || {
+              tail -n 120 evidence/standalone/logs/wake-plugin-build.log; exit 1;
+            }
+          sha256sum fixtures/g_window/plugins/physics/h6_g_window/libh6_g_window.so \
+            fixtures/wake/plugins/physics/h6_wakeup/libh6_wakeup.so \
+            > evidence/standalone/plugin-binaries.sha256
+      - name: Native RESET A vs R, global and node, canonical and real foreign dynamic owners 1/2 threads
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          mkdir -p evidence/standalone/reset
+          for setting in canonical foreign-t1 foreign-t2; do
+            world="$PWD/fixtures/g_window/worlds/h6_g_window.wbt"
+            [[ "$setting" != canonical ]] && world="$PWD/fixtures/g_window/worlds/h6_rg_foreign_threads${setting##*-t}.wbt"
+            for path in global node; do
+              for arm in A R; do
+                r=0; [[ "$arm" != A ]] && r=1
+                spec="$setting-$path-$arm"
+                d="$PWD/evidence/standalone/reset/$spec"
+                mkdir -p "$d"
+                set +e
+                H6_STANDALONE_R="$r" H6_STANDALONE_TRACE=1 \
+                H6_G_WINDOW_PATH="$path" H6_G_WINDOW_R=0 \
+                H6_G_WINDOW_NATIVE_LOG="$d/native.log" \
+                  timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                  "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+                  "$world" > "$d/webots.log" 2>&1
+                code=$?
+                set -e
+                echo "$code" > "$d/exit.txt"
+                echo "H6_STANDALONE_RESET $spec exit=$code"
+                test "$code" = 0 || { tail -n 90 "$d/webots.log"; exit 90; }
+              done
+            done
+          done
+      - name: Native non-RESET real wakeup — three paired repeats + unchanged no-disable control
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          mkdir -p evidence/standalone/wake
+          for case in wake no_disable; do
+            max=1; [[ "$case" != wake ]] || max=3
+            for trial in $(seq 1 "$max"); do
+              for arm in A R; do
+                r=0; [[ "$arm" != A ]] && r=1
+                spec="$case-$trial-$arm"
+                d="$PWD/evidence/standalone/wake/$spec"
+                mkdir -p "$d"
+                set +e
+                H6_STANDALONE_R="$r" H6_STANDALONE_TRACE=1 \
+                H6_WAKE_CASE="$case" H6_WAKE_NATIVE_LOG="$d/plugin.log" \
+                H6_WAKE_CONTROLLER_LOG="$d/controller.jsonl" \
+                  timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' \
+                  "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+                  "$PWD/fixtures/wake/worlds/h6_wakeup.wbt" \
+                  > "$d/webots.log" 2>&1
+                code=$?
+                set -e
+                echo "$code" > "$d/exit.txt"
+                echo "H6_STANDALONE_WAKE $spec exit=$code"
+                test "$code" = 0 || { tail -n 90 "$d/webots.log"; exit 91; }
+              done
+            done
+          done
+          python3 experiments/h6_standalone/qualify_native.py evidence/standalone \
+            > evidence/standalone/logs/qualification.log 2>&1 || {
+              cat evidence/standalone/logs/qualification.log; exit 92;
+            }
+          cat evidence/standalone/logs/qualification.log
+      - name: Preserve ALL original experiment material and digests even on RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/standalone/logs
+          git rev-parse HEAD > evidence/standalone/observed-head.txt
+          test ! -d native-webots/.git || git -C native-webots rev-parse HEAD \
+            > evidence/standalone/observed-pin.txt
+          find evidence/standalone -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > evidence/standalone/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-standalone-contact-lifetime-native
+          path: evidence/standalone/
+          retention-days: 90
+          if-no-files-found: error
