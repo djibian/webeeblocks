@@ -19,6 +19,10 @@ int main(void) {
   memset(digest, 'c', 64); digest[64] = 0;
   memset(wrong, 'd', 64); wrong[64] = 0;
   assert(!wb_rg_arm(&a, "broken", digest, wrong));
+  assert(!wb_rg_arm(&a, token, digest, wrong)); // no unauthenticated arm
+  assert(wb_rg_claim(&a)); // durable exclusive first admission
+  assert(wb_rg_refresh(&a) == WB_RG_OWNED);
+  assert(!wb_rg_claim(&a)); // crashed/restarted claimant cannot reset admission
   assert(!wb_rg_arm(&a, token, "broken", wrong));
   assert(wb_rg_arm(&a, token, digest, wrong));
   assert(wb_rg_setup(&b, world) && b.state == WB_RG_PENDING);
@@ -29,7 +33,11 @@ int main(void) {
   assert(!wb_rg_clear(&b, token, "")); // missing digest
   assert(wb_rg_refresh(&a) == WB_RG_PENDING);
   assert(wb_rg_clear(&a, token, digest));
-  assert(wb_rg_refresh(&b) == WB_RG_NONE);
+  assert(wb_rg_refresh(&b) == WB_RG_OWNED);
+  assert(!wb_rg_claim(&b)); // CLEAR preserves durable owner tombstone
+  wb_recovery_guard_t crashed;
+  assert(wb_rg_setup(&crashed, world) && crashed.state == WB_RG_OWNED);
+  assert(!wb_rg_claim(&crashed)); // fresh controller after crash must FAIL CLOSED
 
   // Interrupted record and mismatching old format must remain INVALID.
   FILE *f = fopen(a.path, "wb");
@@ -46,11 +54,14 @@ int main(void) {
   assert(!wb_rg_arm(&b, token, digest, wrong)); // cannot auto-migrate V1
   assert(remove(a.path) == 0);
   // A valid but stale witness requires the exact token AND exact digest.
+  assert(wb_rg_claim(&a));
   assert(wb_rg_arm(&a, stale, digest, wrong));
   assert(wb_rg_setup(&b, world) && b.state == WB_RG_PENDING);
   assert(!wb_rg_clear(&b, token, digest));
   assert(!wb_rg_clear(&b, stale, wrong));
   assert(wb_rg_clear(&b, stale, digest));
-  puts("PASS: witness SHA-256 binding, bad digest, legacy V1, interrupted write, stale token, fail closed");
+  assert(wb_rg_refresh(&b) == WB_RG_OWNED);
+  assert(!wb_rg_claim(&b));
+  puts("PASS: persistent native owner tombstone, crash denial, witness SHA-256, legacy V1, interrupted write, stale token");
   return 0;
 }
