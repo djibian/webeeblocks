@@ -12,8 +12,14 @@ static void check(bool c,const char *s) {
  if (!c) { std::fprintf(stderr,"H6_D1_REFUSED %s\n",s);std::exit(2); }
 }
 static void setmass(dBodyID b){dMass m;dMassSetSphereTotal(&m,.1,.05);dBodySetMass(b,&m);}
-static int contacts(dBodyID b){int n=0;for(int i=0;i<dBodyGetNumJoints(b);++i)
- if(dJointGetType(dBodyGetJoint(b,i))==dJointTypeContact)++n;return n;}
+static int contacts(dBodyID b){
+ int n=0;
+ for(int i=0;i<dBodyGetNumJoints(b);++i) {
+   if(dJointGetType(dBodyGetJoint(b,i))==dJointTypeContact)
+     ++n;
+ }
+ return n;
+}
 static long rss() {
  FILE*f=std::fopen("/proc/self/statm","r");check(f,"statm");
  unsigned long a=0,b=0;check(std::fscanf(f,"%lu %lu",&a,&b)==2,"parse statm");std::fclose(f);
