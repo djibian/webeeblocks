@@ -49,7 +49,11 @@ jobs:
             tail -n 150 ownership-evidence/logs/ode-stock-build.log; exit 1;
           }
           test -s native-webots/lib/webots/libode.so
+
           sha256sum native-webots/lib/webots/libode.so > ownership-evidence/stock-libode.sha256
+          mkdir -p stock-ode
+          cp native-webots/lib/webots/libode.so stock-ode/libode.so
+          sha256sum stock-ode/libode.so > ownership-evidence/stock-snapshot.sha256
           test "$(cut -d' ' -f1 ownership-evidence/stock-libode.sha256)" = \
                "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201"
           git -C native-webots diff --exit-code HEAD
@@ -75,6 +79,58 @@ jobs:
             -Wl,-rpath,"$PWD/native-webots/lib/webots" -lode \
             -o ownership-evidence/ode_contact_cost
           sha256sum ownership-evidence/ode_contact_cost > ownership-evidence/benchmark-binary.sha256
+      - name: Benchmark original STOCK libode with SAME executable and identical load
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > ownership-evidence/stock-raw.jsonl
+          : > ownership-evidence/logs/stock-cases.log
+          ldd ownership-evidence/ode_contact_cost > ownership-evidence/logs/linked-hook-libode.txt
+          LD_LIBRARY_PATH="$PWD/stock-ode" ldd ownership-evidence/ode_contact_cost             > ownership-evidence/logs/linked-stock-libode.txt
+          grep -F "$PWD/stock-ode/libode.so" ownership-evidence/logs/linked-stock-libode.txt
+          for n in 1 8 64 256 1024; do
+            if test "$n" = 1024; then ntrials=3; else ntrials=7; fi
+            for mode in shared individual singleton; do
+              for ((t=0; t<ntrials; t++)); do
+                echo "$mode n=$n repeat=$t STOCK" >> ownership-evidence/logs/stock-cases.log
+                LD_LIBRARY_PATH="$PWD/stock-ode" timeout 50s                   ownership-evidence/ode_contact_cost "$mode" "$n" "$t"                   >> ownership-evidence/stock-raw.jsonl                   2>> ownership-evidence/logs/stock-cases.log
+              done
+            done
+          done
+      - name: Qualify exact stock libode data separately from hook-libode benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,statistics,pathlib
+          p=pathlib.Path('ownership-evidence')
+          z=[json.loads(s) for s in (p/'stock-raw.jsonl').read_text().splitlines() if s]
+          assert len(z)==93,('stock original process count',len(z))
+          report={'source':'original exactly pinned libode.so',
+                  'libode_sha256':'10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201',
+                  'sample_count':len(z),'modes':{},'errors':[]}
+          for n in (1,8,64,256,1024):
+            for mode in ('shared','individual','singleton'):
+              x=[q for q in z if q['n']==n and q['mode']==mode]
+              expected=3 if n==1024 else 7
+              if len(x)!=expected:report['errors'].append(f'{mode}/{n}: {len(x)}')
+              if any(q['alive_after_selective']!=(n if mode=='shared' else n-q['invalid']) for q in x):
+                report['errors'].append(f'{mode}/{n}: invalid contact lifetime')
+              if any(q['hook_pre']!=0 or q['hook_post']!=0 for q in x):
+                report['errors'].append(f'{mode}/{n}: stock ODE has hooks')
+              if x:
+                report['modes'][f'{mode}/{n}']={
+                  'median_create_us':statistics.median(q['create_us'] for q in x),
+                  'median_step_us':statistics.median(q['step_us'] for q in x),
+                  'median_active_peak_delta_bytes':statistics.median(q['peak']['active']-q['before']['active'] for q in x),
+                  'median_reserved_peak_delta_bytes':statistics.median(q['peak']['reserved']-q['before']['reserved'] for q in x),
+                  'median_rss_peak_delta_bytes':statistics.median(q['peak']['rss']-q['before']['rss'] for q in x)}
+          report['verdict']='PASS' if not report['errors'] else 'FAIL'
+          (p/'stock-qualification.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print('H6_STOCK_BASELINE',report['verdict'],len(z),report['errors'])
+          if report['errors']:raise SystemExit(2)
+          PY
+
       - name: Execute exactly matched physical contact loads - seven independent trials each
         shell: bash
         run: |
