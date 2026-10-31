@@ -24,6 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-artifacts/r3-sessions/state
+          git fetch --no-tags --depth=1 origin f243b2b597a2a6bd6af38e895787d9dd4bdfef5e
           git diff --quiet f243b2b597a2a6bd6af38e895787d9dd4bdfef5e HEAD -- \
             controllers/crazyflie_runtime_v2 plugins/robot_windows/blockly_v2/main.js \
             plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
