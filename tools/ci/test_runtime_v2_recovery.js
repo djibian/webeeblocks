@@ -41,7 +41,7 @@ module.exports = async function testWorldRecovery() {
   assert(m);
   backend.handleMessage(p + 'RESPONSE ' + m[1] + ' SCENE_OK ' + m[2]);
   await again;
-  backend.requestWorldReload('a'.repeat(64));
+  backend.requestWorldReload('a'.repeat(64), 'c'.repeat(64));
   const fresh = new Backend({send:m => sent.push(m)}, {simulationReset:true,simulationWorldReload:true,timeoutMs:1000});
   fresh.nextId = backend.nextId;
   fresh.handleMessage(p + 'READY');
@@ -52,7 +52,7 @@ module.exports = async function testWorldRecovery() {
   assert.strictEqual(fresh.ready, false, 'old numeric ACK unlocked new RESET');
   fresh.handleMessage(p + 'RESPONSE ' + newId[1] + ' RESET_OK ' + newId[2]);
   await newRequest;
-  assert.strictEqual(sent[5], p + 'RELOAD_WORLD ' + 'a'.repeat(64));
+  assert.strictEqual(sent[5], p + 'RELOAD_WORLD ' + 'a'.repeat(64) + ' ' + 'c'.repeat(64));
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(backend.simulationStopped, true);
   const status = fresh.readRecoveryStatus('a'.repeat(64));
@@ -97,15 +97,15 @@ module.exports = async function testWorldRecovery() {
   failedStatusBackend.handleMessage(p + 'READY');
   await assert.rejects(failedStatusBackend.readRecoveryStatus(), /request timeout/);
   assert.strictEqual(failedStatusCount, 3, 'native status retry must be bounded');
-  const clear = fresh.clearRecoveryWitness('a'.repeat(64));
-  const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  const clear = fresh.clearRecoveryWitness('a'.repeat(64), 'c'.repeat(64));
+  const clearMatch = sent[sent.length-1].match(/ REQUEST (\d+) RECOVERY_CLEAR ([0-9a-f]{64}) ([0-9a-f]{64}) ([0-9a-f]{64})$/);
   assert(clearMatch);
   fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + '0'.repeat(64));
   assert(Object.keys(fresh.pending).length === 1, 'old clear ACK accepted');
-  fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + clearMatch[3]);
+  fresh.handleMessage(p + 'RESPONSE ' + clearMatch[1] + ' RECOVERY_CLEARED ' + clearMatch[4]);
   await clear;
   const noReload = new Backend({send(){}},{simulationReset:true});
-  assert.throws(() => noReload.requestWorldReload('a'.repeat(64)), /unavailable/);
+  assert.throws(() => noReload.requestWorldReload('a'.repeat(64), 'c'.repeat(64)), /unavailable/);
   const beforeResetSource = fs.readFileSync(path.join(__dirname,'../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'),'utf8');
   assert.match(beforeResetSource, /wb_supervisor_world_reload\(\);/);
   assert.match(beforeResetSource, /if \(world_reload_requested\)\s*continue;/);
@@ -113,7 +113,7 @@ module.exports = async function testWorldRecovery() {
   assert.match(beforeResetSource, /#define RESET_TIMEOUT 5\.0/);
   assert.match(beforeResetSource, /#define RESET_WINDOW 0\.25/);
   const uiSource = fs.readFileSync(path.join(__dirname,'../../plugins/robot_windows/blockly_v2/main.js'),'utf8');
-  assert.match(uiSource, /WebeeBlocksSimulationRecovery\.save\(runtimeProfile\.id, serializedWorkspace\(\), runtimeBackend\.nextId\)/);
+  assert.match(uiSource, /WebeeBlocksSimulationRecovery\.save\([\s\S]*profileId, original, runtimeBackend\.nextId, digest\)/);
   assert.match(uiSource, /await runtimeBackend\.resetSimulation\(true\);[\s\S]*await runtimeBackend\.prepareActivity\(runtimeProfile\);[\s\S]*await runtimeBackend\.resetSimulation\(true\);/);
   assert.match(uiSource, /WebeeBlocksSimulationRecovery\.clear\(recovery\);[\s\S]*runtimeTerminal = false;/);
 
@@ -126,15 +126,29 @@ module.exports = async function testWorldRecovery() {
   };
   try {
     const workspace = JSON.stringify({blocks:{blocks:[{type:'math_number',id:'unsaved'}]}});
-    const checkpoint = Recovery.save('progression-sequence-v1', workspace, 41);
+    const digest = await Recovery.fingerprint('progression-sequence-v1', workspace);
+    const checkpoint = Recovery.save('progression-sequence-v1', workspace, 41, digest);
     assert.strictEqual(Recovery.peek().nextRequestId, 41);
     assert.deepStrictEqual(Recovery.peek(), checkpoint);
+    assert.throws(() => Recovery.save('progression-sequence-v1', workspace, 42, digest),
+      /already exists/, 'second producer must not overwrite A');
+    assert.deepStrictEqual(Recovery.peek(), checkpoint);
+    const changedWorkspace = workspace.replace('"unsaved"', '"changed"');
+    assert.notStrictEqual(await Recovery.fingerprint('progression-sequence-v1', changedWorkspace), digest);
+    assert.notStrictEqual(await Recovery.fingerprint('reactive-obstacle-v2', workspace), digest);
+    const numberOne = '{"blocks":{"blocks":[{"type":"math_number","fields":{"NUM":1}}]}}';
+    const numberTwo = numberOne.replace('"NUM":1', '"NUM":2');
+    assert.notStrictEqual(await Recovery.fingerprint('progression-sequence-v1', numberOne),
+      await Recovery.fingerprint('progression-sequence-v1', numberTwo));
     const damaged = JSON.parse(saved.values().next().value);
     damaged.workspace = '{';
     saved.set(saved.keys().next().value, JSON.stringify(damaged));
     assert.throws(() => Recovery.peek());
+    const preservedBad = saved.values().next().value;
+    assert.throws(() => Recovery.save('progression-sequence-v1', workspace, 41, digest), /already exists/);
+    assert.strictEqual(saved.values().next().value, preservedBad, 'invalid checkpoint overwritten');
     saved.clear();
-    const renewed = Recovery.save('progression-sequence-v1', workspace, 41);
+    const renewed = Recovery.save('progression-sequence-v1', workspace, 41, digest);
     assert.throws(() => Recovery.clear({...renewed, workspace:'{}'}), /changed/);
     assert(Recovery.peek(), 'bad token erased pupil blocks');
     Recovery.clear(renewed);
@@ -144,8 +158,9 @@ module.exports = async function testWorldRecovery() {
       setItem() { throw new Error('quota'); },
       removeItem: key => saved.delete(key)
     };
-    assert.throws(() => Recovery.save('progression-sequence-v1', workspace, 41), /quota/);
+    assert.throws(() => Recovery.save('progression-sequence-v1', workspace, 41, digest), /quota/);
     assert.strictEqual(Recovery.peek(), null);
   } finally { delete global.localStorage; }
+  await require('./test_checkpoint_producer_r1r2.js')();
   console.log('PASS: recovery RESET correlation, scene revalidation, reload fail-closed, durable Blockly checkpoint');
 };

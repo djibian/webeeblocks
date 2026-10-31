@@ -19,7 +19,7 @@ if args.mode in ("stale_witness", "early_clear"):
         h = ((h ^ b) * 1099511628211) & ((1 << 64) - 1)
     out = Path(os.environ["WEBEEBLOCKS_RECOVERY_STATE_DIR"]) / f".webeeblocks-recovery-{h:016x}.state"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("WEBEEBLOCKS_RECOVERY_V1 " + "b" * 64 + "\n")
+    out.write_text("WEBEEBLOCKS_RECOVERY_V2 " + "b" * 64 + " " + "c" * 64 + "\n")
     print("PRESEEDED_NATIVE_STALE_WITNESS", out.name, flush=True)
 
 prelude = """
@@ -97,7 +97,7 @@ script = r"""
       throw new Error('unexpected native witness: ' + guardian.state);
     if (mode === 'early_clear') {
       try {
-        await runtimeBackend.clearRecoveryWitness('b'.repeat(64));
+        await runtimeBackend.clearRecoveryWitness('b'.repeat(64), 'c'.repeat(64));
         throw new Error('native witness cleared without physical RESET/scene evidence');
       } catch (error) {
         if (!error || error.code !== 'RECOVERY_LOCKED') throw error;

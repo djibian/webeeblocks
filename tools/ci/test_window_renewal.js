@@ -4,7 +4,7 @@ const make = require('../../plugins/robot_windows/blockly_v2/window_renewal.js')
 const token = 'a'.repeat(64);
 
 function environment(options = {}) {
-  let data = JSON.stringify({version:2,token,profileId:'reactive-obstacle-v2',workspace:'{}'});
+  let data = JSON.stringify({version:3,token,profileId:'reactive-obstacle-v2',workspace:'{}'});
   let reloads = 0, fetched = 0, clocks = 0, ms = 0;
   const location = {
     protocol:'http:', hostname:'localhost',
@@ -67,7 +67,7 @@ async function testWindowRenewal() {
   e=environment({path:'/evil/origin/forged.html'});
   assert.strictEqual(e.control.arm(token),false,'unapproved HTML path refused');
   e=environment();
-  e.checkpoint=JSON.stringify({version:2,token:'b'.repeat(64)});
+  e.checkpoint=JSON.stringify({version:3,token:'b'.repeat(64)});
   assert.strictEqual(e.control.arm(token),false,'stale or other-session token denied');
   e=environment();
   assert.strictEqual(e.control.arm(token),true);
