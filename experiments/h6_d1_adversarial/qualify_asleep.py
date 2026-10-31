@@ -36,22 +36,35 @@ def classify(log,code,require_foreign):
             "independent_AC_preserved_at_deletion":len(ac),
             "post_remove_AC_steps":[int(x[0]) for x in sleep if int(x[0])>=4 and int(x[4])>=1],
             "fixture_intervention":witness.groups() if witness else None}
+# All candidate scene arrangements are declared before running; no passing
+# geometry is silently selected and all failed/negative paths remain in artifact.
+scenes=("left_pair","mirrored","vertical")
 result={}
-for arm in ("control","forced"):
-    p=root/arm
-    log=(p/"webots.log").read_text(errors="replace")
-    rc=int((p/"exit.txt").read_text())
-    result[arm]=classify(log,rc,arm=="forced")
-# Negative oracle mutation: a false assertion must not become PASS.
-log=(root/"forced/webots.log").read_text(errors="replace")
-for damaged in (log.replace("H6_D1_FIXTURE_DISABLE","X",1),
-                log.replace("H6_D1_FOREIGN_SCAN","X",1)):
-    try: classify(damaged,0,True)
-    except AssertionError: pass
-    else: raise AssertionError("NON_DISCRIMINATING_NEGATIVE_ORACLE")
+passing=[]
+for scene in scenes:
+    result[scene]={}
+    for arm in ("control","forced"):
+        p=root/scene/arm
+        log=(p/"webots.log").read_text(errors="replace")
+        rc=int((p/"exit.txt").read_text())
+        assert rc==0,("NATIVE_PROCESS_CRASH",scene,arm,rc)
+        try:
+            result[scene][arm]={"status":"PASS",**classify(log,rc,arm=="forced")}
+            if arm=="forced": passing.append(scene)
+        except AssertionError as error:
+            result[scene][arm]={"status":"UNPROVEN","reason":str(error)[:1200],
+                                "exit":rc}
+assert passing,("NO_DISCRIMINATING_NATIVE_OWNER_A_SCENE",result)
+for scene in passing:
+    log=(root/scene/"forced"/"webots.log").read_text(errors="replace")
+    for damaged in (log.replace("H6_D1_FIXTURE_DISABLE","X"),
+                    log.replace("H6_D1_FOREIGN_SCAN","X")):
+        try: classify(damaged,0,True)
+        except AssertionError: pass
+        else: raise AssertionError("NON_DISCRIMINATING_NEGATIVE_ORACLE")
 report={"status":"PASS","candidate":"8d8d644b2bc6d5821572d87d474e59f533ec3260",
   "scope":"real Webots dBodyDestroy(B), registered AB owned by disabled A, AC retained",
   "intervention":"dBodyDisable on attached foreign body at B destructor entry (test only)",
-  "results":result}
+  "predeclared_scenes":scenes,"discriminating_scenes":passing,"results":result}
 (root/"qualification-asleep.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
-print("H6_D1_NATIVE_FOREIGN_ASLEEP_OWNER_PASS",json.dumps(result,sort_keys=True))
+print("H6_D1_NATIVE_FOREIGN_ASLEEP_OWNER_PASS",json.dumps({"passing":passing,"results":result},sort_keys=True))
