@@ -90,8 +90,8 @@ jobs:
           base=(p/'arm-0/webots.log').read_text(errors='replace')
           direct=(p/'arm-1/webots.log').read_text(errors='replace')
           before=re.search(r'H6_EXT_DESTROY_BEFORE tick=3 .*? contact=(0x[0-9a-fA-F]+)',direct)
-          free=re.findall(r'H6_C_REGISTRY_FREE joint=(0x[0-9a-fA-F]+) owner=(\\S+) victim=(\\S+)',direct)
-          scans=re.findall(r'H6_C_REGISTRY_SCAN joint=(0x[0-9a-fA-F]+) owner=(\\S+) victim=(\\S+) owner_is_victim=(\\d+)',direct)
+          free=re.findall(r'H6_C_REGISTRY_FREE joint=(0x[0-9a-fA-F]+) owner=(\S+) victim=(\S+)',direct)
+          scans=re.findall(r'H6_C_REGISTRY_SCAN joint=(0x[0-9a-fA-F]+) owner=(\S+) victim=(\S+) owner_is_victim=(\d+)',direct)
           pid=before.group(1) if before else None
           report={'plugin_freed_joint':pid,'recorded_pre_free_scans':len(scans),
            'recorded_registry_free_actions':len(free),
