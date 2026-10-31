@@ -3,7 +3,7 @@ WorldInfo {
   basicTimeStep 32
   randomSeed 1
   optimalThreadCount 1
-  gravity 0 0 0
+  gravity 0
   physics "h6_d1_owner_sleep"
 }
 Viewpoint {
