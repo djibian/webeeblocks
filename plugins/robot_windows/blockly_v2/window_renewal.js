@@ -45,7 +45,7 @@
     // Both accepted hostnames name the local loopback server, not a remote host.
     return /^(https?:)$/.test(location.protocol) &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
-      /^\/robot_windows\/(blockly_v2(?:_[0-9a-f]{16})?(?:_session_[0-9]{1,10}_[0-9a-f]{12})?)\/\1\.html$/.test(location.pathname);
+      /^\/robot_windows\/(blockly_v2(?:_[0-9a-f]{16}(?:_session_[1-9][0-9]{0,9}_[0-9a-f]{12})?)?)\/\1\.html$/.test(location.pathname);
   }
 
   function disarm() {

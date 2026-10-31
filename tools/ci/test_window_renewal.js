@@ -83,6 +83,8 @@ async function testWindowRenewal() {
     {hostname:'127.0.0.1',path:winPath.slice(0, -5) + '_other.html'},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_284_ffff')},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_foo_')},
+    {hostname:'127.0.0.1',path:'/robot_windows/blockly_v2_session_284_604b5ee93d99/blockly_v2_session_284_604b5ee93d99.html'},
+    {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_000284_')},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_12345678901_')},
     {hostname:'127.0.0.1',path:winPath.replace('604b5ee93d99','604b5ee93d9g')},
     {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_284__')},
