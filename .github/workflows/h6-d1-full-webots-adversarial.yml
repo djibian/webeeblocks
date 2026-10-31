@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 18
+          fetch-depth: 0
           persist-credentials: false
       - name: Pinned Webots and non-mutating D1 observer
         shell: bash
