@@ -52,6 +52,29 @@ int main(int argc, char **argv) {
       snprintf(result, sizeof(result), "%s/result-%s", dir, argv[1]) >= (int)sizeof(result) ||
       snprintf(go, sizeof(go), "%s/go", dir) >= (int)sizeof(go) ||
       snprintf(stop, sizeof(stop), "%s/stop", dir) >= (int)sizeof(stop)) return 91;
+  if (strcmp(argv[1], "crash-owner") == 0 ||
+      strcmp(argv[1], "crash-pending") == 0) {
+    wb_recovery_guard_t g;
+    if (!wb_rg_setup(&g, world) || !wb_rg_claim(&g)) return 98;
+    if (strcmp(argv[1], "crash-pending") == 0) {
+      char key[65], token[65], digest[65];
+      memset(key, 'd', 64); key[64] = 0;
+      memset(token, 'a', 64); token[64] = 0;
+      memset(digest, 'c', 64); digest[64] = 0;
+      if (!wb_rg_arm(&g, token, digest, key)) return 99;
+    }
+    if (!signal_file(ready, "READY\n")) return 100;
+    for (;;) pause_millis(); // Parent force-kills; OS MUST release the lock.
+  }
+  if (strcmp(argv[1], "check-pending") == 0) {
+    wb_recovery_guard_t g;
+    if (!wb_rg_setup(&g, world) || g.state != WB_RG_PENDING ||
+        !wb_rg_hex64(g.token) || !wb_rg_hex64(g.digest) ||
+        !wb_rg_hex64(g.owner_key) || wb_rg_claim(&g)) return 101;
+    wb_rg_release(&g);
+    puts("PASS: force-killed PENDING remains intact, cannot start a new session");
+    return 0;
+  }
   if (strcmp(argv[1], "restart") == 0) {
     wb_recovery_guard_t g;
     if (!wb_rg_setup(&g, world) || g.state != WB_RG_OWNED || !wb_rg_claim(&g))
