@@ -24,9 +24,9 @@ for x in lines:
     expectedAlive=n if m=="shared" else n-invalid
     if x["alive_after_selective"]!=expectedAlive:
         errors.append(f"bad selective result {m} {n} {x['repeat']}")
-    if m=="notify" and (x["hook_pre"]!=n+invalid or
-                        x["hook_post"]!=n+invalid or
-                        x["hook_registered"]!=n+invalid):
+    if m=="notify" and (x["hook_pre"]!=2*n or
+                        x["hook_post"]!=2*n or
+                        x["hook_registered"]!=2*n):
         # First wave: n total; invalid subset then retire other subset = n.
         # Second wave: n again; total 2n notifications.
         errors.append(f"unmatched callback counts {n} {x['repeat']}")
