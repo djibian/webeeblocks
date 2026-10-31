@@ -88,10 +88,11 @@ s = once(s, '''  // remove contact joints
       }
     }
   }''', '''  // True Node.loadState -> WbSolid::reset(id), not ordinary resume.
-  h6_p0_trace("E5_reset_id_enter", (unsigned long long)(uintptr_t)body());
-  if (isSolidMerger())
-    WbOdeContext::instance()->detachResetBodyContacts(body());
-  h6_p0_trace("E5_reset_id_exit", (unsigned long long)(uintptr_t)body());''',
+  const dBodyID e5ResetBody = isSolidMerger() ? body() : nullptr;
+  h6_p0_trace("E5_reset_id_enter", (unsigned long long)(uintptr_t)e5ResetBody);
+  if (e5ResetBody)
+    WbOdeContext::instance()->detachResetBodyContacts(e5ResetBody);
+  h6_p0_trace("E5_reset_id_exit", (unsigned long long)(uintptr_t)e5ResetBody);''',
     "replace raw reset(id) contact release")
 # Restore exact ODE plugin semantics after leaving the nonrecursive M.
 # This is a bounded synchronous reset; arbitrary plugin-private threads
