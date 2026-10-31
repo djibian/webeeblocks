@@ -548,7 +548,7 @@ int main(void) {
                  &guardian_id, key_a, challenge, extra) == 3 &&
           guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(challenge)) {
         const int state = wb_rg_refresh(&recovery_guard);
-        const int fresh = memcmp(key_a, recovery_guard.epoch, 32) == 0;
+        const int fresh = wb_rg_current_key(&recovery_guard, key_a);
         if ((fresh && !owner_claimed &&
              (state == WB_RG_NONE || state == WB_RG_OWNED) &&
              wb_rg_claim(&recovery_guard)) ||
@@ -569,7 +569,7 @@ int main(void) {
                  &guardian_id, key_a, key_b, challenge, extra) == 4 &&
           guardian_id >= 1 && wb_rg_hex64(key_a) && wb_rg_hex64(key_b) &&
           wb_rg_hex64(challenge)) {
-        if (!owner_claimed && memcmp(key_b, recovery_guard.epoch, 32) == 0 &&
+        if (!owner_claimed && wb_rg_current_key(&recovery_guard, key_b) &&
             wb_rg_refresh(&recovery_guard) == WB_RG_PENDING &&
             owner_key_equal(key_a, recovery_guard.owner_key)) {
           memcpy(owner_key, key_b, sizeof(owner_key));
