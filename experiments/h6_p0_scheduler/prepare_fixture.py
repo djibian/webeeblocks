@@ -47,6 +47,19 @@ p = plugin.read_text()
 if p.count("#include <plugins/physics.h>") != 1 or "webots_physics_collide" in p:
     raise SystemExit("REFUSED unexpected inherited plugin")
 p=p.replace("#include <plugins/physics.h>", '#include <plugins/physics.h>\nextern void h6_p0_trace(const char *, unsigned long long);')
+p=p.replace("static FILE *trace = NULL;", "static FILE *trace = NULL;\\nstatic dJointID h6_selected = NULL;\\nstatic volatile int h6_once = 0;")
+p=p.replace("  ++tick;", """  ++tick;
+  /* Capture a LIVE engine contact before workers execute. */
+  h6_selected = NULL;
+  h6_once = 0;
+  for (int k = 0; k < dBodyGetNumJoints(target); ++k) {
+    dJointID j = dBodyGetJoint(target, k);
+    if (dJointGetType(j) == dJointTypeContact) {
+      h6_selected = j;
+      break;
+    }
+  }
+""")
 p += """
 /* Observation on group-owned baseline: engine contact from PRIOR frame only.
    Collision callback is invoked before Webots creates current frame's contact.
@@ -55,22 +68,13 @@ int webots_physics_collide(dGeomID g1, dGeomID g2) {
   (void)g1;
   (void)g2;
   h6_p0_trace("plugin_callback_enter", 0);
-  static unsigned long last_attempt_tick = (unsigned long)-1;
-  if (target && tick != last_attempt_tick) {
-    int count = dBodyGetNumJoints(target);
-    for (int i = 0; i < count; ++i) {
-      dJointID j = dBodyGetJoint(target, i);
-      if (dJointGetType(j) != dJointTypeContact)
-        continue;
-      last_attempt_tick = tick;
-      h6_p0_trace("plugin_public_attempt", (unsigned long long)(size_t)j);
-      dJointDestroy(j);
-      h6_p0_trace("plugin_public_return", (unsigned long long)(size_t)j);
-      if (dJointGetType(j) != dJointTypeContact)
-        abort();
-      h6_p0_trace("plugin_baseline_noop", (unsigned long long)(size_t)j);
-      break;
-    }
+  if (h6_selected && __sync_bool_compare_and_swap(&h6_once, 0, 1)) {
+    dJointID j = h6_selected;
+    h6_p0_trace("plugin_public_attempt", (unsigned long long)(size_t)j);
+    dJointDestroy(j);
+    h6_p0_trace("plugin_public_return", (unsigned long long)(size_t)j);
+    if (dJointGetType(j) != dJointTypeContact) abort();
+    h6_p0_trace("plugin_baseline_noop", (unsigned long long)(size_t)j);
   }
   h6_p0_trace("plugin_callback_exit", 0);
   return 0;
