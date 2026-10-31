@@ -181,6 +181,37 @@ int main(int argc,char **argv) {
   insist(nContact(body)==0,"retirement did not detach all contacts");
   insist(tracked.empty(),"registered keys still present");
   const Memory afterEmpty=memory();
+  // A second allocation/free wave tests reuse of the ODE group arenas.
+  const auto beginReuse=std::chrono::steady_clock::now();
+  std::vector<dJointID> reused;
+  reused.reserve(n);
+  for(int i=0;i<n;++i) {
+    dContact c{};
+    c.surface.mode=dContactSoftERP|dContactSoftCFM;
+    c.surface.soft_erp=.8; c.surface.soft_cfm=.00001; c.surface.mu=0;
+    c.geom.depth=.01; c.geom.normal[2]=1;
+    const dJointGroupID group = single ? groups[i] : (shared ? groups[0] : nullptr);
+    dJointID j=dJointCreateContact(world,group,&c);
+    insist(j!=nullptr,"recreate contact wave");
+    dJointAttach(j,body,nullptr);
+    reused.push_back(j);
+    if(individual||notify) insist(tracked.insert(j).second,"reuse registered");
+  }
+  const Memory afterRefill=memory();
+  if(single||shared) {
+    for(dJointGroupID group:groups) dJointGroupEmpty(group);
+  } else {
+    for(dJointID j:reused) {
+      if(individual) insist(tracked.erase(j)==1,"reuse manual remove");
+      if(notify) {
+        std::lock_guard<std::recursive_mutex> guard(contactMutex);
+        dJointDestroy(j);
+      } else dJointDestroy(j);
+    }
+  }
+  const double reuse_us=us(beginReuse);
+  insist(nContact(body)==0 && tracked.empty(),"reuse teardown incomplete");
+  const Memory afterReuse=memory();
   const auto beginTeardown=std::chrono::steady_clock::now();
   for(dJointGroupID group:groups) dJointGroupDestroy(group);
   dBodyDestroy(body);
@@ -194,14 +225,16 @@ int main(int argc,char **argv) {
               "\"survivors_expected\":%d,"
               "\"hook_pre\":%d,\"hook_post\":%d,\"hook_registered\":%d,"
               "\"create_us\":%.6f,\"step_us\":%.6f,\"selective_us\":%.6f,"
-              "\"wake_us\":%.6f,\"retire_us\":%.6f,\"teardown_us\":%.6f,",
+              "\"wake_us\":%.6f,\"retire_us\":%.6f,\"reuse_us\":%.6f,\"teardown_us\":%.6f,",
               mode.c_str(),n,repeat,attempted,shared?"false":"true",
               physicallyAlive,survivors,entered,exited,registeredBefore,
-              create_us,step_us,selective_us,wake_us,retirement_us,teardown_us);
+              create_us,step_us,selective_us,wake_us,retirement_us,reuse_us,teardown_us);
   emitMem("before",before,0,0);std::putchar(',');
   emitMem("peak",peak,n,static_cast<int>(individual||notify?n:0));std::putchar(',');
   emitMem("after_selective",afterSelective,physicallyAlive,static_cast<int>(tracked.size()));std::putchar(',');
   emitMem("after_empty",afterEmpty,0,0);std::putchar(',');
+  emitMem("after_refill",afterRefill,n,static_cast<int>(individual||notify?n:0));std::putchar(',');
+  emitMem("after_reuse",afterReuse,0,0);std::putchar(',');
   emitMem("after_destroy",afterDestroy,0,0);
   std::puts("}");
   return 0;
