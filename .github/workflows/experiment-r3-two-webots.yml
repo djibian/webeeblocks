@@ -1,0 +1,148 @@
+name: EXPERIMENT ONLY - R3 two concurrent real Webots instances
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-r3-two-webots.yml'
+      - 'tools/ci/prepare_r3_concurrent_webots_probe.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-webots-two-processes-one-world-lock:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile unchanged R3 candidate and inject read-only concurrency instrumentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/r3-two-webots/state
+          git fetch --no-tags --depth=1 origin f243b2b597a2a6bd6af38e895787d9dd4bdfef5e
+          git diff --quiet f243b2b597a2a6bd6af38e895787d9dd4bdfef5e HEAD -- \
+            controllers/crazyflie_runtime_v2 plugins/robot_windows/blockly_v2/main.js \
+            plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          ./tools/prepare_runtime_v2.sh
+          chmod +x tools/ci/webots_runtime_v2_browser.sh
+          docker run --rm -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make' \
+            >ci-artifacts/r3-two-webots/build.log 2>&1
+          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 | tee ci-artifacts/r3-two-webots/controller.sha256
+          test "$(cut -d' ' -f1 ci-artifacts/r3-two-webots/controller.sha256)" = \
+            "2bdbd4c22c0ba300cca3643786eb3b9d42b35fcfdd57354cc4c4ab1581f871f4"
+          python3 tools/ci/prepare_r3_concurrent_webots_probe.py
+      - name: Admit A in real Webots then start B in separate HOME/X display with identical world and state
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/r3-two-webots \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -lc '
+              set -euo pipefail
+              out=/workspace/ci-artifacts/r3-two-webots
+              export WEBEEBLOCKS_RECOVERY_STATE_DIR="$out/state"
+              mkdir -p /root/.config/Cyberbotics "$out/state" /tmp/r3-other-home/.config/Cyberbotics
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                wget ca-certificates xvfb >/dev/null
+              wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/chrome.deb >/dev/null
+              printf "%s\n" "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" >/root/.config/Cyberbotics/Webots-R2025a.conf
+              printf "%s\n" "[RobotWindow]" \
+                "browser=/bin/true" "newBrowserWindow=false" \
+                >/tmp/r3-other-home/.config/Cyberbotics/Webots-R2025a.conf
+              echo 1 >"$out/phase.txt"
+              python3 tools/ci/r3_session_witness.py --events "$out/events.jsonl" \
+                --phase-file "$out/phase.txt" >"$out/witness.log" 2>&1 &
+              witness=$!
+              Xvfb :99 -screen 0 1600x900x24 -nolisten tcp >"$out/xvfb-A.log" 2>&1 &
+              display_a=$!
+              Xvfb :100 -screen 0 1600x900x24 -nolisten tcp >"$out/xvfb-B.log" 2>&1 &
+              display_b=$!
+              a=0; b=0
+              trap "for p in \$a \$b \$witness \$display_a \$display_b; do if test \$p -gt 0; then kill \$p 2>/dev/null || true; fi; done" EXIT
+              sleep 1
+              wait_event() {
+                local tag="$1"
+                for i in $(seq 1 600); do
+                  if test -f "$out/events.jsonl" && grep -Fq "\"event\": \"$tag\"" "$out/events.jsonl"; then return 0; fi
+                  if test -f "$out/events.jsonl" && grep -Fq "\"event\": \"T2_ERROR\"" "$out/events.jsonl"; then
+                    echo "T2_BROWSER_ERROR"; cat "$out/events.jsonl"; return 1
+                  fi
+                  sleep 0.25
+                done
+                echo "T2_MISSING_EVENT $tag"; return 1
+              }
+              DISPLAY=:99 timeout -k 5s 240s webots --stdout --stderr --batch --mode=realtime \
+                /workspace/worlds/crazyflie_runtime_v2.wbt >"$out/webots-A.log" 2>&1 &
+              a=$!
+              wait_event T2_A_BEFORE_B
+              kill -0 "$a"
+              state=$(find "$WEBEEBLOCKS_RECOVERY_STATE_DIR" -name "*.state" -print -quit)
+              test -n "$state"
+              grep -Fxq WEBEEBLOCKS_OWNER_V1 "$state"
+              echo "T2_B_START while A pid=$a" >"$out/causal-order.txt"
+              DISPLAY=:100 HOME=/tmp/r3-other-home \
+                timeout -k 5s 90s webots --stdout --stderr --batch --mode=realtime \
+                /workspace/worlds/crazyflie_runtime_v2.wbt >"$out/webots-B.log" 2>&1 &
+              b=$!
+              failed_lock=0
+              for i in $(seq 1 700); do
+                if grep -Fq "WEBEEBLOCKS_RUNTIME_V2 FATAL native authority lock or recovery witness unavailable" "$out/webots-B.log"; then
+                  failed_lock=1; break
+                fi
+                sleep 0.1
+              done
+              test "$failed_lock" -eq 1 || { echo "B_LOCK_DENIAL_NOT_OBSERVED"; tail -80 "$out/webots-B.log"; exit 1; }
+              echo "T2_B_REJECTED_IN_C" >>"$out/causal-order.txt"
+              if grep -Fq "WEBEEBLOCKS_RUNTIME_V2 READY" "$out/webots-B.log"; then
+                echo "B_UNEXPECTED_NATIVE_READY"; exit 1
+              fi
+              kill -0 "$a" || { echo "A_NOT_ALIVE"; exit 1; }
+              echo 3 > "$out/phase.txt"
+              wait_event T2_A_AFTER_B
+              grep -Fq "TRACE LIGHT color=red rgb=ff0000" "$out/webots-A.log"
+              grep -Fq "TRACE LIGHT color=blue rgb=0000ff" "$out/webots-A.log"
+              if grep -Fq "TRACE LIGHT color=blue rgb=0000ff" "$out/webots-B.log"; then
+                echo "UNAUTHORIZED_B_NATIVE_EFFECT"; exit 1
+              fi
+              grep -Fxq WEBEEBLOCKS_OWNER_V1 "$state"
+              echo "T2_WEBOTS_A_STILL_OWNER_AFTER_B_REFUSAL=PASS"
+            ' > ci-artifacts/r3-two-webots/orchestration.log 2>&1 || {
+              tail -100 ci-artifacts/r3-two-webots/orchestration.log
+              exit 1
+            }
+      - name: Verify native causal order
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ci-artifacts/r3-two-webots')
+          events=[json.loads(x) for x in (p/'events.jsonl').read_text().splitlines()]
+          assert not [x for x in events if x.get('event')=='T2_ERROR']
+          for name in ('T2_A_BEFORE_B','T2_A_AFTER_B'):
+              assert sum(x.get('event')==name for x in events)==1,name
+          assert 'T2_B_REJECTED_IN_C' in (p/'causal-order.txt').read_text()
+          b=(p/'webots-B.log').read_text()
+          assert b.count('WEBEEBLOCKS_RUNTIME_V2 FATAL native authority lock or recovery witness unavailable')>=1
+          assert 'WEBEEBLOCKS_RUNTIME_V2 READY' not in b
+          print('NATIVE_T2_TWO_WEBOTS_CONCURRENT=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experiment-r3-real-webots-concurrent
+          path: ci-artifacts/r3-two-webots/
+          if-no-files-found: warn
