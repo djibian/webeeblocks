@@ -286,34 +286,42 @@ async function rebuildSimulation() {
       !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready ||
       !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationWorldReload !== true)
     return;
-  // The checkpoint must survive loss of both the controller and Robot Window.
-  // An unavailable/full storage refuses reload rather than losing unsaved blocks.
-  var nativeCheckpoint;
-  try {
-    nativeCheckpoint = WebeeBlocksSimulationRecovery.save(runtimeProfile.id, serializedWorkspace(), runtimeBackend.nextId);
-  } catch (error) {
-    setRuntimeFailure(error);
-    return;
-  }
+  // Block the old tab immediately, including while acquiring the shared Web
+  // Lock. Producing two checkpoints is more dangerous than a refused retry.
   runtimeRecoveryPending = true;
   runtimeTerminal = true;
   setDebugControls(false);
   if (runtimeDebug) runtimeDebug.finish();
-  setRuntimeStatus('RECONSTRUCTION', 'Rechargement complet du monde — programme conservé');
+  setRuntimeStatus('RECONSTRUCTION', 'Protection du programme avant reconstruction');
   try {
-    // Arm in the original browser document BEFORE the native controller can
-    // close its WWI socket. The token must match durable localStorage.
-    if (!window.WebeeBlocksWindowRenewal || !window.WebeeBlocksWindowRenewal.arm(nativeCheckpoint.token))
-      throw new Error('Impossible de préparer le renouvellement de la fenêtre Blockly');
-    runtimeBackend.requestWorldReload(nativeCheckpoint.token);
-    window.WebeeBlocksWindowRenewal.begin();
-    // No success transition on the old incarnation: new-page native verification remains mandatory.
+    if (!window.WebeeBlocksWindowRenewal)
+      throw new Error('Verrou de reprise indisponible — reconstruction refusée');
+    await window.WebeeBlocksWindowRenewal.withRecoveryLock(async function() {
+      if (!runtimeBackend || !runtimeBackend.ready || !runtimeProfile || !workspace)
+        throw new Error('Ancien document de reconstruction non autorisé');
+      var profileId = runtimeProfile.id;
+      var original = serializedWorkspace();
+      // Crypto runs inside the lock; an unavailable primitive must not create
+      // an unbound checkpoint or arm a native world reload.
+      var digest = await WebeeBlocksSimulationRecovery.fingerprint(profileId, original);
+      if (runtimeProfile.id !== profileId || serializedWorkspace() !== original)
+        throw new Error('Programme modifié pendant la préparation du témoin');
+      // Absence check + write + arm + irreversible native request are one
+      // critical section. save() refuses even a malformed existing record.
+      var checkpoint = WebeeBlocksSimulationRecovery.save(
+        profileId, original, runtimeBackend.nextId, digest);
+      if (!window.WebeeBlocksWindowRenewal.arm(checkpoint.token))
+        throw new Error('Impossible de préparer le renouvellement de la fenêtre Blockly');
+      runtimeBackend.requestWorldReload(checkpoint.token, digest);
+      window.WebeeBlocksWindowRenewal.begin();
+    });
+    // Never declare the old incarnation ready after requesting world reload.
   } catch (error) {
-    if (window.WebeeBlocksWindowRenewal) window.WebeeBlocksWindowRenewal.disarm();
-    setRuntimeFailure(error);
-    // Remain terminal; the checkpoint stays available for another attempt.
-    runtimeRecoveryPending = false;
+    window.WebeeBlocksWindowRenewal && window.WebeeBlocksWindowRenewal.disarm();
+    runtimeTerminal = true;
+    runtimeRecoveryPending = true; // Preserve checkpoint/witness; fail closed.
     runtimeNeedsRebuild = true;
+    setRuntimeFailure(error);
     updateRuntimeActions();
   }
 }
@@ -533,8 +541,11 @@ window.onload = async function() {
         if (serializedWorkspace() !== recovery.workspace || runtimeProfile.id !== recovery.profileId)
           throw new Error('Recovery changed the pupil project');
         // Native commitment is consumed only after both physical RESETs, scene
-        // acknowledgements, and exact Blockly identity were demonstrated.
-        await runtimeBackend.clearRecoveryWitness(recovery.token);
+        // acknowledgements and independent SHA-256 verification of the exact
+        // restored serialized Blockly bytes and profile.
+        var digest = await WebeeBlocksSimulationRecovery.fingerprint(
+          runtimeProfile.id, serializedWorkspace());
+        await runtimeBackend.clearRecoveryWitness(recovery.token, digest);
         WebeeBlocksSimulationRecovery.clear(recovery);
         runtimeTerminal = false;
         runtimeNeedsRebuild = false;

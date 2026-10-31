@@ -188,3 +188,35 @@ Current #755 `main` merge verdict remains **NO_GO** and reliable
 classroom reconstruction **UNPROVEN** despite the mechanistic Linux
 research GO. No Webots/ODE, physical RESET/LAND, GP tests or program
 serialization are changed by this documentation.
+
+## R1/R2 checkpoint integrity — experimental V3 (2026-10-31)
+
+The browser captures the **exact JSON string** returned by Blockly serialization and
+the exact activity `profileId`. The SHA-256 input is byte-encoded as:
+
+`UTF8("WEBEEBLOCKS_RECOVERY_V3\\0") || UINT32_BE(len(profile_utf8)) ||
+profile_utf8 || UINT32_BE(len(workspace_utf8)) || workspace_utf8`.
+
+The `len` fields count **bytes**, not JavaScript code units. Only a native
+`WEBEEBLOCKS_RECOVERY_V2 token64 digest64\\n` record is valid; V1, truncated,
+oversized, malformed and corrupted witnesses fail closed without silent removal.
+The record is persisted *before* world reload; `RECOVERY_CLEAR` is admitted
+only after two separate strict native RESET/SCENE pairs and matching token and
+SHA-256 digest. WWI request IDs and per-request fresh challenges still bind
+the native acknowledgments. The hash is recomputed from the restored workspace,
+not trusted from a browser checkpoint. Browser `crypto.subtle` unavailability
+prevents arm/clear; no hash-only bypass exists.
+
+The producer holds the same browser-partition Web Lock as the consumer across
+the absence check, durable checkpoint write, tab renewal arm and irreversible
+native RELOAD_WORLD request. Existing records, *even invalid ones*, cannot be
+overwritten. Missing/late locks fail closed. The 10 s lock acquisition, 30 s
+HTTP renewal deadline, 5 s RESET and 250 ms stability window are unchanged.
+
+**Threat boundary:** protects against browser checkpoint corruption while the
+native witness remains independent and intact. It cannot defeat an attacker
+with arbitrary ability to replace the witness file (or native/controller code)
+and is not a backup of an unsaved project if the profile disappears. Different
+browser storage partitions do not share Web Locks; native atomic witness access
+remains a separate matter to audit. This experimental branch is not an
+authorization for Windows classroom use.

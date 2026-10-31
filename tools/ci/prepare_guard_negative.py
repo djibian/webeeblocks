@@ -8,7 +8,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 html = root / "plugins/robot_windows/blockly_v2/blockly_v2.html"
 parser = argparse.ArgumentParser()
-parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness", "early_clear"])
+parser.add_argument("--mode", required=True, choices=["lost_profile", "lost_checkpoint", "corrupt_checkpoint", "stale_witness", "early_clear", "semantic_tamper"])
 args = parser.parse_args()
 
 # The deliberately stale native witness is injected BEFORE Webots starts.
@@ -19,13 +19,28 @@ if args.mode in ("stale_witness", "early_clear"):
         h = ((h ^ b) * 1099511628211) & ((1 << 64) - 1)
     out = Path(os.environ["WEBEEBLOCKS_RECOVERY_STATE_DIR"]) / f".webeeblocks-recovery-{h:016x}.state"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("WEBEEBLOCKS_RECOVERY_V1 " + "b" * 64 + "\n")
+    out.write_text("WEBEEBLOCKS_RECOVERY_V2 " + "b" * 64 + " " + "c" * 64 + "\n")
     print("PRESEEDED_NATIVE_STALE_WITNESS", out.name, flush=True)
 
 prelude = """
 <script>
 window.__guardFaultMode = __MODE__;
 window.__guardCheckpointCorrupt = false;
+window.__guardSemanticTampered = false;
+if (window.__guardFaultMode === 'semantic_tamper') {
+  const key = 'webeeblocks-world-recovery-v1';
+  const raw = localStorage.getItem(key);
+  if (raw !== null) {
+    const checkpoint = JSON.parse(raw);
+    const before = checkpoint.workspace;
+    const after = before.replace(/"NUM":1(?=[,}])/, '"NUM":2');
+    if (after === before) throw new Error('semantic tamper fixture NUM:1 missing');
+    checkpoint.workspace = after;
+    localStorage.setItem(key, JSON.stringify(checkpoint));
+    window.__guardSemanticTampered = true;
+    window.__guardSemanticContrast = {before:1, after:2};
+  }
+}
 if (window.__guardFaultMode === 'lost_checkpoint' || window.__guardFaultMode === 'corrupt_checkpoint') {
   const key = 'webeeblocks-world-recovery-v1';
   if (localStorage.getItem(key)) {
@@ -71,13 +86,25 @@ script = r"""
       return;
     }
     await waitFor(() => window.runtimeBackend && runtimeBackend.ready, 'native READY', 25000);
+    if (mode === 'semantic_tamper' && window.__guardSemanticTampered) {
+      // The product owns native RESET/SCENE/clear. A second status query from
+      // this adversarial harness would be cancelled by the product's RESET
+      // and would hide the actual mismatch postcondition.
+      await waitFor(() => runtimeRecoveryPending &&
+        document.getElementById('submit').disabled &&
+        document.getElementById('runtimeDetail').textContent.includes('Récupération non vérifiée'),
+        'native rejected digest without clearing witness', 60000);
+      await report('SEMANTIC_TAMPER_APPLIED', window.__guardSemanticContrast);
+      await report('NEGATIVE_LOCKED', {guardian:'PENDING', ...evidence()});
+      return;
+    }
     const guardian = await runtimeBackend.readRecoveryStatus();
     if (guardian.state === 'NONE') {
       if (mode === 'stale_witness') throw new Error('stale native witness not detected');
       await waitFor(() => !window.runtimeRecoveryPending &&
         !document.getElementById('submit').disabled, 'initial authorization', 10000);
       // A genuine unsaved student program, not a project-file round-trip.
-      const xml = __BLOCKED__;
+      const xml = mode === 'semantic_tamper' ? __BLOCKED_NUMBER__ : __BLOCKED__;
       workspace.clear();
       Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), workspace);
       const saved = JSON.stringify(Blockly.serialization.workspaces.save(workspace));
@@ -97,7 +124,7 @@ script = r"""
       throw new Error('unexpected native witness: ' + guardian.state);
     if (mode === 'early_clear') {
       try {
-        await runtimeBackend.clearRecoveryWitness('b'.repeat(64));
+        await runtimeBackend.clearRecoveryWitness('b'.repeat(64), 'c'.repeat(64));
         throw new Error('native witness cleared without physical RESET/scene evidence');
       } catch (error) {
         if (!error || error.code !== 'RECOVERY_LOCKED') throw error;
@@ -120,7 +147,15 @@ script = r"""
 <block type="webeeblocks_v2_move" id="native_guard_move">
 <field name="DIRECTION">forward</field><field name="DISTANCE">2</field>
 <next><block type="webeeblocks_v2_land" id="native_guard_land"/></next>
-</block></next></block></xml>"""))
+</block></next></block></xml>""")).replace("__BLOCKED_NUMBER__", json.dumps("""<xml xmlns="https://developers.google.com/blockly/xml">
+<block type="webeeblocks_v2_takeoff" id="native_guard_takeoff" x="20" y="20">
+<field name="HEIGHT">0.5</field><next>
+<block type="webeeblocks_v2_move" id="native_guard_move">
+<field name="DIRECTION">forward</field><field name="DISTANCE">2</field>
+<next><block type="webeeblocks_v2_land" id="native_guard_land"/></next>
+</block></next></block>
+<block type="math_number" id="r2_semantic_number" x="400" y="300">
+<field name="NUM">1</field></block></xml>"""))
 
 source = html.read_text()
 if "<head>" not in source or "</body>" not in source:

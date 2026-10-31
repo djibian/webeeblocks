@@ -78,6 +78,29 @@ SCRIPT = r'''
   function astState() {
     return JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace));
   }
+  // Passive HTTP discriminator; never navigate, spoof native authority or
+  // change RESET/SCENE timing/oracles. Only probe the original same-origin URL.
+  async function probeCurrentOriginHtml(url) {
+    if (!url || new URL(url).origin !== location.origin)
+      return {sameOrigin:false, served:false, currentUrl:location.href};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1200);
+    try {
+      const response = await fetch(url, {
+        method:'GET', cache:'no-store', credentials:'same-origin',
+        redirect:'error', signal:controller.signal
+      });
+      const mime = (response.headers.get('content-type') || '').toLowerCase();
+      return {sameOrigin:true, served:response.ok && !response.redirected &&
+        mime.includes('text/html'), httpStatus:response.status,
+        redirected:response.redirected, mime, currentUrl:location.href};
+    } catch (error) {
+      return {sameOrigin:true, served:false, error:String(error), currentUrl:location.href};
+    } finally {
+      clearTimeout(timeout);
+      controller.abort();
+    }
+  }
   async function clickResetAndProve(label, expectedWorkspace, expectedAst) {
     const button = document.getElementById('resetSimulation');
     if (button.hidden || button.disabled) throw new Error(label + ' reset action unavailable: ' + JSON.stringify(snapshot()));
@@ -123,6 +146,9 @@ SCRIPT = r'''
       if (runtimeBackend.nextId <= expected.nextRequestId)
         throw new Error('WWI numeric request identity reused after reconstruction');
       if (document.getElementById('submit').disabled) throw new Error('Rerun still locked');
+      await report('FORMER_URL_HTTP_AFTER_WORLD_RELOAD', {
+        formerHref:expected.href, ...await probeCurrentOriginHtml(expected.href)
+      });
       await report('WORLD_RECOVERY_READY', {workspace:workspaceState(), ast:JSON.parse(astState()),
         profileId:runtimeProfile.id, milliseconds:Date.now()-expected.started,
         nextRequestId:runtimeBackend.nextId, snapshot:snapshot()});
@@ -179,8 +205,12 @@ SCRIPT = r'''
       throw new Error('unsafe replay changed workspace or AST');
     await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
     // Select recovery after an actual collision, without forging RESET_TIMEOUT.
+    await report('FORMER_URL_HTTP_BEFORE_WORLD_RELOAD', {
+      originalHref:location.href, ...await probeCurrentOriginHtml(location.href)
+    });
     const beforeReload = {workspace:blockedWorkspace, ast:blockedAst,
-      profileId:runtimeProfile.id, started:Date.now(), nextRequestId:runtimeBackend.nextId};
+      profileId:runtimeProfile.id, started:Date.now(), nextRequestId:runtimeBackend.nextId,
+      href:location.href};
     localStorage.setItem(RECOVERY_STAGE, JSON.stringify(beforeReload));
     if (localStorage.getItem(RECOVERY_STAGE) !== JSON.stringify(beforeReload))
       throw new Error('Recovery native expectation not stored');

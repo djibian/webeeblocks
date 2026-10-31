@@ -32,16 +32,20 @@
       var raw = root.localStorage.getItem('webeeblocks-world-recovery-v1');
       if (!raw) return false;
       var checkpoint = JSON.parse(raw);
-      return checkpoint.version === 2 && checkpoint.token === token;
+      return checkpoint.version === 3 && checkpoint.token === token;
     } catch (_) { return false; }
   }
 
   // Never navigate an external URL; the only target is our own current document.
   function validUrl() {
     var location = root.location;
+    // Webots R2025a may append a per-session suffix on Windows to the
+    // content-addressed Robot Window identity. Never admit an arbitrary
+    // /robot_windows/ path: its directory and HTML basename must be identical.
+    // Both accepted hostnames name the local loopback server, not a remote host.
     return /^(https?:)$/.test(location.protocol) &&
-      /^\/robot_windows\/(blockly_v2(?:_[0-9a-f]{16})?)\/\1\.html$/.test(location.pathname) &&
-      location.hostname === 'localhost';
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+      /^\/robot_windows\/(blockly_v2(?:_[0-9a-f]{16}(?:_session_[1-9][0-9]{0,9}_[0-9a-f]{12})?)?)\/\1\.html$/.test(location.pathname);
   }
 
   function disarm() {
