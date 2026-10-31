@@ -64,6 +64,14 @@ jobs:
           cl /nologo /TC /W3 /Fe:"$env:RUNNER_TEMP\r3-lock-race.exe" tools\ci\test_r3_lock_race.c
           if ($LASTEXITCODE -ne 0) { throw "MSVC compile failed" }
           Get-FileHash "$env:RUNNER_TEMP\r3-lock-race.exe" -Algorithm SHA256
+          cl /nologo /TC /W3 /Fe:"$env:RUNNER_TEMP\r3-guard-test.exe" tools\ci\test_recovery_guard.c
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native guard compilation failed" }
+          $guardDir = Join-Path $env:RUNNER_TEMP 'r3-guard'
+          New-Item -ItemType Directory -Path $guardDir -Force | Out-Null
+          $env:WEBEEBLOCKS_RECOVERY_STATE_DIR = $guardDir
+          & "$env:RUNNER_TEMP\r3-guard-test.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Win32 partial-write/PENDING guard failed" }
+          Write-Host "WIN32_NATIVE_GUARD=PASS"
       - name: Start two synchronized independent native Windows processes
         shell: pwsh
         run: |
