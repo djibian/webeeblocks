@@ -250,7 +250,7 @@ int WbOdeContext::h6P0Admission(dJointID joint, void *user) {
 }''', "context callback implementation")
 
 p0edit(paths["ctx_c"],
-'  mBodyContacts2.clear();\n  mNumberOfThreads = -1;',
+'  mBodyContacts2.clear();\n\n  mNumberOfThreads = -1;',
 '''  mBodyContacts2.clear();
   h6_p0_set_admission(&WbOdeContext::h6P0Admission, this);
   h6_p0_trace("P0_admission_installed", 0);
@@ -339,14 +339,14 @@ p0edit(paths["cluster_c"],
 '#include <limits>\n#include <atomic>\n#include <cstdlib>\n#include <unistd.h>', "fixture includes")
 p0edit(paths["cluster_c"],
 '''    h6_p0_trace("M_acquired", 0);
-    dJointGroupID group = 0;''',
+    dBodyID owner =''',
 '''    h6_p0_trace("M_acquired", 0);
     static std::atomic<int> h6_p0_hold_count{0};
     if (std::getenv("H6_P0_HOLD_M") && h6_p0_hold_count.fetch_add(1) < 32) {
       h6_p0_trace("P0_fixture_M_hold", 0);
       usleep(4000);
     }
-    dJointGroupID group = 0;''', "controlled M hold while two real workers collide")
+    dBodyID owner =''', "controlled M hold while two real workers collide")
 
 assert 'dJointCreateContact(jointWorld, NULL' in paths["cluster_c"].read_text()
 print("H6_P0_OVERLAY_COMPLETE",PIN)
