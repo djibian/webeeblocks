@@ -18,8 +18,9 @@
 #include <vector>
 #include <string>
 
+// Weak benchmark linkage lets the SAME executable run on exact STOCK ODE.
 extern "C" void h6SetContactJointDestroyHooks(void (*before)(dJointID),
-                                               void (*after)(dJointID));
+                                               void (*after)(dJointID)) __attribute__((weak));
 
 static std::unordered_set<dJointID> tracked;
 static std::recursive_mutex contactMutex;
@@ -90,8 +91,11 @@ int main(int argc,char **argv) {
   joints.reserve(n);
   groups.reserve(single?n:1);
   if(shared) groups.push_back(dJointGroupCreate(0));
-  if(notify) h6SetContactJointDestroyHooks(preDestroy,postDestroy);
-  else h6SetContactJointDestroyHooks(nullptr,nullptr);
+  if(notify) {
+    insist(h6SetContactJointDestroyHooks!=nullptr,"pre-free hook absent");
+    h6SetContactJointDestroyHooks(preDestroy,postDestroy);
+  } else if(h6SetContactJointDestroyHooks)
+    h6SetContactJointDestroyHooks(nullptr,nullptr);
   const Memory before=memory();
   const auto beginCreation=std::chrono::steady_clock::now();
   for(int i=0;i<n;++i) {
@@ -216,7 +220,8 @@ int main(int argc,char **argv) {
   for(dJointGroupID group:groups) dJointGroupDestroy(group);
   dBodyDestroy(body);
   dWorldDestroy(world);
-  h6SetContactJointDestroyHooks(nullptr,nullptr);
+  if(h6SetContactJointDestroyHooks)
+    h6SetContactJointDestroyHooks(nullptr,nullptr);
   dCloseODE();
   const double teardown_us=us(beginTeardown);
   const Memory afterDestroy=memory();
