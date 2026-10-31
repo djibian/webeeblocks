@@ -43,6 +43,9 @@ boot_replacement = r"""
       const b = await bEffect;
       if (!b || b.nativeStatus !== 'NONE' || b.status !== 'PRÊT' || b.runDisabled)
         throw new Error('R3 B failed native status/JS authority discriminator: ' + JSON.stringify(b));
+      // A stays open while the CI launcher opens independent Chrome profile B2.
+      await report('R3_A_WAIT_INDEPENDENT_PROFILE', {nonceA});
+      await sleep(22000);
       const native = await runtimeBackend.readRecoveryStatus();
       if (!native || native.state !== 'NONE') throw new Error('R3 A native state changed');
       const aRequestId = runtimeBackend.nextId;
@@ -61,9 +64,10 @@ boot_replacement = r"""
     }
   }
   try {
-    if (window.name === 'webeeblocks-r3-late-b') {
+    if (window.name === 'webeeblocks-r3-late-b' || location.hash === '#webeeblocks-r3-profile-b2') {
+      const independentProfile = location.hash === '#webeeblocks-r3-profile-b2';
       const nonceB = crypto.randomUUID();
-      await report('R3_B_BOOT', {nonceB, href:location.href,
+      await report(independentProfile ? 'R3_B2_BOOT' : 'R3_B_BOOT', {nonceB, href:location.href,
         checkpointPresent:WebeeBlocksSimulationRecovery.peek() !== null});
       await waitFor(() => runtimeBackend && runtimeBackend.ready && !runtimeRecoveryPending &&
           document.getElementById('runtimeState').textContent === 'PRÊT' &&
@@ -77,16 +81,18 @@ boot_replacement = r"""
       const requestId = runtimeBackend.nextId;
       // Physical LED color change (no takeoff); confirms actual native acceptance,
       // not a mere WebSocket delivery, READY label, or forged controller ACK.
-      await runtimeBackend.setLight('blue');
+      await runtimeBackend.setLight(independentProfile ? 'green' : 'blue');
       const result = {tag:'R3_B_NATIVE_EFFECT', nonceB, nativeStatus:status.state,
         requestId, status:document.getElementById('runtimeState').textContent,
         runDisabled:document.getElementById('submit').disabled,
         socketOpen:robotWindow.socket.readyState === WebSocket.OPEN};
-      await report('R3_B_NATIVE_EFFECT', result);
-      const channel = new BroadcastChannel(R3_CHANNEL);
-      channel.postMessage(result);
-      await sleep(3000);
-      channel.close();
+      await report(independentProfile ? 'R3_B2_NATIVE_EFFECT' : 'R3_B_NATIVE_EFFECT', result);
+      if (!independentProfile) {
+        const channel = new BroadcastChannel(R3_CHANNEL);
+        channel.postMessage(result);
+        await sleep(3000);
+        channel.close();
+      }
       await chain;
       return;
     }
