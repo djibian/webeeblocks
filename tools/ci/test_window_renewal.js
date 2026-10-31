@@ -14,6 +14,7 @@ function environment(options = {}) {
   };
   if (options.path) location.pathname = options.path;
   if (options.hostname) location.hostname = options.hostname;
+  if (options.href) location.href = options.href;
   const timers = new Map();
   const env = {
     location, performance:{now:()=>ms}, localStorage:{getItem(key) {
@@ -23,6 +24,8 @@ function environment(options = {}) {
       ++fetched;
       assert.strictEqual(url, location.href, 'no arbitrary navigation target');
       assert.strictEqual(init.credentials,'same-origin');
+      assert.strictEqual(init.redirect,'error', 'HTTP redirection must stay forbidden');
+      assert.strictEqual(init.cache,'no-store', 'HTTP revalidation must bypass the cache');
       if(options.httpUnavailable) throw Error('HTTP unavailable');
       return {ok:true,headers:{get:()=>options.mime||'text/html; charset=utf-8'}};
     },
@@ -53,6 +56,46 @@ async function testWindowRenewal() {
   assert.strictEqual(e.reloads,1,'duplicate WWI close cannot relaunch');
   assert.strictEqual(e.control.arm(token),false,'navigation is one-shot');
 
+  // The exact URL observed by the Windows 11/Chrome human test (#768).
+  const sessionName = 'blockly_v2_3bd18613c66933c7_session_284_604b5ee93d99';
+  const winPath = '/robot_windows/' + sessionName + '/' + sessionName + '.html';
+  const windowsUrl = 'http://127.0.0.1:50301' + winPath + '?name=Crazyflie%20WebeeBlocks';
+  e=environment({hostname:'127.0.0.1',path:winPath,href:windowsUrl});
+  assert.strictEqual(e.control.arm(token),true,'observed Windows session URL must be admitted');
+  assert.strictEqual(e.control.onTransportClose(),true);
+  await flush();
+  assert.strictEqual(e.reloads,1,'observed Windows URL must renew the existing tab once');
+  assert.strictEqual(e.fetched,1,'observed Windows URL must only probe its own document');
+
+  // Preserve old localhost, content-addressed and loopback forms.
+  e=environment({hostname:'127.0.0.1'});
+  assert.strictEqual(e.control.arm(token),true,'non-session loopback URL must stay valid');
+  e=environment({hostname:'localhost',path:winPath});
+  assert.strictEqual(e.control.arm(token),true,'local legacy host can serve session identity');
+
+  // All name/path/authority variants are negative assertions, not allowlists.
+  const invalid = [
+    {hostname:'evil.example',path:winPath},
+    {hostname:'localhost.evil.example',path:winPath},
+    {hostname:'127.0.0.2',path:winPath},
+    {hostname:'[::1]',path:winPath}, // Not observed / not admitted implicitly.
+    {hostname:'0.0.0.0',path:winPath},
+    {hostname:'127.0.0.1',path:winPath.replace(/\\.html$/, '_other.html')},
+    {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_284_ffff')},
+    {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_foo_')},
+    {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_12345678901_')},
+    {hostname:'127.0.0.1',path:winPath.replace('604b5ee93d99','604b5ee93d9g')},
+    {hostname:'127.0.0.1',path:winPath.replace('session_284_', 'session_284__')},
+    {hostname:'127.0.0.1',path:winPath.replace('3bd18613c66933c7_', 'deadbeefdeadbeef_')},
+    {hostname:'127.0.0.1',path:'/robot_windows/../../robot_windows/'+sessionName+'/'+sessionName+'.html'},
+    {hostname:'127.0.0.1',path:'/robot_windows/%2e%2e/'+sessionName+'/'+sessionName+'.html'},
+    {hostname:'127.0.0.1',path:'/robot_windows/evil/evil.html'}
+  ];
+  for (const variant of invalid) {
+    e=environment(variant);
+    assert.strictEqual(e.control.arm(token),false,'invalid Robot Window URL admitted '+JSON.stringify(variant));
+    assert.strictEqual(e.reloads,0,'invalid URL navigated');
+  }
   e=environment({hostname:'evil.example'});
   assert.strictEqual(e.control.arm(token),false,'cross-origin navigation refused');
   // Windows classroom release uses content-addressed directory+HTML names;
@@ -74,6 +117,14 @@ async function testWindowRenewal() {
   e.checkpoint=null;
   assert.strictEqual(e.control.onTransportClose(),false,'checkpoint loss fails closed');
   assert.strictEqual(e.reloads,0);
+  // Session URL unavailable after a world reload must fail closed as before.
+  e=environment({hostname:'127.0.0.1',path:winPath,href:windowsUrl,httpUnavailable:true});
+  assert.strictEqual(e.control.arm(token),true);
+  assert.strictEqual(e.control.onTransportClose(),true);
+  for (let n=0;n<70;n++) { await flush(); e.nextTimer(); }
+  await flush();
+  assert.strictEqual(e.reloads,0,'vanished Windows session URL cannot authorize navigation');
+  assert(e.fetched >= 40 && e.fetched <= 61,'same absolute HTTP deadline retained');
   e=environment({mime:'text/plain'});
   assert.strictEqual(e.control.arm(token),true);
   e.control.onTransportClose();
