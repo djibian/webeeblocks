@@ -39,6 +39,11 @@ int main(void) {
   // ONLY after an actual OS release; it never clears or overwrites PENDING.
   assert(wb_rg_setup(&b, world) && b.state == WB_RG_OWNED);
   assert(strcmp(b.epoch, epoch_a) != 0); // stale 128-bit epoch cannot authorize
+  char old_capability[65], new_capability[65];
+  snprintf(old_capability, sizeof(old_capability), "%s%032x", epoch_a, 1);
+  snprintf(new_capability, sizeof(new_capability), "%s%032x", b.epoch, 1);
+  assert(!wb_rg_current_key(&b, old_capability));
+  assert(wb_rg_current_key(&b, new_capability));
   assert(wb_rg_claim(&b));               // formerly deterministic P0-A failure
   assert(wb_rg_refresh(&b) == WB_RG_OWNED);
   assert(!wb_rg_setup(&a, world));
