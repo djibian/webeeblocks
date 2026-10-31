@@ -52,6 +52,26 @@ jobs:
           touch "$WEBEEBLOCKS_RECOVERY_STATE_DIR/stop"
           wait "$p1"; wait "$p2"
           "$WEBEEBLOCKS_RECOVERY_STATE_DIR/../r3-race/race" restart
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" crash-owner &
+          crashed=$!
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-owner" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-owner"
+          kill -9 "$crashed"
+          wait "$crashed" || true
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" restart
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" crash-pending &
+          crashed=$!
+          for i in $(seq 1 600); do
+            test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-pending" && break
+            sleep 0.05
+          done
+          test -e "$WEBEEBLOCKS_RECOVERY_STATE_DIR/ready-crash-pending"
+          kill -9 "$crashed"
+          wait "$crashed" || true
+          "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race" check-pending
           sha256sum "$WEBEEBLOCKS_RECOVERY_STATE_DIR/race"
   windows-os-lock:
     runs-on: windows-2022
@@ -108,3 +128,16 @@ jobs:
           & $exe restart
           if ($LASTEXITCODE -ne 0) { throw "Second Windows session cannot claim" }
           Write-Host "WIN32_LOCK_RACE=PASS OWNER=1 DENIED=1 RESTART=PASS"
+          $crashed = Start-Process -FilePath $exe -ArgumentList 'crash-owner' -PassThru -NoNewWindow
+          AwaitFile 'ready-crash-owner'
+          Stop-Process -Id $crashed.Id -Force
+          $crashed.WaitForExit()
+          & $exe restart
+          if ($LASTEXITCODE -ne 0) { throw "Win32 crash release/OWNED restart failed" }
+          $crashed = Start-Process -FilePath $exe -ArgumentList 'crash-pending' -PassThru -NoNewWindow
+          AwaitFile 'ready-crash-pending'
+          Stop-Process -Id $crashed.Id -Force
+          $crashed.WaitForExit()
+          & $exe check-pending
+          if ($LASTEXITCODE -ne 0) { throw "Win32 crash PENDING preservation failed" }
+          Write-Host "WIN32_FORCE_KILL=PASS RESTART=PASS PENDING=PROTECTED"
