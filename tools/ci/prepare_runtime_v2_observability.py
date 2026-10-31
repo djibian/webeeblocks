@@ -350,7 +350,7 @@ __COMMON__
     window.runProgram();
     // Require actual native action submission, not just a UI transition or a
     // call that may return early. Scene preparation may precede TAKEOFF.
-    await waitFor(() => wwiTx.some(message => / REQUEST \\d+ TAKEOFF /.test(message)),
+    await waitFor(() => wwiTx.some(message => / REQUEST \d+ TAKEOFF /.test(message)),
       'real TAKEOFF WWI request after explicit authorization', 45000);
     await report('UNSAFE_ACTUAL_TAKEOFF', {wwiRequests: wwiTx, nextId: runtimeBackend.nextId});
     // The controller enforces ACTION_TIMEOUT in simulated time (25 s). Under
@@ -370,7 +370,7 @@ __COMMON__
     ['mur', 'obstacle', 'utilise ', 'essaie ', 'condition vraie', 'condition fausse', 'bloc conseillé', 'solution'].forEach(term => {
       if (surface.includes(term)) throw new Error('anti-tutoring boundary crossed: ' + term);
     });
-    if (!wwiTx.some(message => / REQUEST \\d+ TAKEOFF /.test(message)))
+    if (!wwiTx.some(message => / REQUEST \d+ TAKEOFF /.test(message)))
       throw new Error('native unsafe path did not receive TAKEOFF');
     await report('UNSAFE_SCENARIO_DONE', {diagnostic: unsafe, snapshot: snapshot(),
       wwiRequests: wwiTx, ast: astBeforeControl});
