@@ -11,16 +11,16 @@ def qualify(log,exitcode):
                   "H6_D3_FIRST_SOLVER_AFTER","H6_D3_FIRST_SOLVER_RETIRED",
                   "H6_D3_FINAL_CONTEXT_END count1=0 count2=0"):
         assert token in log,("MISSING_PROOF",token)
-    match=re.search(r"H6_D3_REGISTRY_CHECK body=(\\S+) before1=(\\d+) before2=(\\d+) after1=(\\d+) after2=(\\d+) beforeAttached=(\\d+) ownedRemoved=(\\d+) remainingContacts=(\\d+)",log)
+    match=re.search(r"H6_D3_REGISTRY_CHECK body=(\S+) before1=(\d+) before2=(\d+) after1=(\d+) after2=(\d+) beforeAttached=(\d+) ownedRemoved=(\d+) remainingContacts=(\d+)",log)
     assert match, "NO_REGISTRY_CHECK"
     body,b1,b2,a1,a2,attached,removed,remaining=match.groups()
     n=list(map(int,(b1,b2,a1,a2,attached,removed,remaining)))
     assert n[0]+n[1]>=4 and n[2]==0 and n[3]==0 and n[5]>=4 and n[6]==0,("BAD_REGISTER_OR_RESET",n)
-    destroyed=re.findall(r"H6_D3_RESET_JOINT joint=(\\S+) owned=(\\d+) in1=(\\d+) in2=(\\d+)",log)
+    destroyed=re.findall(r"H6_D3_RESET_JOINT joint=(\S+) owned=(\d+) in1=(\d+) in2=(\d+)",log)
     assert len(destroyed)>=4 and len(set(x[0] for x in destroyed))==len(destroyed),("DUPLICATE_RESET_DESTRUCTION",destroyed)
     assert all(int(x[1])==1 and int(x[2])+int(x[3])==1 for x in destroyed),("NONOWNED_CONTACT_DESTRUCTION",destroyed)
-    first=re.search(r"H6_D3_FIRST_SOLVER_BEFORE body=(\\S+) contacts=(\\d+) permanent=(\\d+)",log)
-    after=re.search(r"H6_D3_FIRST_SOLVER_AFTER body=(\\S+) contacts=(\\d+) permanent=(\\d+)",log)
+    first=re.search(r"H6_D3_FIRST_SOLVER_BEFORE body=(\S+) contacts=(\d+) permanent=(\d+)",log)
+    after=re.search(r"H6_D3_FIRST_SOLVER_AFTER body=(\S+) contacts=(\d+) permanent=(\d+)",log)
     assert first and after,"NO_NATIVE_FIRST_SOLVER"
     assert body==first.group(1)==after.group(1),("WRONG_BODY_SOLVER",body,first.group(1),after.group(1))
     assert int(first.group(2))==0,("STALE_CONTACT_AT_NEXT_SOLVER",first.groups())
