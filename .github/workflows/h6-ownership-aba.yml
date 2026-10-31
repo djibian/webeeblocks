@@ -1,0 +1,112 @@
+name: H6 native ODE raw-pointer ABA refutation, sticky versus reuse-clear
+on:
+  push:
+    branches: [experiment/h6-contact-ownership-protocol-20261031]
+    paths:
+      - 'experiments/h6_protocol/instrument_aba.py'
+      - 'experiments/h6_protocol/ode_aba_probe.cpp'
+      - '.github/workflows/h6-ownership-aba.yml'
+permissions:
+  contents: read
+concurrency:
+  group: h6-ownership-aba-20261031
+  cancel-in-progress: true
+jobs:
+  aba:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Pin unmodified source and independently build original ODE
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p aba-proof/logs
+          git rev-parse HEAD > aba-proof/research-head.txt
+          python3 -m py_compile experiments/h6_protocol/instrument_ode.py experiments/h6_protocol/instrument_aba.py
+          sha256sum experiments/h6_protocol/instrument_ode.py experiments/h6_protocol/instrument_aba.py experiments/h6_protocol/ode_aba_probe.cpp > aba-proof/probe-sources.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > aba-proof/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > aba-proof/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 > aba-proof/logs/submodules.log 2>&1
+          test -z "$(git -C native-webots status --porcelain)"
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          export WEBOTS_HOME="$PWD/native-webots"
+          sha256sum native-webots/src/ode/ode/src/ode.cpp > aba-proof/original-ode-source.sha256
+          make -C native-webots/src/ode -j2 release > aba-proof/logs/stock-build.log 2>&1 || { tail -n 80 aba-proof/logs/stock-build.log; exit 1; }
+          sha256sum native-webots/lib/webots/libode.so > aba-proof/stock-libode.sha256
+          test "$(cut -d' ' -f1 aba-proof/stock-libode.sha256)" = "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201"
+      - name: Instrument actual ODE contact allocation and prior pre-deref gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          python3 experiments/h6_protocol/instrument_aba.py native-webots > aba-proof/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > aba-proof/instrumented-ode.patch
+          sha256sum aba-proof/instrumented-ode.patch > aba-proof/instrumented-ode.patch.sha256
+          make -C native-webots/src/ode -j2 release > aba-proof/logs/build.log 2>&1 || { tail -n 110 aba-proof/logs/build.log; exit 1; }
+          sha256sum native-webots/lib/webots/libode.so > aba-proof/changed-libode.sha256
+          for sym in h6ContactCreated h6IsRetired h6SetEraseTombstoneOnAllocation; do
+            nm -D native-webots/lib/webots/libode.so | grep -w "$sym" >> aba-proof/research-symbols.txt
+          done
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+             -I native-webots/include/ode experiments/h6_protocol/ode_aba_probe.cpp \
+             -L "$PWD/native-webots/lib/webots" -Wl,-rpath,"$PWD/native-webots/lib/webots" -lode \
+             -o aba-proof/ode_aba_probe
+          sha256sum aba-proof/ode_aba_probe > aba-proof/test-binary.sha256
+      - name: Four distinct policy/ABA arms with real ODE allocator
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > aba-proof/results.jsonl
+          : > aba-proof/logs/probes.log
+          for mode in sticky erase; do
+            for policy in p0 p1; do
+              for repeat in 1 2 3 4 5; do
+                echo "H6_ABA_CASE mode=$mode policy=$policy repeat=$repeat" >> aba-proof/logs/probes.log
+                LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" timeout 20s \
+                  aba-proof/ode_aba_probe "$mode" "$policy" \
+                  >> aba-proof/results.jsonl 2>> aba-proof/logs/probes.log
+              done
+            done
+          done
+      - name: Qualify observed negative result without misreporting a safe design
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib,collections
+          p=pathlib.Path('aba-proof')
+          xs=[json.loads(x) for x in (p/'results.jsonl').read_text().splitlines() if x]
+          counts=collections.Counter((x['mode'],x['policy']) for x in xs)
+          errors=[]
+          if len(xs)!=20 or any(counts[(m,pol)]!=5 for m in ('sticky','erase') for pol in ('p0','p1')):
+            errors.append('missing policy/ABA arm')
+          for x in xs:
+            expect='VALID_PLUGIN_DESTRUCTION_DENIED' if x['mode']=='sticky' else 'STALE_HANDLE_DESTROYS_NEW_PLUGIN'
+            if x.get('counterexample')!=expect or not x['reused']:
+              errors.append(f'not discriminatory: {x}')
+            if x.get('old')!=x.get('fresh_plugin'):
+              errors.append('not same allocator address')
+          z={'scope':'real pinned ODE allocator; unmodified joint ABI; one single threaded world per test',
+             'runs':len(xs),'modes':{str(k):v for k,v in counts.items()},
+             'verdict':'COUNTEREXAMPLE_PROVEN' if not errors else 'UNPROVEN_OR_REFUTED',
+             'errors':errors,'production_solution_safe':False}
+          (p/'qualification.json').write_text(json.dumps(z,indent=2,sort_keys=True)+'\n')
+          print('H6_ABA_QUALIFICATION',z)
+          if errors:raise SystemExit(4)
+          PY
+      - name: Preserve all raw negative evidence and hashes even on RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p aba-proof/logs
+          git rev-parse HEAD > aba-proof/observed-head.txt
+          find aba-proof -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > aba-proof/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: h6-ode-aba-p0-p1-counterexamples, path: aba-proof/, retention-days: 90, if-no-files-found: error}
