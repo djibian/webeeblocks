@@ -76,10 +76,10 @@ def check(events, expected_workers):
                  "INTERNAL_FREE_NOT_ATOMIC_WITH_RETIRE")
             need(tid in m_held,"INTERNAL_FREE_OUTSIDE_M")
             pending_free.pop(j); internal+=1; first_destroy[j]=seq
-        elif ev in ("M_acquired","P0_M_acquired","P0_teardown_M_acquired"):
+        elif ev in ("M_acquired","P0_M_acquired","P0_teardown_M_acquired","P0_retire_M_acquired","P0_cluster_dtor_M_acquired","P0_body_M_acquired","P0_reset_M_acquired"):
             need(tid not in m_held,"RECURSIVE_M")
             m_held.add(tid)
-        elif ev in ("M_released","P0_M_released","P0_teardown_M_released"):
+        elif ev in ("M_released","P0_M_released","P0_teardown_M_released","P0_retire_M_released","P0_cluster_dtor_M_released","P0_body_M_released","P0_reset_M_released"):
             need(tid in m_held,"RELEASE_WITHOUT_M")
             m_held.remove(tid)
         elif ev=="P0_M_contended":
