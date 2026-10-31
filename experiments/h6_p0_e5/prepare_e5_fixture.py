@@ -19,6 +19,7 @@ def once(old,new,label):
 once("static int r_enabled = 0;", '''static int r_enabled = 0;
 static dJointGroupID e5_group = 0;
 static dJointID e5_plugin_contact = 0;
+static dJointID e5_plugin_standalone = 0;
 static dJointID e5_plugin_permanent = 0;
 static dJointFeedback e5_feedback;
 static int e5_feedback_this_step = 0;
@@ -43,6 +44,13 @@ once('  r_enabled = r && strcmp(r, "1") == 0;',r'''  e5_case = getenv("H6_E5_CAS
       dJointGetBody(e5_plugin_contact,0)!=attached) abort();
   h6_p0_trace("E5_plugin_attached_group_before",
               (unsigned long long)(size_t)e5_plugin_contact);
+  // Attached plugin standalone CONTACT: on reset(id) original Webots
+  // detaches and individually destroys it, unlike a group-owned contact.
+  e5_plugin_standalone = dJointCreateContact(e5_world,0,&ec);
+  dJointAttach(e5_plugin_standalone,attached,0);
+  if (dJointGetBody(e5_plugin_standalone,0)!=attached) abort();
+  h6_p0_trace("E5_plugin_attached_standalone_before",
+              (unsigned long long)(size_t)e5_plugin_standalone);
   e5_plugin_permanent = dJointCreateAMotor(e5_world,0);
   dJointAttach(e5_plugin_permanent,target,0);
   if (dJointGetBody(e5_plugin_permanent,0)!=target) abort();
@@ -65,7 +73,7 @@ once("  ++tick;",r'''  ++tick;
   memset(&e5_feedback,0,sizeof(e5_feedback));
   for (int i=0;i<dBodyGetNumJoints(target);i++) {
     dJointID j=dBodyGetJoint(target,i);
-    if (j==e5_plugin_contact || dJointGetType(j)!=dJointTypeContact)
+    if (j==e5_plugin_contact || j==e5_plugin_standalone || dJointGetType(j)!=dJointTypeContact)
       continue;
     dBodyID a=dJointGetBody(j,0), b=dJointGetBody(j,1);
     if ((a==target && !b) || (b==target && !a)) {
@@ -103,12 +111,28 @@ once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void)
     dJointGroupDestroy(e5_group);
     e5_group=0;
   }
+  // In RESET case, original Webots reset(id) already destroyed this
+  // standalone contact. Its handle is now stale: NEVER use or dereference it.
+  if (e5_plugin_standalone && !strcmp(e5_case,"body")) {
+    dJointDestroy(e5_plugin_standalone);
+    h6_p0_trace("E5_plugin_standalone_owner_free",0);
+  } else if (e5_plugin_standalone && !strcmp(e5_case,"reset")) {
+    h6_p0_trace("E5_plugin_standalone_reset_no_use",0);
+  }
+  e5_plugin_standalone=0;
   if (e5_plugin_permanent) {
     // Native standalone plugin joint: only its legitimate owner deletes it.
     dJointDestroy(e5_plugin_permanent);
     h6_p0_trace("E5_plugin_permanent_destroyed",0);
     e5_plugin_permanent=0;
   }''',"plugin cleanup native")
+# E5 is a separate experiment. E1–E4 public worker probes must NOT
+# accidentally destroy a plugin-owned live standalone joint selected in
+# a previous frame. They have already been qualified on PR #780.
+probe = "if (h6_selected && h6_p0_thread_attempts++ == 0) {"
+if c.count(probe)!=1:
+    raise SystemExit("REFUSED E5 probe-isolation anchor")
+c=c.replace(probe,"if (0 && h6_selected && h6_p0_thread_attempts++ == 0) {")
 p.write_text(c)
 
 foreign = '''DEF FOREIGN Solid {
