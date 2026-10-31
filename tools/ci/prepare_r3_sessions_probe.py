@@ -28,6 +28,18 @@ probe = r"""
     }
     throw new Error(label + ' timeout');
   }
+  function loadFixture() {
+    // Valid, deterministic student Blockly/AST witness; NEVER click Run.
+    const xml = '<xml xmlns="https://developers.google.com/blockly/xml">' +
+      '<block type="webeeblocks_v2_takeoff" id="r3_t1_t3_takeoff" x="40" y="40">' +
+      '<field name="HEIGHT">0.5</field><next>' +
+      '<block type="webeeblocks_v2_move" id="r3_t1_t3_move">' +
+      '<field name="DIRECTION">forward</field><field name="DISTANCE">0.2</field><next>' +
+      '<block type="webeeblocks_v2_land" id="r3_t1_t3_land"></block>' +
+      '</next></block></next></block></xml>';
+    workspace.clear();
+    Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml),workspace);
+  }
   function ws() { return JSON.stringify(Blockly.serialization.workspaces.save(workspace)); }
   function ast() { return JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)); }
   function hex64() {
@@ -62,6 +74,7 @@ probe = r"""
       runtimeBackend.authorized === true && !runtimeRecoveryPending &&
       document.getElementById('runtimeState').textContent === 'PRÊT' &&
       !document.getElementById('submit').disabled, 'native AUTH_CLAIM and PRÊT');
+    loadFixture();
     const beforeW = ws(), beforeAst = ast();
     if (robotWindow.socket.readyState !== WebSocket.OPEN) throw new Error('no WWI socket');
     if (initialPhase === 1) {
