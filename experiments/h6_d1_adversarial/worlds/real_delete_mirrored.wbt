@@ -1,0 +1,52 @@
+#VRML_SIM R2025a utf8
+WorldInfo {
+  basicTimeStep 32
+  randomSeed 1
+  optimalThreadCount 1
+  gravity 0
+  physics "h6_d1_owner_sleep"
+}
+Viewpoint {
+  position 2 2 2
+}
+DEF B Solid {
+  translation -0.14 0 0.2
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.1 0.9 0.1 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  name "B"
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { mass 0.12 }
+}
+DEF A Solid {
+  translation 0 0 0.2
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.9 0.1 0.1 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  name "A"
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { mass 0.12 }
+}
+DEF C Solid {
+  translation 0.14 0 0.2
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.1 0.1 0.9 roughness 1 }
+      geometry Box { size 0.2 0.2 0.2 }
+    }
+  ]
+  name "C"
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { mass 0.12 }
+}
+Robot {
+  supervisor TRUE
+  controller "h6_d1_real_remove"
+  name "supervisor"
+}
