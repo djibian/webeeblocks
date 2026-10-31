@@ -136,10 +136,14 @@ once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void)
   }
   // In RESET case, original Webots reset(id) already destroyed this
   // standalone contact. Its handle is now stale: NEVER use or dereference it.
-  if (e5_plugin_standalone && !strcmp(e5_case,"body")) {
-    dJointDestroy(e5_plugin_standalone);
-    h6_p0_trace("E5_plugin_standalone_owner_free",0);
-  } else if (e5_plugin_standalone && !strcmp(e5_case,"reset")) {
+  if (!strcmp(e5_case,"body")) {
+    if (e5_plugin_standalone) {  // Still LIVE, detached by dBodyDestroy(B).
+      dJointDestroy(e5_plugin_standalone);
+      h6_p0_trace("E5_plugin_standalone_owner_free",0);
+    }
+  } else {
+    // Under RESET, the plugin ID may ALREADY BE FREED. No read of its
+    // post-lifetime pointer value, not even for a boolean/identity test.
     h6_p0_trace("E5_plugin_standalone_reset_no_use",0);
   }
   e5_plugin_standalone=0;
