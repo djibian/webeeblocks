@@ -348,5 +348,65 @@ p0edit(paths["cluster_c"],
     }
     dBodyID owner =''', "controlled M hold while two real workers collide")
 
+
+# Trace ALL engine M scopes that can invoke the internal free; no inferred lock.
+p0edit(paths["cluster_c"],
+'''  cJointCreationMutex->lock();
+  if (mSwapJointContactBuffer)
+    mContext->emptyEnabledBodyContactJointGroups1();''',
+'''  cJointCreationMutex->lock();
+  h6_p0_trace("P0_retire_M_acquired", 0);
+  if (mSwapJointContactBuffer)
+    mContext->emptyEnabledBodyContactJointGroups1();''',
+"post-solver M trace")
+p0edit(paths["cluster_c"],
+'''    mContext->emptyEnabledBodyContactJointGroups2();
+  cJointCreationMutex->unlock();
+  dImmersionLinkGroupEmpty''',
+'''    mContext->emptyEnabledBodyContactJointGroups2();
+  cJointCreationMutex->unlock();
+  h6_p0_trace("P0_retire_M_released", 0);
+  dImmersionLinkGroupEmpty''', "post-solver unlock trace")
+p0edit(paths["cluster_c"],
+'''  cJointCreationMutex->lock();
+  mContext->emptyEnabledBodyContactJointGroups1();''',
+'''  cJointCreationMutex->lock();
+  h6_p0_trace("P0_cluster_dtor_M_acquired", 0);
+  mContext->emptyEnabledBodyContactJointGroups1();''', "cluster teardown M trace")
+p0edit(paths["cluster_c"],
+'''  dImmersionLinkGroupEmpty(mContext->immersionLinkGroup2());
+  cJointCreationMutex->unlock();''',
+'''  dImmersionLinkGroupEmpty(mContext->immersionLinkGroup2());
+  cJointCreationMutex->unlock();
+  h6_p0_trace("P0_cluster_dtor_M_released", 0);''',"cluster teardown M release")
+# The body and RESET paths get their own explicit M traces when exercised.
+p0edit(paths["ctx_c"],
+'''  mJointGroupCreationMutex->lock();
+  int removed = 0;''',
+'''  mJointGroupCreationMutex->lock();
+  h6_p0_trace("P0_reset_M_acquired", 0);
+  int removed = 0;''',"RESET M acquisition")
+p0edit(paths["ctx_c"],
+'''  mJointGroupCreationMutex->unlock();
+  if (std::getenv("H6_STANDALONE_TRACE")) {''',
+'''  mJointGroupCreationMutex->unlock();
+  h6_p0_trace("P0_reset_M_released", 0);
+  if (std::getenv("H6_STANDALONE_TRACE")) {''',"RESET M release")
+p0edit(paths["ctx_c"],
+'''void WbOdeContext::removeBodyContactJointGroup(dBodyID b) {
+  mJointGroupCreationMutex->lock();''',
+'''void WbOdeContext::removeBodyContactJointGroup(dBodyID b) {
+  mJointGroupCreationMutex->lock();
+  h6_p0_trace("P0_body_M_acquired", (unsigned long long)(uintptr_t)b);''',
+"body removal M acquisition")
+p0edit(paths["ctx_c"],
+'''  mJointGroupCreationMutex->unlock();
+}
+''',
+'''  mJointGroupCreationMutex->unlock();
+  h6_p0_trace("P0_body_M_released", (unsigned long long)(uintptr_t)b);
+}
+''',"body removal M release")
+
 assert 'dJointCreateContact(jointWorld, NULL' in paths["cluster_c"].read_text()
 print("H6_P0_OVERLAY_COMPLETE",PIN)
