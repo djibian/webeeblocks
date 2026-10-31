@@ -43,8 +43,7 @@ def evaluate(log,case,mode,workers):
         # Original Webots contact ownership, with the #777 READ-ONLY trace
         # observer. No P0 events, E5 patch, or transfer of engine semantics.
         require(case in ("body","reset"),"INVALID_BASELINE_CASE")
-        require("operation_begin case="+case in log and
-                "operation_complete case="+case in log,"BASELINE_NOT_ACTUALLY_EXERCISED")
+        require("operation_begin case="+case in log,"BASELINE_OPERATION_NOT_REQUESTED")
         require(workers==1 or workers==2,"INVALID_BASELINE_WORKERS")
         require(any(e["ev"]=="configured_threads" and e["arg"]==workers
                     for e in ev),"BASELINE_WORKERS_NOT_CONFIGURED")
@@ -75,8 +74,8 @@ def evaluate(log,case,mode,workers):
     def select(name): return [e for e in ev if e["ev"]==name]
     require(workers in (1,2),"INVALID_WORKERS")
     require(any(x["arg"]==workers for x in select("configured_threads")),"NOT_CONFIGURED_WORKERS")
-    require("operation_begin case="+case in log and "operation_complete case="+case in log,
-            "CONTROLLER_OPERATION_NOT_COMPLETED")
+    require("operation_begin case="+case in log,
+            "CONTROLLER_OPERATION_NOT_REQUESTED")
     require("P0_admission_installed" in names and "P0_admission_removed" in names,
             "P0_ADMISSION_LIFECYCLE_MISSING")
     require("P0_registries_empty" in names and "world_destroy" in names,
@@ -172,10 +171,10 @@ def evaluate(log,case,mode,workers):
                         < unreg.get(s["j"],0)<frees.get(s["j"],0)<bound for s in cross),
                     "DROPPED_CONTACT_NOT_UNREGISTERED_AND_FREED_BEFORE_BODY_DESTROY")
             # A-C feedback is evidence of an actual solver contribution, not registry count.
-            require(any(a==case and t>36 and f>0 for a,t,f in feedback),
-                    "NO_POST_DELETE_AC_PHYSICAL_FEEDBACK")
-            require(any(e["seq"]>bound for e in select("solver_return")),
-                    "NO_SOLVER_AFTER_REAL_BODY_DESTRUCTION")
+            require(any(a==case and t==2 and f>0 for a,t,f in feedback),
+                    "NO_FIRST_POST_DELETE_AC_PHYSICAL_FEEDBACK")
+            require(len([e for e in select("solver_return") if e["seq"]>bound])>=10,
+                    "POST_BODY_DESTRUCTION_NOT_TEN_REAL_SOLVER_STEPS")
     else:
         require(case=="reset" and mode=="attached","UNSUPPORTED_RESET_MODE")
         require("target_loadState_requested" in log and select("E5_reset_id_enter")

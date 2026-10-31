@@ -83,7 +83,7 @@ once("  ++tick;",r'''  ++tick;
       break;
     }
   }
-  if (tick>38 && strcmp(e5_case,"body")==0 && !dBodyIsEnabled(target)) {
+  if (tick>=2 && strcmp(e5_case,"body")==0 && !dBodyIsEnabled(target)) {
     dBodyEnable(target); // explicitly forced wakeup, never spontaneous proof
     h6_p0_trace("E5_owner_wakeup_forced",0);
   }''',"contact feedback pre-solver")
@@ -174,7 +174,7 @@ print("H6_E5_CONTROLLER started case="+case,flush=True)
 if case=="reset":
     target.saveState("e5_provenance")
     print("H6_E5_CONTROLLER saved_node_state",flush=True)
-for i in range(36):
+for i in range(1 if case=="body" else 36):
     if robot.step(dt)==-1: raise SystemExit("E5_REFUSED premature stop")
 print("H6_E5_CONTROLLER operation_begin case="+case+" t="+str(robot.getTime()),flush=True)
 if case=="body":
