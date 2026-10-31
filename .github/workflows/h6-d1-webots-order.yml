@@ -1,0 +1,120 @@
+name: H6 D1 real Webots A-last order and asleep owner discriminant
+on:
+  push:
+    branches: [experiment/h6-d1-broadphase-order-20261031]
+    paths:
+      - 'experiments/h6_d1_webots_order/**'
+      - '.github/workflows/h6-d1-webots-order.yml'
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      CANDIDATE: 8d8d644b2bc6d5821572d87d474e59f533ec3260
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pinned Webots and pure-order native observation preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/d1-webots/logs
+          git rev-parse HEAD > evidence/d1-webots/experiment-commit.txt
+          git merge-base --is-ancestor "$CANDIDATE" HEAD
+          python3 -m py_compile experiments/h6_d1_webots_order/*.py
+          sha256sum experiments/h6_d1_webots_order/worlds/real_delete_A_last.wbt \
+            > evidence/d1-webots/world-source.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots \
+            > evidence/d1-webots/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/d1-webots/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 \
+            > evidence/d1-webots/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 experiments/h6_d1_webots_order/instrument_order.py native-webots \
+            > evidence/d1-webots/logs/instrument.log
+          python3 experiments/h6_d1_webots_order/extend_plugin.py \
+            > evidence/d1-webots/logs/plugin-instrument.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/d1-webots/test-only-Webots.patch
+          git diff -- experiments/h6_d1_adversarial/plugins/physics/h6_d1_owner_sleep/h6_d1_owner_sleep.c \
+            > evidence/d1-webots/test-only-plugin.patch
+          sha256sum evidence/d1-webots/*.patch > evidence/d1-webots/patches.sha256
+      - name: Build unchanged exact PR766 candidate plus only test observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/d1-webots/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 > evidence/d1-webots/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) \
+            > evidence/d1-webots/logs/apt-build.log 2>&1 || {
+              tail -n 100 evidence/d1-webots/logs/apt-build.log; exit 1;
+            }
+          (cd native-webots && make -j2) > evidence/d1-webots/logs/webots-build.log 2>&1 || {
+              tail -n 110 evidence/d1-webots/logs/webots-build.log; exit 1;
+            }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so \
+            > evidence/d1-webots/webots-binaries.sha256
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C experiments/h6_d1_adversarial/plugins/physics/h6_d1_owner_sleep \
+            > evidence/d1-webots/logs/plugin-build.log 2>&1 || {
+              tail -n 100 evidence/d1-webots/logs/plugin-build.log; exit 1;
+            }
+          sha256sum experiments/h6_d1_adversarial/plugins/physics/h6_d1_owner_sleep/libh6_d1_owner_sleep.so \
+            > evidence/d1-webots/plugin-binary.sha256
+      - name: Real Webots A-last scene, no intervention then forced asleep
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for arm in control forced; do
+            dir="$PWD/evidence/d1-webots/$arm"
+            mkdir -p "$dir"
+            force=0
+            [[ "$arm" != forced ]] || force=1
+            set +e
+            H6_D1_ORDER_AUDIT=1 H6_D1_WAKE_FIRST_SOLVER=1 \
+            H6_D1_FIXTURE_SLEEP_AT_TEARDOWN="$force" \
+            H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
+              timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
+              "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+              "$PWD/experiments/h6_d1_webots_order/worlds/real_delete_A_last.wbt" \
+              > "$dir/webots.log" 2>&1
+            rc=$?
+            set -e
+            echo "$rc" > "$dir/exit.txt"
+            echo "H6_D1_A_LAST $arm exit=$rc"
+          done
+      - name: Fail-closed C1-C10 and negative log mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_d1_webots_order/qualify_order.py evidence/d1-webots \
+            > evidence/d1-webots/logs/qualification.log 2>&1 || {
+              cat evidence/d1-webots/logs/qualification.log; exit 92;
+            }
+          cat evidence/d1-webots/logs/qualification.log
+      - name: Retain original negative results and exact provenance on RED too
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/d1-webots/logs
+          git rev-parse HEAD > evidence/d1-webots/observed-head.txt
+          test ! -d native-webots/.git || git -C native-webots rev-parse HEAD \
+            > evidence/d1-webots/native-pin.txt
+          find evidence/d1-webots -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > evidence/d1-webots/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-d1-A-last-real-Webots-owner-traces
+          path: evidence/d1-webots/
+          retention-days: 90
+          if-no-files-found: error
