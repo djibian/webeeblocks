@@ -171,7 +171,8 @@ def evaluate(log,case,mode,workers):
                         < unreg.get(s["j"],0)<frees.get(s["j"],0)<bound for s in cross),
                     "DROPPED_CONTACT_NOT_UNREGISTERED_AND_FREED_BEFORE_BODY_DESTROY")
             # A-C feedback is evidence of an actual solver contribution, not registry count.
-            require(any(a==case and t==2 and f>0 for a,t,f in feedback),
+            require(select("E5_AC_excited"),"FIRST_POST_DELETE_SOLVER_NOT_EXCITED")
+            require(any(a==case and t==4 and f>0 for a,t,f in feedback),
                     "NO_FIRST_POST_DELETE_AC_PHYSICAL_FEEDBACK")
             require(len([e for e in select("solver_return") if e["seq"]>bound])>=10,
                     "POST_BODY_DESTRUCTION_NOT_TEN_REAL_SOLVER_STEPS")

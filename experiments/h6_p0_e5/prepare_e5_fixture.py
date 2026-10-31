@@ -21,14 +21,19 @@ static dJointGroupID e5_group = 0;
 static dJointID e5_plugin_contact = 0;
 static dJointID e5_plugin_standalone = 0;
 static dJointID e5_plugin_permanent = 0;
-static dJointFeedback e5_feedback;
-static int e5_feedback_this_step = 0;
+static dJointFeedback e5_feedback[32];
+static int e5_feedback_count = 0;
+static dBodyID e5_contact_c = 0;
 static const char *e5_case = 0;''',"globals")
 once('  r_enabled = r && strcmp(r, "1") == 0;',r'''  e5_case = getenv("H6_E5_CASE");
   if (!e5_case || (strcmp(e5_case, "body") && strcmp(e5_case, "reset")))
     abort();
   dBodyID foreign = dWebotsGetBodyFromDEF("FOREIGN");
   if (!foreign) { fprintf(stderr, "H6_E5_PLUGIN REFUSED missing real FOREIGN body\n"); abort(); }
+  if (strcmp(e5_case,"body")==0) {
+    e5_contact_c=dWebotsGetBodyFromDEF("CONTACT_C");
+    if (!e5_contact_c) abort();
+  }
   dWorldID e5_world = dBodyGetWorld(target);
   e5_group = dJointGroupCreate(0);
   dContact ec = {0};
@@ -67,33 +72,51 @@ once("  ++tick;",r'''  ++tick;
     h6_p0_trace("E5_plugin_attached_group_live",
                 (unsigned long long)(size_t)e5_plugin_contact);
   }
-  // Feedback is stored in plugin-owned stable memory; never dereference
-  // the selected joint after solver/retirement.
-  e5_feedback_this_step=0;
-  memset(&e5_feedback,0,sizeof(e5_feedback));
-  for (int i=0;i<dBodyGetNumJoints(target);i++) {
-    dJointID j=dBodyGetJoint(target,i);
-    if (j==e5_plugin_contact || j==e5_plugin_standalone || dJointGetType(j)!=dJointTypeContact)
-      continue;
-    dBodyID a=dJointGetBody(j,0), b=dJointGetBody(j,1);
-    if ((a==target && !b) || (b==target && !a)) {
-      dJointSetFeedback(j,&e5_feedback);
-      e5_feedback_this_step=1;
+  // D1 geometry reused, but all execution is new P0: feedback on REAL A-C.
+  // Controlled test-only wake and closing velocity for first solver after B
+  // (3 presteps, post-delete tick 4). No engine registry mutation here.
+  e5_feedback_count=0;
+  if (!strcmp(e5_case,"body") && tick==4) {
+    for (int i=0;i<dBodyGetNumJoints(target);i++) {
+      dJointID j=dBodyGetJoint(target,i);
+      if (j==e5_plugin_contact || j==e5_plugin_standalone ||
+          dJointGetType(j)!=dJointTypeContact) continue;
+      const dBodyID a=dJointGetBody(j,0), b=dJointGetBody(j,1);
+      if (!((a==target && b==e5_contact_c) ||
+            (b==target && a==e5_contact_c))) continue;
+      if (e5_feedback_count>=32) abort();
+      memset(&e5_feedback[e5_feedback_count],0,sizeof(dJointFeedback));
+      dJointSetFeedback(j,&e5_feedback[e5_feedback_count]);
+      ++e5_feedback_count;
       h6_p0_trace("E5_AC_feedback_installed",(unsigned long long)(size_t)j);
-      break;
     }
-  }
-  if (tick>=2 && strcmp(e5_case,"body")==0 && !dBodyIsEnabled(target)) {
-    dBodyEnable(target); // explicitly forced wakeup, never spontaneous proof
-    h6_p0_trace("E5_owner_wakeup_forced",0);
+    if (e5_feedback_count) {
+      if (!dBodyIsEnabled(target)) {
+        dBodyEnable(target);
+        h6_p0_trace("E5_owner_wakeup_forced",0);
+      }
+      const dReal *ap=dBodyGetPosition(target), *cp=dBodyGetPosition(e5_contact_c);
+      const double dx=cp[0]-ap[0], dy=cp[1]-ap[1], dz=cp[2]-ap[2];
+      const double distance=sqrt(dx*dx+dy*dy+dz*dz);
+      if(distance<1e-7)abort();
+      dBodySetLinearVel(e5_contact_c,0,0,0);
+      dBodySetLinearVel(target,6*dx/distance,6*dy/distance,6*dz/distance);
+      h6_p0_trace("E5_AC_excited",(unsigned long long)e5_feedback_count);
+    }
   }''',"contact feedback pre-solver")
 once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(void) {
-  if (e5_feedback_this_step) {
-    const double f = fabs((double)e5_feedback.f1[0])+
-      fabs((double)e5_feedback.f1[1])+fabs((double)e5_feedback.f1[2]);
+  if (!strcmp(e5_case,"body") && tick==4) {
+    double f=0;
+    for (int i=0;i<e5_feedback_count;i++) for (int k=0;k<3;k++)
+      f += fabs((double)e5_feedback[i].f1[k]);
     fprintf(stderr,"H6_E5_AC_SOLVER case=%s tick=%lu forceL1=%.17g\n",
             e5_case,tick,f);
-    h6_p0_trace("E5_AC_solver_feedback",0);
+    h6_p0_trace("E5_AC_solver_feedback",(unsigned long long)e5_feedback_count);
+  }
+  if (!strcmp(e5_case,"body") && tick==2) {
+    // EXACT D1 test-only sleep intervention, not spontaneous
+    dBodyDisable(target);
+    h6_p0_trace("E5_owner_sleep_forced_before_delete",0);
   }''',"feedback post-solver")
 once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void) {
   if (e5_plugin_contact) {
@@ -148,6 +171,28 @@ foreign = '''DEF FOREIGN Solid {
   physics Physics { mass 0.12 }
 }
 '''
+# Use the already discriminating D1 geometry/order, not D1's code patch.
+# A is TARGET (listed last), B is FOREIGN, C is CONTACT_C; gravity zero.
+d1C = '''DEF CONTACT_C Solid {
+  translation -0.14 -0.12 0.2
+  name "contact_C"
+  children [ Shape { appearance PBRAppearance {
+    baseColor 0.1 0.1 0.9 roughness 1 }
+    geometry Box { size 0.2 0.2 0.2 } } ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { mass 0.12 }
+}
+'''
+d1B = '''DEF FOREIGN Solid {
+  translation -0.14 0.12 0.2
+  name "foreign"
+  children [ Shape { appearance PBRAppearance {
+    baseColor 0.1 0.9 0.1 roughness 1 }
+    geometry Box { size 0.2 0.2 0.2 } } ]
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { mass 0.12 }
+}
+'''
 for n in (1,2):
     base=root/f"worlds/h6_p0_workers{n}.wbt"
     text=base.read_text()
@@ -155,7 +200,18 @@ for n in (1,2):
         raise SystemExit("REFUSED target world anchor workers%d"%n)
     for case in ("body","reset"):
         out=root/f"worlds/h6_e5_{case}_workers{n}.wbt"
-        out.write_text(text.replace("DEF TARGET Solid {",foreign+"DEF TARGET Solid {"))
+        if case=="reset":
+            world=text.replace("DEF TARGET Solid {",foreign+"DEF TARGET Solid {")
+        else:
+            anchor='DEF TARGET Solid {\n  translation 0 0 0.105\n  rotation 0 1 0 0.1'
+            if text.count(anchor)!=1 or text.count('  basicTimeStep 32')!=1:
+                raise SystemExit("REFUSED D1 source geometry anchors")
+            world=text.replace(anchor,d1C+d1B+
+                               'DEF TARGET Solid {\n  translation 0 0 0.2\n  rotation 0 1 0 0')
+            world=world.replace('  basicTimeStep 32','  basicTimeStep 32\n  gravity 0')
+            world=world.replace('DEF FAR_TARGET Solid {\n  translation 8 0 0.105',
+                                'DEF FAR_TARGET Solid {\n  translation 8 0 0.09')
+        out.write_text(world)
         print("E5_WORLD",str(out),n,case)
 
 controller=root/"controllers/h6_g_window/h6_g_window.py"
@@ -174,7 +230,7 @@ print("H6_E5_CONTROLLER started case="+case,flush=True)
 if case=="reset":
     target.saveState("e5_provenance")
     print("H6_E5_CONTROLLER saved_node_state",flush=True)
-for i in range(1 if case=="body" else 36):
+for i in range(3 if case=="body" else 36):
     if robot.step(dt)==-1: raise SystemExit("E5_REFUSED premature stop")
 print("H6_E5_CONTROLLER operation_begin case="+case+" t="+str(robot.getTime()),flush=True)
 if case=="body":
