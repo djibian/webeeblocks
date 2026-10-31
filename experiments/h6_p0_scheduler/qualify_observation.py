@@ -109,6 +109,7 @@ def selftest():
             e("context_teardown",1),e("world_destroy",1),
             e("context_teardown_after",1)]
     for i,x in enumerate(base): x["seq"]=i+1
+    base[0]["arg"]=1  # synthetic configured_threads=1, not a recorded event
     validate(base,1)
     mutants = {
       "no_callback": [x for x in base if x["ev"]!="plugin_callback_enter"],
