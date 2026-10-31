@@ -96,14 +96,16 @@ def check(events, expected_workers):
             need(tid in active,"WORKER_EXIT_WITHOUT_ENTER")
             active.remove(tid)
         elif ev=="plugin_callback_enter":
-            need(tid in active and tid not in callbacks,
-                 "PLUGIN_CALLBACK_NOT_ON_REAL_WORKER")
-            callbacks.add(tid);worker_callbacks.add(tid)
+            need(tid not in callbacks, "NESTED_PLUGIN_CALLBACK")
+            callbacks.add(tid)
+            # Initial Webots collision callbacks may run on the main thread.
+            # Only callbacks nested in REAL worker tasks count as exercised.
+            if tid in active: worker_callbacks.add(tid)
         elif ev=="plugin_callback_exit":
             need(tid in callbacks,"CALLBACK_EXIT_WITHOUT_ENTER")
             callbacks.remove(tid)
         elif ev=="plugin_public_attempt":
-            need(tid in callbacks and j in live,"PUBLIC_ATTEMPT_NOT_LIVE_WORKER")
+            need(tid in callbacks and tid in active and j in live,"PUBLIC_ATTEMPT_NOT_LIVE_WORKER")
             need(tid not in attempted,"OVERLAPPING_PLUGIN_ATTEMPT")
             attempted[tid]=j
             engine_attempts+=1
