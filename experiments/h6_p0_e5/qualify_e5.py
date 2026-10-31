@@ -39,6 +39,27 @@ def parse(text):
 
 def evaluate(log,case,mode,workers):
     ev,scans,feedback,plugin=parse(log)
+    if mode=="baseline":
+        # Original Webots contact ownership, with the #777 READ-ONLY trace
+        # observer. No P0 events, E5 patch, or transfer of engine semantics.
+        require(case in ("body","reset"),"INVALID_BASELINE_CASE")
+        require("operation_begin case="+case in log and
+                "operation_complete case="+case in log,"BASELINE_NOT_ACTUALLY_EXERCISED")
+        require(workers==1 or workers==2,"INVALID_BASELINE_WORKERS")
+        require(any(e["ev"]=="configured_threads" and e["arg"]==workers
+                    for e in ev),"BASELINE_WORKERS_NOT_CONFIGURED")
+        require("E5_plugin_group_empty" in {e["ev"] for e in ev} and
+                "E5_plugin_permanent_destroyed" in {e["ev"] for e in ev},
+                "BASELINE_PLUGIN_CLEANUP_MISSING")
+        require(any(a==case and n==1 and b0 not in ("(nil)","0x0") and
+                    p not in ("(nil)","0x0") for a,t,n,b0,b1,p in plugin),
+                "BASELINE_PLUGIN_ATTACHMENT_NOT_EXERCISED")
+        require(any(a==case and n==1 and b0 in ("(nil)","0x0") and
+                    p not in ("(nil)","0x0") for a,t,n,b0,b1,p in plugin),
+                "BASELINE_PLUGIN_DETACH_OR_PERMANENT_REGRESSION")
+        return {"case":case,"mode":"baseline","workers":workers,
+                "events":len(ev),"plugin_steps":len(plugin),
+                "scope":"ATTACHED_PLUGIN_SEMANTICS_ONLY"}
     names=[e["ev"] for e in ev]
     def select(name): return [e for e in ev if e["ev"]==name]
     require(workers in (1,2),"INVALID_WORKERS")
