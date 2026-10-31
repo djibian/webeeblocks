@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Strict E5 native-trace oracle. Synthetic mutants are NEVER native evidence.
+Usage: qualify_e5.py WEBOTS_LOG {body|reset} {owner|attached|baseline} {1|2}
+Exit 0 only for explicitly discriminating measured cases.
+"""
+import re, sys
+from pathlib import Path
+from collections import defaultdict
+P=re.compile(r"^H6_P0 seq=(\d+) step=(\d+) tid=(\d+) event=([A-Za-z0-9_]+) arg=(\d+)$")
+S=re.compile(r"^H6_E5_SCAN mode=(\w+) joint=(0x[0-9a-fA-F]+) owner=(0x[0-9a-fA-F]+) victim=(0x[0-9a-fA-F]+) v0=(0x[0-9a-fA-F]+|\(nil\)) v1=(0x[0-9a-fA-F]+|\(nil\)) owner_enabled=(\d+) drop=(\d+)$")
+F=re.compile(r"^H6_E5_AC_SOLVER case=(\w+) tick=(\d+) forceL1=([\d.eE+-]+)$")
+PL=re.compile(r"^H6_E5_PLUGIN_STEP case=(\w+) tick=(\d+) group_count=(\d+) group_b0=(\S+) group_b1=(\S+) motor_b0=(\S+)$")
+def require(cond,msg):
+    if not cond: raise ValueError("E5_UNPROVEN_OR_REFUTED: "+msg)
+def parse(text):
+    events=[]; scans=[]; feedback=[]; plugin=[]
+    for no,line in enumerate(text.splitlines(),1):
+        if line.startswith("H6_P0"):
+            m=P.fullmatch(line.strip());require(m is not None,"MALFORMED_P0:%d"%no)
+            seq,step,tid,ev,arg=m.groups()
+            events.append(dict(seq=int(seq),step=int(step),tid=int(tid),ev=ev,arg=int(arg)))
+        if line.startswith("H6_E5_SCAN"):
+            m=S.fullmatch(line.strip());require(m is not None,"MALFORMED_SCAN:%d"%no)
+            mode,j,owner,b,v0,v1,en,drop=m.groups()
+            value=lambda v: 0 if v=="(nil)" else int(v,16)
+            scans.append(dict(mode=mode,j=int(j,16),owner=int(owner,16),
+                              b=int(b,16),v0=value(v0),v1=value(v1),
+                              enabled=int(en),drop=int(drop)))
+        if line.startswith("H6_E5_AC_SOLVER"):
+            m=F.fullmatch(line.strip());require(m is not None,"MALFORMED_FEEDBACK:%d"%no)
+            a,t,f=m.groups();feedback.append((a,int(t),float(f)))
+        if line.startswith("H6_E5_PLUGIN_STEP"):
+            m=PL.fullmatch(line.strip());require(m is not None,"MALFORMED_PLUGIN:%d"%no)
+            a,t,n,b0,b1,p=m.groups();plugin.append((a,int(t),int(n),b0,b1,p))
+    events.sort(key=lambda e:e["seq"])
+    require(events,"NO_NATIVE_P0_TRACE")
+    require([e["seq"] for e in events]==list(range(1,len(events)+1)),"MISSING_OR_DUPLICATE_SEQ")
+    return events,scans,feedback,plugin
+
+def evaluate(log,case,mode,workers):
+    ev,scans,feedback,plugin=parse(log)
+    names=[e["ev"] for e in ev]
+    def select(name): return [e for e in ev if e["ev"]==name]
+    require(workers in (1,2),"INVALID_WORKERS")
+    require(any(x["arg"]==workers for x in select("configured_threads")),"NOT_CONFIGURED_WORKERS")
+    require("operation_begin case="+case in log and "operation_complete case="+case in log,
+            "CONTROLLER_OPERATION_NOT_COMPLETED")
+    require("P0_admission_installed" in names and "P0_admission_removed" in names,
+            "P0_ADMISSION_LIFECYCLE_MISSING")
+    require("P0_registries_empty" in names and "world_destroy" in names,
+            "TEARDOWN_MISSING")
+    require(select("P0_registries_empty")[0]["seq"] <
+            select("world_destroy")[-1]["seq"],"REGISTRY_NOT_CLOSED_BEFORE_WORLD_DESTROY")
+    require(all(x["ev"]!="P0_public_denied" or x["arg"] not in
+                {v["arg"] for v in select("P0_internal_free")} for x in []),
+            "INTERNAL_ROUTE_CHECK") # event timeline below is discriminating
+    active=set(); held=set(); live=set(); retired=set()
+    engine_frees=0; recursive=0
+    begins={"M_acquired","P0_M_acquired","P0_body_M_acquired",
+            "P0_reset_M_acquired","P0_retire_M_acquired",
+            "P0_cluster_dtor_M_acquired","P0_teardown_M_acquired"}
+    ends={"M_released","P0_M_released","P0_body_M_released",
+          "P0_reset_M_released","P0_retire_M_released",
+          "P0_cluster_dtor_M_released","P0_teardown_M_released"}
+    for x in ev:
+        n,tid,j=x["ev"],x["tid"],x["arg"]
+        if n=="worker_task_enter":
+            require(tid not in active,"DUPLICATE_WORKER");active.add(tid)
+        elif n=="worker_task_exit":
+            require(tid in active,"WORKER_EXIT_WITHOUT_ENTER");active.remove(tid)
+        elif n in begins:
+            if tid in held:recursive+=1
+            held.add(tid)
+        elif n in ends:
+            require(tid in held,"M_UNLOCK_WITHOUT_LOCK");held.remove(tid)
+        elif n=="P0_register":
+            require(j not in live,"DUPLICATE_LIVE_ID");live.add(j)
+        elif n=="P0_unregister":
+            require(j in live,"INVALID_UNREGISTER");live.remove(j);retired.add(j)
+        elif n=="P0_internal_free":
+            require(j in retired and j not in live,"INTERNAL_FREE_BEFORE_UNREGISTER")
+            require(tid in held,"INTERNAL_FREE_WITHOUT_M")
+            require(not active,"INTERNAL_FREE_DURING_WORKER")
+            retired.remove(j);engine_frees+=1
+    require(not active and not held and not live and not retired,"UNCLOSED_WORKERS_M_OR_REGISTRY")
+    require(recursive==0,"RECURSIVE_NONRECURSIVE_M")
+    worker_tids={e["tid"] for e in select("worker_task_enter")}
+    require(len(worker_tids)>=workers,"FALSE_SECOND_WORKER")
+    require(engine_frees>0,"NO_ENGINE_FREE")
+    require(select("E5_plugin_attached_group_before") and
+            select("E5_plugin_permanent_before"),"PLUGIN_ATTACHED_WITNESS_MISSING")
+    require(select("E5_plugin_group_empty") and
+            select("E5_plugin_permanent_destroyed"),"PLUGIN_GROUP_OR_PERMANENT_CLEANUP_MISSING")
+    require(any(a==case and n==1 and b0 not in ("(nil)","0x0") and
+                p not in ("(nil)","0x0") for a,t,n,b0,b1,p in plugin),
+            "PLUGIN_NOT_PHYSICALLY_ATTACHED")
+    require(any(a==case and n==1 and b0 in ("(nil)","0x0") and
+                p not in ("(nil)","0x0") for a,t,n,b0,b1,p in plugin),
+            "PLUGIN_CONTACT_NOT_DETACHED_OR_PERMANENT_LOST")
+    if case=="body":
+        require("foreign_remove_requested" in log,"NO_REAL_FOREIGN_REMOVE")
+        require(select("E5_before_dBodyDestroy") and select("E5_after_dBodyDestroy"),
+                "NO_REAL_WBSOLIDMERGER_DTOR")
+        require(scans,"NO_REGISTERED_CONTACT_SCAN")
+        cross=[s for s in scans if s["owner"]!=s["b"] and
+               (s["v0"]==s["b"] or s["v1"]==s["b"])]
+        require(cross,"NO_DISCRIMINATING_OWNER_FOREIGN_ATTACHMENT")
+        require(all(s["mode"]==mode for s in scans),"MIXED_DROP_MODES")
+        if mode=="owner":
+            require(any(s["drop"]==0 for s in cross),"NEGATIVE_OWNER_ARM_NOT_REFUTED")
+            require(any(s["j"]==e["arg"] for s in cross for e in select("E5_keep")),
+                    "OWNER_RETAIN_EVENT_MISSING")
+        else:
+            require(mode=="attached","INVALID_BODY_MODE")
+            require(all(s["drop"]==1 for s in cross),"ATTACHED_CROSS_BODY_NOT_DROPPED")
+            drops={e["arg"]:e["seq"] for e in select("E5_drop")}
+            unreg={e["arg"]:e["seq"] for e in select("P0_unregister")}
+            frees={e["arg"]:e["seq"] for e in select("P0_internal_free")}
+            bound=min(e["seq"] for e in select("E5_before_dBodyDestroy"))
+            require(all(s["j"] in drops and drops[s["j"]] < unreg.get(s["j"],0)
+                        < frees.get(s["j"],0) < bound for s in cross),
+                    "DROPPED_CONTACT_NOT_UNREGISTERED_AND_FREED_BEFORE_BODY_DESTROY")
+            # A-C feedback is evidence of an actual solver contribution, not registry count.
+            require(any(a==case and t>36 and f>0 for a,t,f in feedback),
+                    "NO_FIRST_POST_DELETE_AC_PHYSICAL_FEEDBACK")
+    else:
+        require(case=="reset" and mode=="attached","UNSUPPORTED_RESET_MODE")
+        require("target_loadState_requested" in log and select("E5_reset_id_enter")
+                and select("E5_reset_id_exit"),"NODE_LOADSTATE_DID_NOT_REACH_RESET_ID")
+        require(select("E5_reset_engine"),"NO_LIVE_ENGINE_CONTACT_AT_RESET")
+        engine={e["arg"] for e in select("E5_reset_engine")}
+        require(engine.issubset({e["arg"] for e in select("P0_unregister")}) and
+                engine.issubset({e["arg"] for e in select("P0_internal_free")}),
+                "RESET_ENGINE_NOT_FREED_INTERNALLY")
+        require(select("E5_reset_plugin_detached"),"ATTACHED_PLUGIN_CONTACT_NOT_ROUTED")
+        require(select("P0_reset_M_acquired") and select("P0_reset_M_released"),
+                "RESET_M_NOT_EXERCISED")
+    return {"case":case,"mode":mode,"workers":workers,"events":len(ev),
+            "scans":len(scans),"engine_frees":engine_frees,
+            "attached_plugin_steps":len(plugin),
+            "ac_feedback":len(feedback)}
+if __name__=="__main__":
+    try:
+        if len(sys.argv)!=5: raise ValueError("usage: LOG case mode workers")
+        path,case,mode,workers=sys.argv[1:]
+        print("H6_E5_NATIVE_QUALIFICATION",evaluate(Path(path).read_text(errors="replace"),
+                                                    case,mode,int(workers)))
+    except Exception as error:
+        print("H6_E5_RED",str(error),file=sys.stderr)
+        raise SystemExit(42)
