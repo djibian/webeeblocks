@@ -19,7 +19,7 @@ s=s.replace(anchor,anchor+'''
     // Test-only observation. Logs allocation and attachment before any can be freed.
     if (std::getenv("H6_D1_ORDER_AUDIT"))
       std::fprintf(stderr,
-        "H6_D1_CREATE t=%.6f o1=%p o2=%p b1=%p b2=%p owner=%p joint=%p buffer=%d\\\\n",
+        "H6_D1_CREATE t=%.6f o1=%p o2=%p b1=%p b2=%p owner=%p joint=%p buffer=%d\\n",
         WbSimulationState::instance()->time(), static_cast<void *>(o1),
         static_cast<void *>(o2), static_cast<void *>(b1), static_cast<void *>(b2),
         static_cast<void *>(owner), static_cast<void *>(contactJoint),
@@ -35,7 +35,7 @@ anchor="  mJointGroupCreationMutex->unlock();"
 assert segment.count(anchor)==1
 segment=segment.replace(anchor,'''
   if (std::getenv("H6_D1_ORDER_AUDIT"))
-    std::fprintf(stderr, "H6_D1_REGISTRY_AFTER victim=%p count1=%d count2=%d\\\\n",
+    std::fprintf(stderr, "H6_D1_REGISTRY_AFTER victim=%p count1=%d count2=%d\\n",
                  static_cast<void *>(b), mBodyContacts1.size(), mBodyContacts2.size());
 '''+anchor)
 s=s[:start]+segment+s[end:]

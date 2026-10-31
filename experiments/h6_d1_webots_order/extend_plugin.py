@@ -31,7 +31,7 @@ new='''void webots_physics_step(void){
       dBodyEnable(a);
       h6_wake_test=1;
     }
-    fprintf(stderr,"H6_D1_FIRST_SOLVER_BEFORE tick=%d enabled_before=%d ac=%d forcedWake=%d\\\\n",
+    fprintf(stderr,"H6_D1_FIRST_SOLVER_BEFORE tick=%d enabled_before=%d ac=%d forcedWake=%d\\n",
             tick,initially_enabled,h6_ac_count,h6_wake_test);
   }
 }'''
@@ -44,7 +44,7 @@ new='''void webots_physics_step_end(void){
     for(int i=0;i<h6_ac_count;i++){
       for(int axis=0;axis<3;axis++)f+=fabs(h6_ac_feedback[i].f1[axis]);
     }
-    fprintf(stderr,"H6_D1_FIRST_SOLVER_AFTER tick=%d ac=%d forcedWake=%d forceL1=%.17g enabled=%d\\\\n",
+    fprintf(stderr,"H6_D1_FIRST_SOLVER_AFTER tick=%d ac=%d forcedWake=%d forceL1=%.17g enabled=%d\\n",
       tick,h6_ac_count,h6_wake_test,f,dBodyIsEnabled(a));
   }
   if(tick>=2&&a){'''

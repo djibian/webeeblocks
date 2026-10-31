@@ -74,6 +74,11 @@ jobs:
         run: |
           set -euo pipefail
           export WEBOTS_HOME="$PWD/native-webots"
+          # Webots resolves physics plugin/controllers from the world project path.
+          cp experiments/h6_d1_webots_order/worlds/real_delete_A_last.wbt \
+            experiments/h6_d1_adversarial/worlds/real_delete_A_last.wbt
+          sha256sum experiments/h6_d1_adversarial/worlds/real_delete_A_last.wbt \
+            > evidence/d1-webots/executed-world.sha256
           for arm in control forced; do
             dir="$PWD/evidence/d1-webots/$arm"
             mkdir -p "$dir"
@@ -85,7 +90,7 @@ jobs:
             H6_STANDALONE_R=1 H6_STANDALONE_TRACE=1 H6_D1_AUDIT=1 \
               timeout -k 5s 100s xvfb-run -a -s '-screen 0 1280x800x24' \
               "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
-              "$PWD/experiments/h6_d1_webots_order/worlds/real_delete_A_last.wbt" \
+              "$PWD/experiments/h6_d1_adversarial/worlds/real_delete_A_last.wbt" \
               > "$dir/webots.log" 2>&1
             rc=$?
             set -e
