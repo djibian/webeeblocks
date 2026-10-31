@@ -1,0 +1,120 @@
+name: H6 native registry key identity after external ODE free (test only)
+on:
+  push:
+    branches: [experiment/h6-plugin-ownership-a0a1-gdb-20261031]
+    paths:
+      - '.github/workflows/h6-plugin-registry-pointer-trace.yml'
+      - 'experiments/h6_plugin_ownership/instrument_registry.py'
+permissions:
+  contents: read
+concurrency:
+  group: h6-plugin-register-identity-20261031
+  cancel-in-progress: true
+jobs:
+  registered-pointer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 95
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      C_SHA: d1b2226949b1567417f1d2de582cad9230afcad4
+      CANDIDATE: 8d8d644b2bc6d5821572d87d474e59f533ec3260
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Exact candidate and shared historical C plugin, instrument ONLY registry pointer values
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p identity-evidence/logs fixture
+          git rev-parse HEAD > identity-evidence/experiment-commit.txt
+          git fetch --no-tags --depth=1 origin "$C_SHA" "$CANDIDATE" > identity-evidence/logs/fetch.log 2>&1
+          test "$(git show "$CANDIDATE:experiments/h6_standalone/patch_corrected.py" | sha256sum | cut -d' ' -f1)" = "$(sha256sum experiments/h6_standalone/patch_corrected.py | cut -d' ' -f1)"
+          for p in plugins/physics/h6_d3_external/h6_d3_external.c plugins/physics/h6_d3_external/Makefile controllers/h6_d3_external/h6_d3_external.py worlds/external.wbt; do
+            mkdir -p "fixture/$(dirname "$p")"
+            git show "$C_SHA:experiments/h6_d3_external/$p" > "fixture/$p"
+          done
+          find fixture -type f -print0 | sort -z | xargs -0 sha256sum > identity-evidence/fixture.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > identity-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > identity-evidence/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 > identity-evidence/logs/submodules.log 2>&1
+          test -z "$(git -C native-webots status --porcelain)"
+          python3 experiments/h6_plugin_ownership/instrument_registry.py native-webots > identity-evidence/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > identity-evidence/instrumented-native.patch
+          sha256sum identity-evidence/instrumented-native.patch > identity-evidence/instrumented-native.patch.sha256
+          # This is a read-only instrumentation append to exact candidate patch.
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('identity-evidence/instrumented-native.patch').read_text()
+          assert 'H6_C_REGISTRY_SCAN joint=' in s and 'H6_C_REGISTRY_FREE joint=' in s
+          assert 'dJointCreateContact(jointWorld, NULL' in s
+          print('H6_INSTRUMENTATION_ONLY_ON_TOP_OF_PINNED_CANDIDATE')
+          PY
+      - name: Build Webots, preserve exact ODE/plugin binary identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > identity-evidence/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 > identity-evidence/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) > identity-evidence/logs/apt-build.log 2>&1 || { tail -n 90 identity-evidence/logs/apt-build.log; exit 1; }
+          (cd native-webots && make -j2) > identity-evidence/logs/build.log 2>&1 || { tail -n 120 identity-evidence/logs/build.log; exit 1; }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so > identity-evidence/binaries.sha256
+          test "$(sha256sum native-webots/lib/webots/libode.so | cut -d' ' -f1)" = "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201"
+          export WEBOTS_HOME="$PWD/native-webots"
+          make -C fixture/plugins/physics/h6_d3_external > identity-evidence/logs/plugin-build.log 2>&1 || { tail -n 80 identity-evidence/logs/plugin-build.log; exit 1; }
+          sha256sum fixture/plugins/physics/h6_d3_external/libh6_d3_external.so > identity-evidence/plugin.sha256
+          test "$(sha256sum fixture/plugins/physics/h6_d3_external/libh6_d3_external.so | cut -d' ' -f1)" = "c9b70e741861f455da25f310dae86bb279506ec0f9f70f7bff7061c4dfef1faa"
+      - name: Run control and external destroy, preserve all exit codes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for arm in 0 1; do
+            mkdir -p "identity-evidence/arm-$arm"
+            set +e
+            H6_EXTERNAL_DESTROY="$arm" H6_STANDALONE_R=1 MALLOC_CHECK_=3 timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr "$PWD/fixture/worlds/external.wbt" > "identity-evidence/arm-$arm/webots.log" 2>&1
+            rc=$?
+            set -e
+            echo "$rc" > "identity-evidence/arm-$arm/exit.txt"
+            echo "H6_REGISTRY_IDENTITY_ARM $arm exit=$rc"
+          done
+      - name: Fail closed on missing pointer identity even if failure occurs at teardown
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,re,json,hashlib
+          p=pathlib.Path('identity-evidence')
+          base=(p/'arm-0/webots.log').read_text(errors='replace')
+          direct=(p/'arm-1/webots.log').read_text(errors='replace')
+          before=re.search(r'H6_EXT_DESTROY_BEFORE tick=3 .*? contact=(0x[0-9a-fA-F]+)',direct)
+          free=re.findall(r'H6_C_REGISTRY_FREE joint=(0x[0-9a-fA-F]+) owner=(\\S+) victim=(\\S+)',direct)
+          scans=re.findall(r'H6_C_REGISTRY_SCAN joint=(0x[0-9a-fA-F]+) owner=(\\S+) victim=(\\S+) owner_is_victim=(\\d+)',direct)
+          pid=before.group(1) if before else None
+          report={'plugin_freed_joint':pid,'recorded_pre_free_scans':len(scans),
+           'recorded_registry_free_actions':len(free),
+           'same_pointer_scanned':any(j==pid for j,_,_,_ in scans),
+           'same_pointer_freed_second_time':any(j==pid for j,_,_ in free),
+           'original_control_exit':int((p/'arm-0/exit.txt').read_text()),
+           'destroy_arm_exit':int((p/'arm-1/exit.txt').read_text()),
+           'plugin_returned':'H6_EXT_DESTROY_AFTER' in direct,
+           'plugin_cleanup':'H6_EXT_CLEANUP' in direct,
+           'scan_excerpt':[l for l in direct.splitlines() if 'H6_C_REGISTRY_' in l and pid and pid in l],
+           'fixture_sha256':hashlib.sha256((p/'arm-1/webots.log').read_bytes()).hexdigest()}
+          report['verdict']='EXACT_REUSED_POINTER_AT_SECOND_DESTRUCTION' if report['same_pointer_freed_second_time'] and report['same_pointer_scanned'] and report['plugin_returned'] and report['destroy_arm_exit']==139 and report['original_control_exit']==0 else 'UNPROVEN_OR_REFUTED'
+          (p/'qualification.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(report,sort_keys=True,indent=2))
+          if report['verdict']!='EXACT_REUSED_POINTER_AT_SECOND_DESTRUCTION': raise SystemExit('H6_IDENTITY_REFUSED (raw evidence preserved)')
+          PY
+      - name: Preserve originals and SHA256 even on RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p identity-evidence
+          git rev-parse HEAD > identity-evidence/observed-head.txt
+          find identity-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > identity-evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: h6-ode-plugin-registry-key-native-evidence, path: identity-evidence/, retention-days: 90, if-no-files-found: error}
