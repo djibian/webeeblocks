@@ -1,0 +1,126 @@
+name: H6 contact ownership - pinned ODE A/B memory CPU experiment
+on:
+  push:
+    branches: [experiment/h6-contact-ownership-cost-20261031]
+    paths:
+      - experiments/h6_ownership/**
+      - .github/workflows/h6-ownership-cost.yml
+permissions:
+  contents: read
+concurrency:
+  group: h6-contact-ownership-cost-20261031
+  cancel-in-progress: true
+jobs:
+  pinned-ode:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exactly pinned bundled ODE and retain benchmark SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ownership-evidence/logs
+          git rev-parse HEAD > ownership-evidence/research-head.txt
+          python3 -m py_compile experiments/h6_ownership/*.py
+          sha256sum experiments/h6_ownership/*.cpp experiments/h6_ownership/*.py \
+            > ownership-evidence/benchmark-source-sha256.txt
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots \
+            > ownership-evidence/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" \
+            > ownership-evidence/logs/pin.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 \
+            > ownership-evidence/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          sha256sum native-webots/src/ode/ode/src/ode.cpp native-webots/src/ode/ode/src/obstack.h \
+            > ownership-evidence/original-ode-source-sha256.txt
+          grep -Fx '#define dOBSTACK_ARENA_SIZE 16384' native-webots/src/ode/ode/src/obstack.h
+      - name: Compile STOCK bundled ODE and preserve original binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C native-webots/src/ode -j2 release > ownership-evidence/logs/ode-stock-build.log 2>&1 || {
+            tail -n 150 ownership-evidence/logs/ode-stock-build.log; exit 1;
+          }
+          test -s native-webots/lib/webots/libode.so
+          sha256sum native-webots/lib/webots/libode.so > ownership-evidence/stock-libode.sha256
+          test "$(cut -d' ' -f1 ownership-evidence/stock-libode.sha256)" = \
+               "10084cda3e6f94d17a1b1ffb60e6e0a2bea01d8fd380b596507ae73124486201"
+          git -C native-webots diff --exit-code HEAD
+      - name: Inject the smallest research-only synchronous ODE pre-free hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_ownership/patch_ode_hook.py native-webots \
+            > ownership-evidence/logs/ode-hook-patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > ownership-evidence/ode-hook.patch
+          sha256sum ownership-evidence/ode-hook.patch > ownership-evidence/ode-hook.patch.sha256
+          make -C native-webots/src/ode -j2 release > ownership-evidence/logs/ode-hook-build.log 2>&1 || {
+            tail -n 150 ownership-evidence/logs/ode-hook-build.log; exit 1;
+          }
+          sha256sum native-webots/lib/webots/libode.so > ownership-evidence/hook-libode.sha256
+          nm -D native-webots/lib/webots/libode.so | grep -F h6SetContactJointDestroyHooks \
+            > ownership-evidence/ode-hook-symbols.txt
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+            -I native-webots/include/ode experiments/h6_ownership/ode_contact_cost.cpp \
+            -L "$PWD/native-webots/lib/webots" \
+            -Wl,-rpath,"$PWD/native-webots/lib/webots" -lode \
+            -o ownership-evidence/ode_contact_cost
+          sha256sum ownership-evidence/ode_contact_cost > ownership-evidence/benchmark-binary.sha256
+      - name: Execute exactly matched physical contact loads - seven independent trials each
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > ownership-evidence/raw.jsonl
+          : > ownership-evidence/logs/cases.log
+          for n in 1 8 64 256; do
+            for mode in shared individual notify singleton; do
+              for t in 0 1 2 3 4 5 6; do
+                echo "$mode n=$n repeat=$t" >> ownership-evidence/logs/cases.log
+                LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" \
+                  timeout 40s ownership-evidence/ode_contact_cost "$mode" "$n" "$t" \
+                  >> ownership-evidence/raw.jsonl \
+                  2>> ownership-evidence/logs/cases.log
+              done
+            done
+          done
+      - name: Optional 1024 contacts - three independent trials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mode in shared individual notify singleton; do
+            for t in 0 1 2; do
+              echo "$mode n=1024 repeat=$t" >> ownership-evidence/logs/cases.log
+              LD_LIBRARY_PATH="$PWD/native-webots/lib/webots" \
+                timeout 50s ownership-evidence/ode_contact_cost "$mode" 1024 "$t" \
+                >> ownership-evidence/raw.jsonl 2>> ownership-evidence/logs/cases.log
+            done
+          done
+      - name: Qualify native measurements, pointer lifetime, and group incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/h6_ownership/qualify_cost.py \
+            ownership-evidence/raw.jsonl ownership-evidence/qualification.json \
+            | tee ownership-evidence/logs/qualification.stdout
+      - name: Preserve raw source and log SHA, including any RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ownership-evidence/logs
+          git rev-parse HEAD > ownership-evidence/observed-head.txt
+          find ownership-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z \
+            | xargs -0 -r sha256sum > ownership-evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: h6-pinned-ode-contact-ownership-costs
+          path: ownership-evidence/
+          retention-days: 90
+          if-no-files-found: error
