@@ -11,16 +11,16 @@ def classify(log,code,require_foreign):
                   "H6_D1_REAL_BODY_DESTROY_AFTER_ODE",
                   "H6_D3_FINAL_CONTEXT_END count1=0 count2=0"):
         assert token in log,("SCENARIO_NOT_EXECUTED",token)
-    hit=re.search(r"H6_D1_PLUGIN_INIT a=(\\S+) b=(\\S+) c=(\\S+)",log)
+    hit=re.search(r"H6_D1_PLUGIN_INIT a=(\S+) b=(\S+) c=(\S+)",log)
     assert hit,"MISSING_BODY_PROVENANCE"
     a,b,c=hit.groups()
     assert len({a,b,c})==3 and all(x not in ("0x0","(nil)") for x in (a,b,c))
-    sleep=re.findall(r"H6_D1_PLUGIN_SLEEP tick=(\\d+) a=(\\S+) enabled=(\\d+) ab=(\\d+) ac=(\\d+) total=(\\d+)",log)
+    sleep=re.findall(r"H6_D1_PLUGIN_SLEEP tick=(\d+) a=(\S+) enabled=(\d+) ab=(\d+) ac=(\d+) total=(\d+)",log)
     assert any(x[1]==a and x[2]=="0" and int(x[3])>=1 and int(x[4])>=1 for x in sleep),("NO_SIMULTANEOUS_AB_AC",sleep)
-    scans=re.findall(r"H6_D1_FOREIGN_SCAN victim=(\\S+) joint=(\\S+) owner=(\\S+) ownerEnabled=(\\d+) b0=(\\S+) b1=(\\S+) destroy=(\\d+)",log)
+    scans=re.findall(r"H6_D1_FOREIGN_SCAN victim=(\S+) joint=(\S+) owner=(\S+) ownerEnabled=(\d+) b0=(\S+) b1=(\S+) destroy=(\d+)",log)
     foreign=[s for s in scans if s[0]==b and s[2]==a and s[3]=="0" and b in (s[4],s[5]) and s[6]=="1"]
     ac=[s for s in scans if s[0]==b and a in (s[4],s[5]) and c in (s[4],s[5]) and s[6]=="0"]
-    witness=re.search(r"H6_D1_FIXTURE_DISABLE victim=(\\S+) other=(\\S+) before=(\\d+) after=(\\d+) joint=(\\S+)",log)
+    witness=re.search(r"H6_D1_FIXTURE_DISABLE victim=(\S+) other=(\S+) before=(\d+) after=(\d+) joint=(\S+)",log)
     if require_foreign:
         assert witness and witness.group(1)==b and witness.group(2)==a and witness.group(4)=="0",("ASLEEP_INTERVENTION_ABSENT",witness.groups() if witness else None)
         assert foreign,("MISSING_OWNER_A_DISABLED_AB",scans)
