@@ -138,7 +138,7 @@ int main(int argc,char **argv){
   while(ready.load(std::memory_order_acquire)!=2) std::this_thread::yield();
   go.store(true,std::memory_order_release);
   t1.join();t2.join();
-  require(joints(body)==(policy?0:1),"concurrent P0/P1");
+  require(joints(body)==(policy?0:1)+(pluginDestroyPreserved?0:1),"concurrent P0/P1");
   require(callbackCount==beforeRace+(policy?1:0),"at most one notification");
   // Buffer retirement concurrent to public destroy; only one wins.
   const dJointID retire=fresh(world,body,0);
@@ -162,7 +162,9 @@ int main(int argc,char **argv){
   require(two[0].empty(),"retire erased buffer0");
   if(!policy)require(h6EngineDestroyContact(race)==1,"P0 race left engine alive");
   require(two[1].empty() && h6CountTracked()==0,"no live engine at teardown");
-  require(joints(body)==0,"all contacts removed before teardown");
+  // A plugin joint incorrectly blocked due to address ABA is a distinct
+  // compatibility counterexample. Do not relabel it as a successful cleanup.
+  require(joints(body)==(pluginDestroyPreserved?0:1),"unexpected engine contacts remain");
   require(wrongBuffer==0,"double-registry corruption");
   h6SetBeforeFree(nullptr);
   dBodyDestroy(body);
