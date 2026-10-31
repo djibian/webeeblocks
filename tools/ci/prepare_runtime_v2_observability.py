@@ -266,13 +266,79 @@ __COMMON__
   window.addEventListener('webeeblocks-runtime-v2-diagnostic', event => {
     diagnostics.push(event.detail); report('DIAGNOSTIC', event.detail);
   });
+  // Deliberately delay *delivery* of the real native RECOVERY_STATUS NONE
+  // to the product startup gate. This is CI-only fault injection; the native
+  // witness and WWI response are never fabricated, changed or bypassed.
+  const originalReadRecoveryStatus = WebeeBlocksWwiBackend.prototype.readRecoveryStatus;
+  let releaseNativeStatus = null;
+  let nativeStatusHeld = false;
+  WebeeBlocksWwiBackend.prototype.readRecoveryStatus = async function(token) {
+    const result = await originalReadRecoveryStatus.call(this, token);
+    if (result && result.state === 'NONE') {
+      await report('NATIVE_STATUS_RECEIVED', {state: result.state, snapshot: snapshot()});
+      await new Promise(resolve => {
+        releaseNativeStatus = resolve;
+        nativeStatusHeld = true;
+      });
+    }
+    return result;
+  };
+  const wwiTx = [];
   try {
-    await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true,
-      'Runtime v2 READY', 20000);
+    await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true &&
+      nativeStatusHeld && typeof releaseNativeStatus === 'function',
+      'native READY with real RECOVERY_STATUS NONE held before UI authorization', 20000);
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationDebug !== true)
       throw new Error('simulation-only debug capability missing');
     loadXml(__BLOCKED__);
     document.getElementById('stepMode').checked = false;
+    const astBeforeControl = JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace));
+    const originalSend = robotWindow.send.bind(robotWindow);
+    robotWindow.send = function(message) {
+      if (String(message).startsWith('WEBEEBLOCKS_RUNTIME_V2 REQUEST ')) {
+        wwiTx.push(String(message));
+        report('WWI_TX', String(message));
+      }
+      return originalSend(message);
+    };
+    // Control: the historical backend.ready-only predicate is true, BUT the
+    // native status has not been consumed by the authorization state machine.
+    // The product MUST safely refuse this premature run without WWI actions.
+    const submit = document.getElementById('submit');
+    if (!runtimeRecoveryPending || !runtimeTerminal || submit.disabled !== true)
+      throw new Error('fault injection did not hold the product authorization gate');
+    const prematureRequestId = runtimeBackend.nextId;
+    await window.runProgram();
+    if (runtimeBackend.nextId !== prematureRequestId || wwiTx.length !== 0 ||
+        runtimeRunning || document.getElementById('runtimeState').textContent === 'EN VOL')
+      throw new Error('premature backend-READY run was not rejected safely');
+    await report('PREAUTH_CONTROL_REFUSED', {
+      backendReady: runtimeBackend.ready,
+      nativeState: 'NONE',
+      recoveryPending: runtimeRecoveryPending,
+      terminal: runtimeTerminal,
+      submitDisabled: submit.disabled,
+      nextId: runtimeBackend.nextId,
+      wwiRequests: wwiTx.length,
+      ast: astBeforeControl
+    });
+    // Treatment differs ONLY in awaiting the postcondition of the native
+    // authorization: the unmodified product processes the held actual verdict.
+    releaseNativeStatus();
+    releaseNativeStatus = null;
+    await waitFor(() => window.runtimeBackend && runtimeBackend.ready === true &&
+      document.getElementById('runtimeState').textContent === 'PRÊT' &&
+      !runtimeRecoveryPending && !runtimeTerminal &&
+      !runtimeResetPending && !runtimeScenePending && !runtimeProjectPending &&
+      !runtimeOutcomePending && !runtimeStopPending && !runtimeRunning &&
+      document.getElementById('submit').disabled === false,
+      'explicit post-native execution authorization', 20000);
+    if (JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)) !== astBeforeControl)
+      throw new Error('wait for authorization changed pupil AST');
+    await report('AUTHORIZED_FOR_EXECUTION', {
+      ready: runtimeBackend.ready, state: document.getElementById('runtimeState').textContent,
+      submitDisabled: submit.disabled, nextId: runtimeBackend.nextId, ast: astBeforeControl
+    });
     // CI-only wall-time dilation: the production 35 s WWI request deadline
     // can expire before Webots advances the controller's 25 simulated seconds
     // under contended software rendering. Do not change the shipped backend or
@@ -282,6 +348,11 @@ __COMMON__
     runtimeBackend.timeoutMs = 125000;
     const startDiagnostics = diagnostics.length;
     window.runProgram();
+    // Require actual native action submission, not just a UI transition or a
+    // call that may return early. Scene preparation may precede TAKEOFF.
+    await waitFor(() => wwiTx.some(message => / REQUEST \\d+ TAKEOFF /.test(message)),
+      'real TAKEOFF WWI request after explicit authorization', 45000);
+    await report('UNSAFE_ACTUAL_TAKEOFF', {wwiRequests: wwiTx, nextId: runtimeBackend.nextId});
     // The controller enforces ACTION_TIMEOUT in simulated time (25 s). Under
     // software OpenGL on a contended CI host, its wall-time observation may be
     // substantially later. Keep the native fault/result oracle unchanged.
@@ -299,7 +370,10 @@ __COMMON__
     ['mur', 'obstacle', 'utilise ', 'essaie ', 'condition vraie', 'condition fausse', 'bloc conseillé', 'solution'].forEach(term => {
       if (surface.includes(term)) throw new Error('anti-tutoring boundary crossed: ' + term);
     });
-    await report('UNSAFE_SCENARIO_DONE', {diagnostic: unsafe, snapshot: snapshot()});
+    if (!wwiTx.some(message => / REQUEST \\d+ TAKEOFF /.test(message)))
+      throw new Error('native unsafe path did not receive TAKEOFF');
+    await report('UNSAFE_SCENARIO_DONE', {diagnostic: unsafe, snapshot: snapshot(),
+      wwiRequests: wwiTx, ast: astBeforeControl});
     await chain;
     console.log('WEBEEBLOCKS_CI_OBSERVABILITY_UNSAFE_DONE');
   } catch (error) {
