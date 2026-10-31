@@ -86,6 +86,18 @@ script = r"""
       return;
     }
     await waitFor(() => window.runtimeBackend && runtimeBackend.ready, 'native READY', 25000);
+    if (mode === 'semantic_tamper' && window.__guardSemanticTampered) {
+      // The product owns native RESET/SCENE/clear. A second status query from
+      // this adversarial harness would be cancelled by the product's RESET
+      // and would hide the actual mismatch postcondition.
+      await waitFor(() => runtimeRecoveryPending &&
+        document.getElementById('submit').disabled &&
+        document.getElementById('runtimeDetail').textContent.includes('Récupération non vérifiée'),
+        'native rejected digest without clearing witness', 60000);
+      await report('SEMANTIC_TAMPER_APPLIED', window.__guardSemanticContrast);
+      await report('NEGATIVE_LOCKED', {guardian:'PENDING', ...evidence()});
+      return;
+    }
     const guardian = await runtimeBackend.readRecoveryStatus();
     if (guardian.state === 'NONE') {
       if (mode === 'stale_witness') throw new Error('stale native witness not detected');
@@ -123,10 +135,6 @@ script = r"""
       document.getElementById('runtimeState').textContent !== 'PRÊT' &&
       document.getElementById('runtimeDetail').textContent.includes('Récupération non vérifiée'),
       'native recovery fail-closed', 10000);
-    if (mode === 'semantic_tamper') {
-      if (!window.__guardSemanticTampered) throw new Error('semantic NUM field not mutated on new document');
-      await report('SEMANTIC_TAMPER_APPLIED', window.__guardSemanticContrast);
-    }
     await report('NEGATIVE_LOCKED', {guardian:guardian.state, ...evidence()});
   } catch (error) {
     await report('NEGATIVE_ERROR', String(error.stack || error));

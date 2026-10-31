@@ -242,13 +242,15 @@ jobs:
           if mode == 'early_clear':
               assert sum(e['event'] == 'EARLY_CLEAR_DENIED' for e in events) == 1, events
               assert 'RECOVERY_LOCKED' in (base/'webots.log').read_text(), 'native early clear denial missing'
-           if mode == 'semantic_tamper':
-               contrast = [e['detail'] for e in events if e['event'] == 'SEMANTIC_TAMPER_APPLIED']
-               assert contrast == [{'before': 1, 'after': 2}], (contrast, events)
-               assert d['browserCheckpoint'] is True, 'altered checkpoint lost instead of locked'
-               native_log = (base/'webots.log').read_text()
-               assert 'RECOVERY_LOCKED' in native_log, 'digest mismatch did not reach native clear'
-               assert 'RECOVERY_CLEARED' not in native_log, 'semantic alteration consumed native witness'
+          if mode == 'semantic_tamper':
+              contrast = [e['detail'] for e in events if e['event'] == 'SEMANTIC_TAMPER_APPLIED']
+              assert contrast == [{'before': 1, 'after': 2}], (contrast, events)
+              assert d['browserCheckpoint'] is True, 'altered checkpoint lost instead of locked'
+              native_log = (base/'webots.log').read_text()
+              assert native_log.count(' RESET_OK ') >= 2, 'both strict native RESETs required'
+              assert native_log.count(' SCENE_OK ') >= 2, 'both native scenes required'
+              assert 'RECOVERY_LOCKED' in native_log, 'digest mismatch did not reach native clear'
+              assert 'RECOVERY_CLEARED' not in native_log, 'semantic alteration consumed native witness'
           if mode not in ('stale_witness', 'early_clear'):
               assert any(e['event'] == 'NEGATIVE_BEFORE_RELOAD' for e in events), events
               assert 'WORLD_RELOAD_REQUESTED' in (base/'webots.log').read_text()
