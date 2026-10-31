@@ -68,10 +68,10 @@ c = once(c, '''    const bool own = mBodyContacts1.remove(joint) || mBodyContact
       h6_p0_destroy_owned(joint); // M already held; no public admission
       ++removed;
     } else {
-      // Original Webots reset(id): detach plugin group-owned contacts;
-      // dJointDestroy was a no-op for group-owned. For standalone plugin
-      // contacts, this detachment alone is NOT proven semantically equivalent.
+      // Original reset(id): group-owned remains (no-op) but a standalone
+      // plugin contact is freed. Stage public call only AFTER releasing M.
       dJointAttach(joint, nullptr, nullptr);
+      pendingPluginDestroy.push_back(joint);
       h6_p0_trace("E5_reset_plugin_detached", (unsigned long long)(uintptr_t)joint);
     }''', "reset contact engine/plugin distinction")
 s = once(s, '''  // remove contact joints
@@ -93,6 +93,27 @@ s = once(s, '''  // remove contact joints
     WbOdeContext::instance()->detachResetBodyContacts(body());
   h6_p0_trace("E5_reset_id_exit", (unsigned long long)(uintptr_t)body());''',
     "replace raw reset(id) contact release")
+# Restore exact ODE plugin semantics after leaving the nonrecursive M.
+# This is a bounded synchronous reset; arbitrary plugin-private threads
+# are a separate UNSOLVED H0/phase contract.
+c = once(c, "#include <cassert>", "#include <cassert>\n#include <vector>",
+         "plugin staged destroy vector include")
+c = once(c, '''  h6_p0_trace("P0_reset_M_acquired", 0);
+  int removed = 0;''',
+'''  h6_p0_trace("P0_reset_M_acquired", 0);
+  std::vector<dJointID> pendingPluginDestroy;
+  int removed = 0;''',"stage plugin contacts under M")
+c = once(c, '''  h6_p0_trace("P0_reset_M_released", 0);
+  if (std::getenv("H6_STANDALONE_TRACE"))''',
+'''  h6_p0_trace("P0_reset_M_released", 0);
+  for (dJointID j : pendingPluginDestroy) {
+    h6_p0_trace("E5_reset_plugin_native_destroy", (unsigned long long)(uintptr_t)j);
+    dJointDestroy(j);  // native group no-op; standalone individual free
+    // NO joint dereference after this call: H0 ends on effective free.
+  }
+  if (std::getenv("H6_STANDALONE_TRACE"))''',
+"plugin native destruction after release")
+
 # P0 had inherited a test-only flag R in shared helper; ensure no mistaken
 # claim of a true RESET merely because that helper ran.
 assert s.count("E5_reset_id_enter") == 1
