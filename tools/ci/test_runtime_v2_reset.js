@@ -439,6 +439,9 @@ function testNativeResetTimeoutSourceContract() {
   testNativeWebotsWwiSequenceOracle();
   await require('./test_window_renewal.js')();
   await require('./test_window_renewal_timing.js')();
+  // The observability fixture must wait for native witness authorization,
+  // not merely backend.ready; run the real CI fixture's adversarial gate test.
+  require('./test_observability_authorization_gate.js');
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testStartupHandshakeSourceContract();
