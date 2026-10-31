@@ -1,0 +1,160 @@
+name: H6 matched original versus standalone direct plugin destruction GDB
+on:
+  push:
+    branches: [experiment/h6-plugin-ownership-a0a1-gdb-20261031]
+    paths: ['.github/workflows/h6-plugin-ownership-a0a1-gdb.yml']
+permissions:
+  contents: read
+jobs:
+  matched:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    env:
+      PIN: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      C_SHA: d1b2226949b1567417f1d2de582cad9230afcad4
+      CANDIDATE: 8d8d644b2bc6d5821572d87d474e59f533ec3260
+      QT_QPA_PLATFORM: xcb
+      WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Pin pristine source and copy UNCHANGED adversarial C fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/matched/logs fixture
+          git rev-parse HEAD > evidence/matched/experiment-head.txt
+          git fetch --no-tags --depth=1 origin "$C_SHA" "$CANDIDATE" > evidence/matched/logs/fetch.log 2>&1
+          test "$(git show "$CANDIDATE:experiments/h6_standalone/patch_corrected.py" | sha256sum | cut -d' ' -f1)" = "$(sha256sum experiments/h6_standalone/patch_corrected.py | cut -d' ' -f1)"
+          for p in plugins/physics/h6_d3_external/h6_d3_external.c plugins/physics/h6_d3_external/Makefile controllers/h6_d3_external/h6_d3_external.py worlds/external.wbt; do
+            mkdir -p "fixture/$(dirname "$p")"
+            git show "$C_SHA:experiments/h6_d3_external/$p" > "fixture/$p"
+          done
+          find fixture -type f -print0 | sort -z | xargs -0 sha256sum > evidence/matched/fixture.sha256
+          git clone --filter=blob:none --no-checkout https://github.com/cyberbotics/webots.git native-webots > evidence/matched/logs/clone.log 2>&1
+          git -C native-webots checkout --detach "$PIN" > evidence/matched/logs/checkout.log 2>&1
+          git -C native-webots submodule update --init --recursive --jobs 4 > evidence/matched/logs/submodules.log 2>&1
+          test "$(git -C native-webots rev-parse HEAD)" = "$PIN"
+          test -z "$(git -C native-webots status --porcelain)"
+          git -C native-webots diff HEAD > evidence/matched/A0-original.patch
+          test ! -s evidence/matched/A0-original.patch
+      - name: Install native Webots dependencies and GDB
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > evidence/matched/logs/apt-update.log 2>&1
+          sudo apt-get install -y xvfb xauth python3 python-is-python3 gdb binutils > evidence/matched/logs/apt-core.log 2>&1
+          (cd native-webots && sudo bash scripts/install/linux_compilation_dependencies.sh) > evidence/matched/logs/apt-build.log 2>&1 || { tail -n 100 evidence/matched/logs/apt-build.log; exit 1; }
+      - name: Compile ORIGINAL Webots and ONE plugin binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          (cd native-webots && make -j2) > evidence/matched/logs/A0-build.log 2>&1 || { tail -n 110 evidence/matched/logs/A0-build.log; exit 1; }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so > evidence/matched/A0-binaries.sha256
+          file native-webots/webots native-webots/bin/webots-bin > evidence/matched/launcher-type.txt
+          head -n 120 native-webots/webots > evidence/matched/launcher-head.txt || true
+          make -C fixture/plugins/physics/h6_d3_external > evidence/matched/logs/plugin-build.log 2>&1 || { tail -n 80 evidence/matched/logs/plugin-build.log; exit 1; }
+          sha256sum fixture/plugins/physics/h6_d3_external/libh6_d3_external.so > evidence/matched/plugin.sha256
+          git -C native-webots diff HEAD > evidence/matched/A0-post-build.patch
+          test ! -s evidence/matched/A0-post-build.patch
+      - name: Run ORIGINAL Webots both arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for arm in 0 1; do
+            mkdir -p "evidence/matched/A0-$arm"
+            set +e
+            H6_EXTERNAL_DESTROY="$arm" MALLOC_CHECK_=3 timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr "$PWD/fixture/worlds/external.wbt" > "evidence/matched/A0-$arm/webots.log" 2>&1
+            result=$?
+            set -e
+            echo "$result" > "evidence/matched/A0-$arm/exit.txt"
+            echo "H6_A0 arm=$arm exit=$result"
+          done
+      - name: Patch SAME Webots tree to candidate and rebuild WITHOUT touching plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          python3 experiments/h6_standalone/patch_corrected.py native-webots > evidence/matched/logs/patch.log
+          git -C native-webots diff --check
+          git -C native-webots diff --binary HEAD > evidence/matched/A1.patch
+          sha256sum evidence/matched/A1.patch > evidence/matched/A1.patch.sha256
+          (cd native-webots && make -j2) > evidence/matched/logs/A1-build.log 2>&1 || { tail -n 120 evidence/matched/logs/A1-build.log; exit 1; }
+          sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so > evidence/matched/A1-binaries.sha256
+          test "$(tail -1 evidence/matched/A0-binaries.sha256 | cut -d' ' -f1)" = "$(tail -1 evidence/matched/A1-binaries.sha256 | cut -d' ' -f1)"
+          sha256sum fixture/plugins/physics/h6_d3_external/libh6_d3_external.so > evidence/matched/plugin-after.sha256
+          diff -u evidence/matched/plugin.sha256 evidence/matched/plugin-after.sha256
+      - name: Run candidate Webots both arms, identical plugin and world
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for arm in 0 1; do
+            mkdir -p "evidence/matched/A1-$arm"
+            set +e
+            H6_EXTERNAL_DESTROY="$arm" H6_STANDALONE_R=1 MALLOC_CHECK_=3 timeout -k 5s 90s xvfb-run -a -s '-screen 0 1280x800x24' "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr "$PWD/fixture/worlds/external.wbt" > "evidence/matched/A1-$arm/webots.log" 2>&1
+            result=$?
+            set -e
+            echo "$result" > "evidence/matched/A1-$arm/exit.txt"
+            echo "H6_A1 arm=$arm exit=$result"
+          done
+      - name: GDB identify fatal access in real candidate process
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          export LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots:$WEBOTS_HOME/lib/controller:$(printenv LD_LIBRARY_PATH || true)"
+          mkdir -p evidence/matched/gdb
+          cat > evidence/matched/gdb/commands.txt <<'CMD'
+          set pagination off
+          set confirm off
+          set print thread-events off
+          handle SIGSEGV stop print nopass
+          run
+          info threads
+          thread apply all bt full
+          info sharedlibrary libode
+          CMD
+          set +e
+          H6_EXTERNAL_DESTROY=1 H6_STANDALONE_R=1 MALLOC_CHECK_=3 timeout -k 5s 120s xvfb-run -a -s '-screen 0 1280x800x24' gdb -q -batch -x "$PWD/evidence/matched/gdb/commands.txt" --args "$WEBOTS_HOME/bin/webots-bin" --batch --mode=fast --no-rendering --stdout --stderr "$PWD/fixture/worlds/external.wbt" > evidence/matched/gdb/result.log 2>&1
+          result=$?
+          set -e
+          echo "$result" > evidence/matched/gdb/exit.txt
+      - name: Classify all four processes independent from unreliable controller terminal marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,hashlib,re,pathlib
+          root=pathlib.Path("evidence/matched")
+          result={"arms":{},"errors":[],"source_pin":"c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"}
+          for version in ("A0","A1"):
+            for arm in (0,1):
+              p=root/f"{version}-{arm}"
+              s=(p/"webots.log").read_text(errors="replace")
+              code=int((p/"exit.txt").read_text())
+              k=f"{version}-{arm}"
+              result["arms"][k]={"exit":code,"init":"H6_EXT_INIT" in s,"destroy_before":"H6_EXT_DESTROY_BEFORE" in s,"destroy_after":"H6_EXT_DESTROY_AFTER" in s,"cleanup":"H6_EXT_CLEANUP" in s,"step_ends":s.count("H6_EXT_STEP_END"),"controller_complete":"H6_EXT_CONTROLLER_COMPLETE" in s,"native_events":[x for x in s.splitlines() if x.startswith("H6_EXT_")],"sha256":hashlib.sha256(s.encode()).hexdigest()}
+              if "H6_EXT_INIT" not in s or "H6_EXT_CLEANUP" not in s:result["errors"].append(k+" init/cleanup incomplete")
+              if arm and not ("H6_EXT_DESTROY_BEFORE" in s and "H6_EXT_DESTROY_AFTER" in s):result["errors"].append(k+" destroy not exercised")
+              if not arm and "H6_EXT_DESTROY_BEFORE" in s:result["errors"].append(k+" negative invalid")
+          g=(root/"gdb/result.log").read_text(errors="replace")
+          result["gdb"]={"exit":int((root/"gdb/exit.txt").read_text()),"sigsegv":"SIGSEGV" in g,"stack":bool(re.search(r"#0\s+",g)),"sha256":hashlib.sha256(g.encode()).hexdigest()}
+          result["regression_0_to_139"]=result["arms"]["A0-1"]["exit"]==0 and result["arms"]["A1-1"]["exit"]==139
+          result["verdict"]="PROVEN_CONTRAST" if result["regression_0_to_139"] and not result["errors"] else "UNPROVEN_OR_REFUTED"
+          (root/"qualification.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          print("H6_MATCHED",result["verdict"],"gdb",result["gdb"])
+          for k,v in result["arms"].items():print("H6_MATCHED_ARM",k,"exit",v["exit"],"destroy",v["destroy_after"],"cleanup",v["cleanup"])
+          PY
+      - name: Preserve exact artifacts and hashes on every outcome including RED
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/matched/logs
+          git rev-parse HEAD > evidence/matched/observed-head.txt
+          find evidence/matched -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > evidence/matched/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: h6-webots-ode-ownership-matched-gdb, path: evidence/matched/, retention-days: 90, if-no-files-found: error}
