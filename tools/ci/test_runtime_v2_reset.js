@@ -401,6 +401,7 @@ function testNativeResetTimeoutSourceContract() {
   await testBackendResetContract();
   await require('./test_runtime_v2_recovery.js')();
   await require('./test_window_renewal.js')();
+  await require('./test_window_renewal_timing.js')();
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testStartupHandshakeSourceContract();
