@@ -17,6 +17,9 @@ import threading
 import time
 import traceback
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.ci.run_grand_prix_windows_native import engine_environment
+
 EXPECTED_BASE = "f243b2b597a2a6bd6af38e895787d9dd4bdfef5e"
 WM_CLOSE = 0x0010
 
@@ -52,13 +55,12 @@ def gui_windows(pid):
 def launch_once(exe, world, directory, state_dir, index):
     output = directory / f"webots-{index}.stdout.log"
     errors = directory / f"webots-{index}.stderr.log"
-    env = os.environ.copy()
     home = exe.parents[3]  # WEBOTS_HOME/msys64/mingw64/bin/webots.exe
+    # Reuse the Windows native environment closure already exercised by the
+    # official installed Grand Prix Webots campaign; no launcher/C mutation.
+    env = engine_environment(home, os.environ.copy())
     env["WEBOTS_HOME"] = str(home)
     env["WEBEEBLOCKS_RECOVERY_STATE_DIR"] = str(state_dir)
-    env["PATH"] = os.pathsep.join([str(home / "msys64/mingw64/bin"),
-                                   str(home / "msys64/usr/bin"), env.get("PATH", "")])
-    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
     args = [str(exe), "--stdout", "--stderr", "--mode=realtime", str(world)]
     record = {"run": index, "command": args, "state_dir": str(state_dir),
               "world": str(world), "start_utc": time.time(), "native_ready": False,
@@ -120,6 +122,10 @@ def launch_once(exe, world, directory, state_dir, index):
                 job.join(timeout=20)
             record["end_utc"] = time.time()
             record["exit_code"] = process.returncode
+            # Retain the observed PID/window state even when an assertion
+            # aborts the trial (the outer report may not append the result).
+            (directory / f"native-session-{index}.json").write_text(
+                json.dumps(record, indent=2), encoding="utf-8")
     return record
 
 
