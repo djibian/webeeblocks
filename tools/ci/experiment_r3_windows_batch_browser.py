@@ -58,6 +58,24 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     source=source.replace(
        "HTML = ROOT / 'plugins/robot_windows/blockly_v2/blockly_v2.html'",
        "HTML = Path("+repr(str(html))+")",1)
+    # This Windows-specific bounded recovery sequence contains ONE actual unsafe
+    # collision then requests a real reload; the original unmodified Linux
+    # replay retains its second unsafe collision and all historical oracles.
+    # A second consecutive impact produced a real unsafe-attitude FATAL on the
+    # software-rendered Windows runner. Do not hide that counterexample or call
+    # this adapted probe an exact replay of the full Linux collision sequence.
+    unsafe_second = """    await clickResetAndProve('after-stopped', blockedWorkspace, blockedAst);
+
+    document.getElementById('submit').click();
+    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'second unsafe stop', 45000);
+    if (workspaceState() !== blockedWorkspace || astState() !== blockedAst)
+      throw new Error('unsafe replay changed workspace or AST');
+    await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
+"""
+    assert source.count(unsafe_second)==1,"Canonical Linux two-collision fixture changed"
+    source=source.replace(unsafe_second,
+       "    await report('WINDOWS_SINGLE_NATIVE_COLLISION_BEFORE_RELOAD', "
+       "{workspace: blockedWorkspace, ast:JSON.parse(blockedAst)});\\n",1)
     # Fixture only; this exec does not read/alter product C, JS or physical oracles.
     fixture={"__file__":str(ROOT/"tools/ci/prepare_runtime_v2_reset.py"),
              "__name__":"windows_native_fixture"}
@@ -100,13 +118,18 @@ def result_assertions(events,webots):
     assert pre["workspace"]==post["workspace"]==after["workspace"],"Exact serialized Blockly diverged"
     assert pre["ast"]==post["ast"],"Original and restored semantic AST diverged"
     assert pre["workspace"]!="","No non-trivial program"
-    assert names.count("RESET_OK")>=3, "Native strict RESET preconditions missing"
+    assert names.count("UNSAFE_FIRST_DONE")==1,"One genuine native unsafe collision before reload required"
+    assert names.count("WINDOWS_SINGLE_NATIVE_COLLISION_BEFORE_RELOAD")==1,"Windows scoped test sequence marker missing"
+    assert "UNSAFE_REPLAY_DONE" not in names,"Unexpected second unsafe collision in bounded Windows scenario"
+    assert "FATAL unsafe attitude or action timeout" not in webots,"Fatal physical safety error cannot be hidden"
+    assert "FATAL native authority lock" not in webots,"Native authority lock denial cannot be hidden"
+    assert names.count("RESET_OK")>=2, "Native strict RESET before unsafe collision missing"
     reset_events=[e.get("detail",{}) for e in events if e.get("event")=="RESET_EVENT"]
     assert sum(v.get("worldRebuilt") is True for v in reset_events)==1,"One rebuild attestation required"
     assert sum(v.get("workspacePreserved") is True for v in reset_events)>=1
     assert webots.count("WORLD_RELOAD_REQUESTED (not a recovery ACK)")==1
     assert webots.count("RECOVERY_CLEARED")==1, "Exactly one native C witness clear required"
-    assert webots.count("TRACE RESET ")>=5, "Expected old 3 + new 2 strict C RESET traces"
+    assert webots.count("TRACE RESET ")>=4, "Expected old 2 + new 2 strict C RESET traces"
     lines=webots.splitlines()
     real_ready=[i for i,line in enumerate(lines) if line=="WEBEEBLOCKS_RUNTIME_V2 READY"]
     assert len(real_ready)>=2,"Native C did not start in both Webots incarnations"
@@ -164,6 +187,9 @@ def main():
              "product_head":"f243b2b597a2a6bd6af38e895787d9dd4bdfef5e",
              "status":"UNPROVEN",
              "chromium":"HEADLESS_REAL_CHROME_NOT_INTERACTIVE_GUI",
+             "windows_fixture_collision_count_before_reload":1,
+             "canonical_linux_two_collision_fixture_preserved":True,
+             "historical_RESET_TIMEOUT_reproduction":"NOT_CLAIMED",
              "controller_unchanged":True,
              "html_only_disposable_test_injection":True,
              "urls":[]}
