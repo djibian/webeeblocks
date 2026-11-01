@@ -83,43 +83,21 @@ def stop_groups(children):
             child.wait()
 
 def owned_process_group_state(pgid):
-    """Fail-closed Linux group census; an unreadable /proc is never EMPTY.
+    """Kernel-only existence probe of the runner-owned process group.
 
-    Signal 0 is a second check on the kernel PGID, not proof that descendants
-    in independently changed process groups have exited.
+    The authoritative result does not depend on /proc: unrelated processes may
+    exit during enumeration. ESRCH proves the PGID absent at this instant,
+    not that detached descendants are dead or that PID reuse is impossible.
     """
     if not isinstance(pgid, int) or pgid <= 1:
         return {'status': 'unknown', 'reason': 'invalid-owned-pgid'}
     try:
-        names = os.listdir('/proc')
-    except OSError as error:
-        return {'status': 'unknown', 'reason': 'proc-list:' + type(error).__name__}
-    members = []
-    for name in names:
-        if not name.isdecimal():
-            continue
-        try:
-            raw = (Path('/proc') / name / 'stat').read_text()
-            if ') ' not in raw:
-                raise ValueError('unparseable stat')
-            tail = raw.rsplit(') ', 1)[1].split()
-            member_pgid = int(tail[2])
-            if len(tail) < 4:
-                raise ValueError('incomplete stat')
-        except (OSError, ValueError, IndexError) as error:
-            return {'status': 'unknown', 'reason': 'proc-stat:' + type(error).__name__,
-                    'pid': int(name)}
-        if member_pgid == pgid:
-            members.append({'pid': int(name), 'pgid': member_pgid, 'state': tail[0]})
-    if members:
-        return {'status': 'nonempty', 'members': members}
-    try:
-        os.killpg(pgid, 0)
+        os.killpg(pgid, 0)  # Non-terminating group existence check.
     except ProcessLookupError:
-        return {'status': 'empty', 'members': []}
+        return {'status': 'empty', 'members': [], 'evidence': 'kernel-pgid-esrch'}
     except OSError as error:
-        return {'status': 'unknown', 'reason': 'group-probe:' + type(error).__name__}
-    return {'status': 'nonempty', 'members': [], 'reason': 'kernel-group-still-exists'}
+        return {'status': 'unknown', 'reason': 'kernel-probe:' + type(error).__name__}
+    return {'status': 'nonempty', 'members': [], 'evidence': 'kernel-pgid-present'}
 
 
 def normal_quit_after_validation(out, webots, log, attempts):
