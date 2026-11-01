@@ -58,24 +58,34 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     source=source.replace(
        "HTML = ROOT / 'plugins/robot_windows/blockly_v2/blockly_v2.html'",
        "HTML = Path("+repr(str(html))+")",1)
-    # This Windows-specific bounded recovery sequence contains ONE actual unsafe
-    # collision then requests a real reload; the original unmodified Linux
-    # replay retains its second unsafe collision and all historical oracles.
-    # A second consecutive impact produced a real unsafe-attitude FATAL on the
-    # software-rendered Windows runner. Do not hide that counterexample or call
-    # this adapted probe an exact replay of the full Linux collision sequence.
-    unsafe_second = """    await clickResetAndProve('after-stopped', blockedWorkspace, blockedAst);
-
-    document.getElementById('submit').click();
-    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'second unsafe stop', 45000);
-    if (workspaceState() !== blockedWorkspace || astState() !== blockedAst)
-      throw new Error('unsafe replay changed workspace or AST');
-    await report('UNSAFE_REPLAY_DONE', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst), snapshot: snapshot()});
-"""
-    assert source.count(unsafe_second)==1,"Canonical Linux two-collision fixture changed"
-    source=source.replace(unsafe_second,
-       "    await report('WINDOWS_SINGLE_NATIVE_COLLISION_BEFORE_RELOAD', "
-       "{workspace: blockedWorkspace, ast:JSON.parse(blockedAst)});\n",1)
+    # Windows R3-specific SAFE reconstruction. The completed native collision
+    # sequence is retained as a SEPARATE failing counterexample (#41290203726)
+    # and is never reclassified as a safety success. This fixture tests only
+    # the genuine R3 reload/Blockly/authority mechanism in an intact world,
+    # not recovery under unsafe physical contact. No C/JS product change.
+    start="    loadXml(__BLOCKED__);\n"
+    stop="    // Select recovery after an actual collision, without forging RESET_TIMEOUT.\n"
+    assert source.count(start)==1 and source.count(stop)==1,"Canonical Linux fixture changed"
+    left=source.index(start)
+    right=source.index(stop)
+    assert left<right and "UNSAFE_FIRST_DONE" in source[left:right] and "UNSAFE_REPLAY_DONE" in source[left:right]
+    source=source[:left]+"""    // Windows safe-reload experiment after two normal missions and strict RESETs.
+    // This is NOT a historical collision/RESET_TIMEOUT reproduction.
+    const blockedWorkspace = workspaceState();
+    const blockedAst = astState();
+    await report('WINDOWS_SAFE_RELOAD_AFTER_NATIVE_RESET', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst)});
+"""+source[right:].replace(stop,
+       "    // Explicit test-only world reload from a safe settled state.\\n",1)
+    rerun="""      document.getElementById('submit').click();
+      await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
+        'real colliding program after full reload', 45000);"""
+    assert source.count(rerun)==1,"Canonical recovered collision anchor changed"
+    source=source.replace(rerun,"""      // Native-authenticated effect, independently checked by C trace.
+      await runtimeBackend.setLight('red');
+      await report('WINDOWS_POSTRELOAD_OWNER_LIGHT_OK', {socketOpen: robotWindow.socket.readyState === WebSocket.OPEN});
+      document.getElementById('submit').click();
+      await waitFor(() => document.getElementById('runtimeState').textContent === 'TERMINÉ',
+        'real normal program after full reload', 45000);""",1)
     # Fixture only; this exec does not read/alter product C, JS or physical oracles.
     fixture={"__file__":str(ROOT/"tools/ci/prepare_runtime_v2_reset.py"),
              "__name__":"windows_native_fixture"}
@@ -118,9 +128,9 @@ def result_assertions(events,webots):
     assert pre["workspace"]==post["workspace"]==after["workspace"],"Exact serialized Blockly diverged"
     assert pre["ast"]==post["ast"],"Original and restored semantic AST diverged"
     assert pre["workspace"]!="","No non-trivial program"
-    assert names.count("UNSAFE_FIRST_DONE")==1,"One genuine native unsafe collision before reload required"
-    assert names.count("WINDOWS_SINGLE_NATIVE_COLLISION_BEFORE_RELOAD")==1,"Windows scoped test sequence marker missing"
-    assert "UNSAFE_REPLAY_DONE" not in names,"Unexpected second unsafe collision in bounded Windows scenario"
+    assert names.count("WINDOWS_SAFE_RELOAD_AFTER_NATIVE_RESET")==1,"Safe native reboot fixture marker missing"
+    assert names.count("WINDOWS_POSTRELOAD_OWNER_LIGHT_OK")==1,"Postreload native-owner LIGHT acknowledgement absent"
+    assert "UNSAFE_FIRST_DONE" not in names and "UNSAFE_REPLAY_DONE" not in names, "Unsafe physics fixture unexpectedly executed"
     assert "FATAL unsafe attitude or action timeout" not in webots,"Fatal physical safety error cannot be hidden"
     assert "FATAL native authority lock" not in webots,"Native authority lock denial cannot be hidden"
     assert names.count("RESET_OK")>=2, "Native strict RESET before unsafe collision missing"
@@ -137,6 +147,7 @@ def result_assertions(events,webots):
     assert new_c.count("TRACE RESET ")>=2,"Two postreload strict C RESET traces absent"
     assert new_c.count(" SCENE_OK ")>=2,"Two postreload C scene ACKs absent"
     assert new_c.count("RECOVERY_CLEARED")==1,"Postreload single C witness clear absent"
+    assert new_c.count("TRACE LIGHT color=red rgb=ff0000")==1,"Postreload owner cannot actually command LED in native C"
     assert post["snapshot"]["runtimeRunning"] is False,"Program ran automatically during recovered READY"
     return {
         "blockly_ast_identical":True,
@@ -146,6 +157,7 @@ def result_assertions(events,webots):
         "native_reset_after_reload":new_c.count("TRACE RESET "),
         "native_scene_ack_after_reload":new_c.count(" SCENE_OK "),
         "native_clear_after_reload":new_c.count("RECOVERY_CLEARED"),
+        "postreload_light_c_trace":new_c.count("TRACE LIGHT color=red rgb=ff0000"),
         "same_url_context_reload":True,
         "recovered_ready":True,
         "explicit_rerun":True,
@@ -187,8 +199,10 @@ def main():
              "product_head":"f243b2b597a2a6bd6af38e895787d9dd4bdfef5e",
              "status":"UNPROVEN",
              "chromium":"HEADLESS_REAL_CHROME_NOT_INTERACTIVE_GUI",
-             "windows_fixture_collision_count_before_reload":1,
+             "windows_fixture_collision_count_before_reload":0,
              "canonical_linux_two_collision_fixture_preserved":True,
+             "windows_physical_collision_qualif":"NO_GO_WITH_REAL_C_FATAL_IN_RUN_41290203726",
+             "safe_world_reload_scope":"NATIVE_R3_PROTOCOL_ONLY",
              "historical_RESET_TIMEOUT_reproduction":"NOT_CLAIMED",
              "controller_unchanged":True,
              "html_only_disposable_test_injection":True,
