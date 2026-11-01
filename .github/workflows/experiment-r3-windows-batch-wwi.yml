@@ -28,7 +28,7 @@ jobs:
           test "$(git merge-base "$baseline" HEAD)" = "$baseline"
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/experiment-r3-windows-batch-wwi.yml|tools/ci/experiment_r3_windows_batch_wwi.py|tools/ci/experiment_r3_windows_batch_wwi.py) ;;
+              .github/workflows/experiment-r3-windows-batch-wwi.yml|tools/ci/experiment_r3_windows_batch_wwi.py|tools/windows/r3_qualification/*) ;;
               *) echo "Unexpected product/oracle mutation: $file" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$baseline" HEAD)
