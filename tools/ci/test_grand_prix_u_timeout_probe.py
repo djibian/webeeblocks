@@ -179,7 +179,7 @@ class NormalQuitHostTests(unittest.TestCase):
                 self.assertFalse((root/'normal-quit.request').exists())
 
     def test_refuses_every_unproven_retirement(self):
-        for fault in ('timeout','exit','ack','crash','eof','mutation','survivor','census-unknown'):
+        for fault in ('timeout','exit','ack','crash','eof','mutation','survivor','kernel-unknown'):
             with self.subTest(fault=fault),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory)
                 self.prepare(root,[1])
@@ -194,7 +194,7 @@ class NormalQuitHostTests(unittest.TestCase):
                         if fault=='crash':(root/'webots.log').write_text('malloc(): corrupted\n')
                 def finish():
                     if fault=='eof':raise RuntimeError('stdout still held')
-                group = ({'status':'unknown','reason':'proc-list:OSError'} if fault=='census-unknown'
+                group = ({'status':'unknown','reason':'kernel-probe:PermissionError'} if fault=='kernel-unknown'
                          else {'status':'nonempty','members':[{'pid':9}]} if fault=='survivor'
                          else {'status':'empty','members':[]})
                 with (patch.object(runner,'owned_process_group_state',return_value=group),
@@ -203,28 +203,30 @@ class NormalQuitHostTests(unittest.TestCase):
                     runner.normal_quit_after_validation(root,Child(),SimpleNamespace(finish=finish),[1])
                 self.assertFalse(json.loads((root/'normal-quit.json').read_text())['normal_success'])
 
-    def test_owned_group_census_refuses_unreadable_or_partial_proc(self):
-        with patch.object(runner.os,'listdir',side_effect=PermissionError('proc unavailable')):
-            self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
-        for data in (OSError('stat unreadable'),'incomplete stat'):
-            with self.subTest(data=str(data)), patch.object(runner.os,'listdir',return_value=['789']):
-                with patch.object(runner.Path,'read_text',side_effect=data if isinstance(data,Exception) else None,
-                                  return_value=None if isinstance(data,Exception) else data):
-                    self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
+    def test_foreign_process_disappearing_or_truncated_stat_cannot_veto_kernel_esrch(self):
+        # Independent system PIDs may exit or return partial /proc data.
+        # Neither should be consulted when deciding the runner-owned PGID.
+        with (patch.object(runner.os,'listdir',side_effect=AssertionError('foreign PID vanished')) as listing,
+              patch.object(runner.Path,'read_text',side_effect=AssertionError('truncated stat')) as stat,
+              patch.object(runner.os,'killpg',side_effect=ProcessLookupError()) as kernel):
+            observation=runner.owned_process_group_state(123)
+            self.assertEqual(observation['status'],'empty')
+            self.assertEqual(observation['evidence'],'kernel-pgid-esrch')
+            kernel.assert_called_once_with(123,0)
+            listing.assert_not_called()
+            stat.assert_not_called()
 
-    def test_owned_group_census_requires_kernel_confirmation(self):
-        with (patch.object(runner.os,'listdir',return_value=['789']),
-              patch.object(runner.Path,'read_text',return_value='789 (other) S 1 1 1 0 0 0')):
-            with patch.object(runner.os,'killpg',side_effect=ProcessLookupError()):
-                self.assertEqual(runner.owned_process_group_state(123)['status'],'empty')
-            with patch.object(runner.os,'killpg',return_value=None):
-                self.assertEqual(runner.owned_process_group_state(123)['status'],'nonempty')
-            with patch.object(runner.os,'killpg',side_effect=PermissionError()):
-                self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
-        with (patch.object(runner.os,'listdir',return_value=['789']),
-              patch.object(runner.Path,'read_text',return_value='789 (webots) S 1 123 123 0 0 0'),
-              patch.object(runner.os,'killpg') as kernel):
+    def test_owned_group_probe_kernel_presence_permissions_other_errors_and_invalid_pgid(self):
+        with patch.object(runner.os,'killpg',return_value=None) as kernel:
             self.assertEqual(runner.owned_process_group_state(123)['status'],'nonempty')
+            kernel.assert_called_once_with(123,0)
+        for error in (PermissionError(), OSError('group probe failed')):
+            with self.subTest(error=type(error).__name__),patch.object(runner.os,'killpg',side_effect=error):
+                self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
+        with patch.object(runner.os,'killpg') as kernel:
+            for invalid in (None,'123',0,1,-1):
+                with self.subTest(invalid=invalid):
+                    self.assertEqual(runner.owned_process_group_state(invalid)['status'],'unknown')
             kernel.assert_not_called()
 
     def test_unknown_group_preserves_original_retirement_and_refuses_success_seal(self):
@@ -241,8 +243,7 @@ class NormalQuitHostTests(unittest.TestCase):
             child=Child()
             log=SimpleNamespace(finish=lambda:None)
             runtime=SimpleNamespace(cleanup=lambda:None)
-            with (patch.object(runner,'owned_process_group_state',
-                               return_value={'status':'unknown','reason':'proc-list:OSError'}),
+            with (patch.object(runner.os,'killpg',side_effect=PermissionError('cannot inspect PGID')),
                   patch.object(runner,'stop_groups',side_effect=RuntimeError('retirement cannot be verified')) as stop):
                 with self.assertRaisesRegex(RuntimeError,'membership unobservable'):
                     try:
