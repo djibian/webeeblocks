@@ -158,6 +158,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = (
+        [sys.executable, "tools/ci/test_progression_native_retirement.py"],
         [sys.executable, "tools/ci/test_runtime_v2_autonomous_observer.py"],
         [sys.executable, "tools/ci/test_reset_native_summary.py"],
         [sys.executable, "tools/ci/test_reset_post_teleport.py"],

@@ -45,6 +45,9 @@ def main() -> int:
     shutil.rmtree(ARTIFACT_ROOT, ignore_errors=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    guarded = run([sys.executable, "tools/ci/test_progression_native_retirement.py"], capture=True)
+    if guarded.returncode:
+        return fail("M1b native-retirement deterministic guard failed", guarded.stdout)
     checked = run(["node", "--check", "plugins/robot_windows/memory_overwrite_probe/memory_overwrite_probe.js"], capture=True)
     if checked.returncode:
         return fail("negative probe syntax failed", checked.stdout)
