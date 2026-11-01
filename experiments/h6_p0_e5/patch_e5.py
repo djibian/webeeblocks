@@ -33,11 +33,8 @@ c = once(c, '''      if (it.value() == b) {
       if (!mode || (std::strcmp(mode, "owner") && std::strcmp(mode, "attached")))
         std::abort();
       const bool attached = (v0 == b || v1 == b);
-      // Explicit intervention only; not a claim of spontaneous sleeping owner.
-      if (std::getenv("H6_E5_FORCE_SLEEP") && owner != b && attached) {
-        dBodyDisable(owner);
-        h6_p0_trace("E5_owner_sleep_forced", (unsigned long long)(uintptr_t)joint);
-      }
+      // A sleep is induced at the REAL destructor boundary, before entering M.
+      // No sleep or geometry mutation is allowed inside this scan.
       const bool drop = owner == b ||
         (!std::strcmp(mode, "attached") && (attached || (!v0 && !v1)));
       std::fprintf(stderr, "H6_E5_SCAN mode=%s joint=%p owner=%p victim=%p v0=%p v1=%p owner_enabled=%d drop=%d\n",
@@ -120,6 +117,32 @@ c = once(c, '''  h6_p0_trace("P0_reset_M_released", 0);
 assert s.count("E5_reset_id_enter") == 1
 assert "dJointDestroy(joints[i])" not in s
 assert c.count("h6_p0_destroy_owned(joint)") >= 4
+# Causal lifecycle observations. The owner/attachment snapshot precedes any
+# joint free and never dereferences a post-lifetime ID.
+c = once(c, '  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);',
+'''  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);
+  if (std::getenv("H6_E5_TRACE_LIFETIME"))
+    std::fprintf(stderr, "H6_E5_LIVE stage=create joint=%p owner=%p v0=%p v1=%p enabled=%d\\n",
+                 (void*)joint, (void*)owner, (void*)dJointGetBody(joint,0),
+                 (void*)dJointGetBody(joint,1), dBodyIsEnabled(owner));''',
+"creation joint attachment observation")
+c = once(c, '''    if (dBodyIsEnabled(it.value())) {''',
+'''    if (std::getenv("H6_E5_TRACE_LIFETIME")) {
+      dJointID j = it.key();  // LIVE entry, before possible unregister/free.
+      std::fprintf(stderr, "H6_E5_LIVE stage=retire_check joint=%p owner=%p v0=%p v1=%p enabled=%d\\n",
+                   (void*)j, (void*)it.value(), (void*)dJointGetBody(j,0),
+                   (void*)dJointGetBody(j,1), dBodyIsEnabled(it.value()));
+    }
+    if (dBodyIsEnabled(it.value())) {''', "retirement attachment observation")
+cluster = root / "src/webots/engine/WbSimulationCluster.cpp"
+cl = cluster.read_text()
+anchor = '    cl->mContext->registerBodyContactJoint(owner, contactJoint, cl->mSwapJointContactBuffer);'
+cl = once(cl, anchor, anchor + '''
+    if (std::getenv("H6_E5_TRACE_LIFETIME"))
+      std::fprintf(stderr, "H6_E5_ORIENTATION joint=%p b1=%p b2=%p owner=%p buffer=%d\\n",
+                   (void*)contactJoint, (void*)b1, (void*)b2, (void*)owner,
+                   int(cl->mSwapJointContactBuffer));''', "broadphase order at joint creation")
+cluster.write_text(cl)
 # Instrument the REAL WbSolidMerger destructor before/after dBodyDestroy.
 merger = root / "src/webots/nodes/utils/WbSolidMerger.cpp"
 m = merger.read_text()
@@ -127,17 +150,39 @@ m = once(m, '''WbSolidMerger::~WbSolidMerger() {
   WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
   dBodyDestroy(mBody);''', '''WbSolidMerger::~WbSolidMerger() {
   h6_p0_trace("E5_body_destructor_enter", (unsigned long long)(uintptr_t)mBody);
+  if (std::getenv("H6_E5_FORCE_SLEEP") &&
+      std::strcmp(std::getenv("H6_E5_FORCE_SLEEP"), "1") == 0) {
+    // Exact D1 timing: body A stays enabled through every PRE-delete solver.
+    // Intervene on an actual B-attached engine contact, not the plugin's B/0.
+    for (int i = 0; i < dBodyGetNumJoints(mBody); ++i) {
+      dJointID j = dBodyGetJoint(mBody, i);
+      if (dJointGetType(j) != dJointTypeContact) continue;
+      const dBodyID x = dJointGetBody(j, 0), y = dJointGetBody(j, 1);
+      const dBodyID other = x == mBody ? y : (y == mBody ? x : nullptr);
+      if (!other) continue;
+      const int wasEnabled = dBodyIsEnabled(other);
+      dBodyDisable(other);
+      std::fprintf(stderr,
+        "H6_E5_DESTRUCTOR_SLEEP victim=%p other=%p joint=%p before=%d after=%d\\n",
+        (void*)mBody, (void*)other, (void*)j, wasEnabled, dBodyIsEnabled(other));
+      h6_p0_trace("E5_owner_sleep_forced_before_delete", (unsigned long long)(uintptr_t)other);
+      break;
+    }
+  }
   WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
   h6_p0_trace("E5_before_dBodyDestroy", (unsigned long long)(uintptr_t)mBody);
   dBodyDestroy(mBody);
   h6_p0_trace("E5_after_dBodyDestroy", 0);''',
   "true Webots body destructor")
 m = once(m, '#include "WbSolidMerger.hpp"',
- '''extern "C" void h6_p0_trace(const char *, unsigned long long);
+ '''#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+extern "C" void h6_p0_trace(const char *, unsigned long long);
 #include "WbSolidMerger.hpp"''', "merger trace declaration")
 ctx.write_text(c)
 solid.write_text(s)
 merger.write_text(m)
-for p in (ctx,solid,merger):
+for p in (ctx,solid,merger,cluster):
     print("E5_PATCHED", p.relative_to(root), hashlib.sha256(p.read_bytes()).hexdigest())
 print("H6_E5_OVERLAY_READY research-only; require native execution")
