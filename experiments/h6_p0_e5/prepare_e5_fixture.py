@@ -115,7 +115,7 @@ once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(voi
     // pair orientation. Still create real attached B/0 and A/0 plugin controls
     // while B is alive, after the THIRD solve but before real B removal.
     e5_make_plugin_witness();
-    fprintf(stderr,"H6_E5_PLUGIN_STEP case=%s tick=%lu group_count=%d group_b0=%p group_b1=%p motor_b0=%p\\n",
+    fprintf(stderr,"H6_E5_PLUGIN_STEP case=%s tick=%lu group_count=%d group_b0=%p group_b1=%p motor_b0=%p\n",
             e5_case,tick,dJointGroupGetCount(e5_group),
             (void*)dJointGetBody(e5_plugin_contact,0),
             (void*)dJointGetBody(e5_plugin_contact,1),
