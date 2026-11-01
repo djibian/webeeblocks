@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/experiment-r3-windows-native-restart.yml'
       - 'tools/ci/experiment_r3_windows_native_restart.py'
+      - 'tools/ci/experiment_r3_windows_native_batch.py'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
           test "$(git merge-base "$baseline" HEAD)" = "$baseline"
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/experiment-r3-windows-native-restart.yml|tools/ci/experiment_r3_windows_native_restart.py) ;;
+              .github/workflows/experiment-r3-windows-native-restart.yml|tools/ci/experiment_r3_windows_native_restart.py|tools/ci/experiment_r3_windows_native_batch.py) ;;
               *) echo "Unexpected product/oracle mutation: $file" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$baseline" HEAD)
@@ -107,6 +108,13 @@ jobs:
           ./tools/ci/test_windows_classroom_release.ps1 -ArchivePath 'ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a.zip' -WebotsHome $env:WEBOTS_HOME
           if ($LASTEXITCODE -ne 0) { throw 'Classroom package or static session proof failed' }
 
+      - name: Retain exact compiled Windows classroom ZIP (not GUI acceptance)
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-r3-windows-classroom-zip
+          path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
+          if-no-files-found: error
+
       # Official Webots upstream CI already uses this pinned Mesa build on
       # hosted Windows VMs. This makes *real native Windows Webots execution*
       # possible; it does not make the runner an interactive human desktop.
@@ -129,6 +137,18 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Mesa deploy failed' }
           }
           finally { Pop-Location }
+
+      - name: Discriminate genuine Windows Webots batch C READY from runner GUI support
+        id: native-batch
+        continue-on-error: true
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          python tools/ci/experiment_r3_windows_native_batch.py --package 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --webots-home "$env:WEBOTS_HOME" --output 'ci-artifacts/r3-windows-native'
+          if ($LASTEXITCODE -ne 0) { throw 'No native C READY in batch Webots; read exact logs' }
 
       - name: Observe two genuine Windows Webots GUI launches with same world and state directory
         shell: pwsh
