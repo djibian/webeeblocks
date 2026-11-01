@@ -132,7 +132,14 @@ once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(voi
     h6_p0_trace("E5_AC_solver_feedback",(unsigned long long)e5_feedback_count);
   }
   if (!strcmp(e5_case,"body") && tick==2)
-    h6_p0_trace("E5_owner_enabled_after_tick2",dBodyIsEnabled(target));''',"feedback post-solver")
+    h6_p0_trace("E5_owner_enabled_after_tick2",dBodyIsEnabled(target));
+  if (!strcmp(e5_case,"body") && getenv("H6_E5_HOLD_ASLEEP") && tick<=3) {
+    // Test-only intervention at the EARLIEST responsible retirement boundary.
+    // A-owned genuine A-B contacts were created by the real ODE near callback.
+    // No registration, owner, attachment or collision normal changes here.
+    dBodyDisable(target);
+    h6_p0_trace("E5_owner_hold_asleep_after_solver",(unsigned long long)tick);
+  }''',"feedback post-solver")
 once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void) {
   if (e5_plugin_contact) {
     // Last permitted dereference: both objects still alive, BEFORE group empty.
