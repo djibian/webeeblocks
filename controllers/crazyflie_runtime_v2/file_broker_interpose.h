@@ -6,6 +6,8 @@
 // broker and activity-outcome traffic can be consumed locally without changing
 // Runtime v2 flight semantics or the C source.
 #ifndef __cplusplus
+int webeeblocks_file_broker_authorized_mission(const char *canonical);
+void webeeblocks_file_broker_record_admitted_reset(int id);
 #define wb_robot_wwi_receive_text webeeblocks_file_broker_receive_text
 #define wb_robot_wwi_send webeeblocks_file_broker_send
 #define wb_robot_cleanup webeeblocks_file_broker_robot_cleanup
