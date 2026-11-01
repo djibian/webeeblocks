@@ -80,10 +80,10 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     # the *unchanged* button guard in this safe-world research-only fixture,
     # mark the UI terminal before choosing the separate reconstruction path.
     # No C ACK, physical RESET, collision or witness is fabricated.
-    arm="    runtimeNeedsRebuild = true;\\n    updateRuntimeActions();\\n"
+    arm="    runtimeNeedsRebuild = true;\n    updateRuntimeActions();\n"
     assert source.count(arm)==1,"Canonical recovery arm anchor changed"
     source=source.replace(arm,
-         "    runtimeTerminal = true; // test-only terminal UI selection, no native effect\\n"
+         "    runtimeTerminal = true; // test-only terminal UI selection, no native effect\n"
          +arm,1)
     rerun="""      document.getElementById('submit').click();
       await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
