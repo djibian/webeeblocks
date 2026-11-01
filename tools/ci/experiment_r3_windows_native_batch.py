@@ -13,9 +13,51 @@ from pathlib import Path
 import sys
 import time
 import traceback
+import subprocess
+import threading
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment
+from tools.ci.run_grand_prix_windows_native import engine_environment
+
+@contextmanager
+def captured_native_batch(command, cwd, env, stdout_path, stderr_path):
+    # Unlike an ordinary Webots GUI shutdown, batch observation deliberately
+    # terminates its disposable engine after C READY. Exit 1 / pipe errors on
+    # that forced teardown are not claims about the native R3 protocol.
+    errors = []
+    with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
+        process = subprocess.Popen(command, cwd=cwd, env=env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        def drain(src, dest):
+            try:
+                with src:
+                    while chunk := src.read1(65536):
+                        dest.write(chunk)
+                        dest.flush()
+            except Exception as error:
+                errors.append(str(error))
+        threads = [threading.Thread(target=drain, args=(src, dest), daemon=True)
+                   for src, dest in ((process.stdout, out), (process.stderr, err))]
+        for thread in threads:
+            thread.start()
+        try:
+            yield process
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=15)
+            else:
+                process.wait(timeout=15)
+            for thread in threads:
+                thread.join(timeout=15)
+            if any(thread.is_alive() for thread in threads) or errors:
+                raise RuntimeError("Windows Webots native pipe drain failed: " + str(errors))
+
 
 
 def sha256(path):
@@ -54,7 +96,7 @@ def main():
         (out / "batch-state").mkdir(exist_ok=True)
         command = [str(exe), "--stdout", "--stderr", "--batch", "--mode=fast", str(world)]
         report["command"] = command
-        with captured_engine(command, package, env, out / "batch.stdout.log",
+        with captured_native_batch(command, package, env, out / "batch.stdout.log",
                              out / "batch.stderr.log") as process:
             report["pid"] = process.pid
             deadline = time.monotonic() + 90
@@ -73,6 +115,7 @@ def main():
         if report["status"] != "PASS_NATIVE_WIN_C_READY_BATCH_ONLY":
             raise RuntimeError("Official Windows Webots batch did not yield controller C READY")
     except Exception:
+        report["status"] = "UNPROVEN"
         report["error"] = traceback.format_exc()
         print(report["error"], file=sys.stderr)
     finally:
