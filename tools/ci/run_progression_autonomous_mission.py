@@ -231,7 +231,7 @@ sleep 0.5
 # Activity 8 proves simulated mission state, not wall-clock pacing. Fast mode
 # preserves the same deterministic 32 ms steps while keeping the real rendered
 # Robot Window/browser lifecycle that carries Runtime-v2 commands.
-timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_progression_autonomous.wbt &
+timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast --minimize /workspace/worlds/ci_progression_autonomous.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
   if grep -Fq 'AUTONOMOUS_MISSION_TEST_COMPLETE' "$events" 2>/dev/null; then
