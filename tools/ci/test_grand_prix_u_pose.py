@@ -135,7 +135,7 @@ int main(void) {
             instrument(base)
             inc=['-I'+str(base),'-I'+str(ROOT/'controllers/crazyflie_runtime_v2'),
                  '-I'+str(ROOT/'controllers/crazyflie_square'),'-I'+str(ROOT/'controllers/grand_prix_u_flight')]
-            subprocess.run(['gcc','-std=c11',*inc,'-include',str(ROOT/'controllers/grand_prix_u_flight/grand_prix_u_hook.h'),
+            subprocess.run(['gcc','-std=c11','-D_GNU_SOURCE',*inc,'-include',str(ROOT/'controllers/grand_prix_u_flight/grand_prix_u_hook.h'),
                             '-c',str(base/'runtime.c'),'-o',str(base/'runtime.o')],check=True)
             binary=base/'pose'
             subprocess.run(['c++','-std=c++17','-DNDEBUG',*inc,str(base/'runtime.o'),
