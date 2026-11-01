@@ -166,15 +166,6 @@ int main(void) {
                     deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
                     self.assertEqual(len(deadlines),0 if probe=='startup-reset' else 1,result.stdout)
                     if deadlines:self.assertIn('time_ms=212048 command=LAND',deadlines[0])
-            # Extra native negative; the 64 legacy scenarios above remain unchanged.
-            with self.subTest(r3_negatives='missing/stale/replay/late'):
-                result=run_case(binary,base,{'GP_U_POSE_CASE':'land',
-                    'GP_U_R3_NEGATIVE_ONLY':'1'})
-                self.assertEqual(result.returncode,0,
-                    result.stdout[-7000:]+result.stderr)
-                self.assertIn('GP_U_R3_NEGATIVE_PASS missing,stale,replay,expired',
-                    result.stdout)
-
                     if (case=='land' and probe!='startup-reset') or case=='land-timeout':
                         self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
             for contact in ('ground','high','nan'):
@@ -184,5 +175,15 @@ int main(void) {
                     self.assertEqual(result.returncode,0,result.stdout[-5000:]+result.stderr)
                     self.assertEqual(result.stdout.count('TRACE LAND_TOUCHDOWN '),int(contact=='ground'))
                     self.assertIn('GP_U_POSE_RESPONSE t=212656 WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK',result.stdout)
+
+            # Extra native negative; the 64 legacy scenarios above remain unchanged.
+            with self.subTest(r3_negatives='missing/stale/replay/late'):
+                result=run_case(binary,base,{'GP_U_POSE_CASE':'land',
+                    'GP_U_R3_NEGATIVE_ONLY':'1'})
+                self.assertEqual(result.returncode,0,
+                    result.stdout[-7000:]+result.stderr)
+                self.assertIn('GP_U_R3_NEGATIVE_PASS missing,stale,replay,expired',
+                    result.stdout)
+
 
 if __name__=='__main__':unittest.main()
