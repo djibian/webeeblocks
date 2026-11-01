@@ -665,10 +665,6 @@ int main(void) {
       }
       if (authenticated)
         last_owner_id = request.id;  // Reject replays, including failed commands.
-      if (request.kind == REQUEST_INVALID) {
-        response_error(request.id, "INVALID_REQUEST");
-        continue;
-      }
       int recovery_state = wb_rg_refresh(&recovery_guard);
       if (recovery_state != WB_RG_NONE && recovery_state != WB_RG_OWNED &&
           request.kind != REQUEST_RESET &&
@@ -680,6 +676,24 @@ int main(void) {
            (recovery_state == WB_RG_NONE && owner_claimed)) &&
           request.kind != REQUEST_STOP) {
         response_error(request.id, "RECOVERY_LOCKED");
+        continue;
+      }
+      // No GP or pedagogical effect before native R3 admission, replay
+      // rejection and recovery-state validation. Canonical has AUTH removed
+      // by the same C authority that consumes the request ID.
+#ifdef WEBEEBLOCKS_GP_U_HOOK_H
+      if (!gp_u_filter_raw(effective_message))
+        continue;
+#endif
+#if defined(WEBEEBLOCKS_FILE_BROKER_INTERPOSE_H) || defined(WEBEEBLOCKS_GP_U_HOOK_H)
+      if (request.kind == REQUEST_INVALID &&
+          webeeblocks_file_broker_authorized_mission(effective_message))
+        continue;
+      if (request.kind == REQUEST_RESET)
+        webeeblocks_file_broker_record_admitted_reset(request.id);
+#endif
+      if (request.kind == REQUEST_INVALID) {
+        response_error(request.id, "INVALID_REQUEST");
         continue;
       }
       if (request.kind == REQUEST_STOP) {
