@@ -145,6 +145,12 @@ def evaluate(log,case,mode,workers):
         cross=[s for s in scans if s["owner"]==owner_a and s["b"]==victim and
                (s["v0"]==victim or s["v1"]==victim)]
         require(cross,"NO_DISCRIMINATING_OWNER_A_FOREIGN_B_ATTACHMENT")
+        require(select("E5_owner_sleep_forced_at_destructor"),
+                "NO_D1_SLEEP_AT_REAL_DESTRUCTOR")
+        require(any(e["arg"]==owner_a for e in select("E5_owner_sleep_forced_at_destructor")),
+                "SLEPT_WRONG_BODY_AT_DESTRUCTOR")
+        require(all(s["enabled"]==0 for s in cross),
+                "CROSS_BODY_OWNER_NOT_ASLEEP_AT_SCAN")
         require(all(s["mode"]==mode for s in scans),"MIXED_DROP_MODES")
         if mode=="owner":
             require(any(s["drop"]==0 for s in cross),"NEGATIVE_OWNER_ARM_NOT_REFUTED")
