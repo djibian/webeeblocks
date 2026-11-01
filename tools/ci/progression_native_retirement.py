@@ -97,6 +97,42 @@ def validate_browser_oracles(mode, by_name, required):
                 or not (lo > 1.0 and hi < 1.0 and lo > hi + 0.5)):
             raise RuntimeError('autonomous departure readings do not discriminate parcels')
 
+def native_mission_markers(mode):
+    """Extract existing native markers from the final host oracle, not a new list."""
+    tree = ast.parse(SCRIPTS[mode].read_text(encoding='utf-8'))
+    candidates = []
+    for node in ast.walk(tree):
+        values = None
+        if (mode == 'memory' and isinstance(node, ast.For) and
+                isinstance(node.target, ast.Name) and node.target.id == 'marker' and
+                isinstance(node.iter, (ast.Tuple, ast.List))):
+            values = node.iter.elts
+        if (mode == 'autonomous' and isinstance(node, ast.Assign) and
+                len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and
+                node.targets[0].id == 'markers' and isinstance(node.value, (ast.Tuple, ast.List))):
+            values = node.value.elts
+        if values is not None and all(isinstance(v, ast.Constant) and isinstance(v.value, str)
+                                      for v in values):
+            native = [v.value for v in values]
+            prefix = 'WEBEEBLOCKS_MEMORY_' if mode == 'memory' else 'WEBEEBLOCKS_AUTONOMOUS_'
+            if len(native) >= 10 and all(v.startswith(prefix) for v in native):
+                candidates.append(native)
+    if len(candidates) != 1:
+        raise RuntimeError('ambiguous native marker inventory')
+    return candidates[0]
+
+def require_native_mission_oracles(mode, path, native):
+    if any(marker not in native for marker in native_mission_markers(mode)):
+        raise RuntimeError('native mission result missing before retirement')
+    if 'ERROR:' in native:
+        raise RuntimeError('native Webots reported ERROR before retirement')
+    if mode == 'memory':
+        line = next((s for s in native.splitlines()
+                     if 'WEBEEBLOCKS_MEMORY_TIMEOUT attempt=3' in s), '')
+        if not line or any(token not in line
+                           for token in ('collision=0', 'landed=1', 'stationary=1', 'arrival=0')):
+            raise RuntimeError('wrong-final-bay native terminal oracle missing')
+
 def complete_evidence(mode, path, required):
     if not path.is_file():
         return None
@@ -167,6 +203,8 @@ def native_main(args):
                     fingerprint = complete_evidence(args.kind, events, required)
                     if fingerprint:
                         require_no_terminal_crash(directory / 'webots.log')
+                        require_native_mission_oracles(args.kind, directory / 'webots.log',
+                                                       (directory / 'webots.log').read_text(errors='replace'))
                         report['browser_complete'] = True
                         report['frozen_events_sha256'] = fingerprint
                         request = args.kind + ' ' + uuid.uuid4().hex + '\n'

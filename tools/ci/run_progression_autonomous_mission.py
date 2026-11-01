@@ -192,7 +192,7 @@ def main() -> int:
             world + '\nRobot { name "CI progression retirement" controller "ci_progression_retirement"'
                     ' supervisor TRUE synchronization TRUE }\n',
             encoding="utf-8")
-        (ARTIFACT_ROOT / "world.wbt").write_text(world, encoding="utf-8")
+        (ARTIFACT_ROOT / "world.wbt").write_text(TEMP_WORLD.read_text(encoding="utf-8"), encoding="utf-8")
         provenance = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in (TEMP_WORLD, OBSERVER_SOURCE,
                                    ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c")}
