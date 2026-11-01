@@ -45,6 +45,11 @@ def run(path,case,mode,n,outdir):
             "no_drop":delete_events(original,["E5_drop"]),
             "no_AC_feedback":"\n".join(x for x in original.splitlines()
                                          if not x.startswith("H6_E5_AC_SOLVER "))+"\n",
+            "no_AC_joint_feedback":"\n".join(x for x in original.splitlines()
+                                         if not x.startswith("H6_E5_AC_JOINT "))+"\n",
+            "no_survivor_joint_force":re.sub(
+                r"(^H6_E5_AC_JOINT tick=\d+ joint=0x[0-9a-fA-F]+ forceL1=)[\d.eE+-]+",
+                r"\g<1>0",original,flags=re.M),
         })
         if mode=="attached":
             mutants["owner_only_rule"]=change_logs(original,"H6_E5_SCAN mode=attached","H6_E5_SCAN mode=owner")
