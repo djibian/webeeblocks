@@ -89,6 +89,11 @@ def result_assertions(events,webots):
         if names.count(key)!=1:raise RuntimeError(f"Missing/duplicate real browser phase: {key}={names.count(key)}")
     if any(e.get("event") in ("ERROR","WINDOW_ERROR","UNHANDLED_REJECTION","NEGATIVE_ERROR") for e in events):
         raise RuntimeError("Browser recorded real JS/transport error")
+    boots=[e["detail"] for e in events if e.get("event")=="BROWSER_BOOT_PROBE"]
+    assert len(boots)==2,"Expected precisely one genuine Chrome document then its reload"
+    assert boots[0]["origin"]==boots[1]["origin"],"Chrome origin changed across native reload"
+    assert boots[0]["href"]==boots[1]["href"],"Chrome Robot Window URL changed across native reload"
+    assert boots[1].get("navigation")==["reload"],"Second document was not a same-context reload"
     pre=next(e["detail"] for e in events if e["event"]=="WORLD_RELOAD_REQUEST")
     post=next(e["detail"] for e in events if e["event"]=="WORLD_RECOVERY_READY")
     after=next(e["detail"] for e in events if e["event"]=="WORLD_RECOVERY_RERUN")
@@ -102,13 +107,23 @@ def result_assertions(events,webots):
     assert webots.count("WORLD_RELOAD_REQUESTED (not a recovery ACK)")==1
     assert webots.count("RECOVERY_CLEARED")==1, "Exactly one native C witness clear required"
     assert webots.count("TRACE RESET ")>=5, "Expected old 3 + new 2 strict C RESET traces"
-    assert "WEBEEBLOCKS_RUNTIME_V2 READY" in webots
+    lines=webots.splitlines()
+    real_ready=[i for i,line in enumerate(lines) if line=="WEBEEBLOCKS_RUNTIME_V2 READY"]
+    assert len(real_ready)>=2,"Native C did not start in both Webots incarnations"
+    new_c="\n".join(lines[real_ready[1]:])
+    assert new_c.count("TRACE RESET ")>=2,"Two postreload strict C RESET traces absent"
+    assert new_c.count(" SCENE_OK ")>=2,"Two postreload C scene ACKs absent"
+    assert new_c.count("RECOVERY_CLEARED")==1,"Postreload single C witness clear absent"
+    assert post["snapshot"]["runtimeRunning"] is False,"Program ran automatically during recovered READY"
     return {
         "blockly_ast_identical":True,
         "reset_traces_at_least":webots.count("TRACE RESET "),
         "world_reload_native_count":webots.count("WORLD_RELOAD_REQUESTED (not a recovery ACK)"),
         "clear_native_count":webots.count("RECOVERY_CLEARED"),
-        "scene_confirmation_browser_count":sum(1 for e in events if e.get("event")=="SCENE_OK"),
+        "native_reset_after_reload":new_c.count("TRACE RESET "),
+        "native_scene_ack_after_reload":new_c.count(" SCENE_OK "),
+        "native_clear_after_reload":new_c.count("RECOVERY_CLEARED"),
+        "same_url_context_reload":True,
         "recovered_ready":True,
         "explicit_rerun":True,
         "browser_event_count":len(events)
