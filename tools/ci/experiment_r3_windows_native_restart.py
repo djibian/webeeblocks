@@ -70,7 +70,7 @@ def launch_once(exe, world, directory, state_dir, index):
         def pump(src, dest):
             with src:
                 while True:
-                    chunk = src.read(8192)
+                    chunk = src.read1(65536)
                     if not chunk:
                         break
                     dest.write(chunk)
