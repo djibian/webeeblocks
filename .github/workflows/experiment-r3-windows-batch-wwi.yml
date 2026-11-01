@@ -59,6 +59,19 @@ jobs:
         with:
           python-version: '3.12.10'
 
+      - name: Parse isolated PowerShell interactive qualifier without executing GUI
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/windows/r3_qualification/Qualify-R3-Windows.ps1').Path,
+            [ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.ToString() }
+            throw 'Interactive PowerShell syntax failure'
+          }
+
       - name: Cache identical official Webots installer (verified before use)
         uses: actions/cache@v4
         with:
