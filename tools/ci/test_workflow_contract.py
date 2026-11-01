@@ -105,7 +105,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(workflow.startswith("name: EXPERIMENT ONLY"))
         self.assertIn("  pull_request:\n", workflow)
         self.assertIn("  contents: read\n", workflow)
-        self.assertIn("mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness, early_clear]", workflow)
+        self.assertIn("mode: [lost_profile, lost_checkpoint, corrupt_checkpoint, stale_witness, early_clear, semantic_tamper]", workflow)
         self.assertIn("      fail-fast: false\n", workflow)
         self.assertNotIn("\n  push:", workflow)
         self.assertNotIn("name: CI Gate", workflow)
