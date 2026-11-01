@@ -22,15 +22,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/rr665"
           curl --fail --location --max-time 60 https://github.com/rr-debugger/rr/releases/download/5.10.0/rr-5.10.0-Linux-x86_64.tar.gz -o "$RUNNER_TEMP/rr665/rr.tar.gz"
           printf '%s  %s\n' 55d9175d88139f775aca36981c55c2f3bca227434217750fc3ee2619501e269b "$RUNNER_TEMP/rr665/rr.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/rr665/rr.tar.gz" -C "$RUNNER_TEMP/rr665"
+          tar --no-same-owner -xzf "$RUNNER_TEMP/rr665/rr.tar.gz" -C "$RUNNER_TEMP/rr665"
           rrbin=$(find "$RUNNER_TEMP/rr665" -type f -path '*/bin/rr' -print)
           test -n "$rrbin"
           dirname "$rrbin" >> "$GITHUB_PATH"
-      - name: One actual kernel and rr recording/replay gate
+      - name: Privileged discriminator for masked hardware counters (no sysctl change)
         shell: bash
         run: |
           set -euo pipefail
-          python3 experiments/qt665-rr/preflight.py --out ci-artifacts/qt665-rr-host
+          sudo env "PATH=$PATH" python3 experiments/qt665-rr/preflight.py --out ci-artifacts/qt665-rr-host
+          sudo chown -R "$(id -u):$(id -g)" ci-artifacts/qt665-rr-host
           git rev-parse HEAD > ci-artifacts/qt665-rr-host/head.txt
           sha256sum ci-artifacts/qt665-rr-host/host.json > ci-artifacts/qt665-rr-host/SHA256SUMS
       - uses: actions/upload-artifact@v4
