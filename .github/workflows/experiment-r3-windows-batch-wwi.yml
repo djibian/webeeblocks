@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/experiment-r3-windows-batch-wwi.yml'
       - 'tools/ci/experiment_r3_windows_batch_wwi.py'
+      - 'tools/ci/experiment_r3_windows_batch_browser.py'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
           test "$(git merge-base "$baseline" HEAD)" = "$baseline"
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/experiment-r3-windows-batch-wwi.yml|tools/ci/experiment_r3_windows_batch_wwi.py|tools/windows/r3_qualification/*) ;;
+              .github/workflows/experiment-r3-windows-batch-wwi.yml|tools/ci/experiment_r3_windows_batch_wwi.py|tools/ci/experiment_r3_windows_batch_browser.py|tools/windows/r3_qualification/*) ;;
               *) echo "Unexpected product/oracle mutation: $file" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$baseline" HEAD)
@@ -157,10 +158,29 @@ jobs:
           python tools/ci/experiment_r3_windows_batch_wwi.py --package 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --webots-home "$env:WEBOTS_HOME" --output 'ci-artifacts/r3-windows-native'
           if ($LASTEXITCODE -ne 0) { throw 'Transport discriminator incomplete; inspect artifact without claiming WWI' }
 
-      - name: Retain provenance and bounded batch result even if negative
+      - name: Exercise actual Webots Windows world_reload and Blockly with Chrome headless
+        shell: pwsh
+        timeout-minutes: 9
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          python tools/ci/experiment_r3_windows_batch_browser.py --package 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --webots-home "$env:WEBOTS_HOME" --output 'ci-artifacts/r3-windows-native'
+          if ($LASTEXITCODE -ne 0) { throw 'Native Webots Windows Chrome/Blockly world reload UNPROVEN; inspect sanitized artifacts' }
+
+      # IMPORTANT: Never upload the isolated native STATE_DIR or Chrome profiles:
+      # these may contain bearer keys and original recovery checkpoint bytes.
+      - name: Retain ONLY bounded, sanitized Windows native/browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: r3-windows-batch-wwi-experiment
-          path: ci-artifacts/r3-windows-native/
+          path: |
+            ci-artifacts/r3-windows-native/provenance.txt
+            ci-artifacts/r3-windows-native/batch-wwi-report.json
+            ci-artifacts/r3-windows-native/browser-native-report.json
+            ci-artifacts/r3-windows-native/browser-events.jsonl
+            ci-artifacts/r3-windows-native/webots.stdout.log
+            ci-artifacts/r3-windows-native/webots.stderr.log
           if-no-files-found: error
