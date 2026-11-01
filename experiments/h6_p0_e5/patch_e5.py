@@ -117,6 +117,15 @@ c = once(c, '''  h6_p0_trace("P0_reset_M_released", 0);
 assert s.count("E5_reset_id_enter") == 1
 assert "dJointDestroy(joints[i])" not in s
 assert c.count("h6_p0_destroy_owned(joint)") >= 4
+# Strictly experimental dBodyDisable intervention, just BEFORE unchanged P0
+# retirement predicate. This is needed because ODE can reactivate A between
+# the plugin post-solver hook and the actual M-protected retirement boundary.
+# Capture the first genuinely two-body contact owner (A in the C/B/A scene);
+# never fabricate, reattach, transfer ownership or change the retirement rule.
+c = once(c, "static void h6RetireContacts(QHash<dJointID, dBodyID> &contacts) {",
+'''static dBodyID h6_e5_retirement_owner = nullptr;
+static void h6RetireContacts(QHash<dJointID, dBodyID> &contacts) {''',
+"independent first-owner experiment-only state")
 # Causal lifecycle observations. The owner/attachment snapshot precedes any
 # joint free and never dereferences a post-lifetime ID.
 c = once(c, '  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);',
@@ -126,7 +135,30 @@ c = once(c, '  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);
                  (void*)joint, (void*)owner, (void*)dJointGetBody(joint,0),
                  (void*)dJointGetBody(joint,1), dBodyIsEnabled(owner));''',
 "creation joint attachment observation")
+c = once(c, '''  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);
+  if (std::getenv("H6_E5_TRACE_LIFETIME"))''',
+'''  h6_p0_trace("P0_register", (unsigned long long)(uintptr_t)joint);
+  const char *const e5Case = std::getenv("H6_E5_CASE");
+  if (std::getenv("H6_E5_HOLD_AT_RETIRE") && e5Case &&
+      !std::strcmp(e5Case, "body") && !h6_e5_retirement_owner &&
+      dJointGetBody(joint, 0) && dJointGetBody(joint, 1)) {
+    h6_e5_retirement_owner = owner;
+    h6_p0_trace("E5_retirement_owner_captured",
+                (unsigned long long)(uintptr_t)owner);
+  }
+  if (std::getenv("H6_E5_TRACE_LIFETIME"))''',
+"capture first genuine two-body contact owner for sleep test")
 c = once(c, '''    if (dBodyIsEnabled(it.value())) {''',
+'''    const char *const e5Case = std::getenv("H6_E5_CASE");
+    if (std::getenv("H6_E5_HOLD_AT_RETIRE") && e5Case &&
+        !std::strcmp(e5Case, "body") && h6_e5_retirement_owner &&
+        it.value() == h6_e5_retirement_owner) {
+      dBodyDisable(it.value());  // Test-only input, not a P0 rule modification.
+      h6_p0_trace("E5_retirement_owner_disabled",
+                  (unsigned long long)(uintptr_t)it.value());
+    }
+    if (dBodyIsEnabled(it.value())) {''', "disable only designated A immediately before gate")
+,
 '''    if (std::getenv("H6_E5_TRACE_LIFETIME")) {
       dJointID j = it.key();  // LIVE entry, before possible unregister/free.
       std::fprintf(stderr, "H6_E5_LIVE stage=retire_check joint=%p owner=%p v0=%p v1=%p enabled=%d\\n",
