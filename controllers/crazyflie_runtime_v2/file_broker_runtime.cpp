@@ -249,19 +249,6 @@ bool handleOutcomeRequest(const char *message) {
   return true;
 }
 
-bool resetRequestId(const char *message, int *id) {
-  if (!message || !id)
-    return false;
-  int parsedId = -1;
-  char command[32] = {0};
-  char extra[2] = {0};
-  if (std::sscanf(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s %1s", &parsedId, command, extra) != 2 ||
-      parsedId < 1 || std::strcmp(command, "RESET") != 0)
-    return false;
-  *id = parsedId;
-  return true;
-}
-
 void observeRuntimeResponse(const char *message) {
   if (!message || gPendingResetRequest < 1)
     return;
@@ -304,15 +291,6 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
       wb_robot_wwi_send_text(kRuntimeHelloReady);
       continue;
     }
-    if (handleMissionCompletionRequest(message))
-      continue;
-    if (handleMissionFailureProbeRequest(message))
-      continue;
-    if (handleOutcomeRequest(message))
-      continue;
-    int resetId = -1;
-    if (resetRequestId(message, &resetId) && gPendingResetRequest < 1)
-      gPendingResetRequest = resetId;
     if (!isBrokerMessage(message))
       return message;
     if (!gBroker)
@@ -326,6 +304,19 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
       wb_robot_wwi_send_text(response);
   }
   return nullptr;
+}
+
+// Only the C controller invokes this on an R3-admitted, replay-checked,
+ // Grand Prix-filtered canonical REQUEST. Never call it from the raw WWI loop.
+extern "C" int webeeblocks_file_broker_authorized_mission(const char *canonical) {
+  return handleMissionCompletionRequest(canonical) ||
+         handleMissionFailureProbeRequest(canonical) ||
+         handleOutcomeRequest(canonical);
+}
+
+extern "C" void webeeblocks_file_broker_record_admitted_reset(int id) {
+  if (id >= 1 && gPendingResetRequest < 1)
+    gPendingResetRequest = id;
 }
 
 extern "C" void webeeblocks_file_broker_send(const char *data, int size) {
