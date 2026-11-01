@@ -217,17 +217,20 @@ def main():
                     result["boundary"]="HTTP success does not establish WWI/CLAIM: transport evidence incomplete"
                 finally:
                     if ws: ws.close()
-            if result["light_c_native"]:
+            if not result["webots_batch"]:
+                result["verdict"]="UNPROVEN_NATIVE_ENGINE_STARTUP"
+                result["boundary"]="Cannot decide batch WWI: official Webots Windows engine failed before C READY."
+            elif result["light_c_native"]:
                 result["verdict"]="PASS_BATCH_WWI_LIGHT_ONLY"
             elif not result["http_robot_window"]:
-                result["verdict"]="BATCH_WWI_UNAVAILABLE"
+                result["verdict"]="BATCH_HTTP_ROBOT_WINDOW_UNAVAILABLE"
             else:
                 result["verdict"]="UNPROVEN_WWI"
     finally:
         (out/"batch-wwi-report.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
         print("BATCH_WWI_VERDICT="+result["verdict"],flush=True)
     # Unavailability is a conclusive discriminator, not a failed safety test.
-    return 0 if result["verdict"]!="UNPROVEN_WWI" else 1
+    return 0 if result["verdict"] in ("PASS_BATCH_WWI_LIGHT_ONLY","BATCH_HTTP_ROBOT_WINDOW_UNAVAILABLE") else 1
 
 if __name__=="__main__":
     raise SystemExit(main())
