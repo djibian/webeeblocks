@@ -215,8 +215,8 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         # Keep the native Console (and its ODE handlers), but avoid the
         # unnecessary Qt HTML rendering of Info-level shutdown messages.
         # WbLog::info still writes the complete text to --stdout.
-        perspective=("Webots Project File version R2025a\\n"
-                     "consoles: Console:All:Debug;Warning;Error;Fatal;Status;Stdout;Stderr\\n")
+        perspective=("Webots Project File version R2025a\n"
+                     "consoles: Console:All:Debug;Warning;Error;Fatal;Status;Stdout;Stderr\n")
         target.with_name('.'+target.stem+'.wbproj').write_text(perspective)
         (out/'world.wbproj').write_text(perspective)
         with NativeLogCapture(out/'webots.log') as log:
