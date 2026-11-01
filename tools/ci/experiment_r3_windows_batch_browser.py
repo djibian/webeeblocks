@@ -67,6 +67,21 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     assert after.startswith(before.split("</body>",1)[0]), "Test injector unexpectedly altered original HTML prefix"
     return True
 
+def suppress_webots_automatic_browser_like_official_launcher(world):
+    # The real classroom launcher removes exactly this perspective line.
+    # Otherwise Webots launches localhost while the explicit reference Chrome
+    # launches 127.0.0.1: two real windows, two origins and a legitimate R3
+    # AUTH_DENIED. Change only the disposable packaged perspective fixture.
+    perspective=world.parent/("."+world.stem+".wbproj")
+    assert perspective.is_file()
+    before=perspective.read_text(encoding="utf-8")
+    match=re.findall(r"(?m)^robotWindow:\s+Crazyflie WebeeBlocks\s*\r?\n?",before)
+    assert len(match)==1,"Expected exact one removable Webots auto-browser perspective"
+    after=re.sub(r"(?m)^robotWindow:\s+Crazyflie WebeeBlocks\s*\r?\n?","",before)
+    assert not re.search(r"(?m)^robotWindow:",after)
+    perspective.write_text(after,encoding="utf-8",newline="")
+    return True
+
 def result_assertions(events,webots):
     names=[e.get("event") for e in events]
     critical=("READY","WORLD_RELOAD_REQUEST","WORLD_RECOVERY_READY","WORLD_RECOVERY_RERUN")
@@ -112,6 +127,7 @@ def main():
     home=args.webots_home.resolve()
     world=package/"worlds/crazyflie_runtime_v2.wbt"
     assert world.is_file()
+    assert suppress_webots_automatic_browser_like_official_launcher(world)
     world_text=world.read_text(encoding="utf-8")
     names=re.findall(r'window "([^"]+)"',world_text)
     assert len(names)==1
