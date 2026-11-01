@@ -22,6 +22,7 @@ static dJointID e5_plugin_contact = 0;
 static dJointID e5_plugin_standalone = 0;
 static dJointID e5_plugin_permanent = 0;
 static dJointFeedback e5_feedback[32];
+static dJointID e5_feedback_joint[32];
 static int e5_feedback_count = 0;
 static dBodyID e5_contact_c = 0;
 static const char *e5_case = 0;''',"globals")
@@ -87,6 +88,7 @@ once("  ++tick;",r'''  ++tick;
       if (e5_feedback_count>=32) abort();
       memset(&e5_feedback[e5_feedback_count],0,sizeof(dJointFeedback));
       dJointSetFeedback(j,&e5_feedback[e5_feedback_count]);
+      e5_feedback_joint[e5_feedback_count] = j; // live until this solver returns
       ++e5_feedback_count;
       h6_p0_trace("E5_AC_feedback_installed",(unsigned long long)(size_t)j);
     }
@@ -107,8 +109,16 @@ once("  ++tick;",r'''  ++tick;
 once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(void) {
   if (!strcmp(e5_case,"body") && tick==4) {
     double f=0;
-    for (int i=0;i<e5_feedback_count;i++) for (int k=0;k<3;k++)
-      f += fabs((double)e5_feedback[i].f1[k]);
+    for (int i=0;i<e5_feedback_count;i++) {
+      double per_joint=0;
+      for (int k=0;k<3;k++)
+        per_joint += fabs((double)e5_feedback[i].f1[k]);
+      f += per_joint;
+      // Record the original LIVE joint ID to join against B-destructor scan.
+      // No joint dereference after physics step; only emit the stored address.
+      fprintf(stderr,"H6_E5_AC_JOINT tick=%lu joint=%p forceL1=%.17g\n",
+              tick,(void*)e5_feedback_joint[i],per_joint);
+    }
     fprintf(stderr,"H6_E5_AC_SOLVER case=%s tick=%lu forceL1=%.17g\n",
             e5_case,tick,f);
     h6_p0_trace("E5_AC_solver_feedback",(unsigned long long)e5_feedback_count);
