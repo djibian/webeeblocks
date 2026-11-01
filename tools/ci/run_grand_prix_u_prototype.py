@@ -82,6 +82,46 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
+def owned_process_group_state(pgid):
+    """Fail-closed Linux group census; an unreadable /proc is never EMPTY.
+
+    Signal 0 is a second check on the kernel PGID, not proof that descendants
+    in independently changed process groups have exited.
+    """
+    if not isinstance(pgid, int) or pgid <= 1:
+        return {'status': 'unknown', 'reason': 'invalid-owned-pgid'}
+    try:
+        names = os.listdir('/proc')
+    except OSError as error:
+        return {'status': 'unknown', 'reason': 'proc-list:' + type(error).__name__}
+    members = []
+    for name in names:
+        if not name.isdecimal():
+            continue
+        try:
+            raw = (Path('/proc') / name / 'stat').read_text()
+            if ') ' not in raw:
+                raise ValueError('unparseable stat')
+            tail = raw.rsplit(') ', 1)[1].split()
+            member_pgid = int(tail[2])
+            if len(tail) < 4:
+                raise ValueError('incomplete stat')
+        except (OSError, ValueError, IndexError) as error:
+            return {'status': 'unknown', 'reason': 'proc-stat:' + type(error).__name__,
+                    'pid': int(name)}
+        if member_pgid == pgid:
+            members.append({'pid': int(name), 'pgid': member_pgid, 'state': tail[0]})
+    if members:
+        return {'status': 'nonempty', 'members': members}
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return {'status': 'empty', 'members': []}
+    except OSError as error:
+        return {'status': 'unknown', 'reason': 'group-probe:' + type(error).__name__}
+    return {'status': 'nonempty', 'members': [], 'reason': 'kernel-group-still-exists'}
+
+
 def normal_quit_after_validation(out, webots, log, attempts):
     """Request graceful Supervisor retirement after validation; ACK is not exit proof."""
     proofs = [out/'events.jsonl', out/'result.json']
@@ -123,11 +163,18 @@ def normal_quit_after_validation(out, webots, log, attempts):
         report['stdout_eof'] = True
         require_no_terminal_crash(out/'webots.log')
         until = time.monotonic()+2
-        while process_group(webots.pid) and time.monotonic()<until:
+        while True:
+            group = owned_process_group_state(webots.pid)
+            report['owned_group_state'] = group
+            if group['status'] == 'empty':
+                break
+            if group['status'] == 'unknown':
+                raise RuntimeError('normal quit group membership unobservable: ' +
+                                   group.get('reason', 'unknown'))
+            if time.monotonic() >= until:
+                raise RuntimeError('normal quit left residual processes')
             time.sleep(.05)
-        report['residual_processes'] = process_group(webots.pid)
-        if report['residual_processes']:
-            raise RuntimeError('normal quit left residual processes')
+        report['residual_processes'] = group['members']
         if frozen != {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in proofs}:
             raise RuntimeError('validated proof changed during normal quit')
         report['proofs_unchanged'] = True
