@@ -67,6 +67,12 @@ export default class RobotWindow {
   }
 
   #onSocketClose(event) {
+    // Webots normally closes this disposable page on world reload. WebeeBlocks
+    // instead retains its current browser tab and checkpoint, and renews this
+    // exact document. No browser ProcessSingleton call is needed.
+    if (typeof window !== 'undefined' && window.WebeeBlocksWindowRenewal &&
+        window.WebeeBlocksWindowRenewal.onTransportClose())
+      return;
     // https://tools.ietf.org/html/rfc6455#section-7.4.1
     if ((event.code > 1001 && event.code < 1016) || (event.code === 1001)) {
       if (this.socket)

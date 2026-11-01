@@ -154,6 +154,15 @@ harness = r'''
           throw new Error('manual project buttons missing');
         if (document.body.dataset.projectFileMode !== 'browser-native') throw new Error('R2025a Chrome project file mode is not browser-native');
 
+        // Project manager initialization is not flight or project-edit authority.
+        // The real native RECOVERY_STATUS must first complete the startup gate.
+        // Keep the original project-button and file-operation assertions intact.
+        await waitFor(() => window.runtimeBackend && runtimeBackend.ready === true &&
+          runtimeRecoveryPending === false && runtimeTerminal === false &&
+          document.getElementById('runtimeState').textContent === 'PRÊT' &&
+          document.getElementById('submit').disabled === false,
+          'native-authorized PRÊT before project-file operations', 35000);
+
         loadXml(__FIXTURE__);
         const initialAst = currentAst();
         await report('INITIAL_AST', initialAst);

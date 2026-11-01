@@ -23,6 +23,8 @@ const char* wb_supervisor_field_get_sf_string(WbFieldRef);void wb_supervisor_fie
 const double* wb_supervisor_field_get_sf_vec3f(WbFieldRef);const double* wb_supervisor_field_get_sf_rotation(WbFieldRef);
 void wb_supervisor_field_set_sf_vec3f(WbFieldRef,const double*);void wb_supervisor_field_set_sf_rotation(WbFieldRef,const double*);
 void wb_supervisor_node_reset_physics(WbNodeRef);
+void wb_supervisor_world_reload(void);
+const char* wb_robot_get_world_path(void);
 const char* wb_robot_get_project_path(void);
 WbNodeRef wb_supervisor_node_get_root(void);
 const char* wb_supervisor_node_get_type_name(WbNodeRef);

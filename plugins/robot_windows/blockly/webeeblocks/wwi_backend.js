@@ -21,10 +21,20 @@
   RuntimeV2BackendError.prototype = Object.create(Error.prototype);
   RuntimeV2BackendError.prototype.constructor = RuntimeV2BackendError;
 
+  function freshAuthorityKey() {
+    if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== 'function')
+      throw new RuntimeV2BackendError('AUTH_RANDOM_UNAVAILABLE');
+    var bytes = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+
   function RuntimeV2WwiBackend(robotWindow, options) {
     if (!robotWindow || typeof robotWindow.send !== 'function')
       throw new Error('Runtime v2 RobotWindow transport unavailable');
     this.robotWindow = robotWindow;
+    this.authorityKey = freshAuthorityKey(); // Never in localStorage, URL, broadcast or logs.
+    this.authorized = false;
     this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
     // World evaluators settle in simulation time. A separate 2 s wall budget
     // incorrectly rejected valid negative results on a slower classroom PC.
@@ -60,6 +70,8 @@
       capabilities.simulationStop = true;
     if (options && options.simulationScenes === true)
       capabilities.simulationScenes = true;
+    if (options && options.simulationWorldReload === true)
+      capabilities.simulationWorldReload = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -94,10 +106,12 @@
     });
   };
 
-  RuntimeV2WwiBackend.prototype._request = function(parts) {
+  RuntimeV2WwiBackend.prototype._request = function(parts, timeoutOverrideMs) {
     var self = this;
     var sceneNonce = null;
-    if (parts[0] === 'SCENE') {
+    if (parts[0] === 'SCENE' || parts[0] === 'AUTH_EPOCH' || parts[0] === 'RECOVERY_STATUS' || parts[0] === 'RECOVERY_CLEAR' ||
+        parts[0] === 'AUTH_CLAIM' || parts[0] === 'AUTH_RECOVER' ||
+        (parts[0] === 'RESET' && parts.length === 2 && parts[1] === 'CORRELATED')) {
       // Numeric request IDs restart at each Robot Window. A fresh correlation
       // token must survive routing an old connection's ACK to this receiver.
       var bytes = new Uint8Array(32);
@@ -105,16 +119,27 @@
         return Promise.reject(new Error('Runtime v2 scene correlation unavailable'));
       globalThis.crypto.getRandomValues(bytes);
       sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-      parts = parts.concat([sceneNonce]);
+      parts = parts[0] === 'RESET' ? ['RESET', sceneNonce] : parts.concat([sceneNonce]);
     }
+    var requestType = parts[0];
+    var unauthenticated = requestType === 'AUTH_EPOCH' || requestType === 'RECOVERY_STATUS' ||
+      requestType === 'AUTH_CLAIM' || requestType === 'AUTH_RECOVER';
+    if (!unauthenticated && !this.authorized)
+      return Promise.reject(new RuntimeV2BackendError('AUTH_REQUIRED'));
+    if (requestType === 'RECOVERY_CLEAR')
+      parts = ['RECOVERY_CLEAR', this.authorityKey].concat(parts.slice(1));
+    else if (!unauthenticated)
+      parts = ['AUTH', this.authorityKey].concat(parts);
+    if (!Number.isSafeInteger(this.nextId) || this.nextId < 1 || this.nextId > 2147483647)
+      return Promise.reject(new RuntimeV2BackendError('REQUEST_ID_EXHAUSTED'));
     var id = this.nextId++;
     return new Promise(function(resolve, reject) {
       var timer = setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
-      }, self.timeoutMs);
-      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
+      }, timeoutOverrideMs === undefined ? self.timeoutMs : timeoutOverrideMs);
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce, requestType: requestType};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -149,7 +174,10 @@
       // No scene identity survives that liveness message as positive evidence.
       if (startupReady) {
         this.timeObservationEpoch += 1;
-        if (this.ready) this._cancelPendingForReset();
+        if (this.ready) {
+          this._cancelPendingForReset();
+          this.authorized = false; // A new native process must claim again.
+        }
         this.sceneIdentity = null;
       }
       this.ready = true;
@@ -158,6 +186,29 @@
         clearTimeout(waiter.timer);
         waiter.resolve();
       });
+      return true;
+    }
+    var epochAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) AUTH_EPOCH ([0-9a-f]{64}) ([0-9a-f]{32})$/);
+    if (epochAck) {
+      var epochPending = this.pending[Number(epochAck[1])];
+      if (epochPending && epochPending.requestType === 'AUTH_EPOCH' &&
+          epochPending.sceneNonce === epochAck[2]) {
+        clearTimeout(epochPending.timer);
+        delete this.pending[Number(epochAck[1])];
+        epochPending.resolve(epochAck[3]);
+      }
+      return true;
+    }
+    var authorizationAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) AUTH_OK ([0-9a-f]{64})$/);
+    if (authorizationAck) {
+      var authPending = this.pending[Number(authorizationAck[1])];
+      if (authPending && (authPending.requestType === 'AUTH_CLAIM' ||
+          authPending.requestType === 'AUTH_RECOVER') &&
+          authPending.sceneNonce === authorizationAck[2]) {
+        clearTimeout(authPending.timer);
+        delete this.pending[Number(authorizationAck[1])];
+        authPending.resolve(null);
+      }
       return true;
     }
     var sceneAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) SCENE_OK ([0-9a-f]{64})$/);
@@ -170,6 +221,37 @@
       }
       return true;
     }
+    var recoveryStateAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_STATUS ([0-9a-f]{64}) (NONE|INVALID|PENDING_MATCH|PENDING_OTHER)$/);
+    if (recoveryStateAck) {
+      var statePending = this.pending[Number(recoveryStateAck[1])];
+      if (statePending && statePending.sceneNonce === recoveryStateAck[2]) {
+        clearTimeout(statePending.timer);
+        delete this.pending[Number(recoveryStateAck[1])];
+        statePending.resolve({state: recoveryStateAck[3].startsWith('PENDING_') ? 'PENDING' : recoveryStateAck[3],
+          matched: recoveryStateAck[3] === 'PENDING_MATCH'});
+      }
+      return true;
+    }
+    var clearAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RECOVERY_CLEARED ([0-9a-f]{64})$/);
+    if (clearAck) {
+      var clearPending = this.pending[Number(clearAck[1])];
+      if (clearPending && clearPending.sceneNonce === clearAck[2]) {
+        clearTimeout(clearPending.timer);
+        delete this.pending[Number(clearAck[1])];
+        clearPending.resolve(null);
+      }
+      return true;
+    }
+    var resetAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) RESET_OK ([0-9a-f]{64})$/);
+    if (resetAck) {
+      var resetPending = this.pending[Number(resetAck[1])];
+      if (resetPending && resetPending.sceneNonce === resetAck[2]) {
+        clearTimeout(resetPending.timer);
+        delete this.pending[Number(resetAck[1])];
+        resetPending.resolve(null);
+      }
+      return true;
+    }
     var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)|ERR ([A-Z0-9_]+))$/);
     if (!match)
       return true;
@@ -178,7 +260,7 @@
     if (!pending)
       return true;
     if (pending.sceneNonce && match[2] === 'OK')
-      return true; // A legacy/other connection's ACK cannot confirm this scene.
+      return true; // A legacy/other connection's ACK cannot confirm a scene or recovery RESET.
     clearTimeout(pending.timer);
     delete this.pending[id];
     if (match[2] === 'OK') {
@@ -198,6 +280,31 @@
       pending.reject(new RuntimeV2BackendError(match[5]));
     }
     return true;
+  };
+
+  RuntimeV2WwiBackend.prototype.claimAuthority = function(oldKey) {
+    if (this.authorized)
+      return Promise.reject(new RuntimeV2BackendError('AUTH_ALREADY_CLAIMED'));
+    if (oldKey !== undefined && !/^[0-9a-f]{64}$/.test(oldKey))
+      return Promise.reject(new RuntimeV2BackendError('AUTH_INVALID_HANDOFF'));
+    var self = this;
+    // Never reuse an authority from an earlier native incarnation. The C
+    // controller generates a fresh CSPRNG epoch while holding its OS lock.
+    return this._request(['AUTH_EPOCH']).then(function(epoch) {
+      if (!/^[0-9a-f]{32}$/.test(epoch))
+        throw new RuntimeV2BackendError('AUTH_INVALID_EPOCH');
+      self.authorityKey = epoch + freshAuthorityKey().slice(32);
+      var parts = oldKey === undefined ? ['AUTH_CLAIM', self.authorityKey] :
+        ['AUTH_RECOVER', oldKey, self.authorityKey];
+      return self._request(parts);
+    }).then(function() {
+      self.authorized = true;  // Only a matching native claim ACK can arm JS.
+    });
+  };
+
+  RuntimeV2WwiBackend.prototype.authorityHandoff = function() {
+    if (!this.authorized) throw new RuntimeV2BackendError('AUTH_REQUIRED');
+    return this.authorityKey;
   };
 
   RuntimeV2WwiBackend.prototype._guardSimulationStopped = function() {
@@ -318,7 +425,7 @@
     this.sceneIdentity = null;
     return this._request(['STOP']);
   };
-  RuntimeV2WwiBackend.prototype.resetSimulation = function() {
+  RuntimeV2WwiBackend.prototype.resetSimulation = function(correlated) {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
     this.timeObservationEpoch += 1;
@@ -328,7 +435,7 @@
     this.failureProbeMissionOracle = null;
     this.ready = false;
     var self = this;
-    return this._request(['RESET']).then(function(value) {
+    return this._request(correlated === true ? ['RESET', 'CORRELATED'] : ['RESET']).then(function(value) {
       self.ready = true;
       self.simulationStopped = false;
       return value;
@@ -336,6 +443,51 @@
       self.ready = true;
       throw error;
     });
+  };
+
+  // Irreversible one-way request: never acknowledge recovery on the OLD world.
+  // The new Robot Window must independently validate strict RESET and scene.
+  RuntimeV2WwiBackend.prototype.readRecoveryStatus = function(token) {
+    if (!this.capabilities.simulationWorldReload)
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
+    if (token !== undefined && (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)))
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN'));
+    // A controller can emit READY before the first WWI browser request arrives.
+    // An observed native run (41094229271) lost request id=1 but accepted id=2.
+    // Retry ONLY status probes, with independent IDs/nonces, for <= 3 x 2.5s.
+    // Stale replies cannot unlock a later attempt; any exhaustion stays locked.
+    var self = this;
+    var candidate = token || '0'.repeat(64);
+    var probeTimeout = Math.min(2500, this.timeoutMs);
+    function probe(attempt) {
+      return self._request(['RECOVERY_STATUS', candidate], probeTimeout).catch(function(error) {
+        if (attempt < 3 && error && /^Runtime v2 request timeout id=\d+$/.test(error.message || ''))
+          return probe(attempt + 1);
+        throw error;
+      });
+    }
+    return probe(1);
+  };
+  RuntimeV2WwiBackend.prototype.clearRecoveryWitness = function(token, digest) {
+    if (!this.capabilities.simulationWorldReload || !/^[0-9a-f]{64}$/.test(token) ||
+        !/^[0-9a-f]{64}$/.test(digest || ''))
+      return Promise.reject(new RuntimeV2BackendError('RECOVERY_UNAVAILABLE'));
+    return this._request(['RECOVERY_CLEAR', token, digest]);
+  };
+  RuntimeV2WwiBackend.prototype.requestWorldReload = function(token, digest) {
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token) ||
+        !/^[0-9a-f]{64}$/.test(digest || ''))
+      throw new RuntimeV2BackendError('RECOVERY_INVALID_TOKEN');
+    if (!this.capabilities || this.capabilities.simulationWorldReload !== true)
+      throw new Error('Runtime v2 world reload unavailable');
+    this.timeObservationEpoch += 1;
+    this.sceneIdentity = null;
+    this._cancelPendingForReset();
+    this.ready = false;
+    this.simulationStopped = true;
+    if (!this.authorized) throw new RuntimeV2BackendError('AUTH_REQUIRED');
+    this.robotWindow.send(PREFIX + ' RELOAD_WORLD ' + this.authorityKey + ' ' + token + ' ' + digest);
+    this.authorized = false; // Never authorize old commands after requesting reload.
   };
 
   RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;

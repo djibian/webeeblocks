@@ -6,6 +6,46 @@ const vm = require('vm');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 const WwiProjectFileTransport = require('../../plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js');
 
+async function testR3ClaimProtocol() {
+  const p='WEBEEBLOCKS_RUNTIME_V2 ',sent=[];
+  const a=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:1000});
+  const b=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:1000});
+  assert.notStrictEqual(a.authorityKey,b.authorityKey);
+  await assert.rejects(a.setLight('blue'),e=>e.code==='AUTH_REQUIRED');
+  const firstEpoch='a'.repeat(32), secondEpoch='b'.repeat(32);
+  const claimed=a.claimAuthority();
+  let m=sent.at(-1).match(/REQUEST (\d+) AUTH_EPOCH ([0-9a-f]{64})$/);
+  assert(m, 'must request a correlated native epoch before claim');
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+'0'.repeat(64)+' '+firstEpoch);
+  assert.strictEqual(a.authorized,false,'stale epoch correlation granted authority');
+  a.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+m[2]+' '+firstEpoch);
+  await Promise.resolve();
+  const claim=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(claim && claim[2]===a.authorityKey && claim[2].startsWith(firstEpoch));
+  a.handleMessage(p+'RESPONSE '+claim[1]+' AUTH_OK '+'0'.repeat(64));
+  assert.strictEqual(a.authorized,false);
+  a.handleMessage(p+'RESPONSE '+claim[1]+' AUTH_OK '+claim[3]);
+  await claimed;
+  const stale=a.authorityKey;
+  const light=a.setLight('red');
+  const lightMessage=sent.at(-1).match(/ REQUEST (\d+) AUTH ([0-9a-f]{64}) LIGHT red$/);
+  assert(lightMessage && lightMessage[2]===stale);
+  a.handleMessage(p+'RESPONSE '+lightMessage[1]+' OK');
+  await light;
+  const denied=b.claimAuthority();
+  m=sent.at(-1).match(/REQUEST (\d+) AUTH_EPOCH ([0-9a-f]{64})$/);
+  assert(m);
+  b.handleMessage(p+'RESPONSE '+m[1]+' AUTH_EPOCH '+m[2]+' '+secondEpoch);
+  await Promise.resolve();
+  const n=sent.at(-1).match(/REQUEST (\d+) AUTH_CLAIM ([0-9a-f]{64}) ([0-9a-f]{64})$/);
+  assert(n && n[2].startsWith(secondEpoch) && n[2]!==stale,
+    'new C incarnation must not reuse old bearer');
+  b.handleMessage(p+'RESPONSE '+n[1]+' ERR AUTH_DENIED');
+  await assert.rejects(denied,e=>e.code==='AUTH_DENIED');
+  assert.strictEqual(b.authorized,false);
+  assert.notStrictEqual(firstEpoch,secondEpoch);
+}
+
 async function testBackendReadyHandshake() {
   const sent = [];
   const backend = new WwiBackend({send: message => sent.push(String(message))}, {timeoutMs: 1000});
@@ -34,6 +74,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     const backend = new WwiBackend({send:m=>sent.push(m)}, {
       simulationScenes:true, simulationReset:true, timeoutMs:1000
     });
+    backend.authorized = true; // Mock C grant for legacy liveness oracle.
     backend.handleMessage(prefix + 'READY HELLO');
     assert.strictEqual(backend.ready, false, 'unsolicited liveness reply created readiness');
     const ready = backend.waitUntilReady();
@@ -41,7 +82,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     await ready;
     const epoch = backend.timeObservationEpoch;
     const scene = backend.prepareActivity({id:'progression-sequence-v1', runtime:{scene:'sequence-v1'}});
-    const request = sent[1].match(/REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
+    const request = sent[1].match(/REQUEST (\d+) AUTH [0-9a-f]{64} SCENE sequence-v1 ([0-9a-f]{64})$/);
     assert(request);
     if (replyBeforeAck) backend.handleMessage(prefix + 'READY HELLO');
     backend.handleMessage(prefix + 'RESPONSE ' + request[1] + ' SCENE_OK ' + request[2]);
@@ -62,6 +103,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     assert.strictEqual(backend.sceneIdentity, null);
     assert.strictEqual(backend.timeObservationEpoch, epoch + 1);
 
+    backend.authorized = true; // Simulated native grant after real restart.
     const reset = backend.resetSimulation();
     backend.handleMessage(prefix + 'READY HELLO');
     assert.strictEqual(backend.ready, false, 'late liveness reply completed a pending RESET');
@@ -79,6 +121,7 @@ async function testBackendResetContract() {
   });
 
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  backend.authorized = true; // Mock C admission for legacy RESET oracle.
   assert.strictEqual(backend.ready, true);
   assert.strictEqual(backend.capabilities.simulationReset, true);
 
@@ -86,7 +129,7 @@ async function testBackendResetContract() {
     () => { throw new Error('old request unexpectedly resolved'); },
     error => error
   );
-  assert.match(sent[0], / REQUEST 1 MOVE forward /);
+  assert.match(sent[0], / REQUEST 1 AUTH [0-9a-f]{64} MOVE forward /);
   assert.strictEqual(Object.keys(backend.pending).length, 1);
 
   const reset = backend.resetSimulation();
@@ -94,7 +137,7 @@ async function testBackendResetContract() {
   assert.strictEqual(cancelled.code, 'RESET_CANCELLED');
   assert.strictEqual(backend.ready, false);
   assert.strictEqual(Object.keys(backend.pending).length, 1);
-  assert.match(sent[1], / REQUEST 2 RESET$/);
+  assert.match(sent[1], / REQUEST 2 AUTH [0-9a-f]{64} RESET$/);
 
   // A response from the pre-reset generation must be harmless.
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
@@ -111,7 +154,7 @@ async function testBackendResetContract() {
     () => { throw new Error('timed-out reset unexpectedly resolved'); },
     error => error
   );
-  assert.match(sent[2], / REQUEST 3 RESET$/);
+  assert.match(sent[2], / REQUEST 3 AUTH [0-9a-f]{64} RESET$/);
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR RESET_TIMEOUT');
   const resetError = await timedOutReset;
   assert.strictEqual(resetError.code, 'RESET_TIMEOUT');
@@ -119,7 +162,7 @@ async function testBackendResetContract() {
   assert.strictEqual(Object.keys(backend.pending).length, 0);
 
   const retryReset = backend.resetSimulation();
-  assert.match(sent[3], / REQUEST 4 RESET$/);
+  assert.match(sent[3], / REQUEST 4 AUTH [0-9a-f]{64} RESET$/);
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');
   await retryReset;
   assert.strictEqual(backend.ready, true);
@@ -370,6 +413,42 @@ function testNativeCompletedIdStopContract() {
   assert.match(runner, /--case idle-stop/, 'native Webots STOP/ACK regression must remain wired to progression');
 }
 
+
+function testNativeWebotsWwiSequenceOracle() {
+  // Evaluate the ACTUAL CI browser normalizer and sequence oracle shipped
+  // in the Python HTML fixture, not a duplicate permissive test parser.
+  const source = fs.readFileSync(path.join(__dirname, 'prepare_runtime_v2_webots.py'), 'utf8');
+  const normalize = source.match(/  function normalizeWwiRequest\(message\) \{[\s\S]*?\n  \}/);
+  const sequence = source.match(/  function assertWwiRequestSequence\(messages\) \{[\s\S]*?\n  \}/);
+  assert(normalize && sequence, 'strict real-browser WWI oracle missing');
+  const check = new Function(normalize[0] + '\n' + sequence[0] + '\nreturn assertWwiRequestSequence;')();
+  const hex = 'a'.repeat(64);
+  const status = i => 'WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + i +
+    ' RECOVERY_STATUS ' + '0'.repeat(64) + ' ' + i.toString(16).padStart(64, '0');
+  const physical = [
+    'SCENE legacy-v1 ' + hex, 'TAKEOFF 0.50000000000000000',
+    'RANGE front', 'MOVE left 0.29999999999999999', 'RANGE front',
+    'MOVE forward 0.29999999999999999', 'RANGE front',
+    'MOVE left 0.29999999999999999', 'LAND'
+  ];
+  const makeMessages = (count=1) => [
+    ...Array.from({length:count},(_,i)=>status(i+1)),
+    ...physical.map((cmd,i)=>'WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + (count+i+1) + ' ' + cmd)
+  ];
+  assert.equal(check(makeMessages()).length, 10, 'native guardian handshake is NOT optional');
+  assert.equal(check(makeMessages(3)).length, 12, 'bounded native status retries must be visible');
+  assert.throws(()=>check(makeMessages().slice(1)), /missing, duplicated or unbounded native status challenge/, 'missing guardian is a failure');
+  assert.throws(()=>check(makeMessages(4)), /unbounded native status challenge/, 'unbounded retries are forbidden');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('RECOVERY_STATUS ' + '0'.repeat(64),
+      'RECOVERY_STATUS ' + 'a'.repeat(64)))), /unexpected WWI request command/, 'unknown token cannot pass');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('RECOVERY_STATUS ' + '0'.repeat(64) + ' ' + '0'.repeat(63) + '1',
+      'RECOVERY_STATUS ' + '0'.repeat(64) + ' broken'))), /unexpected WWI request command/, 'malformed nonce rejected');
+  assert.throws(()=>check(makeMessages().map(x=>x.replace('REQUEST 2 SCENE','REQUEST 17 SCENE'))),
+    /unexpected WWI request ids/, 'stale/noncontiguous WWI ids fail');
+  const reordered = makeMessages(); [reordered[0],reordered[1]] = [reordered[1],reordered[0]];
+  assert.throws(()=>check(reordered), /unexpected WWI request sequence/, 'guardian MUST precede the flight scene');
+}
+
 function testNativeResetTimeoutSourceContract() {
   const source = fs.readFileSync(path.join(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
   assert.match(source, /#define RESET_TIMEOUT [0-9.]+/);
@@ -397,8 +476,16 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendReadyHandshake();
+  await testR3ClaimProtocol();
   await testHelloReplyDoesNotForgeRestart();
   await testBackendResetContract();
+  await require('./test_runtime_v2_recovery.js')();
+  testNativeWebotsWwiSequenceOracle();
+  await require('./test_window_renewal.js')();
+  await require('./test_window_renewal_timing.js')();
+  // The observability fixture must wait for native witness authorization,
+  // not merely backend.ready; run the real CI fixture's adversarial gate test.
+  require('./test_observability_authorization_gate.js');
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testStartupHandshakeSourceContract();
