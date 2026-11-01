@@ -1,7 +1,7 @@
 name: H6 P0 E5 native boundaries - research only (no integration gate)
 on:
   pull_request:
-    branches: [experiment/h6-p0-standalone-feasibility-20261031]
+    branches: [experiment/h6-p0-e5-boundaries-20261031]
     paths:
       - 'experiments/h6_p0_e5/**'
       - '.github/workflows/h6-p0-e5-boundaries.yml'
@@ -87,7 +87,7 @@ jobs:
                 mkdir -p "evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 dir="$PWD/evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 set +e
-                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 \
+                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 \
                   H6_P0_FORCE_ONE_WORKER=1 H6_P0_HOLD_M=1 H6_STANDALONE_R=0 \
                   H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0 \
                   H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
