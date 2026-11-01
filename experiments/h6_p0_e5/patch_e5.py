@@ -166,6 +166,22 @@ m = once(m, '#include "WbSolidMerger.hpp"',
 ctx.write_text(c)
 solid.write_text(s)
 merger.write_text(m)
-for p in (ctx,solid,merger):
+# Observation only: distinguish ownership created by the native broadphase
+# from contacts surviving at the B destructor. NEVER modify owner, joint or
+# attachments. Needed because D1 had owner=A but E5 run #41284881130 owner=B.
+cluster = root / "src/webots/engine/WbSimulationCluster.cpp"
+t = cluster.read_text()
+create = "    cl->mContext->registerBodyContactJoint(owner, contactJoint, cl->mSwapJointContactBuffer);"
+t = once(t, create, create + r"""
+    if (std::getenv("H6_E5_CASE"))
+      std::fprintf(stderr,
+        "H6_E5_CREATE joint=%p owner=%p b1=%p b2=%p buffer=%d\\n",
+        (void*)contactJoint, (void*)owner, (void*)b1, (void*)b2,
+        int(cl->mSwapJointContactBuffer));
+""", "real-broadphase-creation-provenance")
+t = once(t, "#include <atomic>", "#include <atomic>\n#include <cstdio>",
+         "creation audit include")
+cluster.write_text(t)
+for p in (ctx,solid,merger,cluster):
     print("E5_PATCHED", p.relative_to(root), hashlib.sha256(p.read_bytes()).hexdigest())
 print("H6_E5_OVERLAY_READY research-only; require native execution")
