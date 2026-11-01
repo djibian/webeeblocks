@@ -187,7 +187,10 @@ def main() -> int:
     observer_script = OBSERVER_DIRECTORY / f"{OBSERVER_NAME}.py"
     try:
         shutil.copyfile(OBSERVER_SOURCE, observer_script)
-        TEMP_WORLD.write_text(world, encoding="utf-8")
+        TEMP_WORLD.write_text(
+            world + '\nRobot { name "CI progression retirement" controller "ci_progression_retirement"'
+                    ' supervisor TRUE synchronization TRUE }\n',
+            encoding="utf-8")
         (ARTIFACT_ROOT / "world.wbt").write_text(world, encoding="utf-8")
         provenance = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in (TEMP_WORLD, OBSERVER_SOURCE,
@@ -231,30 +234,9 @@ sleep 0.5
 # Activity 8 proves simulated mission state, not wall-clock pacing. Fast mode
 # preserves the same deterministic 32 ms steps while keeping the real rendered
 # Robot Window/browser lifecycle that carries Runtime-v2 commands.
-timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast --minimize /workspace/worlds/ci_progression_autonomous.wbt &
-webots_runner=$!
-while kill -0 "$webots_runner" 2>/dev/null; do
-  if grep -Fq 'AUTONOMOUS_MISSION_TEST_COMPLETE' "$events" 2>/dev/null; then
-    kill "$webots_runner" 2>/dev/null || true
-    set +e
-    wait "$webots_runner"
-    set -e
-    exit 0
-  fi
-  if grep -Eq '"event"[[:space:]]*:[[:space:]]*"(ERROR|WINDOW_ERROR|UNHANDLED_REJECTION)"' "$events" 2>/dev/null; then
-    kill "$webots_runner" 2>/dev/null || true
-    set +e
-    wait "$webots_runner"
-    set -e
-    exit 0
-  fi
-  sleep 0.25
-done
-set +e
-wait "$webots_runner"
-runner_rc=$?
-set -e
-exit "$runner_rc"
+xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
+  --kind autonomous --world /workspace/worlds/ci_progression_autonomous.wbt \
+  --artifacts "$artifact_dir"
 '''.strip()
         result = subprocess.run([
             "docker", "run", "--rm",
@@ -264,8 +246,10 @@ exit "$runner_rc"
             "-v", f"{ROOT}:/workspace", "-w", "/workspace", WEBOTS_IMAGE,
             "bash", "-lc", inner,
         ], cwd=ROOT, env=os.environ.copy(), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        webots_log = result.stdout or ""
-        (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
+        runner_log = result.stdout or ""
+        (ARTIFACT_ROOT / "native-host.log").write_text(runner_log, encoding="utf-8")
+        native_log = ARTIFACT_ROOT / "webots.log"
+        webots_log = native_log.read_text(encoding="utf-8", errors="replace") if native_log.exists() else ""
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
         phase_complete = True
         if os.environ.get("WEBEEBLOCKS_RESET_PHASE_TRACE") == "1":
@@ -289,7 +273,14 @@ exit "$runner_rc"
                 detail += "\nBROWSER EVENTS AT TIMEOUT:\n" + event_path.read_text(encoding="utf-8")[-10000:]
             return fail("Webots Activity 8 proof exceeded the 1500s local budget", detail)
         if result.returncode != 0:
-            return fail(f"Webots Activity 8 proof exited with {result.returncode}", webots_log[-16000:])
+            return fail(f"Webots Activity 8 proof exited with {result.returncode}", runner_log[-8000:] + '\n' + webots_log[-8000:])
+        # Docker/xvfb exit alone is NOT Webots' terminal status.
+        from progression_native_retirement import verify_native_report
+        try:
+            verify_native_report(ARTIFACT_ROOT, 'autonomous')
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+            return fail("real Webots exit/ACK/EOF/PGID proof missing",
+                        str(exc) + "\n" + runner_log[-8000:] + "\n" + webots_log[-8000:])
         if not event_path.exists() or event_path.stat().st_size == 0:
             return fail("missing Activity 8 browser evidence", webots_log[-16000:])
 
