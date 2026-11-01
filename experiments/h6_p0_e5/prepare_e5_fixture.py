@@ -113,11 +113,8 @@ once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(voi
             e5_case,tick,f);
     h6_p0_trace("E5_AC_solver_feedback",(unsigned long long)e5_feedback_count);
   }
-  if (!strcmp(e5_case,"body") && tick==2) {
-    // EXACT D1 test-only sleep intervention, not spontaneous
-    dBodyDisable(target);
-    h6_p0_trace("E5_owner_sleep_forced_before_delete",0);
-  }''',"feedback post-solver")
+  // Do NOT disable A in step_end tick=2: it can retire A-B BEFORE real
+  // destructor entry. D1 discriminant forces A asleep only at B teardown.''',"feedback post-solver")
 once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void) {
   if (e5_plugin_contact) {
     // Last permitted dereference: both objects still alive, BEFORE group empty.
