@@ -75,7 +75,7 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     const blockedAst = astState();
     await report('WINDOWS_SAFE_RELOAD_AFTER_NATIVE_RESET', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst)});
 """+source[right:].replace(stop,
-       "    // Explicit test-only world reload from a safe settled state.\\n",1)
+       "    // Explicit test-only world reload from a safe settled state.\n",1)
     rerun="""      document.getElementById('submit').click();
       await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
         'real colliding program after full reload', 45000);"""
