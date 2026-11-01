@@ -21,25 +21,23 @@ jobs:
           fetch-depth: 0
 
       - name: Enforce exact immutable product ancestor and isolated experimental changes
-        shell: pwsh
+        shell: bash
         run: |
-          $ErrorActionPreference='Stop'
-          $baseline='f243b2b597a2a6bd6af38e895787d9dd4bdfef5e'
-          $ancestor=(& git merge-base $baseline HEAD | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $ancestor -ne $baseline) {
-            throw 'Windows test must derive from exact #778 product HEAD'
-          }
-          $files=@(& git diff --name-only $baseline HEAD)
-          $allowed=@('.github/workflows/experiment-r3-windows-native-restart.yml','tools/ci/experiment_r3_windows_native_restart.py')
-          if ($LASTEXITCODE -ne 0 -or @($files | Where-Object { $_ -notin $allowed }).Count -gt 0) {
-            throw "Windows experimental branch modified product or other oracle files: $files"
-          }
-          New-Item -ItemType Directory -Force ci-artifacts/r3-windows-native | Out-Null
-          "PRODUCT_BASE=$baseline" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Encoding utf8
-          "EXPERIMENT_HEAD=$((& git rev-parse HEAD | Out-String).Trim())" |
-            Out-File ci-artifacts/r3-windows-native/provenance.txt -Append -Encoding utf8
-          "PRODUCT_TREE=$((& git rev-parse ${baseline}^{tree} | Out-String).Trim())" |
-            Out-File ci-artifacts/r3-windows-native/provenance.txt -Append -Encoding utf8
+          set -euo pipefail
+          baseline=f243b2b597a2a6bd6af38e895787d9dd4bdfef5e
+          test "$(git merge-base "$baseline" HEAD)" = "$baseline"
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/experiment-r3-windows-native-restart.yml|tools/ci/experiment_r3_windows_native_restart.py) ;;
+              *) echo "Unexpected product/oracle mutation: $file" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$baseline" HEAD)
+          mkdir -p ci-artifacts/r3-windows-native
+          {
+            echo "PRODUCT_BASE=$baseline"
+            echo "EXPERIMENT_HEAD=$(git rev-parse HEAD)"
+            echo "PRODUCT_TREE=$(git rev-parse "$baseline^{tree}")"
+          } > ci-artifacts/r3-windows-native/provenance.txt
 
       - name: Checkout exact upstream R2025a release assets
         uses: actions/checkout@v4
