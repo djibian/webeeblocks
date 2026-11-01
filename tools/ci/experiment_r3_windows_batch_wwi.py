@@ -18,10 +18,40 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import subprocess
+import threading
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.experiment_r3_windows_native_batch import captured_native_batch
 from tools.ci.run_grand_prix_windows_native import engine_environment
+
+@contextmanager
+def captured_native_batch(command,cwd,env,stdout_path,stderr_path):
+    errors=[]
+    with stdout_path.open("wb") as out,stderr_path.open("wb") as err:
+        process=subprocess.Popen(command,cwd=cwd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        def drain(src,dest):
+            try:
+                with src:
+                    while chunk:=src.read1(65536):
+                        dest.write(chunk);dest.flush()
+            except Exception as exc:
+                errors.append(type(exc).__name__)
+        threads=[threading.Thread(target=drain,args=(src,dst),daemon=True)
+                 for src,dst in ((process.stdout,out),(process.stderr,err))]
+        for thread in threads: thread.start()
+        try:
+            yield process
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try: process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill();process.wait(timeout=15)
+            else: process.wait(timeout=15)
+            for thread in threads:thread.join(timeout=15)
+            if errors or any(t.is_alive() for t in threads):
+                raise RuntimeError("native output pipe capture incomplete: "+str(errors))
 
 PREFIX = "WEBEEBLOCKS_RUNTIME_V2"
 TIME_BUDGET_S = 60
