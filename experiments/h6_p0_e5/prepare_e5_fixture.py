@@ -25,9 +25,7 @@ static dJointFeedback e5_feedback[32];
 static int e5_feedback_count = 0;
 static dBodyID e5_contact_c = 0;
 static const char *e5_case = 0;''',"globals")
-once('  r_enabled = r && strcmp(r, "1") == 0;',r'''  e5_case = getenv("H6_E5_CASE");
-  if (!e5_case || (strcmp(e5_case, "body") && strcmp(e5_case, "reset")))
-    abort();
+once("void webots_physics_init(void) {",r'''static void e5_make_plugin_witness(void) {
   dBodyID foreign = dWebotsGetBodyFromDEF("FOREIGN");
   if (!foreign) { fprintf(stderr, "H6_E5_PLUGIN REFUSED missing real FOREIGN body\n"); abort(); }
   if (strcmp(e5_case,"body")==0) {
@@ -61,6 +59,13 @@ once('  r_enabled = r && strcmp(r, "1") == 0;',r'''  e5_case = getenv("H6_E5_CAS
   if (dJointGetBody(e5_plugin_permanent,0)!=target) abort();
   h6_p0_trace("E5_plugin_permanent_before",
               (unsigned long long)(size_t)e5_plugin_permanent);
+}
+void webots_physics_init(void) {''',"helper creates witness on opt-in late frame")
+once('  r_enabled = r && strcmp(r, "1") == 0;',r'''  e5_case = getenv("H6_E5_CASE");
+  if (!e5_case || (strcmp(e5_case, "body") && strcmp(e5_case, "reset")))
+    abort();
+  if (strcmp(e5_case,"reset")==0 || !getenv("H6_E5_DELAY_PLUGIN"))
+    e5_make_plugin_witness();
   r_enabled = r && strcmp(r, "1") == 0;''',"plugin init real attached witnesses")
 once("  ++tick;",r'''  ++tick;
   if (e5_plugin_contact && e5_group) {
@@ -105,6 +110,19 @@ once("  ++tick;",r'''  ++tick;
     }
   }''',"contact feedback pre-solver")
 once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(void) {
+  if (!strcmp(e5_case,"body") && tick==3 && getenv("H6_E5_DELAY_PLUGIN")) {
+    // No plugin joint from the initial 3 physics solves may perturb contact
+    // pair orientation. Still create real attached B/0 and A/0 plugin controls
+    // while B is alive, after the THIRD solve but before real B removal.
+    e5_make_plugin_witness();
+    fprintf(stderr,"H6_E5_PLUGIN_STEP case=%s tick=%lu group_count=%d group_b0=%p group_b1=%p motor_b0=%p\\n",
+            e5_case,tick,dJointGroupGetCount(e5_group),
+            (void*)dJointGetBody(e5_plugin_contact,0),
+            (void*)dJointGetBody(e5_plugin_contact,1),
+            (void*)dJointGetBody(e5_plugin_permanent,0));
+    h6_p0_trace("E5_plugin_attached_group_live",
+                (unsigned long long)(size_t)e5_plugin_contact);
+  }
   if (!strcmp(e5_case,"body") && tick==4) {
     double f=0;
     for (int i=0;i<e5_feedback_count;i++) for (int k=0;k<3;k++)
