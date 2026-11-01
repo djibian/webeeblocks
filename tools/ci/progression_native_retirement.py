@@ -59,6 +59,44 @@ def required_events(mode):
         raise RuntimeError('ambiguous required-event inventory')
     return matches[0]
 
+def validate_browser_oracles(mode, by_name, required):
+    """Pre-retirement subset of the existing final oracles; final oracle still runs."""
+    if any(n.endswith('_FRESH') and by_name[n] != {'code': 'OUTCOME_UNAVAILABLE'}
+           for n in required if n.endswith('_FRESH')):
+        raise RuntimeError('an old outcome survived RESET before retirement')
+    if mode == 'memory':
+        for name in required:
+            if name.endswith('_NOT_ACHIEVED'):
+                allowed = ({'status': 'not-achieved'},) if name == 'MEMORY_FINAL_BAY_NOT_ACHIEVED' else (
+                    {'status': 'not-achieved'},
+                    {'status': 'not-achieved', 'runtime_code': 'UNSAFE_OR_TIMEOUT'})
+                if by_name[name] not in allowed:
+                    raise RuntimeError('memory negative oracle mismatch: ' + name)
+    else:
+        if by_name['AUTONOMOUS_FAILURE_PROBE_WITHOUT_FAILURE_UNAVAILABLE'] != {
+                'code': 'OUTCOME_UNAVAILABLE'}:
+            raise RuntimeError('autonomous failure without evidence was accepted')
+        for name in required:
+            if name.endswith('_ACHIEVED') and not name.endswith('_NOT_ACHIEVED'):
+                if by_name[name] != {'status': 'achieved'}:
+                    raise RuntimeError('autonomous achieved oracle mismatch: ' + name)
+            if name.endswith('_NOT_ACHIEVED'):
+                allowed = ({'status': 'not-achieved'},
+                           {'status': 'not-achieved', 'runtime_code': 'UNSAFE_OR_TIMEOUT'}) \
+                    if name in ('AUTONOMOUS_FIXED_ROUTE_NOT_ACHIEVED',
+                                'AUTONOMOUS_FRONT_ONLY_RIGHT_NOT_ACHIEVED') else (
+                                    {'status': 'not-achieved'},)
+                if by_name[name] not in allowed:
+                    raise RuntimeError('autonomous negative oracle mismatch: ' + name)
+        small = by_name['AUTONOMOUS_DEPARTURE_SMALL_RANGE']
+        large = by_name['AUTONOMOUS_DEPARTURE_LARGE_RANGE']
+        if not isinstance(small, dict) or not isinstance(large, dict):
+            raise RuntimeError('missing autonomous departure observation')
+        lo, hi = small.get('meters'), large.get('meters')
+        if (type(lo) not in (int, float) or type(hi) not in (int, float)
+                or not (lo > 1.0 and hi < 1.0 and lo > hi + 0.5)):
+            raise RuntimeError('autonomous departure readings do not discriminate parcels')
+
 def complete_evidence(mode, path, required):
     if not path.is_file():
         return None
@@ -86,6 +124,7 @@ def complete_evidence(mode, path, required):
             'MEMORY_OVERWRITE_PROBE_READY' if mode == 'memory' else 'AUTONOMOUS_PROBE_READY'
     ) != {'ready': True}:
         raise RuntimeError('browser final mission evidence wrong')
+    validate_browser_oracles(mode, by_name, required)
     return hashlib.sha256(raw).hexdigest()
 
 def native_main(args):
