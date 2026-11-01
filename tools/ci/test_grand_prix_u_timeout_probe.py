@@ -141,9 +141,9 @@ class NormalQuitHostTests(unittest.TestCase):
 
     @staticmethod
     def prepare(root, attempts):
-        (root/'events.jsonl').write_text('{}\\n')
+        (root/'events.jsonl').write_text('{}\n')
         (root/'result.json').write_text('{}')
-        (root/'webots.log').write_text('GP_U_RESULT {}\\n')
+        (root/'webots.log').write_text('GP_U_RESULT {}\n')
         for attempt in attempts:
             (root/f'native-result-{attempt}.json').write_text('{}')
             (root/f'native-diagnostic-{attempt}.json').write_text(json.dumps(
@@ -191,19 +191,19 @@ class NormalQuitHostTests(unittest.TestCase):
                         request=(root/'normal-quit.request').read_text()
                         (root/'normal-quit.ack').write_text('invalid' if fault=='ack' else request)
                         if fault=='mutation':(root/'native-result-1.json').write_text('{"mutated":true}')
-                        if fault=='crash':(root/'webots.log').write_text('malloc(): corrupted\\n')
+                        if fault=='crash':(root/'webots.log').write_text('malloc(): corrupted\n')
                 def finish():
                     if fault=='eof':raise RuntimeError('stdout still held')
                 survivors=[{'pid':9}] if fault=='survivor' else []
-                with patch.object(runner,'process_group',return_value=survivors), \\
-                     patch.object(runner.time,'monotonic',side_effect=[0,3] if fault=='survivor' else [0]), \\
-                     self.assertRaises(Exception):
+                with (patch.object(runner,'process_group',return_value=survivors),
+                     patch.object(runner.time,'monotonic',side_effect=[0,3] if fault=='survivor' else [0]),
+                     self.assertRaises(Exception)):
                     runner.normal_quit_after_validation(root,Child(),SimpleNamespace(finish=finish),[1])
                 self.assertFalse(json.loads((root/'normal-quit.json').read_text())['normal_success'])
 
     def test_native_non_tcp_cases_enable_graceful_quit_without_changing_tcp_or_camera(self):
         source=(ROOT/'tools/ci/run_grand_prix_u_prototype.py').read_text()
-        trial=source.split('def trial(',1)[1].split('\\ndef retire_trial(',1)[0]
+        trial=source.split('def trial(',1)[1].split('\ndef retire_trial(',1)[0]
         gate=trial.index('normal_quit_after_validation(out,')
         for anchor in ('second identical program after native RESET failed',
                        'missing independent forced LAND/failure','wrong native subject',
