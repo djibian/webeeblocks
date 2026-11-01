@@ -74,6 +74,40 @@ jobs:
               tail -n 100 evidence/h6-p0-e5/logs/plugin-build.log; exit 1;
             }
           sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so             fixtures/g_window/plugins/physics/h6_g_window/libh6_g_window.so             > evidence/h6-p0-e5/binary-sha256.txt
+      - name: Contrast single-thread ODE and early versus late plugin joints (diagnostic only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WEBOTS_HOME="$PWD/native-webots"
+          for timing in early late; do
+            dir="$PWD/evidence/h6-p0-e5/diagnostic-single-thread-$timing"
+            mkdir -p "$dir"
+            if [ "$timing" = late ]; then
+              export H6_E5_DELAY_PLUGIN=1
+            else
+              unset H6_E5_DELAY_PLUGIN || :
+            fi
+            set +e
+            H6_E5_CASE=body H6_E5_DROP=owner H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 \
+              H6_STANDALONE_R=0 H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0 \
+              H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
+              timeout -k 5s 95s xvfb-run -a -s '-screen 0 1280x800x24' \
+              "$WEBOTS_HOME/webots" --batch --mode=fast --no-rendering --stdout --stderr \
+              "$PWD/fixtures/g_window/worlds/h6_e5_body_workers1.wbt" \
+              > "$dir/webots.log" 2>&1
+            code=$?
+            set -e
+            echo "$code" > "$dir/exit.txt"
+            if [ "$code" -ne 0 ]; then
+              echo "H6_E5_DIAGNOSTIC_NATIVE_RED timing=$timing exit=$code"
+              tail -n 80 "$dir/webots.log"
+              exit 82
+            fi
+            # No unchanged worker oracle on single-thread diagnostic: it demands
+            # one actual worker task. Native logs are evidence only, NOT PASS.
+            echo "H6_E5_DIAGNOSTIC_CAPTURED_SINGLE_THREAD timing=$timing"
+          done
+          unset H6_E5_DELAY_PLUGIN || :
       - name: Exercise actual body destruction, Node.loadState reset(id), and attached plugin on 1 and 2 workers
         shell: bash
         run: |
@@ -87,7 +121,7 @@ jobs:
                 mkdir -p "evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 dir="$PWD/evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 set +e
-                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 \
+                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 H6_E5_DELAY_PLUGIN=1 \
                   H6_P0_FORCE_ONE_WORKER=1 H6_P0_HOLD_M=1 H6_STANDALONE_R=0 \
                   H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0 \
                   H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
