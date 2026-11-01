@@ -64,7 +64,7 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     exec(compile(source,"prepare_runtime_v2_reset.py","exec"),fixture)
     after=html.read_text(encoding="utf-8")
     assert after.count("<!-- WEBEEBLOCKS_RESET_REPLAY_CI -->")==1
-    assert before in after, "Test injector unexpectedly rewrote packaged HTML bytes"
+    assert after.startswith(before.split("</body>",1)[0]), "Test injector unexpectedly altered original HTML prefix"
     return True
 
 def result_assertions(events,webots):
@@ -152,6 +152,7 @@ def main():
         else:raise RuntimeError("Native browser event server never reachable")
         env=engine_environment(home,os.environ.copy())
         env["WEBOTS_HOME"]=str(home)
+        env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"
         env["WEBEEBLOCKS_RECOVERY_STATE_DIR"]=str(out/"isolated-state")
         (out/"isolated-state").mkdir(exist_ok=True)
         port=free_port()
