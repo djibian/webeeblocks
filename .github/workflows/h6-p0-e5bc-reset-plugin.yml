@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           mkdir -p evidence/h6-p0-e5bc/logs
           git rev-parse HEAD > evidence/h6-p0-e5bc/experiment-head.txt
-          python3 -m py_compile experiments/h6_p0_feasibility/*.py experiments/h6_p0_e5/*.py
+          python3 -m py_compile experiments/h6_p0_feasibility/*.py experiments/h6_p0_e5/*.py experiments/h6_p0_e5bc/*.py
           python3 experiments/h6_p0_feasibility/qualify_p0.py --selftest | tee evidence/h6-p0-e5bc/oracle-selftest.txt
       - name: Compose exact pinned observer and standalone/P0 experimental overlay
         shell: bash
@@ -119,6 +119,8 @@ jobs:
           test -z "$(git -C native-webots status --porcelain)"
           python3 fixtures/patch_observe.py native-webots \
             > evidence/h6-p0-e5bc/baseline/logs/observer.log 2>&1
+          python3 experiments/h6_p0_e5bc/patch_baseline_reset_probe.py native-webots \
+            > evidence/h6-p0-e5bc/baseline/logs/reset-probe.log 2>&1
           git -C native-webots diff --check
           git -C native-webots diff --binary HEAD \
             > evidence/h6-p0-e5bc/baseline/observer-only.patch
