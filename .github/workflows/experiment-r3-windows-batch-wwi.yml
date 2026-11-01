@@ -1,0 +1,131 @@
+name: EXPERIMENT ONLY - R3 Windows batch WWI discriminator
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-r3-windows-batch-wwi.yml'
+      - 'tools/ci/experiment_r3_windows_batch_wwi.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-batch-wwi-discriminator:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Enforce exact immutable product ancestor and isolated experimental changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=f243b2b597a2a6bd6af38e895787d9dd4bdfef5e
+          test "$(git merge-base "$baseline" HEAD)" = "$baseline"
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/experiment-r3-windows-batch-wwi.yml|tools/ci/experiment_r3_windows_batch_wwi.py|tools/ci/experiment_r3_windows_batch_wwi.py) ;;
+              *) echo "Unexpected product/oracle mutation: $file" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$baseline" HEAD)
+          mkdir -p ci-artifacts/r3-windows-native
+          {
+            echo "PRODUCT_BASE=$baseline"
+            echo "EXPERIMENT_HEAD=$(git rev-parse HEAD)"
+            echo "PRODUCT_TREE=$(git rev-parse "$baseline^{tree}")"
+          } > ci-artifacts/r3-windows-native/provenance.txt
+
+      - name: Checkout exact upstream R2025a release assets
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+
+      - name: Cache identical official Webots installer (verified before use)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\webots-R2025a_setup.exe
+          key: webots-R2025a-windows-9e326a54c104fc5
+
+      - name: Verify installer SHA256 and install official Windows Webots R2025a
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $installer=Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          $expected='9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          }
+          $actual=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "WEBOTS_INSTALLER_SHA256=$actual" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+          if ($actual -ne $expected) { throw "Official Webots installer digest mismatch: $actual" }
+          $webotsHome=Join-Path $env:ProgramFiles 'Webots'
+          $webotsExe=Join-Path $webotsHome 'msys64\mingw64\bin\webots.exe'
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "Webots installer error $($p.ExitCode)" }
+          }
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) { throw 'Official Webots exe missing' }
+          $version=(& $webotsExe --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') { throw "Wrong Webots version: $version" }
+          "WEBOTS_HOME=$webotsHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WEBOTS_VERSION=$version" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+
+      - name: Rebuild unchanged R3 C controller using bundled Windows Webots GCC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./tools/build_windows_classroom_release.ps1 -WebotsHome $env:WEBOTS_HOME -WebotsProjectsPath '.ci-webots-r2025a\projects' -OutputDirectory 'ci-artifacts\windows-release'
+          if ($LASTEXITCODE -ne 0) { throw 'Official R2025a C PE or classroom build failed' }
+          $pe='ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a\controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe'
+          $hash=(Get-FileHash $pe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "CONTROLLER_WIN_PE_SHA256=$hash" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+          Write-Host "CONTROLLER_WIN_PE_SHA256=$hash"
+
+      - name: Verify classroom package and isolated Windows launcher preparation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./tools/ci/test_windows_classroom_release.ps1 -ArchivePath 'ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a.zip' -WebotsHome $env:WEBOTS_HOME
+          if ($LASTEXITCODE -ne 0) { throw 'Classroom package or static session proof failed' }
+
+      - name: Retain exact compiled Windows classroom ZIP (not GUI acceptance)
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-r3-windows-batch-classroom-zip
+          path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
+          if-no-files-found: error
+
+      - name: One bounded Webots --batch HTTP/WWI/native authority discrimination
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $ErrorActionPreference='Stop'
+          python tools/ci/experiment_r3_windows_batch_wwi.py --package 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --webots-home "$env:WEBOTS_HOME" --output 'ci-artifacts/r3-windows-native'
+          if ($LASTEXITCODE -ne 0) { throw 'Transport discriminator incomplete; inspect artifact without claiming WWI' }
+
+      - name: Retain provenance and bounded batch result even if negative
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r3-windows-batch-wwi-experiment
+          path: ci-artifacts/r3-windows-native/
+          if-no-files-found: error
