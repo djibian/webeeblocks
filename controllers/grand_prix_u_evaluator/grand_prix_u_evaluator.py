@@ -57,6 +57,19 @@ while robot.step(step)!=-1:
                 (Path(trace_path)/f'native-diagnostic-{active.attempt}.json').write_text(json.dumps(diagnostic,allow_nan=False)+'\n')
             if trace_path:(Path(trace_path)/f'native-result-{active.attempt}.json').write_text(json.dumps(record,allow_nan=False)+'\n')
             print('GP_U_RESULT '+json.dumps(record,sort_keys=True),flush=True);printed=True
+        # Research-only retirement request. The host creates this file only
+        # after all scenario oracles, optional RESET/LAND and diagnostics pass.
+        # Neither a pupil program nor a mission result alone asks Webots to quit.
+        if trace_path and printed:
+            request_path=Path(trace_path)/'normal-quit.request'
+            if request_path.is_file():
+                request=request_path.read_text()
+                if not re.fullmatch(str(active.attempt)+r' [0-9a-f]{32}\n',request):
+                    raise RuntimeError('invalid normal quit request for this attempt')
+                (Path(trace_path)/'normal-quit.ack').write_text(request)
+                print('GP_U_NORMAL_QUIT accepted_attempt='+str(active.attempt),flush=True)
+                robot.simulationQuit(0)
+                break
         reason={'time-limit':'temps écoulé','low-outside-zone':'altitude hors zone',
                 'wrong-landing':'mauvaise zone de pose','envelope-contact':'collision de gabarit',
                 'device-contact':'collision','route-shortcut':'parcours incomplet',

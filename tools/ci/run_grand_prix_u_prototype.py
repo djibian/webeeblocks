@@ -19,7 +19,7 @@ import uuid
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
-from tools.ci.webots_startup_diagnostics import StartupEvidence
+from tools.ci.webots_startup_diagnostics import StartupEvidence, process_group
 from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
 from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash, require_no_fatal_exit_statuses
 OUT=ROOT/'ci-artifacts/grand-prix-u'
@@ -82,6 +82,62 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
+def normal_quit_after_validation(out, webots, log, attempts):
+    """Research-only host gate; acknowledgement is NOT proof of native exit."""
+    proofs = [out/'events.jsonl', out/'result.json']
+    for attempt in attempts:
+        proofs.extend(out/f'{name}-{attempt}.json' for name in ('native-result', 'native-diagnostic'))
+    def invalid_constant(value):
+        raise ValueError('non-finite diagnostic: '+value)
+    for path in proofs:
+        if path.name != 'events.jsonl':
+            record = json.loads(path.read_text(), parse_constant=invalid_constant)
+            if not isinstance(record, dict):
+                raise ValueError('native proof must be an object: '+path.name)
+            if path.name.startswith('native-diagnostic-'):
+                if not isinstance(record.get('time'), (int,float)) or not math.isfinite(record['time']):
+                    raise ValueError('invalid native diagnostic time')
+                for key in ('position','velocity'):
+                    values=record.get(key)
+                    if not isinstance(values,list) or len(values)!=3 or any(
+                            not isinstance(v,(int,float)) or not math.isfinite(v) for v in values):
+                        raise ValueError('invalid native diagnostic '+key)
+    frozen = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in proofs}
+    request = str(attempts[-1])+' '+uuid.uuid4().hex+'\n'
+    report = {'schema': 1, 'requested': False, 'normal_success': False,
+              'wrapper_pid': webots.pid, 'frozen_proofs': frozen}
+    try:
+        # Atomic publication in a newly-created, isolated trial directory.
+        temporary = out/'normal-quit.pending'
+        temporary.write_text(request)
+        temporary.replace(out/'normal-quit.request')
+        report['requested'] = True
+        webots.wait(timeout=5)
+        report['exit_code'] = webots.returncode
+        if webots.returncode != 0:
+            raise RuntimeError('normal quit has nonzero exit')
+        if (out/'normal-quit.ack').read_text() != request:
+            raise RuntimeError('normal quit acknowledgement missing/mismatched')
+        report['acknowledged'] = True
+        log.finish()
+        report['stdout_eof'] = True
+        require_no_terminal_crash(out/'webots.log')
+        until = time.monotonic()+2
+        while process_group(webots.pid) and time.monotonic()<until:
+            time.sleep(.05)
+        report['residual_processes'] = process_group(webots.pid)
+        if report['residual_processes']:
+            raise RuntimeError('normal quit left residual processes')
+        if frozen != {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in proofs}:
+            raise RuntimeError('validated proof changed during normal quit')
+        report['proofs_unchanged'] = True
+        report['normal_success'] = True
+    except Exception as error:
+        report['error'] = type(error).__name__+': '+str(error)
+        raise
+    finally:
+        (out/'normal-quit.json').write_text(json.dumps(report, indent=2)+'\n')
+
 def native_webots_launch(home, port, target):
     """Use minimized R2025a GUI for CI's observed pre-READY Qt crash (#665).
 
@@ -92,7 +148,7 @@ def native_webots_launch(home, port, target):
     return [str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
             '--no-rendering','--minimize','--port='+str(port),str(target)]
 
-def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1,*,camera_probe=None,expected_trials=None):
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1,*,camera_probe=None,expected_trials=None,normal_quit=False):
     if expected_trials is None:
         raise RuntimeError('native trial capture inventory must be explicitly registered')
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
@@ -129,7 +185,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
-    children=[];streams=[];startup=None;log=None
+    children=[];streams=[];startup=None;log=None;normal_quit_confirmed=False
     try:
         with NativeLogCapture(out/'webots.log') as log:
             launch=native_webots_launch(home,port,target)
@@ -235,11 +291,14 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         result['claim']='native-shared-interpreter';result['webots_version']='R2025a';result['mode']=mode
         (out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
         print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
+        if normal_quit:
+            normal_quit_after_validation(out, webots, log, [1,2] if mode=='reset' else [1])
+            normal_quit_confirmed=True
         return result
     finally:
-        retire_trial(children, log, startup, streams, runtime_state, out, target)
+        retire_trial(children, log, startup, streams, runtime_state, out, target,normal_quit_confirmed)
 
-def retire_trial(children, log, startup, streams, runtime_state, out, target):
+def retire_trial(children, log, startup, streams, runtime_state, out, target,normal_quit_confirmed=False):
     """Attempt every native teardown stage; a failed stage forbids the trial seal.
 
     This function runs inside trial()'s finally block. An already propagating
@@ -255,7 +314,9 @@ def retire_trial(children, log, startup, streams, runtime_state, out, target):
         except Exception as error:
             failures.append((stage, error))
 
-    attempt('stop_groups', lambda: stop_groups(children))
+    # Failed/unknown normal quit follows the unchanged SIGTERM -> SIGKILL path.
+    # A confirmed normal exit has already established empty Webots group + EOF.
+    attempt('stop_groups', lambda: stop_groups(children[1:] if normal_quit_confirmed else children))
     # Record direct launch-process exits only. Webots-internal controller
     # processes are not child Popen objects; do not infer their status here.
     attempt('record_direct_process_exits', lambda: (

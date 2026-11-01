@@ -1,0 +1,48 @@
+name: RESEARCH ONLY 665 one normal-quit contrast
+on:
+  push:
+    branches: [experiment/665-supervisor-normal-quit-20261101]
+    paths:
+      - .github/workflows/experiment-665-normal-quit.yml
+      - experiments/665-normal-quit/contrast.py
+      - experiments/665-normal-quit/test_protocol.py
+      - tools/ci/run_grand_prix_u_prototype.py
+      - controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py
+permissions:
+  contents: read
+jobs:
+  paired-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Refuse premature quit and preserve crash oracles
+        run: |
+          python3 experiments/665-normal-quit/test_protocol.py
+          python3 tools/ci/test_grand_prix_u_capture_seals.py
+          python3 tools/ci/test_grand_prix_u_timeout_probe.py
+      - name: One A-B pair only - unavailable seed 0 - official pinned engine
+        run: |
+          mkdir -p ci-artifacts/665-normal-quit
+          git rev-parse HEAD > ci-artifacts/665-normal-quit/research-head.txt
+          python3 -u experiments/665-normal-quit/contrast.py 2>&1 | tee ci-artifacts/665-normal-quit/contrast.log
+      - name: Seal all existing evidence, including failure
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('ci-artifacts/665-normal-quit');root.mkdir(parents=True,exist_ok=True)
+          files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and p.name!='manifest.json'}
+          (root/'manifest.json').write_text(json.dumps(files,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-665-normal-quit-one-pair
+          path: ci-artifacts/665-normal-quit/
+          if-no-files-found: error
