@@ -175,7 +175,7 @@ create = "    cl->mContext->registerBodyContactJoint(owner, contactJoint, cl->mS
 t = once(t, create, create + r"""
     if (std::getenv("H6_E5_CASE"))
       std::fprintf(stderr,
-        "H6_E5_CREATE joint=%p owner=%p b1=%p b2=%p buffer=%d\\n",
+        "H6_E5_CREATE joint=%p owner=%p b1=%p b2=%p buffer=%d\n",
         (void*)contactJoint, (void*)owner, (void*)b1, (void*)b2,
         int(cl->mSwapJointContactBuffer));
 """, "real-broadphase-creation-provenance")
