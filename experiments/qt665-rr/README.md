@@ -37,12 +37,13 @@ No trace replay or Webots execution occurred here.
 counters and ptrace independently block this path. Installing GDB, changing Qt,
 or compiling Webots cannot repair those measured prerequisites.
 
-The single `NON-GATE 665 rr host feasibility` workflow tests an independent
-GitHub-hosted Ubuntu 24.04 machine using the same hash-pinned rr. Its green job
-means collection completed; inspect `host.json.status` and stderr for the
-scientific verdict. A `/bin/true` smoke success is **not** Webots feasibility.
-No Webots download or build occurs in this gate. Evidence updates don't trigger
-another run (only the workflow file is in the push path filter).
+The temporary `NON-GATE 665 rr host feasibility` workflow tested an independent
+GitHub-hosted Ubuntu 24.04 machine using the same hash-pinned rr. Ordinary-user
+and sudo measurements both failed; the latter removed the permission mask and
+proved hardware counters unavailable. See **RESULTS.md** for runs and ZIP
+identities. Green jobs mean collection completed, not scientific success.
+The concluded workflow is now archived as `host-feasibility.workflow.yml`,
+outside the active workflow directory; the canonical contract was not weakened.
 
 ## Reproduce host gate
 
@@ -55,9 +56,10 @@ python3 experiments/qt665-rr/preflight.py --out /absolute/new/private/rr-host
 ```
 
 Output directory must not exist. `host.json` retains exact commands, errno,
-rr output, CPU, kernel and probe identity. It does not dump environment secrets,
-process memory, or an rr trace into a public artifact. An rr trace may contain
-private file contents and memory: **keep all real application traces private**.
+rr output, CPU, kernel and probe identity. Synthetic `/bin/true` incomplete trace
+fragments were collected in the Actions artifact. An application rr trace may
+contain private file contents and memory: **keep all real application traces
+private**. None was generated/uploaded here.
 
 ## Next experiment, after a successful host gate
 
@@ -67,9 +69,10 @@ Xvfb and software Mesa. Verify `rr record` AND `rr replay -a` on the smoke
 subject first. Keep graphics servers outside rr; record the real Webots
 process tree. NVIDIA GPU execution is not an acceptable replay dependency.
 
-Next deliverable in this branch: a recorder around the unchanged
-`gp-u-v1-L2000-s0-unavailable` trial with exact ELF/Qt/world/events manifests,
-and replay equality checks. The historical original ELF must hash to
+`record_trial.py` prepares a recorder around the unchanged
+`gp-u-v1-L2000-s0-unavailable` trial with ELF/Qt/world/events manifests,
+and replay equality checks. **Not yet exercised on a native-capable host.**
+The historical original ELF must hash to
 `1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb`;
 Webots source/assets remain
 `c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b`.
@@ -78,6 +81,91 @@ No recorded crash => CRASH_NOT_REPRODUCED. Only a successful replay of the real
 Webots events, signal delivery and termination qualifies RR_RECORDING_VALID.
 An observed invalid pointer requires reverse watchpoint/lifetime evidence;
 the last instruction in malloc is not the first invalidating write.
+
+### Prepared host commands (not executed here)
+
+Use a **fresh isolated checkout** of this experimental branch on the adapted
+host. Install rr from the checked tarball above, GDB, Python >=3.10,
+Node >=22/npm, Xvfb, make and the ordinary R2025a
+SDK/Qt/X11/Mesa runtime dependencies. No GPU rendering. Install the original
+Webots R2025a distribution with its upstream assets, not a #701/self-pipe image.
+The recorder refuses the wrong ELF/Qt hashes. All three Qt hashes are in its
+source. Keep sufficient private disk space for the process-tree trace; no
+size/time estimate is qualified on these unsupported hosts.
+
+```sh
+# Run from the isolated repository checkout. The private root must be new.
+export WEBOTS_HOME=/usr/local/webots
+capture_root=$(mktemp -d /var/tmp/wbb665-rr-XXXXXXXX)
+chmod 700 "$capture_root"
+python3 experiments/qt665-rr/preflight.py --out "$capture_root/gate"
+```
+
+**Inspect the gate. Stop unless `RR_SMOKE_RECORD_REPLAY_VALID`.** Resolve actual
+permission/PMU failures with the host administrator; neither this protocol nor
+the recorder modifies system security settings. A virtual CPU's brand/model
+alone cannot establish PMU support. Only after that successful gate prepare the
+ordinary generated runtime assets (network allowed only during preparation):
+
+```sh
+bash tools/prepare_runtime_v2.sh
+python3 experiments/qt665-rr/record_trial.py \
+  --webots-home "$WEBOTS_HOME" \
+  --host-report "$capture_root/gate/host.json" \
+  --out "$capture_root/native"
+```
+
+The recorder uses the **existing native harness command**:
+
+```sh
+rr record -o "$capture_root/native/trace" \
+  python3 -u tools/ci/run_grand_prix_u_prototype.py \
+  --native --suite unavailable --seed 0 --side 2.0
+```
+
+It records the complete harness process tree, including Webots, controllers,
+Node and the disposable Xvfb. Unlike inserting rr into the owned Webots process
+group, this leaves the parent recorder outside the groups receiving the normal
+teardown SIGTERM. This topology is a **design to qualify**, not an executed
+Webots replay result. It also captures preparation subprocesses launched by
+the unchanged harness; recording only `webots-bin` would require a separately
+qualified launch/teardown adapter. No readiness or cleanup deadline is enlarged
+for recording. A timing failure remains a failure, with evidence retained.
+
+The recorder then invokes the following, only for a complete trace:
+
+```sh
+rr pack "$capture_root/native/trace"
+rr replay -a "$capture_root/native/trace"
+rr dump -e "$capture_root/native/trace"
+rr dump -p "$capture_root/native/trace"
+```
+
+These outputs and application stdout/stderr go into private files. The returned
+status deliberately grants no automatic native replay verdict. Inspect native
+PID/exec/task identity, actual loaded Qt/libc/Mesa maps, READY, events.jsonl,
+the negative result, SIGTERM delivery and final process state. Compare record
+and replay output and confirm there is no divergence or trace incompleteness.
+`SHA256.json` covers the retained private files including packed trace payloads;
+the native harness keeps its own oracle and evidence seals. Inspect mmap
+records for files missed by the sampling observer, which cannot prove absence
+of short-lived mappings. Hashes of files seen through `/proc` are associated
+with the maps' device/inode, not merely their pathnames.
+
+If a native fault is captured, identify its actual recorded PID in the task
+dump, then use `rr replay -p <recorded-native-PID> -e <trace-directory>`.
+In GDB: `handle SIGSEGV stop print pass`, `thread apply all bt`, `info registers`,
+`x/i $pc`, `when`. Identify a specific corrupted word/object first. Set a
+hardware watchpoint on that word and `reverse-continue` to its last writer;
+then distinguish a legitimate free/reallocation from a stale access and
+reconstruct the object's allocation generation, not only its address.
+Use `reverse-stepi` around the actual invalidating instruction and `when` to
+record its exact rr event. For signal causality also locate the SIGTERM frame
+and interrupted PC, and show the first violating store predates the later
+malloc fault. Do not start with breakpoints on every allocator operation.
+
+If rr remains unavailable, the **single** proposed fallback is
+[`GDB_DISCRIMINATOR.md`](GDB_DISCRIMINATOR.md). No other campaign is prescribed.
 
 Source references: [rr 5.10.0](https://github.com/rr-debugger/rr/tree/7c5a08e538e7999bf996f60a8c206e122f4b8050),
 [#665](https://github.com/djibian/webeeblocks/issues/665),
