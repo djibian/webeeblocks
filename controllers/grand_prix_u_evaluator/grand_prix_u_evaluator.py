@@ -22,7 +22,7 @@ for i,box in enumerate(layout.boxes):
     if __import__('math').dist(node.getPosition(),(box.x,box.y,box.z))>1e-9:raise RuntimeError('native collider pose mismatch')
     size=node.getField('boundingObject').getSFNode().getField('size').getSFVec3f()
     if __import__('math').dist(size,(box.sx,box.sy,box.sz))>1e-9:raise RuntimeError('native collider dimensions mismatch')
-origin=vehicle.getPosition()[2];active=None;printed=False
+origin=vehicle.getPosition()[2];active=None;printed=False;last_published_attempt=None
 trace_path=os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR')
 trace_file=(Path(trace_path)/'native_trace.csv').open('w',buffering=1) if trace_path else None
 trace=csv.writer(trace_file) if trace_file else None
@@ -34,7 +34,10 @@ while robot.step(step)!=-1:
     if reset and (active is None or active.attempt!=int(reset[1])):
         active=Attempt(layout,int(reset[1]),origin);printed=False
     if trace:trace.writerow([now,active.attempt if active else 0,*vehicle.getPosition(),*vehicle.getVelocity()[:3],*vehicle.getOrientation()])
-    if active is None:continue
+    if active is None:
+        if trace_path and (Path(trace_path)/'normal-quit.request').is_file():
+            raise RuntimeError('premature normal quit request without attempt')
+        continue
     marker=re.fullmatch(r'GP_U_START attempt=(\d+) start_ms=(\d+) state=(admitted|deadline|failed)',control.getSFString())
     if marker and int(marker[1])==active.attempt:
         active.start(active.attempt,int(marker[2])/1000)
@@ -57,19 +60,7 @@ while robot.step(step)!=-1:
                 (Path(trace_path)/f'native-diagnostic-{active.attempt}.json').write_text(json.dumps(diagnostic,allow_nan=False)+'\n')
             if trace_path:(Path(trace_path)/f'native-result-{active.attempt}.json').write_text(json.dumps(record,allow_nan=False)+'\n')
             print('GP_U_RESULT '+json.dumps(record,sort_keys=True),flush=True);printed=True
-        # Retirement request. The host creates this file only
-        # after all scenario oracles, optional RESET/LAND and diagnostics pass.
-        # Neither a pupil program nor a mission result alone asks Webots to quit.
-        if trace_path and printed:
-            request_path=Path(trace_path)/'normal-quit.request'
-            if request_path.is_file():
-                request=request_path.read_text()
-                if not re.fullmatch(str(active.attempt)+r' [0-9a-f]{32}\n',request):
-                    raise RuntimeError('invalid normal quit request for this attempt')
-                (Path(trace_path)/'normal-quit.ack').write_text(request)
-                print('GP_U_NORMAL_QUIT accepted_attempt='+str(active.attempt),flush=True)
-                robot.simulationQuit(0)
-                break
+            last_published_attempt=active.attempt
         reason={'time-limit':'temps écoulé','low-outside-zone':'altitude hors zone',
                 'wrong-landing':'mauvaise zone de pose','envelope-contact':'collision de gabarit',
                 'device-contact':'collision','route-shortcut':'parcours incomplet',
@@ -80,3 +71,23 @@ while robot.step(step)!=-1:
         label=f'{layout.identifier} — {(round(now*1000)-active.start_ms)/1000:.3f} s — {active.crossings} passages'
     else:label=f'{layout.identifier} — prêt'
     robot.setLabel(0,label,.02,.03,.065,0xFFFFFF,0,'Arial')
+    # Administrative retirement belongs to the Supervisor, not to the current
+    # attempt's result branch. A confirmed RESET can leave attempt N+1 idle
+    # while the host is correctly retiring the already-published result N.
+    if trace_path:
+        request_path=Path(trace_path)/'normal-quit.request'
+        if request_path.is_file():
+            request=request_path.read_text()
+            if last_published_attempt is None or not re.fullmatch(
+                    str(last_published_attempt)+r' [0-9a-f]{32}\n', request):
+                raise RuntimeError('normal quit request has no matching published result')
+            terminal_current=(active.attempt==last_published_attempt and
+                              active.result is not None and printed)
+            recovered_idle=(active.attempt==last_published_attempt+1 and
+                            active.start_ms is None and active.result is None)
+            if not (terminal_current or recovered_idle):
+                raise RuntimeError('normal quit refused: later attempt already active or invalid')
+            (Path(trace_path)/'normal-quit.ack').write_text(request)
+            print('GP_U_NORMAL_QUIT accepted_attempt='+str(last_published_attempt),flush=True)
+            robot.simulationQuit(0)
+            break
