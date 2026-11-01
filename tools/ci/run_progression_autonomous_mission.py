@@ -50,7 +50,7 @@ def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
         if enabled == "1":
             source.write_bytes(modified)
         built = run([
-            "docker", "run", "--rm", "--init", "-v", f"{ROOT}:/workspace",
+            "docker", "run", "--rm", "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2", WEBOTS_IMAGE,
             "bash", "-lc", "make clean && make",
         ], capture=True)
@@ -240,7 +240,7 @@ xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
   --artifacts "$artifact_dir"
 '''.strip()
         result = subprocess.run([
-            "docker", "run", "--rm",
+            "docker", "run", "--rm", "--init",
             "-e", "LIBGL_ALWAYS_SOFTWARE=true",
             "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
             "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-autonomous-mission",
