@@ -177,6 +177,35 @@ def native_main(args):
             json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     print('PROGRESSION_NATIVE_NORMAL_EXIT ' + json.dumps(report, sort_keys=True), flush=True)
 
+def verify_native_report(directory, kind):
+    """Outer host rejects any synthetic Docker/wrapper success."""
+    directory = Path(directory)
+    report = json.loads((directory / 'normal-quit.json').read_text(encoding='utf-8'))
+    if (report.get('schema') != 1 or report.get('kind') != kind or
+            report.get('normal_success') is not True or
+            report.get('browser_complete') is not True or
+            report.get('requested') is not True or
+            report.get('acknowledged') is not True or
+            report.get('stdout_eof') is not True or
+            report.get('native_exit_code') != 0 or
+            report.get('proofs_unchanged') is not True or
+            report.get('fallback_used') is not False or
+            not isinstance(report.get('native_pid'), int) or
+            report.get('native_pid') <= 1 or
+            report.get('owned_group_state', {}).get('status') != 'empty' or
+            report.get('owned_group_state', {}).get('evidence') != 'kernel-pgid-esrch' or
+            not report.get('native_binary', '').endswith('/bin/webots-bin')):
+        raise RuntimeError('real native Webots exit not proven')
+    request = (directory / 'normal-quit.request').read_text(encoding='ascii')
+    if not re.fullmatch(re.escape(kind) + r' [0-9a-f]{32}\n', request):
+        raise RuntimeError('invalid native retirement request')
+    if (directory / 'normal-quit.ack').read_text(encoding='ascii') != request:
+        raise RuntimeError('native retirement ACK mismatch')
+    if hashlib.sha256((directory / 'browser-events.jsonl').read_bytes()).hexdigest() != report.get('frozen_events_sha256'):
+        raise RuntimeError('native retirement browser evidence mutated')
+    require_no_terminal_crash(directory / 'webots.log')
+    return report
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kind', required=True, choices=tuple(COMPLETE))
