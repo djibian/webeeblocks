@@ -158,7 +158,7 @@ c = once(c, '''    if (dBodyIsEnabled(it.value())) {''',
                   (unsigned long long)(uintptr_t)it.value());
     }
     if (dBodyIsEnabled(it.value())) {''', "disable only designated A immediately before gate")
-,
+c = once(c, '''    if (dBodyIsEnabled(it.value())) {''',
 '''    if (std::getenv("H6_E5_TRACE_LIFETIME")) {
       dJointID j = it.key();  // LIVE entry, before possible unregister/free.
       std::fprintf(stderr, "H6_E5_LIVE stage=retire_check joint=%p owner=%p v0=%p v1=%p enabled=%d\\n",
