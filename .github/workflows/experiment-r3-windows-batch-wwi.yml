@@ -60,6 +60,12 @@ jobs:
         with:
           python-version: '3.12.10'
 
+      - name: Syntax-check both standalone Windows experiment probes
+        shell: pwsh
+        run: |
+          python -m py_compile tools/ci/experiment_r3_windows_batch_wwi.py tools/ci/experiment_r3_windows_batch_browser.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Python fixture source syntax invalid' }
+
       - name: Parse isolated PowerShell interactive qualifier without executing GUI
         shell: pwsh
         run: |
