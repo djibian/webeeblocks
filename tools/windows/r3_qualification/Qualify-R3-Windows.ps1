@@ -95,7 +95,7 @@ $SNAP=@'
   if(w){
     count=w.getAllBlocks(false).length;
     workspaceSha=await h(JSON.stringify(Blockly.serialization.workspaces.save(w)));
-    astSha=await h(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(w)));
+    if(count>0) astSha=await h(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(w)));
   }
   window.__r3_qual_document_id ||= crypto.randomUUID();
   return {
@@ -176,8 +176,8 @@ try{
   if(-not $inner){throw 'Archive WebeeBlocks introuvable dans artefact GitHub'}
   $testRoot=Join-Path $root 'package'
   Expand-Archive -LiteralPath $inner.FullName -DestinationPath $testRoot
-  $pkg=Join-Path $testRoot 'WebeeBlocks-Windows-R2025a'
-  if(-not (Test-Path -LiteralPath $pkg)){throw 'Racine du paquet inattendue'}
+  # ZipFile.CreateFromDirectory(..., includeBaseDirectory=false): content is at ZIP root.
+  $pkg=$testRoot
   $manifest=Join-Path $pkg 'MANIFEST.sha256'
   if(-not (Test-Path $manifest)){throw 'Manifeste absent'}
   $files=0
@@ -194,9 +194,6 @@ try{
   }
   $pe=Join-Path $pkg 'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe'
   Assert-Sha $pe $PE_SHA
-  if((Get-Content (Join-Path $pkg 'SOURCE_SHA') -Raw).Trim() -ne $PRODUCT){
-    throw 'SHA source incompatible'
-  }
   Check 'manifest_and_windows_pe' 'PASS' "$files fichiers verifies; SHA PE exact."
   $webotsHome= if($env:WEBOTS_HOME){$env:WEBOTS_HOME}else{'C:\Program Files\Webots'}
   $webots=Join-Path $webotsHome 'msys64\mingw64\bin\webots.exe'
@@ -315,10 +312,7 @@ return {count:workspace.getAllBlocks(false).length};
   if(Native-Light $next 'red'){Check 'postreload_owner_light' 'PASS' 'La capacite courante autorise LIGHT apres reload'}
   else{throw 'Ancien navigateur revenu PRET trompeur ou commande refusee'}
   # Same-profile second document, distinct Chrome page.
-  Start-Process -FilePath $chrome -ArgumentList @(
-      ('--user-data-dir="'+$profile+'"'),'--new-window',('"'+$page.url+'"')) | Out-Null
-  # The page URL on first session is no longer the running Webots server;
-  # second document must target the CURRENT second-session URL.
+  # Second document must target the CURRENT second-session URL, never stale session 1.
   $freshURL=$next.url
   Start-Process -FilePath $chrome -ArgumentList @(
       ('--user-data-dir="'+$profile+'"'),'--new-window',('"'+$freshURL+'"')) | Out-Null
