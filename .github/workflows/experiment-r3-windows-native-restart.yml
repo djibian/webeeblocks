@@ -1,0 +1,152 @@
+name: EXPERIMENT ONLY - R3 Windows native R2025a restart (NOT GUI qualification)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-r3-windows-native-restart.yml'
+      - 'tools/ci/experiment_r3_windows_native_restart.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-official-native-two-sessions:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Enforce exact immutable product ancestor and isolated experimental changes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $baseline='f243b2b597a2a6bd6af38e895787d9dd4bdfef5e'
+          $ancestor=(& git merge-base $baseline HEAD | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $ancestor -ne $baseline) {
+            throw 'Windows test must derive from exact #778 product HEAD'
+          }
+          $files=@(& git diff --name-only $baseline HEAD)
+          $allowed=@('.github/workflows/experiment-r3-windows-native-restart.yml','tools/ci/experiment_r3_windows_native_restart.py')
+          if ($LASTEXITCODE -ne 0 -or @($files | Where-Object { $_ -notin $allowed }).Count -gt 0) {
+            throw "Windows experimental branch modified product or other oracle files: $files"
+          }
+          New-Item -ItemType Directory -Force ci-artifacts/r3-windows-native | Out-Null
+          "PRODUCT_BASE=$baseline" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Encoding utf8
+          "EXPERIMENT_HEAD=$((& git rev-parse HEAD | Out-String).Trim())" |
+            Out-File ci-artifacts/r3-windows-native/provenance.txt -Append -Encoding utf8
+          "PRODUCT_TREE=$((& git rev-parse ${baseline}^{tree} | Out-String).Trim())" |
+            Out-File ci-artifacts/r3-windows-native/provenance.txt -Append -Encoding utf8
+
+      - name: Checkout exact upstream R2025a release assets
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+
+      - name: Cache identical official Webots installer (verified before use)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\webots-R2025a_setup.exe
+          key: webots-R2025a-windows-9e326a54c104fc5
+
+      - name: Verify installer SHA256 and install official Windows Webots R2025a
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $installer=Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          $expected='9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          }
+          $actual=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "WEBOTS_INSTALLER_SHA256=$actual" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+          if ($actual -ne $expected) { throw "Official Webots installer digest mismatch: $actual" }
+          $webotsHome=Join-Path $env:ProgramFiles 'Webots'
+          $webotsExe=Join-Path $webotsHome 'msys64\mingw64\bin\webots.exe'
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "Webots installer error $($p.ExitCode)" }
+          }
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) { throw 'Official Webots exe missing' }
+          $version=(& $webotsExe --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') { throw "Wrong Webots version: $version" }
+          "WEBOTS_HOME=$webotsHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WEBOTS_VERSION=$version" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+
+      - name: Rebuild unchanged R3 C controller using bundled Windows Webots GCC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./tools/build_windows_classroom_release.ps1 -WebotsHome $env:WEBOTS_HOME -WebotsProjectsPath '.ci-webots-r2025a\projects' -OutputDirectory 'ci-artifacts\windows-release'
+          if ($LASTEXITCODE -ne 0) { throw 'Official R2025a C PE or classroom build failed' }
+          $pe='ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a\controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe'
+          $hash=(Get-FileHash $pe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "CONTROLLER_WIN_PE_SHA256=$hash" | Out-File ci-artifacts/r3-windows-native/provenance.txt -Append
+          Write-Host "CONTROLLER_WIN_PE_SHA256=$hash"
+
+      - name: Verify classroom package and isolated Windows launcher preparation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./tools/ci/test_windows_classroom_release.ps1 -ArchivePath 'ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a.zip' -WebotsHome $env:WEBOTS_HOME
+          if ($LASTEXITCODE -ne 0) { throw 'Classroom package or static session proof failed' }
+
+      # Official Webots upstream CI already uses this pinned Mesa build on
+      # hosted Windows VMs. This makes *real native Windows Webots execution*
+      # possible; it does not make the runner an interactive human desktop.
+      - name: Install verified software OpenGL for hosted Windows GUI attempt
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $archive=Join-Path $env:RUNNER_TEMP 'mesa3d-24.2.1-release-mingw.7z'
+          Invoke-WebRequest -Uri 'https://github.com/pal1000/mesa-dist-win/releases/download/24.2.1/mesa3d-24.2.1-release-mingw.7z' -OutFile $archive
+          $actual=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne 'f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214') {
+            throw "Unverified Windows Mesa digest $actual"
+          }
+          $mesa=Join-Path $env:RUNNER_TEMP 'Webots CI Mesa'
+          & 7z.exe x $archive "-o$mesa" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Mesa archive extraction failed' }
+          Push-Location $mesa
+          try {
+            & .\systemwidedeploy.cmd 1
+            if ($LASTEXITCODE -ne 0) { throw 'Mesa deploy failed' }
+          }
+          finally { Pop-Location }
+
+      - name: Observe two genuine Windows Webots GUI launches with same world and state directory
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          python tools/ci/experiment_r3_windows_native_restart.py --package 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --webots-home "$env:WEBOTS_HOME" --output 'ci-artifacts/r3-windows-native'
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows launch/normal-close observation UNPROVEN or failed; read artifact' }
+          Write-Host 'PASS ONLY: two real Webots Windows processes; no WWI/window.name/Blockly claim'
+
+      - name: Archive bounded evidence even when GUI is unavailable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-r3-windows-official-native-observation
+          path: ci-artifacts/r3-windows-native/
+          if-no-files-found: warn
