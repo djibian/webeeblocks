@@ -162,7 +162,7 @@ class NormalQuitHostTests(unittest.TestCase):
                     (root/'normal-quit.ack').write_text(request)
             class Log:
                 def finish(self):pass
-            with patch.object(runner,'process_group',return_value=[]):
+            with patch.object(runner,'owned_process_group_state',return_value={'status':'empty','members':[]}):
                 runner.normal_quit_after_validation(root,Child(),Log(),[1,2])
             self.assertTrue(json.loads((root/'normal-quit.json').read_text())['normal_success'])
 
@@ -179,7 +179,7 @@ class NormalQuitHostTests(unittest.TestCase):
                 self.assertFalse((root/'normal-quit.request').exists())
 
     def test_refuses_every_unproven_retirement(self):
-        for fault in ('timeout','exit','ack','crash','eof','mutation','survivor'):
+        for fault in ('timeout','exit','ack','crash','eof','mutation','survivor','census-unknown'):
             with self.subTest(fault=fault),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory)
                 self.prepare(root,[1])
@@ -194,12 +194,64 @@ class NormalQuitHostTests(unittest.TestCase):
                         if fault=='crash':(root/'webots.log').write_text('malloc(): corrupted\n')
                 def finish():
                     if fault=='eof':raise RuntimeError('stdout still held')
-                survivors=[{'pid':9}] if fault=='survivor' else []
-                with (patch.object(runner,'process_group',return_value=survivors),
+                group = ({'status':'unknown','reason':'proc-list:OSError'} if fault=='census-unknown'
+                         else {'status':'nonempty','members':[{'pid':9}]} if fault=='survivor'
+                         else {'status':'empty','members':[]})
+                with (patch.object(runner,'owned_process_group_state',return_value=group),
                      patch.object(runner.time,'monotonic',side_effect=[0,3] if fault=='survivor' else [0]),
                      self.assertRaises(Exception)):
                     runner.normal_quit_after_validation(root,Child(),SimpleNamespace(finish=finish),[1])
                 self.assertFalse(json.loads((root/'normal-quit.json').read_text())['normal_success'])
+
+    def test_owned_group_census_refuses_unreadable_or_partial_proc(self):
+        with patch.object(runner.os,'listdir',side_effect=PermissionError('proc unavailable')):
+            self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
+        for data in (OSError('stat unreadable'),'incomplete stat'):
+            with self.subTest(data=str(data)), patch.object(runner.os,'listdir',return_value=['789']):
+                with patch.object(runner.Path,'read_text',side_effect=data if isinstance(data,Exception) else None,
+                                  return_value=None if isinstance(data,Exception) else data):
+                    self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
+
+    def test_owned_group_census_requires_kernel_confirmation(self):
+        with (patch.object(runner.os,'listdir',return_value=['789']),
+              patch.object(runner.Path,'read_text',return_value='789 (other) S 1 1 1 0 0 0')):
+            with patch.object(runner.os,'killpg',side_effect=ProcessLookupError()):
+                self.assertEqual(runner.owned_process_group_state(123)['status'],'empty')
+            with patch.object(runner.os,'killpg',return_value=None):
+                self.assertEqual(runner.owned_process_group_state(123)['status'],'nonempty')
+            with patch.object(runner.os,'killpg',side_effect=PermissionError()):
+                self.assertEqual(runner.owned_process_group_state(123)['status'],'unknown')
+        with (patch.object(runner.os,'listdir',return_value=['789']),
+              patch.object(runner.Path,'read_text',return_value='789 (webots) S 1 123 123 0 0 0'),
+              patch.object(runner.os,'killpg') as kernel):
+            self.assertEqual(runner.owned_process_group_state(123)['status'],'nonempty')
+            kernel.assert_not_called()
+
+    def test_unknown_group_preserves_original_retirement_and_refuses_success_seal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            self.prepare(root,[1])
+            world=root/'world.wbt'
+            class Child:
+                pid=123
+                returncode=0
+                def wait(self,timeout):
+                    request=(root/'normal-quit.request').read_text()
+                    (root/'normal-quit.ack').write_text(request)
+            child=Child()
+            log=SimpleNamespace(finish=lambda:None)
+            runtime=SimpleNamespace(cleanup=lambda:None)
+            with (patch.object(runner,'owned_process_group_state',
+                               return_value={'status':'unknown','reason':'proc-list:OSError'}),
+                  patch.object(runner,'stop_groups',side_effect=RuntimeError('retirement cannot be verified')) as stop):
+                with self.assertRaisesRegex(RuntimeError,'membership unobservable'):
+                    try:
+                        runner.normal_quit_after_validation(root,child,log,[1])
+                    finally:
+                        runner.retire_trial([child],log,None,[],runtime,root,world)
+            stop.assert_called_once_with([child])
+            self.assertFalse(json.loads((root/'normal-quit.json').read_text())['normal_success'])
+            self.assertFalse((root/'sha256.json').exists())
 
     def test_native_non_tcp_cases_enable_graceful_quit_without_changing_tcp_or_camera(self):
         source=(ROOT/'tools/ci/run_grand_prix_u_prototype.py').read_text()
