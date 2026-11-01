@@ -210,6 +210,26 @@ for n in (1,2):
             world=text.replace(anchor,d1C+d1B+
                                'DEF TARGET Solid {\n  translation 0 0 0.2\n  rotation 0 1 0 0')
             world=world.replace('  basicTimeStep 32','  basicTimeStep 32\n  gravity 0')
+            # D1 #41201953896 only worked with A last in the broadphase
+            # collision-node order. The #777 2nd island was appended AFTER A:
+            # move the identical distant island BEFORE C/B/A, never alter geometry.
+            far_start=world.index("DEF FAR_FLOOR Solid {")
+            robot_start=world.index("Robot {")
+            if not (far_start < robot_start and
+                    world.count("DEF FAR_TARGET Solid {")==1 and
+                    world.count("DEF CONTACT_C Solid {")==1):
+                raise SystemExit("REFUSED E5 isolated island source/order")
+            distant=world[far_start:robot_start]
+            if "DEF FAR_TARGET Solid {" not in distant:
+                raise SystemExit("REFUSED E5 distant island content")
+            world=world[:far_start]+world[robot_start:]
+            world=world.replace("DEF CONTACT_C Solid {",
+                                distant+"DEF CONTACT_C Solid {",1)
+            order=("DEF FAR_FLOOR Solid {","DEF FAR_TARGET Solid {",
+                   "DEF CONTACT_C Solid {","DEF FOREIGN Solid {",
+                   "DEF TARGET Solid {","Robot {")
+            if not all(world.index(a)<world.index(b) for a,b in zip(order,order[1:])):
+                raise SystemExit("REFUSED E5 D1 A-last ordering")
             world=world.replace('DEF FAR_TARGET Solid {\n  translation 8 0 0.105',
                                 'DEF FAR_TARGET Solid {\n  translation 8 0 0.09')
         out.write_text(world)
