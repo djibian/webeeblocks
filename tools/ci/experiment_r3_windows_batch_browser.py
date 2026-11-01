@@ -75,7 +75,7 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     assert source.count(unsafe_second)==1,"Canonical Linux two-collision fixture changed"
     source=source.replace(unsafe_second,
        "    await report('WINDOWS_SINGLE_NATIVE_COLLISION_BEFORE_RELOAD', "
-       "{workspace: blockedWorkspace, ast:JSON.parse(blockedAst)});\\n",1)
+       "{workspace: blockedWorkspace, ast:JSON.parse(blockedAst)});\n",1)
     # Fixture only; this exec does not read/alter product C, JS or physical oracles.
     fixture={"__file__":str(ROOT/"tools/ci/prepare_runtime_v2_reset.py"),
              "__name__":"windows_native_fixture"}
