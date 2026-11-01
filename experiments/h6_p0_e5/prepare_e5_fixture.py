@@ -113,11 +113,8 @@ once("void webots_physics_step_end(void) {",r'''void webots_physics_step_end(voi
             e5_case,tick,f);
     h6_p0_trace("E5_AC_solver_feedback",(unsigned long long)e5_feedback_count);
   }
-  if (!strcmp(e5_case,"body") && tick==2) {
-    // EXACT D1 test-only sleep intervention, not spontaneous
-    dBodyDisable(target);
-    h6_p0_trace("E5_owner_sleep_forced_before_delete",0);
-  }''',"feedback post-solver")
+  if (!strcmp(e5_case,"body") && tick==2)
+    h6_p0_trace("E5_owner_enabled_after_tick2",dBodyIsEnabled(target));''',"feedback post-solver")
 once("void webots_physics_cleanup(void) {",r'''void webots_physics_cleanup(void) {
   if (e5_plugin_contact) {
     // Last permitted dereference: both objects still alive, BEFORE group empty.
@@ -215,6 +212,26 @@ for n in (1,2):
             world=world.replace('  basicTimeStep 32','  basicTimeStep 32\n  gravity 0')
             world=world.replace('DEF FAR_TARGET Solid {\n  translation 8 0 0.105',
                                 'DEF FAR_TARGET Solid {\n  translation 8 0 0.09')
+        if case=="body":
+            # D1's A-last order was C, B, A with NO extra FLOOR or FAR island.
+            # The original E5 inherited FLOOR and FAR even in one-worker mode,
+            # changing dxHashSpace broadphase iteration and contact orientation.
+            floor_start=world.index("DEF FLOOR Solid {")
+            c_start=world.index("DEF CONTACT_C Solid {")
+            if floor_start>=c_start or world.count("DEF FLOOR Solid {")!=1:
+                raise SystemExit("REFUSED ambiguous inherited FLOOR")
+            world=world[:floor_start]+world[c_start:]
+            if n==1:
+                far_start=world.index("DEF FAR_FLOOR Solid {")
+                supervisor_start=world.index("Robot {")
+                if far_start>=supervisor_start or world.count("DEF FAR_TARGET Solid {")!=1:
+                    raise SystemExit("REFUSED ambiguous FAR island")
+                world=world[:far_start]+world[supervisor_start:]
+                assert all(world.count("DEF "+name+" Solid {")==1
+                           for name in ("CONTACT_C","FOREIGN","TARGET"))
+                assert not any(("DEF "+name+" Solid {") in world
+                               for name in ("FLOOR","FAR_FLOOR","FAR_TARGET"))
+            # For 2 workers the second island remains: qualify ONLY after 1 worker.
         out.write_text(world)
         print("E5_WORLD",str(out),n,case)
 
