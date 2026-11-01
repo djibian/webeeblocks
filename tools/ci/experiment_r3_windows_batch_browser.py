@@ -76,6 +76,15 @@ def inject_existing_linux_test_into_disposable_windows_package(html):
     await report('WINDOWS_SAFE_RELOAD_AFTER_NATIVE_RESET', {workspace: blockedWorkspace, ast: JSON.parse(blockedAst)});
 """+source[right:].replace(stop,
        "    // Explicit test-only world reload from a safe settled state.\n",1)
+    # Reset has correctly returned PRÊT (runtimeTerminal=false). To exercise
+    # the *unchanged* button guard in this safe-world research-only fixture,
+    # mark the UI terminal before choosing the separate reconstruction path.
+    # No C ACK, physical RESET, collision or witness is fabricated.
+    arm="    runtimeNeedsRebuild = true;\\n    updateRuntimeActions();\\n"
+    assert source.count(arm)==1,"Canonical recovery arm anchor changed"
+    source=source.replace(arm,
+         "    runtimeTerminal = true; // test-only terminal UI selection, no native effect\\n"
+         +arm,1)
     rerun="""      document.getElementById('submit').click();
       await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ',
         'real colliding program after full reload', 45000);"""
