@@ -9,11 +9,12 @@ from collections import defaultdict
 P=re.compile(r"^H6_P0 seq=(\d+) step=(\d+) tid=(\d+) event=([A-Za-z0-9_]+) arg=(\d+)$")
 S=re.compile(r"^H6_E5_SCAN mode=(\w+) joint=(0x[0-9a-fA-F]+) owner=(0x[0-9a-fA-F]+) victim=(0x[0-9a-fA-F]+) v0=(0x[0-9a-fA-F]+|\(nil\)) v1=(0x[0-9a-fA-F]+|\(nil\)) owner_enabled=(\d+) drop=(\d+)$")
 F=re.compile(r"^H6_E5_AC_SOLVER case=(\w+) tick=(\d+) forceL1=([\d.eE+-]+)$")
+FJ=re.compile(r"^H6_E5_AC_JOINT tick=(\d+) joint=(0x[0-9a-fA-F]+) forceL1=([\d.eE+-]+)$")
 PL=re.compile(r"^H6_E5_PLUGIN_STEP case=(\w+) tick=(\d+) group_count=(\d+) group_b0=(\S+) group_b1=(\S+) motor_b0=(\S+)$")
 def require(cond,msg):
     if not cond: raise ValueError("E5_UNPROVEN_OR_REFUTED: "+msg)
 def parse(text):
-    events=[]; scans=[]; feedback=[]; plugin=[]
+    events=[]; scans=[]; feedback=[]; plugin=[]; joint_feedback=[]
     for no,line in enumerate(text.splitlines(),1):
         if line.startswith("H6_P0"):
             m=P.fullmatch(line.strip());require(m is not None,"MALFORMED_P0:%d"%no)
@@ -29,16 +30,20 @@ def parse(text):
         if line.startswith("H6_E5_AC_SOLVER"):
             m=F.fullmatch(line.strip());require(m is not None,"MALFORMED_FEEDBACK:%d"%no)
             a,t,f=m.groups();feedback.append((a,int(t),float(f)))
+        if line.startswith("H6_E5_AC_JOINT"):
+            m=FJ.fullmatch(line.strip());require(m is not None,"MALFORMED_AC_JOINT:%d"%no)
+            t,j,force=m.groups()
+            joint_feedback.append((int(t),int(j,16),float(force)))
         if line.startswith("H6_E5_PLUGIN_STEP"):
             m=PL.fullmatch(line.strip());require(m is not None,"MALFORMED_PLUGIN:%d"%no)
             a,t,n,b0,b1,p=m.groups();plugin.append((a,int(t),int(n),b0,b1,p))
     events.sort(key=lambda e:e["seq"])
     require(events,"NO_NATIVE_P0_TRACE")
     require([e["seq"] for e in events]==list(range(1,len(events)+1)),"MISSING_OR_DUPLICATE_SEQ")
-    return events,scans,feedback,plugin
+    return events,scans,feedback,plugin,joint_feedback
 
 def evaluate(log,case,mode,workers):
-    ev,scans,feedback,plugin=parse(log)
+    ev,scans,feedback,plugin,joint_feedback=parse(log)
     if mode=="baseline":
         # Original Webots contact ownership, with the #777 READ-ONLY trace
         # observer. No P0 events, E5 patch, or transfer of engine semantics.
@@ -151,6 +156,15 @@ def evaluate(log,case,mode,workers):
                 "SLEPT_WRONG_BODY_AT_DESTRUCTOR")
         require(all(s["enabled"]==0 for s in cross),
                 "CROSS_BODY_OWNER_NOT_ASLEEP_AT_SCAN")
+        # A-C is the other two-body contact with owner=A, physically attached
+        # at B's destructor. The plugin identifies C independently when
+        # installing feedback. Demand the SAME live ID after B destruction.
+        ac_at_delete={s["j"] for s in scans
+                      if s["b"]==victim and s["owner"]==owner_a
+                      and s["drop"]==0 and owner_a in (s["v0"],s["v1"])
+                      and s["v0"] and s["v1"]
+                      and victim not in (s["v0"],s["v1"])}
+        require(ac_at_delete,"NO_LEGITIMATE_AC_AT_B_DESTRUCTOR")
         require(all(s["mode"]==mode for s in scans),"MIXED_DROP_MODES")
         if mode=="owner":
             require(any(s["drop"]==0 for s in cross),"NEGATIVE_OWNER_ARM_NOT_REFUTED")
@@ -180,6 +194,18 @@ def evaluate(log,case,mode,workers):
             require(select("E5_AC_excited"),"FIRST_POST_DELETE_SOLVER_NOT_EXCITED")
             require(any(a==case and t==4 and f>0 for a,t,f in feedback),
                     "NO_FIRST_POST_DELETE_AC_PHYSICAL_FEEDBACK")
+            installed=[e for e in select("E5_AC_feedback_installed") if e["arg"] in ac_at_delete]
+            require(installed,"NO_SAME_AC_ID_SURVIVED_TO_NEXT_SOLVER")
+            # An address cannot be accepted as same incarnation if the registry
+            # retired it or re-registered it between B destruction and feedback.
+            survivor={e["arg"] for e in installed
+                      if e["seq"]>bound and not any(
+                          bound < u["seq"] <= e["seq"] and u["arg"]==e["arg"]
+                          for u in ev if u["ev"] in ("P0_unregister","P0_register"))}
+            require(survivor,"AC_ID_REUSED_OR_UNREGISTERED_BEFORE_SOLVER")
+            require(any(t==4 and j in survivor and force>0
+                        for t,j,force in joint_feedback),
+                    "NO_POSITIVE_FORCE_ON_SAME_SURVIVING_AC_JOINT")
             require(len([e for e in select("solver_return") if e["seq"]>bound])>=10,
                     "POST_BODY_DESTRUCTION_NOT_TEN_REAL_SOLVER_STEPS")
     else:
@@ -213,7 +239,8 @@ def evaluate(log,case,mode,workers):
     return {"case":case,"mode":mode,"workers":workers,"events":len(ev),
             "scans":len(scans),"engine_frees":engine_frees,
             "attached_plugin_steps":len(plugin),
-            "ac_feedback":len(feedback)}
+            "ac_feedback":len(feedback),
+            "ac_joint_feedback":len(joint_feedback)}
 if __name__=="__main__":
     try:
         if len(sys.argv)!=5: raise ValueError("usage: LOG case mode workers")
