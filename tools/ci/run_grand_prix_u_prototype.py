@@ -212,6 +212,13 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
     children=[];streams=[];startup=None;log=None;normal_quit_confirmed=False
     try:
+        # Keep the native Console (and its ODE handlers), but avoid the
+        # unnecessary Qt HTML rendering of Info-level shutdown messages.
+        # WbLog::info still writes the complete text to --stdout.
+        perspective=("Webots Project File version R2025a\\n"
+                     "consoles: Console:All:Debug;Warning;Error;Fatal;Status;Stdout;Stderr\\n")
+        target.with_name('.'+target.stem+'.wbproj').write_text(perspective)
+        (out/'world.wbproj').write_text(perspective)
         with NativeLogCapture(out/'webots.log') as log:
             launch=native_webots_launch(home,port,target)
             if not tcp:
