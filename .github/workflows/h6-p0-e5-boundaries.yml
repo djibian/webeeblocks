@@ -87,7 +87,7 @@ jobs:
             else
               unset H6_E5_DELAY_PLUGIN || :
             fi
-            if [ "$timing" = held ]; then export H6_E5_HOLD_ASLEEP=1; else unset H6_E5_HOLD_ASLEEP || :; fi
+            if [ "$timing" = held ]; then export H6_E5_HOLD_ASLEEP=1 H6_E5_HOLD_AT_RETIRE=1; else unset H6_E5_HOLD_ASLEEP H6_E5_HOLD_AT_RETIRE || :; fi
             set +e
             H6_E5_CASE=body H6_E5_DROP=owner H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 \
               H6_STANDALONE_R=0 H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0 \
@@ -108,7 +108,7 @@ jobs:
             # one actual worker task. Native logs are evidence only, NOT PASS.
             echo "H6_E5_DIAGNOSTIC_CAPTURED_SINGLE_THREAD timing=$timing"
           done
-          unset H6_E5_DELAY_PLUGIN H6_E5_HOLD_ASLEEP || :
+          unset H6_E5_DELAY_PLUGIN H6_E5_HOLD_ASLEEP H6_E5_HOLD_AT_RETIRE || :
       - name: Exercise actual body destruction, Node.loadState reset(id), and attached plugin on 1 and 2 workers
         shell: bash
         run: |
@@ -122,7 +122,7 @@ jobs:
                 mkdir -p "evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 dir="$PWD/evidence/h6-p0-e5/$scenario-$mode-workers$n"
                 set +e
-                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 H6_E5_DELAY_PLUGIN=1 H6_E5_HOLD_ASLEEP=1 \
+                H6_E5_CASE="$scenario" H6_E5_DROP="$mode" H6_E5_FORCE_SLEEP=1 H6_E5_TRACE_LIFETIME=1 H6_E5_DELAY_PLUGIN=1 H6_E5_HOLD_ASLEEP=1 H6_E5_HOLD_AT_RETIRE=1 \
                   H6_P0_FORCE_ONE_WORKER=1 H6_P0_HOLD_M=1 H6_STANDALONE_R=0 \
                   H6_G_WINDOW_PATH=global H6_G_WINDOW_R=0 \
                   H6_G_WINDOW_NATIVE_LOG="$dir/plugin.log" \
