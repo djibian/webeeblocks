@@ -173,6 +173,11 @@ def native_main(args):
         raise RuntimeError('wrong native Webots executable identity')
     env = os.environ.copy()
     env['WEBOTS_HOME'] = str(home)
+    # Preserve the R2025a Linux launcher temporary-directory contract:
+    # WEBOTS_TMPDIR defaults to TMPDIR, otherwise /tmp; both are exported.
+    original_tmp = env.get('WEBOTS_TMPDIR') or env.get('TMPDIR') or '/tmp'
+    env['TMPDIR'] = original_tmp
+    env['WEBOTS_TMPDIR'] = original_tmp
     env['WEBOTS_ORIGINAL_LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', '')
     env['LD_LIBRARY_PATH'] = str(home / 'lib/webots') + os.pathsep + env['WEBOTS_ORIGINAL_LD_LIBRARY_PATH']
     env['QT_QPA_PLATFORM'] = 'xcb'
