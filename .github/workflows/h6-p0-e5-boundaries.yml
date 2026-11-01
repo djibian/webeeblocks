@@ -58,6 +58,7 @@ jobs:
           sha256sum evidence/h6-p0-e5/standalone-p0-only.patch             > evidence/h6-p0-e5/standalone-p0-only.patch.sha256
           find fixtures/g_window -type f -print0 | sort -z | xargs -0 sha256sum             > evidence/h6-p0-e5/fixture-sha256.txt
       - name: Build pinned Webots with EXPLICIT P0 experimental ABI patch
+        id: native_build
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +80,8 @@ jobs:
         run: |
           set -euo pipefail
           export WEBOTS_HOME="$PWD/native-webots"
+          failed=0
+          : > evidence/h6-p0-e5/native-arm-status.tsv
           for n in 1 2; do
             for scenario in body reset; do
               modes="attached"
@@ -101,20 +104,42 @@ jobs:
                 if [ "$code" -ne 0 ]; then
                   echo "H6_E5_NATIVE_RED scenario=$scenario mode=$mode workers=$n exit=$code"
                   tail -n 120 "$dir/webots.log"
-                  exit 80
+                  printf '%s\t%s\t%s\tPROCESS_RED_%s\n' "$scenario" "$mode" "$n" "$code" >> evidence/h6-p0-e5/native-arm-status.tsv
+                  failed=1
+                  continue
                 fi
-                python3 experiments/h6_p0_e5/qualify_e5.py \
-                  "$dir/webots.log" "$scenario" "$mode" "$n" \
-                  | tee "$dir/qualification.txt"
+                if python3 experiments/h6_p0_e5/qualify_e5.py \
+                    "$dir/webots.log" "$scenario" "$mode" "$n" \
+                    > "$dir/qualification.txt" 2>&1; then
+                  cat "$dir/qualification.txt"
+                else
+                  cat "$dir/qualification.txt"
+                  printf '%s\t%s\t%s\tORACLE_RED\n' "$scenario" "$mode" "$n" >> evidence/h6-p0-e5/native-arm-status.tsv
+                  failed=1
+                  continue
+                fi
                 if [ "$mode" = attached ]; then
-                  python3 experiments/h6_p0_e5/mutate_e5.py \
+                  if ! python3 experiments/h6_p0_e5/mutate_e5.py \
                     "$dir/webots.log" "$scenario" "$mode" "$n" "$dir/mutants" \
-                    | tee "$dir/mutant-qualification.txt"
+                    > "$dir/mutant-qualification.txt" 2>&1; then
+                    cat "$dir/mutant-qualification.txt"
+                    printf '%s\t%s\t%s\tMUTANTS_RED\n' "$scenario" "$mode" "$n" >> evidence/h6-p0-e5/native-arm-status.tsv
+                    failed=1
+                    continue
+                  fi
+                  cat "$dir/mutant-qualification.txt"
                 fi
+                printf '%s\t%s\t%s\tPASS\n' "$scenario" "$mode" "$n" >> evidence/h6-p0-e5/native-arm-status.tsv
               done
             done
           done
+          cat evidence/h6-p0-e5/native-arm-status.tsv
+          if [ "$failed" -ne 0 ]; then
+            echo "H6_E5_COMPARATIVE_NATIVE_RED: one or more native arms refused; all arms preserved"
+            exit 42
+          fi
       - name: Compare attached plugin behavior with ORIGINAL Webots ownership (observer-only rebuild)
+        if: ${{ !cancelled() && steps.native_build.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -135,6 +160,7 @@ jobs:
           export WEBOTS_HOME="$PWD/native-webots"
           sha256sum native-webots/bin/webots-bin native-webots/lib/webots/libode.so \
             > evidence/h6-p0-e5/baseline/bin-sha256.txt
+          baseline_failed=0
           for scenario in body reset; do
             dir="$PWD/evidence/h6-p0-e5/baseline/$scenario"
             mkdir -p "$dir"
@@ -151,12 +177,22 @@ jobs:
             if [ "$code" -ne 0 ]; then
               echo "H6_E5_ORIGINAL_RED case=$scenario exit=$code"
               tail -n 120 "$dir/webots.log"
-              exit 81
+              baseline_failed=1
+              continue
             fi
-            python3 experiments/h6_p0_e5/qualify_e5.py \
-              "$dir/webots.log" "$scenario" baseline 1 \
-              | tee "$dir/qualification.txt"
+            if ! python3 experiments/h6_p0_e5/qualify_e5.py \
+                "$dir/webots.log" "$scenario" baseline 1 \
+                > "$dir/qualification.txt" 2>&1; then
+              cat "$dir/qualification.txt"
+              baseline_failed=1
+              continue
+            fi
+            cat "$dir/qualification.txt"
           done
+          if [ "$baseline_failed" -ne 0 ]; then
+            echo "H6_E5_BASELINE_RED: original comparison refused"
+            exit 42
+          fi
       - name: Keep complete traces, source diff and SHA-256 and raw failure logs even on RED
         if: always()
         shell: bash
