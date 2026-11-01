@@ -75,7 +75,7 @@ def main() -> int:
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
         built = run([
-            "docker", "run", "--rm", "-v", f"{ROOT}:/workspace",
+            "docker", "run", "--rm", "--init", "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2", WEBOTS_IMAGE,
             "bash", "-lc", "make clean && make",
         ], capture=True)
