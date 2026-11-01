@@ -18,6 +18,14 @@ and rr selected its own CPU-specific counter and independently refused it.
 No sysctl settings were changed. The sudo experiment was motivated by the
 permission mask and is not an identical retry of a concluded hardware test.
 
+The two Actions runs allocate **distinct ephemeral VMs**, as their uname data
+shows. Both expose the EPYC 7763/Microsoft profile, but this is not proof that
+their hypervisors/PMUs are identical. The sudo result directly establishes
+absence of usable hardware counters on **its observed VM**. It does not prove
+that every possible GitHub runner lacks PMU support, nor retrospectively
+measure hardware availability behind the first VM's EACCES. There is no reason
+to request random new runners in hope of a different result.
+
 ## Provenance
 
 All three actual rr invocations used upstream 5.10.0 executable SHA256

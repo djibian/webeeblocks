@@ -131,6 +131,10 @@ Webots replay result. It also captures preparation subprocesses launched by
 the unchanged harness; recording only `webots-bin` would require a separately
 qualified launch/teardown adapter. No readiness or cleanup deadline is enlarged
 for recording. A timing failure remains a failure, with evidence retained.
+rr's scheduling (including serialization of recorded threads) and this
+read-only sampling observer can change which race is reached. Replay fidelity
+is a property of the **recorded execution**, not proof of identical timing to
+the historical crash. Non-reproduction under rr cannot refute that crash.
 
 The recorder then invokes the following, only for a complete trace:
 
