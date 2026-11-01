@@ -71,6 +71,13 @@ def instrument(base):
     (base/'deadline.cpp').write_text('#define wb_robot_wwi_send gp_test_send\n'+
         (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').read_text())
 
+def run_case(binary, base, settings):
+    # Isolate real native OS-lock/witness state between all independent probes.
+    with tempfile.TemporaryDirectory(prefix='gp-u-r3-witness-', dir=base) as witness:
+        return subprocess.run([str(binary)],
+            env={**os.environ, 'WEBEEBLOCKS_RECOVERY_STATE_DIR':witness, **settings},
+            capture_output=True, text=True, timeout=10)
+
 class PoseTests(unittest.TestCase):
     def test_bounded_angle_and_imu_domain(self):
         prepare()
@@ -145,8 +152,7 @@ int main(void) {
                             '-pthread','-o',str(binary)],check=True)
             for case in CASES:
                 with self.subTest(case=case):
-                    result=subprocess.run([str(binary)],env={**os.environ,'GP_U_POSE_CASE':case},
-                                          capture_output=True,text=True,timeout=10)
+                    result=run_case(binary,base,{'GP_U_POSE_CASE':case})
                     self.assertEqual(result.returncode,0,result.stdout[-4000:]+result.stderr)
                     self.assertIn(f'GP_U_POSE_PASS case={case} ',result.stdout)
                     deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
@@ -154,8 +160,7 @@ int main(void) {
                     self.assertIn('time_ms=212048 command=LAND',deadlines[0])
             for case,probe in FILE_PROBES:
                 with self.subTest(case=case,files=probe):
-                    result=subprocess.run([str(binary)],env={**os.environ,'GP_U_POSE_CASE':case,'GP_U_FILE_PROBE':probe},
-                                          capture_output=True,text=True,timeout=10)
+                    result=run_case(binary,base,{'GP_U_POSE_CASE':case,'GP_U_FILE_PROBE':probe})
                     self.assertEqual(result.returncode,0,result.stdout[-5000:]+result.stderr)
                     self.assertIn(f'GP_U_FILE_PASS probe={probe} ',result.stdout)
                     deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
@@ -165,11 +170,20 @@ int main(void) {
                         self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
             for contact in ('ground','high','nan'):
                 with self.subTest(contact=contact):
-                    result=subprocess.run([str(binary)],env={**os.environ,
-                        'GP_U_POSE_CASE':'land','GP_U_CONTACT_PROBE':contact},
-                        capture_output=True,text=True,timeout=10)
+                    result=run_case(binary,base,{
+                        'GP_U_POSE_CASE':'land','GP_U_CONTACT_PROBE':contact})
                     self.assertEqual(result.returncode,0,result.stdout[-5000:]+result.stderr)
                     self.assertEqual(result.stdout.count('TRACE LAND_TOUCHDOWN '),int(contact=='ground'))
                     self.assertIn('GP_U_POSE_RESPONSE t=212656 WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK',result.stdout)
+
+            # Extra native negative; the 64 legacy scenarios above remain unchanged.
+            with self.subTest(r3_negatives='missing/stale/replay/late'):
+                result=run_case(binary,base,{'GP_U_POSE_CASE':'land',
+                    'GP_U_R3_NEGATIVE_ONLY':'1'})
+                self.assertEqual(result.returncode,0,
+                    result.stdout[-7000:]+result.stderr)
+                self.assertIn('GP_U_R3_NEGATIVE_PASS missing,stale,replay,expired',
+                    result.stdout)
+
 
 if __name__=='__main__':unittest.main()

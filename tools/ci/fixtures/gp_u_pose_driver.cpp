@@ -22,6 +22,7 @@ extern "C" {
 #include <cstring>
 #include <string>
 #include <vector>
+#include <map>
 #include <cfloat>
 extern "C" int gp_runtime_main(void);
 static std::string mode, vehicle, evaluator;
@@ -31,6 +32,15 @@ static bool takeoff=false,reset_ok=false;
 static int teleports=0,requests_at_tick=0;
 static long long receive_tick=-1;
 static std::vector<std::string> replies;
+static const std::string kPrefix="WEBEEBLOCKS_RUNTIME_V2";
+static const std::string kEpochChallenge(64,'a'),kClaimChallenge(64,'b');
+static int next_wire_id=5;
+static std::string native_epoch,native_key;
+static bool epoch_seen=false,claim_seen=false;
+static bool preclaim_denied=false,stale_denied=false,replay_denied=false;
+static bool late_probe_sent=false,late_denied=false;
+static int late_probe_id=-1;
+static std::map<int,int> wire_to_historical,wire_reply_count;
 static bool contact_seen=false;
 static int powered_settle_ticks=0;
 static bool reset_case(){return mode.find("reset-")==0;}
@@ -182,9 +192,8 @@ extern "C" void gp_test_teleport(WbFieldRef field,const double* value){
  wb_supervisor_field_set_sf_vec3f(field,value);
  std::memcpy(pos,value,sizeof(pos));
 }
-extern "C" const char* gp_test_receive(){
- if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
- int index=requests_at_tick++;
+// All legacy command bodies and their timing are preserved below.
+static const char* gp_historical_receive(int index){
  if(const char* file=file_requests(index))return file;
  if(tick==212048){
   if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 52 SCENE sequence-v1";
@@ -232,8 +241,91 @@ extern "C" const char* gp_test_receive(){
  if(!positive() && tick==213328 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RESET";
  return nullptr;
 }
+extern "C" const char* gp_test_receive(){
+ if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
+ int index=requests_at_tick++;
+ static std::string wire;
+ if(tick==2048){
+  if(index==0){ // Missing admission must not trigger TAKEOFF.
+   wire=kPrefix+" REQUEST 1 TAKEOFF 0.8";return wire.c_str();
+  }
+  if(index==1){
+   wire=kPrefix+" REQUEST 2 AUTH_EPOCH "+kEpochChallenge;return wire.c_str();
+  }
+  if(index==2){
+   assert(epoch_seen && native_epoch.size()==32);
+   native_key=native_epoch+std::string(32,'c');
+   wire=kPrefix+" REQUEST 3 AUTH_CLAIM "+native_key+" "+kClaimChallenge;
+   return wire.c_str();
+  }
+  if(index==3){ // Cannot ever match this native incarnation.
+   assert(claim_seen && native_key.size()==64);
+   std::string stale=native_key;
+   stale[0]=stale[0]=='a'?'b':'a';
+   wire=kPrefix+" REQUEST 4 AUTH "+stale+" SPEED 0.4";
+   return wire.c_str();
+  }
+  if(index==4){ // Deliberate negative replay of claimed request ID 3.
+   assert(stale_denied);
+   wire=kPrefix+" REQUEST 3 AUTH "+native_key+" SPEED 0.4";
+   return wire.c_str();
+  }
+  index-=5;
+ }
+ const char* historical=gp_historical_receive(index);
+ if(!historical && tick==212080 && !late_probe_sent &&
+    std::getenv("GP_U_R3_NEGATIVE_ONLY")){
+  // Separate negative run: a fresh authenticated command after expiry.
+  assert(claim_seen);
+  late_probe_sent=true;late_probe_id=next_wire_id++;
+  wire=kPrefix+" REQUEST "+std::to_string(late_probe_id)+
+       " AUTH "+native_key+" SPEED 0.4";
+  return wire.c_str();
+ }
+ if(!historical)return nullptr;
+ int historical_id=-1,body=0;
+ if(std::sscanf(historical,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %n",
+                &historical_id,&body)!=1 || historical_id<1 || body<=0)
+  return historical; // File-broker namespace is unchanged.
+ assert(claim_seen && native_key.size()==64 && next_wire_id<2147483646);
+ const int wire_id=next_wire_id++;
+ assert(wire_to_historical.emplace(wire_id,historical_id).second);
+ wire=kPrefix+" REQUEST "+std::to_string(wire_id)+" AUTH "+
+      native_key+" "+(historical+body);
+ std::printf("GP_U_R3_SEND t=%lld wire_id=%d historical_id=%d\n",
+             tick,wire_id,historical_id);
+ return wire.c_str();
+}
 extern "C" void gp_test_send(const char* data,int){
- std::string reply=data?data:"";replies.push_back(reply);
+ std::string reply=data?data:"";
+ std::printf("GP_U_R3_WIRE_RESPONSE t=%lld %s\n",tick,reply.c_str());
+ if(reply==kPrefix+" RESPONSE 1 ERR AUTH_DENIED")preclaim_denied=true;
+ if(reply==kPrefix+" RESPONSE 4 ERR AUTH_DENIED")stale_denied=true;
+ if(reply==kPrefix+" RESPONSE 3 ERR REPLAY_DENIED")replay_denied=true;
+ char echoed[65]={0},epoch[33]={0},extra[2]={0};
+ if(reply.rfind(kPrefix+" RESPONSE 2 AUTH_EPOCH ",0)==0){
+  assert(std::sscanf(reply.c_str(),
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 AUTH_EPOCH %64s %32s %1s",
+    echoed,epoch,extra)==2);
+  assert(kEpochChallenge==echoed && std::strlen(epoch)==32);
+  native_epoch=epoch;epoch_seen=true;
+ }
+ if(reply.rfind(kPrefix+" RESPONSE 3 AUTH_OK ",0)==0){
+  assert(reply==kPrefix+" RESPONSE 3 AUTH_OK "+kClaimChallenge);
+  assert(epoch_seen);claim_seen=true;
+ }
+ int wire_id=-1,body=0;
+ if(std::sscanf(reply.c_str(),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d %n",
+                &wire_id,&body)==1 && body>0){
+  if(late_probe_sent && wire_id==late_probe_id)
+   late_denied=reply==kPrefix+" RESPONSE "+std::to_string(wire_id)+" ERR TIME_LIMIT";
+  auto mapped=wire_to_historical.find(wire_id);
+  if(mapped!=wire_to_historical.end()){
+   assert(++wire_reply_count[wire_id]==1); // One native response per ordinary request.
+   reply=kPrefix+" RESPONSE "+std::to_string(mapped->second)+" "+reply.substr(body);
+  }
+ }
+ replies.push_back(reply);
  std::printf("GP_U_POSE_RESPONSE t=%lld %s\n",tick,reply.c_str());
  if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK" ||
     (file_startup() && reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 OK")){
@@ -263,6 +355,17 @@ extern "C" void gp_test_cleanup(){
  const auto self=wb_supervisor_node_get_self();
  const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
  const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
+ assert(epoch_seen && claim_seen && preclaim_denied && stale_denied && replay_denied);
+ assert(!wire_to_historical.empty());
+ std::printf("GP_U_R3_ADMISSION_PASS case=%s wire_count=%zu\n",
+             mode.c_str(),wire_to_historical.size());
+ if(std::getenv("GP_U_R3_NEGATIVE_ONLY")){
+  assert(late_probe_sent && tick>=212080);
+  assert(std::strstr(authority,"state=deadline"));
+  assert(late_denied); // Do not turn product BUSY or OK into a PASS.
+  std::puts("GP_U_R3_NEGATIVE_PASS missing,stale,replay,expired");
+  return;
+ }
  if(file_startup()){
   assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 51 ERR BUSY"));
   assert(teleports==1 && reset_ok && !takeoff && tick>=2560);
