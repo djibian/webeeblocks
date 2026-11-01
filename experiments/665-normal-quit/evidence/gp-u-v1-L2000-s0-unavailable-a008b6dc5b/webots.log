@@ -1,0 +1,47 @@
+WARNING: It is not recommended to run Webots as root.
+WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+WARNING: Crazyflie "Crazyflie WebeeBlocks" > Pose  > LED "color_led" > Group  > PointLight : A quadratic 'attenuation' should be preferred to have a realistic simulation of light. Only the third component of the 'attenuation' field should be greater than 0.
+WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+WARNING: WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000
+INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000
+WEBEEBLOCKS_RUNTIME_V2 READY
+GP_U_ADMISSION attempt=1 start_ms=30784
+WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK
+WEBEEBLOCKS_RUNTIME_V2 TRACE VERTICAL up distance=0.400000000 stop=1
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK
+WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=0.830000000
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 VALUE 0.830000000
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK
+GP_U_RESULT {"attempt": 1, "configuration": "gp-u-v1-L2000-s0", "crossings": 0, "reason": "runtime", "seconds": 9.16, "status": "not-achieved"}
+INFO: grand_prix_u_flight: Terminating.
+INFO: grand_prix_u_evaluator: Terminating.
+Warning: The X11 connection broke (error 1). Did the X11 server die?

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "requested": true,
+  "normal_success": true,
+  "wrapper_pid": 149,
+  "frozen_proofs": {
+    "events.jsonl": "a91a7cde8f069d55a26ed422d91d4cd041a70b25b4539673dc30f4de0d423904",
+    "result.json": "857c1287884a8752f087b0856e7df823d619a022119f27c3dc968596a50752eb",
+    "native-result-1.json": "db2414b56104bb9313ccf217e6cf2ffe7044e1a2a6c538d062a9ddbf474d5efd",
+    "native-diagnostic-1.json": "cb82f289ced48fa7a868d534df4db8dd1a42d6d788012e27c471c00955a6e541"
+  },
+  "exit_code": 0,
+  "acknowledged": true,
+  "stdout_eof": true,
+  "residual_processes": [],
+  "proofs_unchanged": true
+}

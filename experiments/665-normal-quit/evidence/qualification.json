@@ -1,0 +1,6 @@
+{
+  "normal_exit": "PROVEN_IN_THIS_PAIR",
+  "runner_sigterm_path": "ELIMINATED_IN_NORMAL_ARM",
+  "historical_post_ready_crash": "UNPROVEN",
+  "claims_scope": "No native handler-entry probe; signal observations concern this runner only."
+}

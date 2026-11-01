@@ -1,0 +1,10 @@
+{
+  "image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+  "source": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "sha256": {
+    "bin/webots-bin": "1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb",
+    "lib/webots/libode.so": "1abbe1634b3a80f7a3930f3e91e68d11aff5f36580c28675ac1c9330edb0e5e2",
+    "lib/webots/libQt6Core.so.6": "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8",
+    "lib/webots/libQt6Widgets.so.6": "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024"
+  }
+}

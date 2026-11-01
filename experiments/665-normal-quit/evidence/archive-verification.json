@@ -1,0 +1,27 @@
+{
+  "zip_sha256": "b87ccb715cb55cf2861802137d5adead80f82074373bd888caf7c28c8980c1a3",
+  "root_manifest_files": 35,
+  "trials": [
+    {
+      "directory": "gp-u-v1-L2000-s0-unavailable-04a6ae61c9",
+      "trial_hashes": 15,
+      "process_group": [],
+      "original_visible_processes_restored": true,
+      "remaining_processes": [
+        "docker-init",
+        "python3"
+      ],
+      "frozen_proofs_verified": 4
+    },
+    {
+      "directory": "gp-u-v1-L2000-s0-unavailable-a008b6dc5b",
+      "trial_hashes": 12,
+      "process_group": [],
+      "original_visible_processes_restored": true,
+      "remaining_processes": [
+        "docker-init",
+        "python3"
+      ]
+    }
+  ]
+}

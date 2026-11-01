@@ -1,0 +1,12 @@
+{
+  "status": "not-achieved",
+  "configuration": "gp-u-v1-L2000-s0",
+  "attempt": 1,
+  "seconds": 8.648,
+  "reason": "runtime",
+  "crossings": 0,
+  "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+  "claim": "native-shared-interpreter",
+  "webots_version": "R2025a",
+  "mode": "unavailable"
+}

@@ -1,0 +1,95 @@
+[
+  {
+    "arm": "current",
+    "normal_requested": false,
+    "result": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 9.16,
+      "reason": "runtime",
+      "crossings": 0,
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "unavailable"
+    },
+    "trial_pass": true,
+    "directory": "gp-u-v1-L2000-s0-unavailable-a008b6dc5b",
+    "wrapper_pid": 102,
+    "residual_processes": [],
+    "world_sha256": "4b17c32951fa76627e73485dc41c7ef30ef91f76b950b0525bf78a0f7322ef5a",
+    "proofs": {
+      "direct-process-exits.json": "5dc3dfe03cd49b2a97a73f3e6df54e1e025383307a9ba8af6b709db5c43cc4e7",
+      "events.jsonl": "0ee1dbf17f959827e98902b45fbae13a27f5bd3525dbfd9c919f60e3671939d9",
+      "layout.json": "c81ca9d29501b734a22292f4fbdfa75ff08807372805364af5cb1c302179de7b",
+      "native-diagnostic-1.json": "9afc8deb7c6cdf9fae7fc903877a5131ea2fc452f4878b788d62d8dea044f8b2",
+      "native-result-1.json": "54e3372f716e373a7924db11486c013f1f1b206144508688840999b6c7b94ae4",
+      "native_trace.csv": "4a23925c2839c67606155e82d051369cb4d5daec8bd05a9fff1b240fe25fce09",
+      "node.log": "2a1ef695d5bc6cecb612d85da876de3ca8191da3be9bc5df6350e7de60cf4fa2",
+      "result.json": "a5ea889b179b838437084ee047401316caf1e70e73848fa2506c4fac4837d5ff",
+      "sha256.json": "9ae1fbd5f2dc68746fd70a1bde1c621c960aa1723cc98dd0552b17f95b97fcad",
+      "startup-cleanup.json": "0a4752056ec6827552e9fa71df92cd919e7de656906859341ad8a90d541731df",
+      "startup-ready.json": "e0cf4698d61fee473e9d901682211ae09c286bec48fad0d74b280d77c42c75b3",
+      "webots.log": "64e2809c823cf28d2bad496a40eee3d47d69c28da575fc131e14fd6604389a15",
+      "world.wbt": "4b17c32951fa76627e73485dc41c7ef30ef91f76b950b0525bf78a0f7322ef5a"
+    },
+    "normal_record": null
+  },
+  {
+    "arm": "normal",
+    "normal_requested": true,
+    "result": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 8.648,
+      "reason": "runtime",
+      "crossings": 0,
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "unavailable"
+    },
+    "trial_pass": true,
+    "directory": "gp-u-v1-L2000-s0-unavailable-04a6ae61c9",
+    "wrapper_pid": 149,
+    "residual_processes": [],
+    "world_sha256": "4b17c32951fa76627e73485dc41c7ef30ef91f76b950b0525bf78a0f7322ef5a",
+    "proofs": {
+      "direct-process-exits.json": "d48c033d5238c159bfd0cb61eaa54c1d4674deab662cf3f553d169cf07e80a1d",
+      "events.jsonl": "a91a7cde8f069d55a26ed422d91d4cd041a70b25b4539673dc30f4de0d423904",
+      "layout.json": "c81ca9d29501b734a22292f4fbdfa75ff08807372805364af5cb1c302179de7b",
+      "native-diagnostic-1.json": "cb82f289ced48fa7a868d534df4db8dd1a42d6d788012e27c471c00955a6e541",
+      "native-result-1.json": "db2414b56104bb9313ccf217e6cf2ffe7044e1a2a6c538d062a9ddbf474d5efd",
+      "native_trace.csv": "d241f47c4e0442756abdef877112e87477c5ae4dd591fb1c3b7ca3a7c5e7e863",
+      "node.log": "0a0385db8bf9bb52c4dafc23e5118f609b5ddecbf243009350d9caba7f1285c2",
+      "normal-quit.ack": "3a8fb76430198cfc6978668c0d30b77228dbe1b21af9a3d0aa3b755adb23efa1",
+      "normal-quit.json": "5dbb95559908049db2bcc63f050089bc52f5adb92dc0a715007bd609e13c4d06",
+      "normal-quit.request": "3a8fb76430198cfc6978668c0d30b77228dbe1b21af9a3d0aa3b755adb23efa1",
+      "result.json": "857c1287884a8752f087b0856e7df823d619a022119f27c3dc968596a50752eb",
+      "sha256.json": "f876527e3df56588b02dc43979ee4eeacf0363dd6b44025921e0f7e55dadb591",
+      "startup-cleanup.json": "6c0631ce33dc53bb2992002fc37cf5011efd166ffd1eba09a07fa79b6f833033",
+      "startup-ready.json": "13605f4dc215f64e18100b4b8ad0ed5ce99ead85993d7cc2e81ebf6b1ed417de",
+      "webots.log": "c8c37c737b45e15cea2e29f28309270c4fe5f98b946f68ab60887c5de2e5d1a2",
+      "world.wbt": "4b17c32951fa76627e73485dc41c7ef30ef91f76b950b0525bf78a0f7322ef5a"
+    },
+    "normal_record": {
+      "schema": 1,
+      "requested": true,
+      "normal_success": true,
+      "wrapper_pid": 149,
+      "frozen_proofs": {
+        "events.jsonl": "a91a7cde8f069d55a26ed422d91d4cd041a70b25b4539673dc30f4de0d423904",
+        "result.json": "857c1287884a8752f087b0856e7df823d619a022119f27c3dc968596a50752eb",
+        "native-result-1.json": "db2414b56104bb9313ccf217e6cf2ffe7044e1a2a6c538d062a9ddbf474d5efd",
+        "native-diagnostic-1.json": "cb82f289ced48fa7a868d534df4db8dd1a42d6d788012e27c471c00955a6e541"
+      },
+      "exit_code": 0,
+      "acknowledged": true,
+      "stdout_eof": true,
+      "residual_processes": [],
+      "proofs_unchanged": true
+    }
+  }
+]

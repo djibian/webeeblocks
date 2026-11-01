@@ -1,0 +1,540 @@
+{
+  "cgroup_at_readiness": {
+    "matching_visible": 8,
+    "matching_visible_tasks": 20,
+    "membership": "0::/",
+    "pid_namespace": "pid:[4026532305]",
+    "processes": [
+      {
+        "comm": "docker-init",
+        "pgid": 1,
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 0,
+        "sid": 1,
+        "start_ticks": 11030,
+        "state": "S"
+      },
+      {
+        "comm": "python3",
+        "pgid": 7,
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 1,
+        "sid": 1,
+        "start_ticks": 11034,
+        "state": "R"
+      },
+      {
+        "comm": "xvfb-run",
+        "pgid": 102,
+        "pid": 102,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 7,
+        "sid": 102,
+        "start_ticks": 11468,
+        "state": "S"
+      },
+      {
+        "comm": "Xvfb",
+        "pgid": 102,
+        "pid": 112,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 102,
+        "sid": 102,
+        "start_ticks": 11468,
+        "state": "S"
+      },
+      {
+        "comm": "webots",
+        "pgid": 102,
+        "pid": 115,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 102,
+        "sid": 102,
+        "start_ticks": 11470,
+        "state": "S"
+      },
+      {
+        "comm": "webots-bin",
+        "pgid": 102,
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 115,
+        "sid": 102,
+        "start_ticks": 11471,
+        "state": "R"
+      },
+      {
+        "comm": "grand_prix_u_fl",
+        "pgid": 102,
+        "pid": 137,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 119,
+        "sid": 102,
+        "start_ticks": 12673,
+        "state": "S"
+      },
+      {
+        "comm": "python3",
+        "pgid": 102,
+        "pid": 139,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 119,
+        "sid": 102,
+        "start_ticks": 12674,
+        "state": "R"
+      }
+    ],
+    "scan_errors": 0,
+    "scanned_visible": 8,
+    "scope_limitation": "exact cgroup members only; pids.current may include descendant cgroups",
+    "status": "ok",
+    "task_truncated": false,
+    "tasks": [
+      {
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11030,
+        "tid": 1,
+        "tid_start_ticks": 11030
+      },
+      {
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11034,
+        "tid": 7,
+        "tid_start_ticks": 11034
+      },
+      {
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11034,
+        "tid": 101,
+        "tid_start_ticks": 11467
+      },
+      {
+        "pid": 102,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11468,
+        "tid": 102,
+        "tid_start_ticks": 11468
+      },
+      {
+        "pid": 112,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11468,
+        "tid": 112,
+        "tid_start_ticks": 11468
+      },
+      {
+        "pid": 115,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11470,
+        "tid": 115,
+        "tid_start_ticks": 11470
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 119,
+        "tid_start_ticks": 11471
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 120,
+        "tid_start_ticks": 11472
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 122,
+        "tid_start_ticks": 11472
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 124,
+        "tid_start_ticks": 11473
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 125,
+        "tid_start_ticks": 11474
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 126,
+        "tid_start_ticks": 11474
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 127,
+        "tid_start_ticks": 11474
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 128,
+        "tid_start_ticks": 11474
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 129,
+        "tid_start_ticks": 11494
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 130,
+        "tid_start_ticks": 11494
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 131,
+        "tid_start_ticks": 11494
+      },
+      {
+        "pid": 119,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11471,
+        "tid": 136,
+        "tid_start_ticks": 11554
+      },
+      {
+        "pid": 137,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 12673,
+        "tid": 137,
+        "tid_start_ticks": 12673
+      },
+      {
+        "pid": 139,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 12674,
+        "tid": 139,
+        "tid_start_ticks": 12674
+      }
+    ],
+    "truncated": false
+  },
+  "cgroup_before": {
+    "matching_visible": 2,
+    "matching_visible_tasks": 3,
+    "membership": "0::/",
+    "pid_namespace": "pid:[4026532305]",
+    "processes": [
+      {
+        "comm": "docker-init",
+        "pgid": 1,
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 0,
+        "sid": 1,
+        "start_ticks": 11030,
+        "state": "S"
+      },
+      {
+        "comm": "python3",
+        "pgid": 7,
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 1,
+        "sid": 1,
+        "start_ticks": 11034,
+        "state": "R"
+      }
+    ],
+    "scan_errors": 0,
+    "scanned_visible": 2,
+    "scope_limitation": "exact cgroup members only; pids.current may include descendant cgroups",
+    "status": "ok",
+    "task_truncated": false,
+    "tasks": [
+      {
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11030,
+        "tid": 1,
+        "tid_start_ticks": 11030
+      },
+      {
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11034,
+        "tid": 7,
+        "tid_start_ticks": 11034
+      },
+      {
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11034,
+        "tid": 101,
+        "tid_start_ticks": 11467
+      }
+    ],
+    "truncated": false
+  },
+  "elapsed_s": 12.14,
+  "prior_trials_validated": 0,
+  "process_samples": [
+    {
+      "elapsed_s": 0.001,
+      "processes": [
+        {
+          "cmdline": "/bin/sh /usr/bin/xvfb-run -a /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "xvfb-run",
+          "pgid": 102,
+          "pid": 102,
+          "ppid": 7,
+          "rss": "VmRSS:\t     252 kB",
+          "sid": 102,
+          "state": "R"
+        }
+      ]
+    },
+    {
+      "elapsed_s": 0.402,
+      "processes": [
+        {
+          "cmdline": "/bin/sh /usr/bin/xvfb-run -a /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "xvfb-run",
+          "pgid": 102,
+          "pid": 102,
+          "ppid": 7,
+          "rss": "VmRSS:\t    1760 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -auth /tmp/xvfb-run.1EEisM/Xauthority",
+          "comm": "Xvfb",
+          "pgid": 102,
+          "pid": 112,
+          "ppid": 102,
+          "rss": "VmRSS:\t   77872 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/bin/bash /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots",
+          "pgid": 102,
+          "pid": 115,
+          "ppid": 102,
+          "rss": "VmRSS:\t    3812 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/usr/local/webots/bin/webots-bin --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots-bin",
+          "pgid": 102,
+          "pid": 119,
+          "ppid": 115,
+          "rss": "VmRSS:\t  213556 kB",
+          "sid": 102,
+          "state": "R"
+        }
+      ]
+    },
+    {
+      "elapsed_s": 0.803,
+      "processes": [
+        {
+          "cmdline": "/bin/sh /usr/bin/xvfb-run -a /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "xvfb-run",
+          "pgid": 102,
+          "pid": 102,
+          "ppid": 7,
+          "rss": "VmRSS:\t    1760 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -auth /tmp/xvfb-run.1EEisM/Xauthority",
+          "comm": "Xvfb",
+          "pgid": 102,
+          "pid": 112,
+          "ppid": 102,
+          "rss": "VmRSS:\t   81564 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/bin/bash /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots",
+          "pgid": 102,
+          "pid": 115,
+          "ppid": 102,
+          "rss": "VmRSS:\t    3812 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/usr/local/webots/bin/webots-bin --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots-bin",
+          "pgid": 102,
+          "pid": 119,
+          "ppid": 115,
+          "rss": "VmRSS:\t  340772 kB",
+          "sid": 102,
+          "state": "R"
+        }
+      ]
+    },
+    {
+      "elapsed_s": 12.14,
+      "processes": [
+        {
+          "cmdline": "/bin/sh /usr/bin/xvfb-run -a /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "xvfb-run",
+          "pgid": 102,
+          "pid": 102,
+          "ppid": 7,
+          "rss": "VmRSS:\t    1760 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -auth /tmp/xvfb-run.1EEisM/Xauthority",
+          "comm": "Xvfb",
+          "pgid": 102,
+          "pid": 112,
+          "ppid": 102,
+          "rss": "VmRSS:\t   80452 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/bin/bash /usr/local/webots/webots --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots",
+          "pgid": 102,
+          "pid": 115,
+          "ppid": 102,
+          "rss": "VmRSS:\t    3812 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/usr/local/webots/bin/webots-bin --stdout --stderr --batch --mode=fast --no-rendering --minimize --port=55627 /workspace/worlds/ci_gp_u_flight_a008b6dc5b.wbt",
+          "comm": "webots-bin",
+          "pgid": 102,
+          "pid": 119,
+          "ppid": 115,
+          "rss": "VmRSS:\t  495896 kB",
+          "sid": 102,
+          "state": "R"
+        },
+        {
+          "cmdline": "/workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+          "comm": "grand_prix_u_fl",
+          "pgid": 102,
+          "pid": 137,
+          "ppid": 119,
+          "rss": "VmRSS:\t   14876 kB",
+          "sid": 102,
+          "state": "S"
+        },
+        {
+          "cmdline": "/usr/bin/python3 -u grand_prix_u_evaluator.py 0 2.000",
+          "comm": "python3",
+          "pgid": 102,
+          "pid": 139,
+          "ppid": 119,
+          "rss": "VmRSS:\t   20048 kB",
+          "sid": 102,
+          "state": "S"
+        }
+      ]
+    }
+  ],
+  "resources_at_readiness": {
+    "cgroup_v2": {
+      "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=6925\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=2020",
+      "memory.current": "450064384",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "memory.max": "max",
+      "memory.peak": "450064384",
+      "pids.current": "20",
+      "pids.events": "max 0",
+      "pids.max": "19140"
+    },
+    "core_pattern": "|/lib/systemd/systemd-coredump %P %u %g %s %t 9223372036854775808 %h %d",
+    "core_uses_pid": "1",
+    "disk": {
+      "free_bytes": 90866409472,
+      "total_bytes": 155897610240
+    },
+    "loadavg": [
+      1.0732421875,
+      0.3349609375,
+      0.1162109375
+    ],
+    "meminfo": {
+      "MemAvailable": "14856556 kB",
+      "MemTotal": "16372452 kB",
+      "SwapFree": "3145724 kB",
+      "SwapTotal": "3145724 kB"
+    },
+    "rlimit_core_bytes": [
+      -1,
+      -1
+    ]
+  },
+  "resources_before": {
+    "cgroup_v2": {
+      "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=684\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=606",
+      "memory.current": "20258816",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "memory.max": "max",
+      "memory.peak": "282849280",
+      "pids.current": "3",
+      "pids.events": "max 0",
+      "pids.max": "19140"
+    },
+    "core_pattern": "|/lib/systemd/systemd-coredump %P %u %g %s %t 9223372036854775808 %h %d",
+    "core_uses_pid": "1",
+    "disk": {
+      "free_bytes": 90869026816,
+      "total_bytes": 155897610240
+    },
+    "loadavg": [
+      1.0078125,
+      0.28271484375,
+      0.09619140625
+    ],
+    "meminfo": {
+      "MemAvailable": "14837264 kB",
+      "MemTotal": "16372452 kB",
+      "SwapFree": "3145724 kB",
+      "SwapTotal": "3145724 kB"
+    },
+    "rlimit_core_bytes": [
+      -1,
+      -1
+    ]
+  },
+  "schema": 1,
+  "sequence_index": 1,
+  "status": "RUNTIME_READY",
+  "wrapper_pid": 102,
+  "wrapper_returncode": null
+}

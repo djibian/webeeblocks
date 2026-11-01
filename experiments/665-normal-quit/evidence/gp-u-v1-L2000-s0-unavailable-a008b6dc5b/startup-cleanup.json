@@ -1,0 +1,89 @@
+{
+  "cgroup_after_cleanup": {
+    "matching_visible": 2,
+    "matching_visible_tasks": 2,
+    "membership": "0::/",
+    "pid_namespace": "pid:[4026532305]",
+    "processes": [
+      {
+        "comm": "docker-init",
+        "pgid": 1,
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 0,
+        "sid": 1,
+        "start_ticks": 11030,
+        "state": "S"
+      },
+      {
+        "comm": "python3",
+        "pgid": 7,
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "ppid": 1,
+        "sid": 1,
+        "start_ticks": 11034,
+        "state": "R"
+      }
+    ],
+    "scan_errors": 0,
+    "scanned_visible": 2,
+    "scope_limitation": "exact cgroup members only; pids.current may include descendant cgroups",
+    "status": "ok",
+    "task_truncated": false,
+    "tasks": [
+      {
+        "pid": 1,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11030,
+        "tid": 1,
+        "tid_start_ticks": 11030
+      },
+      {
+        "pid": 7,
+        "pid_namespace": "pid:[4026532305]",
+        "pid_start_ticks": 11034,
+        "tid": 7,
+        "tid_start_ticks": 11034
+      }
+    ],
+    "truncated": false
+  },
+  "process_group_after_cleanup": [],
+  "resources_after_cleanup": {
+    "cgroup_v2": {
+      "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=67476\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=18576",
+      "memory.current": "28131328",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "memory.max": "max",
+      "memory.peak": "583782400",
+      "pids.current": "2",
+      "pids.events": "max 0",
+      "pids.max": "19140"
+    },
+    "core_pattern": "|/lib/systemd/systemd-coredump %P %u %g %s %t 9223372036854775808 %h %d",
+    "core_uses_pid": "1",
+    "disk": {
+      "free_bytes": 90864799744,
+      "total_bytes": 155897610240
+    },
+    "loadavg": [
+      1.0732421875,
+      0.3349609375,
+      0.1162109375
+    ],
+    "meminfo": {
+      "MemAvailable": "15189136 kB",
+      "MemTotal": "16372452 kB",
+      "SwapFree": "3145724 kB",
+      "SwapTotal": "3145724 kB"
+    },
+    "rlimit_core_bytes": [
+      -1,
+      -1
+    ]
+  },
+  "schema": 1,
+  "sequence_index": 1,
+  "wrapper_pid": 102
+}
