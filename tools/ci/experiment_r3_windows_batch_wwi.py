@@ -208,9 +208,20 @@ def main():
                             response=read_reply(ws,103,"light",time.monotonic()+8)
                             # Native C emits a correlated trace only when it
                             # really reached wb_led_set, not an HTTP response.
-                            trace=(out/"webots.stdout.log").read_text(encoding="utf-8",errors="replace")
-                            result["light_c_native"]= bool(response and response[0]=="OK" and
-                                            "TRACE LIGHT color=red rgb=ff0000" in trace)
+                            result["light_native_ack"]=bool(response and response[0]=="OK")
+                            # Webots C fflush(stdout) can precede the separate
+                            # Python pipe-drain thread writing its disk log.
+                            # Bound the independent trace barrier; ACK alone
+                            # never substitutes for an actual C LED trace.
+                            trace=""
+                            trace_deadline=time.monotonic()+3
+                            while time.monotonic()<trace_deadline:
+                                trace=(out/"webots.stdout.log").read_text(
+                                    encoding="utf-8",errors="replace")
+                                if "TRACE LIGHT color=red rgb=ff0000" in trace:break
+                                time.sleep(.05)
+                            result["light_c_native"]=bool(result["light_native_ack"] and
+                                             "TRACE LIGHT color=red rgb=ff0000" in trace)
                     result["boundary"]="Batch WWI connection protocol observed; world reload requires separate full browser checkpoint/handoff."
                 except Exception as exc:
                     result["ws_error_type"]=type(exc).__name__
