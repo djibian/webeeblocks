@@ -142,7 +142,7 @@ m = once(m, '''WbSolidMerger::~WbSolidMerger() {
       dBodyDisable(h6other);
       h6_p0_trace("E5_owner_sleep_forced_at_destructor",
                   (unsigned long long)(uintptr_t)h6other);
-      std::fprintf(stderr, "H6_E5_BOUNDARY_SLEEP victim=%p other=%p before=%d after=%d joint=%p\\n",
+      std::fprintf(stderr, "H6_E5_BOUNDARY_SLEEP victim=%p other=%p before=%d after=%d joint=%p\n",
                    (void*)mBody, (void*)h6other, h6before,
                    dBodyIsEnabled(h6other), (void*)h6j);
       h6FoundForeignContact = true;
