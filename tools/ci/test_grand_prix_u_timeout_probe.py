@@ -1,8 +1,12 @@
 """Falsify the expired-attempt versus recovered-attempt evidence boundary."""
 import copy
+import json
+import subprocess
+from types import SimpleNamespace
 import unittest
 import tempfile
 from unittest.mock import patch
+import run_grand_prix_u_prototype as runner
 from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch, has_native_land_completion
 import run_grand_prix_u_geometry as geometry
 from pathlib import Path
@@ -130,5 +134,83 @@ class TimeoutEvidenceTests(unittest.TestCase):
             with self.subTest(rows=rows,text=text),self.assertRaises(RuntimeError):
                 validate_timeout_probe(rows,text)
 
+
+
+class NormalQuitHostTests(unittest.TestCase):
+    """Host-only refusal tests; native outcomes remain an independent CI obligation."""
+
+    @staticmethod
+    def prepare(root, attempts):
+        (root/'events.jsonl').write_text('{}\\n')
+        (root/'result.json').write_text('{}')
+        (root/'webots.log').write_text('GP_U_RESULT {}\\n')
+        for attempt in attempts:
+            (root/f'native-result-{attempt}.json').write_text('{}')
+            (root/f'native-diagnostic-{attempt}.json').write_text(json.dumps(
+                {'time': 1.0, 'position': [0, 0, 0], 'velocity': [0, 0, 0]}))
+
+    def test_normal_exit_follows_complete_second_reset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            self.prepare(root,[1,2])
+            class Child:
+                pid=123
+                returncode=0
+                def wait(self,timeout):
+                    request=(root/'normal-quit.request').read_text()
+                    assert request.split()[0]=='2'
+                    (root/'normal-quit.ack').write_text(request)
+            class Log:
+                def finish(self):pass
+            with patch.object(runner,'process_group',return_value=[]):
+                runner.normal_quit_after_validation(root,Child(),Log(),[1,2])
+            self.assertTrue(json.loads((root/'normal-quit.json').read_text())['normal_success'])
+
+    def test_missing_second_reset_proof_and_nonfinite_diagnostic_refuse_request(self):
+        for failure in ('missing', 'nonfinite'):
+            with self.subTest(failure=failure),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                self.prepare(root,[1,2])
+                diagnostic=root/'native-diagnostic-2.json'
+                if failure=='missing': diagnostic.unlink()
+                else: diagnostic.write_text('{"time": NaN, "position":[0,0,0], "velocity":[0,0,0]}')
+                with self.assertRaises((OSError,ValueError)):
+                    runner.normal_quit_after_validation(root,None,None,[1,2])
+                self.assertFalse((root/'normal-quit.request').exists())
+
+    def test_refuses_every_unproven_retirement(self):
+        for fault in ('timeout','exit','ack','crash','eof','mutation','survivor'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                self.prepare(root,[1])
+                class Child:
+                    pid=123
+                    returncode=139 if fault=='exit' else 0
+                    def wait(self,timeout):
+                        if fault=='timeout':raise subprocess.TimeoutExpired('webots',timeout)
+                        request=(root/'normal-quit.request').read_text()
+                        (root/'normal-quit.ack').write_text('invalid' if fault=='ack' else request)
+                        if fault=='mutation':(root/'native-result-1.json').write_text('{"mutated":true}')
+                        if fault=='crash':(root/'webots.log').write_text('malloc(): corrupted\\n')
+                def finish():
+                    if fault=='eof':raise RuntimeError('stdout still held')
+                survivors=[{'pid':9}] if fault=='survivor' else []
+                with patch.object(runner,'process_group',return_value=survivors), \\
+                     patch.object(runner.time,'monotonic',side_effect=[0,3] if fault=='survivor' else [0]), \\
+                     self.assertRaises(Exception):
+                    runner.normal_quit_after_validation(root,Child(),SimpleNamespace(finish=finish),[1])
+                self.assertFalse(json.loads((root/'normal-quit.json').read_text())['normal_success'])
+
+    def test_native_non_tcp_cases_enable_graceful_quit_without_changing_tcp_or_camera(self):
+        source=(ROOT/'tools/ci/run_grand_prix_u_prototype.py').read_text()
+        trial=source.split('def trial(',1)[1].split('\\ndef retire_trial(',1)[0]
+        gate=trial.index('normal_quit_after_validation(out,')
+        for anchor in ('second identical program after native RESET failed',
+                       'missing independent forced LAND/failure','wrong native subject',
+                       "(out/'result.json').write_text"):
+            self.assertLess(trial.index(anchor),gate)
+        self.assertIn("normal_quit=not args.tcp",source)
+        self.assertIn("children[1:] if normal_quit_confirmed else children",source)
+        self.assertIn("if camera_probe is not None:",trial[:gate])
 
 if __name__=='__main__':unittest.main()
