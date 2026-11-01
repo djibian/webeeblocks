@@ -33,11 +33,8 @@ c = once(c, '''      if (it.value() == b) {
       if (!mode || (std::strcmp(mode, "owner") && std::strcmp(mode, "attached")))
         std::abort();
       const bool attached = (v0 == b || v1 == b);
-      // Explicit intervention only; not a claim of spontaneous sleeping owner.
-      if (std::getenv("H6_E5_FORCE_SLEEP") && owner != b && attached) {
-        dBodyDisable(owner);
-        h6_p0_trace("E5_owner_sleep_forced", (unsigned long long)(uintptr_t)joint);
-      }
+      // Intervention occurs once, at the real destructor boundary before M.
+      // Neither registry scan nor owner policy changes the physical fixture.
       const bool drop = owner == b ||
         (!std::strcmp(mode, "attached") && (attached || (!v0 && !v1)));
       std::fprintf(stderr, "H6_E5_SCAN mode=%s joint=%p owner=%p victim=%p v0=%p v1=%p owner_enabled=%d drop=%d\n",
@@ -127,6 +124,34 @@ m = once(m, '''WbSolidMerger::~WbSolidMerger() {
   WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
   dBodyDestroy(mBody);''', '''WbSolidMerger::~WbSolidMerger() {
   h6_p0_trace("E5_body_destructor_enter", (unsigned long long)(uintptr_t)mBody);
+  // D1 native control #41201953896: sleep the genuinely attached OTHER
+  // body at the real body destructor boundary, immediately before cleanup.
+  // No mutation of contacts/ownership maps and no fabricated joints.
+  if (std::getenv("H6_E5_FORCE_SLEEP") &&
+      !std::strcmp(std::getenv("H6_E5_FORCE_SLEEP"), "1")) {
+    bool h6FoundForeignContact = false;
+    for (int h6i = 0; h6i < dBodyGetNumJoints(mBody); ++h6i) {
+      dJointID h6j = dBodyGetJoint(mBody, h6i); // LIVE at destructor entry
+      if (dJointGetType(h6j) != dJointTypeContact)
+        continue;
+      const dBodyID h6b0 = dJointGetBody(h6j, 0), h6b1 = dJointGetBody(h6j, 1);
+      const dBodyID h6other = h6b0 == mBody ? h6b1 : h6b0;
+      if (!h6other)
+        continue; // plugin B-world contact is not the A-B witness
+      const int h6before = dBodyIsEnabled(h6other);
+      dBodyDisable(h6other);
+      h6_p0_trace("E5_owner_sleep_forced_at_destructor",
+                  (unsigned long long)(uintptr_t)h6other);
+      std::fprintf(stderr, "H6_E5_BOUNDARY_SLEEP victim=%p other=%p before=%d after=%d joint=%p\\n",
+                   (void*)mBody, (void*)h6other, h6before,
+                   dBodyIsEnabled(h6other), (void*)h6j);
+      h6FoundForeignContact = true;
+      break;
+    }
+    if (!h6FoundForeignContact)
+      h6_p0_trace("E5_no_foreign_attached_at_destructor",
+                  (unsigned long long)(uintptr_t)mBody);
+  }
   WbOdeContext::instance()->removeBodyContactJointGroup(mBody);
   h6_p0_trace("E5_before_dBodyDestroy", (unsigned long long)(uintptr_t)mBody);
   dBodyDestroy(mBody);
@@ -134,6 +159,9 @@ m = once(m, '''WbSolidMerger::~WbSolidMerger() {
   "true Webots body destructor")
 m = once(m, '#include "WbSolidMerger.hpp"',
  '''extern "C" void h6_p0_trace(const char *, unsigned long long);
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 #include "WbSolidMerger.hpp"''', "merger trace declaration")
 ctx.write_text(c)
 solid.write_text(s)
