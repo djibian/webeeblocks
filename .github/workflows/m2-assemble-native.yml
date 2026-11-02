@@ -166,6 +166,30 @@ jobs:
             if(-not $passed){throw 'M2_NATIVE_LOADED_MODULE_IDENTITY_UNPROVEN'}
           }finally{if($p){$p.Refresh();if(-not $p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}}}
           Write-Host 'M2_PRIVATE_WINDOWS_NATIVE_LOAD=PASS_BOUNDED_NOT_Q_DW'
+      - name: Supply only pinned upstream R2025a classroom projects to private runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:M2_PRIVATE_ROOT
+          $source=Join-Path $env:RUNNER_TEMP 'm2-pinned-projects'
+          git clone --no-checkout --filter=blob:none --depth=1 --branch R2025a https://github.com/cyberbotics/webots.git $source
+          if($LASTEXITCODE -ne 0){throw 'M2_UPSTREAM_CLONE_FAILED'}
+          git -C $source sparse-checkout init --cone
+          if($LASTEXITCODE -ne 0){throw 'M2_SPARSE_INIT_FAILED'}
+          git -C $source sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          if($LASTEXITCODE -ne 0){throw 'M2_SPARSE_PATHS_FAILED'}
+          git -C $source checkout R2025a
+          if($LASTEXITCODE -ne 0){throw 'M2_UPSTREAM_CHECKOUT_FAILED'}
+          $upstream=(git -C $source rev-parse HEAD | Out-String).Trim()
+          if($upstream -cne 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'){throw "M2_UPSTREAM_PIN_DRIFT $upstream"}
+          $projects=Join-Path $root 'projects'
+          if(Test-Path -LiteralPath $projects){throw 'M2_UPSTREAM_PROJECTS_ROOT_ALREADY_PRESENT'}
+          Copy-Item -LiteralPath (Join-Path $source 'projects') -Destination $projects -Recurse
+          foreach($name in @('robots/bitcraze/crazyflie/protos/Crazyflie.proto','default/protos/textures/fast_helix.png','appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg')) {
+            if(-not(Test-Path -LiteralPath (Join-Path $projects $name))){throw "M2_UPSTREAM_ASSET_MISSING $name"}
+          }
+          $upstream | Set-Content -LiteralPath (Join-Path $env:M2_REPORT_ROOT 'upstream-projects-commit.txt')
+          Write-Host "M2_PINNED_UPSTREAM_ASSETS=PASS commit=$upstream"
       - name: Build the current M1 classroom and strict private M2 launch package
         shell: pwsh
         run: |
