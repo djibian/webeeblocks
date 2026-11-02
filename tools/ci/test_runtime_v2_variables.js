@@ -135,5 +135,10 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   await require('./test_runtime_v2_procedures.js')();
   await require('./test_runtime_v2_elapsed_time.js')();
   require('child_process').execFileSync('python3',[require('path').join(__dirname,'test_simulation_clock.py')],{stdio:'inherit'});
+  // Classroom starter: real product Blockly + incomplete WBB + logical Save/Open.
+  // The spawned process isolates custom block registrations from this suite.
+  require('child_process').execFileSync(process.execPath,
+    [path.join(ROOT,'experiments/grand-prix-pupil-observation/verify.js')],
+    {cwd:ROOT, stdio:'inherit'});
   console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
