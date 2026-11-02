@@ -10,8 +10,9 @@
 - Independent reconstruction: https://github.com/djibian/webeeblocks/actions/runs/41451536084 — identical inner ZIP SHA-256.
 - Package retention/verified readback on an independent runner: https://github.com/djibian/webeeblocks/actions/runs/41451621194 — 11,366 private file SHA-256 checks, whole ZIP OCI roundtrip, constrained Windows PATH without separate Webots/MSYS2 SDK.
 - Native Windows real-product READY, process ancestry, loaded Qt DLL identities: https://github.com/djibian/webeeblocks/actions/runs/41451726713 — `PASS_BOUNDED_NOT_DW`.
+- Native Windows real GUI normal close (WM_CLOSE, owned children disappear, launcher exit 0): https://github.com/djibian/webeeblocks/actions/runs/41458097343 — PASS bounded on exact ZIP; still no after-Blockly interactive closure.
 - Native Qt 6.11.2 method-only reentrancy/lease/Cancel/parent test: https://github.com/djibian/webeeblocks/actions/runs/41451726930 — **NOT** a full Webots application Q or natural-exit proof.
-- Separate Linux parent-safe B full native U campaign: https://github.com/djibian/webeeblocks/actions/runs/41448884297 — **NOT** Linux default-selection evidence and **NOT** Windows D/W.
+- Separate Linux parent-safe B full native U campaign: https://github.com/djibian/webeeblocks/actions/runs/41448884297 — **NOT** Windows D/W. Ordinary U Linux default B selection separately PASS in https://github.com/djibian/webeeblocks/actions/runs/41457029154; other Linux product entry paths not implicitly covered.
 - Historical ZIP `9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c` (run `41442076181`, OCI `b9785b1e...`) is retained only in `PROVENANCE.json.windows.historical_private_product`. **Never use its acceptance or artifact IDs for this checkpoint.**
 
 ## Deterministic host preparation and fail-closed checks

@@ -1,6 +1,6 @@
 {
   "schema": "webeeblocks.m2.qt665.parent-safe.provenance.v1",
-  "status": "EXACT_WINDOWS_RELEASE_NATIVE_BOUNDED_PASS_INTERACTIVE_DW_UNPROVEN",
+  "status": "M2_EXACT_RELEASE_LINUX_DEFAULT_B_AND_WINDOWS_NATIVE_CLOSE_PASS_HUMAN_DW_UNPROVEN",
   "base_main": "6fd0888f0625d0b04803550da93affe4163755ca",
   "upstream_webots": {
     "commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
@@ -29,7 +29,12 @@
       "result": "PASS 17 native U campaign scenarios and 21 sealed capture directories, including timeout LAND at 210 s, RESET, reset-idle, six witness configurations and negatives",
       "scope": "Explicit OCI B selected directly by test; does not prove default Linux product runtime selection"
     },
-    "default_product_runtime_selection": "UNPROVEN"
+    "default_product_runtime_selection": {
+      "run": 41457029154,
+      "head": "2e728015f1b5f504f313f92309fc3eaf2ac40460",
+      "result": "PASS ordinary tools/ci/run_grand_prix_u_prototype.py --suite short without image override; both Grand Prix U product entry and geometry select exact B OCI/ELF and preserve wrong-landing negative",
+      "scope": "Linux U CI/native path; not a separate general Linux end-user installer; no claim about unrelated Webots consumers"
+    }
   },
   "windows": {
     "kernel_artifact": 12695533700,
@@ -117,10 +122,17 @@
         "result": "PASS actual Windows Webots engine, runtime controller and sequence evaluator READY with authenticated loaded Qt/Controller DLL paths and SHA under Mesa CI; NOT interactive D/W or normal close",
         "notes": "Probe force-stops observed process group for cleanup: no natural shutdown/complete Webots Qt lifetime proven"
       },
-      "interactive_dw": "UNPROVEN; exact-archive native 3D/Blockly/WWI/offline .wbb/STOP/RESET/step/Continue and real human test required",
-      "windows_normal_close": "UNPROVEN; separate graceful native user-level close and child identity/lifetime evidence needed",
+      "interactive_dw": "UNPROVEN actual on-screen 3D, Blockly/WWI/STEP/RESET/STOP/.wbb/offline/human acceptance",
+      "windows_normal_close": "PASS bounded native WM_CLOSE, launcher exit 0 and exact child disappearance; interactive classroom post-execution close UNPROVEN",
       "windows_offline_save_open_step": "UNPROVEN",
-      "test_required": "NOT_REQUESTED; existing windows-low-end profile prepares unrelated ZIP"
+      "test_required": "profile m2-private-windows-r2025a code added to existing trusted human-checkpoint workflow for exact ZIP/OCI preparation; NO request, preparation not yet executed, no human verdict",
+      "native_normal_close": {
+        "run": 41458097343,
+        "qualified_head": "18935de3e99e4889f036a8c5bc88cc4079e26460",
+        "artifact": 13147672746,
+        "result": "PASS BOUNDED real Win32 Webots native WM_CLOSE from real GUI window; READY and 3 authenticated owned process identities, launcher exits 0, descendants disappear, no controller kill in accepted path; psutil nonchild exit codes not directly observable",
+        "scope": "Mesa CI and neutral startup world; not a pupil-interactive D/W, no post-Blockly normal shutdown proof"
+      }
     },
     "historical_private_product": {
       "archive_source_run": 41442076181,
@@ -177,7 +189,7 @@
     "no waiver of Qt6.12 Q or real interactive Windows D/W",
     "no alteration to M1a #797 / M1b #798 / physical and negative oracles"
   ],
-  "scope_note": "Current Windows ZIP dc614c04... is distinct from historical 9f309308...; only evidence that explicitly authenticates dc614c04... transfers. Windows native method-only Q is NOT a full Webots lifetime proof. Native Windows READY/mapped modules PASS but natural close and interactive D/W UNPROVEN. Linux native full U suite PASS with explicit OCI B; default product adoption UNPROVEN. No CI Ready, TEST_REQUIRED or independent GO yet.",
+  "scope_note": "Exact current ZIP dc614c04..., OCI ec0d516..., 11366 private modules, native Q method-only, real Windows READY/mapped module identities and native WM_CLOSE in CI PASS. Full Qt in every real interactive context and human D/W (.wbb, Blockly, offline, 3D, user workflow) still UNPROVEN. Linux U default B selection proved at 41457029154, full B native U suite PASS. V5 checkpoint preparation code pending deterministic pre-request verification; not invoked; canonical Ready CI Gate and independent GO absent. Historical 9f... archive does not transfer.",
   "immutable_input_store": {
     "status": "PROVEN",
     "uri": "ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
