@@ -184,27 +184,37 @@ jobs:
           if($upstream -cne 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'){throw "M2_UPSTREAM_PIN_DRIFT $upstream"}
           $projects=Join-Path $root 'projects'
           if(-not(Test-Path -LiteralPath $projects)){New-Item -ItemType Directory -Path $projects | Out-Null}
-          # Official installer can contain a partial projects/ tree. Add exact
-          # pinned assets without deleting or overriding any conflicting file.
+          # Copy ONLY the assets required by the unchanged WebeeBlocks class
+          # builder. The official installer already contains other unrelated
+          # project files with distinct bytes. Never overwrite them.
           $sourceProjects=Join-Path $source 'projects'
-          $copied=0
-          foreach($file in (Get-ChildItem -LiteralPath $sourceProjects -File -Recurse)){
-            $rel=[IO.Path]::GetRelativePath($sourceProjects,$file.FullName)
-            $dst=Join-Path $projects $rel
-            if(Test-Path -LiteralPath $dst){
-              $before=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
-              $existing=(Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash
-              if($before -ne $existing){throw "M2_PINNED_UPSTREAM_ASSET_CONFLICT $rel"}
+          $required=@(
+            'robots/bitcraze/crazyflie/protos/Crazyflie.proto',
+            'robots/bitcraze/crazyflie/protos/meshes/cf2_assembly.dae',
+            'robots/bitcraze/crazyflie/protos/meshes/ccw_prop.dae',
+            'default/protos/textures/fast_helix.png',
+            'appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg',
+            'appearances/protos/textures/parquetry/chequered_parquetry_roughness.jpg',
+            'appearances/protos/textures/parquetry/chequered_parquetry_normal.jpg',
+            'appearances/protos/textures/parquetry/chequered_parquetry_occlusion.jpg'
+          )
+          $added=0
+          foreach($rel in $required){
+            $sourceFile=Join-Path $sourceProjects $rel
+            $destFile=Join-Path $projects $rel
+            if(-not(Test-Path -LiteralPath $sourceFile -PathType Leaf)){throw "M2_UPSTREAM_PINNED_INPUT_ABSENT $rel"}
+            if(Test-Path -LiteralPath $destFile){
+              $pin=(Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash
+              $existing=(Get-FileHash -LiteralPath $destFile -Algorithm SHA256).Hash
+              if($pin -ne $existing){throw "M2_REQUIRED_ASSET_CONFLICT $rel"}
             }else{
-              New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
-              Copy-Item -LiteralPath $file.FullName -Destination $dst
-              $copied++
+              New-Item -ItemType Directory -Force -Path (Split-Path $destFile -Parent) | Out-Null
+              Copy-Item -LiteralPath $sourceFile -Destination $destFile
+              $added++
             }
+            if((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $destFile -Algorithm SHA256).Hash){throw "M2_REQUIRED_ASSET_COPY_CHANGED $rel"}
           }
-          Write-Host "M2_PINNED_UPSTREAM_FILES_ADDED=$copied"
-          foreach($name in @('robots/bitcraze/crazyflie/protos/Crazyflie.proto','default/protos/textures/fast_helix.png','appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg')) {
-            if(-not(Test-Path -LiteralPath (Join-Path $projects $name))){throw "M2_UPSTREAM_ASSET_MISSING $name"}
-          }
+          Write-Host "M2_EXACT_WEBEEBLOCKS_UPSTREAM_ASSET_CLOSURE=PASS added=$added"
           $upstream | Set-Content -LiteralPath (Join-Path $env:M2_REPORT_ROOT 'upstream-projects-commit.txt')
           Write-Host "M2_PINNED_UPSTREAM_ASSETS=PASS commit=$upstream"
       - name: Build the current M1 classroom and strict private M2 launch package
