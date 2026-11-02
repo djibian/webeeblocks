@@ -178,7 +178,7 @@ int main(void) {
 
             # Extra native negative; the 64 legacy scenarios above remain unchanged.
             with self.subTest(r3_negatives='missing/stale/replay/late'):
-                result=run_case(binary,base,{'GP_U_POSE_CASE':'land',
+                result=run_case(binary,base,{'GP_U_POSE_CASE':'land-timeout',
                     'GP_U_R3_NEGATIVE_ONLY':'1'})
                 self.assertEqual(result.returncode,0,
                     result.stdout[-7000:]+result.stderr)

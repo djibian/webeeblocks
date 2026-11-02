@@ -325,6 +325,15 @@ extern "C" void gp_test_send(const char* data,int){
    reply=kPrefix+" RESPONSE "+std::to_string(mapped->second)+" "+reply.substr(body);
   }
  }
+ // R3 pre-claim, stale-key and replay negatives, plus the native
+ // handshake, have no historical request identity. Preserve them only in
+ // raw wire evidence; never contaminate the old id=1 TAKEOFF oracle.
+ const bool r3_only=(reply==kPrefix+" RESPONSE 1 ERR AUTH_DENIED" ||
+                     reply==kPrefix+" RESPONSE 4 ERR AUTH_DENIED" ||
+                     reply==kPrefix+" RESPONSE 3 ERR REPLAY_DENIED" ||
+                     reply.rfind(kPrefix+" RESPONSE 2 AUTH_EPOCH ",0)==0 ||
+                     reply.rfind(kPrefix+" RESPONSE 3 AUTH_OK ",0)==0);
+ if(r3_only)return;
  replies.push_back(reply);
  std::printf("GP_U_POSE_RESPONSE t=%lld %s\n",tick,reply.c_str());
  if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK" ||
