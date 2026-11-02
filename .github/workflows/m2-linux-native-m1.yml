@@ -1,0 +1,69 @@
+# NON-GATE: run unchanged M1 GP U native oracle against exact M2 Linux ELF B.
+# Do not transfer historical official-image PASS or relax a mission oracle.
+name: M2 Linux exact parent-safe native M1 oracles (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths: ['.github/workflows/m2-linux-native-m1.yml']
+permissions:
+  contents: read
+  packages: read
+jobs:
+  native-m1:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact Linux patched ELF before native probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image=ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+          docker pull "$image"
+          docker run --rm --entrypoint /bin/bash "$image" -lc 'echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -; test "$(cat /usr/local/webots/resources/version.txt)" = R2025a'
+      - name: Prepare unchanged main M1 runtime and Blockly pupil .wbb roundtrip
+        run: |
+          set -euo pipefail
+          bash tools/prepare_runtime_v2.sh
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Acquire exact upstream R2025a project dependencies
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-grand-prix-u-webots
+          git -C .ci-grand-prix-u-webots sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-grand-prix-u-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      - name: Run real Webots B Linux with original M1 short and RESET-idle native worlds/oracles
+        env:
+          QT_DEBUG_PLUGINS: '1'
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+          mkdir -p ci-artifacts/grand-prix-u
+          for suite in short reset-idle; do
+            echo "M2_LINUX_NATIVE_SUITE_BEGIN=$suite" | tee -a ci-artifacts/grand-prix-u/m2-native-summary.log
+            docker run --rm --init --entrypoint /bin/bash \
+              -e WEBOTS_HOME=/usr/local/webots \
+              -e LIBGL_ALWAYS_SOFTWARE=true \
+              -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              -v "$PWD:/workspace" \
+              -v "$PWD/.ci-grand-prix-u-webots/projects:/usr/local/webots/projects:ro" \
+              -v "$(command -v node):/usr/local/bin/node:ro" \
+              -w /workspace "$image" -lc \
+              "timeout -k 5s 1400s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite $suite --seed 4" \
+              2>&1 | tee "ci-artifacts/grand-prix-u/m2-$suite-native.log"
+            echo "M2_LINUX_NATIVE_SUITE_PASS=$suite" | tee -a ci-artifacts/grand-prix-u/m2-native-summary.log
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m2-linux-exact-b-m1-native-oracle-evidence
+          path: ci-artifacts/grand-prix-u/
+          retention-days: 90
+          if-no-files-found: warn
