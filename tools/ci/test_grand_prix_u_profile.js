@@ -23,6 +23,38 @@ function compose(loops){
  for(const maxSteps of [0,20001,Infinity,1.5])assert.throws(()=>Profiles.validateProfile(Object.assign({},profile,{runtime:Object.assign({},profile.runtime,{maxSteps})}),catalog),/maxSteps/);
  assert.strictEqual(context.WebeeBlocksRuntimeOutcome.classify({code:'TIME_LIMIT'}).state,'MISSION ÉCHOUÉE');
 }
-compose(false);compose(true);
+// Exercise the actual shared startup code up to the first Blockly-injection
+// dependency: a mission-only profile must display its instructions immediately,
+// not only after opening the activity chooser.
+async function checkStartupBrief(profile, expected) {
+ const main=fs.readFileSync('plugins/robot_windows/blockly_v2/main.js','utf8');
+ const elements={activityTitle:{},activityGoal:{},submit:{}};
+ const context={
+  document:{currentScript:{src:'http://localhost/blockly_v2/main.js'},
+   getElementById:id=>elements[id]||(elements[id]={})},
+  Blockly:{Theme:{defineTheme:()=>({})},Themes:{Classic:{}}},
+  WebeeBlocksActivityProfiles:{
+   createFieldOptionController:()=>({setProfile:()=>{}}),
+   resolveById:()=>profile
+  },
+  WebeeBlocksActivities:{DOCUMENT:{activities:[profile]},BLOCK_CATALOG:Activities.BLOCK_CATALOG},
+  WebeeBlocksInitialActivityId:profile.id
+ };
+ context.window=context;
+ vm.runInNewContext(main,context,{filename:'blockly_v2/main.js'});
+ context.applySemanticBuiltinStyles=()=>{throw new Error('BRIEF_STARTUP_PROBE_STOP');};
+ await assert.rejects(context.onload(),/BRIEF_STARTUP_PROBE_STOP/);
+ assert.strictEqual(elements.activityTitle.textContent,profile.brief.title);
+ assert.strictEqual(elements.activityGoal.textContent,expected);
+}
+const grandPrix=compose(false);compose(true);
 assert(source.includes('210 secondes'));assert(source.includes('0,60 m'));assert(!source.includes('5 points'));
-console.log('PASS U profile, French timeout outcome, generic context and unchanged intermediate catalog');
+const legacy=Activities.DOCUMENT.activities.find(p=>p.brief && p.brief.goal && !p.brief.mission);
+assert(legacy,'existing goal-only activity must remain covered');
+const both=Object.assign({},grandPrix,{brief:Object.assign({},grandPrix.brief,{goal:'Incorrect fallback'})});
+Promise.all([
+ checkStartupBrief(grandPrix,grandPrix.brief.mission),
+ checkStartupBrief(both,grandPrix.brief.mission),
+ checkStartupBrief(legacy,legacy.brief.goal)
+]).then(()=>console.log('PASS U mission visible at startup; mission priority and existing goal profiles preserved'))
+ .catch(error=>{console.error(error);process.exitCode=1;});
