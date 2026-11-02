@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate exact patched Webots QProgressDialog methods for Win32 Qt-only test."""
-import argparse,subprocess,sys
+import argparse,subprocess,sys,hashlib
 from pathlib import Path
 PIN="c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
 FILES=["src/webots/gui/WbMainWindow.hpp","src/webots/gui/WbMainWindow.cpp","src/webots/app/WbApplication.cpp"]
@@ -44,8 +44,29 @@ def main():
   target=out/name;target.parent.mkdir(parents=True,exist_ok=True)
   target.write_bytes(subprocess.check_output(["git","-C",str(source),"show","HEAD:"+name]))
  checked("git","init","-q",cwd=out)
+ # The Windows runner may checkout tracked .patch as CRLF; our three Git-show
+ # sources remain LF. Read the original patch Git blob, never the worktree copy.
  root=Path(__file__).resolve().parent
- patch=root/"webots-r2025a-guarded-progress-retirement.patch"
+ repository=root.parents[1]
+ rel="tools/qt665-qualification/webots-r2025a-guarded-progress-retirement.patch"
+ raw=subprocess.check_output(["git","-C",str(repository),"show","HEAD:"+rel])
+ blob=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+ expected="f095a997a8e71e8753acd922e568a098bf6f765f"
+ if blob!=expected:raise RuntimeError("M2_Q_PATCH_GIT_BLOB_MISMATCH "+blob)
+ checkout=(root/"webots-r2025a-guarded-progress-retirement.patch").read_bytes()
+ def endings(data):
+  return dict(crlf=data.count(b"\r\n"),lf=data.count(b"\n"),bare_cr=data.count(b"\r")-data.count(b"\r\n"))
+ originals={name:endings((out/name).read_bytes()) for name in FILES}
+ report={"patch_git_blob":blob,"patch_canonical":endings(raw),"patch_checkout":endings(checkout),"sources":originals}
+ import json
+ (out/"q-line-endings.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
+ print("M2_Q_PATCH_EOL_OBSERVED="+json.dumps(report,sort_keys=True),flush=True)
+ if endings(raw)["crlf"] or endings(raw)["bare_cr"]:raise RuntimeError("M2_Q_CANONICAL_PATCH_NOT_LF")
+ if any(v["crlf"] or v["bare_cr"] for v in originals.values()):raise RuntimeError("M2_Q_OFFICIAL_SOURCES_NOT_LF")
+ patch=out/"canonical.patch"
+ patch.write_bytes(raw)
+ if patch.read_bytes()!=raw:raise RuntimeError("M2_Q_PATCH_COPY_CHANGED")
+ checked("git","config","core.autocrlf","false",cwd=out)
  checked("git","apply","--check",patch,cwd=out)
  checked("git","apply",patch,cwd=out)
  checked(sys.executable,root/"repair_parent_shutdown.py","--webots-tree",out)
