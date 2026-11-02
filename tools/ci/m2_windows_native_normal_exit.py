@@ -130,8 +130,18 @@ def run(root,directory):
   if any(t.is_alive() for t in threads):raise RuntimeError("Native log pipe EOF missing")
   if launcher_return!=0 or any(code not in (0,None) for code in returns.values()):
    raise RuntimeError("Native normal close had nonzero engine/controller exit")
-  if any(child.is_running() for child in owned.values() if child.pid!=proc.pid and psutil.pid_exists(child.pid) and child.status()!=psutil.STATUS_ZOMBIE):
-   raise RuntimeError("Owned native child remains after normal close")
+  # psutil.wait() on non-parent descendants returns None when their PID
+  # disappears. PID reuse or stale Process handles cannot count as survivors.
+  survivors=[]
+  for role,detail in roles.items():
+   try:
+    live=psutil.Process(detail["pid"])
+    if live.create_time()==detail["created"] and live.is_running() and live.status()!=psutil.STATUS_ZOMBIE:
+     survivors.append(role)
+   except psutil.NoSuchProcess:
+    pass
+  observed["surviving_same_identity_roles"]=survivors
+  if survivors:raise RuntimeError("Same-identity native children still alive: "+",".join(survivors))
   if any("Fatal error" in (directory/name).read_text(errors="replace") for name in ("stdout.log","stderr.log")):
    raise RuntimeError("Native fatal during normal shutdown")
   observed["status"]="PASS_BOUNDED_NORMAL_NATIVE_WEBOTS_CLOSE_NOT_INTERACTIVE_DW"

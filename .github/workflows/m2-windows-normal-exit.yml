@@ -1,8 +1,8 @@
 # NON-GATE natural WM_CLOSE of genuine native Webots Windows and owned child controllers.
 name: M2 Windows native normal exit (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+  pull_request:
+    branches: [main]
     paths:
       - 'tools/ci/m2_windows_native_normal_exit.py'
       - '.github/workflows/m2-windows-normal-exit.yml'
