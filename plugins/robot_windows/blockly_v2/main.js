@@ -390,7 +390,7 @@ window.onload = async function() {
   runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, typeof WebeeBlocksInitialActivityId === 'string' ? WebeeBlocksInitialActivityId : 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
   profileFieldOptions.setProfile(runtimeProfile, null);
   document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
-  document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;
+  document.getElementById('activityGoal').textContent = runtimeProfile.brief.mission || runtimeProfile.brief.goal || '';
   applySemanticBuiltinStyles();
   workspace = Blockly.inject('blocklyDiv', {
     toolbox: buildToolbox(runtimeProfile), renderer: 'zelos', theme: WebeeBlocksStudentTheme, scrollbars: true,
