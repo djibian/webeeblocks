@@ -1,0 +1,76 @@
+# NON-GATE Windows Qt methods/native parent life-cycle discriminator.
+# Independently checks same Qt binary bytes; NOT full Webots Q/D/W acceptance.
+name: M2 Qt parent-safe Windows method lifetime (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths:
+      - '.github/workflows/m2-qt665-q-windows.yml'
+      - 'tools/qt665-qualification/**'
+permissions:
+  contents: read
+jobs:
+  qt-method-lifetime:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-qt6-base
+      - name: Verify exact candidate Qt DLLs and qwindows plugin against archived Win64 B
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          test "$(pacman -Q mingw-w64-x86_64-qt6-base)" = 'mingw-w64-x86_64-qt6-base 6.11.2-2'
+          echo '85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179  /mingw64/bin/Qt6Core.dll' | sha256sum -c -
+          echo 'b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660  /mingw64/bin/Qt6Gui.dll' | sha256sum -c -
+          echo 'ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89  /mingw64/bin/Qt6Widgets.dll' | sha256sum -c -
+          echo '9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1  /mingw64/share/qt6/plugins/platforms/qwindows.dll' | sha256sum -c -
+          mkdir -p ci-artifacts/m2-win-q
+          pacman -Q > ci-artifacts/m2-win-q/sdk-versions.txt
+          echo M2_WIN_Q_EXACT_DLLS=PASS
+      - name: Generate source-identical Webots parent-safe methods, including parent deletion
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $source=Join-Path $env:RUNNER_TEMP 'm2-upstream-q'
+          git clone --no-checkout --depth=1 --filter=blob:none --branch R2025a https://github.com/cyberbotics/webots.git $source
+          if($LASTEXITCODE -ne 0){throw 'M2_Q_UPSTREAM_CLONE_REFUSED'}
+          python tools/qt665-qualification/build_windows_q_source.py --source $source --out ci-artifacts/m2-win-q/source
+          if($LASTEXITCODE -ne 0){throw 'M2_Q_PATCH_SOURCE_REFUSED'}
+      - name: Compile exact patched methods against native Windows Qt6.11.2
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O0 -g -I/mingw64/include/qt6 -I/mingw64/include/qt6/QtWidgets -I/mingw64/include/qt6/QtCore -I/mingw64/include/qt6/QtGui \
+             ci-artifacts/m2-win-q/source/parent_safe_q_windows.cpp -L/mingw64/lib -lQt6Widgets -lQt6Gui -lQt6Core -o ci-artifacts/m2-win-q/q-win.exe
+          test -s ci-artifacts/m2-win-q/q-win.exe
+          echo M2_WIN_Q_NATIVE_HARNESS_COMPILED=PASS
+      - name: Native Win32 QtQPA reentrancy, generations, Cancel and parent lease, bounded
+        shell: msys2 {0}
+        env:
+          QT_QPA_PLATFORM: windows
+          QT_QPA_PLATFORM_PLUGIN_PATH: /mingw64/share/qt6/plugins/platforms
+        run: |
+          set -euo pipefail
+          timeout -k 3s 45s ./ci-artifacts/m2-win-q/q-win.exe 2>&1 | tee ci-artifacts/m2-win-q/q-native.log
+          grep -F 'QT665_GUARDED_METHODS_VERDICT=PASS' ci-artifacts/m2-win-q/q-native.log
+          grep -F 'parent_destroy: callback=1 guard=1 owner=1 inner=1 return=1 drained=1' ci-artifacts/m2-win-q/q-native.log
+          echo M2_WIN_Q_METHODS_NATIVE=PASS_NOT_FULL_WEBOTS_Q_OR_DW
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m2-windows-q-methods-${{ github.sha }}
+          path: |
+            ci-artifacts/m2-win-q/sdk-versions.txt
+            ci-artifacts/m2-win-q/q-native.log
+            ci-artifacts/m2-win-q/source/parent_safe_q_windows.cpp
+          retention-days: 90
+          if-no-files-found: warn
