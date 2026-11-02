@@ -2,9 +2,8 @@
 # Do not transfer historical official-image PASS or relax a mission oracle.
 name: M2 Linux exact parent-safe native M1 oracles (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths: ['.github/workflows/m2-linux-native-m1.yml']
+  workflow_dispatch:
+
 permissions:
   contents: read
   packages: read

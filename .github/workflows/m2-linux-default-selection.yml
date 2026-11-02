@@ -1,11 +1,8 @@
 # BOUND NON-GATE: prove default Linux student U route selects B, not only an explicitly injected image.
 name: M2 Linux default R2025a B selection (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths:
-      - 'tools/ci/run_grand_prix_u_geometry.py'
-      - '.github/workflows/m2-linux-default-selection.yml'
+  workflow_dispatch:
+
 permissions:
   contents: read
   packages: read
