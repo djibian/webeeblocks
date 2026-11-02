@@ -26,7 +26,7 @@ socket.onopen=async()=>{
   await backend.waitUntilReady();
   // Exercise the identical real pupil .wbb/AST only in positive and RESET modes.
    // Retain the original negative ASTs and their independent oracles.
-   let program=(mode==='witness'||mode==='reset')?
+   let program=(mode==='witness'||mode==='reset'||mode==='reset-idle')?
     require('../grand_prix/pupil_workspace_u.js').build().ast:Witness.build();
   if(mode==='timeout'||mode==='timeout-gate')program={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.4},{kind:'vertical',direction:'up',distance_m:.4},
    ...(mode==='timeout-gate'?[{kind:'move',direction:'forward',distance_m:.4},{kind:'move',direction:'forward',distance_m:.2},{kind:'vertical',direction:'down',distance_m:.4},{kind:'move',direction:'forward',distance_m:.3}]:[]),
@@ -60,11 +60,17 @@ socket.onopen=async()=>{
   const evaluation={type:'mission-state-v1',oracle:'grand-prix-u-v1'};
   await backend.completeActivityMission(evaluation);
   report('outcome',await backend.readActivityOutcome(evaluation));
-  if(mode==='reset'){
+  if(mode==='reset'||mode==='reset-idle'){
    await backend.resetSimulation();report('reset-completed',{});
-   await Interpreter.run(program,backend,{maxSteps:20000});
-   await backend.completeActivityMission(evaluation);
-   report('second-outcome',await backend.readActivityOutcome(evaluation));
+   if(mode==='reset-idle'){
+    // Keep the legitimate native reset; do not begin a second pupil program.
+    try{report('reset-idle-stale-outcome',await backend.readActivityOutcome(evaluation));}
+    catch(e){report('reset-idle-outcome-error',{code:e.code||null});}
+   }else{
+    await Interpreter.run(program,backend,{maxSteps:20000});
+    await backend.completeActivityMission(evaluation);
+    report('second-outcome',await backend.readActivityOutcome(evaluation));
+   }
   }
  }catch(error){report('error',{message:String(error),code:error.code||null});
   if(mode==='unavailable'){
