@@ -166,6 +166,32 @@ jobs:
             if(-not $passed){throw 'M2_NATIVE_LOADED_MODULE_IDENTITY_UNPROVEN'}
           }finally{if($p){$p.Refresh();if(-not $p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}}}
           Write-Host 'M2_PRIVATE_WINDOWS_NATIVE_LOAD=PASS_BOUNDED_NOT_Q_DW'
+      - name: Build the current M1 classroom and strict private M2 launch package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:M2_PRIVATE_ROOT
+          $dest=Join-Path $env:RUNNER_TEMP 'm2-classroom'
+          $env:WEBOTS_HOME=$root
+          & ./tools/build_windows_classroom_release.ps1 -WebotsProjectsPath (Join-Path $root 'projects') -WebotsHome $root -OutputDirectory $dest
+          if($LASTEXITCODE -ne 0){throw 'M2_CLASSROOM_BUILD_FAILED'}
+          $classroom=Join-Path $dest 'WebeeBlocks-Windows-R2025a'
+          $out=Join-Path $env:M2_REPORT_ROOT 'M2-private-product.zip'
+          python packaging/webots-r2025a-parent-safe/package_windows_private.py --classroom $classroom --private-webots $root --output-zip $out
+          if($LASTEXITCODE -ne 0){throw 'M2_PRIVATE_PACKAGING_FAILED'}
+          $env:WEBOTS_HOME=''
+          & (Join-Path $classroom 'Launch-WebeeBlocks.ps1') -ValidateOnly
+          if($LASTEXITCODE -ne 0){throw 'M2_STRICT_PRIVATE_LAUNCHER_FAILED'}
+          $hash=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  M2-private-product.zip" | Set-Content (Join-Path $env:M2_REPORT_ROOT 'release.sha256')
+          Write-Host 'M2_PRODUCT_PRIVATE_LAUNCHER=PASS_STATIC_ONLY_NOT_DW'
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: m2-windows-private-product-candidate
+          path: ci-artifacts/m2-windows/M2-private-product.zip
+          retention-days: 90
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
