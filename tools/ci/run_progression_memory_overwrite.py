@@ -101,7 +101,7 @@ sleep 0.5
 # These proofs assert simulated world state and Runtime-v2 outcomes, not wall-clock
 # pacing. Fast mode preserves the same 32 ms Webots steps. Keep rendering enabled:
 # this evidence depends on the real browser/Robot Window lifecycle.
-timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_progression_memory_overwrite.wbt &
+timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast --minimize /workspace/worlds/ci_progression_memory_overwrite.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
   if grep -Fq 'MEMORY_OVERWRITE_TEST_COMPLETE' "$events" 2>/dev/null; then
