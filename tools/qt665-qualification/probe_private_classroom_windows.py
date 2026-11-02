@@ -50,7 +50,7 @@ def run(root,out):
  private=root/"Webots";bin=private/"msys64/mingw64/bin"
  record=manifest(root)
  process=None;seen={};threads=[];capture_errors=[]
- report={"status":"FAIL","release_archive_sha256":"9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c","manifest_files":len(record)}
+ report={"status":"FAIL","release_archive_sha256":"dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8","manifest_files":len(record)}
  try:
   with socket.socket() as sock:
    sock.bind(("127.0.0.1",0));port=sock.getsockname()[1]
