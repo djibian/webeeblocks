@@ -1,0 +1,24 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "gp-pupil-observe-start",
+          "x": 48,
+          "y": 48,
+          "fields": {
+            "HEIGHT": 0.8
+          }
+        }
+      ]
+    }
+  }
+}
