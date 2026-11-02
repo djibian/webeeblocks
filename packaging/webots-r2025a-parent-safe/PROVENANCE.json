@@ -1,0 +1,168 @@
+{
+  "schema": "webeeblocks.m2.qt665.parent-safe.provenance.v1",
+  "status": "INPUTS_ONLY_NOT_DISTRIBUTABLE",
+  "base_main": "4a605e6d0681817a86e5e258c20817e294e1fe64",
+  "upstream_webots": {
+    "commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+    "source_patch_git_blob_sha1": "f095a997a8e71e8753acd922e568a098bf6f765f",
+    "repair_parent_shutdown_git_blob_sha1": "6c8904930ba624c0421ddd8b3269581d6df84d78",
+    "affected_files": [
+      "src/webots/app/WbApplication.cpp",
+      "src/webots/gui/WbMainWindow.cpp",
+      "src/webots/gui/WbMainWindow.hpp"
+    ],
+    "patch_sequence": [
+      "git apply source patch",
+      "repair_parent_shutdown.py"
+    ]
+  },
+  "linux": {
+    "oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
+    "webots_bin_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
+    "locally_verified_in_m2_execution": false
+  },
+  "windows": {
+    "kernel_artifact": 12695533700,
+    "producer_run": 40415782024,
+    "producer_run_conclusion": "failure",
+    "archive_expires_at": "2026-11-09T23:03:56Z",
+    "kernel_zip_sha256": "86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e",
+    "entry_count": 16,
+    "crc": "PASS",
+    "webots_bin_pe_sha256": "52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e",
+    "composed_patch_sha256": "1aa8de520b2091013f0219878559610677f39e60ed9de4f5fb1c2735c2bca8eb",
+    "qt_dll_sha256": {
+      "Qt6Core.dll": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179",
+      "Qt6Gui.dll": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660",
+      "Qt6Widgets.dll": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89"
+    },
+    "missing_from_kernel_archive": {
+      "qwindows.dll": "9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1",
+      "libopenal-1.dll": "cb97d2f5a9797ff64db90d0691e4ff9eb2a088026351c9bad7aa26d229a354ce",
+      "libstdc++-6.dll": "494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff",
+      "libgcc_s_seh-1.dll": "d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7",
+      "libwinpthread-1.dll": "72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0",
+      "Controller.dll": "756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039"
+    },
+    "direct_imports_verified_from_actual_PE_using_llvm_objdump": {
+      "count": 27,
+      "modules": [
+        "ADVAPI32.dll",
+        "d3d9.dll",
+        "GLU32.dll",
+        "IPHLPAPI.DLL",
+        "KERNEL32.dll",
+        "libassimp-5.dll",
+        "libfreetype-6.dll",
+        "libgcc_s_seh-1.dll",
+        "libopenal-1.dll",
+        "libpico.dll",
+        "libstdc++-6.dll",
+        "msvcrt.dll",
+        "ode.dll",
+        "OIS.dll",
+        "ole32.dll",
+        "OPENGL32.dll",
+        "openvr_api.dll",
+        "Qt6Core.dll",
+        "Qt6Gui.dll",
+        "Qt6Network.dll",
+        "Qt6OpenGL.dll",
+        "Qt6OpenGLWidgets.dll",
+        "Qt6PrintSupport.dll",
+        "Qt6Qml.dll",
+        "Qt6WebSockets.dll",
+        "Qt6Widgets.dll",
+        "Qt6Xml.dll"
+      ],
+      "non_system_count": 19,
+      "limits": "Static imports only; excludes transitive, delay-loaded, dynamically loaded Qt plugins and real module identity. Windows clean-host D/W still UNPROVEN."
+    }
+  },
+  "evidence_archives": [
+    {
+      "artifact": 12696549549,
+      "run": 40421551904,
+      "zip_sha256": "b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca",
+      "scope": "PE import closure, no binary ABI acceptance"
+    },
+    {
+      "artifact": 12718363355,
+      "run": 40470490820,
+      "zip_sha256": "8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4",
+      "scope": "bound native startup, not offline clean host"
+    },
+    {
+      "artifact": 12681442366,
+      "run": 40386450869,
+      "zip_sha256": "81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596",
+      "scope": "75-file historical classroom, not current main build"
+    }
+  ],
+  "exclusions": [
+    "first d314 Linux ELF REFUTED",
+    "Windows direct Linux launcher transplant not justified",
+    "no ambient SDK/PATH/global DLL fallback",
+    "no waiver of Qt6.12 Q or real interactive Windows D/W",
+    "no alteration to M1a #797 / M1b #798 / physical and negative oracles"
+  ],
+  "scope_note": "Only immutable identities and provenances. No payload storage in Git. This manifest alone MUST NOT enable product runtime selection; missing closure refuses launch. Q, D/W, current-product tests, V5 Ready CI/GO remain UNPROVEN.",
+  "immutable_input_store": {
+    "status": "PROVEN",
+    "uri": "ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
+    "oci_manifest_sha256": "5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
+    "media": "Docker/OCI container image, FROM scratch, no executable runtime",
+    "image_files": "/inputs/{qt665-parent-safe-windows-kernel-12695533700.zip,qt665-windows-import-closure-evidence-12696549549.zip,qt665-windows-consumer-startup-evidence-12718363355.zip,historical-classroom-package-12681442366.zip}",
+    "archive_format": "four preserved GitHub Actions ZIP HTTP-response envelopes, stored byte-identical inside an OCI image layer",
+    "original_archives": [
+      {
+        "id": 12695533700,
+        "filename": "qt665-parent-safe-windows-kernel-12695533700.zip",
+        "run_id": 40415782024,
+        "run_conclusion": "failure",
+        "sha256": "86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e",
+        "entries": 16,
+        "bytes": 14443788
+      },
+      {
+        "id": 12696549549,
+        "filename": "qt665-windows-import-closure-evidence-12696549549.zip",
+        "run_id": 40421551904,
+        "run_conclusion": "success",
+        "sha256": "b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca",
+        "entries": 17,
+        "bytes": 12505
+      },
+      {
+        "id": 12718363355,
+        "filename": "qt665-windows-consumer-startup-evidence-12718363355.zip",
+        "run_id": 40470490820,
+        "run_conclusion": "success",
+        "sha256": "8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4",
+        "entries": 21,
+        "bytes": 16947
+      },
+      {
+        "id": 12681442366,
+        "filename": "historical-classroom-package-12681442366.zip",
+        "run_id": 40386450869,
+        "run_conclusion": "success",
+        "sha256": "81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596",
+        "entries": 1,
+        "bytes": 6147436
+      }
+    ],
+    "publisher_run": 41431797157,
+    "publisher_source_head": "e2d48a4f78699cbbfcb65da9c634483a64c6984e",
+    "producer_job_id": 125231907624,
+    "clean_verifier_job_id": 125232045816,
+    "publisher_conclusion": "completed/success",
+    "clean_retrieval_conclusion": "completed/success",
+    "digest_evidence_artifact": 13134826437,
+    "clean_verifier_artifact": 13133824327,
+    "verification": "separate fresh ubuntu-22.04 runner docker pull by digest + docker create/cp + 4 full original sha256sum, 55 ZIP entry CRC and corrected PE inner sha256; no runtime execution",
+    "note": "Tag windows-86b9540c is mutable and MUST NOT be treated as identity. GitHub Actions run conclusions stay as originally observed.",
+    "recovery": "docker login ghcr.io (if required); docker pull ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e ; docker create <digest> ; docker cp <cid>:/inputs/. ./inputs/ ; sha256sum -c expected.sha256 ; python3 -m zipfile -t each .zip . No launch/fallback allowed.",
+    "retention_warning": "Do not delete the GHCR package/digest. Archive expiry 2026-11-09 does not affect already published OCI bytes while retained."
+  }
+}

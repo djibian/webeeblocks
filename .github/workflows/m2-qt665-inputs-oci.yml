@@ -1,0 +1,118 @@
+# Branch-only NON-GATE immutable input preservation. Not a Webots distribution.
+name: M2 Qt665 original ZIPs GHCR preservation (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths: ['.github/workflows/m2-qt665-inputs-oci.yml']
+permissions:
+  contents: read
+  actions: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Fetch original archive envelopes via GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir inputs
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/12695533700/zip" > inputs/qt665-parent-safe-windows-kernel-12695533700.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/12696549549/zip" > inputs/qt665-windows-import-closure-evidence-12696549549.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/12718363355/zip" > inputs/qt665-windows-consumer-startup-evidence-12718363355.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/12681442366/zip" > inputs/historical-classroom-package-12681442366.zip
+      - name: Verify exact source SHA256, ZIP CRC and native PE
+        run: |
+          set -euo pipefail
+          cat > expected.sha256 <<'SHA'
+          86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e  qt665-parent-safe-windows-kernel-12695533700.zip
+          b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca  qt665-windows-import-closure-evidence-12696549549.zip
+          8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4  qt665-windows-consumer-startup-evidence-12718363355.zip
+          81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596  historical-classroom-package-12681442366.zip
+          SHA
+          (cd inputs && sha256sum -c ../expected.sha256)
+          python3 - <<'PY'
+          import hashlib,zipfile,pathlib
+          sizes=[('qt665-parent-safe-windows-kernel-12695533700.zip',16),('qt665-windows-import-closure-evidence-12696549549.zip',17),('qt665-windows-consumer-startup-evidence-12718363355.zip',21),('historical-classroom-package-12681442366.zip',1)]
+          for name,count in sizes:
+              with zipfile.ZipFile(pathlib.Path('inputs')/name) as z:
+                  assert len(z.namelist())==count and z.testzip() is None
+                  if name.startswith('qt665-parent-safe-windows-kernel'):
+                      assert hashlib.sha256(z.read('webots-bin.exe')).hexdigest()=='52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+          print('M2_SOURCE_ARCHIVES_VERIFIED=PASS')
+          PY
+      - name: Build inert inputs-only OCI archive and publish to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > Dockerfile <<'DOCKERFILE'
+          FROM scratch
+          LABEL org.opencontainers.image.source="https://github.com/djibian/webeeblocks"
+          LABEL org.opencontainers.image.description="INPUTS_ONLY_NOT_DISTRIBUTABLE, historical archives, no runtime"
+          COPY inputs/ /inputs/
+          CMD ["/not-a-runtime"]
+          DOCKERFILE
+          image=ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a:windows-86b9540c
+          docker build --pull=false --no-cache -t "$image" .
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$image"
+          digest="$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')"
+          case "$digest" in ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:*) ;; *) exit 1;; esac
+          echo "$digest" > immutable-uri.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2-qt665-published-oci-digest
+          path: immutable-uri.txt
+          retention-days: 90
+  clean-retrieval:
+    needs: publish
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: m2-qt665-published-oci-digest
+      - name: Retrieve by digest on fresh runner, verify all original bytes and CRC
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          digest="$(cat immutable-uri.txt)"
+          case "$digest" in ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:*) ;; *) exit 1;; esac
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull "$digest"
+          cid="$(docker create "$digest")"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          mkdir recovered
+          docker cp "$cid:/inputs/." recovered/
+          cat > expected.sha256 <<'SHA'
+          86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e  qt665-parent-safe-windows-kernel-12695533700.zip
+          b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca  qt665-windows-import-closure-evidence-12696549549.zip
+          8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4  qt665-windows-consumer-startup-evidence-12718363355.zip
+          81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596  historical-classroom-package-12681442366.zip
+          SHA
+          (cd recovered && sha256sum -c ../expected.sha256)
+          python3 - <<'PY'
+          import hashlib,zipfile,pathlib
+          sizes=[('qt665-parent-safe-windows-kernel-12695533700.zip',16),('qt665-windows-import-closure-evidence-12696549549.zip',17),('qt665-windows-consumer-startup-evidence-12718363355.zip',21),('historical-classroom-package-12681442366.zip',1)]
+          assert sorted(x.name for x in pathlib.Path('recovered').iterdir())==sorted(x for x,n in sizes)
+          for name,count in sizes:
+              with zipfile.ZipFile(pathlib.Path('recovered')/name) as z:
+                  assert len(z.namelist())==count and z.testzip() is None
+                  if name.startswith('qt665-parent-safe-windows-kernel'):
+                      assert hashlib.sha256(z.read('webots-bin.exe')).hexdigest()=='52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+          print('M2_GHCR_CLEAN_DIGEST_PULL=PASS')
+          PY
+          echo "$digest" > verified-immutable-uri.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2-qt665-clean-retrieval
+          path: verified-immutable-uri.txt
+          retention-days: 90
