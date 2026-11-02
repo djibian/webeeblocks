@@ -1,11 +1,10 @@
 # Preserve and independently inspect the exact M2 Windows product from
-# successful immutable-input assembly run 41442076181; never rebuild it.
+# successful immutable-input assembly run 41450732733; never rebuild it.
 # This is NON-GATE and is not Q full Webots nor human D/W.
 name: M2 exact private Windows release preservation (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths: ['.github/workflows/m2-preserve-private-release.yml']
+  workflow_dispatch:
+
 permissions:
   contents: read
   actions: read

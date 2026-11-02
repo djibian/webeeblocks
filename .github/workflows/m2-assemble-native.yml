@@ -1,11 +1,8 @@
 # NON-GATE diagnostic only. Does not rebuild Webots or qualify classroom D/W.
 name: M2 private parent-safe native assembly (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths:
-      - '.github/workflows/m2-assemble-native.yml'
-      - 'packaging/webots-r2025a-parent-safe/**'
+  workflow_dispatch:
+
 permissions:
   contents: read
   actions: read
