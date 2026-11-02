@@ -58,7 +58,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $env:PATH="$env:SystemRoot\System32;$env:SystemRoot"
-          python tools/qt665-qualification/probe_private_classroom_windows.py --package $env:M2_PACKAGE --output ci-artifacts/m2-windows-native-actual
+          & (Join-Path $env:pythonLocation 'python.exe') tools/qt665-qualification/probe_private_classroom_windows.py --package $env:M2_PACKAGE --output ci-artifacts/m2-windows-native-actual
           if($LASTEXITCODE -ne 0){throw 'M2_NATIVE_PRODUCT_BOUNDARY_UNPROVEN'}
       - uses: actions/upload-artifact@v4
         if: always()
