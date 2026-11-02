@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from progression_native_retirement import (
     COMPLETE, SUMMARY, complete_evidence, required_events, verify_native_report,
+    require_container_processes_retired,
 )
 
 def witness(mode):
@@ -35,7 +36,37 @@ def witness(mode):
 def write_events(path, rows):
     path.write_text(''.join(json.dumps(row) + '\n' for row in rows), encoding='utf-8')
 
+def process_inventory(*processes):
+    return {'status': 'ok', 'pid_namespace': 'pid:[123]', 'membership': '0::/trial',
+            'truncated': False, 'task_truncated': False,
+            'processes': [{'pid': pid, 'start_ticks': start,
+                           'pid_namespace': 'pid:[123]'} for pid, start in processes]}
+
 class RetirementGuards(unittest.TestCase):
+    def test_detached_process_cannot_hide_behind_native_exit_eof_and_empty_pgid(self):
+        before = process_inventory((1, 10), (7, 20))
+        require_container_processes_retired(before, copy.deepcopy(before))
+        # The namespace is private: a new Chrome identity belongs to this trial,
+        # regardless of its reparenting, different PGID, or redirected pipes.
+        with self.assertRaises(RuntimeError):
+            require_container_processes_retired(before,
+                                                process_inventory((1, 10), (7, 20), (99, 30)))
+        # Reusing a baseline PID must not exempt a different process.
+        with self.assertRaises(RuntimeError):
+            require_container_processes_retired(before, process_inventory((1, 10), (7, 21)))
+
+    def test_missing_partial_or_changed_process_scope_is_not_absence(self):
+        before = process_inventory((1, 10), (7, 20))
+        for field, value in [('status', 'partial'), ('truncated', True),
+                             ('task_truncated', True), ('membership', '0::/other'),
+                             ('pid_namespace', 'pid:[456]'), ('processes', [])]:
+            after = copy.deepcopy(before)
+            after[field] = value
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                require_container_processes_retired(before, after)
+        with self.assertRaises(RuntimeError):
+            require_container_processes_retired(None, before)
+
     def test_complete_requires_original_negative_oracles(self):
         for mode in ('memory', 'autonomous'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
@@ -81,6 +112,8 @@ class RetirementGuards(unittest.TestCase):
                     'native_binary': '/usr/local/webots/bin/webots-bin',
                     'owned_group_state': {'status': 'empty', 'evidence': 'kernel-pgid-esrch'},
                     'frozen_events_sha256': hashlib.sha256(events.read_bytes()).hexdigest(),
+                    'container_processes_before': process_inventory((1, 10), (7, 20)),
+                    'container_processes_after': process_inventory((1, 10), (7, 20)),
                 }
                 report = root / 'normal-quit.json'
                 def write(obj):
@@ -90,7 +123,10 @@ class RetirementGuards(unittest.TestCase):
                 for field, value in [('native_exit_code', -11), ('stdout_eof', False),
                                      ('acknowledged', False), ('fallback_used', True),
                                      ('native_binary', '/usr/bin/xvfb-run'),
-                                     ('owned_group_state', {'status': 'unknown'})]:
+                                     ('owned_group_state', {'status': 'unknown'}),
+                                     ('container_processes_after',
+                                      process_inventory((1, 10), (7, 20), (99, 30))),
+                                     ('container_processes_before', None)]:
                     mutant = copy.deepcopy(original)
                     mutant[field] = value
                     with self.subTest(field=field):

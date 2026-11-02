@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
 from tools.ci.run_grand_prix_u_prototype import owned_process_group_state, stop_groups
+from tools.ci.webots_startup_diagnostics import cgroup_processes
 
 COMPLETE = {
     'memory': 'MEMORY_OVERWRITE_TEST_COMPLETE',
@@ -163,6 +164,44 @@ def complete_evidence(mode, path, required):
     validate_browser_oracles(mode, by_name, required)
     return hashlib.sha256(raw).hexdigest()
 
+def require_container_processes_retired(before, after):
+    """The two callers own a private Docker PID namespace and one trial.
+
+    Keep their pre-existing host/server/Xvfb supports, but reject new processes
+    even when Webots launched them detached with stdout/stderr redirected.
+    Never infer this property from a PGID, EOF, or Docker's later cleanup.
+    """
+    def identities(snapshot):
+        if (not isinstance(snapshot, dict) or snapshot.get('status') != 'ok' or
+                snapshot.get('truncated') is not False or
+                snapshot.get('task_truncated') is not False or
+                not isinstance(snapshot.get('pid_namespace'), str) or
+                not re.fullmatch(r'pid:\[\d+\]', snapshot.get('pid_namespace', '')) or
+                not isinstance(snapshot.get('membership'), str) or
+                not snapshot['membership'].strip() or
+                not isinstance(snapshot.get('processes'), list)):
+            raise RuntimeError('isolated container process inventory unproven')
+        found = set()
+        for row in snapshot['processes']:
+            if (not isinstance(row, dict) or type(row.get('pid')) is not int or
+                    row['pid'] < 1 or type(row.get('start_ticks')) is not int or
+                    row['start_ticks'] < 0 or
+                    row.get('pid_namespace') != snapshot['pid_namespace']):
+                raise RuntimeError('invalid container process identity')
+            key = (row['pid'], row['start_ticks'])
+            if any(pid == row['pid'] for pid, _ in found):
+                raise RuntimeError('duplicate container process identity')
+            found.add(key)
+        if not found:
+            raise RuntimeError('empty inventory cannot identify the observing host')
+        return snapshot['pid_namespace'], snapshot['membership'], found
+    old_ns, old_group, old_ids = identities(before)
+    new_ns, new_group, new_ids = identities(after)
+    if (old_ns, old_group) != (new_ns, new_group):
+        raise RuntimeError('container process scope changed')
+    if new_ids - old_ids:
+        raise RuntimeError('owned container process remains after native exit')
+
 def native_main(args):
     directory = Path(args.artifacts)
     if not directory.is_dir() or not Path(args.world).is_file():
@@ -194,6 +233,9 @@ def native_main(args):
         with tempfile.TemporaryDirectory(prefix='progression-qpa-') as qpa:
             os.chmod(qpa, 0o700)
             env['XDG_RUNTIME_DIR'] = qpa
+            before = cgroup_processes()
+            require_container_processes_retired(before, before)
+            report['container_processes_before'] = before
             with NativeLogCapture(directory / 'webots.log') as log:
                 child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
                                          cwd=ROOT, env=env, start_new_session=True)
@@ -233,13 +275,21 @@ def native_main(args):
             report['stdout_eof'] = True
             require_no_terminal_crash(directory / 'webots.log')
             until = time.monotonic() + 2
+            scope_error = None
             while True:
                 state = owned_process_group_state(child.pid)
                 report['owned_group_state'] = state
                 if state['status'] == 'empty':
-                    break
+                    after = cgroup_processes()
+                    report['container_processes_after'] = after
+                    try:
+                        require_container_processes_retired(before, after)
+                    except RuntimeError as exc:
+                        scope_error = str(exc)
+                    else:
+                        break
                 if state['status'] == 'unknown' or time.monotonic() >= until:
-                    raise RuntimeError('real Webots process group not proven absent')
+                    raise RuntimeError(scope_error or 'real Webots process group not proven absent')
                 time.sleep(0.05)
             if hashlib.sha256((directory / 'browser-events.jsonl').read_bytes()).hexdigest() != report['frozen_events_sha256']:
                 raise RuntimeError('browser proof mutated during native shutdown')
@@ -278,6 +328,8 @@ def verify_native_report(directory, kind):
             report.get('owned_group_state', {}).get('evidence') != 'kernel-pgid-esrch' or
             not report.get('native_binary', '').endswith('/bin/webots-bin')):
         raise RuntimeError('real native Webots exit not proven')
+    require_container_processes_retired(report.get('container_processes_before'),
+                                        report.get('container_processes_after'))
     request = (directory / 'normal-quit.request').read_text(encoding='ascii')
     if not re.fullmatch(re.escape(kind) + r' [0-9a-f]{32}\n', request):
         raise RuntimeError('invalid native retirement request')
