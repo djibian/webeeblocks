@@ -136,6 +136,39 @@ jobs:
               output.write(f'artifact_name={PROFILES[profile]}\n')
           PY
 
+      - uses: actions/checkout@v4
+        if: steps.request.outputs.test_profile == 'm2-private-windows-r2025a'
+        with:
+          ref: ${{ steps.request.outputs.target_sha }}
+          persist-credentials: false
+      - name: Restore the exact M2 Windows private archive by immutable OCI digest
+        if: steps.request.outputs.test_profile == 'm2-private-windows-r2025a'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd
+          echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$image"
+          mkdir -p .m2-checkpoint-source
+          cid=$(docker create "$image" /release/M2-private-product.zip)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/release/M2-private-product.zip" .m2-checkpoint-source/M2-private-product.zip
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  .m2-checkpoint-source/M2-private-product.zip' | sha256sum -c -
+          python3 tools/ci/prepare_m2_windows_checkpoint.py \
+            --zip .m2-checkpoint-source/M2-private-product.zip \
+            --target-sha "${{ steps.request.outputs.target_sha }}" \
+            --output ci-artifacts/m2-private-windows-checkpoint
+      - uses: actions/upload-artifact@v4
+        if: steps.request.outputs.test_profile == 'm2-private-windows-r2025a'
+        with:
+          name: M2-Windows-Exact-R2025a
+          path: ci-artifacts/m2-private-windows-checkpoint/
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+
   historical-boost-support:
     name: Prime exact historical Boost support
     needs: validate
@@ -196,13 +229,12 @@ jobs:
       target_sha: ${{ needs.validate.outputs.target_sha }}
 
   physical:
-    name: Prepare deterministic specialized checkpoint artifact
+    name: Prepare deterministic physical checkpoint artifact
     needs: validate
     if: >-
       needs.validate.outputs.test_profile == 'physical-capabilities-readonly' ||
       needs.validate.outputs.test_profile == 'physical-capabilities-representative' ||
-      needs.validate.outputs.test_profile == 'x3-independent-props-off' ||
-      needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
+      needs.validate.outputs.test_profile == 'x3-independent-props-off'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -415,33 +447,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-      - name: Restore the exact M2 Windows private archive by immutable OCI digest
-        if: needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          image=ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd
-          echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          docker pull "$image"
-          mkdir -p .m2-checkpoint-source
-          cid=$(docker create "$image" /release/M2-private-product.zip)
-          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
-          docker cp "$cid:/release/M2-private-product.zip" .m2-checkpoint-source/M2-private-product.zip
-          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  .m2-checkpoint-source/M2-private-product.zip' | sha256sum -c -
-          python3 tools/ci/prepare_m2_windows_checkpoint.py \
-            --zip .m2-checkpoint-source/M2-private-product.zip \
-            --target-sha "${{ needs.validate.outputs.target_sha }}" \
-            --output ci-artifacts/m2-private-windows-checkpoint
-      - uses: actions/upload-artifact@v4
-        if: needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
-        with:
-          name: M2-Windows-Exact-R2025a
-          path: ci-artifacts/m2-private-windows-checkpoint/
-          retention-days: 90
-          compression-level: 0
-          if-no-files-found: error
 
   publish:
     name: Publish one TEST_REQUIRED
@@ -453,8 +458,7 @@ jobs:
       needs.webots.result == 'success' &&
       ((needs.validate.outputs.test_profile != 'physical-capabilities-readonly' &&
         needs.validate.outputs.test_profile != 'physical-capabilities-representative' &&
-        needs.validate.outputs.test_profile != 'x3-independent-props-off' &&
-         needs.validate.outputs.test_profile != 'm2-private-windows-r2025a') ||
+        needs.validate.outputs.test_profile != 'x3-independent-props-off') ||
        needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
