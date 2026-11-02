@@ -27,6 +27,7 @@ permissions:
   contents: read
   actions: read
   issues: write
+  packages: read
 
 jobs:
   validate:
@@ -61,6 +62,7 @@ jobs:
           PATTERN = re.compile(r'CHECKPOINT_REQUEST ([0-9a-f]{40}) ([a-z0-9][a-z0-9._-]{0,63}) (checkpoint|release)')
           PROFILES = {
               'windows-low-end': 'WebeeBlocks-Windows-R2025a',
+              'm2-private-windows-r2025a': 'M2-Windows-Exact-R2025a',
               'grand-prix-windows': 'grand-prix-u-windows-project',
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
               'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
@@ -69,6 +71,7 @@ jobs:
           }
           PURPOSES = {
               'windows-low-end': {'checkpoint', 'release'},
+              'm2-private-windows-r2025a': {'checkpoint'},
               'grand-prix-windows': {'checkpoint'},
               's3-props-off': {'checkpoint'},
               'physical-capabilities-readonly': {'checkpoint'},
@@ -193,12 +196,13 @@ jobs:
       target_sha: ${{ needs.validate.outputs.target_sha }}
 
   physical:
-    name: Prepare deterministic physical checkpoint artifact
+    name: Prepare deterministic specialized checkpoint artifact
     needs: validate
     if: >-
       needs.validate.outputs.test_profile == 'physical-capabilities-readonly' ||
       needs.validate.outputs.test_profile == 'physical-capabilities-representative' ||
-      needs.validate.outputs.test_profile == 'x3-independent-props-off'
+      needs.validate.outputs.test_profile == 'x3-independent-props-off' ||
+      needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -411,6 +415,34 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+      - name: Restore the exact M2 Windows private archive by immutable OCI digest
+        if: needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd
+          echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$image"
+          mkdir -p .m2-checkpoint-source
+          cid=$(docker create "$image" /release/M2-private-product.zip)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/release/M2-private-product.zip" .m2-checkpoint-source/M2-private-product.zip
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  .m2-checkpoint-source/M2-private-product.zip' | sha256sum -c -
+          python3 tools/ci/prepare_m2_windows_checkpoint.py \
+            --zip .m2-checkpoint-source/M2-private-product.zip \
+            --target-sha "${{ needs.validate.outputs.target_sha }}" \
+            --output ci-artifacts/m2-private-windows-checkpoint
+      - uses: actions/upload-artifact@v4
+        if: needs.validate.outputs.test_profile == 'm2-private-windows-r2025a'
+        with:
+          name: M2-Windows-Exact-R2025a
+          path: ci-artifacts/m2-private-windows-checkpoint/
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+
   publish:
     name: Publish one TEST_REQUIRED
     needs: [validate, runtime, webots, physical]
@@ -421,7 +453,8 @@ jobs:
       needs.webots.result == 'success' &&
       ((needs.validate.outputs.test_profile != 'physical-capabilities-readonly' &&
         needs.validate.outputs.test_profile != 'physical-capabilities-representative' &&
-        needs.validate.outputs.test_profile != 'x3-independent-props-off') ||
+        needs.validate.outputs.test_profile != 'x3-independent-props-off' &&
+         needs.validate.outputs.test_profile != 'm2-private-windows-r2025a') ||
        needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
