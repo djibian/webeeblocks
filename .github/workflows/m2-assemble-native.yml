@@ -183,8 +183,25 @@ jobs:
           $upstream=(git -C $source rev-parse HEAD | Out-String).Trim()
           if($upstream -cne 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'){throw "M2_UPSTREAM_PIN_DRIFT $upstream"}
           $projects=Join-Path $root 'projects'
-          if(Test-Path -LiteralPath $projects){throw 'M2_UPSTREAM_PROJECTS_ROOT_ALREADY_PRESENT'}
-          Copy-Item -LiteralPath (Join-Path $source 'projects') -Destination $projects -Recurse
+          if(-not(Test-Path -LiteralPath $projects)){New-Item -ItemType Directory -Path $projects | Out-Null}
+          # Official installer can contain a partial projects/ tree. Add exact
+          # pinned assets without deleting or overriding any conflicting file.
+          $sourceProjects=Join-Path $source 'projects'
+          $copied=0
+          foreach($file in (Get-ChildItem -LiteralPath $sourceProjects -File -Recurse)){
+            $rel=[IO.Path]::GetRelativePath($sourceProjects,$file.FullName)
+            $dst=Join-Path $projects $rel
+            if(Test-Path -LiteralPath $dst){
+              $before=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+              $existing=(Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash
+              if($before -ne $existing){throw "M2_PINNED_UPSTREAM_ASSET_CONFLICT $rel"}
+            }else{
+              New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
+              Copy-Item -LiteralPath $file.FullName -Destination $dst
+              $copied++
+            }
+          }
+          Write-Host "M2_PINNED_UPSTREAM_FILES_ADDED=$copied"
           foreach($name in @('robots/bitcraze/crazyflie/protos/Crazyflie.proto','default/protos/textures/fast_helix.png','appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg')) {
             if(-not(Test-Path -LiteralPath (Join-Path $projects $name))){throw "M2_UPSTREAM_ASSET_MISSING $name"}
           }
