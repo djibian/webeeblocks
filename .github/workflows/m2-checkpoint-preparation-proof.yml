@@ -1,0 +1,118 @@
+# One-shot, no-notification exact archive checkpoint preparation; remove after proof.
+name: M2 exact V5 preparation proof (NON-GATE, NO NOTIFY)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  prepare:
+    if: github.event.pull_request.number == 799
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Bind source and enforce strict dispatch guard presence
+        env:
+          M2_TARGET: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$M2_TARGET"
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/human-checkpoint.yml').read_text()
+          for clause in (
+            "if profile == 'm2-private-windows-r2025a':",
+            "if event_name != 'workflow_dispatch':",
+            "if os.environ.get('GITHUB_SHA') != sha:",
+            "M2_CHECKPOINT_WRONG_BRANCH_REF",
+            "M2_CHECKPOINT_WORKFLOW_TARGET_SHA_DIVERGENCE",
+          ):
+            assert clause in s,clause
+          print('M2_DISPATCH_SHA_BOUND_STATIC=PASS')
+          PY
+      - name: Fetch original M2 ZIP from pinned immutable GHCR digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull "$image"
+          mkdir -p ci-input
+          cid=$(docker create "$image" /release/M2-private-product.zip)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/release/M2-private-product.zip" ci-input/M2-private-product.zip
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  ci-input/M2-private-product.zip' | sha256sum -c -
+          echo M2_IMMUTABLE_INPUT_ROUNDTRIP=PASS
+      - name: Execute authentic checkpoint preparer without request or notification
+        env:
+          M2_TARGET: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 tools/ci/prepare_m2_windows_checkpoint.py \
+            --zip ci-input/M2-private-product.zip \
+            --target-sha "$M2_TARGET" \
+            --output ci-artifacts/m2-private-windows-checkpoint
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  ci-artifacts/m2-private-windows-checkpoint/M2-private-product.zip' | sha256sum -c -
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ci-artifacts/m2-private-windows-checkpoint')
+          report=json.loads((p/'EXACT-M2-CHECKPOINT.json').read_text())
+          assert report['verified_files']==11443,report
+          assert report['private_files']==11366,report
+          assert report['qualification']=='ARCHIVE_PREPARED_ONLY_NOT_WINDOWS_DW_OR_HUMAN_PASS'
+          assert (p/'SHA256SUMS').exists() and (p/'M2-WINDOWS-DW-ACCEPTANCE.md').exists()
+          print('M2_FULL_MANIFEST_PREPARED=PASS 11443 11366')
+          PY
+      - name: Adversarial fail-closed checks: target, digest, stale protocol, archive, manifests
+        env:
+          M2_TARGET: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util,json,tempfile,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('m2','tools/ci/prepare_m2_windows_checkpoint.py')
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          source=Path('ci-input/M2-private-product.zip').resolve()
+          target=os.environ['M2_TARGET']
+          def rejects(name,check):
+            try:check()
+            except (ValueError,KeyError,FileNotFoundError,RuntimeError):
+              print('M2_FAIL_CLOSED_'+name+'=PASS');return
+            raise AssertionError('M2_NEGATIVE_TEST_FALSE_PASS_'+name)
+          rejects('WRONG_REF',lambda:m.validate(source,'0'*40))
+          with tempfile.TemporaryDirectory() as d:
+            d=Path(d)
+            stale=d/'M2-WINDOWS-DW-ACCEPTANCE.md'
+            stale.write_text('outdated acceptance instructions')
+            saved=m.PROTOCOL;m.PROTOCOL=stale
+            try:rejects('STALE_PROCEDURE',lambda:m.validate(source,target))
+            finally:m.PROTOCOL=saved
+            provenance=json.loads((m.DATA/'PROVENANCE.json').read_text())
+            provenance['windows']['private_product']['oci']='wrongOCI'
+            (d/'PROVENANCE.json').write_text(json.dumps(provenance))
+            saved=m.DATA;m.DATA=d
+            try:rejects('WRONG_DIGEST',lambda:m.validate(source,target))
+            finally:m.DATA=saved
+            bad=d/'altered.zip';bad.write_bytes(b'fake tampered zip')
+            rejects('ALTERED_ARCHIVE',lambda:m.validate(bad,target))
+          rejects('BAD_MANIFEST',lambda:m.checksums(b'bad row'))
+          d='0'*64
+          rejects('DUPLICATE_MANIFEST',lambda:m.checksums((d+'  a.dll\n'+d+'  A.DLL\n').encode()))
+          print('M2_PREP_FAIL_CLOSED_NEGATIVES=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: M2-Windows-Exact-R2025a-PREFLIGHT-NO-TEST-REQUIRED
+          path: ci-artifacts/m2-private-windows-checkpoint/
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
