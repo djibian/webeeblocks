@@ -2,11 +2,8 @@
 # Same pinned software Mesa renderer as canonical historical CI, no SDK install.
 name: M2 private classroom actual Windows READY and loaded modules (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths:
-      - '.github/workflows/m2-windows-native-classroom.yml'
-      - 'tools/qt665-qualification/probe_private_classroom_windows.py'
+  workflow_dispatch:
+
 permissions:
   contents: read
   actions: read

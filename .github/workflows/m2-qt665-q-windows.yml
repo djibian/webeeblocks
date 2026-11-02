@@ -2,11 +2,8 @@
 # Independently checks same Qt binary bytes; NOT full Webots Q/D/W acceptance.
 name: M2 Qt parent-safe Windows method lifetime (NON-GATE)
 on:
-  push:
-    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
-    paths:
-      - '.github/workflows/m2-qt665-q-windows.yml'
-      - 'tools/qt665-qualification/**'
+  workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
