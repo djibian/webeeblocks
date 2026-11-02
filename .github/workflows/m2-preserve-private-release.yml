@@ -1,0 +1,119 @@
+# Preserve and independently inspect the exact M2 Windows product from
+# successful immutable-input assembly run 41442076181; never rebuild it.
+# This is NON-GATE and is not Q full Webots nor human D/W.
+name: M2 exact private Windows release preservation (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths: ['.github/workflows/m2-preserve-private-release.yml']
+permissions:
+  contents: read
+  actions: read
+  packages: write
+jobs:
+  publish-exact:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: djibian/webeeblocks
+          run-id: 41442076181
+          name: m2-windows-private-product-candidate
+          path: frozen
+          github-token: ${{ github.token }}
+      - name: Verify exact release zip and all private files before preservation
+        run: |
+          set -euo pipefail
+          echo '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c  frozen/M2-private-product.zip' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile,re
+          p=Path('frozen/M2-private-product.zip')
+          with zipfile.ZipFile(p) as z:
+            names=z.namelist()
+            if len(names)!=len(set(names)) or not all(n and not n.startswith('/') and '..' not in n.split('/') and '\\' not in n for n in names):
+              raise SystemExit('M2 unsafe or duplicate release member')
+            checks=z.read('PRIVATE_RUNTIME.sha256').decode().splitlines()
+            if len(checks)<100:raise SystemExit('M2 truncated private runtime manifest')
+            attested={}
+            for line in checks:
+              m=re.fullmatch(r'([a-f0-9]{64})  (Webots/[^\\r\\n]+)',line)
+              if not m or m[2] in attested:raise SystemExit('M2 malformed runtime manifest')
+              attested[m[2]]=m[1]
+            if not all(name in names for name in attested):raise SystemExit('M2 absent runtime files')
+            for name,hash_ in attested.items():
+              h=hashlib.sha256()
+              with z.open(name) as f:
+                for chunk in iter(lambda:f.read(1<<20),b''):h.update(chunk)
+              if h.hexdigest()!=hash_:raise SystemExit('M2 runtime file sha mismatch: '+name)
+            for key in ('Webots/msys64/mingw64/bin/webots.exe','Webots/msys64/mingw64/bin/webotsw.exe','Webots/msys64/mingw64/bin/webots-bin.exe','Webots/msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll','Webots/lib/controller/Controller.dll'):
+              if key not in attested:raise SystemExit('M2 required identity not attested '+key)
+            print('M2_PRIVATE_RELEASE_ALL_FILE_SHA256=PASS',len(attested))
+          PY
+      - name: Publish byte-addressed Windows archive to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_TAG: 9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          image="ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a:$PACKAGE_TAG"
+          echo -e 'FROM scratch\nCOPY M2-private-product.zip /release/M2-private-product.zip' > frozen/Dockerfile
+          docker build --pull=false -t "$image" frozen
+          docker push "$image"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")
+          if [[ "$digest" != ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:* ]]; then
+            echo "M2_REMOTE_DIGEST_UNPROVEN $digest" >&2; exit 1
+          fi
+          echo "M2_DURABLE_RELEASE_OCI=$digest"
+          echo "$digest" > frozen/release-oci-digest.txt
+          docker pull "$digest"
+          cid=$(docker create "$digest"); trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/release/M2-private-product.zip" frozen/roundtrip.zip
+          cmp frozen/M2-private-product.zip frozen/roundtrip.zip
+          echo '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c  frozen/roundtrip.zip' | sha256sum -c -
+          echo M2_OCI_ROUNDTRIP_RELEASE=PASS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2-durable-release-oci-proof
+          path: frozen/release-oci-digest.txt
+          if-no-files-found: error
+          retention-days: 90
+  windows-independent:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: djibian/webeeblocks
+          run-id: 41442076181
+          name: m2-windows-private-product-candidate
+          path: frozen
+          github-token: ${{ github.token }}
+      - name: Validate byte-identical Windows release under restricted PATH, no SDK installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Join-Path $PWD 'frozen/M2-private-product.zip'
+          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c'){throw 'M2_RELEASE_SHA_MISMATCH'}
+          $target=Join-Path $env:RUNNER_TEMP 'm2-clean-consumer'
+          Expand-Archive -LiteralPath $zip -DestinationPath $target
+          $bin=Join-Path $target 'Webots/msys64/mingw64/bin'
+          $webots=Join-Path $bin 'webots.exe'
+          if(-not(Test-Path $webots)){throw 'M2_PRIVATE_LAUNCHER_MISSING'}
+          $env:WEBOTS_HOME=''
+          $env:PATH="$env:SystemRoot\System32;$env:SystemRoot"
+          $env:QT_PLUGIN_PATH=''
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH=''
+          & (Join-Path $target 'Launch-WebeeBlocks.ps1') -ValidateOnly
+          if($LASTEXITCODE -ne 0){throw 'M2_CLEAN_CONSUMER_LAUNCHER_REFUSED'}
+          $env:WEBOTS_HOME=Join-Path $target 'Webots'
+          $env:QT_PLUGIN_PATH=Join-Path $target 'Webots/msys64/mingw64/share/qt6/plugins'
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH=Join-Path $env:QT_PLUGIN_PATH 'platforms'
+          $env:PATH="$bin;$env:SystemRoot\System32;$env:SystemRoot"
+          $version=(& $webots --version 2>&1 | Out-String).Trim()
+          if($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a'){throw "M2_PRIVATE_CLEAN_CONSUMER_WEBOTS_VERSION_FAILED $version"}
+          $critical=@('webots-bin.exe','webots.exe','webotsw.exe','Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','libopenal-1.dll')
+          foreach($name in $critical){if(-not(Test-Path (Join-Path $bin $name))){throw "M2_MISSING $name"}}
+          Write-Host 'M2_CLEAN_CONSUMER_STATIC_LAUNCH=PASS_WITHOUT_SDK_INSTALL_NOT_DW'
