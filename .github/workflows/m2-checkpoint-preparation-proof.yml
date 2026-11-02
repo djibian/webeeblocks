@@ -71,7 +71,7 @@ jobs:
           assert (p/'SHA256SUMS').exists() and (p/'M2-WINDOWS-DW-ACCEPTANCE.md').exists()
           print('M2_FULL_MANIFEST_PREPARED=PASS 11443 11366')
           PY
-      - name: Adversarial fail-closed checks: target, digest, stale protocol, archive, manifests
+      - name: "Adversarial fail-closed checks: target, digest, stale protocol, archive, manifests"
         env:
           M2_TARGET: ${{ github.event.pull_request.head.sha }}
         run: |
