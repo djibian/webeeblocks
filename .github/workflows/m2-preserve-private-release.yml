@@ -69,7 +69,7 @@ jobs:
           echo "M2_DURABLE_RELEASE_OCI=$digest"
           echo "$digest" > frozen/release-oci-digest.txt
           docker pull "$digest"
-          cid=$(docker create "$digest"); trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          cid=$(docker create "$digest" /release/M2-private-product.zip); trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
           docker cp "$cid:/release/M2-private-product.zip" frozen/roundtrip.zip
           cmp frozen/M2-private-product.zip frozen/roundtrip.zip
           echo '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c  frozen/roundtrip.zip' | sha256sum -c -
