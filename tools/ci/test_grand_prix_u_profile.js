@@ -22,6 +22,7 @@ function compose(loops){
  assert.strictEqual(new context.WebeeBlocksWwiBackend({},{}).capabilities.simulationScenes,false);
  for(const maxSteps of [0,20001,Infinity,1.5])assert.throws(()=>Profiles.validateProfile(Object.assign({},profile,{runtime:Object.assign({},profile.runtime,{maxSteps})}),catalog),/maxSteps/);
  assert.strictEqual(context.WebeeBlocksRuntimeOutcome.classify({code:'TIME_LIMIT'}).state,'MISSION ÉCHOUÉE');
+ return profile;
 }
 // Exercise the actual shared startup code up to the first Blockly-injection
 // dependency: a mission-only profile must display its instructions immediately,
