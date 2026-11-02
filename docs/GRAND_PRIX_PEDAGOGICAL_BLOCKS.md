@@ -1,13 +1,16 @@
 # Grand Prix — architecture pédagogique Blockly
 
-## Protocole prioritaire de conception élève (préparé, NON ACTIVÉ)
+## Protocole prioritaire de conception élève (phase 1 reprise)
 
-**Décision du propriétaire du 27 octobre 2026 : d'abord résoudre les défauts
-techniques transversaux ; ne pas relancer le Grand Prix pour l'instant.**
-Ce protocole ne remet pas en route les expériences ni les activités 2–7,
-et ne constitue pas un nouveau bloc, oracle ou test humain autorisé.
+La pause technique décidée le **27 octobre 2026** est conservée comme
+historique, mais elle est **levée depuis le 2 novembre 2026** pour la phase 1
+Grand Prix en simulation de référence, selon la
+[décision du propriétaire](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6588696664)
+après RESTORED(main@e0c6f455, H_ref). Ce protocole s'applique désormais
+sans préjuger d'un PASS pédagogique, d'un nouveau bloc, d'un test humain,
+d'un vol réel ou de la refonte des activités 2–7.
 
-À la reprise, ne plus optimiser uniquement la variante experte qui passe
+Dans cette reprise, ne plus optimiser uniquement la variante experte qui passe
 Webots. Explorer **au moins deux familles algorithmiques réellement distinctes**
 et accepter une remise à plat plutôt que des seuils modifiés ou des procédures
 renommées. Décrire explicitement les décisions que prend l'élève, les
@@ -92,7 +95,7 @@ Chaque proposition de bloc doit répondre à six questions avant développement 
    disparaît, quelles dépendances apparaissent, et qu'en disent les
    élèves ? Les seules économies de blocs ne suffisent pas.
 
-Pistes **à évaluer, pas à implémenter pendant la pause** : approche surveillée
+Pistes **à évaluer, sans autorisation d'implémentation automatique** : approche surveillée
 (#659, garde/arrêt bornés et écart commande-déplacement à résoudre),
 régulation latérale générique (l'absence de murs interdit d'inventer un
 repère au sol à partir de télémètres), sélection explicite selon plusieurs
@@ -144,8 +147,10 @@ progressivement les concepts nécessaires. Le compte de blocs seul ne suffit pas
 
 ## Endroits du dépôt à modifier
 
-`crazyflie_v2.js` définit les blocs. `activities.js` et
-`grand_prix_u/setup.js` exposent les primitives selon le profil.
+`crazyflie_v2.js` définit les blocs. `activities.js` expose le
+catalogue ordinaire (où l'activité 8 reste la livraison), tandis que
+[`plugins/robot_windows/grand_prix_u/setup.js`](../plugins/robot_windows/grand_prix_u/setup.js)
+définit le profil Grand Prix U **isolé**, non encore intégré à ce catalogue.
 `semantic_ast.js` compile; `activity_contract.js` valide
 blocs, capacités et bornes; `interpreter.js` exécute; le backend
 fournit les commandes/senseurs. `project_files.js` garantit

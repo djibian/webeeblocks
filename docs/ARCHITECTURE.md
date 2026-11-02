@@ -63,6 +63,18 @@ Il ne s'agit **pas** d'un mécanisme déclaratif d'activités arbitraires.
 Voir [ACTIVITY_SCENES.md](ACTIVITY_SCENES.md). Les activités historiques 2–7
 restent un acquis technique, pas une acceptation pédagogique.
 
+### Grand Prix : cible pédagogique et entrée active
+
+Le catalogue ordinaire de `main` dans
+[`activities.js`](../plugins/robot_windows/blockly/webeeblocks/activities.js)
+présente encore la livraison autonome comme activité 8. La cible officielle
+est le Grand Prix, mais son prototype U utilise une
+[fenêtre/profil dédiés](../plugins/robot_windows/grand_prix_u/setup.js)
+et un [paquet Windows isolé](GRAND_PRIX_WINDOWS_PROJECT.md), construit par
+[`package_windows_u.py`](../tools/grand_prix/package_windows_u.py).
+Aucune substitution du catalogue ordinaire ni acceptation pédagogique
+personnelle du Grand Prix n'en découle.
+
 ### Projet élève → navigateur / Qt
 
 Le fichier `.wbb` est enregistré **explicitement**, sans autosave.
@@ -77,6 +89,19 @@ Ses tests transactionnels vérifient la conservation du contenu précédent
 et de l'erreur primaire. Ils ne prouvent pas la durabilité universelle
 d'une fermeture déjà engagée en cas de panne du navigateur ou du système
 de fichiers. Ne pas confondre une sauvegarde réussie avec un résultat pédagogique.
+
+### Distributions Windows : dépendances et preuves distinctes
+
+Le [ZIP scolaire ordinaire](WINDOWS_DEPLOYMENT.md) et le
+[ZIP Grand Prix isolé](GRAND_PRIX_WINDOWS_PROJECT.md) requièrent une
+installation externe de Webots R2025a. Le candidat privé
+[M2](../packaging/webots-r2025a-parent-safe/M2-WINDOWS-DW-ACCEPTANCE.md)
+embarque, lui, son Webots R2025a B et impose son chargement depuis le
+répertoire privé, sans installation Webots séparée. Les preuves natives M2
+(READY, Qt, fermeture normale bornée) ne valent ni parcours interactif D/W
+complet ni qualification de déploiement scolaire ; [#800](https://github.com/djibian/webeeblocks/issues/800)
+reste ouvert. Les PASS Windows historiques des autres archives ne sont pas
+transférables au ZIP M2.
 
 ### Runtime C / WWI / Qt / Webots
 
@@ -157,8 +182,10 @@ Aucun vol, flash ou TEST_REQUIRED automatique.
     consommateurs et conserver leurs oracles de régression.
 - **Recherche/archives :** `experiments/` conserve données et hypothèses ;
   les variantes Grand Prix sont des témoins techniques et non une acceptation
-  pédagogique. Les travaux fonctionnels du Grand Prix restent suspendus,
-  conformément aux décisions du propriétaire.
+  pédagogique. La pause technique du 27 octobre a été
+  [levée le 2 novembre 2026](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6588696664)
+  pour la phase 1 en simulation ; cette reprise n'est ni un PASS Grand Prix
+  ni un signal de refonte des activités 2–7.
 
 ## Trouver les validations pertinentes
 
