@@ -119,6 +119,17 @@ jobs:
               raise SystemExit('Invalid test profile')
           if profile not in PROFILES:
               raise SystemExit('Unknown test profile; add deterministic preparation before enabling it')
+          # An issue_comment event runs the YAML from default main, not M2;
+          # workflow_dispatch executes YAML from the chosen branch ref.
+          # Require the exact M2 commit to be both the dispatched workflow SHA
+          # and the intended target, without auto-substitution or fallback.
+          if profile == 'm2-private-windows-r2025a':
+              if event_name != 'workflow_dispatch':
+                  raise SystemExit('M2_CHECKPOINT_REQUIRES_WORKFLOW_DISPATCH')
+              if os.environ.get('GITHUB_REF') != 'refs/heads/fix/665-m2-parent-safe-private-runtime-20261102':
+                  raise SystemExit('M2_CHECKPOINT_WRONG_BRANCH_REF')
+              if os.environ.get('GITHUB_SHA') != sha:
+                  raise SystemExit('M2_CHECKPOINT_WORKFLOW_TARGET_SHA_DIVERGENCE')
           if purpose not in {'checkpoint', 'release'} or not instructions:
               raise SystemExit('Invalid checkpoint request')
           if purpose not in PURPOSES[profile]:
