@@ -24,6 +24,8 @@ socket.onopen=async()=>{
  try{
   socket.send('robot:Crazyflie WebeeBlocks:init robot window');
   await backend.waitUntilReady();
+  // R3: READY only proves liveness; a real native claim must precede any student effect.
+  await backend.claimAuthority();
   // Exercise the identical real pupil .wbb/AST only in positive and RESET modes.
    // Retain the original negative ASTs and their independent oracles.
    let program=(mode==='witness'||mode==='reset')?

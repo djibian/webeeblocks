@@ -10,8 +10,10 @@ const source=fs.readFileSync(path.join(__dirname,'grand_prix_u_node_probe.js'),'
   class Socket{constructor(){socket=this;}send(){}close(){}}
   class Backend{
    async waitUntilReady(){}
+   async claimAuthority(){events.push({event:'native-claim-ack'});}
    handleMessage(){}
    async _request(parts){
+    assert(events.some(e=>e.event==='native-claim-ack'), 'command before native R3 claim');
     commands.push(parts[0]);
     events.push({event:'request',detail:'WEBEEBLOCKS_RUNTIME_V2 REQUEST '+commands.length+' '+parts.join(' ')});
     if(parts[0]==='OUTCOME'){
@@ -35,6 +37,9 @@ const source=fs.readFileSync(path.join(__dirname,'grand_prix_u_node_probe.js'),'
    }};
   vm.runInNewContext(source,context);await socket.onopen();
   assert.deepStrictEqual(modules,['backend','interpreter']);
+  assert.strictEqual(events.filter(e=>e.event==='native-claim-ack').length,1);
+  assert(events.findIndex(e=>e.event==='native-claim-ack') <
+         events.findIndex(e=>e.event==='request'));
   assert.deepStrictEqual(commands,landed?['COMPLETE','FAILURE','MOVE','STOP','OUTCOME','RESET','OUTCOME']:
    ['COMPLETE','FAILURE','MOVE','STOP','OUTCOME','RESET']);
   const result=events.find(e=>e.event==='late-outcome-read');assert.strictEqual(result.detail.status,'not-achieved');
