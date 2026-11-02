@@ -61,7 +61,9 @@ def run(root,out):
   env["QT_PLUGIN_PATH"]=str(private/"msys64/mingw64/share/qt6/plugins")
   env["QT_QPA_PLATFORM_PLUGIN_PATH"]=str(private/"msys64/mingw64/share/qt6/plugins/platforms")
   env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"
-  env["PATH"]=os.pathsep.join((str(bin),str(private/"msys64/usr/bin"),str(Path(env["SystemRoot"])/"System32"),env["SystemRoot"]))
+  systemroot=env.get("SYSTEMROOT") or env.get("SystemRoot")
+  if not systemroot or not Path(systemroot,"System32").is_dir():raise RuntimeError("M2_WINDOWS_SYSTEMROOT_UNPROVEN")
+  env["PATH"]=os.pathsep.join((str(bin),str(private/"msys64/usr/bin"),str(Path(systemroot)/"System32"),systemroot))
   world=root/"worlds/crazyflie_runtime_v2.wbt"
   cmd=[str(bin/"webots.exe"),"--stdout","--stderr","--batch","--mode=fast",f"--port={port}",str(world)]
   report["command"]=cmd;report["path"]=env["PATH"]
