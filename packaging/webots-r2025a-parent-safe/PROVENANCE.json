@@ -1,6 +1,6 @@
 {
   "schema": "webeeblocks.m2.qt665.parent-safe.provenance.v1",
-  "status": "PRIVATE_WINDOWS_ARCHIVE_BOUNDED_NATIVE_PASS_NOT_INTERACTIVE_DW",
+  "status": "EXACT_WINDOWS_RELEASE_NATIVE_BOUNDED_PASS_INTERACTIVE_DW_UNPROVEN",
   "base_main": "6fd0888f0625d0b04803550da93affe4163755ca",
   "upstream_webots": {
     "commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
@@ -20,14 +20,16 @@
     "oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
     "webots_bin_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
     "locally_verified_in_m2_execution": true,
-    "native_oracles_partial": {
-      "run": 41448354380,
-      "artifact": 13143755822,
-      "target_elf": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
-      "short_negative": "PASS wrong-landing at 13.736s simulated",
-      "reset_idle": "PASS achieved at 154.944s simulated",
-      "scope": "Original M1 GP U oracles against exact Linux B; complete all suite pending; Linux packaging/selection on default CI not established"
-    }
+    "native_oracles_complete": {
+      "run": 41448884297,
+      "artifact": 13144217833,
+      "runtime_oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
+      "exact_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
+      "suite": "all",
+      "result": "PASS 17 native U campaign scenarios and 21 sealed capture directories, including timeout LAND at 210 s, RESET, reset-idle, six witness configurations and negatives",
+      "scope": "Explicit OCI B selected directly by test; does not prove default Linux product runtime selection"
+    },
+    "default_product_runtime_selection": "UNPROVEN"
   },
   "windows": {
     "kernel_artifact": 12695533700,
@@ -87,6 +89,40 @@
       "limits": "Static imports only; excludes transitive, delay-loaded, dynamically loaded Qt plugins and real module identity. Windows clean-host D/W still UNPROVEN."
     },
     "private_product": {
+      "archive_source_run": 41450732733,
+      "archive_source_head": "1cfefebf127cd70b90d2c14a8360fd8d978e6710",
+      "source_artifact": 13144826515,
+      "inner_zip_sha256": "dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8",
+      "oci": "ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd",
+      "publisher_run": 41451621194,
+      "publisher_status": "completed/success",
+      "oci_roundtrip": "PASS byte-for-byte SHA-256 identical OCI ZIP; 11366 private Webots file manifests verified",
+      "independent_reproduction": {
+        "run": 41451536084,
+        "source_head": "9edb9416acd1bcce7f2a39ae2dbb6bb7f8a1fdb9",
+        "result": "PASS identical M2-private-product.zip SHA-256"
+      },
+      "selected_launcher": "private Webots/msys64/mingw64/bin/webotsw.exe; no global SDK/PATH fallback",
+      "independent_windows_no_sdk_install": "PASS constrained-PATH runner 41451621194, ValidateOnly and webots --version",
+      "native_q_methods": {
+        "run": 41451726930,
+        "head": "1b89312f9cbabcbdd6e3340581a20a541f008755",
+        "artifact": 13144134416,
+        "result": "PASS real Win32 Qt 6.11.2 exact method-only lease/generation/Cancel/reentrancy/deferred deletion; NOT actual full Webots Q"
+      },
+      "native_startup": {
+        "run": 41451726713,
+        "head": "1b89312f9cbabcbdd6e3340581a20a541f008755",
+        "artifact": 13144862022,
+        "result": "PASS actual Windows Webots engine, runtime controller and sequence evaluator READY with authenticated loaded Qt/Controller DLL paths and SHA under Mesa CI; NOT interactive D/W or normal close",
+        "notes": "Probe force-stops observed process group for cleanup: no natural shutdown/complete Webots Qt lifetime proven"
+      },
+      "interactive_dw": "UNPROVEN; exact-archive native 3D/Blockly/WWI/offline .wbb/STOP/RESET/step/Continue and real human test required",
+      "windows_normal_close": "UNPROVEN; separate graceful native user-level close and child identity/lifetime evidence needed",
+      "windows_offline_save_open_step": "UNPROVEN",
+      "test_required": "NOT_REQUESTED; existing windows-low-end profile prepares unrelated ZIP"
+    },
+    "historical_private_product": {
       "archive_source_run": 41442076181,
       "archive_source_head": "4896eda180e8cc0678adc345edde10d69ff35514",
       "source_artifact": 13140547162,
@@ -110,7 +146,8 @@
       },
       "interactive_dw": "UNPROVEN, requires exact-artifact TEST_REQUIRED profile and real machine",
       "windows_normal_close": "UNPROVEN",
-      "windows_offline_save_open_step": "UNPROVEN"
+      "windows_offline_save_open_step": "UNPROVEN",
+      "evidence_boundary": "HISTORICAL_ONLY_NOT_TRANSFERABLE_TO_CURRENT_RELEASE"
     }
   },
   "evidence_archives": [
@@ -140,7 +177,7 @@
     "no waiver of Qt6.12 Q or real interactive Windows D/W",
     "no alteration to M1a #797 / M1b #798 / physical and negative oracles"
   ],
-  "scope_note": "This manifest binds exact immutable candidate release, Windows Qt method PASS and bounded true-product READY, plus partial Linux native M1 oracles. Interactive D/W, natural full Webots Qt parent termination, normal native close, Linux default-product runtime adoption, exact Ready CI Gate and independent GO are NOT established; no global main health claim.",
+  "scope_note": "Current Windows ZIP dc614c04... is distinct from historical 9f309308...; only evidence that explicitly authenticates dc614c04... transfers. Windows native method-only Q is NOT a full Webots lifetime proof. Native Windows READY/mapped modules PASS but natural close and interactive D/W UNPROVEN. Linux native full U suite PASS with explicit OCI B; default product adoption UNPROVEN. No CI Ready, TEST_REQUIRED or independent GO yet.",
   "immutable_input_store": {
     "status": "PROVEN",
     "uri": "ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",

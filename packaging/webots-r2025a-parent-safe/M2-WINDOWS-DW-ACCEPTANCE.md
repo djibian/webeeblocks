@@ -1,37 +1,39 @@
 # M2 private Windows R2025a B — deterministic D/W acceptance
 
-**Status: PROCEDURE ONLY; NOT TEST_REQUIRED, NOT PASS.** This protocol does not authorize a direct notification, informal human verdict, or transfer of earlier W1/W2 results. V5 must bind an exact release and candidate HEAD before requesting a human test.
+**Status: PROCEDURE ONLY — NOT TEST_REQUIRED, NOT A HUMAN PASS.** This test must bind the exact *current* immutable archive and candidate Git SHA. An old W1/W2 PASS or Qt methods-only PASS is not a substitute.
 
-## Immutable release
+## Current release identity, independently attested
 
-- Producing run: https://github.com/djibian/webeeblocks/actions/runs/41442076181 ; source 4896eda180e8cc0678adc345edde10d69ff35514.
-- GitHub Actions artifact 13140547162, name m2-windows-private-product-candidate, inner file M2-private-product.zip.
-- Inner ZIP SHA-256: 9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c.
-- Retained OCI by immutable digest: ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:b9785b1ef93ef5801e8bc76c773e71c8766b8d674df402125122efd2b315e1af.
-- Producer and independent constrained-Windows checks: https://github.com/djibian/webeeblocks/actions/runs/41448179986 ; 11,369 private files checked, OCI ZIP roundtrip identical.
-- Qt Windows C++ parent lifetime: https://github.com/djibian/webeeblocks/actions/runs/41447418701.
-- This is the exact M1 + M2 product release. Its provenance is not recalculated from whichever source HEAD happens to trigger a later independent review.
+- Producing run: https://github.com/djibian/webeeblocks/actions/runs/41450732733 ; source `1cfefebf127cd70b90d2c14a8360fd8d978e6710`; artifact `13144826515` named `m2-windows-private-product-candidate`, inner `M2-private-product.zip`.
+- **Exact ZIP SHA-256:** `dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8`.
+- **Immutable OCI copy:** `ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd`.
+- Independent reconstruction: https://github.com/djibian/webeeblocks/actions/runs/41451536084 — identical inner ZIP SHA-256.
+- Package retention/verified readback on an independent runner: https://github.com/djibian/webeeblocks/actions/runs/41451621194 — 11,366 private file SHA-256 checks, whole ZIP OCI roundtrip, constrained Windows PATH without separate Webots/MSYS2 SDK.
+- Native Windows real-product READY, process ancestry, loaded Qt DLL identities: https://github.com/djibian/webeeblocks/actions/runs/41451726713 — `PASS_BOUNDED_NOT_DW`.
+- Native Qt 6.11.2 method-only reentrancy/lease/Cancel/parent test: https://github.com/djibian/webeeblocks/actions/runs/41451726930 — **NOT** a full Webots application Q or natural-exit proof.
+- Separate Linux parent-safe B full native U campaign: https://github.com/djibian/webeeblocks/actions/runs/41448884297 — **NOT** Linux default-selection evidence and **NOT** Windows D/W.
+- Historical ZIP `9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c` (run `41442076181`, OCI `b9785b1e...`) is retained only in `PROVENANCE.json.windows.historical_private_product`. **Never use its acceptance or artifact IDs for this checkpoint.**
 
-## Deterministic preparation
+## Deterministic host preparation and fail-closed checks
 
-1. Record interactive Windows 11 host OS build, CPU/RAM, GPU, driver, display, Windows session, browser and browser version, whether old system Webots is installed, and network state.
-2. Download the exact inner ZIP and compare PowerShell Get-FileHash -Algorithm SHA256 with the value above. Abort on mismatch. Keep the original untouched.
-3. Extract to a user-writable local directory. The release must contain Webots, controllers, worlds, Launch-WebeeBlocks.ps1, Launch-WebeeBlocks.cmd, PRIVATE_RUNTIME.sha256 and MANIFEST.sha256 together. Neither Webots R2025a nor MSYS2 is installed as a separate prerequisite.
-4. Run the shipped Launch-WebeeBlocks.ps1 -ValidateOnly. Require WEBEEBLOCKS_WINDOWS_LAUNCHER_OK, R2025a, and the webotsw.exe path strictly under this extracted release's Webots/msys64/mingw64/bin. Any fallback to Program Files, a globally installed SDK, PATH, or ambient DLL is FAIL.
-5. In a disposable extracted COPY only, move a critical private Qt DLL temporarily aside: ValidateOnly must fail. Restore its original bytes and repeat successful ValidateOnly; confirm the DLL SHA matches PRIVATE_RUNTIME.sha256.
+1. Record the Windows 11 machine's OS build, hardware class, GPU driver, account/session, browser and version, network status, and whether a global Webots installation exists.
+2. Obtain the **inner ZIP** from the current digest-pinned OCI or artifact `13144826515`. Verify `(Get-FileHash -LiteralPath .\M2-private-product.zip -Algorithm SHA256).Hash.ToLowerInvariant()` equals **exactly** `dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8`. Abort on drift; do not substitute a different ZIP or regenerate.
+3. Extract to a local writable directory. Require `Webots/`, `controllers/`, `worlds/`, `MANIFEST.sha256`, `PRIVATE_RUNTIME.sha256`, `Launch-WebeeBlocks.cmd`, and `Launch-WebeeBlocks.ps1`. No separate Webots or MSYS2 installation is permitted for this candidate.
+4. Run `Launch-WebeeBlocks.ps1 -ValidateOnly`. Require Webots `R2025a` and the launcher strictly under this private `Webots/msys64/mingw64/bin/webotsw.exe`. Global Webots, ambient SDK, or unverified DLL fallback => FAIL. Compare full private file manifest hashes.
+5. On an expendable extracted **copy** only, temporarily remove a critical private Qt DLL; `-ValidateOnly` must fail. Restore exact original bytes and recheck manifest, then work on untouched extracted release.
 
-## Real interactive D/W, same ZIP
+## Interactive Windows D/W — real Webots 3D, same ZIP
 
-6. Disconnect the internet; local loopback may remain available. Launch via shipped Launch-WebeeBlocks.cmd. Observe a genuine interactive Webots 3D scene; drag/zoom/rotate camera and confirm rendering changes, without replacing Webots with a browser screenshot or headless simulation.
-7. Verify real Blockly Robot Window PRÊT/READY and WWI handshake, then run a normal student-edited Blockly program. Observe physical 3D drone motion and reported outcome.
-8. Exercise STOP, RESET while running, RESET after completion, step-by-step and Continuer. Confirm neutral world restoration and absence of abnormal process/fatal logs.
-9. Start from an activity template and Save As a new .wbb in a school-style writable personal directory. Modify, Save to the same target, close/reopen via Open and compare the workspace and behavior. Open an existing .wbb, edit and Save again. No synthetic file dialog or automatic save may substitute for these actions.
-10. Check coexistence of Webots, Chrome/Firefox supported browser session, native foreground dialogs and user file operations. Repeat at least one full run/reset/open/save cycle offline.
-11. Close by ordinary UI controls. Record native exit status, parent/child process tree, surviving processes and any Qt fatal. The student browser must not kill unrelated Webots or foreign processes.
-12. Repeat a bounded cycle on the low-end classroom reference PC with precisely the same ZIP SHA-256.
+6. Disable internet while preserving loopback. Run `Launch-WebeeBlocks.cmd` normally, **not** a mock/headless/manual SDK launcher. Observe live, visible, manipulable Webots 3D scene. Rotate/zoom/move camera; capture screen with real Webots and Blockly visible.
+7. Require actual Robot Window `PRÊT`, Webots controller `READY`, and functional WWI handshake. Make a student-level Blockly edit, submit and observe genuine simulated Crazyflie motion and outcome in the live 3D scene.
+8. Exercise `STOP`, `RESET` while active, `RESET` after completion, step-by-step, and `Continuer`. Check freshness (no stale request/ACK), neutral scene, no Qt crash, UAF or unowned process interference.
+9. Start an activity template and `Enregistrer sous` a new `.wbb` to a school-like user folder. Edit, `Enregistrer`, close, `Ouvrir`, compare actual Blockly workspace/behavior and SHA; open an existing `.wbb`, edit and save to its bound path. **Real** file pickers only.
+10. Verify Chrome or Firefox can coexist with Webots; file picker focus/foreground and file roundtrip work. Repeat a representative run/RESET/Open/Save cycle **offline**.
+11. Close via the normal Webots window controls (no taskkill). Capture Webots launcher exit code, engine and controller PIDs/create times, child exit/EOF, no surviving owned processes, no Qt fatal and no closure of unrelated browser/foreign processes.
+12. Repeat a bounded representative cycle on the low-end classroom reference machine using the same exact SHA.
 
-## Evidence and authority
+**Evidence:** exact Git SHA and ZIP/OCI SHA; machine/browser/GPU; timestamps, screenshots, native process/module paths and exits, WWI/Blockly events, saved `.wbb` hash, logs, and explicit **PASS/FAIL/UNPROVEN** for each claim. A screenshot alone never proves child normal exit.
 
-Attach screenshots of 3D and Blockly simultaneously with timestamps, SHA-256 of the used ZIP and sample .wbb, exact OS/browser/GPU, loaded module paths, console and native exit status, full test actions, and PASS/FAIL/UNPROVEN per observation.
+## Authorized V5 boundary
 
-The existing GitHub V5 human-checkpoint profile windows-low-end produces a different non-M2 artifact and MUST NOT be reused for this release. A new exact-artifact-aware preparation must be implemented and verified before invoking TEST_REQUIRED through the authorized GitHub mechanism. Do not send ntfy directly or post a premature human request. The interactive result is UNPROVEN until that checkpoint completes.
+The existing `windows-low-end` GitHub profile prepares another product; it is forbidden for this exact ZIP. Request `TEST_REQUIRED` **only after** an exact-archive profile with deterministic immutable-digest preparation, required preflight tests, provenance/handling and deduplication is implemented and verified in the trusted GitHub checkpoint mechanism. Check that no unresolved request already exists. **Do not notify directly or record a human PASS in advance.**
