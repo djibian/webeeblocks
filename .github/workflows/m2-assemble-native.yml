@@ -234,6 +234,8 @@ jobs:
           & (Join-Path $classroom 'Launch-WebeeBlocks.ps1') -ValidateOnly
           if($LASTEXITCODE -ne 0){throw 'M2_STRICT_PRIVATE_LAUNCHER_FAILED'}
           $hash=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($hash -ne 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8') {throw "M2_REPRODUCIBILITY_REFUTED expected=dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8 observed=$hash"}
+          Write-Host "M2_CURRENT_MAIN_PRIVATE_WINDOWS_REPRODUCIBLE=PASS sha256=$hash"
           "$hash  M2-private-product.zip" | Set-Content (Join-Path $env:M2_REPORT_ROOT 'release.sha256')
           Write-Host 'M2_PRODUCT_PRIVATE_LAUNCHER=PASS_STATIC_ONLY_NOT_DW'
       - uses: actions/upload-artifact@v4
