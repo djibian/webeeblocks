@@ -1,7 +1,7 @@
 {
   "schema": "webeeblocks.m2.qt665.parent-safe.provenance.v1",
-  "status": "INPUTS_ONLY_NOT_DISTRIBUTABLE",
-  "base_main": "4a605e6d0681817a86e5e258c20817e294e1fe64",
+  "status": "PRIVATE_WINDOWS_ARCHIVE_BOUNDED_NATIVE_PASS_NOT_INTERACTIVE_DW",
+  "base_main": "6fd0888f0625d0b04803550da93affe4163755ca",
   "upstream_webots": {
     "commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
     "source_patch_git_blob_sha1": "f095a997a8e71e8753acd922e568a098bf6f765f",
@@ -19,7 +19,15 @@
   "linux": {
     "oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
     "webots_bin_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
-    "locally_verified_in_m2_execution": false
+    "locally_verified_in_m2_execution": true,
+    "native_oracles_partial": {
+      "run": 41448354380,
+      "artifact": 13143755822,
+      "target_elf": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
+      "short_negative": "PASS wrong-landing at 13.736s simulated",
+      "reset_idle": "PASS achieved at 154.944s simulated",
+      "scope": "Original M1 GP U oracles against exact Linux B; complete all suite pending; Linux packaging/selection on default CI not established"
+    }
   },
   "windows": {
     "kernel_artifact": 12695533700,
@@ -77,6 +85,32 @@
       ],
       "non_system_count": 19,
       "limits": "Static imports only; excludes transitive, delay-loaded, dynamically loaded Qt plugins and real module identity. Windows clean-host D/W still UNPROVEN."
+    },
+    "private_product": {
+      "archive_source_run": 41442076181,
+      "archive_source_head": "4896eda180e8cc0678adc345edde10d69ff35514",
+      "source_artifact": 13140547162,
+      "inner_zip_sha256": "9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c",
+      "oci": "ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:b9785b1ef93ef5801e8bc76c773e71c8766b8d674df402125122efd2b315e1af",
+      "publisher_run": 41448179986,
+      "publisher_status": "completed/success",
+      "oci_roundtrip": "PASS full ZIP SHA and 11369 manifest paths",
+      "selected_launcher": "inside release Webots/msys64/mingw64/bin/webotsw.exe; strict ValidateOnly, no installed-global SDK fallback",
+      "independent_windows_no_sdk_install": "PASS constrained PATH on fresh runner 41448179986",
+      "native_q_methods": {
+        "run": 41447418701,
+        "artifact": 13143385195,
+        "result": "PASS exact Qt6.11.2 methods, reentrancy, dialog generations, Cancel, parent lease, deferred destruction, not full Webots Q"
+      },
+      "native_startup": {
+        "run": 41449169817,
+        "artifact": 13144081547,
+        "result": "PASS real Webots engine + runtime + sequence evaluator READY with exact native mapped DLL SHA and no ambient SDK, not D/W",
+        "notes": "Mesa CI WGL renderer pinned; forced process cleanup emits controller exit 15 and is not native close acceptance"
+      },
+      "interactive_dw": "UNPROVEN, requires exact-artifact TEST_REQUIRED profile and real machine",
+      "windows_normal_close": "UNPROVEN",
+      "windows_offline_save_open_step": "UNPROVEN"
     }
   },
   "evidence_archives": [
@@ -106,7 +140,7 @@
     "no waiver of Qt6.12 Q or real interactive Windows D/W",
     "no alteration to M1a #797 / M1b #798 / physical and negative oracles"
   ],
-  "scope_note": "Only immutable identities and provenances. No payload storage in Git. This manifest alone MUST NOT enable product runtime selection; missing closure refuses launch. Q, D/W, current-product tests, V5 Ready CI/GO remain UNPROVEN.",
+  "scope_note": "This manifest binds exact immutable candidate release, Windows Qt method PASS and bounded true-product READY, plus partial Linux native M1 oracles. Interactive D/W, natural full Webots Qt parent termination, normal native close, Linux default-product runtime adoption, exact Ready CI Gate and independent GO are NOT established; no global main health claim.",
   "immutable_input_store": {
     "status": "PROVEN",
     "uri": "ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
