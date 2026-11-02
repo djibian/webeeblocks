@@ -18,14 +18,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           repository: djibian/webeeblocks
-          run-id: 41442076181
+          run-id: 41450732733
           name: m2-windows-private-product-candidate
           path: frozen
           github-token: ${{ github.token }}
       - name: Verify exact release zip and all private files before preservation
         run: |
           set -euo pipefail
-          echo '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c  frozen/M2-private-product.zip' | sha256sum -c -
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  frozen/M2-private-product.zip' | sha256sum -c -
           python3 - <<'PY'
           from pathlib import Path
           import hashlib,zipfile,re
@@ -54,7 +54,7 @@ jobs:
       - name: Publish byte-addressed Windows archive to GHCR
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_TAG: 9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c
+          PACKAGE_TAG: dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8
         run: |
           set -euo pipefail
           echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -72,7 +72,7 @@ jobs:
           cid=$(docker create "$digest" /release/M2-private-product.zip); trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
           docker cp "$cid:/release/M2-private-product.zip" frozen/roundtrip.zip
           cmp frozen/M2-private-product.zip frozen/roundtrip.zip
-          echo '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c  frozen/roundtrip.zip' | sha256sum -c -
+          echo 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8  frozen/roundtrip.zip' | sha256sum -c -
           echo M2_OCI_ROUNDTRIP_RELEASE=PASS
       - uses: actions/upload-artifact@v4
         with:
@@ -87,7 +87,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           repository: djibian/webeeblocks
-          run-id: 41442076181
+          run-id: 41450732733
           name: m2-windows-private-product-candidate
           path: frozen
           github-token: ${{ github.token }}
@@ -96,7 +96,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $zip=Join-Path $PWD 'frozen/M2-private-product.zip'
-          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c'){throw 'M2_RELEASE_SHA_MISMATCH'}
+          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8'){throw 'M2_RELEASE_SHA_MISMATCH'}
           $target=Join-Path $env:RUNNER_TEMP 'm2-clean-consumer'
           Expand-Archive -LiteralPath $zip -DestinationPath $target
           $bin=Join-Path $target 'Webots/msys64/mingw64/bin'
