@@ -2,9 +2,11 @@
 import copy
 import json
 import subprocess
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 import run_grand_prix_u_prototype as runner
 import unittest
+import runpy
+import os
 import tempfile
 from unittest.mock import patch
 from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch, has_native_land_completion
@@ -311,5 +313,135 @@ class NormalQuitHostTests(unittest.TestCase):
         self.assertIn("normal_quit=not args.tcp",source)
         self.assertIn("children[1:] if normal_quit_confirmed else children",source)
         self.assertIn("if camera_probe is not None:",trial[:gate])
+
+class EvaluatorRetirementLifecycleTests(unittest.TestCase):
+    """Execute the real evaluator event loop with a deterministic Supervisor fake.
+
+    The oracle and its attempt states remain real; only Webots I/O and the
+    generated geometry are substituted. No Webots binary or CI mission is run.
+    """
+    def exercise(self, sequence):
+        from tools.grand_prix import layout_u
+        class Field:
+            def __init__(self, value=''):
+                self.value=value
+            def getSFString(self):
+                return self.value
+            def setSFString(self, value):
+                self.value=value
+        class Vehicle:
+            def __init__(self):
+                self.name=Field('Crazyflie WebeeBlocks')
+                self.channel=Field()
+            def getField(self, name):
+                return {'name':self.name,'customData':self.channel}[name]
+            def getPosition(self):
+                return (0.,0.,.023)
+            def getVelocity(self):
+                return (0.,0.,0.,0.,0.,0.)
+            def getOrientation(self):
+                return (1.,0.,0.,0.,1.,0.,0.,0.,1.)
+            def getContactPoints(self, include_descendants):
+                return []
+        class SupervisorFake:
+            def __init__(self, output):
+                self.vehicle=Vehicle()
+                self.control=Field()
+                self.output=output
+                self.index=0
+                self.quit_codes=[]
+            def getBasicTimeStep(self):
+                return 8
+            def getRoot(self):
+                children=SimpleNamespace(getCount=lambda:1,
+                                         getMFNode=lambda i:self.vehicle)
+                return SimpleNamespace(getField=lambda name:children)
+            def getSelf(self):
+                return SimpleNamespace(getField=lambda name:self.control)
+            def getFromDef(self, name):
+                raise AssertionError('fixture has no physical colliders')
+            def getTime(self):
+                return self.index*.008
+            def setLabel(self, *args):
+                pass
+            def simulationQuit(self, code):
+                self.quit_codes.append(code)
+            def step(self, step):
+                if self.index>=len(sequence):
+                    return -1
+                row=sequence[self.index]
+                self.index+=1
+                self.vehicle.channel.value=f"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {row['attempt']}"
+                if row.get('terminal'):
+                    self.control.value=(f"GP_U_START attempt={row['attempt']} "
+                                        f"start_ms={self.index*8} state=deadline")
+                elif row.get('started'):
+                    self.control.value=(f"GP_U_START attempt={row['attempt']} "
+                                        f"start_ms={self.index*8} state=admitted")
+                else:
+                    self.control.value=''
+                if 'request' in row:
+                    (self.output/'normal-quit.request').write_text(row['request'])
+                return 0
+        layout=SimpleNamespace(identifier='controlled-lifecycle',boxes=(),
+            polygon=((-1.,-1.),(1.,-1.),(1.,1.),(-1.,1.)),
+            gates=(),side=2.,width=.6,landing_target=lambda crossings:(0.,0.))
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            native=SupervisorFake(root)
+            controller=ModuleType('controller')
+            controller.Supervisor=lambda:native
+            with (patch.dict(sys.modules,{'controller':controller}),
+                  patch.object(layout_u,'generate',return_value=layout),
+                  patch.dict(os.environ,{'WEBEEBLOCKS_CI_ARTIFACT_DIR':str(root)}),
+                  patch.object(sys,'argv',[str(ROOT/'controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py'),'4','2.0'])):
+                try:
+                    runpy.run_path(str(ROOT/'controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py'),
+                                   run_name='__main__')
+                except RuntimeError as error:
+                    return native, str(error), (
+                        (root/'normal-quit.ack').read_text()
+                        if (root/'normal-quit.ack').exists() else None)
+            return native, None, (
+                (root/'normal-quit.ack').read_text()
+                if (root/'normal-quit.ack').exists() else None)
+
+    def test_confirmed_reset_then_idle_second_attempt_retires_first_proof(self):
+        request='1 '+'a'*32+'\n'
+        native,error,ack=self.exercise([
+            {'attempt':1,'terminal':True},
+            {'attempt':2,'request':request},
+        ])
+        self.assertIsNone(error)
+        self.assertEqual(native.quit_codes,[0])
+        self.assertEqual(ack,request)
+
+    def test_reset_refused_keeps_first_terminal_authority(self):
+        request='1 '+'b'*32+'\n'
+        native,error,ack=self.exercise([
+            {'attempt':1,'terminal':True},
+            {'attempt':1,'request':request},
+        ])
+        self.assertIsNone(error)
+        self.assertEqual(native.quit_codes,[0])
+        self.assertEqual(ack,request)
+
+    def test_premature_wrong_identity_and_started_second_attempt_refused(self):
+        valid='1 '+'c'*32+'\n'
+        scenarios=[
+            [{'attempt':1,'request':valid,'started':True}],
+            [{'attempt':1,'terminal':True},{'attempt':2,'started':True,'request':valid}],
+            [{'attempt':1,'terminal':True},{'attempt':3,'request':valid}],
+            [{'attempt':1,'terminal':True},{'attempt':2,'request':'2 '+'c'*32+'\n'}],
+            [{'attempt':1,'terminal':True},{'attempt':2,'request':'1 '+'g'*32+'\n'}],
+            [{'attempt':1,'terminal':True},{'attempt':2,'terminal':True,'request':valid}],
+        ]
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario):
+                native,error,ack=self.exercise(scenario)
+                self.assertIsNotNone(error)
+                self.assertIsNone(ack)
+                self.assertEqual(native.quit_codes,[])
+
 
 if __name__=='__main__':unittest.main()

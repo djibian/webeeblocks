@@ -277,6 +277,38 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         result=json.loads(file.read_text()) if file.exists() else (records[0] if len(records)==1 else None)
         if result is None or any(record!=result for record in records if mode!='reset' or record['attempt']==1):raise RuntimeError('native result missing/inconsistent: '+str(out))
         second=None
+        if mode=='reset-idle':
+            # This witness uses the existing positive native RESET, then leaves
+            # attempt 2 idle. It does NOT claim timeout-recovery acceptance.
+            requests=[re.fullmatch(r'WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) RESET',e['detail'])
+                      for e in rows if e['event']=='request' and isinstance(e['detail'],str)]
+            resets=[m.group(1) for m in requests if m]
+            if (result['status']!='achieved' or len(resets)!=1 or
+                not any(e['event']=='reset-completed' for e in rows) or
+                not any(e['event']=='reset-idle-outcome-error' and
+                        e['detail']=={'code':'OUTCOME_UNAVAILABLE'} for e in rows) or
+                any(e['event'] in ('second-outcome','reset-idle-stale-outcome') for e in rows) or
+                (out/'native-result-2.json').exists()):
+                raise RuntimeError('native RESET-then-idle witness invalid: '+str(out))
+            until=time.monotonic()+3
+            while True:
+                trace_path=out/'native_trace.csv'
+                trace_rows=trace_path.read_text().splitlines() if trace_path.exists() else []
+                if any(len(parts)>=2 and parts[1]=='2'
+                       for parts in (line.split(',',2) for line in trace_rows)):
+                    break
+                if webots.poll() is not None or time.monotonic()>=until:
+                    raise RuntimeError('native attempt 2 not observed: '+str(out))
+                time.sleep(.05)
+            text=(out/'webots.log').read_text()
+            reset_marker=text.find('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ')
+            response_marker=text.find(f'WEBEEBLOCKS_RUNTIME_V2 RESPONSE {resets[0]} OK')
+            admissions=[line for line in text.splitlines() if line.startswith('GP_U_ADMISSION ')]
+            if (reset_marker<0 or response_marker<=reset_marker or
+                len(admissions)!=1 or
+                any(line.startswith('GP_U_RESULT ') and
+                    '"attempt": 2' in line for line in text.splitlines())):
+                raise RuntimeError('native accepted RESET/second attempt authority unproven: '+str(out))
         if mode=='reset':
             second=json.loads((out/'native-result-2.json').read_text())
             if (result['status']!='achieved' or second['status']!='achieved' or second['attempt']!=2 or
@@ -288,7 +320,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         fatal=[e for e in rows if e['event'] in ('wall-timeout','transport-error')]
         errors=[e for e in rows if e['event']=='error']
         if fatal:raise RuntimeError('transport/preparation failed: '+str(out))
-        if mode in ('witness','reset') and require_success and (errors or result['status']!='achieved'):
+        if mode in ('witness','reset','reset-idle') and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
         if mode=='collision' and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact')):
@@ -403,7 +435,7 @@ def native_container_command(cid, assets, node, command, core_options=()):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes','camera-contrast'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','reset-idle','witness','all','sizes','camera-contrast'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -473,12 +505,12 @@ def main():
             verify_new_capture_seals(OUT,seal_baseline,expected_trials)
             return
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset'),(0,args.side,'reset-idle')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for sequence_index,(seed,side,mode) in enumerate(cases,1):
         result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index,expected_trials=expected_trials,normal_quit=not args.tcp)
-        if mode in ('witness','reset'):
+        if mode in ('witness','reset','reset-idle'):
             if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations or RESET')
             digest=result['ast_sha256']
         summaries.append(result)
