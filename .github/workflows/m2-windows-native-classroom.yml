@@ -1,0 +1,69 @@
+# NON-GATE: native exact M2 private classroom, Win32 process + controller READY.
+# Same pinned software Mesa renderer as canonical historical CI, no SDK install.
+name: M2 private classroom actual Windows READY and loaded modules (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths:
+      - '.github/workflows/m2-windows-native-classroom.yml'
+      - 'tools/qt665-qualification/probe_private_classroom_windows.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native-classroom:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install psutil==6.1.1
+      - uses: actions/download-artifact@v4
+        with:
+          repository: djibian/webeeblocks
+          run-id: 41442076181
+          name: m2-windows-private-product-candidate
+          path: frozen
+          github-token: ${{ github.token }}
+      - name: Verify exact release and extract unchanged M1+M2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='frozen/M2-private-product.zip'
+          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c'){throw 'M2_SOURCE_RELEASE_DRIFT'}
+          $target=Join-Path $env:RUNNER_TEMP 'm2-classroom-consumer'
+          Expand-Archive -LiteralPath $zip -DestinationPath $target
+          "M2_PACKAGE=$target" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Configure pinned Mesa 24.2.1 WGL renderer on disposable host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $archive=Join-Path $env:RUNNER_TEMP 'mesa3d-24.2.1-release-mingw.7z'
+          Invoke-WebRequest -Uri 'https://github.com/pal1000/mesa-dist-win/releases/download/24.2.1/mesa3d-24.2.1-release-mingw.7z' -OutFile $archive
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214'){throw 'M2_MESA_ARCHIVE_CHANGED'}
+          $mesa=Join-Path $env:RUNNER_TEMP 'M2 Qt CI Mesa'
+          & 7z.exe x $archive "-o$mesa" -y
+          if($LASTEXITCODE -ne 0){throw 'M2_MESA_EXTRACT_FAILED'}
+          Push-Location $mesa
+          try{& .\systemwidedeploy.cmd 1;if($LASTEXITCODE -ne 0){throw 'M2_MESA_DEPLOY_FAILED'}}finally{Pop-Location}
+      - name: Run official private launcher and observe live engine and M1 controllers
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PATH="$env:SystemRoot\System32;$env:SystemRoot"
+          python tools/qt665-qualification/probe_private_classroom_windows.py --package $env:M2_PACKAGE --output ci-artifacts/m2-windows-native-actual
+          if($LASTEXITCODE -ne 0){throw 'M2_NATIVE_PRODUCT_BOUNDARY_UNPROVEN'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m2-windows-private-m1-native-ready-observation
+          path: ci-artifacts/m2-windows-native-actual/
+          retention-days: 90
+          if-no-files-found: warn
