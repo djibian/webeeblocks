@@ -10,12 +10,16 @@ Students should progressively learn to decompose a problem, build algorithms, us
 
 ## Pupil-program feasibility and classroom delivery (owner decision, 2026-10-22)
 
-### Méthode de conception prioritaire — décision du propriétaire, 27 octobre 2026
+### Méthode de conception prioritaire — reprise effective le 2 novembre 2026
 
-**Cette méthode sera appliquée à la prochaine reprise du Grand Prix ; les travaux
-Grand Prix restent actuellement suspendus au profit de la santé technique de
-WebeeBlocks** (voir #587, décision du 27 octobre). Elle ne crée aucune
-nouvelle fonctionnalité, autorisation de vol ou acceptation pédagogique.
+**Cette méthode s'applique à la phase 1 du Grand Prix, dont la pause du
+27 octobre a été levée le 2 novembre 2026** par la
+[décision explicite du propriétaire](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6588696664),
+sur le périmètre de simulation de référence après
+[RESTORED(main@e0c6f455, H_ref)](https://github.com/djibian/webeeblocks/issues/665#issuecomment-6585953014).
+La pause reste une décision historique, non l'état courant. La reprise ne
+constitue ni acceptation pédagogique, ni autorisation de vol ou qualification
+matérielle, ni PASS Windows scolaire (voir #800).
 
 - **Concevoir d'abord pour l'élève.** Partir des apprentissages observables :
   concevoir, construire **sans programme complet fourni**, expliquer, observer,
@@ -188,6 +192,11 @@ Their profiles, missions, negative tests and evidence must remain historically
 traceable. The current Activity 8 warehouse delivery (#529) will be removed
 from the **official active progression** by a future reviewed implementation
 change and replaced by the Grand Prix, without deleting useful evidence.
+As of the 2026-11-02 restart, the ordinary `main` catalog still lists the
+warehouse delivery Activity 8; the separate Grand Prix U profile and isolated
+Windows project do **not** yet replace that installed catalog entry.
+This is the implementation state, not a change to the official pedagogical
+target.
 
 **Phase 1 — personally validate both endpoints.** Finalize Activity 1 (#589)
 and Grand Prix (#591) with real Webots R2025a tests, exact Ready-HEAD CI,

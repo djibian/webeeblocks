@@ -13,18 +13,22 @@ here.
 
 ## Product priority
 
-### Temporaire : stabilisation préalable, décision du 27 octobre 2026
+### Reprise pédagogique du Grand Prix — décision effective du 2 novembre 2026
 
-La demande récente du propriétaire dans [#587](https://github.com/djibian/webeeblocks/issues/587)
-suspend les changements fonctionnels/pédagogiques du Grand Prix pendant la remise
-en santé technique transversale (Webots/Qt, RESET, CI, éditeur, projets).
-**Préserver** les oracles du Grand Prix dans les tests de non-régression, sans
-reprendre la recherche algorithmique ni proposer de nouveaux blocs pendant
-cette phase. Cette pause n'annule ni le produit cible ni les travaux historiques,
-et ne crée pas de verrou de contrôleur ou de veto automatique : V5 gouverne
-toujours l'éligibilité et les intégrations de travaux techniques indépendants.
+La pause technique décidée le 27 octobre 2026 dans [#587](https://github.com/djibian/webeeblocks/issues/587)
+est une décision historique **supplantée** par la [reprise autorisée le
+2 novembre](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6588696664).
+Sur la base de [RESTORED(main@e0c6f455, H_ref)](https://github.com/djibian/webeeblocks/issues/665#issuecomment-6585953014),
+la **Phase 1 / Activité 8 Grand Prix autonome** reprend pour la simulation de
+référence. Les expériences R3 #785 et #794 sont écartées sans fusion ; leurs
+preuves et références restent historiques. Cette reprise n'accorde aucun
+PASS pédagogique, qualification matérielle ou déploiement scolaire : #637 et
+#665 restent ouverts et le test Windows 11 administré [#800](https://github.com/djibian/webeeblocks/issues/800)
+du ZIP privé M2 reste distinct et non acquis. Préserver oracles, négatifs,
+RESET strict et LAND indépendant à 210000 ms ; CI exacte et revue V5 demeurent
+obligatoires. La reprise ne déclenche pas la refonte des activités 2–7.
 
-### À la reprise : sélection par accessibilité élève, pas par blocs gagnés
+### Méthode active : sélection par accessibilité élève, pas par blocs gagnés
 
 Avant de retenir une nouvelle solution Grand Prix, produire **plusieurs
 architectures distinctes** et leur comparaison vérifiable, plutôt qu'un patch
@@ -113,6 +117,12 @@ proofs remains unchanged; its *pedagogical acceptance* is reopened.
 which will replace warehouse delivery (#529) in the pupil progression.
 The old delivery work remains available as correctly labeled technical
 history until a separately reviewed retirement from active starters/profiles.
+**Implementation boundary:** the ordinary `main` activity catalog still exposes
+warehouse delivery as Activity 8 in `activities.js`. The Grand Prix U uses a
+separate `plugins/robot_windows/grand_prix_u/setup.js` profile and an isolated
+[Windows project](GRAND_PRIX_WINDOWS_PROJECT.md); it is not yet the installed
+Activity 8 in the ordinary classroom catalog. This distinction does not
+change the sole **target** Activity 8 or grant pedagogical acceptance.
 **Each activity must present a distinct pupil world**, while sharing
 underlying Webots runtime/controller, base `.wbt` and independently loaded
 scenes when technically appropriate. Scene selection/restore/reset/`.wbb`
@@ -235,7 +245,14 @@ docs/GRAND_PRIX_SIMULATION_CONTRACT.md.
 
 #81 (Windows classroom deployment), #80 (one-click unified classroom interface)
 and #79 (fully French student interface) remain validated baselines, not active
-priority nodes.
+priority nodes. **Do not conflate Windows packages:** the ordinary W1/W2
+[classroom ZIP](WINDOWS_DEPLOYMENT.md) and the isolated
+[Grand Prix ZIP](GRAND_PRIX_WINDOWS_PROJECT.md) require Webots R2025a installed
+separately. The exact private [M2 ZIP](../packaging/webots-r2025a-parent-safe/M2-WINDOWS-DW-ACCEPTANCE.md)
+instead bundles its own Webots R2025a B and requires **no separate Webots
+installation**. Its scoped native READY/Qt/normal-exit evidence does not establish
+interactive D/W or school acceptance; [#800](https://github.com/djibian/webeeblocks/issues/800)
+remains open. Do not transfer W1/W2 or Grand Prix acceptance across artifacts.
 
 The #157 simulation-side C1b boundary is now established for every currently
 justified student-facing generic capability. Integrated #193/#196 establish the
