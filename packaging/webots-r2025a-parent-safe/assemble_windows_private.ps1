@@ -5,7 +5,8 @@ param(
   [Parameter(Mandatory=$true)][string]$MsysPlugins,
   [Parameter(Mandatory=$true)][string]$KernelDirectory,
   [Parameter(Mandatory=$true)][string]$PrivateRoot,
-  [Parameter(Mandatory=$true)][string]$ReportDirectory
+  [Parameter(Mandatory=$true)][string]$ReportDirectory,
+  [Parameter(Mandatory=$true)][string]$SdkVersionFile
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
@@ -32,11 +33,13 @@ function Assert-Digest([string]$Path,[string]$Hash) {
  if($got -ne $Hash){throw "M2_SHA_MISMATCH $Path expected=$Hash observed=$got"}
 }
 $versionList=Get-Content -LiteralPath (Join-Path $KernelDirectory 'msys2-package-versions.txt')
+# Query pacman in its own MSYS2 shell. Windows PowerShell cannot safely interpret
+# its pacman database root without the MSYS2 launcher environment.
+$sdkVersionList=Get-Content -LiteralPath $SdkVersionFile
 foreach($entry in $requiredVersions.GetEnumerator()) {
- if(@($versionList | Where-Object {$_ -ceq "$($entry.Key) $($entry.Value)"}).Count -ne 1){ throw "M2_ORIGINAL_PACKAGE_VERSION_NOT_PROVEN $($entry.Key)" }
- $pacman=Join-Path (Split-Path $MsysBin -Parent) '..\usr\bin\pacman.exe'
- $actual=(& $pacman -Q $entry.Key 2>&1 | Out-String).Trim()
- if($LASTEXITCODE -ne 0 -or $actual -cne "$($entry.Key) $($entry.Value)"){throw "M2_SDK_VERSION_DRIFT $actual expected=$($entry.Value)"}
+ $exact="$($entry.Key) $($entry.Value)"
+ if(@($versionList | Where-Object {$_ -ceq $exact}).Count -ne 1){throw "M2_ORIGINAL_PACKAGE_VERSION_NOT_PROVEN $exact"}
+ if(@($sdkVersionList | Where-Object {$_ -ceq $exact}).Count -ne 1){throw "M2_SDK_VERSION_DRIFT $exact"}
 }
 if((Get-Content -LiteralPath (Join-Path $OfficialRoot 'resources\version.txt') -Raw).Trim() -cne 'R2025a'){throw 'M2_OFFICIAL_R2025A_MISMATCH'}
 $officialBin=Join-Path $OfficialRoot 'msys64\mingw64\bin'

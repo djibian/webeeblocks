@@ -78,6 +78,13 @@ jobs:
         with:
           name: m2-kernel-input
           path: m2-input
+      - name: Export authenticated SDK package versions from native MSYS2 shell
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          pacman -Q > m2-sdk-package-versions.txt
+          grep -F 'mingw-w64-x86_64-openal 1.25.2-1' m2-sdk-package-versions.txt
+          grep -F 'mingw-w64-x86_64-qt6-base 6.11.2-2' m2-sdk-package-versions.txt
       - name: Verify kernel and unpack
         shell: pwsh
         run: |
@@ -103,7 +110,7 @@ jobs:
           $report=Join-Path $env:GITHUB_WORKSPACE 'ci-artifacts/m2-windows'
           $msys='C:\msys64\mingw64\bin'
           if(-not(Test-Path $msys)){throw 'M2_NO_PINNED_MINGW'}
-          $args=@{OfficialRoot=(Join-Path $env:ProgramFiles 'Webots');MsysBin=$msys;MsysPlugins='C:\msys64\mingw64\share\qt6\plugins';KernelDirectory=(Join-Path $env:GITHUB_WORKSPACE 'm2-kernel');PrivateRoot=$root;ReportDirectory=$report}
+          $args=@{OfficialRoot=(Join-Path $env:ProgramFiles 'Webots');MsysBin=$msys;MsysPlugins='C:\msys64\mingw64\share\qt6\plugins';KernelDirectory=(Join-Path $env:GITHUB_WORKSPACE 'm2-kernel');PrivateRoot=$root;ReportDirectory=$report;SdkVersionFile=(Join-Path $env:GITHUB_WORKSPACE 'm2-sdk-package-versions.txt')}
           & ./packaging/webots-r2025a-parent-safe/assemble_windows_private.ps1 @args
           python packaging/webots-r2025a-parent-safe/verify_windows_staging.py --runtime-root $root --kernel-zip 'm2-input/kernel.zip' --report (Join-Path $report 'staging.json')
           if($LASTEXITCODE -ne 0){throw 'M2_WINDOWS_STATIC_STAGE_REJECTED'}
