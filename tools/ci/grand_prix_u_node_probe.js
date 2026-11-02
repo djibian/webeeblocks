@@ -9,9 +9,16 @@ const Interpreter=require(path.join(moduleRoot,'plugins/robot_windows/blockly/we
 const WorkspaceWitness=require('../grand_prix/witness_workspace_u.js');
 const Witness={build:()=>WorkspaceWitness.build().ast};
 const port=Number(process.argv[2]),mode=process.argv[3]||'witness',output=process.argv[4];
+// Logs are durable CI artifacts. Never persist the R3 bearer in a request.
+// Keep legacy canonical request IDs/verbs visible for the unchanged oracles.
+function publicRequestForLog(message){
+ const text=String(message);
+ return text.replace(/^(WEBEEBLOCKS_RUNTIME_V2 REQUEST [1-9][0-9]*) AUTH [0-9a-f]{64} /,
+                     '$1 ').replace(/\b[0-9a-f]{64}\b/g,'[REDACTED]');
+}
 function report(event,detail){const item={event,detail};console.log('GP_U_NODE '+JSON.stringify(item));if(output)fs.appendFileSync(output,JSON.stringify(item)+'\n');}
 const socket=new WebSocket('ws://127.0.0.1:'+port+'/');
-const backend=new Backend({send:m=>{report('request',m);socket.send('robot:Crazyflie WebeeBlocks:'+m);}},{simulationReset:true,simulationStop:true,timeoutMs:35000,outcomeSettleMs:5000});
+const backend=new Backend({send:m=>{report('request',publicRequestForLog(m));socket.send('robot:Crazyflie WebeeBlocks:'+m);}},{simulationReset:true,simulationStop:true,timeoutMs:35000,outcomeSettleMs:5000});
 socket.onmessage=e=>{
  for(const line of String(e.data).split(/\r?\n/)){
   if(line.startsWith('robot:')){

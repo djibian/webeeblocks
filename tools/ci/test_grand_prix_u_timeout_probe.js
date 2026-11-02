@@ -37,6 +37,15 @@ const source=fs.readFileSync(path.join(__dirname,'grand_prix_u_node_probe.js'),'
    }};
   vm.runInNewContext(source,context);await socket.onopen();
   assert.deepStrictEqual(modules,['backend','interpreter']);
+  const key='f'.repeat(64),other='a'.repeat(64);
+  const raw='WEBEEBLOCKS_RUNTIME_V2 REQUEST 7 AUTH '+key+' RESET';
+  assert.strictEqual(context.publicRequestForLog(raw),
+    'WEBEEBLOCKS_RUNTIME_V2 REQUEST 7 RESET');
+  const claim='WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 AUTH_CLAIM '+key+' '+other;
+  assert(!context.publicRequestForLog(claim).includes(key));
+  assert(!context.publicRequestForLog(claim).includes(other));
+  assert.strictEqual(context.publicRequestForLog('WEBEEBLOCKS_RUNTIME_V2 HELLO'),
+    'WEBEEBLOCKS_RUNTIME_V2 HELLO');
   assert.strictEqual(events.filter(e=>e.event==='native-claim-ack').length,1);
   assert(events.findIndex(e=>e.event==='native-claim-ack') <
          events.findIndex(e=>e.event==='request'));
