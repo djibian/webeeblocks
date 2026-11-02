@@ -45,6 +45,9 @@ def main() -> int:
     shutil.rmtree(ARTIFACT_ROOT, ignore_errors=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    guarded = run([sys.executable, "tools/ci/test_progression_native_retirement.py"], capture=True)
+    if guarded.returncode:
+        return fail("M1b native-retirement deterministic guard failed", guarded.stdout)
     checked = run(["node", "--check", "plugins/robot_windows/memory_overwrite_probe/memory_overwrite_probe.js"], capture=True)
     if checked.returncode:
         return fail("negative probe syntax failed", checked.stdout)
@@ -60,7 +63,9 @@ def main() -> int:
         if marker not in source_world:
             return fail(f"missing shared evaluator world marker: {marker}")
     TEMP_WORLD.write_text(
-        source_world.replace('window "blockly_v2"', 'window "memory_overwrite_probe"', 1),
+        source_world.replace('window "blockly_v2"', 'window "memory_overwrite_probe"', 1)
+        + '\nRobot { name "CI progression retirement" controller "ci_progression_retirement"'
+          ' supervisor TRUE synchronization TRUE }\n',
         encoding="utf-8",
     )
     TEMP_PROJECT.write_text("Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n", encoding="utf-8")
@@ -101,41 +106,22 @@ sleep 0.5
 # These proofs assert simulated world state and Runtime-v2 outcomes, not wall-clock
 # pacing. Fast mode preserves the same 32 ms Webots steps. Keep rendering enabled:
 # this evidence depends on the real browser/Robot Window lifecycle.
-timeout -k 5s 1500s xvfb-run -a webots --stdout --stderr --batch --mode=fast --minimize /workspace/worlds/ci_progression_memory_overwrite.wbt &
-webots_runner=$!
-while kill -0 "$webots_runner" 2>/dev/null; do
-  if grep -Fq 'MEMORY_OVERWRITE_TEST_COMPLETE' "$events" 2>/dev/null; then
-    kill "$webots_runner" 2>/dev/null || true
-    set +e
-    wait "$webots_runner"
-    set -e
-    exit 0
-  fi
-  if grep -Eq '"event"[[:space:]]*:[[:space:]]*"(ERROR|WINDOW_ERROR|UNHANDLED_REJECTION)"' "$events" 2>/dev/null; then
-    kill "$webots_runner" 2>/dev/null || true
-    set +e
-    wait "$webots_runner"
-    set -e
-    exit 0
-  fi
-  sleep 0.25
-done
-set +e
-wait "$webots_runner"
-runner_rc=$?
-set -e
-exit "$runner_rc"
+xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
+  --kind memory --world /workspace/worlds/ci_progression_memory_overwrite.wbt \
+  --artifacts "$artifact_dir"
 '''.strip()
         result = subprocess.run([
-            "docker", "run", "--rm",
+            "docker", "run", "--rm", "--init",
             "-e", "LIBGL_ALWAYS_SOFTWARE=true",
             "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
             "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-memory-overwrite",
             "-v", f"{ROOT}:/workspace", "-w", "/workspace", WEBOTS_IMAGE,
             "bash", "-lc", inner,
         ], cwd=ROOT, env=os.environ.copy(), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        webots_log = result.stdout or ""
-        (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
+        runner_log = result.stdout or ""
+        (ARTIFACT_ROOT / "native-host.log").write_text(runner_log, encoding="utf-8")
+        native_log = ARTIFACT_ROOT / "webots.log"
+        webots_log = native_log.read_text(encoding="utf-8", errors="replace") if native_log.exists() else ""
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if result.returncode == 124:
@@ -147,7 +133,14 @@ exit "$runner_rc"
                     detail += f"\nUnable to read browser events at timeout: {exc}"
             return fail("Webots Activity 7 negative proof exceeded the 1500s budget", detail)
         if result.returncode != 0:
-            return fail(f"Webots Activity 7 negative proof exited with {result.returncode}", webots_log[-16000:])
+            return fail(f"Webots Activity 7 negative proof exited with {result.returncode}", runner_log[-8000:] + '\n' + webots_log[-8000:])
+        # Docker/xvfb exit alone is NOT Webots' terminal status.
+        from progression_native_retirement import verify_native_report
+        try:
+            verify_native_report(ARTIFACT_ROOT, 'memory')
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+            return fail("real Webots exit/ACK/EOF/PGID proof missing",
+                        str(exc) + "\n" + runner_log[-8000:] + "\n" + webots_log[-8000:])
 
         if not event_path.exists() or event_path.stat().st_size == 0:
             return fail("missing Activity 7 negative browser evidence", webots_log[-16000:])
