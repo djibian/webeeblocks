@@ -46,7 +46,9 @@ jobs:
           set -euo pipefail
           image=ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
           mkdir -p ci-artifacts/grand-prix-u
-          for suite in short reset-idle; do
+          # The original --suite all includes negative, RESET, forced LAND,
+          # camera contrast, normal witness and original capture seals.
+          for suite in all; do
             echo "M2_LINUX_NATIVE_SUITE_BEGIN=$suite" | tee -a ci-artifacts/grand-prix-u/m2-native-summary.log
             docker run --rm --init --entrypoint /bin/bash \
               -e WEBOTS_HOME=/usr/local/webots \
