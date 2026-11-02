@@ -1,0 +1,251 @@
+{
+  "schema": "webeeblocks.m2.qt665.parent-safe.provenance.v1",
+  "status": "M2_EXACT_RELEASE_LINUX_DEFAULT_B_AND_WINDOWS_NATIVE_CLOSE_PASS_HUMAN_DW_UNPROVEN",
+  "base_main": "6fd0888f0625d0b04803550da93affe4163755ca",
+  "upstream_webots": {
+    "commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+    "source_patch_git_blob_sha1": "f095a997a8e71e8753acd922e568a098bf6f765f",
+    "repair_parent_shutdown_git_blob_sha1": "6c8904930ba624c0421ddd8b3269581d6df84d78",
+    "affected_files": [
+      "src/webots/app/WbApplication.cpp",
+      "src/webots/gui/WbMainWindow.cpp",
+      "src/webots/gui/WbMainWindow.hpp"
+    ],
+    "patch_sequence": [
+      "git apply source patch",
+      "repair_parent_shutdown.py"
+    ]
+  },
+  "linux": {
+    "oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
+    "webots_bin_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
+    "locally_verified_in_m2_execution": true,
+    "native_oracles_complete": {
+      "run": 41448884297,
+      "artifact": 13144217833,
+      "runtime_oci": "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca",
+      "exact_elf_sha256": "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545",
+      "suite": "all",
+      "result": "PASS 17 native U campaign scenarios and 21 sealed capture directories, including timeout LAND at 210 s, RESET, reset-idle, six witness configurations and negatives",
+      "scope": "Explicit OCI B selected directly by test; does not prove default Linux product runtime selection"
+    },
+    "default_product_runtime_selection": {
+      "run": 41457029154,
+      "head": "2e728015f1b5f504f313f92309fc3eaf2ac40460",
+      "result": "PASS ordinary tools/ci/run_grand_prix_u_prototype.py --suite short without image override; both Grand Prix U product entry and geometry select exact B OCI/ELF and preserve wrong-landing negative",
+      "scope": "Linux U CI/native path; not a separate general Linux end-user installer; no claim about unrelated Webots consumers"
+    }
+  },
+  "windows": {
+    "kernel_artifact": 12695533700,
+    "producer_run": 40415782024,
+    "producer_run_conclusion": "failure",
+    "archive_expires_at": "2026-11-09T23:03:56Z",
+    "kernel_zip_sha256": "86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e",
+    "entry_count": 16,
+    "crc": "PASS",
+    "webots_bin_pe_sha256": "52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e",
+    "composed_patch_sha256": "1aa8de520b2091013f0219878559610677f39e60ed9de4f5fb1c2735c2bca8eb",
+    "qt_dll_sha256": {
+      "Qt6Core.dll": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179",
+      "Qt6Gui.dll": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660",
+      "Qt6Widgets.dll": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89"
+    },
+    "missing_from_kernel_archive": {
+      "qwindows.dll": "9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1",
+      "libopenal-1.dll": "cb97d2f5a9797ff64db90d0691e4ff9eb2a088026351c9bad7aa26d229a354ce",
+      "libstdc++-6.dll": "494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff",
+      "libgcc_s_seh-1.dll": "d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7",
+      "libwinpthread-1.dll": "72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0",
+      "Controller.dll": "756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039"
+    },
+    "direct_imports_verified_from_actual_PE_using_llvm_objdump": {
+      "count": 27,
+      "modules": [
+        "ADVAPI32.dll",
+        "d3d9.dll",
+        "GLU32.dll",
+        "IPHLPAPI.DLL",
+        "KERNEL32.dll",
+        "libassimp-5.dll",
+        "libfreetype-6.dll",
+        "libgcc_s_seh-1.dll",
+        "libopenal-1.dll",
+        "libpico.dll",
+        "libstdc++-6.dll",
+        "msvcrt.dll",
+        "ode.dll",
+        "OIS.dll",
+        "ole32.dll",
+        "OPENGL32.dll",
+        "openvr_api.dll",
+        "Qt6Core.dll",
+        "Qt6Gui.dll",
+        "Qt6Network.dll",
+        "Qt6OpenGL.dll",
+        "Qt6OpenGLWidgets.dll",
+        "Qt6PrintSupport.dll",
+        "Qt6Qml.dll",
+        "Qt6WebSockets.dll",
+        "Qt6Widgets.dll",
+        "Qt6Xml.dll"
+      ],
+      "non_system_count": 19,
+      "limits": "Static imports only; excludes transitive, delay-loaded, dynamically loaded Qt plugins and real module identity. Windows clean-host D/W still UNPROVEN."
+    },
+    "private_product": {
+      "archive_source_run": 41450732733,
+      "archive_source_head": "1cfefebf127cd70b90d2c14a8360fd8d978e6710",
+      "source_artifact": 13144826515,
+      "inner_zip_sha256": "dc614c04ca10115a85d76ce6e5150bd9e7551f0fe8cd3937f7b24563ec9b72c8",
+      "oci": "ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:ec0d516047bacf56aa536d29e6116636cec8632392d5bcf71992a3281e6e84fd",
+      "publisher_run": 41451621194,
+      "publisher_status": "completed/success",
+      "oci_roundtrip": "PASS byte-for-byte SHA-256 identical OCI ZIP; 11366 private Webots file manifests verified",
+      "independent_reproduction": {
+        "run": 41451536084,
+        "source_head": "9edb9416acd1bcce7f2a39ae2dbb6bb7f8a1fdb9",
+        "result": "PASS identical M2-private-product.zip SHA-256"
+      },
+      "selected_launcher": "private Webots/msys64/mingw64/bin/webotsw.exe; no global SDK/PATH fallback",
+      "independent_windows_no_sdk_install": "PASS constrained-PATH runner 41451621194, ValidateOnly and webots --version",
+      "native_q_methods": {
+        "run": 41451726930,
+        "head": "1b89312f9cbabcbdd6e3340581a20a541f008755",
+        "artifact": 13144134416,
+        "result": "PASS real Win32 Qt 6.11.2 exact method-only lease/generation/Cancel/reentrancy/deferred deletion; NOT actual full Webots Q"
+      },
+      "native_startup": {
+        "run": 41451726713,
+        "head": "1b89312f9cbabcbdd6e3340581a20a541f008755",
+        "artifact": 13144862022,
+        "result": "PASS actual Windows Webots engine, runtime controller and sequence evaluator READY with authenticated loaded Qt/Controller DLL paths and SHA under Mesa CI; NOT interactive D/W or normal close",
+        "notes": "Probe force-stops observed process group for cleanup: no natural shutdown/complete Webots Qt lifetime proven"
+      },
+      "interactive_dw": "UNPROVEN actual on-screen 3D, Blockly/WWI/STEP/RESET/STOP/.wbb/offline/human acceptance",
+      "windows_normal_close": "PASS bounded native WM_CLOSE, launcher exit 0 and exact child disappearance; interactive classroom post-execution close UNPROVEN",
+      "windows_offline_save_open_step": "UNPROVEN",
+      "test_required": "profile m2-private-windows-r2025a code added to existing trusted human-checkpoint workflow for exact ZIP/OCI preparation; NO request, preparation not yet executed, no human verdict",
+      "native_normal_close": {
+        "run": 41458097343,
+        "qualified_head": "18935de3e99e4889f036a8c5bc88cc4079e26460",
+        "artifact": 13147672746,
+        "result": "PASS BOUNDED real Win32 Webots native WM_CLOSE from real GUI window; READY and 3 authenticated owned process identities, launcher exits 0, descendants disappear, no controller kill in accepted path; psutil nonchild exit codes not directly observable",
+        "scope": "Mesa CI and neutral startup world; not a pupil-interactive D/W, no post-Blockly normal shutdown proof"
+      }
+    },
+    "historical_private_product": {
+      "archive_source_run": 41442076181,
+      "archive_source_head": "4896eda180e8cc0678adc345edde10d69ff35514",
+      "source_artifact": 13140547162,
+      "inner_zip_sha256": "9f3093082c5155ab3b77dfd902199350b7cecf9a67ceced139fcba03fb77194c",
+      "oci": "ghcr.io/djibian/webeeblocks-m2-private-windows-r2025a@sha256:b9785b1ef93ef5801e8bc76c773e71c8766b8d674df402125122efd2b315e1af",
+      "publisher_run": 41448179986,
+      "publisher_status": "completed/success",
+      "oci_roundtrip": "PASS full ZIP SHA and 11369 manifest paths",
+      "selected_launcher": "inside release Webots/msys64/mingw64/bin/webotsw.exe; strict ValidateOnly, no installed-global SDK fallback",
+      "independent_windows_no_sdk_install": "PASS constrained PATH on fresh runner 41448179986",
+      "native_q_methods": {
+        "run": 41447418701,
+        "artifact": 13143385195,
+        "result": "PASS exact Qt6.11.2 methods, reentrancy, dialog generations, Cancel, parent lease, deferred destruction, not full Webots Q"
+      },
+      "native_startup": {
+        "run": 41449169817,
+        "artifact": 13144081547,
+        "result": "PASS real Webots engine + runtime + sequence evaluator READY with exact native mapped DLL SHA and no ambient SDK, not D/W",
+        "notes": "Mesa CI WGL renderer pinned; forced process cleanup emits controller exit 15 and is not native close acceptance"
+      },
+      "interactive_dw": "UNPROVEN, requires exact-artifact TEST_REQUIRED profile and real machine",
+      "windows_normal_close": "UNPROVEN",
+      "windows_offline_save_open_step": "UNPROVEN",
+      "evidence_boundary": "HISTORICAL_ONLY_NOT_TRANSFERABLE_TO_CURRENT_RELEASE"
+    }
+  },
+  "evidence_archives": [
+    {
+      "artifact": 12696549549,
+      "run": 40421551904,
+      "zip_sha256": "b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca",
+      "scope": "PE import closure, no binary ABI acceptance"
+    },
+    {
+      "artifact": 12718363355,
+      "run": 40470490820,
+      "zip_sha256": "8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4",
+      "scope": "bound native startup, not offline clean host"
+    },
+    {
+      "artifact": 12681442366,
+      "run": 40386450869,
+      "zip_sha256": "81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596",
+      "scope": "75-file historical classroom, not current main build"
+    }
+  ],
+  "exclusions": [
+    "first d314 Linux ELF REFUTED",
+    "Windows direct Linux launcher transplant not justified",
+    "no ambient SDK/PATH/global DLL fallback",
+    "no waiver of Qt6.12 Q or real interactive Windows D/W",
+    "no alteration to M1a #797 / M1b #798 / physical and negative oracles"
+  ],
+  "scope_note": "Exact current ZIP dc614c04..., OCI ec0d516..., 11366 private modules, native Q method-only, real Windows READY/mapped module identities and native WM_CLOSE in CI PASS. Full Qt in every real interactive context and human D/W (.wbb, Blockly, offline, 3D, user workflow) still UNPROVEN. Linux U default B selection proved at 41457029154, full B native U suite PASS. V5 checkpoint preparation code pending deterministic pre-request verification; not invoked; canonical Ready CI Gate and independent GO absent. Historical 9f... archive does not transfer.",
+  "immutable_input_store": {
+    "status": "PROVEN",
+    "uri": "ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
+    "oci_manifest_sha256": "5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e",
+    "media": "Docker/OCI container image, FROM scratch, no executable runtime",
+    "image_files": "/inputs/{qt665-parent-safe-windows-kernel-12695533700.zip,qt665-windows-import-closure-evidence-12696549549.zip,qt665-windows-consumer-startup-evidence-12718363355.zip,historical-classroom-package-12681442366.zip}",
+    "archive_format": "four preserved GitHub Actions ZIP HTTP-response envelopes, stored byte-identical inside an OCI image layer",
+    "original_archives": [
+      {
+        "id": 12695533700,
+        "filename": "qt665-parent-safe-windows-kernel-12695533700.zip",
+        "run_id": 40415782024,
+        "run_conclusion": "failure",
+        "sha256": "86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e",
+        "entries": 16,
+        "bytes": 14443788
+      },
+      {
+        "id": 12696549549,
+        "filename": "qt665-windows-import-closure-evidence-12696549549.zip",
+        "run_id": 40421551904,
+        "run_conclusion": "success",
+        "sha256": "b2ebabba5c976f9a8aab295a660df87c99646d1fe1c749d1899da03df5c818ca",
+        "entries": 17,
+        "bytes": 12505
+      },
+      {
+        "id": 12718363355,
+        "filename": "qt665-windows-consumer-startup-evidence-12718363355.zip",
+        "run_id": 40470490820,
+        "run_conclusion": "success",
+        "sha256": "8d796b0d82cc50f6b2e45d56a58aac14220c07097217a76d0c7ab078a07b48d4",
+        "entries": 21,
+        "bytes": 16947
+      },
+      {
+        "id": 12681442366,
+        "filename": "historical-classroom-package-12681442366.zip",
+        "run_id": 40386450869,
+        "run_conclusion": "success",
+        "sha256": "81cb4431654c3aebcb3ae53e64a00d79134f80707f67137bd70d52caf37b9596",
+        "entries": 1,
+        "bytes": 6147436
+      }
+    ],
+    "publisher_run": 41431797157,
+    "publisher_source_head": "e2d48a4f78699cbbfcb65da9c634483a64c6984e",
+    "producer_job_id": 125231907624,
+    "clean_verifier_job_id": 125232045816,
+    "publisher_conclusion": "completed/success",
+    "clean_retrieval_conclusion": "completed/success",
+    "digest_evidence_artifact": 13134826437,
+    "clean_verifier_artifact": 13133824327,
+    "verification": "separate fresh ubuntu-22.04 runner docker pull by digest + docker create/cp + 4 full original sha256sum, 55 ZIP entry CRC and corrected PE inner sha256; no runtime execution",
+    "note": "Tag windows-86b9540c is mutable and MUST NOT be treated as identity. GitHub Actions run conclusions stay as originally observed.",
+    "recovery": "docker login ghcr.io (if required); docker pull ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e ; docker create <digest> ; docker cp <cid>:/inputs/. ./inputs/ ; sha256sum -c expected.sha256 ; python3 -m zipfile -t each .zip . No launch/fallback allowed.",
+    "retention_warning": "Do not delete the GHCR package/digest. Archive expiry 2026-11-09 does not affect already published OCI bytes while retained."
+  }
+}
