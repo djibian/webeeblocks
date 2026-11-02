@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Create byte-addressed private Windows classroom package; no Webots compilation."""
-import argparse,hashlib,shutil,zipfile
+import argparse,hashlib,shutil,zipfile,struct
 from pathlib import Path
 
 BEGIN='$candidates = [System.Collections.Generic.List[string]]::new()'
@@ -52,6 +52,40 @@ def lines(root,omit=set()):
  return ''.join(f'{sha(p)}  {p.relative_to(root).as_posix()}\n'
    for p in sorted(root.rglob('*')) if p.is_file() and p.relative_to(root).as_posix() not in omit)
 
+
+def normalize_unsigned_controller_pe(exe):
+ """Normalize ONLY PE/COFF timestamp and optional-header checksum.
+ Independently reproduced R2025a current-M1 build differed at exactly
+ offsets 0x88 (timestamp) and 0xd8 (checksum); code bytes were identical.
+ Excludes the genuine Webots engine and original Qt/GCC DLL identities.
+ """
+ data=bytearray(exe.read_bytes())
+ if len(data)<256 or data[:2]!=b'MZ':raise ValueError('M2 controller is not PE')
+ pe=struct.unpack_from('<I',data,0x3c)[0]
+ if pe+104>len(data) or data[pe:pe+4]!=b'PE\x00\x00':raise ValueError('M2 controller invalid PE header')
+ if struct.unpack_from('<H',data,pe+24)[0] not in (0x10b,0x20b):raise ValueError('M2 controller PE optional magic unknown')
+ timestamp=pe+8
+ checksum_offset=pe+24+64
+ before=bytes(data)
+ struct.pack_into('<I',data,timestamp,0)
+ struct.pack_into('<I',data,checksum_offset,0)
+ value=0
+ for i in range(0,len(data),2):
+  if i in (checksum_offset,checksum_offset+2):continue
+  value+=data[i]|((data[i+1] if i+1<len(data) else 0)<<8)
+  value=(value&0xffff)+(value>>16)
+ value=(value&0xffff)+(value>>16)
+ value=(value&0xffff)+(value>>16)
+ checksum=(value+len(data))&0xffffffff
+ struct.pack_into('<I',data,checksum_offset,checksum)
+ if any(before[i]!=data[i] for i in range(len(data)) if i not in (
+   timestamp,timestamp+1,timestamp+2,timestamp+3,
+   checksum_offset,checksum_offset+1,checksum_offset+2,checksum_offset+3)):
+  raise ValueError('M2 normalization touched executable data')
+ exe.write_bytes(data)
+ print('M2_CURRENT_M1_CONTROLLER_PE_METADATA_NORMALIZED=PASS checksum='+hex(checksum))
+
+
 def main():
  parser=argparse.ArgumentParser()
  parser.add_argument('--classroom',type=Path,required=True)
@@ -65,8 +99,15 @@ def main():
  launcher=classroom/'Launch-WebeeBlocks.ps1';old=launcher.read_text(encoding='utf-8-sig')
  if old.count(BEGIN)!=1 or old.count(END)!=1 or old.index(BEGIN)>old.index(END):raise ValueError('Unexpected launcher source')
  shutil.copytree(private,dst)
+ # Official Inno Setup installer metadata contains host-dependent install paths,
+ # not runtime dependencies of the portable Webots engine.
+ for relative in ('Webots.lnk','unins000.dat','unins000.exe'):
+  candidate=dst/relative
+  if not candidate.is_file():raise ValueError('Expected official installer-only metadata missing '+relative)
+  candidate.unlink()
+ normalize_unsigned_controller_pe(classroom/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.exe')
  launcher.write_text(old[:old.index(BEGIN)]+PRIVATE+old[old.index(END):],encoding='utf-8')
- (classroom/'PRIVATE_RUNTIME.sha256').write_text(lines(dst).replace('  ','  Webots/',1) if False else
+ (classroom/'PRIVATE_RUNTIME.sha256').write_text(
    ''.join(f'{sha(p)}  Webots/{p.relative_to(dst).as_posix()}\n' for p in sorted(dst.rglob('*')) if p.is_file()),encoding='utf-8')
  (classroom/'MANIFEST.sha256').write_text(lines(classroom,{'MANIFEST.sha256'}),encoding='utf-8')
  with zipfile.ZipFile(a.output_zip,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
