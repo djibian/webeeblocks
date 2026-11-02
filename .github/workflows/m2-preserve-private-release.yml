@@ -38,7 +38,7 @@ jobs:
             if len(checks)<100:raise SystemExit('M2 truncated private runtime manifest')
             attested={}
             for line in checks:
-              m=re.fullmatch(r'([a-f0-9]{64})  (Webots/[^\\r\\n]+)',line)
+              m=re.fullmatch(r'([a-f0-9]{64})  (Webots/.+)',line)
               if not m or m[2] in attested:raise SystemExit('M2 malformed runtime manifest')
               attested[m[2]]=m[1]
             if not all(name in names for name in attested):raise SystemExit('M2 absent runtime files')
