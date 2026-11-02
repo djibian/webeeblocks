@@ -1,0 +1,162 @@
+# NON-GATE diagnostic only. Does not rebuild Webots or qualify classroom D/W.
+name: M2 private parent-safe native assembly (NON-GATE)
+on:
+  push:
+    branches: [fix/665-m2-parent-safe-private-runtime-20261102]
+    paths:
+      - '.github/workflows/m2-assemble-native.yml'
+      - 'packaging/webots-r2025a-parent-safe/**'
+permissions:
+  contents: read
+  actions: read
+  packages: read
+jobs:
+  immutable-input:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Extract exact Windows kernel from digest-pinned GHCR image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-qt665-inputs-r2025a@sha256:5f6464216ddaf8a464af74d39da1eb9c3fae15b60eba6e93852a59be725abe2e
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull "$image"
+          cid=$(docker create "$image")
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          mkdir -p input
+          docker cp "$cid:/inputs/qt665-parent-safe-windows-kernel-12695533700.zip" input/kernel.zip
+          echo '86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e  input/kernel.zip' | sha256sum -c -
+          python3 - <<'PY'
+          import zipfile,hashlib
+          with zipfile.ZipFile('input/kernel.zip') as z:
+            assert len(z.infolist())==16 and z.testzip() is None
+            assert hashlib.sha256(z.read('webots-bin.exe')).hexdigest()=='52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+          print('M2_GHCR_KERNEL=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2-kernel-input
+          path: input/kernel.zip
+          if-no-files-found: error
+  linux-elf:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify actual ELF in pinned Linux image
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+          docker pull "$image"
+          docker run --rm --entrypoint /bin/bash "$image" -lc '
+            set -euo pipefail
+            echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -
+            test "$(cat /usr/local/webots/resources/version.txt)" = R2025a
+            test -x /usr/local/webots/webots
+            echo M2_LINUX_ELF_CONTENT=PASS
+          '
+  windows-closure:
+    needs: immutable-input
+    runs-on: windows-2022
+    timeout-minutes: 50
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-declarative
+            mingw-w64-x86_64-qt6-websockets
+            mingw-w64-x86_64-openal
+            mingw-w64-x86_64-binutils
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: m2-kernel-input
+          path: m2-input
+      - name: Verify kernel and unpack
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $hash=(Get-FileHash -LiteralPath 'm2-input/kernel.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($hash -ne '86b9540cd5a41bdd5680fb81f00d35befb6610da26f414fffb67123e7267301e'){throw "M2_KERNEL_ZIP_MISMATCH $hash"}
+          Expand-Archive -LiteralPath 'm2-input/kernel.zip' -DestinationPath 'm2-kernel'
+      - name: Obtain exact official R2025a installer as temporary source only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $installer=Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          $hash=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($hash -ne '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'){throw "M2_OFFICIAL_INSTALLER_MISMATCH $hash"}
+          $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -PassThru -Wait
+          if($p.ExitCode -ne 0){throw "M2_OFFICIAL_INSTALL_FAILED $($p.ExitCode)"}
+      - name: Assemble private R2025a full static import closure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'm2-private-webots'
+          $report=Join-Path $env:GITHUB_WORKSPACE 'ci-artifacts/m2-windows'
+          $msys='C:\msys64\mingw64\bin'
+          if(-not(Test-Path $msys)){throw 'M2_NO_PINNED_MINGW'}
+          $args=@{OfficialRoot=(Join-Path $env:ProgramFiles 'Webots');MsysBin=$msys;MsysPlugins='C:\msys64\mingw64\share\qt6\plugins';KernelDirectory=(Join-Path $env:GITHUB_WORKSPACE 'm2-kernel');PrivateRoot=$root;ReportDirectory=$report}
+          & ./packaging/webots-r2025a-parent-safe/assemble_windows_private.ps1 @args
+          python packaging/webots-r2025a-parent-safe/verify_windows_staging.py --runtime-root $root --kernel-zip 'm2-input/kernel.zip' --report (Join-Path $report 'staging.json')
+          if($LASTEXITCODE -ne 0){throw 'M2_WINDOWS_STATIC_STAGE_REJECTED'}
+          "M2_PRIVATE_ROOT=$root" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "M2_REPORT_ROOT=$report" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Verify official private launcher and inspect actual loaded modules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:M2_PRIVATE_ROOT
+          $bin=Join-Path $root 'msys64\mingw64\bin'
+          $env:WEBOTS_HOME=$root
+          $env:PATH="$bin;$env:SystemRoot\System32;$env:SystemRoot"
+          $env:QT_PLUGIN_PATH=Join-Path $root 'msys64\mingw64\share\qt6\plugins'
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH=Join-Path $env:QT_PLUGIN_PATH 'platforms'
+          $exe=Join-Path $bin 'webots.exe'
+          $version=(& $exe --version 2>&1 | Out-String)
+          $version | Set-Content (Join-Path $env:M2_REPORT_ROOT 'version.txt')
+          if($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a'){throw 'M2_PRIVATE_LAUNCHER_VERSION_FAILED'}
+          $world=Join-Path $env:RUNNER_TEMP 'm2-minimal.wbt'
+          @'
+          #VRML_SIM R2025a utf8
+          WorldInfo { basicTimeStep 32 }
+          Viewpoint { position 0 0 2 }
+          '@ | Set-Content -LiteralPath $world -Encoding utf8
+          $p=$null
+          try{
+            $p=Start-Process -FilePath $exe -WorkingDirectory $root -ArgumentList @('--stdout','--stderr','--batch','--mode=fast',$world) -PassThru
+            $deadline=[DateTime]::UtcNow.AddSeconds(35)
+            $passed=$false
+            do{
+              Start-Sleep -Milliseconds 400
+              $children=@(Get-CimInstance Win32_Process -Filter "Name = 'webots-bin.exe'" | Where-Object {$_.ExecutablePath -like "$root*"})
+              foreach($child in $children){
+                $mods=@(Get-Process -Id $child.ProcessId -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Modules -ErrorAction SilentlyContinue)
+                $loaded=@($mods | Where-Object {$_.ModuleName -in @('Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','libopenal-1.dll')})
+                if(@($loaded | Select-Object -ExpandProperty ModuleName -Unique).Count -eq 4){
+                  foreach($mod in $loaded){
+                    $expected=Join-Path $bin $mod.ModuleName
+                    if(-not [IO.Path]::GetFullPath($mod.FileName).Equals([IO.Path]::GetFullPath($expected),[StringComparison]::OrdinalIgnoreCase)){throw "M2_AMBIENT_MODULE $($mod.FileName)"}
+                  }
+                  $loaded | ForEach-Object {"$($_.ModuleName) $($_.FileName) $((Get-FileHash $_.FileName -Algorithm SHA256).Hash)"} | Set-Content (Join-Path $env:M2_REPORT_ROOT 'loaded-modules.txt')
+                  $passed=$true
+                  break
+                }
+              }
+            }while(-not $passed -and [DateTime]::UtcNow -lt $deadline)
+            if(-not $passed){throw 'M2_NATIVE_LOADED_MODULE_IDENTITY_UNPROVEN'}
+          }finally{if($p){$p.Refresh();if(-not $p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}}}
+          Write-Host 'M2_PRIVATE_WINDOWS_NATIVE_LOAD=PASS_BOUNDED_NOT_Q_DW'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m2-windows-private-closure-report
+          path: ci-artifacts/m2-windows/
+          if-no-files-found: warn
