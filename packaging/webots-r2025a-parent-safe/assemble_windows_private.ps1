@@ -34,7 +34,7 @@ function Assert-Digest([string]$Path,[string]$Hash) {
 $versionList=Get-Content -LiteralPath (Join-Path $KernelDirectory 'msys2-package-versions.txt')
 foreach($entry in $requiredVersions.GetEnumerator()) {
  if(@($versionList | Where-Object {$_ -ceq "$($entry.Key) $($entry.Value)"}).Count -ne 1){ throw "M2_ORIGINAL_PACKAGE_VERSION_NOT_PROVEN $($entry.Key)" }
- $pacman=Join-Path (Split-Path $MsysBin -Parent) '..\..\usr\bin\pacman.exe'
+ $pacman=Join-Path (Split-Path $MsysBin -Parent) '..\usr\bin\pacman.exe'
  $actual=(& $pacman -Q $entry.Key 2>&1 | Out-String).Trim()
  if($LASTEXITCODE -ne 0 -or $actual -cne "$($entry.Key) $($entry.Value)"){throw "M2_SDK_VERSION_DRIFT $actual expected=$($entry.Value)"}
 }
