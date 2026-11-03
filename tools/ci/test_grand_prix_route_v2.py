@@ -62,5 +62,58 @@ class VariableRouteTests(unittest.TestCase):
         with self.assertRaises(ValueError): a.legs[0].local((0., float('nan')))
 
 
+    def test_provisional_gate_placements_are_directed_and_reproducible(self):
+        from tools.grand_prix.route_courses_v2 import (
+            LOW_BEFORE, LOW_AFTER, plan_course,
+        )
+        for lengths in itertools.product((2, 2.5, 3), repeat=3):
+            for turns in itertools.product(('G', 'D'), repeat=2):
+                for count in (1, 2, 3):
+                    course = plan_course(17, lengths, turns, count)
+                    self.assertEqual(course, plan_course(17, lengths, turns, count))
+                    self.assertEqual(len(course.gates), count)
+                    self.assertEqual(len({g.leg_index for g in course.gates}), count)
+                    self.assertEqual(tuple(g.leg_index for g in course.gates),
+                                     tuple(sorted(g.leg_index for g in course.gates)))
+                    self.assertTrue(course.identifier.endswith('-H'+str(count)))
+                    for g in course.gates:
+                        leg = course.route.legs[g.leg_index]
+                        self.assertEqual(g.direction, leg.direction)
+                        self.assertEqual(g.position, leg.at(g.along))
+                        self.assertEqual(leg.local(g.position), (g.along, 0.0))
+                        self.assertGreater(g.along, LOW_BEFORE)
+                        self.assertLess(g.along + LOW_AFTER, leg.length)
+                        if g.leg_index < 2:
+                            self.assertGreaterEqual(g.along - LOW_BEFORE, 0.35 - 1e-9)
+                            self.assertGreaterEqual(leg.length - g.along - LOW_AFTER,
+                                                    0.35 - 1e-9)
+                        else:
+                            # At least one band edge remains before the final
+                            # nominal centre, but no swept clearance is claimed.
+                            self.assertLess(g.along + LOW_AFTER,
+                                            leg.length - 0.70)
+
+    def test_twelve_pure_course_examples_cover_turns_counts_and_mixed_legs(self):
+        from tools.grand_prix.route_courses_v2 import reference_course
+        examples = [reference_course(i) for i in range(12)]
+        self.assertEqual(len({c.identifier for c in examples}), 12)
+        self.assertEqual({c.route.turns for c in examples},
+                         {('G','G'), ('G','D'), ('D','G'), ('D','D')})
+        self.assertEqual({c.count for c in examples}, {1, 2, 3})
+        self.assertTrue(any(len(set(c.route.lengths)) > 1 for c in examples))
+        for turns in {('G','G'), ('G','D'), ('D','G'), ('D','D')}:
+            self.assertEqual({c.count for c in examples if c.route.turns == turns},
+                             {1, 2, 3})
+        for bad in (-1, 12, 1.2, True):
+            with self.assertRaises(ValueError): reference_course(bad)
+
+    def test_plan_rejects_out_of_domain_gate_counts(self):
+        from tools.grand_prix.route_courses_v2 import plan_course
+        for count in (-1, 0, 4, 1.0, True, "2"):
+            with self.assertRaises(ValueError):
+                plan_course(0, (2, 2, 2), ('G', 'D'), count)
+
+
+
 if __name__ == '__main__':
     unittest.main()
