@@ -10,6 +10,7 @@ from tools.ci.test_grand_prix_route_v2 import VariableRouteTests  # include pure
 from tools.ci.test_grand_prix_corridor_sweep_v2 import VariableCorridorSweepTests  # exact 2D sweep in CI
 # Run the Linux entry-point's pure prereq/scene tests with the existing GP geometry suite.
 from tools.grand_prix.test_launch_linux import LinuxGrandPrixLauncherTests  # noqa: F401
+from tools.ci.test_grand_prix_terminal_v2 import VariableTerminalTests  # noqa: F401
 
 
 def gap(p, b):
