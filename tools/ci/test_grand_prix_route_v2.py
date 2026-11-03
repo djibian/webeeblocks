@@ -144,6 +144,16 @@ class VariableRouteTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     course_from_identifier(identifier)
 
+    def test_static_full_course_world_banc_in_canonical_geometry_suite(self):
+        from tools.ci.test_grand_prix_course_static_world_v2 import StaticCourseWorldTests
+        case = unittest.defaultTestLoader.loadTestsFromTestCase(StaticCourseWorldTests)
+        result = unittest.TestResult()
+        case.run(result)
+        if result.errors or result.failures:
+            self.fail('Static complete-course counterexamples failed: ' +
+                      repr(result.errors + result.failures))
+        self.assertEqual(result.testsRun, 3)
+
     def test_physical_open_h_geometry_matrix(self):
         from tools.ci.test_grand_prix_open_h_v2 import VariableOpenHTests
         case = unittest.defaultTestLoader.loadTestsFromTestCase(VariableOpenHTests)
