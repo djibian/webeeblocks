@@ -21,6 +21,9 @@ class Field:
     def getSFNode(self):
         return self.value
 
+    def getSFRotation(self):
+        return self.value
+
     def getCount(self):
         return len(self.value)
 
@@ -54,6 +57,7 @@ class Supervisor:
 def solid(spec):
     return Node('Solid', spec.name,
                 locked=True, translation=list(spec.translation),
+                rotation=[0., 0., 1., 0.],
                 boundingObject=Node('Box', size=list(spec.size)),
                 children=[Node('Shape', geometry=Node('Box', size=list(spec.size)))])
 
@@ -91,6 +95,9 @@ class NativeSolidAttestationTests(unittest.TestCase):
             nodes[index].fields['locked'].value = False
             self.check_rejected(nodes)
             nodes = deepcopy(self.nodes)
+            nodes[index].fields['rotation'].value = [0., 0., 1., .7853981633974483]
+            self.check_rejected(nodes)
+            nodes = deepcopy(self.nodes)
             nodes[index].fields['boundingObject'].value = None
             self.check_rejected(nodes)
             nodes = deepcopy(self.nodes)
@@ -124,6 +131,14 @@ class NativeSolidAttestationTests(unittest.TestCase):
         nodes = deepcopy(self.nodes)
         del nodes[0].fields['locked']
         self.check_rejected(nodes)
+        nodes = deepcopy(self.nodes)
+        del nodes[0].fields['rotation']
+        self.check_rejected(nodes)
+        for rotation in ([0., 0., 1., math.nan], [0., 0., 1.],
+                         [0., True, 1., 0.], '0 0 1 0'):
+            nodes = deepcopy(self.nodes)
+            nodes[0].fields['rotation'].value = rotation
+            self.check_rejected(nodes)
         nodes = deepcopy(self.nodes)
         nodes[0].fields['children'].value = []
         self.check_rejected(nodes)

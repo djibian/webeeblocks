@@ -46,6 +46,18 @@ def _close(actual, expected, label):
         raise NativeGeometryMismatch(f'{label}: native values differ from host geometry')
 
 
+def _require_identity_rotation(value, label):
+    """Canonical GP solids are axis-aligned: their native Solid pose must be too."""
+    if (not isinstance(value, (tuple, list)) or len(value) != 4 or
+            any(type(v) not in (int, float) or not math.isfinite(v)
+                for v in value)):
+        raise NativeGeometryMismatch(f'{label}: finite 4-value rotation required')
+    # The scene generators emit no Solid.rotation (Webots default angle 0).
+    # Reject nonzero rotations even if translation and both Box sizes match.
+    if abs(value[3]) > _TOLERANCE_M:
+        raise NativeGeometryMismatch(f'{label}: unexpected native Solid rotation')
+
+
 def _node_field(node, field):
     value = node.getField(field)
     if value is None:
@@ -61,6 +73,8 @@ def _solid_geometry(node, expectation):
         raise NativeGeometryMismatch(f'{name}: body is not locked')
     _close(_node_field(node, 'translation').getSFVec3f(),
            expectation.translation, f'{name} translation')
+    _require_identity_rotation(_node_field(node, 'rotation').getSFRotation(),
+                               f'{name} rotation')
     collider = _node_field(node, 'boundingObject').getSFNode()
     if collider is None or collider.getTypeName() != 'Box':
         raise NativeGeometryMismatch(f'{name}: missing Box collider')
