@@ -37,7 +37,11 @@ def boundary_edges(route):
     Splitting at every rectangle coordinate and probing both open half-planes
     removes internal seams at G/D bends without relying on seed or direction.
     """
-    rectangles = _corridors(route)
+    return _boundary_edges(_corridors(route))
+
+
+def _boundary_edges(rectangles):
+    """Exposed edges shared by corridor-only and full-course consumers."""
     xs = sorted({value for xmin, _, xmax, _ in rectangles for value in (xmin, xmax)})
     ys = sorted({value for _, ymin, _, ymax in rectangles for value in (ymin, ymax)})
     edges = []
@@ -89,12 +93,16 @@ def swept_corridor_clearance(route, before, after):
     Return -1 outside the union. Segment-to-boundary distances are continuous
     and exhaustive (no point sampling), including concave corner and shortcuts.
     """
-    before, after = _point(before), _point(after)
     rectangles = _corridors(route)
+    return _swept_clearance(rectangles, before, after)
+
+
+def _swept_clearance(rectangles, before, after):
+    before, after = _point(before), _point(after)
     if not _inside(rectangles, before) or not _inside(rectangles, after):
         return -1.0
     return min(_distance_segments(before, after, a, b)
-               for a, b in boundary_edges(route))
+               for a, b in _boundary_edges(rectangles))
 
 
 def swept_capsule_inside_corridors(route, before, after):

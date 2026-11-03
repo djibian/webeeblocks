@@ -41,6 +41,8 @@ def _vector(vector, *, positive=False):
 
 
 def _equal(actual, expected):
+    """Compare against six-decimal VRML serialization, not a loose tolerance."""
+    expected = tuple(float(f'{v:.6f}') for v in expected)
     try:
         return len(actual) == 3 and all(
             type(a) in (float, int) and math.isfinite(a) and
@@ -75,7 +77,9 @@ def verify_native_boxes(supervisor, course, boxes):
     for index in range(children.getCount()):
         node = children.getMFNode(index)
         name = node.getDef()
-        if name and name.startswith('GP_V2_') and node.getTypeName() == 'Solid':
+        if name and name.startswith(('GP_V2_L_', 'GP_V2_H_', 'GP_V2_FINAL_')):
+            if node.getTypeName() != 'Solid':
+                raise RuntimeError('non-Solid using a reserved physical DEF')
             scene_names.append(name)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
@@ -89,6 +93,15 @@ def verify_native_boxes(supervisor, course, boxes):
             raise RuntimeError('movable course collider: ' + box.name)
         if not _equal(node.getPosition(), box.position):
             raise RuntimeError('native collider world pose mismatch: ' + box.name)
+        rotation = node.getField('rotation')
+        actual_rotation = rotation.getSFRotation() if rotation is not None else None
+        if (not isinstance(actual_rotation, (tuple, list)) or
+                len(actual_rotation) != 4 or
+                any(type(v) not in (float, int) or not math.isfinite(v)
+                    for v in actual_rotation) or
+                abs(actual_rotation[3]) > 1e-6):
+            # Current host GP Solids use Webots' default identity rotation.
+            raise RuntimeError('rotated/malformed native collider: ' + box.name)
         field = node.getField('boundingObject')
         collider = field.getSFNode() if field else None
         if collider is None or collider.getTypeName() != 'Box':
@@ -97,16 +110,16 @@ def verify_native_boxes(supervisor, course, boxes):
         if size_field is None or not _equal(size_field.getSFVec3f(), box.size):
             raise RuntimeError('physical Box dimensions mismatch: ' + box.name)
         display = node.getField('children')
-        rendered = []
-        if display is not None:
-            for index in range(display.getCount()):
-                child = display.getMFNode(index)
-                if child.getTypeName() == 'Shape':
-                    geometry = child.getField('geometry')
-                    rendered.append(geometry.getSFNode() if geometry else None)
-        if len(rendered) != 1 or rendered[0] is None or rendered[0].getTypeName() != 'Box':
+        if display is None or display.getCount() != 1:
+            raise RuntimeError('missing/extra native child under ' + box.name)
+        child = display.getMFNode(0)
+        if child is None or child.getTypeName() != 'Shape':
+            raise RuntimeError('unexpected native child under ' + box.name)
+        geometry = child.getField('geometry')
+        visible = geometry.getSFNode() if geometry else None
+        if visible is None or visible.getTypeName() != 'Box':
             raise RuntimeError('invisible or ambiguous rendered collider: ' + box.name)
-        visual_size = rendered[0].getField('size')
+        visual_size = visible.getField('size')
         if visual_size is None or not _equal(visual_size.getSFVec3f(), box.size):
             raise RuntimeError('rendered and physical Box mismatch: ' + box.name)
     # Explicitly return *no* authority token: READY is a separate live

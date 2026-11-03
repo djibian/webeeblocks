@@ -22,6 +22,9 @@ class _Field:
     def getSFVec3f(self):
         return self.value
 
+    def getSFRotation(self):
+        return self.value
+
     def getCount(self):
         return len(self.value)
 
@@ -56,8 +59,10 @@ class _Supervisor:
         physics = _Node(None, 'Box', size=box.size)
         visible = _Node(None, 'Box', size=box.size)
         shape = _Node(None, 'Shape', geometry=visible)
-        return _Node(box.name, 'Solid', position=box.position,
-                     boundingObject=physics, children=[shape], locked=True)
+        return _Node(box.name, 'Solid',
+                     position=tuple(float(f'{v:.6f}') for v in box.position),
+                     boundingObject=physics, children=[shape], locked=True,
+                     rotation=(0., 0., 1., 0.))
 
     def getRoot(self):
         return _Node(None, 'Root', children=self.nodes)
@@ -125,11 +130,23 @@ class NativeColliderContractTests(unittest.TestCase):
     def test_fails_closed_on_native_pose_lock_physics_or_rendering(self):
         plan, boxes = _plan_and_manifest()
         for mutation in ('position', 'lock', 'missing-lock', 'collider',
-                         'missing-collider', 'rendered', 'invisible'):
+                         'missing-collider', 'rendered', 'invisible',
+                         'rotation', 'missing-rotation', 'malformed-rotation',
+                         'nested-collider'):
             scene = _Supervisor(boxes)
             node = scene.nodes[0]
             if mutation == 'position':
                 node.position = (99., 0., 0.)
+            if mutation == 'rotation':
+                node.fields['rotation'] = (0., 0., 1., .7853981633974483)
+            if mutation == 'missing-rotation':
+                del node.fields['rotation']
+            if mutation == 'malformed-rotation':
+                node.fields['rotation'] = (0., 0., float('nan'), 0.)
+            if mutation == 'nested-collider':
+                node.fields['children'].append(_Node(
+                    'GP_V2_SNEAK', 'Solid',
+                    boundingObject=_Node(None, 'Box', size=(.1, .1, .1))))
             if mutation == 'lock':
                 node.fields['locked'] = False
             if mutation == 'missing-lock':
@@ -144,6 +161,20 @@ class NativeColliderContractTests(unittest.TestCase):
                 node.fields['children'].clear()
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
                 verify_native_boxes(scene, plan, boxes)
+
+
+    def test_six_decimal_native_serialization_is_not_geometry_drift(self):
+        plan, boxes = _plan_and_manifest()
+        box = boxes[0]
+        rounded = replace(box, position=(box.position[0] + .00000042,
+                                         box.position[1], box.position[2]))
+        witness = (rounded,) + boxes[1:]
+        self.assertIsNone(verify_native_boxes(_Supervisor(witness), plan, witness))
+        scene = _Supervisor(boxes)
+        scene.nodes[0].position = (box.position[0] + .000002,
+                                   box.position[1], box.position[2])
+        with self.assertRaises(RuntimeError):
+            verify_native_boxes(scene, plan, boxes)
 
 
 if __name__ == '__main__':

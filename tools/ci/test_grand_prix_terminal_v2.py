@@ -85,7 +85,7 @@ class VariableTerminalTests(unittest.TestCase):
             NativeColliderContractTests)
         result = unittest.TestResult()
         tests.run(result)
-        self.assertEqual(result.testsRun, 4)
+        self.assertEqual(result.testsRun, 5)
         if result.errors or result.failures:
             self.fail('native collider preflight contract: ' +
                       repr(result.errors + result.failures))
