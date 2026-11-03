@@ -113,6 +113,16 @@ class VariableRouteTests(unittest.TestCase):
                 plan_course(0, (2, 2, 2), ('G', 'D'), count)
 
 
+    def test_physical_open_h_geometry_matrix(self):
+        from tools.ci.test_grand_prix_open_h_v2 import VariableOpenHTests
+        case = unittest.defaultTestLoader.loadTestsFromTestCase(VariableOpenHTests)
+        result = unittest.TestResult()
+        case.run(result)
+        if result.errors or result.failures:
+            self.fail('Open-H geometry counterexamples failed: ' + repr(result.errors + result.failures))
+        self.assertEqual(result.testsRun, 2)
+
+
 
 if __name__ == '__main__':
     unittest.main()
