@@ -7,6 +7,7 @@ consume identical directed gate coordinates.
 """
 from dataclasses import dataclass
 import hashlib
+import re
 from tools.grand_prix.route_v2 import Route, build_route
 
 LOW_BEFORE = 0.55
@@ -30,6 +31,29 @@ class CoursePlan:
     @property
     def identifier(self):
         return f"{self.route.identifier}-H{self.count}"
+
+
+def course_from_identifier(identifier):
+    """Reconstruct one canonical host configuration, never pupil AST data.
+
+    The launcher, world controllerArgs and evaluator can exchange this single
+    versioned string instead of inventing separate seed/length/turn schemas.
+    It identifies geometry, not a qualification or a current attempt. The
+    activity/profile/world identity used by .wbb remains independent of it.
+    """
+    if type(identifier) is not str or len(identifier) > 80:
+        raise ValueError('canonical gp-route-v2 course identifier required')
+    match = re.fullmatch(
+        r'gp-route-v2-L(2000|2500|3000)-(2000|2500|3000)-(2000|2500|3000)'
+        r'-T([GD])([GD])-s(0|[1-9][0-9]{0,4})-H([123])', identifier)
+    if match is None:
+        raise ValueError('canonical gp-route-v2 course identifier required')
+    first, second, third, turn0, turn1, seed, count = match.groups()
+    course = plan_course(int(seed), tuple(int(v)/1000 for v in (
+        first, second, third)), (turn0, turn1), int(count))
+    if course.identifier != identifier:
+        raise ValueError('course identifier is not canonical')
+    return course
 
 
 def plan_course(seed, lengths, turns, gate_count):
