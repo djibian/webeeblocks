@@ -8,30 +8,22 @@ import csv
 import json
 import math
 from pathlib import Path
-
 def vector(row, prefix, n):
     return [float(row[f"{prefix}{i}"]) for i in range(n)]
-
 def mat3(padded):
     return [padded[0:3], padded[4:7], padded[8:11]]
-
 def mv(a, x):
     return [sum(a[i][j] * x[j] for j in range(3)) for i in range(3)]
-
 def mul(a, b):
     return [[sum(a[i][k] * b[k][j] for k in range(3))
              for j in range(3)] for i in range(3)]
-
 def transpose(a):
     return [list(row) for row in zip(*a)]
-
 def norm(x):
     return math.sqrt(sum(v * v for v in x))
 
-
 def indeterminate(reason):
     return {"status": "INDETERMINATE", "reason": reason}
-
 
 def diagnose(pre, post, dt):
     try:
@@ -67,44 +59,63 @@ def diagnose(pre, post, dt):
         torque_residual = [implied[i] / dt - tau[i] for i in range(3)]
         if not all(math.isfinite(x) for x in force_residual + torque_residual):
             return indeterminate("nonfinite mechanics")
+        fn, tn = norm(force_residual), norm(torque_residual)
+        if not math.isfinite(fn) or not math.isfinite(tn):
+            return indeterminate("nonfinite residual norm")
         return {"status": "MEASURED", "force_residual_N": force_residual,
                 "torque_residual_Nm": torque_residual,
-                "force_norm_N": norm(force_residual),
-                "torque_norm_Nm": norm(torque_residual),
+                "force_norm_N": fn, "torque_norm_Nm": tn,
                 "contact_candidates": int(pre["contacts"]),
                 "joints_attached": int(pre["joints"])}
     except (KeyError, TypeError, ValueError, OverflowError, ZeroDivisionError) as exc:
         return indeterminate("malformed/incompatible capture: " + str(exc))
 
-
 def analyze(path, dt, low, high, top):
     paired = {}
     footer = None
     total_rows = 0
+    malformed = False
     with Path(path).open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
             if row["frame"].startswith("#"):
                 footer = ",".join(v for v in row.values() if isinstance(v, str) and v)
                 continue
             total_rows += 1
-            t = float(row["time_ms"])
-            if low <= t <= high:
-                paired.setdefault(int(row["frame"]), {})[row["phase"]] = row
+            try:
+                frame, phase, t = int(row["frame"]), row["phase"], float(row["time_ms"])
+                if (not math.isfinite(t) or frame != (total_rows - 1) // 2
+                        or phase != ("pre" if total_rows % 2 else "post")):
+                    malformed = True
+                if low <= t <= high:
+                    pair = paired.setdefault(frame, {})
+                    if (phase in pair or (phase == "post" and "pre" in pair
+                                          and pair["pre"]["time_ms"] != row["time_ms"])):
+                        malformed = True
+                    pair[phase] = row
+            except (KeyError, TypeError, ValueError):
+                malformed = True
     ranked = []
     statuses = {"MEASURED": 0, "INDETERMINATE": 0}
     for number, pair in paired.items():
-        result = diagnose(pair.get("pre", {}), pair.get("post", {}), dt)
+        if ("pre" in pair and "post" in pair
+                and pair["pre"]["time_ms"] != pair["post"]["time_ms"]):
+            result = indeterminate("mismatched callback times")
+        else:
+            result = diagnose(pair.get("pre", {}), pair.get("post", {}), dt)
         statuses[result["status"]] += 1
         result["frame"] = number
         result["time_ms"] = float(pair["pre"]["time_ms"]) if "pre" in pair else None
         ranked.append(result)
     ranked.sort(key=lambda r: r.get("torque_norm_Nm", -1), reverse=True)
-    declared = int(footer.split(",")[0].split("=")[1]) if footer and footer.startswith("#frames=") else -1
-    capture_ok = declared >= 0 and total_rows == 2 * declared and "overflow=0" in footer and "body_missing=0" in footer
+    meta = dict(part.split("=", 1) for part in (footer or "").split(",") if "=" in part)
+    capture_ok = (not malformed and total_rows % 2 == 0
+                  and meta.get("#frames") == str(total_rows // 2)
+                  and meta.get("overflow") == "0" and meta.get("body_missing") == "0")
+    if not capture_ok:
+        ranked, statuses = [indeterminate("partial or inconsistent capture")], {"MEASURED": 0, "INDETERMINATE": len(paired)}
     return {"capture_status": "COMPLETE" if capture_ok else "PARTIAL_OR_UNKNOWN",
             "footer": footer, "counts": statuses, "top": ranked[:top],
             "claim": "aggregate closure only; never joint validity or product verdict"}
-
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
