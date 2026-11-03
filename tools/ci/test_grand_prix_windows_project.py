@@ -42,6 +42,15 @@ def verify(package):
     assert starter.read_bytes() == (ROOT / 'activities/grand-prix/02-grand-prix-u.wbb').read_bytes()
     assert json.loads(starter.read_text(encoding='utf-8'))['activity']['id'] == 'progression-grand-prix-u-v1'
     assert len(list((package / 'Activites').glob('*.wbb'))) == 1
+    # Pedagogical experiment is shipped separately, byte-identical to its
+    # falsifiable incomplete source; neither replacing a starter nor a solution.
+    experiment = package / 'Experiences/Grand-Prix-U-observation-incomplete.wbb'
+    source = ROOT / 'experiments/grand-prix-pupil-observation/Grand-Prix-U-demarrage-incomplet.wbb'
+    assert experiment.read_bytes() == source.read_bytes()
+    partial = json.loads(experiment.read_text(encoding='utf-8'))
+    assert partial['activity'] == json.loads(starter.read_text(encoding='utf-8'))['activity']
+    assert [block['type'] for block in partial['workspace']['blocks']['blocks']] == ['webeeblocks_v2_takeoff']
+    assert len(list((package / 'Experiences').glob('*.wbb'))) == 1
     # The teacher demo is separately packaged, never exposed as a pupil starter.
     demo = package / 'Exemples/Grand-Prix-demo-enseignant.wbb'
     project = json.loads(demo.read_text(encoding='utf-8'))

@@ -163,6 +163,11 @@ def compose(classroom, controller, evaluator, output, sha):
     launcher.write_text(text, encoding='utf-8-sig')
     (output / 'Activites').mkdir()
     shutil.copyfile(ROOT / 'activities/grand-prix/02-grand-prix-u.wbb', output / 'Activites/08-grand-prix-u.wbb')
+    # Separate, incomplete classroom experiment: keep the official starter empty.
+    # The source is verified with real Blockly by the independent #805 check.
+    experiment = output / 'Experiences/Grand-Prix-U-observation-incomplete.wbb'
+    experiment.parent.mkdir()
+    shutil.copyfile(ROOT / 'experiments/grand-prix-pupil-observation/Grand-Prix-U-demarrage-incomplet.wbb', experiment)
     # Teacher-only runnable witness: do not replace the empty pupil starter.
     demonstration = output / 'Exemples/Grand-Prix-demo-enseignant.wbb'
     demonstration.parent.mkdir()

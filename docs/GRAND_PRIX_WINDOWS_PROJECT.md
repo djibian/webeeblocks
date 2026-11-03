@@ -13,6 +13,21 @@ Attendre PRÊT puis utiliser « Démarrer une activité » pour le Grand Prix.
 Les fichiers `.wbb` restent ordinaires : Enregistrer sous au premier
 enregistrement, Enregistrer pour le même fichier, Ouvrir pour reprendre.
 Un même programme enregistré peut être essayé dans les trois configurations.
+
+**Atelier expérimental d'observation, sans solution fournie :** ouvrir
+`Experiences/Grand-Prix-U-observation-incomplete.wbb` avec « Ouvrir » dans la
+fenêtre Grand Prix U. Il contient uniquement un décollage à 0,8 m : **pas de
+mouvement, pas de mesure, pas de condition et surtout pas de LAND**. Il est
+volontairement **non exécutable** en l'état ; l'élève doit concevoir et compléter
+un programme sûr, avec atterrissage final obligatoire, avant de l'exécuter.
+L'exercice initial consiste à expliquer comment observer un portique, distinguer
+une lecture ambiguë et justifier une action sans donner la stratégie complète
+pour les trois côtés. Le professeur peut consulter
+`experiments/grand-prix-pupil-observation/README.md` dans les sources pour le
+protocole détaillé. Cet atelier n'a pas reçu d'acceptation pédagogique, ne
+remplace pas `Activites/08-grand-prix-u.wbb`, et ne modifie ni les oracles ni les
+règles de sécurité.
+
 Pour la qualification par l'enseignant, ouvrir avec « Ouvrir » le projet
 `Exemples/Grand-Prix-demo-enseignant.wbb` : ce programme Blockly témoin complet,
 produit et vérifié à partir de l'AST sensoriel ordinaire du dépôt, sert à tester
