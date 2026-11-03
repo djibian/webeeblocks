@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home
+from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical
 
 
 class LinuxGrandPrixLauncherTests(unittest.TestCase):
@@ -47,6 +47,19 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             (home / "resources/version.txt").write_text("R2025b\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "R2025a"):
                 webots_home(str(home))
+
+    def test_graphical_start_is_explicitly_paused(self):
+        with mock.patch("tools.grand_prix.launch_linux.subprocess.run") as run:
+            run.return_value.returncode = 0
+            home = Path("/mock/webots")
+            world = Path("/mock/worlds/teacher.wbt")
+            result = launch_graphical(home, world, {"WEBOTS_HOME": str(home)})
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(
+                run.call_args.args[0],
+                [str(home / "webots"), "--mode=pause", "--stdout", "--stderr", str(world)],
+            )
+            self.assertFalse(run.call_args.kwargs["check"])
 
     def test_headless_run_does_not_claim_gui_delivery(self):
         with mock.patch.dict(os.environ, {"DISPLAY": "", "WAYLAND_DISPLAY": ""}):

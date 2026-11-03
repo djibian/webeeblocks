@@ -92,6 +92,14 @@ def prepare_native(home):
     return env
 
 
+def launch_graphical(home, world, env):
+    """Start in a deterministic paused state before pupil program creation."""
+    return subprocess.run(
+        [str(home / "webots"), "--mode=pause", "--stdout", "--stderr", str(world)],
+        cwd=ROOT, env=env, check=False,
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Simulation GUI Linux du Grand Prix U historique ; pas le nouveau parcours variable."
@@ -123,10 +131,7 @@ def main(argv=None):
                 stream.write(render_legacy_u(args.seed))
             print(f"Simulation Grand Prix U historique : graine={args.seed}, monde={world}", flush=True)
             print("La réussite de cette ouverture n'atteste pas encore le cycle GUI/Save/Open.", flush=True)
-            result = subprocess.run(
-                [str(home / "webots"), "--stdout", "--stderr", str(world)],
-                cwd=ROOT, env=env, check=False,
-            )
+            result = launch_graphical(home, world, env)
             return result.returncode
         finally:
             world.unlink(missing_ok=True)
