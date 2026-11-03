@@ -66,13 +66,14 @@ def ensure_blockly_assets():
         BLOCKLY / "webots/RobotWindow.js",
         BLOCKLY / "webots/request_methods.js",
     ]
+    media = BLOCKLY / "vendor/media"
     version = required[0].read_text(encoding="utf-8").strip() if required[0].is_file() else None
-    if version != "13.2.1" or any(not p.is_file() or not p.stat().st_size for p in required[1:]):
+    if version != "13.2.1" or not media.is_dir() or any(not p.is_file() or not p.stat().st_size for p in required[1:]):
         print("Préparation Blockly (Node.js >= 22, npm et accès au registre npm requis au premier lancement)...", flush=True)
         subprocess.run(["bash", str(ROOT / "tools/prepare_runtime_v2.sh")], cwd=ROOT, check=True)
     if required[0].read_text(encoding="utf-8").strip() != "13.2.1":
         raise RuntimeError("Version Blockly préparée incohérente")
-    if any(not p.is_file() or not p.stat().st_size for p in required[1:]):
+    if not media.is_dir() or any(not p.is_file() or not p.stat().st_size for p in required[1:]):
         raise RuntimeError("Ressources Blockly ou RobotWindow absentes après préparation")
 
 

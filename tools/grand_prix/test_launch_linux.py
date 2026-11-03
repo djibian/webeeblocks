@@ -48,6 +48,35 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "R2025a"):
                 webots_home(str(home))
 
+    def test_missing_blockly_media_requires_reprepare_and_fail_closed(self):
+        # Vendor JS alone does not establish a complete offline Blockly editor.
+        from tools.grand_prix.launch_linux import ensure_blockly_assets
+        with tempfile.TemporaryDirectory() as directory:
+            blockly = Path(directory)
+            files = (
+                "vendor/VERSION", "vendor/blockly_compressed.js",
+                "vendor/blocks_compressed.js", "vendor/msg/fr.js",
+                "webots/RobotWindow.js", "webots/request_methods.js",
+            )
+            for relative in files:
+                path = blockly / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("13.2.1\\n" if relative == "vendor/VERSION" else "test\\n",
+                                encoding="utf-8")
+            self.assertFalse((blockly / "vendor/media").exists())
+            with mock.patch("tools.grand_prix.launch_linux.BLOCKLY", blockly):
+                with mock.patch("tools.grand_prix.launch_linux.subprocess.run") as prepare:
+                    with self.assertRaisesRegex(RuntimeError, "Ressources Blockly"):
+                        ensure_blockly_assets()
+                    prepare.assert_called_once()
+                    self.assertIn("prepare_runtime_v2.sh", str(prepare.call_args))
+                def finish_preparation(*args, **kwargs):
+                    (blockly / "vendor/media").mkdir()
+                with mock.patch("tools.grand_prix.launch_linux.subprocess.run",
+                                side_effect=finish_preparation) as prepare:
+                    ensure_blockly_assets()
+                    prepare.assert_called_once()
+
     def test_graphical_start_is_explicitly_paused(self):
         with mock.patch("tools.grand_prix.launch_linux.subprocess.run") as run:
             run.return_value.returncode = 0
