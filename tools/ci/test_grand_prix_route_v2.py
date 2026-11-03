@@ -112,6 +112,37 @@ class VariableRouteTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 plan_course(0, (2, 2, 2), ('G', 'D'), count)
 
+    def test_host_identifier_reconstructs_the_exact_course(self):
+        from tools.grand_prix.route_courses_v2 import (
+            course_from_identifier, plan_course, reference_course,
+        )
+        for seed in (0, 65535):
+            for lengths in itertools.product((2, 2.5, 3), repeat=3):
+                for turns in itertools.product(('G', 'D'), repeat=2):
+                    for count in (1, 2, 3):
+                        course = plan_course(seed, lengths, turns, count)
+                        self.assertEqual(course_from_identifier(course.identifier), course)
+        for index in range(12):
+            course = reference_course(index)
+            self.assertEqual(course_from_identifier(course.identifier), course)
+
+    def test_host_identifier_rejects_aliases_old_versions_and_malformed_input(self):
+        from tools.grand_prix.route_courses_v2 import course_from_identifier
+        valid = 'gp-route-v2-L2000-2500-3000-TGD-s17-H2'
+        invalid = (
+            None, True, 17, '', valid+'\n', ' '+valid, valid+' ',
+            valid.replace('route-v2', 'u-v1'), valid.replace('v2', 'v3'),
+            valid.replace('2000', '2.000'), valid.replace('2000', '2100'),
+            valid.replace('TGD', 'Tgd'), valid.replace('TGD', 'TGGD'),
+            valid.replace('s17', 's017'), valid.replace('s17', 's-1'),
+            valid.replace('s17', 's65536'), valid.replace('H2', 'H0'),
+            valid.replace('H2', 'H4'), valid.replace('H2', 'H02'),
+            valid+';anything', valid.replace('s17', 's'+'9'*10000),
+        )
+        for identifier in invalid:
+            with self.subTest(identifier=str(identifier)[:80]):
+                with self.assertRaises(ValueError):
+                    course_from_identifier(identifier)
 
     def test_physical_open_h_geometry_matrix(self):
         from tools.ci.test_grand_prix_open_h_v2 import VariableOpenHTests
