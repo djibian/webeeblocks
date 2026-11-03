@@ -86,11 +86,13 @@ def diagnose(pre, post, dt):
 def analyze(path, dt, low, high, top):
     paired = {}
     footer = None
+    total_rows = 0
     with Path(path).open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
             if row["frame"].startswith("#"):
-                footer = row["frame"]
+                footer = ",".join(v for v in row.values() if isinstance(v, str) and v)
                 continue
+            total_rows += 1
             t = float(row["time_ms"])
             if low <= t <= high:
                 paired.setdefault(int(row["frame"]), {})[row["phase"]] = row
@@ -103,7 +105,8 @@ def analyze(path, dt, low, high, top):
         result["time_ms"] = float(pair["pre"]["time_ms"]) if "pre" in pair else None
         ranked.append(result)
     ranked.sort(key=lambda r: r.get("torque_norm_Nm", -1), reverse=True)
-    capture_ok = footer is not None and "overflow=0" in footer and "body_missing=0" in footer
+    declared = int(footer.split(",")[0].split("=")[1]) if footer and footer.startswith("#frames=") else -1
+    capture_ok = declared >= 0 and total_rows == 2 * declared and "overflow=0" in footer and "body_missing=0" in footer
     return {"capture_status": "COMPLETE" if capture_ok else "PARTIAL_OR_UNKNOWN",
             "footer": footer, "counts": statuses, "top": ranked[:top],
             "claim": "aggregate closure only; never joint validity or product verdict"}
