@@ -85,6 +85,19 @@ class NativeSolidAttestationTests(unittest.TestCase):
         self.check_rejected(self.nodes[:-1])
         extra = solid(RequiredSolid('GP_V2_H_1_LEFT', (0., 0., .65), (.48, .04, 1.3)))
         self.check_rejected(self.nodes + [extra])
+        # A reserved collider under a Group was previously invisible to the
+        # direct-root inventory, even though it can change physical contacts.
+        self.check_rejected(self.nodes + [Node('Group', children=[extra])])
+        self.check_rejected(self.nodes + [
+            Node('Pose', children=[Node('Transform', children=[extra])])])
+        # SFNode attachments must not hide an extra reserved Solid either.
+        self.check_rejected(self.nodes + [
+            Node('Solid', 'OTHER', locked=True, boundingObject=extra,
+                 children=[Node('Shape', geometry=Node('Box', size=[.1, .1, .1]))])])
+        self.assertIsNone(assert_native_solids_match(
+            Supervisor(self.nodes + [
+                Node('Group', children=[Node('Shape', geometry=Node('Box', size=[.1, .1, .1]))])]),
+            self.required))
         self.check_rejected(self.nodes + [deepcopy(self.nodes[0])])
         self.check_rejected(self.nodes, required=self.required + (self.required[0],))
         self.check_rejected(self.nodes, required=())
