@@ -130,6 +130,7 @@ def main():
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
+    subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
     if args.native:
         run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
         return
