@@ -8,6 +8,45 @@ WebeeBlocks is primarily a **training environment for algorithmic reasoning thro
 
 Students should progressively learn to decompose a problem, build algorithms, use sequences/parameters/loops/conditions/variables, exploit sensors, reason as **measure → compare → decide → act**, and iterate through **modify → run → observe → understand → correct → rerun**.
 
+## Owner decision, 2026-11-03 — Linux Grand Prix with variable sensed corners
+
+The owner will **personally design the pupil's one Blockly program first** using
+existing generic blocks and actual Webots observations, then determine which
+additional primitives, if any, would be necessary for students. Do not
+pre-empt this process by developing unrequested generic blocks or prescribing
+an expert solution. The experimental `guarded_move` / “Avancer jusqu'à une
+distance donnée d'un obstacle” was **rejected**; PR #659 was closed unmerged.
+
+**Immediate priority: an actually operable Linux Grand Prix teacher workspace**:
+choose reproducible configurations, freely program in Blockly, execute, observe
+sensor measurements and step-by-step decisions, reset, correct and save/reopen
+the same editable `.wbb`. Native CI and isolated Windows artifacts do not by
+themselves prove Linux GUI usability. No pedagogical PASS until the owner
+personally evaluates this user journey.
+
+**Updated course:** three consecutive segments; each independently **2.0, 2.5
+or 3.0 m** long, and each of two right-angle turns independently **left or
+right** (LL/LR/RL/RR). Every turn is marked by a **collision-enabled L-shaped
+corner** with **two 0.60 m arms**, positioned at the outside red dashed
+boundary and high enough for the drone's horizontal range sensors at ordinary
+flight altitude. The **white centreline is visual-only** (option A); it has
+no sensing API. Gate count (1–3), gate locations and course geometry vary.
+A **single unchanged pupil-built program** must work on all qualified course
+configurations. These geometry constraints **supersede** the 2026-10-13
+fixed-size square/U and always-left turns, but not its safety invariants:
+closed terminal H, completed directed crossings, low-flight bands, swept
+radius-aware limits, landing relative to terminal heading (1 centre, 2 left
+0.50 m, 3 right 0.50 m), strict Reset/preflight, independent irreversible
+**210000 ms** LAND/failure and absence of scores. Three-metre cases that cannot
+meet the deadline must be reported as unqualified, not passed by relaxing it.
+No physical-flight authorization or automatic activity-catalog promotion.
+
+Durable authority: [#587 decision](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569);
+implementation results: [#808](https://github.com/djibian/webeeblocks/issues/808)
+(route/corners) and [#809](https://github.com/djibian/webeeblocks/issues/809)
+(Linux usability). Historical U demonstrations and their native results retain
+their original scope only.
+
 ## Pupil-program feasibility and classroom delivery (owner decision, 2026-10-22)
 
 ### Méthode de conception prioritaire — reprise effective le 2 novembre 2026
@@ -144,12 +183,12 @@ files are not required**. Versioned, isolated scenes/configurations are
 appropriate when switching activities, opening a `.wbb`, restarting and
 reconnecting correctly restore the selected scene and its world evaluators.
 Technical sharing must not make pupil worlds indistinguishable. The Grand Prix
-uses **multiple reproducible configurations of its own world**, with constant
-dimensions/rules and hidden variations in number and placement of gates.
+uses **multiple reproducible configurations of its own world**, with shared safety and mission rules, but independently varying segment lengths,
+turns, and hidden gate configurations.
 
 The **official Activity 8, Grand Prix autonome** (#587), is a simulation-first
-final challenge with **one traversal of three consecutive sides of a fixed-size
-square**, with **1–3 ordinary open H gates** (at most one per side) placed
+final challenge with **one traversal of three consecutive segments with variable independent lengths
+and right-angle turns**, with **1–3 ordinary open H gates** (at most one per side) placed
 reproducibly but unknown to the student program, and a **closed H gate** at the
 end of the third side. There is **no fourth side, no final straight, no repeated
 laps, no gate bonuses, time penalties or software scoring**. A pupil remembers
@@ -158,10 +197,13 @@ two = 0.50 m left, three = 0.50 m right**, relative to arrival. Wrong landing
 means a failed mission; memory is behaviorally useful rather than enforced by
 inspecting Blockly syntax.
 
-The candidate geometry starts at **2.00 m side**, about **1.00 m corridors**
-and a larger terminal landing area; native Webots R2025a tests must establish
-a fixed feasible dimension with comfortable reproducible time and dynamic
-clearance margins, rather than assuming or maximizing course size. The
+The course width is **0.60 m**. Each segment is independently chosen
+from **2.0 / 2.5 / 3.0 m**, and both turns from **left/right**. Two physical
+**0.60 m × 0.60 m L-corners** (equal arm lengths, not a solid square)
+mark the outer turns at the dashed red boundary and are detectable by ordinary
+horizontal range sensors. The white centreline is **visual-only**. The final
+arrival area and H are rotated with the terminal segment, and geometric
+clearances and the 210 s budget must be qualified natively per configuration. The
 floor remains uniform with **no low obstacles**. Low-altitude flight is legal
 only within marked before/after distances around each open H gate, apart from
 bounded takeoff, final landing and forced-timeout landing exceptions. Identical

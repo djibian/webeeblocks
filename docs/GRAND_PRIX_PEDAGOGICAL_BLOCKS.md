@@ -1,5 +1,25 @@
 # Grand Prix — architecture pédagogique Blockly
 
+## Nouvelle méthode propriétaire — 3 novembre 2026 : expérimentation directe sous Linux
+
+L'enseignant **conçoit maintenant lui-même** un programme Blockly unique
+sur des parcours variés pour découvrir ce qui rend la tâche réellement
+faisable ou non par des élèves. Cette construction, ses erreurs, ses mesures
+de capteurs, ses corrections et les sauvegardes `.wbb` précèdent toute
+nouvelle proposition de bloc. **Les contrôleurs ne construisent ni solution
+expert prescrite ni nouvel élément de vocabulaire à l'avance**. Ils
+doivent d'abord livrer l'environnement Linux opérationnel et les variantes
+avec cornières en L, cf. [décision #587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569),
+[#808](https://github.com/djibian/webeeblocks/issues/808),
+[#809](https://github.com/djibian/webeeblocks/issues/809).
+
+Le prototype `guarded_move` (« Avancer jusqu'à une distance donnée d'un
+obstacle »), PR #659, est **explicitement rejeté et fermé sans fusion** ;
+ne pas le ressusciter, y compris sous un nom différent, sans une
+**nouvelle décision issue de l'expérimentation**. Les comparaisons de
+programmes experts restent des archives d'ingénierie, **pas le plan de
+développement ni une solution élève**.
+
 ## Protocole prioritaire de conception élève (phase 1 reprise)
 
 La pause technique décidée le **27 octobre 2026** est conservée comme
@@ -10,11 +30,13 @@ après RESTORED(main@e0c6f455, H_ref). Ce protocole s'applique désormais
 sans préjuger d'un PASS pédagogique, d'un nouveau bloc, d'un test humain,
 d'un vol réel ou de la refonte des activités 2–7.
 
-Dans cette reprise, ne plus optimiser uniquement la variante experte qui passe
-Webots. Explorer **au moins deux familles algorithmiques réellement distinctes**
-et accepter une remise à plat plutôt que des seuils modifiés ou des procédures
-renommées. Décrire explicitement les décisions que prend l'élève, les
-opérations répétitives bas niveau déléguées et ce qui reste observable.
+Les deux familles algorithmiques recherchées avant le 3 novembre restent une
+**comparaison historique**, non une obligation imposée à l'enseignant. Dans
+la reprise actuelle, partir de son **programme construit directement**,
+sans solution fournie, puis documenter les obstacles effectivement rencontrés,
+les décisions de l'élève, les manipulations répétitives bas niveau et les
+observations disponibles. Ne développer une primitive qu'après une demande
+explicite de l'enseignant fondée sur cette expérience.
 
 ### Comparaison structurée sur les vrais fichiers .wbb
 
@@ -95,11 +117,12 @@ Chaque proposition de bloc doit répondre à six questions avant développement 
    disparaît, quelles dépendances apparaissent, et qu'en disent les
    élèves ? Les seules économies de blocs ne suffisent pas.
 
-Pistes **à évaluer, sans autorisation d'implémentation automatique** : approche surveillée
-(#659, garde/arrêt bornés et écart commande-déplacement à résoudre),
-régulation latérale générique (l'absence de murs interdit d'inventer un
-repère au sol à partir de télémètres), sélection explicite selon plusieurs
-cas, et sortie sûre d'une recherche sans esquiver le LAND final.
+**Aucune piste ne vaut demande de développement.** L'approche surveillée
+`#659` est **abandonnée**. Toute autre idée (régulation, choix multi-cas,
+recherche bornée, etc.) reste différée jusqu'aux résultats des essais
+personnels de l'enseignant. La ligne blanche est **strictement visuelle** ;
+les nouveaux repères des virages sont des **obstacles en L physiques**, et
+non un service de localisation caché.
 Le « franchir un H », « arriver à gauche » ou « compter un H » déterminé
 automatiquement sont des **blocs magiques refusés**. Le vocabulaire ne
 doit pas remplacer la réflexion algorithmique.
@@ -140,10 +163,13 @@ progressivement les concepts nécessaires. Le compte de blocs seul ne suffit pas
   techniquement bornée et contrôlée avant et pendant exécution.
 - **Atterrissage choisi** : 1 H centre, 2 H gauche 0,50 m,
   3 H droite 0,50 m; un cas invalide n'est jamais un PASS.
-- Les règles de #587 restent inchangées : trois côtés/deux virages,
-  1–3 H ouverts cachés, un H terminal fermé détecté par observation,
+- Les **règles de sécurité et de mission** de #587 restent en vigueur :
+  trois segments/deux virages indépendants gauche/droite ; longueurs
+  indépendantes 2, 2,5 ou 3 m ; deux cornières L à branches de 60 cm ;
+  1–3 H ouverts cachés et H terminal fermé découvert par capteurs ;
   vol bas limité aux bandes, échec irréversible et LAND de sécurité
-  exactement à 210 secondes. Aucun vol réel n'est autorisé.
+  exactement à **210 secondes**. Ligne blanche visuelle uniquement ;
+  même programme pour toutes les configurations. Aucun vol réel.
 
 ## Endroits du dépôt à modifier
 

@@ -11,6 +11,35 @@ GitHub commits, PRs, checks, reviews, issues and evidence describe live executio
 state. Do not duplicate agent/session state, WIP counters, ownership or queues
 here.
 
+## Owner priority update — 2026-11-03: Grand Prix Linux for teacher-led Blockly design
+
+The [owner's explicit decision on #587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569) **supersedes the fixed-size U/always-left-turn assumptions** below.
+The first useful delivery is a **real, tested Linux teacher workspace** to
+create a Blockly program, observe normal/step-by-step simulation, edit/debug,
+Save As/Open the same `.wbb`, switch among many reproducible routes, and
+rerun it unchanged. Existing Linux CI and Windows archives do not by themselves
+prove that end-user workflow. See [#809](https://github.com/djibian/webeeblocks/issues/809).
+
+The new course retains **three legs and two 90° turns**, but each leg is
+independently **2 / 2.5 / 3 m**; each turn independently left/right
+(LL, LR, RL, RR). At each turn a **physical, sensor-detectable 0.60 m L**
+with **two equal 0.60 m arms** marks the **outside red-dashed boundary**
+of the 0.60 m-wide corridor. See [#808](https://github.com/djibian/webeeblocks/issues/808).
+White centreline = visual aid only (option A); 1–3 open H and their locations
+vary; the closed terminal H and landing targets follow the terminal heading.
+A **single pupil-authored .wbb** must work on every qualified configuration;
+no course/gate metadata may be exposed to the pupil AST.
+
+**No more proposed Blockly primitives until Emmanuel experiments first.**
+`guarded_move` PR #659 was explicitly rejected and closed without integration;
+former expert programs only serve historical/test purposes. **Preserve** all
+safety/oracle rules, including swept geometry, altitude bands, negative tests,
+strict RESET and independent **210000 ms** failed LAND. A 3 m route that cannot
+qualify under 210 s is **unqualified**, not an occasion to relax the deadline.
+No real-flight or official-catalog acceptance follows from a Linux launcher.
+Existing historical 2 m U evidence and 2026-10-22 comparison commitments do
+not prescribe the owner's new experimental method.
+
 ## Product priority
 
 ### Reprise pédagogique du Grand Prix — décision effective du 2 novembre 2026
@@ -28,11 +57,13 @@ du ZIP privé M2 reste distinct et non acquis. Préserver oracles, négatifs,
 RESET strict et LAND indépendant à 210000 ms ; CI exacte et revue V5 demeurent
 obligatoires. La reprise ne déclenche pas la refonte des activités 2–7.
 
-### Méthode active : sélection par accessibilité élève, pas par blocs gagnés
+### Méthode historique (jusqu'au 3 novembre) — suppléée par l'expérimentation personnelle de l'enseignant
 
-Avant de retenir une nouvelle solution Grand Prix, produire **plusieurs
-architectures distinctes** et leur comparaison vérifiable, plutôt qu'un patch
-de seuil ou une petite économie de blocs d'un unique .wbb expert.
+Les comparaisons structurelles précédentes sont conservées comme historique.
+Le propriétaire construit désormais **lui-même** un programme Blockly avant
+que de nouvelles primitives ou architectures élèves soient envisagées.
+Aucun contrôleur ne doit produire de nouveaux blocs ou prescrire un témoin
+expert en substitution à cette expérience.
 L'ordre de recherche est : apprentissages → stratégie compréhensible →
 abstractions génériques réellement nécessaires → construction/explication/debug
 autonomes → validation native exhaustive et validation pédagogique personnelle.
@@ -128,7 +159,7 @@ underlying Webots runtime/controller, base `.wbt` and independently loaded
 scenes when technically appropriate. Scene selection/restore/reset/`.wbb`
 open must be safe and deterministic; eight separate `.wbt` files are not
 a product requirement. The Grand Prix must offer **multiple reproducible
-configurations of its own fixed-size course**: hidden 1–3 open H gates at
+configurations of its own variable three-leg course**: hidden 1–3 open H gates at
 variable positions, one ordinary identical Blockly/.wbb/AST program,
 three correctly chosen landing zones, observed crossing/altitude oracles
 and independent exact LAND at 210 s, per the existing #587 contract.
@@ -206,9 +237,11 @@ positions, at most one H per side, followed by a **terminal closed H**.
 points/time-penalty scoring.** The number of properly completed crossings
 chooses a terminal landing at **center, 0.50 m left or 0.50 m right** for
 1/2/3 H respectively. Landing elsewhere fails. Memory is useful through
-observable behavior, not forced by AST inspection. Dimensions are fixed
-across configurations; first test **2.00 m side** and a wider arrival area,
-then select a fixed size with comfortable reproducible clearance and time margins.
+observable behavior, not forced by AST inspection. **Historical fixed-size U assumption superseded by the 2026-11-03 owner decision above.**
+Each leg now varies independently among **2, 2.5, 3 m**, and both turns may
+independently be left/right, with physical 0.60 m L-corners at outer limits.
+Comfortable clearance and successful completion under 210 s remain native
+qualification obligations across the new configurations.
 
 Mark before/after **low-altitude permitted bands at each H on the Webots
 floor**, corresponding to eventual physical floor tape. Outside a passing
