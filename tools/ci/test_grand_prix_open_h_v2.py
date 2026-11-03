@@ -37,7 +37,7 @@ class VariableOpenHTests(unittest.TestCase):
                         self.assertEqual((beam.x, beam.y),
                                          leg.at(gate.along))
                         self.assertEqual((left.z, right.z), (HEIGHT / 2,) * 2)
-                        self.assertEqual(beam.z - beam.sz / 2, BEAM_BOTTOM)
+                        self.assertAlmostEqual(beam.z - beam.sz / 2, BEAM_BOTTOM)
                         self.assertAlmostEqual(beam.z + beam.sz / 2, HEIGHT)
                         self.assertEqual((left.sz, right.sz, beam.sz),
                                          (HEIGHT, HEIGHT, HEIGHT - BEAM_BOTTOM))
