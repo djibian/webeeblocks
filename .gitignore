@@ -20,3 +20,7 @@ build/
 Thumbs.db
 *.swp
 
+
+# Generated Grand Prix teacher worlds and Webots GUI state
+/worlds/grand_prix_u_teacher_seed*.wbt
+/worlds/.grand_prix_u_teacher_seed*.wbproj
