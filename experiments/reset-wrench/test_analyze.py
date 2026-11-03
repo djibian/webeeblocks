@@ -20,7 +20,6 @@ def sample():
         s.update({f"{prefix}{i}": str(v) for i, v in enumerate(values)})
     return s
 
-
 class WrenchAnalysis(unittest.TestCase):
     def test_known_free_torque(self):
         p, q = sample(), sample()
@@ -28,7 +27,6 @@ class WrenchAnalysis(unittest.TestCase):
         x = diagnose(p, q, .032)
         self.assertEqual(x["status"], "MEASURED")
         self.assertLess(x["torque_norm_Nm"], 1e-12)
-
     def test_contact_like_residual_is_not_attributed(self):
         p, q = sample(), sample()
         p["contacts"] = "1"
@@ -37,7 +35,6 @@ class WrenchAnalysis(unittest.TestCase):
         self.assertEqual(x["status"], "MEASURED")
         self.assertGreater(x["torque_norm_Nm"], .008)
         self.assertNotIn("contact_cause", x)
-
     def test_unknown_reset_and_clamp(self):
         p, q = sample(), sample()
         p["enabled"] = "0"
@@ -46,8 +43,9 @@ class WrenchAnalysis(unittest.TestCase):
         q["w1"] = "2"
         p["max_angular_speed"] = "1"
         self.assertEqual(diagnose(p, q, .032)["status"], "INDETERMINATE")
-
-
+        p, q = sample(), sample()
+        p["t0"] = "1e308"
+        self.assertEqual(diagnose(p, q, .032)["status"], "INDETERMINATE")
     def test_capture_footer_and_truncation(self):
         p = sample()
         with tempfile.TemporaryDirectory() as d:
@@ -59,9 +57,14 @@ class WrenchAnalysis(unittest.TestCase):
                     writer.writerow(dict(p, frame=0, time_ms=0, phase=phase))
                 h.write("#frames=1,overflow=0,body_missing=0\n")
             self.assertEqual(analyze(f, .032, 0, 100, 1)["capture_status"], "COMPLETE")
-            f.write_text(f.read_text().split("#frames=")[0])
+            original = f.read_text()
+            f.write_text(original.split("#frames=")[0])
             self.assertEqual(analyze(f, .032, 0, 100, 1)["capture_status"], "PARTIAL_OR_UNKNOWN")
-
-
+            rows = original.splitlines()
+            rows[2] = rows[2].replace(",0,post,", ",32,post,", 1)
+            f.write_text("\n".join(rows) + "\n")
+            result = analyze(f, .032, 0, 100, 1)
+            self.assertEqual(result["capture_status"], "PARTIAL_OR_UNKNOWN")
+            self.assertEqual(result["top"][0]["status"], "INDETERMINATE")
 if __name__ == "__main__":
     unittest.main()
