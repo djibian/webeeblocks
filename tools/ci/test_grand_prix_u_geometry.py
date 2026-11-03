@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.layout_u import generate, world_text, local, RADIUS
 from tools.ci.test_grand_prix_route_v2 import VariableRouteTests  # include pure route matrix in CI
+from tools.ci.test_grand_prix_corridor_sweep_v2 import VariableCorridorSweepTests  # exact 2D sweep in CI
 
 
 def gap(p, b):

@@ -3,7 +3,6 @@ import itertools
 import math
 import unittest
 from tools.grand_prix.route_v2 import WIDTH, VERSION, build_route
-from tools.ci.test_grand_prix_corridor_sweep_v2 import VariableCorridorSweepTests  # noqa: F401
 
 
 class VariableRouteTests(unittest.TestCase):
