@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+from autonomous_incident_evidence import (
+    SCHEMA, record_prelaunch, run_host_streamed, record_completion,
+)
+from progression_native_retirement import finish_failed_autonomous_log
 from progression_native_retirement import (
     COMPLETE, SUMMARY, complete_evidence, required_events, verify_native_report,
     require_container_processes_retired,
@@ -152,6 +157,91 @@ class RetirementGuards(unittest.TestCase):
                 self.assertNotIn('exit "$runner_rc"', source)
                 self.assertIn('verify_native_report(ARTIFACT_ROOT,', source)
                 self.assertIn('ci_progression_retirement', source)
+
+
+class IncidentEvidenceP1(unittest.TestCase):
+    def test_prelaunch_provenance_is_observed_not_assumed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            world = root / 'world.wbt'
+            world.write_bytes(b'world-bytes')
+            envelope = record_prelaunch(
+                root, image='webots@sha256:fixed', command=['docker', 'run'],
+                inner_script='native test', head='a' * 40,
+                input_files={'world': world, 'unknown': root / 'missing.c'})
+            self.assertEqual(envelope['schema'], SCHEMA)
+            self.assertEqual(envelope['inputs']['world']['sha256'],
+                             hashlib.sha256(b'world-bytes').hexdigest())
+            self.assertEqual(envelope['inputs']['unknown']['status'], 'unknown')
+            self.assertEqual(envelope['webots_bin_and_libode_mappings'], 'unknown')
+            self.assertEqual(envelope['native_result'], 'unobserved')
+            with self.assertRaises(FileExistsError):
+                record_prelaunch(root, image='webots@sha256:fixed',
+                                 command=['docker'], inner_script='', head='a' * 40,
+                                 input_files={})
+
+    def test_streamed_host_log_keeps_prefix_after_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'native-host.log'
+            def interrupted(_argv, **kwargs):
+                kwargs['stdout'].write(b'partial native output\n')
+                kwargs['stdout'].flush()
+                raise OSError('host interrupted')
+            with mock.patch('autonomous_incident_evidence.subprocess.run',
+                            side_effect=interrupted):
+                with self.assertRaises(OSError):
+                    run_host_streamed(['docker', 'run'], path, cwd=Path(temp), env={})
+            self.assertEqual(path.read_bytes(), b'partial native output\n')
+            with self.assertRaises(FileExistsError):
+                run_host_streamed(['docker'], path, cwd=Path(temp), env={})
+
+    def test_partial_jsonl_and_unknown_exit_cannot_claim_a_native_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'native-reset-state.jsonl').write_bytes(b'{"type":"header"}\n{"partial":')
+            (root / 'native-host.log').write_bytes(b'partial')
+            result = record_completion(root, docker_returncode=None)
+            self.assertEqual(result['docker_returncode'], 'unknown')
+            self.assertEqual(result['native_report']['status'], 'unknown')
+            self.assertFalse(result['files']['native-reset-state.jsonl']['newline_terminated'])
+            self.assertEqual(result['files']['browser-events.jsonl']['status'], 'unknown')
+            self.assertEqual(result['oracle_verdict'], 'not_assigned_by_diagnostics')
+            self.assertEqual(result['causal_attribution'], 'UNPROVEN')
+            with self.assertRaises(FileExistsError):
+                record_completion(root, docker_returncode=0)
+
+    def test_failed_native_report_stays_failed_even_with_clean_capture(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'normal-quit.json').write_text(json.dumps({
+                'normal_success': False, 'fallback_used': True,
+                'failure_log_capture': 'stdout_eof', 'stdout_eof': False,
+            }))
+            result = record_completion(root, docker_returncode=1)
+            self.assertIs(result['native_report']['normal_success_reported'], False)
+            self.assertIs(result['native_report']['fallback_used'], True)
+            self.assertEqual(result['docker_returncode'], 1)
+            self.assertEqual(result['native_report']['failure_log_capture'], 'stdout_eof')
+            self.assertEqual(result['oracle_verdict'], 'not_assigned_by_diagnostics')
+
+    def test_autonomous_error_drain_is_bounded_and_never_overrides_original(self):
+        for error in (None, RuntimeError('EOF absent'), OSError('disk read failed')):
+            report = {'normal_success': False, 'fallback_used': True,
+                      'error': 'initial native failure'}
+            log = mock.Mock()
+            log.finish.side_effect = error
+            finish_failed_autonomous_log('autonomous', log, report)
+            log.finish.assert_called_once_with(timeout=8)
+            self.assertEqual(report['normal_success'], False)
+            self.assertEqual(report['error'], 'initial native failure')
+            self.assertEqual(report['failure_log_capture'],
+                             'stdout_eof' if error is None else 'partial_or_unknown')
+        report = {'normal_success': False}
+        log = mock.Mock()
+        finish_failed_autonomous_log('memory', log, report)
+        log.finish.assert_not_called()
+        self.assertEqual(report, {'normal_success': False})
+
 
 if __name__ == '__main__':
     unittest.main()
