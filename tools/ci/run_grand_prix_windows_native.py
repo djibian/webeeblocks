@@ -64,8 +64,14 @@ def stop(process):
     if process is None or process.poll() is not None:
         return
     # This runner is Windows-only. Retire only the launched PID's process tree.
-    subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+    try:
+        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+    except subprocess.CalledProcessError:
+        # The owned engine may exit between poll() and taskkill. Accept ONLY
+        # a confirmed clean (zero) exit; live, crashed or unknown remains FAIL.
+        if process.poll() != 0:
+            raise
     process.wait(timeout=20)
 
 
