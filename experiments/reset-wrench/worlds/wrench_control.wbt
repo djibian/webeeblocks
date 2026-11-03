@@ -1,6 +1,7 @@
 #VRML_SIM R2025a utf8
 WorldInfo {
   basicTimeStep 32
+  gravity 0
   physics "reset_wrench"
 }
 Viewpoint {
