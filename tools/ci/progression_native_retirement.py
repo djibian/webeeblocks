@@ -202,6 +202,24 @@ def require_container_processes_retired(before, after):
     if new_ids - old_ids:
         raise RuntimeError('owned container process remains after native exit')
 
+
+def finish_failed_autonomous_log(kind, log, report):
+    """Try bounded EOF drainage after the existing cleanup, never turn a failure into success.
+
+    Only the autonomous failure path gains this forensic step. The shared
+    NativeLogCapture and normal-retirement proof remain unchanged.
+    """
+    if kind != 'autonomous' or log is None:
+        return
+    try:
+        log.finish(timeout=8)
+    except Exception as exc:
+        report['failure_log_capture'] = 'partial_or_unknown'
+        report['failure_log_capture_error'] = repr(exc)
+    else:
+        report['failure_log_capture'] = 'stdout_eof'
+
+
 def native_main(args):
     directory = Path(args.artifacts)
     if not directory.is_dir() or not Path(args.world).is_file():
@@ -303,6 +321,7 @@ def native_main(args):
                 stop_groups([child])  # #793: TERM then KILL, NEVER normal success.
             except Exception as cleanup_exc:
                 report['cleanup_error'] = repr(cleanup_exc)
+        finish_failed_autonomous_log(args.kind, log, report)
         raise
     finally:
         (directory / 'normal-quit.json').write_text(

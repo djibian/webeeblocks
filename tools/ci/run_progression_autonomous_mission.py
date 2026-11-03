@@ -156,6 +156,7 @@ def main() -> int:
     cleanup()
     shutil.rmtree(ARTIFACT_ROOT, ignore_errors=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    native_returncode = None  # unknown on interruption; never synthetic zero
 
     checks = (
         [sys.executable, "tools/ci/test_progression_native_retirement.py"],
@@ -239,16 +240,35 @@ xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
   --kind autonomous --world /workspace/worlds/ci_progression_autonomous.wbt \
   --artifacts "$artifact_dir"
 '''.strip()
-        result = subprocess.run([
+        from autonomous_incident_evidence import (
+            checkout_head, record_prelaunch, run_host_streamed,
+        )
+        runner_command = [
             "docker", "run", "--rm", "--init",
             "-e", "LIBGL_ALWAYS_SOFTWARE=true",
             "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
             "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-autonomous-mission",
             "-v", f"{ROOT}:/workspace", "-w", "/workspace", WEBOTS_IMAGE,
             "bash", "-lc", inner,
-        ], cwd=ROOT, env=os.environ.copy(), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        runner_log = result.stdout or ""
-        (ARTIFACT_ROOT / "native-host.log").write_text(runner_log, encoding="utf-8")
+        ]
+        record_prelaunch(
+            ARTIFACT_ROOT, image=WEBOTS_IMAGE, command=runner_command,
+            inner_script=inner, head=checkout_head(ROOT),
+            input_files={
+                "world.wbt": ARTIFACT_ROOT / "world.wbt",
+                "source-runtime.c": ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c",
+                "built-runtime": ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
+                "instrumented-runtime.c": ARTIFACT_ROOT / "runtime-instrumented.c",
+                "original-runtime.c": ARTIFACT_ROOT / "runtime-original.c",
+                "observer.py": OBSERVER_SOURCE,
+                "browser-bridge.sh": ROOT / "tools/ci/webots_runtime_v2_browser.sh",
+            },
+        )
+        result = run_host_streamed(runner_command, ARTIFACT_ROOT / "native-host.log",
+                                   cwd=ROOT, env=os.environ.copy())
+        native_returncode = result.returncode
+        runner_log = (ARTIFACT_ROOT / "native-host.log").read_text(
+            encoding="utf-8", errors="replace")
         native_log = ARTIFACT_ROOT / "webots.log"
         webots_log = native_log.read_text(encoding="utf-8", errors="replace") if native_log.exists() else ""
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
@@ -477,6 +497,18 @@ xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
             (ARTIFACT_ROOT / "reset-post-teleport.json").write_text(
                 json.dumps(correlated, indent=2, allow_nan=False) + "\n",
                 encoding="utf-8")
+        # Incident coverage is descriptive only. Any diagnostic failure must
+        # preserve the original native/oracle result, never manufacture success.
+        if (ARTIFACT_ROOT / "incident-provenance.json").is_file():
+            try:
+                from autonomous_incident_evidence import record_completion
+                record_completion(ARTIFACT_ROOT, docker_returncode=native_returncode)
+            except Exception as exc:
+                try:
+                    (ARTIFACT_ROOT / "incident-capture-error.txt").write_text(
+                        type(exc).__name__ + ": " + str(exc) + "\n", encoding="utf-8")
+                except OSError:
+                    pass
         # Preserve byte identity even for a failing/partial native campaign.
         digests = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                    for path in ARTIFACT_ROOT.iterdir() if path.is_file()}
