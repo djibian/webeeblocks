@@ -291,5 +291,25 @@ class Complexity(unittest.TestCase):
             self.assertEqual(main([str(path)]), 2)
 
 
+    def test_real_grand_prix_pupil_starter_is_incomplete(self):
+        # Intentional classroom construction task, not a scored solution.
+        source = (Path(__file__).resolve().parents[2] /
+                  'experiments/grand-prix-pupil-observation/Grand-Prix-U-demarrage-incomplet.wbb')
+        data = json.loads(source.read_text(encoding='utf-8'))
+        self.assertEqual(data['activity']['id'], 'progression-grand-prix-u-v1')
+        self.assertEqual(data['activity']['semantics'], 'webeeblocks-ast-v1')
+        roots = data['workspace']['blocks']['blocks']
+        self.assertEqual([block['type'] for block in roots], ['webeeblocks_v2_takeoff'])
+        self.assertEqual(roots[0]['fields']['HEIGHT'], 0.8)
+        self.assertNotIn('next', roots[0], 'a full program was smuggled into pupil starter')
+        metrics = analyze(data)
+        self.assertEqual(metrics['total_blocks'], 1)
+        self.assertEqual(metrics['main_chain_blocks'], 1)
+        self.assertEqual(metrics['referenced_variables'], 0)
+        compared = compare([source, source])
+        self.assertIsNone(compared['automatic_pedagogical_winner'])
+        self.assertEqual(compared['candidates'][0]['metrics']['conditional_test_slots'], 0)
+
+
 if __name__ == '__main__':
     unittest.main()
