@@ -30,6 +30,11 @@ vm.runInNewContext(fs.readFileSync(
   path.join(ROOT, 'plugins/robot_windows/grand_prix_u/setup.js'), 'utf8'), context);
 const profile = Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,
   'progression-grand-prix-u-v1', Activities.BLOCK_CATALOG);
+// The Start-activity button must load precisely the same intentionally
+// incomplete pupil artifact as manual Open, without a network fetch.
+assert.strictEqual(typeof context.WebeeBlocksStarterForProfile, 'function');
+assert.strictEqual(context.WebeeBlocksStarterForProfile(profile.id), source);
+assert.strictEqual(context.WebeeBlocksStarterForProfile('progression-01'), null);
 const deps = {
   Blockly, profiles: Profiles, activitiesDocument: context.WebeeBlocksActivities.DOCUMENT,
   blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Semantic, activityContract: Contract

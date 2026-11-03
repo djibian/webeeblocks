@@ -263,6 +263,15 @@
         if (!profile) return null;
         var starterName = profile.id + '.wbb';
         var starterText = WebeeBlocksProjectFiles.createStarterText(profile.id);
+        // A dedicated simulation window may supply a bounded, incomplete
+        // pupil starter. Other activities retain their empty embedded starter.
+        if (typeof window.WebeeBlocksStarterForProfile === 'function') {
+          var dedicatedStarter = window.WebeeBlocksStarterForProfile(profile.id);
+          if (dedicatedStarter !== null) {
+            if (typeof dedicatedStarter !== 'string') throw new Error('starter text unavailable');
+            starterText = dedicatedStarter;
+          }
+        }
         var result = await manager.openTemplateText(starterName, starterText);
         fileState('Activité : ' + profile.brief.title + ' — utilisez Enregistrer sous pour votre travail', false);
         markProjectChanged('Activité démarrée');

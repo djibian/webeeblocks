@@ -15,6 +15,18 @@ if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUnti
 if(A.BLOCK_CATALOG.webeeblocks_v2_elapsed){profile.toolbox.push('webeeblocks_v2_elapsed');profile.runtime.elapsedSimulationTime=true;}
 window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
 window.WebeeBlocksInitialActivityId=profile.id;
+// Dedicated Grand Prix pupil start: embed exactly the one-block .wbb for offline Start.
+// The experiment verifier rejects drift from the canonical student project file.
+window.WebeeBlocksStarterForProfile=function(id){
+ if(id!==profile.id)return null;
+ return JSON.stringify({
+  format:'webeeblocks-project',version:1,
+  activity:{id:profile.id,semantics:'webeeblocks-ast-v1'},
+  workspace:{blocks:{languageVersion:0,blocks:[
+   {type:'webeeblocks_v2_takeoff',id:'gp-pupil-observe-start',x:48,y:48,fields:{HEIGHT:0.8}}
+  ]}}
+ },null,2)+String.fromCharCode(10);
+};
 const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
 const OriginalBackend=WebeeBlocksWwiBackend;
