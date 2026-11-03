@@ -14,10 +14,11 @@ From this directory, with the pinned Webots R2025a installed locally:
    WEBEEBLOCKS_WRENCH_FILE=/absolute/unique/path/capture.csv.
    Choose a new output path for each run. The fixture applies one known
    torque and then teleports/resets a body into and out of floor contact.
-3. Compare three variants, two independent controls each: the same
-   world with WorldInfo.physics set to "" (OFF); plugin loaded with
-   WEBEEBLOCKS_WRENCH_CAPTURE=0 (placebo); plugin loaded with capture=1.
-   Pre-register six runs, exact commands/inputs and numerical tolerances.
+3. Execute separately with WRENCH_FIXTURE_MODE=free and reset_contact.
+   For each mode compare WorldInfo.physics "" (OFF), capture=0 (placebo)
+   and capture=1 (active): six short runs total. The fixture has zero
+   gravity to isolate applied torque and contact impulses. Pre-register
+   commands, frame alignment and numerical tolerances.
 4. Analyze: python3 analyze.py /absolute/unique/path/capture.csv --dt 0.032
    Test: python3 -m unittest discover -s . -p test_*.py
    Check controller tick markers, first actually integrated RESET step,
