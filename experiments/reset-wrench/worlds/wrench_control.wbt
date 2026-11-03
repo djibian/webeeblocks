@@ -1,0 +1,36 @@
+#VRML_SIM R2025a utf8
+WorldInfo {
+  basicTimeStep 32
+  physics "reset_wrench"
+}
+Viewpoint {
+  orientation 1 0 0 0.6
+  position 2 -2 1.5
+}
+TexturedBackground { }
+TexturedBackgroundLight { }
+DEF FLOOR Solid {
+  translation 0 0 -0.1
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.7 0.7 0.7 roughness 1 }
+      geometry Box { size 4 4 0.2 }
+    }
+  ]
+  boundingObject Box { size 4 4 0.2 }
+}
+DEF WRENCH_BODY Solid {
+  translation 0 0 0.75
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.2 0.4 0.8 roughness 1 }
+      geometry Box { size 0.2 0.12 0.1 }
+    }
+  ]
+  boundingObject Box { size 0.2 0.12 0.1 }
+  physics Physics { mass 0.05 }
+}
+Robot {
+  supervisor TRUE
+  controller "wrench_fixture"
+}
