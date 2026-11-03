@@ -54,6 +54,10 @@ class DirectedGateProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(GateProgressError, 'reverse'):
             self.advance(fresh, leg, pose(leg, gate.along+.20),
                          pose(leg, gate.along-.20))
+        # Returning just behind the *directed crossing plane* is also reverse.
+        with self.assertRaisesRegex(GateProgressError, 'reverse'):
+            self.advance(fresh, leg, pose(leg, gate.along+.35),
+                         pose(leg, gate.along+.05))
         with self.assertRaisesRegex(GateProgressError, 'armed'):
             self.advance(fresh, leg, pose(leg, gate.along-.05),
                          pose(leg, gate.along+.36))
@@ -89,6 +93,21 @@ class DirectedGateProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(GateProgressError, 'reverse-crossing'):
             self.advance(counted, first, pose(first, gate.along+.35),
                          pose(first, gate.along-.20))
+        # The previous implementation silently accepted a reverse recrossing
+        # at +0.05 m because it incorrectly compared against -0.11 m.
+        with self.assertRaisesRegex(GateProgressError, 'reverse-crossing'):
+            self.advance(counted, first, pose(first, gate.along+.35),
+                         pose(first, gate.along+.05))
+        # Also refuse a reversal after crossing but before the whole H clears.
+        armed = self.advance(start, first, pose(first, gate.along-.40),
+                             pose(first, gate.along-.20))
+        crossing = self.advance(armed, first, pose(first, gate.along-.20),
+                                pose(first, gate.along+.12))
+        self.assertTrue(crossing.crossed)
+        self.assertEqual(crossing.count, 0)
+        with self.assertRaisesRegex(GateProgressError, 'reverse-crossing'):
+            self.advance(crossing, first, pose(first, gate.along+.12),
+                         pose(first, gate.along+.05))
         self.assertEqual(counted.count, 1)
 
     def test_monotonic_leg_and_invalid_native_input(self):
