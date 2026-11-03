@@ -1639,7 +1639,11 @@ jobs:
           repository: cyberbotics/webots
           ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           path: .ci-webots-r2025a
-          sparse-checkout: projects
+          sparse-checkout: |
+            projects/appearances
+            projects/default
+            projects/objects
+            projects/robots/adept/pioneer3
           sparse-checkout-cone-mode: true
           fetch-depth: 1
 
@@ -1911,7 +1915,11 @@ jobs:
           repository: cyberbotics/webots
           ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           path: .ci-webots-r2025a
-          sparse-checkout: projects
+          sparse-checkout: |
+            projects/appearances
+            projects/default
+            projects/objects
+            projects/robots/adept/pioneer3
           sparse-checkout-cone-mode: true
           fetch-depth: 1
 
@@ -2090,7 +2098,11 @@ jobs:
           repository: cyberbotics/webots
           ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           path: .ci-webots-r2025a
-          sparse-checkout: projects
+          sparse-checkout: |
+            projects/appearances
+            projects/default
+            projects/objects
+            projects/robots/adept/pioneer3
           sparse-checkout-cone-mode: true
           fetch-depth: 1
 
@@ -2323,7 +2335,11 @@ jobs:
           repository: cyberbotics/webots
           ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           path: .ci-webots-r2025a
-          sparse-checkout: projects
+          sparse-checkout: |
+            projects/appearances
+            projects/default
+            projects/objects
+            projects/robots/adept/pioneer3
           sparse-checkout-cone-mode: true
           fetch-depth: 1
 
