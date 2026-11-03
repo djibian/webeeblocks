@@ -232,6 +232,7 @@ jobs:
           python3 -m unittest discover -s tools/ci -p test_ci_optimization_report.py
           python3 tools/ci/test_workflow_contract.py
           python3 tools/ci/test_localize_webots_world.py
+          python3 tools/ci/test_pinned_webots_sparse.py
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
