@@ -28,4 +28,7 @@ for tick in range(14 if mode == "free" else 55):
         print("WRENCH_CONTROL reset_out_of_contact tick=31", flush=True)
     if s.step(32) == -1:
         break
+    print("WRENCH_WITNESS tick=%d time_ms=%.0f translation=%s rotation=%s velocity=%s" %
+          (tick, s.getTime() * 1000, translation.getSFVec3f(),
+           rotation.getSFRotation(), body.getVelocity()), flush=True)
 s.simulationQuit(0)
