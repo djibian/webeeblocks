@@ -4,16 +4,46 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
+from unittest import mock
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate
+from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate, stop
 from tools.grand_prix.layout_u import generate
 from tools.grand_prix.package_windows_u import local_world
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_owned_pid_cleanup_race_refuses_nonzero_or_still_running(self):
+        command = ['taskkill', '/PID', '123', '/T', '/F']
+        for after in (None, 1, -1073741819):
+            process = mock.Mock(pid=123)
+            process.poll.side_effect = [None, after]
+            with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
+                            side_effect=subprocess.CalledProcessError(128, command)) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    stop(process)
+                self.assertEqual(run.call_args.args[0], command)
+                self.assertTrue(run.call_args.kwargs['check'])
+            process.wait.assert_not_called()
+
+    def test_owned_pid_cleanup_race_accepts_only_proven_clean_exit(self):
+        command = ['taskkill', '/PID', '123', '/T', '/F']
+        process = mock.Mock(pid=123)
+        process.poll.side_effect = [None, 0]
+        with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
+                        side_effect=subprocess.CalledProcessError(128, command)) as run:
+            stop(process)
+            self.assertEqual(run.call_args.args[0], command)
+        process.wait.assert_called_once_with(timeout=20)
+        already_stopped = mock.Mock(pid=123)
+        already_stopped.poll.return_value = 0
+        with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+            stop(already_stopped)
+            run.assert_not_called()
+
     def test_offline_world_uses_exact_webots_floor_plane_not_box(self):
         # Upstream R2025a Floor.proto has a locked Solid/Plane collider.
         # An offline 5-cm Box substitutes a different contact dynamics.
