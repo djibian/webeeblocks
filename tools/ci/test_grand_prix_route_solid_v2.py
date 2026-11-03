@@ -32,6 +32,41 @@ class CornerSolidTests(unittest.TestCase):
                 self.assertTrue(all('boundingObject' not in x for x in guides))
         self.assertEqual(len(cases),108)
 
+    def test_no_red_mark_is_strictly_inside_any_other_corridor(self):
+        from tools.grand_prix.route_solid_v2 import red_dashes
+        all_cases = 0
+        for lengths in itertools.product((2., 2.5, 3.), repeat=3):
+            for turns in itertools.product(('G','D'), repeat=2):
+                route = build_route(0, lengths, turns)
+                all_cases += 1
+                dashes = red_dashes(route)
+                self.assertTrue(dashes)
+                for dash in dashes:
+                    leg = route.legs[dash.leg_index]
+                    self.assertGreater(dash.end-dash.start, .015)
+                    self.assertLessEqual(dash.end, leg.length)
+                    self.assertEqual(leg.at((dash.start+dash.end)/2,
+                                            dash.side*WIDTH/2), (dash.x, dash.y))
+                    # Check the whole red segment, not only its midpoint.
+                    delta = min(.001, (dash.end-dash.start)/3)
+                    for along in (dash.start+delta,
+                                  (dash.start+dash.end)/2,
+                                  dash.end-delta):
+                        x, y = leg.at(along, dash.side*WIDTH/2)
+                        for other in route.legs:
+                            if other.index == leg.index:
+                                continue
+                            xmin, ymin, xmax, ymax = other.bounds()
+                            self.assertFalse(xmin+1e-8 < x < xmax-1e-8 and
+                                             ymin+1e-8 < y < ymax-1e-8,
+                                             (route.identifier, dash, other.index))
+        self.assertEqual(all_cases, 108)
+        # Independent regression: red on an internal overlap is NOT an edge.
+        route = build_route(0, (2.,2.5,3.), ('G','D'))
+        forbidden = [dash for dash in red_dashes(route)
+                     if dash.leg_index == 0 and dash.side == 1 and dash.step == 6]
+        self.assertFalse(forbidden)
+
     def test_world_refuses_executable_pedagogical_claim(self):
         route=build_route(4,(2.,2.5,3.),('G','D'))
         scene=static_world(route)

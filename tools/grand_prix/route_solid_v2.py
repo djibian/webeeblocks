@@ -50,22 +50,87 @@ def visual(name, x, y, sx, sy, color):
             f'geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
 
 
+@dataclass(frozen=True)
+class RedDash:
+    """Visible part of a corridor boundary; no collision geometry."""
+    leg_index: int
+    side: int
+    step: int
+    part: int
+    start: float
+    end: float
+    x: float
+    y: float
+    sx: float
+    sy: float
+
+
+def red_dashes(route):
+    """Clip each red boundary to the *outer boundary of the corridor union*.
+
+    A side of one rectangular leg inside another rectangular leg is not a
+    usable-course boundary. Subtract those *open interiors*, not arbitrary
+    turns or a decorative hard-coded U mask. Valid for all cardinal G/D bends.
+    """
+    if not isinstance(route, Route):
+        raise TypeError('variable Route required')
+    result = []
+    for leg in route.legs:
+        horizontal = leg.direction % 2 == 0
+        for side in (-1, 1):
+            fixed = leg.at(0, side*WIDTH/2)[1 if horizontal else 0]
+            for step in range(math.ceil(leg.length/.30)):
+                start = step*.30
+                end = min(start+.18, leg.length)
+                if end-start <= .015:
+                    continue
+                visible = [(start, end)]
+                for other in route.legs:
+                    if other.index == leg.index:
+                        continue
+                    xmin, ymin, xmax, ymax = other.bounds()
+                    if horizontal:
+                        if not ymin+1e-9 < fixed < ymax-1e-9:
+                            continue
+                        low = leg.local((xmin, fixed))[0]
+                        high = leg.local((xmax, fixed))[0]
+                    else:
+                        if not xmin+1e-9 < fixed < xmax-1e-9:
+                            continue
+                        low = leg.local((fixed, ymin))[0]
+                        high = leg.local((fixed, ymax))[0]
+                    low, high = sorted((low, high))
+                    remaining = []
+                    for left, right in visible:
+                        if high <= left or low >= right:
+                            remaining.append((left, right))
+                        else:
+                            if low > left:
+                                remaining.append((left, min(low, right)))
+                            if high < right:
+                                remaining.append((max(high, left), right))
+                    visible = remaining
+                for part, (left, right) in enumerate(visible):
+                    if right-left <= .015:
+                        continue
+                    x, y = leg.at((left+right)/2, side*WIDTH/2)
+                    sx, sy = ((right-left, .012) if horizontal
+                              else (.012, right-left))
+                    result.append(RedDash(leg.index, side, step, part,
+                                          left, right, x, y, sx, sy))
+    return tuple(result)
+
+
 def visual_guides(route):
     result = []
     for leg in route.legs:
         x, y = leg.at(leg.length/2)
         sx, sy = (leg.length, .025) if leg.direction%2==0 else (.025, leg.length)
         result.append(visual(f'GP_V2_WHITE_{leg.index}', x, y, sx, sy, '.96 .96 .96'))
-        for sign in (-1, 1):
-            for n in range(math.ceil(leg.length/.30)):
-                span = min(.18, leg.length-n*.30)
-                if span <= .015:
-                    continue
-                x, y = leg.at(n*.30+span/2, sign*WIDTH/2)
-                sx, sy = (span, .012) if leg.direction%2==0 else (.012, span)
-                side = 'L' if sign == 1 else 'R'
-                result.append(visual(f'GP_V2_RED_{leg.index}_{side}_{n}',
-                                     x, y, sx, sy, '.95 .06 .06'))
+    for dash in red_dashes(route):
+        side = 'L' if dash.side == 1 else 'R'
+        result.append(visual(f'GP_V2_RED_{dash.leg_index}_{side}_{dash.step}_{dash.part}',
+                             dash.x, dash.y, dash.sx, dash.sy, '.95 .06 .06'))
     return tuple(result)
 
 
