@@ -17,6 +17,16 @@ REQUIRED_PROJECT_ASSETS = (
     "projects/objects/backgrounds/protos/TexturedBackgroundLight.proto",
     "projects/objects/floors/protos/Floor.proto",
 )
+# All assets consumed by Crazyflie, Floor and background PROTOs are inside
+# these project roots, including meshes, standard appearances and textures.
+# Outside-source folders are omitted, never substituted with unpinned data.
+SPARSE_PROJECT_PATHS = (
+    "projects/robots/bitcraze/crazyflie",
+    "projects/objects/backgrounds",
+    "projects/objects/floors",
+    "projects/appearances",
+    "projects/default",
+)
 MISSIONS = [
     ("T-short", "forward", "0.50"),
     ("T-long", "forward", "1.50"),
@@ -65,12 +75,17 @@ def prepare_pinned_webots_projects(root: Path) -> Path:
         checkout.mkdir()
         run_checked(["git", "init"], cwd=checkout)
         run_checked(["git", "remote", "add", "origin", WEBOTS_REPOSITORY], cwd=checkout)
+        # Only fetch blobs needed by the project's native R2025a worlds.
+        # Git still authenticates the complete pinned commit/tree; no fallback.
         run_checked(
-            ["git", "fetch", "--depth=1", "origin", WEBOTS_SHA],
+            ["git", "fetch", "--depth=1", "--filter=blob:none", "origin", WEBOTS_SHA],
             cwd=checkout,
             timeout=300,
         )
-        run_checked(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=checkout)
+        run_checked(["git", "sparse-checkout", "set", "--cone",
+                     *SPARSE_PROJECT_PATHS], cwd=checkout)
+        run_checked(["git", "checkout", "--detach", "FETCH_HEAD"],
+                    cwd=checkout, timeout=300)
 
     if not (checkout / ".git").is_dir():
         raise RuntimeError(f"{checkout} exists but is not a Git checkout")
