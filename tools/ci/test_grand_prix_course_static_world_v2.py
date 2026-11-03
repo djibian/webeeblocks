@@ -79,7 +79,7 @@ class StaticCourseWorldTests(unittest.TestCase):
             self.assertEqual(names[-4:], tuple('GP_V2_FINAL_' + part
                              for part in ('LEFT', 'RIGHT', 'BEAM', 'PANEL')))
         course = reference_course(3)
-        for invalid in (None, (), True, replace(course, count=1),
+        for invalid in (None, (), True, replace(course, count=course.count + 1),
                         replace(course, gates=course.gates[:-1])):
             with self.subTest(invalid=type(invalid).__name__):
                 with self.assertRaises((TypeError, ValueError)):
