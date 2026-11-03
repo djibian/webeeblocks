@@ -116,7 +116,9 @@ class NativeColliderContractTests(unittest.TestCase):
     def test_fails_closed_on_missing_extra_or_duplicate_physical_solids(self):
         plan, boxes = _plan_and_manifest()
         for mutation in ('missing', 'extra', 'duplicate',
-                         'reserved-non-solid', 'decorative-pose'):
+                         'reserved-non-solid', 'nested-extra',
+                         'nested-pose-extra', 'attached-extra',
+                         'decorative-pose', 'decorative-group'):
             scene = _Supervisor(boxes)
             if mutation == 'missing':
                 scene.nodes.pop()
@@ -127,9 +129,23 @@ class NativeColliderContractTests(unittest.TestCase):
                 scene.nodes.append(scene.nodes[0])
             elif mutation == 'reserved-non-solid':
                 scene.nodes.append(_Node('GP_V2_L_0_0', 'Pose', children=[]))
+            elif mutation in ('nested-extra', 'nested-pose-extra', 'attached-extra'):
+                hidden = _Supervisor.solid(NativeBox(
+                    'GP_V2_EXTRA', (0., 0., .65), (.1, .1, 1.3)))
+                if mutation == 'nested-extra':
+                    scene.nodes.append(_Node(None, 'Group', children=[hidden]))
+                elif mutation == 'nested-pose-extra':
+                    scene.nodes.append(_Node(None, 'Pose', children=[
+                        _Node(None, 'Transform', children=[hidden])]))
+                else:
+                    scene.nodes.append(_Node(None, 'Solid',
+                                             boundingObject=hidden, children=[]))
+            elif mutation == 'decorative-group':
+                scene.nodes.append(_Node(None, 'Group', children=[
+                    _Node('GP_V2_COURSE_RED_0', 'Pose', children=[])]))
             else:
                 scene.nodes.append(_Node('GP_V2_COURSE_RED_0', 'Pose', children=[]))
-            if mutation == 'decorative-pose':
+            if mutation in ('decorative-pose', 'decorative-group'):
                 self.assertIsNone(verify_native_boxes(scene, plan, boxes))
             else:
                 with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
