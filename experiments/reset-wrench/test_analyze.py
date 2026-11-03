@@ -1,6 +1,9 @@
 """Pure offline checks; these are not native Webots qualifications."""
 import unittest
-from analyze import diagnose
+import tempfile
+from pathlib import Path
+import csv
+from analyze import diagnose, analyze
 
 
 def sample():
@@ -43,6 +46,21 @@ class WrenchAnalysis(unittest.TestCase):
         q["w1"] = "2"
         p["max_angular_speed"] = "1"
         self.assertEqual(diagnose(p, q, .032)["status"], "INDETERMINATE")
+
+
+    def test_capture_footer_and_truncation(self):
+        p = sample()
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "capture.csv"
+            with f.open("w", newline="") as h:
+                writer = csv.DictWriter(h, fieldnames=["frame", "time_ms", "phase"] + list(p))
+                writer.writeheader()
+                for phase in ("pre", "post"):
+                    writer.writerow(dict(p, frame=0, time_ms=0, phase=phase))
+                h.write("#frames=1,overflow=0,body_missing=0\n")
+            self.assertEqual(analyze(f, .032, 0, 100, 1)["capture_status"], "COMPLETE")
+            f.write_text(f.read_text().split("#frames=")[0])
+            self.assertEqual(analyze(f, .032, 0, 100, 1)["capture_status"], "PARTIAL_OR_UNKNOWN")
 
 
 if __name__ == "__main__":
