@@ -61,7 +61,7 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             for relative in files:
                 path = blockly / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("13.2.1\\n" if relative == "vendor/VERSION" else "test\\n",
+                path.write_text("13.2.1\n" if relative == "vendor/VERSION" else "test\n",
                                 encoding="utf-8")
             self.assertFalse((blockly / "vendor/media").exists())
             with mock.patch("tools.grand_prix.launch_linux.BLOCKLY", blockly):
