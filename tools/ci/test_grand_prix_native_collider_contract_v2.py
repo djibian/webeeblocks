@@ -1,0 +1,150 @@
+"""Pure native-API fakes: fail-closed tests, NOT Webots R2025a qualification."""
+from dataclasses import replace
+import unittest
+from tools.grand_prix.route_courses_v2 import plan_course, CoursePlan
+from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as L_HEIGHT
+from tools.grand_prix.route_terminal_v2 import terminal_boxes
+from tools.grand_prix.native_collider_contract_v2 import (
+    NativeBox, required_box_names, verify_native_boxes,
+)
+
+
+class _Field:
+    def __init__(self, value):
+        self.value = value
+
+    def getSFNode(self):
+        return self.value
+
+    def getSFBool(self):
+        return self.value
+
+    def getSFVec3f(self):
+        return self.value
+
+    def getCount(self):
+        return len(self.value)
+
+    def getMFNode(self, i):
+        return self.value[i]
+
+
+class _Node:
+    def __init__(self, name, kind, **fields):
+        self.name, self.kind, self.fields = name, kind, fields
+        self.position = fields.get('position')
+
+    def getDef(self):
+        return self.name
+
+    def getTypeName(self):
+        return self.kind
+
+    def getField(self, name):
+        return _Field(self.fields[name]) if name in self.fields else None
+
+    def getPosition(self):
+        return self.position
+
+
+class _Supervisor:
+    def __init__(self, boxes):
+        self.nodes = [self.solid(box) for box in boxes]
+
+    @staticmethod
+    def solid(box):
+        physics = _Node(None, 'Box', size=box.size)
+        visible = _Node(None, 'Box', size=box.size)
+        shape = _Node(None, 'Shape', geometry=visible)
+        return _Node(box.name, 'Solid', position=box.position,
+                     boundingObject=physics, children=[shape], locked=True)
+
+    def getRoot(self):
+        return _Node(None, 'Root', children=self.nodes)
+
+    def getFromDef(self, name):
+        return next((n for n in self.nodes if n.getDef() == name), None)
+
+
+def _plan_and_manifest():
+    plan = plan_course(17, (2., 2.5, 3.), ('G', 'D'), 2)
+    expected = []
+    for b in corner_boxes(plan.route):
+        expected.append(NativeBox(b.name, (b.x, b.y, L_HEIGHT/2),
+                                  (b.sx, b.sy, L_HEIGHT)))
+    for gate in plan.gates:
+        leg = plan.route.legs[gate.leg_index]
+        for part in ('LEFT', 'RIGHT', 'BEAM'):
+            lateral = 0 if part == 'BEAM' else (.3 if part == 'LEFT' else -.3)
+            xy = leg.at(gate.along, lateral)
+            # These are fake dimensional witnesses, not a native/real H proof.
+            expected.append(NativeBox(f'GP_V2_H_{leg.index}_{part}',
+                                      (*xy, .7), (.04, .56, 1.)))
+    for b in terminal_boxes(plan.route):
+        expected.append(NativeBox(b.name, (b.x, b.y, b.z),
+                                  (b.sx, b.sy, b.sz)))
+    return plan, tuple(expected)
+
+
+class NativeColliderContractTests(unittest.TestCase):
+    def test_full_manifest_and_authority_neutrality(self):
+        plan, boxes = _plan_and_manifest()
+        self.assertEqual(tuple(b.name for b in boxes), required_box_names(plan))
+        self.assertIsNone(verify_native_boxes(_Supervisor(boxes), plan, boxes))
+        self.assertEqual(len(boxes), 8 + 3*plan.count)
+
+    def test_rejects_omitted_forged_or_noncanonical_manifests(self):
+        plan, boxes = _plan_and_manifest()
+        for manifest in (boxes[:-1], boxes[1:], boxes[:-1]+(boxes[0],),
+                         boxes[:-1]+(replace(boxes[-1], name=boxes[0].name),),
+                         boxes[:-1]+(replace(boxes[-1], size=(.04, 0., 1.)),),
+                         boxes[:-1]+(replace(boxes[-1],
+                                             position=(0., float('nan'), 1.)),)):
+            with self.subTest(manifest=manifest[-1].name), self.assertRaises(ValueError):
+                verify_native_boxes(_Supervisor(boxes), plan, manifest)
+        forged = CoursePlan(plan.route, plan.gates[:1], 2)
+        with self.assertRaises(ValueError):
+            required_box_names(forged)
+        with self.assertRaises(ValueError):
+            required_box_names(None)
+
+    def test_fails_closed_on_missing_extra_or_duplicate_physical_solids(self):
+        plan, boxes = _plan_and_manifest()
+        for mutation in ('missing', 'extra', 'duplicate'):
+            scene = _Supervisor(boxes)
+            if mutation == 'missing':
+                scene.nodes.pop()
+            elif mutation == 'extra':
+                scene.nodes.append(_Supervisor.solid(
+                    NativeBox('GP_V2_EXTRA', (0., 0., .65), (.1, .1, 1.3))))
+            else:
+                scene.nodes.append(scene.nodes[0])
+            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                verify_native_boxes(scene, plan, boxes)
+
+    def test_fails_closed_on_native_pose_lock_physics_or_rendering(self):
+        plan, boxes = _plan_and_manifest()
+        for mutation in ('position', 'lock', 'missing-lock', 'collider',
+                         'missing-collider', 'rendered', 'invisible'):
+            scene = _Supervisor(boxes)
+            node = scene.nodes[0]
+            if mutation == 'position':
+                node.position = (99., 0., 0.)
+            if mutation == 'lock':
+                node.fields['locked'] = False
+            if mutation == 'missing-lock':
+                del node.fields['locked']
+            if mutation == 'collider':
+                node.fields['boundingObject'].fields['size'] = (1., 1., 1.)
+            if mutation == 'missing-collider':
+                del node.fields['boundingObject']
+            if mutation == 'rendered':
+                node.fields['children'][0].fields['geometry'].fields['size'] = (1., 1., 1.)
+            if mutation == 'invisible':
+                node.fields['children'].clear()
+            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                verify_native_boxes(scene, plan, boxes)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -76,6 +76,20 @@ class VariableTerminalTests(unittest.TestCase):
                                          ARRIVAL_WIDTH/2)
         self.assertEqual(cases, 108)
 
+    def test_native_variable_collider_preflight_is_fail_closed(self):
+        # Additive to the existing, selected Grand Prix geometry suite.
+        from tools.ci.test_grand_prix_native_collider_contract_v2 import (
+            NativeColliderContractTests,
+        )
+        tests = unittest.defaultTestLoader.loadTestsFromTestCase(
+            NativeColliderContractTests)
+        result = unittest.TestResult()
+        tests.run(result)
+        self.assertEqual(result.testsRun, 4)
+        if result.errors or result.failures:
+            self.fail('native collider preflight contract: ' +
+                      repr(result.errors + result.failures))
+
     def test_unrelated_objects_cannot_be_mistaken_for_routes(self):
         for value in (None, False, (), object()):
             with self.assertRaises(TypeError):
