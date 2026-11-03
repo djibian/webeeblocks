@@ -40,6 +40,15 @@ No real-flight or official-catalog acceptance follows from a Linux launcher.
 Existing historical 2 m U evidence and 2026-10-22 comparison commitments do
 not prescribe the owner's new experimental method.
 
+The [variable integration contract](GRAND_PRIX_ROUTE_CONTRACT.md) fixes the
+host configuration and activity/oracle identities across the native composition
+(#824), oracle (#811), native perception/contact (#825) and Linux/project-file
+(#826) boundaries. The first complete vertical milestone is one safe mixed-length
+GD course where the owner can create and test an ordinary program; it does not
+depend on first producing a winning expert program. The twelve configurations
+must then reuse that path and the same `.wbb`. Geometry-only helpers and identity
+roundtrips do not establish native or GUI qualification.
+
 ## Product priority
 
 ### Reprise pédagogique du Grand Prix — décision effective du 2 novembre 2026
