@@ -93,6 +93,40 @@ def _solid_geometry(node, expectation):
            expectation.size, f'{name} visible size')
 
 
+def _reject_nested_course_solids(root_nodes):
+    """Forbid reserved GP physical bodies hidden under scene graph wrappers.
+
+    All expected GP_V2 bodies have to be direct root children. The bounded
+    traversal also visits Group/Transform/Pose children and the SFNode fields
+    that can contain colliders; a hidden descendant must not evade inventory.
+    """
+    pending = [(node, 0) for node in root_nodes]
+    visited = 0
+    while pending:
+        node, depth = pending.pop()
+        visited += 1
+        if node is None or visited > 8192 or depth > 64:
+            raise NativeGeometryMismatch('unreadable/oversized native scene graph')
+        if depth:
+            name = node.getDef()
+            if isinstance(name, str) and name.startswith(_PREFIXES):
+                raise NativeGeometryMismatch(
+                    f'nested Grand Prix physical DEF: {name}')
+        children = node.getField('children')
+        if children is not None:
+            count = children.getCount()
+            if type(count) is not int or not 0 <= count <= 4096:
+                raise NativeGeometryMismatch('invalid native child inventory')
+            for index in range(count):
+                pending.append((children.getMFNode(index), depth + 1))
+        for field_name in ('endPoint', 'boundingObject', 'geometry'):
+            field = node.getField(field_name)
+            if field is not None:
+                nested = field.getSFNode()
+                if nested is not None:
+                    pending.append((nested, depth + 1))
+
+
 def assert_native_solids_match(supervisor, required):
     """Verify direct-root GP_V2 physical bodies; return no mission authority.
 
@@ -112,13 +146,16 @@ def assert_native_solids_match(supervisor, required):
         if type(count) is not int or not 0 <= count <= 4096:
             raise NativeGeometryMismatch('invalid root children count')
         observed = {}
+        root_nodes = []
         for index in range(count):
             node = children.getMFNode(index)
+            root_nodes.append(node)
             name = node.getDef() if node is not None else None
             if isinstance(name, str) and name.startswith(_PREFIXES):
                 if name in observed:
                     raise NativeGeometryMismatch(f'duplicate native DEF: {name}')
                 observed[name] = node
+        _reject_nested_course_solids(root_nodes)
         if set(observed) != set(expected):
             raise NativeGeometryMismatch('missing/unexpected GP_V2 native solids: '
                                          f'{sorted(set(expected)-set(observed))}; '
