@@ -9,27 +9,21 @@ import json
 import math
 from pathlib import Path
 
-
 def vector(row, prefix, n):
     return [float(row[f"{prefix}{i}"]) for i in range(n)]
-
 
 def mat3(padded):
     return [padded[0:3], padded[4:7], padded[8:11]]
 
-
 def mv(a, x):
     return [sum(a[i][j] * x[j] for j in range(3)) for i in range(3)]
-
 
 def mul(a, b):
     return [[sum(a[i][k] * b[k][j] for k in range(3))
              for j in range(3)] for i in range(3)]
 
-
 def transpose(a):
     return [list(row) for row in zip(*a)]
-
 
 def norm(x):
     return math.sqrt(sum(v * v for v in x))
