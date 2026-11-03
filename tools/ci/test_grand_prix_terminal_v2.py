@@ -3,6 +3,7 @@ import itertools
 import math
 import unittest
 from tools.grand_prix.route_v2 import build_route
+from tools.ci.test_grand_prix_native_solid_attestation_v2 import NativeSolidAttestationTests  # noqa: F401
 from tools.grand_prix.route_terminal_v2 import (
     ARRIVAL_LENGTH, ARRIVAL_WIDTH, CLOSURE_SPAN, HEIGHT, LANDING_TILE,
     landing_footprint, landing_targets, terminal_boxes,
