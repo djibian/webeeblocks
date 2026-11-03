@@ -52,6 +52,42 @@ def _equal(actual, expected):
         return False
 
 
+def _reject_nested_course_nodes(root_nodes):
+    """Reject GP_V2 physics hidden under a Group/Pose/Transform/SFNode.
+
+    Physical GP_V2 solids are direct root children by contract. Fail closed
+    on cycles, unreadable nodes and oversized traversal rather than accepting
+    a visually plausible scene with an extra collidable descendant.
+    """
+    pending = [(node, 0) for node in root_nodes]
+    visited = 0
+    while pending:
+        node, depth = pending.pop()
+        visited += 1
+        if node is None or visited > 8192 or depth > 64:
+            raise RuntimeError('unreadable/oversized native course scene graph')
+        if depth:
+            name = node.getDef()
+            if isinstance(name, str) and name.startswith('GP_V2_'):
+                if (node.getTypeName() == 'Solid' or
+                        name.startswith(('GP_V2_L_', 'GP_V2_H_',
+                                         'GP_V2_FINAL_'))):
+                    raise RuntimeError('nested reserved course body: ' + name)
+        children = node.getField('children')
+        if children is not None:
+            count = children.getCount()
+            if type(count) is not int or not 0 <= count <= 4096:
+                raise RuntimeError('invalid nested course child inventory')
+            for i in range(count):
+                pending.append((children.getMFNode(i), depth + 1))
+        for field_name in ('endPoint', 'boundingObject', 'geometry'):
+            field = node.getField(field_name)
+            if field is not None:
+                nested = field.getSFNode()
+                if nested is not None:
+                    pending.append((nested, depth + 1))
+
+
 def verify_native_boxes(supervisor, course, boxes):
     """Require exactly the expected physical solids, locked and observable.
 
@@ -74,8 +110,10 @@ def verify_native_boxes(supervisor, course, boxes):
     # made safe by verifying all the expected objects are present.
     children = supervisor.getRoot().getField('children')
     scene_names = []
+    root_nodes = []
     for index in range(children.getCount()):
         node = children.getMFNode(index)
+        root_nodes.append(node)
         name = node.getDef()
         if name and name.startswith('GP_V2_'):
             if node.getTypeName() == 'Solid':
@@ -84,6 +122,7 @@ def verify_native_boxes(supervisor, course, boxes):
             elif name.startswith(('GP_V2_L_', 'GP_V2_H_', 'GP_V2_FINAL_')):
                 raise RuntimeError('non-Solid using a reserved physical DEF')
             # White/red course guides are non-colliding Pose nodes.
+    _reject_nested_course_nodes(root_nodes)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
 
