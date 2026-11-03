@@ -115,17 +115,25 @@ class NativeColliderContractTests(unittest.TestCase):
 
     def test_fails_closed_on_missing_extra_or_duplicate_physical_solids(self):
         plan, boxes = _plan_and_manifest()
-        for mutation in ('missing', 'extra', 'duplicate'):
+        for mutation in ('missing', 'extra', 'duplicate',
+                         'reserved-non-solid', 'decorative-pose'):
             scene = _Supervisor(boxes)
             if mutation == 'missing':
                 scene.nodes.pop()
             elif mutation == 'extra':
                 scene.nodes.append(_Supervisor.solid(
                     NativeBox('GP_V2_EXTRA', (0., 0., .65), (.1, .1, 1.3))))
-            else:
+            elif mutation == 'duplicate':
                 scene.nodes.append(scene.nodes[0])
-            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
-                verify_native_boxes(scene, plan, boxes)
+            elif mutation == 'reserved-non-solid':
+                scene.nodes.append(_Node('GP_V2_L_0_0', 'Pose', children=[]))
+            else:
+                scene.nodes.append(_Node('GP_V2_COURSE_RED_0', 'Pose', children=[]))
+            if mutation == 'decorative-pose':
+                self.assertIsNone(verify_native_boxes(scene, plan, boxes))
+            else:
+                with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                    verify_native_boxes(scene, plan, boxes)
 
     def test_fails_closed_on_native_pose_lock_physics_or_rendering(self):
         plan, boxes = _plan_and_manifest()

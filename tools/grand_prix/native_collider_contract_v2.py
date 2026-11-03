@@ -77,10 +77,13 @@ def verify_native_boxes(supervisor, course, boxes):
     for index in range(children.getCount()):
         node = children.getMFNode(index)
         name = node.getDef()
-        if name and name.startswith(('GP_V2_L_', 'GP_V2_H_', 'GP_V2_FINAL_')):
-            if node.getTypeName() != 'Solid':
+        if name and name.startswith('GP_V2_'):
+            if node.getTypeName() == 'Solid':
+                # Reject even an unexpected GP_V2_EXTRA physical Solid.
+                scene_names.append(name)
+            elif name.startswith(('GP_V2_L_', 'GP_V2_H_', 'GP_V2_FINAL_')):
                 raise RuntimeError('non-Solid using a reserved physical DEF')
-            scene_names.append(name)
+            # White/red course guides are non-colliding Pose nodes.
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
 
