@@ -6,6 +6,8 @@ import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.layout_u import generate, world_text, local, RADIUS
+# Run the Linux entry-point's pure prereq/scene tests with the existing GP geometry suite.
+from tools.grand_prix.test_launch_linux import LinuxGrandPrixLauncherTests  # noqa: F401
 
 
 def gap(p, b):
