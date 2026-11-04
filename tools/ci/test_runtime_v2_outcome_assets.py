@@ -5,6 +5,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -19,6 +20,11 @@ class OutcomeAssetsTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
+        # CI may configure a persistent cache for the native runner. Every
+        # unit test defaults to an isolated, cache-free fetch boundary.
+        isolated = patch.dict(os.environ, {"WEBEEBLOCKS_OUTCOME_ASSET_CACHE": ""})
+        isolated.start()
+        self.addCleanup(isolated.stop)
         self.root = Path(self.temporary.name)
         self.world = self.root / "source.wbt"
         self.world.write_text("".join(
@@ -110,6 +116,54 @@ class OutcomeAssetsTests(unittest.TestCase):
                 assets.prepare(self.root / "assets", self.world, evidence)
         self.assertEqual(fetch.call_count, 1)
         self.assertFalse(evidence.exists())
+
+    def test_verified_cache_is_reused_without_http_and_records_provenance(self):
+        cache = self.root / "pinned-cache"
+        environment = {"WEBEEBLOCKS_OUTCOME_ASSET_CACHE": str(cache)}
+        with patch.dict(os.environ, environment), \
+                patch.object(assets, "load_lock", return_value=self.lock), \
+                patch.object(assets, "urlopen", return_value=io.BytesIO(self.data)) as fetch:
+            assets.prepare(self.root / "first", self.world, self.root / "first.json")
+        fetch.assert_called_once()
+        self.assertEqual((cache / self.item["path"]).read_bytes(), self.data)
+        with patch.dict(os.environ, environment), \
+                patch.object(assets, "load_lock", return_value=self.lock), \
+                patch.object(assets, "urlopen", side_effect=AssertionError("network was used")) as fetch:
+            _, projects = assets.prepare(self.root / "second", self.world,
+                                         self.root / "second.json")
+        fetch.assert_not_called()
+        self.assertEqual((projects / "test/asset.proto").read_bytes(), self.data)
+        record = json.loads((self.root / "second.json").read_text())
+        self.assertEqual(record["asset_source_counts"],
+                         {"verified_cache": 1, "verified_network": 0})
+
+    def test_corrupt_or_symlinked_cache_never_falls_back_to_network(self):
+        cache = self.root / "pinned-cache"
+        target = cache / self.item["path"]
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"X" * len(self.data))
+        with patch.dict(os.environ, {"WEBEEBLOCKS_OUTCOME_ASSET_CACHE": str(cache)}), \
+                patch.object(assets, "load_lock", return_value=self.lock), \
+                patch.object(assets, "urlopen") as fetch:
+            with self.assertRaisesRegex(ValueError, "integrity failure"):
+                assets.prepare(self.root / "corrupt", self.world,
+                               self.root / "corrupt.json")
+        fetch.assert_not_called()
+        self.assertFalse((self.root / "corrupt.json").exists())
+        target.unlink()
+        outside = self.root / "outside"
+        outside.mkdir()
+        (cache / "projects" / "test").rmdir()
+        (cache / "projects").rmdir()
+        (cache / "projects").symlink_to(outside, target_is_directory=True)
+        with patch.dict(os.environ, {"WEBEEBLOCKS_OUTCOME_ASSET_CACHE": str(cache)}), \
+                patch.object(assets, "load_lock", return_value=self.lock), \
+                patch.object(assets, "urlopen") as fetch:
+            with self.assertRaisesRegex(ValueError, "unsafe outcome asset cache path"):
+                assets.prepare(self.root / "symlink", self.world,
+                               self.root / "symlink.json")
+        fetch.assert_not_called()
+        self.assertFalse((self.root / "symlink.json").exists())
 
     def test_existing_tree_is_refused_before_network(self):
         with patch.object(assets, "load_lock", return_value=self.lock), \

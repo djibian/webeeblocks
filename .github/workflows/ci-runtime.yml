@@ -92,10 +92,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Restore or save verified R2025a outcome asset cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-r2025a-outcome-assets
+          key: r2025a-outcome-${{ runner.os }}-${{ hashFiles('tools/ci/runtime_v2_outcome_assets.lock.json') }}-v1
       - name: Prepare identical Blockly 13.2.1 product assets
         run: bash ./tools/prepare_runtime_v2.sh
       - name: Prove real R2025a freshness and complete progression missions
         env:
+          WEBEEBLOCKS_OUTCOME_ASSET_CACHE: ${{ github.workspace }}/.ci-r2025a-outcome-assets
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
           WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
           WEBEEBLOCKS_CI_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
