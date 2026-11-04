@@ -13,12 +13,9 @@ const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/
 const ExecutionObserver = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/execution_observer.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 
-Blockly.defineBlocksWithJsonArray([
-  {type:'webeeblocks_v2_takeoff', message0:'takeoff %1', args0:[{type:'field_number',name:'HEIGHT',value:0.8}], previousStatement:null,nextStatement:null},
-  {type:'webeeblocks_v2_move', message0:'move %1 %2', args0:[{type:'field_dropdown',name:'DIRECTION',options:[['forward','forward'],['left','left']]},{type:'field_number',name:'DISTANCE',value:0.3}], previousStatement:null,nextStatement:null},
-  {type:'webeeblocks_v2_range', message0:'range %1', args0:[{type:'field_dropdown',name:'DIRECTION',options:[['front','front'],['left','left'],['right','right']]}], output:'Number'},
-  {type:'webeeblocks_v2_land', message0:'land', previousStatement:null}
-]);
+global.Blockly=Blockly;
+require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js'));
+delete global.Blockly;
 
 function connectStatement(a,b){a.nextConnection.connect(b.previousConnection);}
 function buildWorkspace(){
@@ -35,7 +32,8 @@ function buildWorkspace(){
   const threshold=workspace.newBlock('math_number');
   const move=workspace.newBlock('webeeblocks_v2_move');
   const land=workspace.newBlock('webeeblocks_v2_land');
-  takeoff.setFieldValue('0.8','HEIGHT');
+  const altitude=workspace.newBlock('math_number');altitude.setFieldValue('0.8','NUM');
+  takeoff.getInput('HEIGHT').connection.connect(altitude.outputConnection);
   set.getField('VAR').setValue(variable.getId());
   range.setFieldValue('front','DIRECTION');
   set.getInput('VALUE').connection.connect(range.outputConnection);
@@ -48,7 +46,9 @@ function buildWorkspace(){
   compare.getInput('A').connection.connect(get.outputConnection);
   compare.getInput('B').connection.connect(threshold.outputConnection);
   decision.getInput('IF0').connection.connect(compare.outputConnection);
-  move.setFieldValue('left','DIRECTION');move.setFieldValue('0.3','DISTANCE');
+  move.setFieldValue('left','DIRECTION');
+  const distance=workspace.newBlock('math_number');distance.setFieldValue('0.3','NUM');
+  move.getInput('DISTANCE').connection.connect(distance.outputConnection);
   decision.getInput('DO0').connection.connect(move.previousConnection);
   connectStatement(takeoff,set);connectStatement(set,change);connectStatement(change,decision);connectStatement(decision,land);
   return workspace;
