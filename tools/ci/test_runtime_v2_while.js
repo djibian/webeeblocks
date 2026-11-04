@@ -46,6 +46,10 @@ async function prove() {
   const land=loadedStudent.newBlock('webeeblocks_v2_land');
   const loadedUntil=loadedStudent.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_until');
   const move=loadedStudent.newBlock('webeeblocks_v2_move');
+  for(const [parent,socket,n] of [[takeoff,'HEIGHT',0.5],[move,'DISTANCE',0.1]]){
+    const x=loadedStudent.newBlock('math_number');x.setFieldValue(String(n),'NUM');
+    parent.getInput(socket).connection.connect(x.outputConnection);
+  }
   takeoff.nextConnection.connect(loadedUntil.previousConnection);
   loadedUntil.nextConnection.connect(land.previousConnection);
   loadedUntil.getInput('DO').connection.connect(move.previousConnection);

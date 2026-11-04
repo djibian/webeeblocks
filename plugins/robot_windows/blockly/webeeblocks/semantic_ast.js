@@ -6,7 +6,7 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
-  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
+  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.01,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
   var LIGHT_COLORS = Object.freeze(['off','red','green','blue','yellow','white']);
   var ARITHMETIC_OPS = Object.freeze(['ADD','MINUS','MULTIPLY','DIVIDE']);
@@ -26,6 +26,11 @@
     var child=block.getInputTargetBlock(inputName);
     if(!child)fail('missing value input '+inputName);
     return compileExpression(child);
+  }
+  function motionArgument(block,name,limits){
+    var value=valueChild(block,name);
+    if(value.kind==='number')return bounded(value.value,name,limits);
+    return value;
   }
   function variableReference(block){
     if(!block||typeof block.getField!=='function')fail('variable block does not expose VAR field');
@@ -92,19 +97,17 @@
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
       case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)fail('turn angle must be non-zero');return{kind:'turn',angle_deg:legacyAngle};}
       case 'webeeblocks_land':return{kind:'land'};
-      case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
+      case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:motionArgument(block,'HEIGHT',LIMITS.height_m)};
       case 'webeeblocks_v2_move':{
-        var direction=String(field(block,'DIRECTION'));
-        if(['forward','back','left','right'].indexOf(direction)<0)
-          fail('unsupported move direction: '+direction);
-        return{kind:'move',direction:direction,distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
+        var exprDirection=String(field(block,'DIRECTION'));
+        if(['forward','back','left','right'].indexOf(exprDirection)<0)fail('unsupported move direction: '+exprDirection);
+        return{kind:'move',direction:exprDirection,distance_m:motionArgument(block,'DISTANCE',LIMITS.distance_m)};
       }
       case 'webeeblocks_v2_vertical':{
-        var verticalDirection=String(field(block,'DIRECTION'));
-        if(verticalDirection!=='up'&&verticalDirection!=='down')
-          fail('unsupported vertical direction: '+verticalDirection);
-        return{kind:'vertical',direction:verticalDirection,distance_m:bounded(field(block,'DISTANCE'),'vertical_m',LIMITS.vertical_m)};
+        var exprVertical=String(field(block,'DIRECTION'));
+        if(exprVertical!=='up'&&exprVertical!=='down')fail('unsupported vertical direction: '+exprVertical);
+        return{kind:'vertical',direction:exprVertical,distance_m:motionArgument(block,'DISTANCE',LIMITS.vertical_m)};
       }
       case 'webeeblocks_v2_turn':{
         var turnDirection=String(field(block,'DIRECTION'));
@@ -171,10 +174,12 @@
     });
   }
   function validateFlightBoundaries(program){
-    if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
+    var takeoffIndex=program.findIndex(function(s){return s.kind!=='set_variable';});
+    if(program.length<2||takeoffIndex<0||program[takeoffIndex].kind!=='takeoff'||program[program.length-1].kind!=='land')
+      studentFail('program must start with takeoff and end with land','Après les initialisations, le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
-      if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
+      if(statement.kind==='takeoff'&&i!==takeoffIndex)fail('takeoff is only allowed after initial assignments');
       if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
       if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}

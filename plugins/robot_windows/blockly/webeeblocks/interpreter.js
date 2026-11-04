@@ -40,6 +40,32 @@
     }
   }
 
+  function validateMotionOperand(value,name,depth,assigned,variables){
+    if(typeof value==='number')finite(value,name);
+    else validateExpression(value,depth+1,assigned,variables);
+  }
+  function motionValueCost(value,cost){return typeof value==='number'?0:cost(value);}
+  function motionBounds(options,kind,direction){
+    var defaults=kind==='takeoff'?[0.2,1.5]:kind==='vertical'?[0.1,0.8]:[0.01,2.0];
+    var limits=options&&options.motionBounds||{};
+    var key=kind==='takeoff'?'takeoff.height_m':kind==='vertical'?'vertical.distance_m':'move.distance_m';
+    var constraint=limits[key];
+    if(constraint)defaults=[Math.max(defaults[0],constraint.min),Math.min(defaults[1],constraint.max)];
+    if(kind==='move'){
+      var directional=limits[direction==='left'||direction==='right'?'move.lateral.distance_m':'move.forward.distance_m'];
+      if(directional)defaults=[Math.max(defaults[0],directional.min),Math.min(defaults[1],directional.max)];
+    }
+    return defaults;
+  }
+  async function resolveMotion(value,name,kind,direction,backend,budget,depth,options,path,env){
+    var result=typeof value==='number'?value:await evaluate(value,backend,budget,depth+1,options,(path||[]).concat(name),env);
+    if(typeof result!=='number'||!Number.isFinite(result))
+      studentFail('invalid '+name,'La distance ou altitude calculée est invalide.');
+    var bounds=motionBounds(options,kind,direction);
+    if(result<bounds[0]-1e-10||result>bounds[1]+1e-10)
+      studentFail('out-of-bounds '+name+' '+result,'La distance ou altitude calculée dépasse les limites de cette activité.');
+    return result;
+  }
   function validateSequence(sequence,depth,nested,assigned,variables){
     if(!Array.isArray(sequence))fail('statement sequence must be an array');
     if(depth>20)fail('statement nesting too deep');
@@ -47,10 +73,10 @@
       if(!statement||typeof statement.kind!=='string')fail('invalid statement');
       if(nested&&(statement.kind==='takeoff'||statement.kind==='land'))fail('takeoff and land are only allowed at top-level boundaries');
       switch(statement.kind){
-        case 'takeoff':finite(statement.height_m,'height_m');break;
+        case 'takeoff':validateMotionOperand(statement.height_m,'height_m',depth,assigned,variables);break;
         case 'land':break;
-        case 'move':if(MOVE_DIRECTIONS.indexOf(String(statement.direction))<0)fail('unsupported move direction '+statement.direction);finite(statement.distance_m,'distance_m');break;
-        case 'vertical':if(VERTICAL_DIRECTIONS.indexOf(String(statement.direction))<0)fail('unsupported vertical direction '+statement.direction);finite(statement.distance_m,'distance_m');break;
+        case 'move':if(MOVE_DIRECTIONS.indexOf(String(statement.direction))<0)fail('unsupported move direction '+statement.direction);validateMotionOperand(statement.distance_m,'distance_m',depth,assigned,variables);break;
+        case 'vertical':if(VERTICAL_DIRECTIONS.indexOf(String(statement.direction))<0)fail('unsupported vertical direction '+statement.direction);validateMotionOperand(statement.distance_m,'distance_m',depth,assigned,variables);break;
         case 'turn':finite(statement.angle_deg,'angle_deg');break;
         case 'wait':finite(statement.seconds,'seconds');break;
         case 'set_speed':finite(statement.speed_m_s,'speed_m_s');break;
@@ -86,8 +112,12 @@
   function validateProgram(ast){
     if(!ast||ast.version!==1||ast.semantics!=='webeeblocks-ast-v1')fail('unsupported AST envelope');
     if(!Array.isArray(ast.program)||ast.program.length<2)fail('program must contain at least takeoff and land');
-    if(ast.program[0].kind!=='takeoff'||ast.program[ast.program.length-1].kind!=='land')fail('program must start with takeoff and end with land');
-    for(var i=1;i<ast.program.length-1;i++)if(ast.program[i].kind==='takeoff'||ast.program[i].kind==='land')fail('takeoff and land are only allowed at top-level boundaries');
+    var firstFlight=ast.program.findIndex(function(s){return s&&s.kind!=='set_variable';});
+    if(firstFlight<0||ast.program[firstFlight].kind!=='takeoff'||ast.program[ast.program.length-1].kind!=='land')
+      fail('program must start with assignments then takeoff and end with land');
+    for(var i=0;i<ast.program.length-1;i++)
+      if((ast.program[i].kind==='takeoff'&&i!==firstFlight)||ast.program[i].kind==='land')
+        fail('takeoff and land are only allowed at top-level boundaries');
     validateSequence(ast.program,0,false,new Set(),Object.create(null));
   }
 
@@ -106,6 +136,8 @@
       sequence.forEach(function(node){
         cost+=1;
         if(node.kind==='set_variable')cost+=expressionCost(node.value);
+        if(node.kind==='takeoff')cost+=motionValueCost(node.height_m,expressionCost);
+        if(node.kind==='move'||node.kind==='vertical')cost+=motionValueCost(node.distance_m,expressionCost);
         if(node.kind==='if')cost+=expressionCost(node.condition)+Math.max(sequenceCost(node.then),sequenceCost(node.else||[]));
         if(node.kind==='while')cost+=(node.max_iterations+1)*expressionCost(node.condition)+node.max_iterations*(1+sequenceCost(node.body));
         if(node.kind==='repeat')cost+=node.count*sequenceCost(node.body);
@@ -192,10 +224,19 @@
       var statement=sequence[i],path=(prefix||[]).concat(i),current=context(statement,path,'statement',env);
       await hook(options,'onNode',current);
       switch(statement.kind){
-        case 'takeoff':await hook(options,'beforeStep',current);await requireMethod(backend,'takeoff')(Number(statement.height_m));break;
+        case 'takeoff':{
+          var height=await resolveMotion(statement.height_m,'height_m','takeoff',null,backend,budget,depth,options,path,env);
+          await hook(options,'beforeStep',current);await requireMethod(backend,'takeoff')(height);break;
+        }
         case 'land':await hook(options,'beforeStep',current);await requireMethod(backend,'land')();break;
-        case 'move':await hook(options,'beforeStep',current);await requireMethod(backend,'move')(String(statement.direction),Number(statement.distance_m));break;
-        case 'vertical':await hook(options,'beforeStep',current);await requireMethod(backend,'vertical')(String(statement.direction),Number(statement.distance_m));break;
+        case 'move':{
+          var distance=await resolveMotion(statement.distance_m,'distance_m','move',statement.direction,backend,budget,depth,options,path,env);
+          await hook(options,'beforeStep',current);await requireMethod(backend,'move')(String(statement.direction),distance);break;
+        }
+        case 'vertical':{
+          var verticalDistance=await resolveMotion(statement.distance_m,'distance_m','vertical',statement.direction,backend,budget,depth,options,path,env);
+          await hook(options,'beforeStep',current);await requireMethod(backend,'vertical')(String(statement.direction),verticalDistance);break;
+        }
         case 'turn':await hook(options,'beforeStep',current);await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
         case 'wait':await hook(options,'beforeStep',current);await requireMethod(backend,'wait')(Number(statement.seconds));break;
         case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
@@ -252,7 +293,12 @@
   }
   function containsElapsedTime(sequence){
     function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
-    return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
+    return sequence.some(function(node){return expression(node.value)||expression(node.condition)
+      || (node.kind==='takeoff'&&expression(node.height_m))
+      || ((node.kind==='move'||node.kind==='vertical')&&expression(node.distance_m))
+      || (node.body&&containsElapsedTime(node.body))
+      || (node.then&&containsElapsedTime(node.then))
+      || (node.else&&containsElapsedTime(node.else));});
   }
   async function run(ast,backend,options){
     validateProgram(ast);

@@ -47,8 +47,8 @@ assert.notStrictEqual(p2.brief.mission, p2.pedagogy.objective);
 assert.deepStrictEqual(p2.evaluation, {type:'mission-state-v1', oracle:'progression-precise-movement-v1'});
 assert.deepStrictEqual(p2.toolbox, ['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land']);
 assert.deepStrictEqual(p2.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
-assert.deepStrictEqual(p2.parameterBounds.webeeblocks_v2_takeoff.HEIGHT, {min:0.5,max:0.5,step:0.1});
-assert.deepStrictEqual(p2.parameterBounds.webeeblocks_v2_move.DISTANCE, {min:0.1,max:0.6,step:0.1});
+assert(!p2.parameterBounds.webeeblocks_v2_takeoff && !p2.parameterBounds.webeeblocks_v2_move,
+  'motion bounds belong to runtime.astBounds, not a fixed numeric field');
 assert.deepStrictEqual(p2.runtime.astBounds['takeoff.height_m'], {min:0.5,max:0.5});
 assert.deepStrictEqual(p2.runtime.astBounds['move.distance_m'], {min:0.1,max:0.6});
 

@@ -22,7 +22,7 @@ assert(profile.pedagogy && /répétition/i.test(profile.pedagogy.objective), 'in
 assert(profile.evaluation.type === 'mission-state-v1' && profile.evaluation.oracle === 'progression-repeat-v1', 'repeat mission-state oracle missing');
 assert(profile.toolbox.includes('controls_repeat_ext'), 'repeat block not exposed');
 assert(profile.toolbox.includes('webeeblocks_v2_takeoff') && profile.toolbox.includes('webeeblocks_v2_move') && profile.toolbox.includes('webeeblocks_v2_land'), 'Activities 1–2 prerequisites not reused');
-assert(profile.parameterBounds.webeeblocks_v2_takeoff.HEIGHT.min === 0.5 && profile.parameterBounds.webeeblocks_v2_takeoff.HEIGHT.max === 0.5, 'takeoff height is not fixed');
+assert.deepStrictEqual(profile.runtime.astBounds['takeoff.height_m'], {min:0.5,max:0.5}, 'takeoff height is not fixed');
 assert(profile.fieldOptions.webeeblocks_v2_move.DIRECTION.join(',') === 'forward,left', 'unexpected movement directions');
 assert(profile.runtime.allowedStatementKinds.includes('repeat'), 'repeat statement is not runtime-authorized');
 
