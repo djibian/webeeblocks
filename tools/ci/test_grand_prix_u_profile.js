@@ -13,6 +13,16 @@ function compose(loops){
  const profile=Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,context.WebeeBlocksInitialActivityId,catalog);
  assert.strictEqual(profile.id,'progression-grand-prix-u-v1');
  assert.strictEqual(profile.runtime.maxSteps,20000);
+ for(const [numeric,computed] of [
+  ['webeeblocks_v2_takeoff','webeeblocks_v2_takeoff_expr'],
+  ['webeeblocks_v2_move','webeeblocks_v2_move_expr'],
+  ['webeeblocks_v2_vertical','webeeblocks_v2_vertical_expr']
+ ]){
+  assert(profile.toolbox.includes(computed),'computed movement missing from Grand Prix');
+  assert(!profile.toolbox.includes(numeric),'two versions of one movement shown to learner');
+ }
+ assert.strictEqual(profile.parameterBounds.math_number.NUM.step,0.01);
+ assert.strictEqual(profile.parameterBounds.math_number.NUM.min,-1000);
  assert.strictEqual(profile.toolbox.includes('controls_whileUntil'),loops);
  assert.strictEqual(profile.toolbox.includes('webeeblocks_v2_until'),true);
  assert.strictEqual(profile.runtime.astBounds['while.max_iterations'].max,100);

@@ -21,13 +21,13 @@
   },
   {
     type: 'webeeblocks_v2_takeoff_expr',
-    message0: 'décoller à %1 m (calcul)',
+    message0: 'décoller à %1 m',
     args0: [{type: 'input_value', name: 'HEIGHT', check: 'Number'}],
     previousStatement: null, nextStatement: null, style: 'flight_blocks'
   },
   {
     type: 'webeeblocks_v2_move_expr',
-    message0: '%1 de %2 m (calcul)',
+    message0: '%1 de %2 m',
     args0: [
       {type: 'field_dropdown', name: 'DIRECTION', options: [
         ['avancer', 'forward'], ['reculer', 'back'],
@@ -39,7 +39,7 @@
   },
   {
     type: 'webeeblocks_v2_vertical_expr',
-    message0: '%1 de %2 m (calcul)',
+    message0: '%1 de %2 m',
     args0: [
       {type: 'field_dropdown', name: 'DIRECTION', options: [
         ['monter', 'up'], ['descendre', 'down']

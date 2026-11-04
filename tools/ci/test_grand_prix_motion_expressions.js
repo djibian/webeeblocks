@@ -26,7 +26,9 @@ module.exports=async function(){
  const p=profile();
  assert.strictEqual(p.runtime.motionExpressions,true);
  assert.deepStrictEqual(p.runtime.astBounds['move.lateral.distance_m'],{min:.01,max:.6});
- assert.strictEqual(p.parameterBounds.webeeblocks_v2_move.DISTANCE.step,.01);
+ assert.strictEqual(p.parameterBounds.math_number.NUM.step,.01);
+ assert.strictEqual(p.toolbox.includes('webeeblocks_v2_move'),false);
+ assert.strictEqual(p.toolbox.includes('webeeblocks_v2_move_expr'),true);
  const ws=new Blockly.Workspace(),alt=ws.getVariableMap().createVariable('altitude','','altitude'),margin=ws.getVariableMap().createVariable('marge','','marge');
  const setAlt=setVar(ws,alt,num(ws,.8)),setMargin=setVar(ws,margin,num(ws,.15));
  const takeoff=connect(ws.newBlock('webeeblocks_v2_takeoff_expr'),'HEIGHT',readVar(ws,alt));
@@ -49,8 +51,9 @@ module.exports=async function(){
  A.preflightBackend(p,facts,backend);
  await I.run(ast,backend,{motionBounds:p.runtime.astBounds,maxSteps:20000});
  assert.deepStrictEqual(effects,[['takeoff',.8],['move','forward',1.85],['move','left',.5],['vertical','down',.4],['land']]);
- const legacy=ws.newBlock('webeeblocks_v2_move');
- assert(legacy.getField('DISTANCE')&&!legacy.getInput('DISTANCE'),'legacy numeric block changed');legacy.dispose();
+ const uniqueMove=ws.newBlock('webeeblocks_v2_move_expr');
+ assert(uniqueMove.getInput('DISTANCE')&&!uniqueMove.getField('DISTANCE'),
+   'Grand Prix movement must offer exactly one expression socket');uniqueMove.dispose();
  const bad=JSON.parse(JSON.stringify(ast));bad.program[4].distance_m={kind:'number',value:.61};
  const observed=[],guarded=Object.assign({},backend,{takeoff:async x=>observed.push('takeoff'),move:async(d,x)=>observed.push(d)});
  await assert.rejects(()=>I.run(bad,guarded,{motionBounds:p.runtime.astBounds}),/out-of-bounds/);
@@ -93,5 +96,5 @@ module.exports=async function(){
  const old={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.8},{kind:'move',direction:'forward',distance_m:.3},{kind:'land'}]};
  I.validateProgram(old);A.preflightAst(p,old);
  copy.dispose();ws.dispose();
- console.log('PASS Grand Prix expressions, preflight, bounds, source-map, Blockly Save/Open and legacy block');
+ console.log('PASS Grand Prix single-expression movement toolbox, preflight, bounds, source-map and Blockly Save/Open');
 };

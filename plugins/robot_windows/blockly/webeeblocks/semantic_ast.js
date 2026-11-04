@@ -184,7 +184,7 @@
   function validateFlightBoundaries(program){
     var takeoffIndex=program.findIndex(function(s){return s.kind!=='set_variable';});
     if(program.length<2||takeoffIndex<0||program[takeoffIndex].kind!=='takeoff'||program[program.length-1].kind!=='land')
-      studentFail('program must start with assignments then takeoff and end with land','Initialisez vos variables avant « décoller », puis terminez par « atterrir ».');
+      studentFail('program must start with takeoff and end with land','Après les initialisations, le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
       if(statement.kind==='takeoff'&&i!==takeoffIndex)fail('takeoff is only allowed after initial assignments');
