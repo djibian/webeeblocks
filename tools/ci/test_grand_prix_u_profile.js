@@ -49,7 +49,6 @@ async function checkStartupBrief(profile, expected) {
  assert.strictEqual(elements.activityGoal.textContent,expected);
 }
 const grandPrix=compose(false);compose(true);
-const motionExpressions=require('./test_grand_prix_motion_expressions.js');
 assert(source.includes('210 secondes'));assert(source.includes('0,60 m'));assert(!source.includes('5 points'));
 const legacy=Activities.DOCUMENT.activities.find(p=>p.brief && p.brief.goal && !p.brief.mission);
 assert(legacy,'existing goal-only activity must remain covered');
@@ -57,7 +56,6 @@ const both=Object.assign({},grandPrix,{brief:Object.assign({},grandPrix.brief,{g
 Promise.all([
  checkStartupBrief(grandPrix,grandPrix.brief.mission),
  checkStartupBrief(both,grandPrix.brief.mission),
- checkStartupBrief(legacy,legacy.brief.goal),
- motionExpressions()
+ checkStartupBrief(legacy,legacy.brief.goal)
 ]).then(()=>console.log('PASS U mission visible at startup; mission priority and existing goal profiles preserved'))
  .catch(error=>{console.error(error);process.exitCode=1;});

@@ -140,5 +140,6 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   require('child_process').execFileSync(process.execPath,
     [path.join(ROOT,'experiments/grand-prix-pupil-observation/verify.js')],
     {cwd:ROOT, stdio:'inherit'});
+  await require('./test_grand_prix_motion_expressions.js')();
   console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
