@@ -17,6 +17,9 @@ from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 LANDING_TOL = .14
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
+# A continuous dwell witness needs observations at every native simulation step.
+# The variable world uses basicTimeStep=8 ms; a missing step breaks the proof.
+MAX_SAMPLE_GAP_MS = 8
 
 
 class TerminalDwellError(ValueError):
@@ -121,12 +124,17 @@ def advance_terminal_dwell(state, attempt, now_ms, progress, velocity,
         completion = now_ms if completed else None
     if completion is None:
         return replace(state, last_ms=now_ms, stationary_since_ms=None)
-    since = state.stationary_since_ms if eligible else None
+    previous_since = state.stationary_since_ms
+    if previous_since is not None and (
+            type(previous_since) is not int or
+            previous_since < completion or previous_since > state.last_ms):
+        raise TerminalDwellError('invalid stationary timestamp')
+    # Timestamps alone do not prove what happened between two distant samples.
+    # Lose the running dwell on any unobserved native 8-ms simulation step.
+    continuous = now_ms - state.last_ms <= MAX_SAMPLE_GAP_MS
+    since = previous_since if eligible and continuous else None
     if eligible and since is None:
         since = now_ms
-    if since is not None and (type(since) is not int or
-                              since < completion or since > now_ms):
-        raise TerminalDwellError('invalid stationary timestamp')
     # Expiration is an irreversible outer limit: a sample cannot become
     # stable for the first time after the 1500-ms completion window closes,
     # even if its 500-ms dwell interval began before that boundary.
