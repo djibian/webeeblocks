@@ -23,13 +23,14 @@ function definition(w,name){const b=w.newBlock('procedures_defnoreturn');b.setFi
 function number(w,value){const b=w.newBlock('math_number');b.setFieldValue(String(value),'NUM');return b;}
 function fixture(){
  const w=new Blockly.Workspace(),variable=w.getVariableMap().createVariable('pas');
- const t=w.newBlock('webeeblocks_v2_takeoff'),init=w.newBlock('variables_set');
- t.setFieldValue('0.8','HEIGHT');init.setFieldValue(variable.getId(),'VAR');
+ const t=w.newBlock('webeeblocks_v2_takeoff_expr'),init=w.newBlock('variables_set');
+ t.getInput('HEIGHT').connection.connect(number(w,0.8).outputConnection);
+ init.setFieldValue(variable.getId(),'VAR');
  init.getInput('VALUE').connection.connect(number(w,0).outputConnection);
  const repeat=w.newBlock('controls_repeat_ext');repeat.getInput('TIMES').connection.connect(number(w,3).outputConnection);
  const d=definition(w,'avancer_un_pas'),c=call(w,'avancer_un_pas'),l=w.newBlock('webeeblocks_v2_land');
  repeat.getInput('DO').connection.connect(c.previousConnection);connect(t,init,repeat,l);
- const move=w.newBlock('webeeblocks_v2_move');move.setFieldValue('0.1','DISTANCE');
+ const move=w.newBlock('webeeblocks_v2_move_expr');move.getInput('DISTANCE').connection.connect(number(w,0.1).outputConnection);
  const change=w.newBlock('math_change');change.setFieldValue(variable.getId(),'VAR');change.getInput('DELTA').connection.connect(number(w,1).outputConnection);
  d.getInput('STACK').connection.connect(move.previousConnection);connect(move,change);
  t.moveBy(20,40);d.moveBy(520,40);
@@ -45,11 +46,11 @@ async function prove(){
  const f=fixture(),ast=Compiler.compileWorkspace(f.w);
  assert.strictEqual(ast.program[2].body[0].kind,'call');
  assert.strictEqual(ast.program[2].body[0].body[0].kind,'move');
- assert.strictEqual(f.w.getAllBlocks(false).length,11);
+ assert.strictEqual(f.w.getAllBlocks(false).length,13);
  const containers=new Set(['controls_repeat_ext','controls_whileUntil','webeeblocks_v2_until','controls_if','procedures_defnoreturn']);
  const depths=f.w.getAllBlocks(false).map(block=>{let depth=0;for(let parent=block.getSurroundParent();parent;parent=parent.getSurroundParent())if(containers.has(parent.type))depth++;return depth;});
  assert.strictEqual(Math.max(...depths),1,'measured Blockly statement nesting');
- assert.strictEqual(f.t.getDescendants(false).length,7,'measured main-program block count');
+ assert.strictEqual(f.t.getDescendants(false).length,8,'measured main-program block count');
  assert.deepStrictEqual(f.d.getProcedureDef(),['avancer_un_pas',[],false]);
  Contract.preflightWorkspace(profile,f.w);Contract.preflightAst(profile,ast);
  const b=backend(),seen=[],changes=[];
@@ -105,18 +106,20 @@ async function prove(){
  const unused=fixture(),u=definition(unused.w,'inutile');u.getInput('STACK').connection.connect(call(unused.w,'inutile').previousConnection);assert.throws(()=>Compiler.compileWorkspace(unused.w),/recursive procedure cycle/);unused.w.dispose();
  const duplicate=fixture(),dup=definition(duplicate.w,'different');dup.getProcedureDef=()=>['AVANCER_UN_PAS',[],false];assert.throws(()=>Compiler.compileWorkspace(duplicate.w),/duplicate procedure/);duplicate.w.dispose();
  const params=fixture();params.d.loadExtraState({params:[{name:'x'}]});assert.throws(()=>Compiler.compileWorkspace(params.w),/parameters unsupported/);params.w.dispose();
- for(const type of ['webeeblocks_v2_takeoff','webeeblocks_v2_land']){
-  const bad=fixture();connect(bad.change,bad.w.newBlock(type));assert.throws(()=>Compiler.compileWorkspace(bad.w),/top-level boundaries/);bad.w.dispose();
+ for(const type of ['webeeblocks_v2_takeoff_expr','webeeblocks_v2_land']){
+  const bad=fixture();const nestedBlock=bad.w.newBlock(type);
+  if(type==='webeeblocks_v2_takeoff_expr')nestedBlock.getInput('HEIGHT').connection.connect(number(bad.w,0.8).outputConnection);
+  connect(bad.change,nestedBlock);assert.throws(()=>Compiler.compileWorkspace(bad.w),/top-level boundaries/);bad.w.dispose();
  }
  const incomplete=fixture();incomplete.l.dispose();assert.throws(()=>Compiler.compileWorkspace(incomplete.w),/end with land/);incomplete.w.dispose();
- const dangling=fixture();dangling.w.newBlock('webeeblocks_v2_move');assert.throws(()=>Compiler.compileWorkspace(dangling.w),/exactly one top-level/);dangling.w.dispose();
+ const dangling=fixture();dangling.w.newBlock('webeeblocks_v2_move_expr');assert.throws(()=>Compiler.compileWorkspace(dangling.w),/exactly one top-level/);dangling.w.dispose();
  const unassigned=fixture();unassigned.init.dispose(true);assert.throws(()=>Interpreter.validateProgram(Compiler.compileWorkspace(unassigned.w)),/before assignment/);unassigned.w.dispose();
  // Static and runtime restrictions descend into the expanded body.
  const sensed=program([astCall([{kind:'set_variable',variable:{id:'r',name:'mesure'},value:{kind:'range',direction:'front',unit:'m'}}])]);
  assert(Contract.collectAst(sensed).ranges.has('front'));
  const restricted=JSON.parse(JSON.stringify(profile));restricted.runtime.rangeDirections=[];
  assert.throws(()=>Contract.preflightAst(restricted,sensed),/range capability unavailable/);
- const over=program([astCall([{kind:'move',direction:'forward',distance_m:.5}])]);assert.throws(()=>Contract.preflightAst(profile,over),/outside profile bounds/);
+ const over=program([astCall([{kind:'move',direction:'forward',distance_m:1.91}])]);assert.throws(()=>Contract.preflightAst(profile,over),/outside profile bounds/);
  const invalid=backend([NaN]);await assert.rejects(()=>Interpreter.run(sensed,invalid),/must be finite/);assert.deepStrictEqual(invalid.trace,['takeoff','range']);
  const interrupted=backend();await assert.rejects(()=>Interpreter.run(ast,interrupted,{hooks:{beforeStep:async c=>{if(c.node.kind==='move')throw Object.assign(new Error('interrupted'),{code:'USER_STOPPED'});}}}),/interrupted/);assert.deepStrictEqual(interrupted.trace,['takeoff']);
  const infinite=program([astCall([{kind:'while',mode:'WHILE',condition:{kind:'number',value:1},body:[],max_iterations:2}])]);
@@ -130,7 +133,7 @@ async function prove(){
  const huge=fixture();
  for(let i=0;i<13;i++){
   const d=definition(huge.w,'p'+i);
-  if(i===12)d.getInput('STACK').connection.connect(huge.w.newBlock('webeeblocks_v2_move').previousConnection);
+  if(i===12){const mv=huge.w.newBlock('webeeblocks_v2_move_expr');mv.getInput('DISTANCE').connection.connect(number(huge.w,0.1).outputConnection);d.getInput('STACK').connection.connect(mv.previousConnection);}
   else{const a=call(huge.w,'p'+(i+1)),b=call(huge.w,'p'+(i+1));d.getInput('STACK').connection.connect(a.previousConnection);connect(a,b);}
  }
  assert.throws(()=>Compiler.compileWorkspace(huge.w),/procedure expansion too large/);huge.w.dispose();
@@ -144,7 +147,7 @@ async function prove(){
   assert.deepStrictEqual((await Interpreter.run(retained.ast,backend())).variables,{pas:3});
  }
  f.w.dispose();
- console.log('PASS procedures: real Blockly definitions/calls, exact budget, rename, cycles/signatures, .wbb round-trip, source maps, nested restrictions, invalid sensor, interruption and physical refusal; demo 11 blocks');
+ console.log('PASS procedures: real Blockly definitions/calls, exact budget, rename, cycles/signatures, .wbb round-trip, source maps, nested restrictions, invalid sensor, interruption and physical refusal; demo 13 blocks');
 }
 module.exports=prove;
 if(require.main===module)prove().catch(e=>{console.error(e);process.exitCode=1;});

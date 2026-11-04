@@ -112,7 +112,7 @@ def analyze(project):
     for root in roots:
         if not isinstance(root, dict):
             raise InvalidWorkspace('malformed top-level block')
-        if root.get('type') in ('webeeblocks_v2_takeoff', 'webeeblocks_takeoff'):
+        if root.get('type') in ('webeeblocks_v2_takeoff', 'webeeblocks_v2_takeoff_expr', 'webeeblocks_takeoff'):
             main_candidates.append(root)
         visit(root, 0, 0, 0)
     main_chain = None

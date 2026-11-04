@@ -27,6 +27,11 @@
     if(!child)fail('missing value input '+inputName);
     return compileExpression(child);
   }
+  function motionArgument(block,name,limits){
+    var value=valueChild(block,name);
+    if(value.kind==='number')return bounded(value.value,name,limits);
+    return value;
+  }
   function variableReference(block){
     if(!block||typeof block.getField!=='function')fail('variable block does not expose VAR field');
     var variableField=block.getField('VAR');
@@ -94,16 +99,16 @@
       case 'webeeblocks_land':return{kind:'land'};
       case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
-      case 'webeeblocks_v2_takeoff_expr':return{kind:'takeoff',height_m:valueChild(block,'HEIGHT')};
+      case 'webeeblocks_v2_takeoff_expr':return{kind:'takeoff',height_m:motionArgument(block,'HEIGHT',LIMITS.height_m)};
       case 'webeeblocks_v2_move_expr':{
         var exprDirection=String(field(block,'DIRECTION'));
         if(['forward','back','left','right'].indexOf(exprDirection)<0)fail('unsupported move direction: '+exprDirection);
-        return{kind:'move',direction:exprDirection,distance_m:valueChild(block,'DISTANCE')};
+        return{kind:'move',direction:exprDirection,distance_m:motionArgument(block,'DISTANCE',{min:.01,max:2.0})};
       }
       case 'webeeblocks_v2_vertical_expr':{
         var exprVertical=String(field(block,'DIRECTION'));
         if(exprVertical!=='up'&&exprVertical!=='down')fail('unsupported vertical direction: '+exprVertical);
-        return{kind:'vertical',direction:exprVertical,distance_m:valueChild(block,'DISTANCE')};
+        return{kind:'vertical',direction:exprVertical,distance_m:motionArgument(block,'DISTANCE',LIMITS.vertical_m)};
       }
       case 'webeeblocks_v2_move':{
         var direction=String(field(block,'DIRECTION'));
