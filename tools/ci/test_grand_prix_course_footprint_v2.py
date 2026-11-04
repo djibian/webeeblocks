@@ -107,7 +107,7 @@ class CompleteCourseFootprintTests(unittest.TestCase):
             CoupledCourseProgressTests)
         result = unittest.TestResult()
         suite.run(result)
-        self.assertEqual(result.testsRun, 5)
+        self.assertEqual(result.testsRun, 7)
         if result.failures or result.errors:
             self.fail('coupled segment / directed H progression: ' +
                       repr(result.failures + result.errors))

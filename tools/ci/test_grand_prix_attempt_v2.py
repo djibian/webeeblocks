@@ -46,13 +46,6 @@ class PureVariableAttemptTests(unittest.TestCase):
                     if gate:
                         state = travel(state, (*leg.at(gate.along-.35), .75))
                         state = travel(state, (*leg.at(gate.along-.35), .35))
-                        if leg.index == 2:
-                            # Early terminal-leg H: promotion is exclusive to the
-                            # new corridor. Revisit the shared corner *inside*
-                            # the H's low band to witness the required arm;
-                            # never make an unarmed crossing pass by fiat.
-                            state = travel(state, (*leg.at(gate.along-.20), .35))
-                            state = travel(state, (*leg.at(gate.along-.45), .35))
                         state = travel(state, (*leg.at(gate.along+.35), .35))
                         state = travel(state, (*leg.at(gate.along+.35), .75))
                     if leg.index < 2:

@@ -20,6 +20,46 @@ class CoupledCourseProgressTests(unittest.TestCase):
     def observe(self, state, point):
         return advance_course_progress(state, point)
 
+    def test_fine_monotone_samples_preserve_arming_at_shared_corner(self):
+        # No reversal before the terminal H. At 2m the arming plane can be
+        # 0.27m into the leg, earlier than exclusive attribution after 0.30m.
+        for index in range(12):
+            course = reference_course(index)
+            state = start_course_progress(course, .35)
+            with self.subTest(course=course.identifier):
+                for leg in course.route.legs:
+                    end = leg.length - (.70 if leg.index == 2 else 0.)
+                    for step in range(1, round(end/.01)+1):
+                        previous = state
+                        state = self.observe(state, pose(leg, step*.01))
+                        if state.next_gates is not None:
+                            self.assertEqual(state.next_gates.count, state.count)
+                            self.assertFalse(state.next_gates.crossed)
+                            self.assertEqual(state.leg.active_leg, previous.leg.active_leg)
+                self.assertEqual(state.count, course.count)
+
+    def test_cached_corner_witness_is_scoped_and_cannot_count_early(self):
+        course = reference_course(8)
+        state = start_course_progress(course, .35)
+        first, second = course.route.legs[:2]
+        for gate in course.gates[:1]:
+            for delta in (-.40, -.20, .12, .35):
+                state = self.observe(state, pose(first, gate.along+delta))
+        state = self.observe(state, pose(first, first.length))
+        self.assertEqual(state.leg.active_leg, 0)
+        self.assertIsNotNone(state.next_gates)
+        self.assertEqual(state.next_gates.count, state.count)
+        for forged in (
+                replace(state.next_gates, active_leg=2),
+                replace(state.next_gates, course=reference_course(9)),
+                replace(state.next_gates, cursor=state.count+1),
+                replace(state.next_gates, crossed=True)):
+            with self.assertRaises(CourseProgressError):
+                self.observe(replace(state, next_gates=forged), pose(second,.1))
+        # A retreat out of the shared corner discards the upcoming-leg witness.
+        state = self.observe(state, pose(first, first.length-.4))
+        self.assertIsNone(state.next_gates)
+
     def test_twelve_routes_count_directed_h_without_pupil_route_metadata(self):
         for index in range(12):
             course = reference_course(index)
@@ -60,7 +100,7 @@ class CoupledCourseProgressTests(unittest.TestCase):
             state = self.observe(state, point)
         self.assertEqual(state.count, 1)
         # A stale H count is not a valid basis for promotion at the junction.
-        stale = replace(state, gates=replace(
+        stale = replace(state, next_gates=None, gates=replace(
             state.gates, cursor=0, armed=False, crossed=False))
         with self.assertRaisesRegex(
                 (GateProgressError, CourseProgressError), 'missed-gate|uncompleted H'):
