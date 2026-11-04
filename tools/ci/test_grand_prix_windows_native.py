@@ -18,16 +18,30 @@ from tools.grand_prix.package_windows_u import local_world
 class EvidenceTests(unittest.TestCase):
     def test_owned_pid_cleanup_race_refuses_nonzero_or_still_running(self):
         command = ['taskkill', '/PID', '123', '/T', '/F']
-        for after in (None, 1, -1073741819):
+        for after in (1, -1073741819):
             process = mock.Mock(pid=123)
             process.poll.side_effect = [None, after]
+            error = subprocess.CalledProcessError(255, command, output=b'PID not found')
             with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
-                            side_effect=subprocess.CalledProcessError(128, command)) as run:
-                with self.assertRaises(subprocess.CalledProcessError):
+                            side_effect=error) as run:
+                with self.assertRaisesRegex(RuntimeError, 'cleanup unproven') as raised:
                     stop(process)
+                self.assertIn(f'process={after}', str(raised.exception))
+                self.assertIn('PID not found', str(raised.exception))
                 self.assertEqual(run.call_args.args[0], command)
                 self.assertTrue(run.call_args.kwargs['check'])
             process.wait.assert_not_called()
+
+        # taskkill failed and the owned process is still alive after the
+        # bounded grace period: never turn the missing exit into a PASS.
+        process = mock.Mock(pid=123)
+        process.poll.side_effect = [None, None]
+        process.wait.side_effect = subprocess.TimeoutExpired(command, 5)
+        with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
+                        side_effect=subprocess.CalledProcessError(255, command)):
+            with self.assertRaisesRegex(RuntimeError, 'process=None'):
+                stop(process)
+        process.wait.assert_called_once_with(timeout=5)
 
     def test_owned_pid_cleanup_race_accepts_only_proven_clean_exit(self):
         command = ['taskkill', '/PID', '123', '/T', '/F']
@@ -38,6 +52,17 @@ class EvidenceTests(unittest.TestCase):
             stop(process)
             self.assertEqual(run.call_args.args[0], command)
         process.wait.assert_called_once_with(timeout=20)
+
+        # A delayed zero exit is also safe, but only after observing wait().
+        delayed = mock.Mock(pid=123)
+        delayed.poll.side_effect = [None, None]
+        delayed.wait.side_effect = [0, 0]
+        with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
+                        side_effect=subprocess.CalledProcessError(255, command)):
+            stop(delayed)
+        self.assertEqual(delayed.wait.call_args_list,
+                         [mock.call(timeout=5), mock.call(timeout=20)])
+
         already_stopped = mock.Mock(pid=123)
         already_stopped.poll.return_value = 0
         with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
