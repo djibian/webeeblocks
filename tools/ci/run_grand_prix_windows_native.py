@@ -67,11 +67,25 @@ def stop(process):
     try:
         subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
-    except subprocess.CalledProcessError:
-        # The owned engine may exit between poll() and taskkill. Accept ONLY
-        # a confirmed clean (zero) exit; live, crashed or unknown remains FAIL.
-        if process.poll() != 0:
-            raise
+    except subprocess.CalledProcessError as failure:
+        # An exiting process can still be visible to poll() momentarily when
+        # taskkill races its shutdown. Wait a strictly bounded interval, but
+        # accept ONLY a proven zero exit; nonzero and still-running remain FAIL.
+        status = process.poll()
+        if status is None:
+            try:
+                status = process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                status = None
+        if status != 0:
+            detail = failure.output or b''
+            if isinstance(detail, bytes):
+                detail = detail.decode('utf-8', errors='replace')
+            raise RuntimeError(
+                f'Owned Windows PID {process.pid} cleanup unproven: '
+                f'taskkill={failure.returncode}, process={status!r}, '
+                f'output={detail[-512:]!r}'
+            ) from failure
     process.wait(timeout=20)
 
 
