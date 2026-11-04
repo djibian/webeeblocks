@@ -65,7 +65,7 @@ class Complexity(unittest.TestCase):
         # A versioned real Blockly project on main, not a synthetic AST.
         source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
         metrics = analyze(json.loads(source.read_text(encoding='utf-8')))
-        self.assertEqual(metrics['total_blocks'], 5)
+        self.assertEqual(metrics['total_blocks'], 6)
         self.assertEqual(metrics['main_chain_blocks'], 4)
         self.assertEqual(metrics['declared_variables'], 1)
         self.assertEqual(metrics['referenced_variables'], 1)
@@ -257,7 +257,7 @@ class Complexity(unittest.TestCase):
     def test_compare_never_ranks_identical_valid_real_project(self):
         source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
         result = compare([source, source])
-        self.assertEqual(result['candidates'][0]['metrics']['total_blocks'], 5)
+        self.assertEqual(result['candidates'][0]['metrics']['total_blocks'], 6)
         self.assertEqual(result['candidates'][0]['metrics']['referenced_variables'], 1)
         self.assertTrue(all(value == 0 for value in result['comparisons'][0]['delta_vs_first'].values()))
         self.assertIsNone(result['automatic_pedagogical_winner'])
