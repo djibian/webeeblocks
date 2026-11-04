@@ -27,7 +27,7 @@ module.exports=async function(){
  assert.strictEqual(p.runtime.motionExpressions,true);
  assert.deepStrictEqual(p.runtime.astBounds['move.lateral.distance_m'],{min:.01,max:.6});
  assert.strictEqual(p.parameterBounds.webeeblocks_v2_move.DISTANCE.step,.01);
- const ws=new Blockly.Workspace(),alt=ws.createVariable('altitude',null,'altitude'),margin=ws.createVariable('marge',null,'marge');
+ const ws=new Blockly.Workspace(),alt=ws.getVariableMap().createVariable('altitude','','altitude'),margin=ws.getVariableMap().createVariable('marge','','marge');
  const setAlt=setVar(ws,alt,num(ws,.8)),setMargin=setVar(ws,margin,num(ws,.15));
  const takeoff=connect(ws.newBlock('webeeblocks_v2_takeoff_expr'),'HEIGHT',readVar(ws,alt));
  const move=ws.newBlock('webeeblocks_v2_move_expr'),sensor=ws.newBlock('webeeblocks_v2_range');
