@@ -127,8 +127,11 @@ def advance_terminal_dwell(state, attempt, now_ms, progress, velocity,
     if since is not None and (type(since) is not int or
                               since < completion or since > now_ms):
         raise TerminalDwellError('invalid stationary timestamp')
-    observed = ('stable-window' if since is not None and now_ms - since >= DWELL_MS
-                else 'expired-window' if now_ms - completion >= COMPLETION_WINDOW_MS
+    # Expiration is an irreversible outer limit: a sample cannot become
+    # stable for the first time after the 1500-ms completion window closes,
+    # even if its 500-ms dwell interval began before that boundary.
+    observed = ('expired-window' if now_ms - completion >= COMPLETION_WINDOW_MS
+                else 'stable-window' if since is not None and now_ms - since >= DWELL_MS
                 else 'open')
     return replace(state, last_ms=now_ms, completion_ms=completion,
                    stationary_since_ms=since, state=observed)

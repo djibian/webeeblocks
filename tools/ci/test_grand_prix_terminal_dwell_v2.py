@@ -99,6 +99,40 @@ class VariableTerminalDwellTests(unittest.TestCase):
         self.assertEqual(state.state, 'expired-window')
         self.assertEqual(self.step(state, progress, 2100).state, 'expired-window')
 
+    def test_new_stability_cannot_override_expired_completion_window(self):
+        course = reference_course(0)
+        progress = _terminal_progress(course)
+
+        def first_completed_but_moving():
+            state = start_terminal_dwell(course, 1, 0., 0)
+            state = self.step(state, progress, 0, completed=True,
+                              velocity=(.20, 0., 0.))
+            self.assertEqual(state.completion_ms, 0)
+            self.assertIsNone(state.stationary_since_ms)
+            return state
+
+        expired = self.step(first_completed_but_moving(), progress, 1100)
+        self.assertEqual(expired.stationary_since_ms, 1100)
+        # Counterexample: first attainment of 500 ms dwell is *after*
+        # the separate hard 1500 ms completion window has already ended.
+        expired = self.step(expired, progress, 1601)
+        self.assertEqual(expired.state, 'expired-window')
+        self.assertEqual(self.step(expired, progress, 1700).state,
+                         'expired-window')
+
+        exactly = self.step(first_completed_but_moving(), progress, 1000)
+        exactly = self.step(exactly, progress, 1500)
+        self.assertEqual(exactly.state, 'expired-window')
+
+        before = self.step(first_completed_but_moving(), progress, 999)
+        before = self.step(before, progress, 1498)
+        self.assertEqual(before.state, 'open')
+        before = self.step(before, progress, 1499)
+        self.assertEqual(before.state, 'stable-window')
+        # A duly established terminal state is not undone by later clocks.
+        self.assertEqual(self.step(before, progress, 1500).state,
+                         'stable-window')
+
     def test_incomplete_h_or_nonterminal_leg_cannot_acquire_dwell(self):
         course = reference_course(10)
         progress = _terminal_progress(course)
