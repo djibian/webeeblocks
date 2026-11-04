@@ -89,33 +89,43 @@ def _reject_nested_course_nodes(root_nodes):
     on cycles, unreadable nodes and oversized traversal rather than accepting
     a visually plausible scene with an extra collidable descendant.
     """
-    pending = [(node, 0) for node in root_nodes]
+    pending = [(node, 0, False) for node in root_nodes]
     visited = 0
     while pending:
-        node, depth = pending.pop()
+        node, depth, under_guide = pending.pop()
         visited += 1
         if node is None or visited > 8192 or depth > 64:
             raise RuntimeError('unreadable/oversized native course scene graph')
-        if depth:
-            name = node.getDef()
-            if isinstance(name, str) and name.startswith('GP_V2_'):
-                if (node.getTypeName() == 'Solid' or
-                        name.startswith(('GP_V2_L_', 'GP_V2_H_',
-                                         'GP_V2_FINAL_'))):
-                    raise RuntimeError('nested reserved course body: ' + name)
+        name = node.getDef()
+        kind = node.getTypeName()
+        guide = (isinstance(name, str) and
+                 name.startswith(('GP_V2_WHITE_', 'GP_V2_RED_',
+                                  'GP_V2_COURSE_RED_')))
+        if guide and kind != 'Pose':
+            raise RuntimeError('course guide is not a visual Pose: ' + name)
+        if under_guide and kind == 'Solid':
+            raise RuntimeError('hidden Solid under visual course guide')
+        under_guide = under_guide or guide
+        if depth and isinstance(name, str) and name.startswith('GP_V2_'):
+            if (kind == 'Solid' or
+                    name.startswith(('GP_V2_L_', 'GP_V2_H_',
+                                     'GP_V2_FINAL_'))):
+                raise RuntimeError('nested reserved course body: ' + name)
         children = node.getField('children')
         if children is not None:
             count = children.getCount()
             if type(count) is not int or not 0 <= count <= 4096:
                 raise RuntimeError('invalid nested course child inventory')
             for i in range(count):
-                pending.append((children.getMFNode(i), depth + 1))
+                pending.append((children.getMFNode(i), depth + 1, under_guide))
         for field_name in ('endPoint', 'boundingObject', 'geometry'):
             field = node.getField(field_name)
             if field is not None:
                 nested = field.getSFNode()
                 if nested is not None:
-                    pending.append((nested, depth + 1))
+                    if guide and field_name == 'boundingObject':
+                        raise RuntimeError('collidable course guide: ' + name)
+                    pending.append((nested, depth + 1, under_guide))
 
 
 def verify_native_boxes(supervisor, course, boxes):
