@@ -68,7 +68,7 @@ class NativeLProbePreparationTests(unittest.TestCase):
             root = Path(temp)
             home = root / 'webots'
             (home / 'resources').mkdir(parents=True)
-            (home / 'resources/version.txt').write_text('R2025a\\n')
+            (home / 'resources/version.txt').write_text('R2025a\n')
             (home / 'webots').touch()
             out = root / 'evidence'
             course = reference_course(0)
@@ -85,7 +85,7 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 target = Path(kwargs['env']['GP_V2_L_NATIVE_OUT'])
                 target.write_text(json.dumps(mock_result))
                 kwargs['stdout'].write(
-                    'GP_V2_L_NATIVE ' + json.dumps(mock_result, sort_keys=True) + '\\n')
+                    'GP_V2_L_NATIVE ' + json.dumps(mock_result, sort_keys=True) + '\n')
                 process = Mock()
                 process.wait.return_value = 0
                 process.poll.return_value = 0
