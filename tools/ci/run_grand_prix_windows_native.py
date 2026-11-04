@@ -61,7 +61,15 @@ def validate(directory, seed):
 
 
 def stop(process):
-    if process is None or process.poll() is not None:
+    if process is None:
+        return
+    status = process.poll()
+    if status is not None:
+        if status != 0:
+            raise RuntimeError(
+                f'Owned Windows PID {process.pid} exited unexpectedly: '
+                f'process={status!r}'
+            )
         return
     # This runner is Windows-only. Retire only the launched PID's process tree.
     try:
@@ -202,13 +210,12 @@ def trial(package, home, output, seed):
                 time.sleep(.1)
     finally:
         try:
-            try:
-                metadata['node_exit'] = node.poll() if node else None
-                metadata['webots_exit'] = webots.poll() if webots else None
-                stop(node)
-            finally:
-                stop(webots)
+            metadata['node_exit'] = node.poll() if node else None
+            metadata['webots_exit'] = webots.poll() if webots else None
+            stop(node)
         finally:
+            # captured_engine already retired Webots once. Do not reinterpret
+            # an intentional taskkill exit as a spontaneous crash on retry.
             (directory / 'launch.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     result = validate(directory, seed)
     (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')

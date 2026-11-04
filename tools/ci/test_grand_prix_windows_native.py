@@ -16,6 +16,26 @@ from tools.grand_prix.package_windows_u import local_world
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_owned_pid_preexited_crash_refused_without_taskkill(self):
+        for code in (1, -1073741819):
+            with self.subTest(code=code):
+                process = mock.Mock(pid=123)
+                process.poll.return_value = code
+                with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+                    with self.assertRaisesRegex(RuntimeError, f'process={code}'):
+                        stop(process)
+                    run.assert_not_called()
+                process.wait.assert_not_called()
+
+    def test_intentional_taskkill_success_does_not_misclassify_forced_exit(self):
+        process = mock.Mock(pid=123)
+        process.poll.return_value = None
+        process.wait.return_value = 1
+        with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+            stop(process)
+            self.assertEqual(run.call_args.args[0], ['taskkill', '/PID', '123', '/T', '/F'])
+        process.wait.assert_called_once_with(timeout=20)
+
     def test_owned_pid_cleanup_race_refuses_nonzero_or_still_running(self):
         command = ['taskkill', '/PID', '123', '/T', '/F']
         for after in (1, -1073741819):
