@@ -12,16 +12,12 @@
         {
           "type": "webeeblocks_v2_takeoff",
           "id": "gp-pupil-v2-b-217",
-          "fields": {
-            "HEIGHT": 0.4
-          },
           "next": {
             "block": {
               "type": "webeeblocks_v2_vertical",
               "id": "gp-pupil-v2-b-218",
               "fields": {
-                "DIRECTION": "up",
-                "DISTANCE": 0.4
+                "DIRECTION": "up"
               },
               "next": {
                 "block": {
@@ -761,8 +757,7 @@
                                                                                         "type": "webeeblocks_v2_move",
                                                                                         "id": "gp-pupil-v2-b-157",
                                                                                         "fields": {
-                                                                                          "DIRECTION": "forward",
-                                                                                          "DISTANCE": 0.1
+                                                                                          "DIRECTION": "forward"
                                                                                         },
                                                                                         "next": {
                                                                                           "block": {
@@ -782,6 +777,17 @@
                                                                                                     "NUM": 1
                                                                                                   }
                                                                                                 }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        },
+                                                                                        "inputs": {
+                                                                                          "DISTANCE": {
+                                                                                            "block": {
+                                                                                              "type": "math_number",
+                                                                                              "id": "gp-pupil-v2-b-157_numeric",
+                                                                                              "fields": {
+                                                                                                "NUM": 0.1
                                                                                               }
                                                                                             }
                                                                                           }
@@ -832,8 +838,7 @@
                                                                                               "type": "webeeblocks_v2_move",
                                                                                               "id": "gp-pupil-v2-b-163",
                                                                                               "fields": {
-                                                                                                "DIRECTION": "forward",
-                                                                                                "DISTANCE": 0.4
+                                                                                                "DIRECTION": "forward"
                                                                                               },
                                                                                               "next": {
                                                                                                 "block": {
@@ -856,6 +861,17 @@
                                                                                                     }
                                                                                                   }
                                                                                                 }
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "DISTANCE": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-163_numeric",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 0.4
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
                                                                                               }
                                                                                             }
                                                                                           },
@@ -864,8 +880,7 @@
                                                                                               "type": "webeeblocks_v2_move",
                                                                                               "id": "gp-pupil-v2-b-166",
                                                                                               "fields": {
-                                                                                                "DIRECTION": "forward",
-                                                                                                "DISTANCE": 0.1
+                                                                                                "DIRECTION": "forward"
                                                                                               },
                                                                                               "next": {
                                                                                                 "block": {
@@ -885,6 +900,17 @@
                                                                                                           "NUM": 1
                                                                                                         }
                                                                                                       }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "DISTANCE": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-166_numeric",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 0.1
                                                                                                     }
                                                                                                   }
                                                                                                 }
@@ -1047,11 +1073,33 @@
                     }
                   }
                 }
+              },
+              "inputs": {
+                "DISTANCE": {
+                  "block": {
+                    "type": "math_number",
+                    "id": "gp-pupil-v2-b-218_numeric",
+                    "fields": {
+                      "NUM": 0.4
+                    }
+                  }
+                }
               }
             }
           },
           "x": 10,
-          "y": 10
+          "y": 10,
+          "inputs": {
+            "HEIGHT": {
+              "block": {
+                "type": "math_number",
+                "id": "gp-pupil-v2-b-217_numeric",
+                "fields": {
+                  "NUM": 0.4
+                }
+              }
+            }
+          }
         },
         {
           "type": "procedures_defnoreturn",
@@ -1065,8 +1113,7 @@
                 "type": "webeeblocks_v2_vertical",
                 "id": "gp-pupil-v2-b-105",
                 "fields": {
-                  "DIRECTION": "down",
-                  "DISTANCE": 0.4
+                  "DIRECTION": "down"
                 },
                 "next": {
                   "block": {
@@ -1154,8 +1201,7 @@
                               "type": "webeeblocks_v2_move",
                               "id": "gp-pupil-v2-b-15",
                               "fields": {
-                                "DIRECTION": "forward",
-                                "DISTANCE": 0.2
+                                "DIRECTION": "forward"
                               },
                               "next": {
                                 "block": {
@@ -1450,8 +1496,18 @@
                                                           "type": "webeeblocks_v2_move",
                                                           "id": "gp-pupil-v2-b-6",
                                                           "fields": {
-                                                            "DIRECTION": "right",
-                                                            "DISTANCE": 0.1
+                                                            "DIRECTION": "right"
+                                                          },
+                                                          "inputs": {
+                                                            "DISTANCE": {
+                                                              "block": {
+                                                                "type": "math_number",
+                                                                "id": "gp-pupil-v2-b-6_numeric",
+                                                                "fields": {
+                                                                  "NUM": 0.1
+                                                                }
+                                                              }
+                                                            }
                                                           }
                                                         }
                                                       },
@@ -1518,8 +1574,18 @@
                                                                 "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-12",
                                                                 "fields": {
-                                                                  "DIRECTION": "left",
-                                                                  "DISTANCE": 0.1
+                                                                  "DIRECTION": "left"
+                                                                },
+                                                                "inputs": {
+                                                                  "DISTANCE": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-12_numeric",
+                                                                      "fields": {
+                                                                        "NUM": 0.1
+                                                                      }
+                                                                    }
+                                                                  }
                                                                 }
                                                               }
                                                             }
@@ -1532,8 +1598,7 @@
                                                         "type": "webeeblocks_v2_move",
                                                         "id": "gp-pupil-v2-b-37",
                                                         "fields": {
-                                                          "DIRECTION": "forward",
-                                                          "DISTANCE": 0.4
+                                                          "DIRECTION": "forward"
                                                         },
                                                         "next": {
                                                           "block": {
@@ -1560,8 +1625,7 @@
                                                                 "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-40",
                                                                 "fields": {
-                                                                  "DIRECTION": "forward",
-                                                                  "DISTANCE": 0.2
+                                                                  "DIRECTION": "forward"
                                                                 },
                                                                 "next": {
                                                                   "block": {
@@ -1588,8 +1652,7 @@
                                                                         "type": "webeeblocks_v2_vertical",
                                                                         "id": "gp-pupil-v2-b-43",
                                                                         "fields": {
-                                                                          "DIRECTION": "up",
-                                                                          "DISTANCE": 0.4
+                                                                          "DIRECTION": "up"
                                                                         },
                                                                         "next": {
                                                                           "block": {
@@ -1762,11 +1825,44 @@
                                                                               }
                                                                             }
                                                                           }
+                                                                        },
+                                                                        "inputs": {
+                                                                          "DISTANCE": {
+                                                                            "block": {
+                                                                              "type": "math_number",
+                                                                              "id": "gp-pupil-v2-b-43_numeric",
+                                                                              "fields": {
+                                                                                "NUM": 0.4
+                                                                              }
+                                                                            }
+                                                                          }
                                                                         }
                                                                       }
                                                                     }
                                                                   }
+                                                                },
+                                                                "inputs": {
+                                                                  "DISTANCE": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-40_numeric",
+                                                                      "fields": {
+                                                                        "NUM": 0.2
+                                                                      }
+                                                                    }
+                                                                  }
                                                                 }
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "inputs": {
+                                                          "DISTANCE": {
+                                                            "block": {
+                                                              "type": "math_number",
+                                                              "id": "gp-pupil-v2-b-37_numeric",
+                                                              "fields": {
+                                                                "NUM": 0.4
                                                               }
                                                             }
                                                           }
@@ -1802,6 +1898,17 @@
                                           }
                                         }
                                       }
+                                    }
+                                  }
+                                }
+                              },
+                              "inputs": {
+                                "DISTANCE": {
+                                  "block": {
+                                    "type": "math_number",
+                                    "id": "gp-pupil-v2-b-15_numeric",
+                                    "fields": {
+                                      "NUM": 0.2
                                     }
                                   }
                                 }
@@ -2121,8 +2228,18 @@
                                                     "type": "webeeblocks_v2_move",
                                                     "id": "gp-pupil-v2-b-89",
                                                     "fields": {
-                                                      "DIRECTION": "forward",
-                                                      "DISTANCE": 0.1
+                                                      "DIRECTION": "forward"
+                                                    },
+                                                    "inputs": {
+                                                      "DISTANCE": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-89_numeric",
+                                                          "fields": {
+                                                            "NUM": 0.1
+                                                          }
+                                                        }
+                                                      }
                                                     }
                                                   }
                                                 },
@@ -2131,8 +2248,18 @@
                                                     "type": "webeeblocks_v2_move",
                                                     "id": "gp-pupil-v2-b-90",
                                                     "fields": {
-                                                      "DIRECTION": "back",
-                                                      "DISTANCE": 0.1
+                                                      "DIRECTION": "back"
+                                                    },
+                                                    "inputs": {
+                                                      "DISTANCE": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-90_numeric",
+                                                          "fields": {
+                                                            "NUM": 0.1
+                                                          }
+                                                        }
+                                                      }
                                                     }
                                                   }
                                                 }
@@ -2284,16 +2411,36 @@
                                                         "type": "webeeblocks_v2_move",
                                                         "id": "gp-pupil-v2-b-66",
                                                         "fields": {
-                                                          "DIRECTION": "left",
-                                                          "DISTANCE": 0.4
+                                                          "DIRECTION": "left"
                                                         },
                                                         "next": {
                                                           "block": {
                                                             "type": "webeeblocks_v2_move",
                                                             "id": "gp-pupil-v2-b-67",
                                                             "fields": {
-                                                              "DIRECTION": "left",
-                                                              "DISTANCE": 0.1
+                                                              "DIRECTION": "left"
+                                                            },
+                                                            "inputs": {
+                                                              "DISTANCE": {
+                                                                "block": {
+                                                                  "type": "math_number",
+                                                                  "id": "gp-pupil-v2-b-67_numeric",
+                                                                  "fields": {
+                                                                    "NUM": 0.1
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "inputs": {
+                                                          "DISTANCE": {
+                                                            "block": {
+                                                              "type": "math_number",
+                                                              "id": "gp-pupil-v2-b-66_numeric",
+                                                              "fields": {
+                                                                "NUM": 0.4
+                                                              }
                                                             }
                                                           }
                                                         }
@@ -2341,16 +2488,36 @@
                                                             "type": "webeeblocks_v2_move",
                                                             "id": "gp-pupil-v2-b-72",
                                                             "fields": {
-                                                              "DIRECTION": "right",
-                                                              "DISTANCE": 0.4
+                                                              "DIRECTION": "right"
                                                             },
                                                             "next": {
                                                               "block": {
                                                                 "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-73",
                                                                 "fields": {
-                                                                  "DIRECTION": "right",
-                                                                  "DISTANCE": 0.1
+                                                                  "DIRECTION": "right"
+                                                                },
+                                                                "inputs": {
+                                                                  "DISTANCE": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-73_numeric",
+                                                                      "fields": {
+                                                                        "NUM": 0.1
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "inputs": {
+                                                              "DISTANCE": {
+                                                                "block": {
+                                                                  "type": "math_number",
+                                                                  "id": "gp-pupil-v2-b-72_numeric",
+                                                                  "fields": {
+                                                                    "NUM": 0.4
+                                                                  }
                                                                 }
                                                               }
                                                             }
@@ -2438,6 +2605,17 @@
                             }
                           }
                         }
+                      }
+                    }
+                  }
+                },
+                "inputs": {
+                  "DISTANCE": {
+                    "block": {
+                      "type": "math_number",
+                      "id": "gp-pupil-v2-b-105_numeric",
+                      "fields": {
+                        "NUM": 0.4
                       }
                     }
                   }

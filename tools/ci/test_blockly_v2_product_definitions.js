@@ -62,6 +62,17 @@ function verifyDefinitions(blocks) {
   }
   assert.equal(Object.keys(counts).length, 4, 'no unexpected block style');
 
+  for (const [type, socket] of [
+    ['webeeblocks_v2_takeoff','HEIGHT'],
+    ['webeeblocks_v2_move','DISTANCE'],
+    ['webeeblocks_v2_vertical','DISTANCE']
+  ]) {
+    const block = blocks.find(item=>item.type===type);
+    const value = block.args0.find(arg=>arg.type==='input_value');
+    assert.equal(value.name,socket,'single movement block must accept an expression');
+    assert.equal(value.check,'Number');
+    assert(!block.args0.some(arg=>arg.type==='field_number'),'legacy numeric field must be removed');
+  }
   const range = blocks.find(block => block.type === 'webeeblocks_v2_range');
   assert.equal(range.message0, 'distance %1', 'range label without a redundant unit');
   assert.equal(range.output, 'Number', 'range output');

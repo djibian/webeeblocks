@@ -8,7 +8,7 @@ html_path = ROOT / 'plugins/robot_windows/blockly_v2/blockly_v2.html'
 fixture = (ROOT / 'controllers/Blockly_Programs/CrazyflieReactiveV2.xml').read_text(encoding='utf-8')
 simple_run = '''<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="webeeblocks_v2_takeoff" id="ci_project_takeoff" x="40" y="40">
-    <field name="HEIGHT">0.5</field>
+    <value name="HEIGHT"><shadow type="math_number"><field name="NUM">0.5</field></shadow></value>
     <next><block type="webeeblocks_v2_land" id="ci_project_land"></block></next>
   </block>
 </xml>'''
@@ -199,7 +199,7 @@ harness = r'''
         // Fail one explicit Save after staging truncated data. Chrome must
         // preserve the previously committed .wbb and retain the Save target.
         window.__webeeblocksCiFileStore.failNextWrite = true;
-        firstMove().setFieldValue('0.9', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.9', 'NUM');
         click('projectSave');
         await waitFor(() => document.getElementById('projectFileState').dataset.error === 'true',
           'failed Save error', 3000);
@@ -211,7 +211,7 @@ harness = r'''
         document.getElementById('projectFileState').dataset.error = 'false';
         await report('SAVE_WRITE_ABORT_OK', {writes:1, aborts:1, bytes:savedBytes.length});
 
-        firstMove().setFieldValue('0.8', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.8', 'NUM');
         await sleep(150);
         if (window.__webeeblocksCiFileStore.writes !== 1) throw new Error('workspace edit triggered persistence write');
         await report('EDIT_NO_WRITE_OK', {writes:window.__webeeblocksCiFileStore.writes});
@@ -222,12 +222,12 @@ harness = r'''
         if (window.__webeeblocksCiFileStore.writes !== 1) throw new Error('Open triggered persistence write');
         await report('OPEN_ROUNDTRIP_OK', currentAst());
 
-        firstMove().setFieldValue('0.7', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.7', 'NUM');
         const editedAst = currentAst();
         click('projectSave');
         await waitFor(() => window.__webeeblocksCiFileStore.writes === 2, 'explicit Save write', 3000);
         const editedBytes = window.__webeeblocksCiFileStore.bytes;
-        firstMove().setFieldValue('0.4', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.4', 'NUM');
         window.__webeeblocksCiFileStore.bytes = editedBytes;
         click('projectOpen');
         await waitFor(() => same(currentAst(), editedAst), 'edited Save AST restoration', 3000);
