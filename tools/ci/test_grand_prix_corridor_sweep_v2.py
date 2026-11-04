@@ -51,6 +51,16 @@ class VariableCorridorSweepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             swept_corridor_clearance(None, (0.,0.), (1., 0.))
 
+    def test_observed_leg_cursor_suite_is_selected(self):
+        # This class is imported by the canonical Grand Prix geometry
+        # entry point; an import alone would NOT execute the nested tests.
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(VariableLegCursorTests)
+        result = unittest.TestResult()
+        suite.run(result)
+        self.assertEqual(result.testsRun, 3)
+        if result.failures or result.errors:
+            self.fail('observed leg cursor: ' + repr(result.failures + result.errors))
+
 
 if __name__ == '__main__':
     unittest.main()
