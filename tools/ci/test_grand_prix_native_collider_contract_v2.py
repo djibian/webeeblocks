@@ -1,11 +1,9 @@
 """Pure native-API fakes: fail-closed tests, NOT Webots R2025a qualification."""
 from dataclasses import replace
 import unittest
-from tools.grand_prix.route_courses_v2 import plan_course, CoursePlan
-from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as L_HEIGHT
-from tools.grand_prix.route_terminal_v2 import terminal_boxes
+from tools.grand_prix.route_courses_v2 import plan_course, CoursePlan, reference_course
 from tools.grand_prix.native_collider_contract_v2 import (
-    NativeBox, required_box_names, verify_native_boxes,
+    NativeBox, required_box_names, canonical_native_boxes, verify_native_boxes,
 )
 
 
@@ -73,23 +71,7 @@ class _Supervisor:
 
 def _plan_and_manifest():
     plan = plan_course(17, (2., 2.5, 3.), ('G', 'D'), 2)
-    expected = []
-    for b in corner_boxes(plan.route):
-        expected.append(NativeBox(b.name, (b.x, b.y, L_HEIGHT/2),
-                                  (b.sx, b.sy, L_HEIGHT)))
-    for gate in plan.gates:
-        leg = plan.route.legs[gate.leg_index]
-        for part in ('LEFT', 'RIGHT', 'BEAM'):
-            lateral = 0 if part == 'BEAM' else (.3 if part == 'LEFT' else -.3)
-            xy = leg.at(gate.along, lateral)
-            # These are fake dimensional witnesses, not a native/real H proof.
-            expected.append(NativeBox(f'GP_V2_H_{leg.index}_{part}',
-                                      (*xy, .7), (.04, .56, 1.)))
-    for b in terminal_boxes(plan.route):
-        expected.append(NativeBox(b.name, (b.x, b.y, b.z),
-                                  (b.sx, b.sy, b.sz)))
-    return plan, tuple(expected)
-
+    return plan, canonical_native_boxes(plan)
 
 class NativeColliderContractTests(unittest.TestCase):
     def test_full_manifest_and_authority_neutrality(self):
@@ -97,6 +79,34 @@ class NativeColliderContractTests(unittest.TestCase):
         self.assertEqual(tuple(b.name for b in boxes), required_box_names(plan))
         self.assertIsNone(verify_native_boxes(_Supervisor(boxes), plan, boxes))
         self.assertEqual(len(boxes), 8 + 3*plan.count)
+
+    def test_all_reference_courses_bind_actual_host_dimensions(self):
+        # These are Python Supervisor fakes, NOT native R2025a measurements.
+        for number in range(12):
+            course = reference_course(number)
+            boxes = canonical_native_boxes(course)
+            with self.subTest(identifier=course.identifier):
+                self.assertEqual(len(boxes), 8 + 3*course.count)
+                self.assertEqual(tuple(b.name for b in boxes), required_box_names(course))
+                self.assertIsNone(verify_native_boxes(_Supervisor(boxes), course, boxes))
+
+    def test_rejects_self_consistent_forged_native_geometry(self):
+        plan, boxes = _plan_and_manifest()
+        # A fake scene can agree with a forged manifest but disagree with
+        # the physical L, open H or terminal H specified by CoursePlan.
+        for index in (0, 4, len(boxes)-1):
+            box = boxes[index]
+            for field in ('position', 'size'):
+                with self.subTest(box=box.name, field=field):
+                    if field == 'position':
+                        forged_box = replace(box, position=(
+                            box.position[0]+.002, *box.position[1:]))
+                    else:
+                        forged_box = replace(box, size=(
+                            box.size[0]+.002, *box.size[1:]))
+                    forged = boxes[:index] + (forged_box,) + boxes[index+1:]
+                    with self.assertRaisesRegex(ValueError, 'canonical geometry'):
+                        verify_native_boxes(_Supervisor(forged), plan, forged)
 
     def test_rejects_omitted_forged_or_noncanonical_manifests(self):
         plan, boxes = _plan_and_manifest()

@@ -8,6 +8,9 @@ its separately attempt-bound readiness with the native flight controller.
 from dataclasses import dataclass
 import math
 from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as CORNER_HEIGHT
+from tools.grand_prix.route_open_h_v2 import open_h_boxes
+from tools.grand_prix.route_terminal_v2 import terminal_boxes
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,33 @@ def required_box_names(course):
     terminal = tuple('GP_V2_FINAL_' + part
                      for part in ('LEFT', 'RIGHT', 'BEAM', 'PANEL'))
     return corners + gates + terminal
+
+
+def canonical_native_boxes(course):
+    """Rebuild every expected physical Box from the canonical host geometry.
+
+    An evaluator must not make an arbitrary, self-consistent scene/readback
+    manifest authoritative. This remains a static preflight, NOT READY.
+    """
+    expected_names = required_box_names(course)
+    result = []
+    for box in corner_boxes(course.route):
+        result.append(NativeBox(box.name, (box.x, box.y, CORNER_HEIGHT / 2),
+                                (box.sx, box.sy, CORNER_HEIGHT)))
+    for box in open_h_boxes(course):
+        result.append(NativeBox(box.name, (box.x, box.y, box.z),
+                                (box.sx, box.sy, box.sz)))
+    for box in terminal_boxes(course.route):
+        result.append(NativeBox(box.name, (box.x, box.y, box.z),
+                                (box.sx, box.sy, box.sz)))
+    if tuple(box.name for box in result) != expected_names:
+        raise ValueError('canonical course geometry inventory mismatch')
+    return tuple(result)
+
+
+def _serialized(vector):
+    """Exact 6-decimal VRML geometry, never a free safety tolerance."""
+    return tuple(float(f'{value:.6f}') for value in vector)
 
 
 def _vector(vector, *, positive=False):
@@ -91,20 +121,24 @@ def _reject_nested_course_nodes(root_nodes):
 def verify_native_boxes(supervisor, course, boxes):
     """Require exactly the expected physical solids, locked and observable.
 
-    The boxes MUST come from the trusted world/evaluator's common numeric
-    geometry, not an AST, browser value or scene readback. Enforce complete
-    CoursePlan-derived *names* here so omitting a whole H cannot make a
-    falsely green, self-consistent reduced manifest.
+    Independently derive exact expected positions and dimensions from the
+    canonical CoursePlan and physical geometry primitives. A manifest forged
+    from scene readback must fail even if it matches every observed collider.
+    This still provides no READY or real R2025a contact qualification.
     """
-    expected_names = required_box_names(course)
+    canonical = canonical_native_boxes(course)
+    expected_names = tuple(box.name for box in canonical)
     if not isinstance(boxes, tuple) or len(boxes) != len(expected_names):
         raise ValueError('incomplete native collider manifest')
     if (any(type(box) is not NativeBox for box in boxes) or
             tuple(box.name for box in boxes) != expected_names):
         raise ValueError('native collider manifest names/order mismatch')
-    for box in boxes:
+    for box, expected in zip(boxes, canonical):
         _vector(box.position)
         _vector(box.size, positive=True)
+        if (_serialized(box.position) != _serialized(expected.position) or
+                _serialized(box.size) != _serialized(expected.size)):
+            raise ValueError('native collider manifest differs from canonical geometry')
 
     # Reject unexpected course Solids too: a hidden collidable object is not
     # made safe by verifying all the expected objects are present.
