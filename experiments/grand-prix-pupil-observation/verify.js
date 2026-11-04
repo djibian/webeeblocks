@@ -41,7 +41,7 @@ try {
   assert.deepStrictEqual(Object.keys(initial), ['format','version','activity','workspace']);
   assert.strictEqual(initial.activity.id, profile.id);
   assert.strictEqual(initial.workspace.blocks.blocks.length, 1);
-  assert.deepStrictEqual(initial.workspace.blocks.blocks.map(b => b.type), ['webeeblocks_v2_takeoff_expr']);
+  assert.deepStrictEqual(initial.workspace.blocks.blocks.map(b => b.type), ['webeeblocks_v2_takeoff']);
   assert.deepStrictEqual(initial.workspace.variables || [], []);
   const loaded = Projects.validateProjectText(source, profile, deps);
   assert.strictEqual(loaded.ast, null, 'a partial student starter is not an executable GP solution');

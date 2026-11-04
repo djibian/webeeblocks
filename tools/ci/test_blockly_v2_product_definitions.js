@@ -44,8 +44,8 @@ assert.equal(registrations.length, 1, 'product definitions registered exactly on
 
 const definitions = registrations[0];
 const expectedTypes = [
-  'webeeblocks_v2_takeoff', 'webeeblocks_v2_takeoff_expr', 'webeeblocks_v2_land', 'webeeblocks_v2_move', 'webeeblocks_v2_move_expr',
-  'webeeblocks_v2_vertical', 'webeeblocks_v2_vertical_expr', 'webeeblocks_v2_turn', 'webeeblocks_v2_wait',
+  'webeeblocks_v2_takeoff', 'webeeblocks_v2_land', 'webeeblocks_v2_move',
+  'webeeblocks_v2_vertical', 'webeeblocks_v2_turn', 'webeeblocks_v2_wait',
   'webeeblocks_v2_speed', 'webeeblocks_v2_light', 'webeeblocks_v2_elapsed',
   'webeeblocks_v2_range', 'webeeblocks_v2_until'
 ];
@@ -56,23 +56,22 @@ function verifyDefinitions(blocks) {
   const counts = Object.create(null);
   for (const block of blocks) counts[block.style] = (counts[block.style] || 0) + 1;
   for (const [style, count] of Object.entries({
-    flight_blocks: 10, control_blocks: 1, sensor_blocks: 2, loop_blocks: 1
+    flight_blocks: 7, control_blocks: 1, sensor_blocks: 2, loop_blocks: 1
   })) {
     assert.equal(counts[style], count, `${style} block count`);
   }
   assert.equal(Object.keys(counts).length, 4, 'no unexpected block style');
 
-  for (const [computed, numeric, valueName] of [
-    ['webeeblocks_v2_takeoff_expr','webeeblocks_v2_takeoff','HEIGHT'],
-    ['webeeblocks_v2_move_expr','webeeblocks_v2_move','DISTANCE'],
-    ['webeeblocks_v2_vertical_expr','webeeblocks_v2_vertical','DISTANCE']
+  for (const [type, socket] of [
+    ['webeeblocks_v2_takeoff','HEIGHT'],
+    ['webeeblocks_v2_move','DISTANCE'],
+    ['webeeblocks_v2_vertical','DISTANCE']
   ]) {
-    const expressionBlock = blocks.find(block => block.type === computed);
-    const numericBlock = blocks.find(block => block.type === numeric);
-    assert.equal(expressionBlock.message0, numericBlock.message0);
-    const value = expressionBlock.args0.find(arg => arg.type === 'input_value');
-    assert.equal(value.name, valueName);
-    assert.equal(value.check, 'Number');
+    const block = blocks.find(item=>item.type===type);
+    const value = block.args0.find(arg=>arg.type==='input_value');
+    assert.equal(value.name,socket,'single movement block must accept an expression');
+    assert.equal(value.check,'Number');
+    assert(!block.args0.some(arg=>arg.type==='field_number'),'legacy numeric field must be removed');
   }
   const range = blocks.find(block => block.type === 'webeeblocks_v2_range');
   assert.equal(range.message0, 'distance %1', 'range label without a redundant unit');

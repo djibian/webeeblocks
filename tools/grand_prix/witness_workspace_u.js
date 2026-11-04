@@ -26,10 +26,10 @@ function build(){
  }
  function sequence(list){let first,last;for(const e of list){let b;
   switch(e.kind){
-   case 'takeoff':b=block('webeeblocks_v2_takeoff_expr');input(b,'HEIGHT',expr({kind:'number',value:e.height_m}));break;
+   case 'takeoff':b=block('webeeblocks_v2_takeoff');input(b,'HEIGHT',expr({kind:'number',value:e.height_m}));break;
    case 'land':b=block('webeeblocks_v2_land');break;
-   case 'move':b=block('webeeblocks_v2_move_expr',{DIRECTION:e.direction});input(b,'DISTANCE',expr({kind:'number',value:e.distance_m}));break;
-   case 'vertical':b=block('webeeblocks_v2_vertical_expr',{DIRECTION:e.direction});input(b,'DISTANCE',expr({kind:'number',value:e.distance_m}));break;
+   case 'move':b=block('webeeblocks_v2_move',{DIRECTION:e.direction});input(b,'DISTANCE',expr({kind:'number',value:e.distance_m}));break;
+   case 'vertical':b=block('webeeblocks_v2_vertical',{DIRECTION:e.direction});input(b,'DISTANCE',expr({kind:'number',value:e.distance_m}));break;
    case 'turn':b=block('webeeblocks_v2_turn',{DIRECTION:e.angle_deg<0?'right':'left',ANGLE:Math.abs(e.angle_deg)});break;
    case 'set_variable':b=block('variables_set',{VAR:variable(e.variable).getId()});input(b,'VALUE',expr(e.value));break;
    case 'repeat':b=block('controls_repeat_ext');input(b,'TIMES',expr({kind:'number',value:e.count}));input(b,'DO',sequence(e.body));break;

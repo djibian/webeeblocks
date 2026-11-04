@@ -24,18 +24,18 @@ function profile(){
 }
 module.exports=async function(){
  const p=profile();
- assert.strictEqual(p.runtime.motionExpressions,true);
+ assert.strictEqual(Activities.BLOCK_CATALOG.webeeblocks_v2_move.category,'flight');
  assert.deepStrictEqual(p.runtime.astBounds['move.lateral.distance_m'],{min:.01,max:.6});
  assert.strictEqual(p.parameterBounds.math_number.NUM.step,.01);
- assert.strictEqual(p.toolbox.includes('webeeblocks_v2_move'),false);
- assert.strictEqual(p.toolbox.includes('webeeblocks_v2_move_expr'),true);
+ assert.strictEqual(p.toolbox.includes('webeeblocks_v2_move'),true);
+ assert.strictEqual(p.toolbox.filter(type=>type==='webeeblocks_v2_move').length,1);
  const ws=new Blockly.Workspace(),alt=ws.getVariableMap().createVariable('altitude','','altitude'),margin=ws.getVariableMap().createVariable('marge','','marge');
  const setAlt=setVar(ws,alt,num(ws,.8)),setMargin=setVar(ws,margin,num(ws,.15));
- const takeoff=connect(ws.newBlock('webeeblocks_v2_takeoff_expr'),'HEIGHT',readVar(ws,alt));
- const move=ws.newBlock('webeeblocks_v2_move_expr'),sensor=ws.newBlock('webeeblocks_v2_range');
+ const takeoff=connect(ws.newBlock('webeeblocks_v2_takeoff'),'HEIGHT',readVar(ws,alt));
+ const move=ws.newBlock('webeeblocks_v2_move'),sensor=ws.newBlock('webeeblocks_v2_range');
  sensor.setFieldValue('front','DIRECTION');connect(move,'DISTANCE',diff(ws,sensor,readVar(ws,margin)));
- const lateral=ws.newBlock('webeeblocks_v2_move_expr');lateral.setFieldValue('left','DIRECTION');connect(lateral,'DISTANCE',num(ws,.5));
- const vertical=ws.newBlock('webeeblocks_v2_vertical_expr');vertical.setFieldValue('down','DIRECTION');
+ const lateral=ws.newBlock('webeeblocks_v2_move');lateral.setFieldValue('left','DIRECTION');connect(lateral,'DISTANCE',num(ws,.5));
+ const vertical=ws.newBlock('webeeblocks_v2_vertical');vertical.setFieldValue('down','DIRECTION');
  connect(vertical,'DISTANCE',diff(ws,readVar(ws,alt),num(ws,.4)));
  const land=ws.newBlock('webeeblocks_v2_land');link(setAlt,setMargin,takeoff,move,lateral,vertical,land);
  const ast=C.compileWorkspace(ws);I.validateProgram(ast);I.validateExecutionBudget(ast,20000);
@@ -51,15 +51,16 @@ module.exports=async function(){
  A.preflightBackend(p,facts,backend);
  await I.run(ast,backend,{motionBounds:p.runtime.astBounds,maxSteps:20000});
  assert.deepStrictEqual(effects,[['takeoff',.8],['move','forward',1.85],['move','left',.5],['vertical','down',.4],['land']]);
- const uniqueMove=ws.newBlock('webeeblocks_v2_move_expr');
+ const uniqueMove=ws.newBlock('webeeblocks_v2_move');
  assert(uniqueMove.getInput('DISTANCE')&&!uniqueMove.getField('DISTANCE'),
    'Grand Prix movement must offer exactly one expression socket');uniqueMove.dispose();
  const bad=JSON.parse(JSON.stringify(ast));bad.program[4].distance_m={kind:'number',value:.61};
  const observed=[],guarded=Object.assign({},backend,{takeoff:async x=>observed.push('takeoff'),move:async(d,x)=>observed.push(d)});
  await assert.rejects(()=>I.run(bad,guarded,{motionBounds:p.runtime.astBounds}),/out-of-bounds/);
  assert.deepStrictEqual(observed,['takeoff','forward'],'out-of-range move reached backend');
- const unavailable=JSON.parse(JSON.stringify(p));unavailable.runtime.motionExpressions=false;
- assert.throws(()=>A.preflightAst(unavailable,ast),/motion expression unavailable/);
+ // Expressions are a property of the single shared movement block, not a profile flag.
+ const ordinary=JSON.parse(JSON.stringify(Profiles.resolveById(Activities.DOCUMENT,'progression-memory-v1',Activities.BLOCK_CATALOG)));
+ assert(ordinary.toolbox.includes('webeeblocks_v2_move'));
  const forbidden=JSON.parse(JSON.stringify(p));forbidden.runtime.rangeDirections=[];
  assert.throws(()=>A.preflightAst(forbidden,ast),/range capability unavailable/);
  // A centimetre is an admissible command length, not a 1 cm control accuracy guarantee.

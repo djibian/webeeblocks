@@ -299,7 +299,7 @@ class Complexity(unittest.TestCase):
         self.assertEqual(data['activity']['id'], 'progression-grand-prix-u-v1')
         self.assertEqual(data['activity']['semantics'], 'webeeblocks-ast-v1')
         roots = data['workspace']['blocks']['blocks']
-        self.assertEqual([block['type'] for block in roots], ['webeeblocks_v2_takeoff_expr'])
+        self.assertEqual([block['type'] for block in roots], ['webeeblocks_v2_takeoff'])
         self.assertEqual(roots[0]['inputs']['HEIGHT']['shadow']['fields']['NUM'], 0.8)
         self.assertNotIn('next', roots[0], 'a full program was smuggled into pupil starter')
         metrics = analyze(data)
