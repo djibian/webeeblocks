@@ -14,6 +14,7 @@ from tools.ci.test_grand_prix_terminal_v2 import VariableTerminalTests  # noqa: 
 from tools.ci.test_grand_prix_terminal_dwell_v2 import VariableTerminalDwellTests  # noqa: F401
 from tools.ci.test_grand_prix_course_footprint_v2 import CompleteCourseFootprintTests  # noqa: F401
 from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
+from tools.ci.test_grand_prix_native_collider_attestation_v2 import NativeColliderAttestationTests  # noqa: F401
 
 
 def gap(p, b):
