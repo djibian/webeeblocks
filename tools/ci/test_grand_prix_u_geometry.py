@@ -12,6 +12,7 @@ from tools.ci.test_grand_prix_corridor_sweep_v2 import VariableCorridorSweepTest
 from tools.grand_prix.test_launch_linux import LinuxGrandPrixLauncherTests  # noqa: F401
 from tools.ci.test_grand_prix_terminal_v2 import VariableTerminalTests  # noqa: F401
 from tools.ci.test_grand_prix_course_footprint_v2 import CompleteCourseFootprintTests  # noqa: F401
+from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
 
 
 def gap(p, b):
