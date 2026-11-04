@@ -38,10 +38,19 @@
   function preflightWorkspace(profile, workspace) {
     var allowed = new Set(profile.toolbox);
     var types = workspaceTypes(workspace);
-    types.forEach(function(type) {
-      if (!allowed.has(type))
-        studentFail('block forbidden by profile: ' + type,
-          'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
+    workspace.getAllBlocks(false).forEach(function(block) {
+      if (allowed.has(block.type)) return;
+      // A numeric shadow is part of a movement command, not a separate
+      // operator taught to pupils in the earliest activities.
+      var parent = typeof block.getParent === 'function' ? block.getParent() : null;
+      var motion = parent && (
+        parent.type === 'webeeblocks_v2_takeoff' || parent.type === 'webeeblocks_v2_move' ||
+        parent.type === 'webeeblocks_v2_vertical');
+      var input = parent && (parent.type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE');
+      if (block.type === 'math_number' && motion && typeof block.isShadow === 'function' &&
+          block.isShadow() && parent.getInputTargetBlock(input) === block) return;
+      studentFail('block forbidden by profile: ' + block.type,
+        'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
     });
     preflightFieldOptions(profile, workspace);
     return types;
@@ -99,11 +108,8 @@
     if (value < constraint.min || value > constraint.max) fail(name + ' outside profile bounds: ' + value);
   }
   function checkMotion(profile,bounds,name,value,direction) {
-    if (typeof value === 'object' && value && typeof value.kind === 'string') {
-      if (profile.runtime.motionExpressions !== true)
-        studentFail('motion expression unavailable in profile','Les calculs de déplacement ne sont pas disponibles dans cette activité.');
+    if (typeof value === 'object' && value && typeof value.kind === 'string')
       return; // Interpreter checks the evaluated number before dispatch.
-    }
     checkBound(bounds,name,value);
     if(name==='move.distance_m')
       checkBound(bounds,direction==='left'||direction==='right'?'move.lateral.distance_m':'move.forward.distance_m',value);

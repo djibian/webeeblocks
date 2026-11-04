@@ -6,7 +6,7 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
-  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
+  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.01,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
   var LIGHT_COLORS = Object.freeze(['off','red','green','blue','yellow','white']);
   var ARITHMETIC_OPS = Object.freeze(['ADD','MINUS','MULTIPLY','DIVIDE']);
@@ -97,30 +97,17 @@
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
       case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)fail('turn angle must be non-zero');return{kind:'turn',angle_deg:legacyAngle};}
       case 'webeeblocks_land':return{kind:'land'};
-      case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
-      case 'webeeblocks_v2_takeoff_expr':return{kind:'takeoff',height_m:motionArgument(block,'HEIGHT',LIMITS.height_m)};
-      case 'webeeblocks_v2_move_expr':{
+      case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:motionArgument(block,'HEIGHT',LIMITS.height_m)};
+      case 'webeeblocks_v2_move':{
         var exprDirection=String(field(block,'DIRECTION'));
         if(['forward','back','left','right'].indexOf(exprDirection)<0)fail('unsupported move direction: '+exprDirection);
-        return{kind:'move',direction:exprDirection,distance_m:motionArgument(block,'DISTANCE',{min:.01,max:2.0})};
+        return{kind:'move',direction:exprDirection,distance_m:motionArgument(block,'DISTANCE',LIMITS.distance_m)};
       }
-      case 'webeeblocks_v2_vertical_expr':{
+      case 'webeeblocks_v2_vertical':{
         var exprVertical=String(field(block,'DIRECTION'));
         if(exprVertical!=='up'&&exprVertical!=='down')fail('unsupported vertical direction: '+exprVertical);
         return{kind:'vertical',direction:exprVertical,distance_m:motionArgument(block,'DISTANCE',LIMITS.vertical_m)};
-      }
-      case 'webeeblocks_v2_move':{
-        var direction=String(field(block,'DIRECTION'));
-        if(['forward','back','left','right'].indexOf(direction)<0)
-          fail('unsupported move direction: '+direction);
-        return{kind:'move',direction:direction,distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
-      }
-      case 'webeeblocks_v2_vertical':{
-        var verticalDirection=String(field(block,'DIRECTION'));
-        if(verticalDirection!=='up'&&verticalDirection!=='down')
-          fail('unsupported vertical direction: '+verticalDirection);
-        return{kind:'vertical',direction:verticalDirection,distance_m:bounded(field(block,'DISTANCE'),'vertical_m',LIMITS.vertical_m)};
       }
       case 'webeeblocks_v2_turn':{
         var turnDirection=String(field(block,'DIRECTION'));

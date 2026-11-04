@@ -157,16 +157,23 @@ function buildToolbox(profile) {
     }
     groups[category].forEach(function(type) {
       var block = document.createElement('block'); block.setAttribute('type', type);
-      if (type === 'webeeblocks_v2_takeoff_expr' || type === 'webeeblocks_v2_move_expr' ||
-          type === 'webeeblocks_v2_vertical_expr') {
+      if (type === 'webeeblocks_v2_takeoff' || type === 'webeeblocks_v2_move' ||
+          type === 'webeeblocks_v2_vertical') {
         var arg = document.createElement('value');
-        arg.setAttribute('name', type === 'webeeblocks_v2_takeoff_expr' ? 'HEIGHT' : 'DISTANCE');
+        arg.setAttribute('name', type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE');
         var shadowArg = document.createElement('shadow');
         shadowArg.setAttribute('type', 'math_number');
         var fieldArg = document.createElement('field');
         fieldArg.setAttribute('name', 'NUM');
-        fieldArg.textContent = type === 'webeeblocks_v2_takeoff_expr' ? '0.8' :
-          type === 'webeeblocks_v2_vertical_expr' ? '0.4' : '0.3';
+        var bounds = profile.runtime && profile.runtime.astBounds || {};
+        var name = type === 'webeeblocks_v2_takeoff' ? 'takeoff.height_m' :
+          type === 'webeeblocks_v2_vertical' ? 'vertical.distance_m' : 'move.distance_m';
+        var limits = bounds[name] || {};
+        var preferred = type === 'webeeblocks_v2_takeoff' ? 0.5 :
+          type === 'webeeblocks_v2_vertical' ? 0.2 : 0.3;
+        var minimum = Number.isFinite(limits.min) ? limits.min : preferred;
+        var maximum = Number.isFinite(limits.max) ? limits.max : preferred;
+        fieldArg.textContent = String(Math.max(minimum, Math.min(preferred, maximum)));
         shadowArg.appendChild(fieldArg); arg.appendChild(shadowArg); block.appendChild(arg);
       }
       if (type === 'controls_repeat_ext') {
