@@ -94,6 +94,31 @@ module.exports=async function(){
      assert.deepStrictEqual(t.calls,kind==='takeoff'?[]:[['takeoff',.8]],'invalid movement crossed the backend boundary');
    }
  }
+ // Early lessons expose the same motion blocks with numeric shadows only.
+ // Their repeat-count integer restrictions must NEVER clamp flight distances.
+ for(const lesson of ['progression-sequence-v1','progression-repeat-v1']){
+   const scoped=Profiles.resolveById(Activities.DOCUMENT,lesson,Activities.BLOCK_CATALOG);
+   const simple=new Blockly.Workspace();
+   const start=simple.newBlock('webeeblocks_v2_takeoff');
+   const height=num(simple,.5);height.setShadow(true);connect(start,'HEIGHT',height);
+   const moveBlock=simple.newBlock('webeeblocks_v2_move');
+   const distance=num(simple,lesson==='progression-sequence-v1'?.1:.3);
+   distance.setShadow(true);connect(moveBlock,'DISTANCE',distance);
+   const finish=simple.newBlock('webeeblocks_v2_land');link(start,moveBlock,finish);
+   assert(!scoped.toolbox.some(type=>type.endsWith('_expr')));
+   A.preflightWorkspace(scoped,simple);
+   A.applyFieldBounds(scoped,simple);
+   assert.strictEqual(height.getFieldValue('NUM'),.5);
+   assert.strictEqual(distance.getFieldValue('NUM'),lesson==='progression-sequence-v1'?.1:.3,
+     'operator Number bounds clamped a flight literal');
+   const compiled=C.compileWorkspace(simple);
+   A.preflightAst(scoped,compiled);
+   const copyLesson=new Blockly.Workspace();
+   Blockly.serialization.workspaces.load(Blockly.serialization.workspaces.save(simple),copyLesson);
+   A.preflightWorkspace(scoped,copyLesson);
+   assert.deepStrictEqual(C.compileWorkspace(copyLesson),compiled);
+   copyLesson.dispose();simple.dispose();
+ }
  const old={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.8},{kind:'move',direction:'forward',distance_m:.3},{kind:'land'}]};
  I.validateProgram(old);A.preflightAst(p,old);
  copy.dispose();ws.dispose();
