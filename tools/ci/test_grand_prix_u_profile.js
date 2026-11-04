@@ -3,6 +3,8 @@ const assert=require('assert'),vm=require('vm'),fs=require('fs');
 const Activities=require('../../plugins/robot_windows/blockly/webeeblocks/activities');
 const Profiles=require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
 const source=fs.readFileSync('plugins/robot_windows/grand_prix_u/setup.js','utf8');
+// Cross-profile guard: the variable Linux route keeps the same motion contract.
+require('./test_grand_prix_route_profile.js');
 function compose(loops){
  const catalog=Object.assign({},Activities.BLOCK_CATALOG);
  if(loops)catalog.controls_whileUntil={category:'control'};else delete catalog.controls_whileUntil;
