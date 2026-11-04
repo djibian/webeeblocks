@@ -101,6 +101,17 @@ class CompleteCourseFootprintTests(unittest.TestCase):
             self.fail('directed H gate progression: ' +
                       repr(result.failures + result.errors))
 
+    def test_coupled_leg_and_h_progress_is_canonical(self):
+        from tools.ci.test_grand_prix_course_progress_v2 import CoupledCourseProgressTests
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
+            CoupledCourseProgressTests)
+        result = unittest.TestResult()
+        suite.run(result)
+        self.assertEqual(result.testsRun, 5)
+        if result.failures or result.errors:
+            self.fail('coupled segment / directed H progression: ' +
+                      repr(result.failures + result.errors))
+
     def test_invalid_inputs_fail_closed(self):
         route = build_route(0, (2., 2.5, 3.), ('G','D'))
         for value in (None, (), True):
