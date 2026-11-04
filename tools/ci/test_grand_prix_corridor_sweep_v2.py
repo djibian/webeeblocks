@@ -8,6 +8,7 @@ from tools.grand_prix.corridor_sweep_v2 import (
 
 
 from tools.ci.test_grand_prix_leg_cursor_v2 import VariableLegCursorTests  # noqa: F401
+from tools.ci.test_grand_prix_observed_course_v2 import ObservedCourseProgressTests  # noqa: F401
 
 class VariableCorridorSweepTests(unittest.TestCase):
     def test_108_routes_leg_centres_and_corner_transitions_are_admissible(self):
@@ -61,6 +62,15 @@ class VariableCorridorSweepTests(unittest.TestCase):
         if result.failures or result.errors:
             self.fail('observed leg cursor: ' + repr(result.failures + result.errors))
 
+
+    def test_observed_course_composition_suite_is_selected(self):
+        # Both pure cursors are exercised together; no native READY claim.
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(ObservedCourseProgressTests)
+        result = unittest.TestResult()
+        suite.run(result)
+        self.assertEqual(result.testsRun, 4)
+        if result.failures or result.errors:
+            self.fail('observed course composition: ' + repr(result.failures + result.errors))
 
 if __name__ == '__main__':
     unittest.main()
