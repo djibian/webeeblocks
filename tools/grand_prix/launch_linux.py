@@ -5,8 +5,10 @@ This does not implement or qualify the variable L-corner courses of #808.
 The GUI, OS file dialogs and real user journey still require local observation.
 """
 import argparse
+import hashlib
+import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import sys
@@ -68,6 +70,54 @@ def webots_home(explicit):
     return home
 
 
+def ensure_webots_assets(home, lock_path=ROOT / "tools/ci/runtime_v2_outcome_assets.lock.json"):
+    """Verify the pinned local R2025a PROTO closure; never fetch at GUI launch."""
+    manifest = json.loads(Path(lock_path).read_text(encoding="utf-8"))
+    if (manifest.get("schema") != 1 or
+            manifest.get("source_commit") != "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"):
+        raise RuntimeError("Inventaire des ressources Webots non reconnu")
+    assets = manifest.get("assets")
+    if not isinstance(assets, list) or not 0 < len(assets) <= 64:
+        raise RuntimeError("Inventaire des ressources Webots invalide")
+    seen = set()
+    total = 0
+    root = Path(home).resolve()
+    for item in assets:
+        if not isinstance(item, dict):
+            raise RuntimeError("Entrée de ressource Webots invalide")
+        name, expected_size, digest = item.get("path"), item.get("bytes"), item.get("sha256")
+        if not isinstance(name, str):
+            raise RuntimeError("Chemin de ressource Webots invalide")
+        relative = PurePosixPath(name)
+        if (not relative.parts or relative.parts[0] != "projects" or
+                ".." in relative.parts or relative.as_posix() != name or
+                "\\" in name or name in seen):
+            raise RuntimeError(f"Chemin de ressource Webots interdit : {name}")
+        if (type(expected_size) is not int or not 0 < expected_size <= 8 * 1024 * 1024 or
+                not isinstance(digest, str) or len(digest) != 64 or
+                any(ch not in "0123456789abcdef" for ch in digest)):
+            raise RuntimeError(f"Empreinte de ressource Webots invalide : {name}")
+        seen.add(name)
+        total += expected_size
+        if total > 16 * 1024 * 1024:
+            raise RuntimeError("Inventaire de ressources Webots excessif")
+        target = root.joinpath(*relative.parts)
+        try:
+            target.resolve().relative_to(root)
+        except ValueError as exc:
+            raise RuntimeError(f"Ressource Webots hors installation : {name}") from exc
+        if not target.is_file():
+            raise RuntimeError(
+                f"Ressource Webots locale absente : {name} ; installer les "
+                "ressources officielles complètes de Webots R2025a"
+            )
+        if target.stat().st_size != expected_size or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise RuntimeError(
+                f"Ressource Webots locale non conforme à l'inventaire épinglé : {name}"
+            )
+    return len(assets)
+
+
 def ensure_blockly_assets():
     required = [
         BLOCKLY / "vendor/VERSION",
@@ -91,6 +141,7 @@ def ensure_blockly_assets():
 def prepare_native(home):
     if not EVALUATOR.is_file():
         raise RuntimeError(f"Évaluateur Grand Prix absent : {EVALUATOR}")
+    ensure_webots_assets(home)
     ensure_blockly_assets()
     env = os.environ.copy()
     env["WEBOTS_HOME"] = str(home)
