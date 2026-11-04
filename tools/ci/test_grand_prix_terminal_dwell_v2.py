@@ -43,6 +43,12 @@ class VariableTerminalDwellTests(unittest.TestCase):
             state, state.attempt, ms, progress, velocity,
             airborne=airborne, completed=completed)
 
+    def contiguous(self, state, progress, final_ms, **kwargs):
+        """Synthetic 8-ms-step witness, rather than assuming unobserved time is stable."""
+        while state.last_ms + 8 < final_ms:
+            state = self.step(state, progress, state.last_ms + 8, **kwargs)
+        return self.step(state, progress, final_ms, **kwargs)
+
     def test_twelve_reference_courses_terminal_orientation_and_exact_dwell(self):
         for index in range(12):
             course = reference_course(index)
@@ -55,9 +61,9 @@ class VariableTerminalDwellTests(unittest.TestCase):
                 self.assertIsNone(witness.completion_ms)
                 witness = self.step(witness, progress, 200, completed=True)
                 self.assertEqual(witness.state, 'open')
-                witness = self.step(witness, progress, 699)
+                witness = self.contiguous(witness, progress, 699)
                 self.assertEqual(witness.state, 'open')
-                witness = self.step(witness, progress, 700)
+                witness = self.contiguous(witness, progress, 700)
                 self.assertEqual(witness.state, 'stable-window')
                 self.assertEqual(witness.completion_ms, 200)
                 self.assertEqual(self.step(witness, progress, 1000,
@@ -71,13 +77,13 @@ class VariableTerminalDwellTests(unittest.TestCase):
         progress = _terminal_progress(course)
         state = start_terminal_dwell(course, 1, 0., 0)
         state = self.step(state, progress, 0, completed=True)
-        state = self.step(state, progress, 400)
+        state = self.contiguous(state, progress, 400)
         self.assertEqual(state.state, 'open')
         state = self.step(state, progress, 401, velocity=(.13, 0., 0.))
         self.assertIsNone(state.stationary_since_ms)
         state = self.step(state, progress, 600)
         self.assertEqual(state.state, 'open')
-        state = self.step(state, progress, 1099)
+        state = self.contiguous(state, progress, 1099)
         self.assertEqual(state.state, 'open')
         self.assertEqual(self.step(state, progress, 1100).state, 'stable-window')
         target = course.route.landing_target(1)
@@ -125,13 +131,38 @@ class VariableTerminalDwellTests(unittest.TestCase):
         self.assertEqual(exactly.state, 'expired-window')
 
         before = self.step(first_completed_but_moving(), progress, 999)
-        before = self.step(before, progress, 1498)
+        before = self.contiguous(before, progress, 1498)
         self.assertEqual(before.state, 'open')
-        before = self.step(before, progress, 1499)
+        before = self.contiguous(before, progress, 1499)
         self.assertEqual(before.state, 'stable-window')
         # A duly established terminal state is not undone by later clocks.
         self.assertEqual(self.step(before, progress, 1500).state,
                          'stable-window')
+
+    def test_sparse_observations_cannot_claim_continuous_landing(self):
+        course = reference_course(0)
+        progress = _terminal_progress(course)
+        # The same apparently stable endpoints cannot establish the 700-ms
+        # unobserved interval; the first sample after a gap restarts the clock.
+        state = start_terminal_dwell(course, 1, 0., 0)
+        state = self.step(state, progress, 0, completed=True)
+        state = self.step(state, progress, 700)
+        self.assertEqual(state.state, 'open')
+        self.assertEqual(state.stationary_since_ms, 700)
+
+        # Even one missing native step during an otherwise proven interval
+        # invalidates the accumulated dwell. No extra 500 ms are waived.
+        state = start_terminal_dwell(course, 2, 0., 0)
+        state = self.step(state, progress, 0, completed=True)
+        state = self.contiguous(state, progress, 400)
+        self.assertEqual(state.stationary_since_ms, 0)
+        state = self.step(state, progress, 416)  # 16-ms interval; one step missing
+        self.assertEqual(state.state, 'open')
+        self.assertEqual(state.stationary_since_ms, 416)
+        state = self.contiguous(state, progress, 904)
+        self.assertEqual(state.state, 'open')
+        state = self.contiguous(state, progress, 920)
+        self.assertEqual(state.state, 'stable-window')
 
     def test_incomplete_h_or_nonterminal_leg_cannot_acquire_dwell(self):
         course = reference_course(10)
