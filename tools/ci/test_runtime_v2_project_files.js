@@ -709,7 +709,72 @@ async function exerciseWwiBoundary() {
   assert.strictEqual(transport.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'), false, 'broker consumed runtime traffic');
 }
 
+// #826: real Blockly 13, .wbb manager and AST roundtrip for the stable
+// variable-course activity profile. Host route switching, native Webots and
+// OS file dialogs are NOT exercised by this test.
+async function proveVariableProfileRealBlocklyRoundTrip() {
+  const source = fs.readFileSync(path.join(ROOT,
+    'plugins/robot_windows/grand_prix_route_v2/setup.js'), 'utf8');
+  const context = {
+    WebeeBlocksActivities: {BLOCK_CATALOG:Activities.BLOCK_CATALOG, DOCUMENT:Activities.DOCUMENT},
+    WebeeBlocksRuntimeOutcome: {classify:() => null},
+    Blockly: {inject:(_element, options) => options},
+    WebeeBlocksWwiBackend: function() {}
+  };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  const document = context.WebeeBlocksActivities.DOCUMENT;
+  const profile = Profiles.resolveById(document, context.WebeeBlocksInitialActivityId,
+    Activities.BLOCK_CATALOG);
+  assert.strictEqual(profile.id, 'progression-grand-prix-route-v2');
+  assert.strictEqual(profile.world, 'worlds/grand_prix_route_v2.wbt');
+
+  const transport = memoryTransport();
+  const profileRef = {value:profile};
+  const create = workspace => ProjectFiles.createManager({
+    Blockly, profiles:Profiles, activitiesDocument:document,
+    blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst, activityContract:ActivityContract,
+    workspace, getProfile:()=>profileRef.value,
+    setProfile:p=>{profileRef.value=p;}, transport
+  });
+  const original = buildWorkspace(0.3);
+  const initialAst = ast(original, profile);
+  const manager = create(original);
+  assert.strictEqual(manager.hasCurrentTarget(), false);
+  await manager.saveAs('grand-prix-variable');
+  await manager.save();
+  const bytes = transport.state.currentText;
+  const project = ProjectFiles.parseProject(bytes);
+  assert.deepStrictEqual(Object.keys(project.activity).sort(), ['id', 'semantics']);
+  assert.strictEqual(project.activity.id, profile.id);
+
+  // Recreate the editor with the same logical profile and stored file.
+  // Host-course selection is a distinct, not-yet-tested integration boundary.
+  const reopenedWorkspace = new Blockly.Workspace();
+  const reopened = create(reopenedWorkspace);
+  transport.state.openText = bytes;
+  await reopened.open();
+  assert.strictEqual(reopened.hasCurrentTarget(), true);
+  assert.deepStrictEqual(ast(reopenedWorkspace, profileRef.value), initialAst);
+  await reopened.save();
+  assert.strictEqual(transport.state.currentText, bytes,
+    'Save after real Blockly Open changed the same .wbb without an edit');
+
+  // A historical U project is a different profile: reject it atomically,
+  // preserving the editable workspace and current Save target.
+  const before = Blockly.serialization.workspaces.save(reopenedWorkspace);
+  transport.state.openText = ProjectFiles.createStarterText('progression-grand-prix-u-v1');
+  await assert.rejects(()=>reopened.open(), /exactly once/);
+  assert.deepStrictEqual(Blockly.serialization.workspaces.save(reopenedWorkspace), before);
+  assert.strictEqual(reopened.hasCurrentTarget(), true);
+  assert.strictEqual(transport.state.currentText, bytes);
+  original.dispose();
+  reopenedWorkspace.dispose();
+}
+
 (async function() {
+  await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
   await exerciseWwiBoundary();

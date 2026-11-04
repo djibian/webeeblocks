@@ -46,12 +46,23 @@ class PureVariableAttemptTests(unittest.TestCase):
                     if gate:
                         state = travel(state, (*leg.at(gate.along-.35), .75))
                         state = travel(state, (*leg.at(gate.along-.35), .35))
+                        if leg.index == 2:
+                            # Early terminal-leg H: promotion is exclusive to the
+                            # new corridor. Revisit the shared corner *inside*
+                            # the H's low band to witness the required arm;
+                            # never make an unarmed crossing pass by fiat.
+                            state = travel(state, (*leg.at(gate.along-.20), .35))
+                            state = travel(state, (*leg.at(gate.along-.45), .35))
                         state = travel(state, (*leg.at(gate.along+.35), .35))
                         state = travel(state, (*leg.at(gate.along+.35), .75))
                     if leg.index < 2:
                         state = travel(state, (*leg.end, .75))
                     else:
                         target = course.route.landing_target(course.count)
+                        # Arrive on the centreline before entering the wider
+                        # terminal pad: a diagonal cut from far upstream is
+                        # not a legal shortcut past a concave boundary.
+                        state = travel(state, (*leg.at(leg.length-.70), .75))
                         state = travel(state, (*target, .75))
                         state = travel(state, (*target, .05))
                 self.assertEqual(state.progress.count, course.count)
@@ -91,7 +102,7 @@ class PureVariableAttemptTests(unittest.TestCase):
         s = start_pure_attempt(course, 3, .015, 0)
         missing = observe_pure_attempt(s, 3, 8, s.progress.pose, (0.,0.,0.))
         self.assertEqual(missing.result.reason, 'device-contact')
-        self.assertEqual(observe(s, 3, 160, (.25,0.,.015),
+        self.assertEqual(observe(s, 3, 160, (.40,0.,.015),
                                               (0.,0.,0.)).result.reason,
                          'sample-displacement')
         self.assertEqual(observe(s, 3, 160, (0.,0.,.015),
