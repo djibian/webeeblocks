@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical, reference_configurations
+from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical, reference_configurations, ensure_webots_assets
 
 
 class LinuxGrandPrixLauncherTests(unittest.TestCase):
@@ -47,6 +47,47 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             (home / "resources/version.txt").write_text("R2025b\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "R2025a"):
                 webots_home(str(home))
+
+    def test_pinned_local_webots_assets_fail_closed_without_network(self):
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "webots"
+            relative = "projects/objects/floors/protos/Floor.proto"
+            target = home / relative
+            target.parent.mkdir(parents=True)
+            content = b"official pinned Floor fixture"
+            target.write_bytes(content)
+            lock = Path(directory) / "assets.lock.json"
+            item = {"path": relative, "bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest()}
+            manifest = {"schema": 1,
+                        "source_commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+                        "assets": [item]}
+            lock.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual(ensure_webots_assets(home, lock), 1)
+            target.write_bytes(b"official pinned Floor fixture!")
+            with self.assertRaisesRegex(RuntimeError, "non conforme"):
+                ensure_webots_assets(home, lock)
+            target.unlink()
+            with self.assertRaisesRegex(RuntimeError, "absente"):
+                ensure_webots_assets(home, lock)
+            manifest["assets"][0]["path"] = "projects/../../escape.proto"
+            lock.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "interdit"):
+                ensure_webots_assets(home, lock)
+
+    def test_asset_preflight_precedes_blockly_or_native_build(self):
+        from tools.grand_prix.launch_linux import prepare_native
+        with mock.patch("tools.grand_prix.launch_linux.ensure_webots_assets",
+                        side_effect=RuntimeError("ressources manquantes")) as assets, \
+             mock.patch("tools.grand_prix.launch_linux.ensure_blockly_assets") as blockly, \
+             mock.patch("tools.grand_prix.launch_linux.subprocess.run") as run:
+            with self.assertRaisesRegex(RuntimeError, "ressources manquantes"):
+                prepare_native(Path("/mock/webots"))
+            assets.assert_called_once()
+            blockly.assert_not_called()
+            run.assert_not_called()
 
     def test_missing_blockly_media_requires_reprepare_and_fail_closed(self):
         # Vendor JS alone does not establish a complete offline Blockly editor.
