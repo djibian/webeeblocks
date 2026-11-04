@@ -74,6 +74,8 @@
         if (statement.kind === 'move') moves.add(statement.direction);
         if (statement.kind === 'vertical') verticals.add(statement.direction);
         if (statement.kind === 'set_variable') expression(statement.value);
+        if (statement.kind === 'takeoff' && typeof statement.height_m === 'object') expression(statement.height_m);
+        if ((statement.kind === 'move' || statement.kind === 'vertical') && typeof statement.distance_m === 'object') expression(statement.distance_m);
         if (statement.kind === 'if') {
           expression(statement.condition);
           sequence(statement.then);
@@ -92,16 +94,27 @@
   }
   function checkBound(bounds, name, value) {
     if (!Object.prototype.hasOwnProperty.call(bounds, name)) return;
+    if (typeof value !== 'number' || !Number.isFinite(value)) fail(name + ' must be finite');
     var constraint = bounds[name];
     if (value < constraint.min || value > constraint.max) fail(name + ' outside profile bounds: ' + value);
+  }
+  function checkMotion(profile,bounds,name,value,direction) {
+    if (typeof value === 'object' && value && typeof value.kind === 'string') {
+      if (profile.runtime.motionExpressions !== true)
+        studentFail('motion expression unavailable in profile','Les calculs de déplacement ne sont pas disponibles dans cette activité.');
+      return; // Interpreter checks the evaluated number before dispatch.
+    }
+    checkBound(bounds,name,value);
+    if(name==='move.distance_m')
+      checkBound(bounds,direction==='left'||direction==='right'?'move.lateral.distance_m':'move.forward.distance_m',value);
   }
   function checkAstBounds(profile, ast) {
     var bounds = profile.runtime.astBounds || {};
     function sequence(items) {
       (items || []).forEach(function(statement) {
-        if (statement.kind === 'takeoff') checkBound(bounds, 'takeoff.height_m', statement.height_m);
-        else if (statement.kind === 'move') checkBound(bounds, 'move.distance_m', statement.distance_m);
-        else if (statement.kind === 'vertical') checkBound(bounds, 'vertical.distance_m', statement.distance_m);
+        if (statement.kind === 'takeoff') checkMotion(profile,bounds,'takeoff.height_m',statement.height_m);
+        else if (statement.kind === 'move') checkMotion(profile,bounds,'move.distance_m',statement.distance_m,statement.direction);
+        else if (statement.kind === 'vertical') checkMotion(profile,bounds,'vertical.distance_m',statement.distance_m);
         else if (statement.kind === 'turn') checkBound(bounds, 'turn.angle_deg_abs', Math.abs(statement.angle_deg));
         else if (statement.kind === 'wait') checkBound(bounds, 'wait.seconds', statement.seconds);
         else if (statement.kind === 'set_speed') checkBound(bounds, 'set_speed.speed_m_s', statement.speed_m_s);
@@ -163,6 +176,7 @@
     var facts = preflightAst(profile, ast);
     preflightBackend(profile, facts, backend);
     var interpreterOptions = Object.assign({}, options || {});
+    interpreterOptions.motionBounds = profile.runtime.astBounds || {};
     var onAst = interpreterOptions.onAst;
     delete interpreterOptions.onAst;
     if (typeof onAst === 'function') onAst(ast);

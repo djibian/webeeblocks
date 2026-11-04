@@ -63,6 +63,10 @@
           sequence(block.getInputTargetBlock('DO0'), path.concat('then'), calls);
           if (block.getInputTargetBlock('ELSE'))
             sequence(block.getInputTargetBlock('ELSE'), path.concat('else'), calls);
+        } else if (block.type === 'webeeblocks_v2_takeoff_expr') {
+          expression(block.getInputTargetBlock('HEIGHT'),path.concat('height_m'));
+        } else if (block.type === 'webeeblocks_v2_move_expr'||block.type === 'webeeblocks_v2_vertical_expr') {
+          expression(block.getInputTargetBlock('DISTANCE'),path.concat('distance_m'));
         } else if (block.type === 'variables_set') {
           expression(block.getInputTargetBlock('VALUE'), path.concat('value'));
         } else if (block.type === 'math_change') {

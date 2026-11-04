@@ -94,6 +94,17 @@
       case 'webeeblocks_land':return{kind:'land'};
       case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
+      case 'webeeblocks_v2_takeoff_expr':return{kind:'takeoff',height_m:valueChild(block,'HEIGHT')};
+      case 'webeeblocks_v2_move_expr':{
+        var exprDirection=String(field(block,'DIRECTION'));
+        if(['forward','back','left','right'].indexOf(exprDirection)<0)fail('unsupported move direction: '+exprDirection);
+        return{kind:'move',direction:exprDirection,distance_m:valueChild(block,'DISTANCE')};
+      }
+      case 'webeeblocks_v2_vertical_expr':{
+        var exprVertical=String(field(block,'DIRECTION'));
+        if(exprVertical!=='up'&&exprVertical!=='down')fail('unsupported vertical direction: '+exprVertical);
+        return{kind:'vertical',direction:exprVertical,distance_m:valueChild(block,'DISTANCE')};
+      }
       case 'webeeblocks_v2_move':{
         var direction=String(field(block,'DIRECTION'));
         if(['forward','back','left','right'].indexOf(direction)<0)
@@ -171,10 +182,12 @@
     });
   }
   function validateFlightBoundaries(program){
-    if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
+    var takeoffIndex=program.findIndex(function(s){return s.kind!=='set_variable';});
+    if(program.length<2||takeoffIndex<0||program[takeoffIndex].kind!=='takeoff'||program[program.length-1].kind!=='land')
+      studentFail('program must start with assignments then takeoff and end with land','Initialisez vos variables avant « décoller », puis terminez par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
-      if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
+      if(statement.kind==='takeoff'&&i!==takeoffIndex)fail('takeoff is only allowed after initial assignments');
       if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
       if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}

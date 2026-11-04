@@ -157,6 +157,18 @@ function buildToolbox(profile) {
     }
     groups[category].forEach(function(type) {
       var block = document.createElement('block'); block.setAttribute('type', type);
+      if (type === 'webeeblocks_v2_takeoff_expr' || type === 'webeeblocks_v2_move_expr' ||
+          type === 'webeeblocks_v2_vertical_expr') {
+        var arg = document.createElement('value');
+        arg.setAttribute('name', type === 'webeeblocks_v2_takeoff_expr' ? 'HEIGHT' : 'DISTANCE');
+        var shadowArg = document.createElement('shadow');
+        shadowArg.setAttribute('type', 'math_number');
+        var fieldArg = document.createElement('field');
+        fieldArg.setAttribute('name', 'NUM');
+        fieldArg.textContent = type === 'webeeblocks_v2_takeoff_expr' ? '0.8' :
+          type === 'webeeblocks_v2_vertical_expr' ? '0.4' : '0.3';
+        shadowArg.appendChild(fieldArg); arg.appendChild(shadowArg); block.appendChild(arg);
+      }
       if (type === 'controls_repeat_ext') {
         var value = document.createElement('value'); value.setAttribute('name', 'TIMES');
         var shadow = document.createElement('shadow'); shadow.setAttribute('type', 'math_number');
