@@ -64,13 +64,16 @@ def check_native(result, course):
 
 
 def native_run(home, indexes):
+    # A failed or interrupted invocation must never leave a previous PASS summary.
+    OUT.mkdir(parents=True, exist_ok=True)
+    summary_file = OUT / 'summary.json'
+    summary_file.unlink(missing_ok=True)
     version_file = home / 'resources/version.txt'
     if not version_file.is_file() or version_file.read_text().strip() != 'R2025a':
         raise RuntimeError('Webots R2025a required; no fallback')
     executable = home / 'webots'
     if not executable.is_file():
         raise RuntimeError('Webots native executable missing')
-    OUT.mkdir(parents=True, exist_ok=True)
     outcomes = []
     for index in indexes:
         course = reference_course(index)
@@ -126,7 +129,16 @@ def native_run(home, indexes):
             world.with_suffix('.wbproj').unlink(missing_ok=True)
     summary = dict(claim='L-only-native-teleport-perception-not-flight',
                    webots_version='R2025a', results=outcomes)
-    (OUT / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    # Publish a complete validated matrix atomically, never a partial success.
+    with tempfile.NamedTemporaryFile(
+            mode='w', prefix='.summary-', suffix='.tmp', dir=OUT,
+            encoding='utf-8', delete=False) as target:
+        pending = Path(target.name)
+        target.write(json.dumps(summary, indent=2) + '\n')
+    try:
+        os.replace(pending, summary_file)
+    finally:
+        pending.unlink(missing_ok=True)
 
 
 def main(argv=None):
