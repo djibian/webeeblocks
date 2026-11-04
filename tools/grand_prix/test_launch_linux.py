@@ -248,5 +248,20 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, 2)
 
 
+    def test_static_inspection_direct_script_imports_from_any_cwd_without_pythonpath(self):
+        from tools.grand_prix import inspect_static_linux as preview
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            env = os.environ.copy()
+            env.pop('PYTHONPATH', None)
+            result = subprocess.run(
+                [sys.executable, str(Path(preview.__file__).resolve()), '--help'],
+                cwd=directory, env=env, capture_output=True, text=True, timeout=20,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('INSPECTION SEULEMENT', result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
