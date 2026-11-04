@@ -401,7 +401,9 @@ function proveProgressionProfilesAndFieldOptions() {
   mustRejectStudentValidation(
     () => SemanticAst.compileWorkspace({getTopBlocks: () => [{
       type: 'webeeblocks_v2_takeoff',
-      getFieldValue: name => name === 'HEIGHT' ? 0.5 : null,
+      getInputTargetBlock: name => name === 'HEIGHT'
+        ? {type:'math_number',getFieldValue:field => field === 'NUM' ? 0.5 : null}
+        : null,
       getNextBlock: () => null
     }]}),
     /se terminer par « atterrir »/

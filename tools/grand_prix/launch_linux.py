@@ -36,6 +36,17 @@ def render_legacy_u(seed):
     )
 
 
+def reference_configurations():
+    """List the 12 reproducible host-only route IDs; never admit a flight.
+
+    This discovery command is deliberately independent of native Webots and
+    does not activate the variable world, evaluator or pupil runtime.
+    """
+    from tools.grand_prix.route_courses_v2 import reference_course
+    return tuple((index, reference_course(index).identifier)
+                 for index in range(12))
+
+
 def webots_home(explicit):
     candidate = explicit or os.environ.get("WEBOTS_HOME")
     if not candidate:
@@ -111,7 +122,17 @@ def main(argv=None):
     parser.add_argument("--webots-home", help="répertoire d'installation Webots R2025a")
     parser.add_argument("--preflight-only", action="store_true",
                         help="préparer les ressources natives, sans prétendre valider le GUI")
+    parser.add_argument("--list-configurations", action="store_true",
+                        help="afficher les 12 parcours variables reproductibles, sans les lancer")
     args = parser.parse_args(argv)
+    if args.list_configurations:
+        if args.legacy_u or args.preflight_only or args.webots_home is not None or args.seed != 4:
+            parser.error("--list-configurations ne peut pas être combiné avec les options de lancement")
+        print("Parcours Grand Prix variables — identifiants hôtes reproductibles :")
+        for index, identifier in reference_configurations():
+            print(f"  {index:02d}  {identifier}")
+        print("NON QUALIFIÉS : liste descriptive seulement ; aucun monde Webots n'est lancé.")
+        return 0
     if not args.legacy_u:
         parser.error("le nouveau parcours variable n'est pas encore implémenté ; choisir explicitement --legacy-u")
     if not 0 <= args.seed <= 65535:

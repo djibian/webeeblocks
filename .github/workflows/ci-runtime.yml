@@ -1209,7 +1209,7 @@ jobs:
           grep -F "overrideBuiltinBlockStyle('math_number', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
           grep -F "#zoomFit .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
           ! grep -F "#workspaceToolbar .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
-          test "$(sha256sum controllers/Blockly_Programs/CrazyflieReactiveV2.xml | awk '{print $1}')" = "32b281611dc06f6d488fcad97055d309493a8050b455fd57c8a6079a9b9aaaa1"
+          test "$(sha256sum controllers/Blockly_Programs/CrazyflieReactiveV2.xml | awk '{print $1}')" = "248769f463e8379345d522349624712d4f1545c07feb74b9cb6743f88603a1de"
           python3 -m json.tool experiments/runtime-v2-student-ui/expected_ast.json >/dev/null
 
       - name: Pull official Webots R2025a image

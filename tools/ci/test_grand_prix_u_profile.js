@@ -3,6 +3,8 @@ const assert=require('assert'),vm=require('vm'),fs=require('fs');
 const Activities=require('../../plugins/robot_windows/blockly/webeeblocks/activities');
 const Profiles=require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
 const source=fs.readFileSync('plugins/robot_windows/grand_prix_u/setup.js','utf8');
+// Cross-profile guard: the variable Linux route keeps the same motion contract.
+require('./test_grand_prix_route_profile.js');
 function compose(loops){
  const catalog=Object.assign({},Activities.BLOCK_CATALOG);
  if(loops)catalog.controls_whileUntil={category:'control'};else delete catalog.controls_whileUntil;
@@ -13,6 +15,10 @@ function compose(loops){
  const profile=Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,context.WebeeBlocksInitialActivityId,catalog);
  assert.strictEqual(profile.id,'progression-grand-prix-u-v1');
  assert.strictEqual(profile.runtime.maxSteps,20000);
+ for(const type of ['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_vertical'])
+  assert.strictEqual(profile.toolbox.filter(entry=>entry===type).length,1,'one block per movement');
+ assert.strictEqual(profile.parameterBounds.math_number.NUM.step,0.01);
+ assert.strictEqual(profile.parameterBounds.math_number.NUM.min,-1000);
  assert.strictEqual(profile.toolbox.includes('controls_whileUntil'),loops);
  assert.strictEqual(profile.toolbox.includes('webeeblocks_v2_until'),true);
  assert.strictEqual(profile.runtime.astBounds['while.max_iterations'].max,100);

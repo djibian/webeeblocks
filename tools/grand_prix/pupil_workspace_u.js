@@ -1,5 +1,5 @@
 'use strict';
-// Exact real .wbb project from #703 (8c315326fbba556d01c88bc8d512910cf85e9665); experimental witness ONLY.
+// Product-block port of the historical #703 .wbb; experimental witness ONLY.
 // Never read seed, layout, oracle, or mission-state information from Blockly.
 const assert = require('assert');
 const crypto = require('crypto');
@@ -44,7 +44,7 @@ function build() {
     const reopenedAst = Semantic.compileWorkspace(reopened);
     Contract.preflightAst(profile, reopenedAst);
     assert.deepStrictEqual(reopenedAst, ast, 'same AST on reopen');
-    assert.strictEqual(workspace.getAllBlocks(false).length, 232);
+    assert.strictEqual(workspace.getAllBlocks(false).length, 250);
     return {ast, project_sha256: crypto.createHash('sha256').update(content).digest('hex'),
       ast_sha256: crypto.createHash('sha256').update(JSON.stringify(ast)).digest('hex')};
   } finally {workspace.dispose(); reopened.dispose();}
@@ -54,7 +54,7 @@ if (require.main === module) {
   const witness = build();
   console.log('GP_U_PUPIL_PREFLIGHT ' + JSON.stringify({
     source_pr: 703, source_head: '8c315326fbba556d01c88bc8d512910cf85e9665',
-    source_blob: '02c0cdef8fc7189aa171b584a8160b52e392ba1c', project_sha256: witness.project_sha256,
-    ast_sha256: witness.ast_sha256, blocks: 232,
-    claim: 'real-Blockly-13.2.1-preflight-AST-roundtrip-only'}));
+    historical_source_blob: '02c0cdef8fc7189aa171b584a8160b52e392ba1c', project_sha256: witness.project_sha256,
+    ast_sha256: witness.ast_sha256, blocks: 250,
+    claim: 'ported-expression-blocks-Blockly-13.2.1-preflight-AST-roundtrip-only'}));
 }
