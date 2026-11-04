@@ -10,11 +10,11 @@
       "languageVersion": 0,
       "blocks": [
         {
-          "type": "webeeblocks_v2_takeoff_expr",
+          "type": "webeeblocks_v2_takeoff",
           "id": "gp-pupil-v2-b-217",
           "next": {
             "block": {
-              "type": "webeeblocks_v2_vertical_expr",
+              "type": "webeeblocks_v2_vertical",
               "id": "gp-pupil-v2-b-218",
               "fields": {
                 "DIRECTION": "up"
@@ -754,7 +754,7 @@
                                                                                     },
                                                                                     "DO0": {
                                                                                       "block": {
-                                                                                        "type": "webeeblocks_v2_move_expr",
+                                                                                        "type": "webeeblocks_v2_move",
                                                                                         "id": "gp-pupil-v2-b-157",
                                                                                         "fields": {
                                                                                           "DIRECTION": "forward"
@@ -835,7 +835,7 @@
                                                                                           },
                                                                                           "DO0": {
                                                                                             "block": {
-                                                                                              "type": "webeeblocks_v2_move_expr",
+                                                                                              "type": "webeeblocks_v2_move",
                                                                                               "id": "gp-pupil-v2-b-163",
                                                                                               "fields": {
                                                                                                 "DIRECTION": "forward"
@@ -877,7 +877,7 @@
                                                                                           },
                                                                                           "ELSE": {
                                                                                             "block": {
-                                                                                              "type": "webeeblocks_v2_move_expr",
+                                                                                              "type": "webeeblocks_v2_move",
                                                                                               "id": "gp-pupil-v2-b-166",
                                                                                               "fields": {
                                                                                                 "DIRECTION": "forward"
@@ -1110,7 +1110,7 @@
           "inputs": {
             "STACK": {
               "block": {
-                "type": "webeeblocks_v2_vertical_expr",
+                "type": "webeeblocks_v2_vertical",
                 "id": "gp-pupil-v2-b-105",
                 "fields": {
                   "DIRECTION": "down"
@@ -1198,7 +1198,7 @@
                           },
                           "DO0": {
                             "block": {
-                              "type": "webeeblocks_v2_move_expr",
+                              "type": "webeeblocks_v2_move",
                               "id": "gp-pupil-v2-b-15",
                               "fields": {
                                 "DIRECTION": "forward"
@@ -1493,7 +1493,7 @@
                                                       },
                                                       "DO0": {
                                                         "block": {
-                                                          "type": "webeeblocks_v2_move_expr",
+                                                          "type": "webeeblocks_v2_move",
                                                           "id": "gp-pupil-v2-b-6",
                                                           "fields": {
                                                             "DIRECTION": "right"
@@ -1571,7 +1571,7 @@
                                                             },
                                                             "DO0": {
                                                               "block": {
-                                                                "type": "webeeblocks_v2_move_expr",
+                                                                "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-12",
                                                                 "fields": {
                                                                   "DIRECTION": "left"
@@ -1595,7 +1595,7 @@
                                                     },
                                                     "next": {
                                                       "block": {
-                                                        "type": "webeeblocks_v2_move_expr",
+                                                        "type": "webeeblocks_v2_move",
                                                         "id": "gp-pupil-v2-b-37",
                                                         "fields": {
                                                           "DIRECTION": "forward"
@@ -1622,7 +1622,7 @@
                                                             },
                                                             "next": {
                                                               "block": {
-                                                                "type": "webeeblocks_v2_move_expr",
+                                                                "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-40",
                                                                 "fields": {
                                                                   "DIRECTION": "forward"
@@ -1649,7 +1649,7 @@
                                                                     },
                                                                     "next": {
                                                                       "block": {
-                                                                        "type": "webeeblocks_v2_vertical_expr",
+                                                                        "type": "webeeblocks_v2_vertical",
                                                                         "id": "gp-pupil-v2-b-43",
                                                                         "fields": {
                                                                           "DIRECTION": "up"
@@ -2225,7 +2225,7 @@
                                                 },
                                                 "DO0": {
                                                   "block": {
-                                                    "type": "webeeblocks_v2_move_expr",
+                                                    "type": "webeeblocks_v2_move",
                                                     "id": "gp-pupil-v2-b-89",
                                                     "fields": {
                                                       "DIRECTION": "forward"
@@ -2245,7 +2245,7 @@
                                                 },
                                                 "ELSE": {
                                                   "block": {
-                                                    "type": "webeeblocks_v2_move_expr",
+                                                    "type": "webeeblocks_v2_move",
                                                     "id": "gp-pupil-v2-b-90",
                                                     "fields": {
                                                       "DIRECTION": "back"
@@ -2408,14 +2408,14 @@
                                                     },
                                                     "DO0": {
                                                       "block": {
-                                                        "type": "webeeblocks_v2_move_expr",
+                                                        "type": "webeeblocks_v2_move",
                                                         "id": "gp-pupil-v2-b-66",
                                                         "fields": {
                                                           "DIRECTION": "left"
                                                         },
                                                         "next": {
                                                           "block": {
-                                                            "type": "webeeblocks_v2_move_expr",
+                                                            "type": "webeeblocks_v2_move",
                                                             "id": "gp-pupil-v2-b-67",
                                                             "fields": {
                                                               "DIRECTION": "left"
@@ -2485,14 +2485,14 @@
                                                         },
                                                         "DO0": {
                                                           "block": {
-                                                            "type": "webeeblocks_v2_move_expr",
+                                                            "type": "webeeblocks_v2_move",
                                                             "id": "gp-pupil-v2-b-72",
                                                             "fields": {
                                                               "DIRECTION": "right"
                                                             },
                                                             "next": {
                                                               "block": {
-                                                                "type": "webeeblocks_v2_move_expr",
+                                                                "type": "webeeblocks_v2_move",
                                                                 "id": "gp-pupil-v2-b-73",
                                                                 "fields": {
                                                                   "DIRECTION": "right"

@@ -10,7 +10,7 @@
       "languageVersion": 0,
       "blocks": [
         {
-          "type": "webeeblocks_v2_takeoff_expr",
+          "type": "webeeblocks_v2_takeoff",
           "id": "i!wp:SB.wmg?uh9}~d7%",
           "x": 20,
           "y": 40,
@@ -91,7 +91,7 @@
           "inputs": {
             "STACK": {
               "block": {
-                "type": "webeeblocks_v2_move_expr",
+                "type": "webeeblocks_v2_move",
                 "id": "XCkR$*|g=Dv{^xJ[cEK)",
                 "fields": {
                   "DIRECTION": "forward"

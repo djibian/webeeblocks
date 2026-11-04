@@ -14,9 +14,6 @@
           "id": "hover-takeoff",
           "x": 0,
           "y": 0,
-          "fields": {
-            "HEIGHT": 0.5
-          },
           "next": {
             "block": {
               "type": "webeeblocks_v2_wait",
@@ -50,6 +47,17 @@
                       "id": "hover-land"
                     }
                   }
+                }
+              }
+            }
+          },
+          "inputs": {
+            "HEIGHT": {
+              "block": {
+                "type": "math_number",
+                "id": "hover-takeoff-literal",
+                "fields": {
+                  "NUM": 0.5
                 }
               }
             }
