@@ -7,6 +7,8 @@ from tools.grand_prix.corridor_sweep_v2 import (
 )
 
 
+from tools.ci.test_grand_prix_leg_cursor_v2 import VariableLegCursorTests  # noqa: F401
+
 class VariableCorridorSweepTests(unittest.TestCase):
     def test_108_routes_leg_centres_and_corner_transitions_are_admissible(self):
         count = 0
@@ -48,6 +50,16 @@ class VariableCorridorSweepTests(unittest.TestCase):
                 swept_corridor_clearance(route, invalid, (0., 0.))
         with self.assertRaises(ValueError):
             swept_corridor_clearance(None, (0.,0.), (1., 0.))
+
+    def test_observed_leg_cursor_suite_is_selected(self):
+        # This class is imported by the canonical Grand Prix geometry
+        # entry point; an import alone would NOT execute the nested tests.
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(VariableLegCursorTests)
+        result = unittest.TestResult()
+        suite.run(result)
+        self.assertEqual(result.testsRun, 3)
+        if result.failures or result.errors:
+            self.fail('observed leg cursor: ' + repr(result.failures + result.errors))
 
 
 if __name__ == '__main__':
