@@ -64,10 +64,12 @@ def check_native(result, course):
 
 
 def native_run(home, indexes):
-    # A failed or interrupted invocation must never leave a previous PASS summary.
+    # Each invocation owns its output directory; never read, modify or delete
+    # another invocation's proof or legacy top-level summary.
     OUT.mkdir(parents=True, exist_ok=True)
-    summary_file = OUT / 'summary.json'
-    summary_file.unlink(missing_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix='invocation-', dir=OUT)).resolve()
+    summary_file = run_dir / 'summary.json'
+    print('GP_V2_L_NATIVE_RUN_DIR ' + str(run_dir), flush=True)
     version_file = home / 'resources/version.txt'
     if not version_file.is_file() or version_file.read_text().strip() != 'R2025a':
         raise RuntimeError('Webots R2025a required; no fallback')
@@ -75,8 +77,10 @@ def native_run(home, indexes):
     if not executable.is_file():
         raise RuntimeError('Webots native executable missing')
     outcomes = []
-    for index in indexes:
+    for position, index in enumerate(indexes):
         course = reference_course(index)
+        case_dir = run_dir / f'{position:02d}-{course.identifier}'
+        case_dir.mkdir()
         source = probe_scene(index)
         digest = hashlib.sha256(source.encode()).hexdigest()
         # World must sit directly under the project's worlds/ directory so
@@ -86,9 +90,8 @@ def native_run(home, indexes):
                 dir=ROOT / 'worlds', encoding='utf-8', delete=False) as target:
             target.write(source)
             world = Path(target.name)
-        native_file = OUT / (course.identifier + '.json')
-        log_file = OUT / (course.identifier + '.log')
-        native_file.unlink(missing_ok=True)
+        native_file = case_dir / 'native.json'
+        log_file = case_dir / 'native.log'
         env = os.environ.copy()
         env.update(WEBOTS_HOME=str(home), GP_V2_L_NATIVE_INDEX=str(index),
                    GP_V2_L_NATIVE_OUT=str(native_file),
@@ -117,7 +120,7 @@ def native_run(home, indexes):
                 raise RuntimeError('native log and evidence file disagree')
             outcomes.append(dict(configuration=course.identifier,
                                  generated_world_sha256=digest,
-                                 evidence_file=native_file.name,
+                                 evidence_file=str(native_file.relative_to(run_dir)),
                                  evidence_sha256=hashlib.sha256(
                                      native_file.read_bytes()).hexdigest()))
             print('PASS L-only native perception ' + course.identifier, flush=True)
@@ -128,10 +131,10 @@ def native_run(home, indexes):
             world.unlink(missing_ok=True)
             world.with_suffix('.wbproj').unlink(missing_ok=True)
     summary = dict(claim='L-only-native-teleport-perception-not-flight',
-                   webots_version='R2025a', results=outcomes)
+                   invocation=run_dir.name, webots_version='R2025a', results=outcomes)
     # Publish a complete validated matrix atomically, never a partial success.
     with tempfile.NamedTemporaryFile(
-            mode='w', prefix='.summary-', suffix='.tmp', dir=OUT,
+            mode='w', prefix='.summary-', suffix='.tmp', dir=run_dir,
             encoding='utf-8', delete=False) as target:
         pending = Path(target.name)
         target.write(json.dumps(summary, indent=2) + '\n')
