@@ -59,6 +59,37 @@ module.exports=async function(){
  assert.throws(()=>A.preflightAst(unavailable,ast),/motion expression unavailable/);
  const forbidden=JSON.parse(JSON.stringify(p));forbidden.runtime.rangeDirections=[];
  assert.throws(()=>A.preflightAst(forbidden,ast),/range capability unavailable/);
+ // A centimetre is an admissible command length, not a 1 cm control accuracy guarantee.
+ async function trial(kind,value,direction){
+   const statement=kind==='takeoff'?{kind,height_m:{kind:'number',value}}:
+     {kind,direction,distance_m:{kind:'number',value}};
+   const body=kind==='takeoff'?[statement,{kind:'land'}]:
+     [{kind:'takeoff',height_m:0.8},statement,{kind:'land'}];
+   const candidate={version:1,semantics:'webeeblocks-ast-v1',program:body};
+   const calls=[],b={takeoff:async h=>calls.push(['takeoff',h]),move:async(d,n)=>calls.push(['move',d,n]),
+     vertical:async(d,n)=>calls.push(['vertical',d,n]),land:async()=>calls.push(['land'])};
+   return {candidate,calls,backend:b};
+ }
+ for(const [kind,direction,good,bad] of [
+   ['takeoff',null,[.3,1],[.29,1.01]],
+   ['move','forward',[.01,1.9],[0,1.91]],
+   ['move','back',[.01,1.9],[-.01,1.91]],
+   ['move','left',[.01,.6],[0,.61]],
+   ['move','right',[.01,.6],[0,.61]],
+   ['vertical','up',[.1,.5],[.09,.51]],
+   ['vertical','down',[.1,.5],[.09,.51]]
+ ]){
+   for(const value of good){
+     const t=await trial(kind,value,direction);
+     await I.run(t.candidate,t.backend,{motionBounds:p.runtime.astBounds});
+     assert.strictEqual(t.calls.length,kind==='takeoff'?2:3,'valid boundary not dispatched');
+   }
+   for(const value of bad){
+     const t=await trial(kind,value,direction);
+     await assert.rejects(()=>I.run(t.candidate,t.backend,{motionBounds:p.runtime.astBounds}),/out-of-bounds/);
+     assert.deepStrictEqual(t.calls,kind==='takeoff'?[]:[['takeoff',.8]],'invalid movement crossed the backend boundary');
+   }
+ }
  const old={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.8},{kind:'move',direction:'forward',distance_m:.3},{kind:'land'}]};
  I.validateProgram(old);A.preflightAst(p,old);
  copy.dispose();ws.dispose();
