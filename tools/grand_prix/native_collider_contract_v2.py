@@ -189,6 +189,10 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                         raise RuntimeError('collidable course guide: ' + name)
                     pending.append((nested, depth + 1, under_guide))
 
+    if models != {'Floor', 'Crazyflie'}:
+        missing = ', '.join(sorted({'Floor', 'Crazyflie'} - models))
+        raise RuntimeError('missing required pinned scene model: ' + missing)
+
 
 def verify_native_boxes(supervisor, course, boxes):
     """Require exactly the expected physical solids, locked and observable.

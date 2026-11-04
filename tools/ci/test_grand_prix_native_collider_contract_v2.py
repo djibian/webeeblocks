@@ -66,7 +66,7 @@ class _Node:
 
 class _Supervisor:
     def __init__(self, boxes):
-        self.nodes = [self.solid(box) for box in boxes]
+        self.nodes = [self.solid(box) for box in boxes] + [_floor(), _vehicle()]
 
     @staticmethod
     def solid(box):
@@ -96,6 +96,11 @@ def _floor():
                  _base_fields={'locked': True, 'boundingObject':
                                _Node(None, 'Plane', size=(20.,20.))})
 
+def _vehicle():
+    return _Node(None, 'Crazyflie', _base='Robot', _proto=True,
+                 name='Crazyflie WebeeBlocks', extensionSlot=[])
+
+
 class NativeColliderContractTests(unittest.TestCase):
     def test_unreserved_physics_and_proto_wrappers_cannot_escape_inventory(self):
         plan, boxes = _plan_and_manifest()
@@ -118,15 +123,13 @@ class NativeColliderContractTests(unittest.TestCase):
             elif placement == 'group-proto':
                 node = _Node(None, 'OpaqueGroup', _base='Group', _proto=True,
                              _base_fields={'children': [hidden]})
-            elif placement in ('vehicle-slot', 'second-vehicle'):
-                node = _Node(None, 'Crazyflie', _base='Robot', _proto=True,
-                             name='Crazyflie WebeeBlocks',
-                             extensionSlot=[hidden] if placement == 'vehicle-slot' else [])
-                if placement == 'second-vehicle':
-                    scene.nodes.append(node)
+            elif placement == 'vehicle-slot':
+                scene.nodes[-1].fields['extensionSlot'] = [hidden]
+                node = _Node(None, 'Pose', children=[])
+            elif placement == 'second-vehicle':
+                node = _vehicle()
             elif placement == 'second-floor':
                 node = _floor()
-                scene.nodes.append(node)
             else:
                 node = _Node(None, 'Robot')
             scene.nodes.append(node)
@@ -136,22 +139,29 @@ class NativeColliderContractTests(unittest.TestCase):
     def test_legitimate_model_roots_and_nonphysical_decor_remain_admissible(self):
         plan, boxes = _plan_and_manifest()
         scene = _Supervisor(boxes)
+        scene.nodes[-1].fields['extensionSlot'] = [
+            _Node(None, 'Pose', children=[
+                _Node(None, 'Shape', geometry=_Node(None, 'Box'))])]
         scene.nodes.extend([
-            _floor(),
-            _Node(None, 'Crazyflie', _base='Robot', _proto=True,
-                  name='Crazyflie WebeeBlocks', extensionSlot=[
-                      _Node(None, 'Pose', children=[
-                          _Node(None, 'Shape', geometry=_Node(None, 'Box'))])]),
             _Node('GP_ROUTE_EVALUATOR', 'Robot', children=[]),
             _Node(None, 'Group', children=[_Node(None, 'Pose', children=[])]),
         ])
         self.assertIsNone(verify_native_boxes(scene, plan, boxes))
 
+    def test_missing_canonical_floor_or_vehicle_fails_closed(self):
+        plan, boxes = _plan_and_manifest()
+        for missing in ('Floor', 'Crazyflie'):
+            scene = _Supervisor(boxes)
+            scene.nodes = [node for node in scene.nodes if node.kind != missing]
+            with self.subTest(missing=missing), self.assertRaisesRegex(
+                    RuntimeError, 'missing required pinned scene model'):
+                verify_native_boxes(scene, plan, boxes)
+
     def test_floor_allowance_does_not_admit_raised_box_or_incomplete_floor(self):
         plan, boxes = _plan_and_manifest()
         for mutation in ('raised', 'box', 'small', 'tilted', 'unlocked'):
             scene = _Supervisor(boxes)
-            node = _floor()
+            node = next(n for n in scene.nodes if n.kind == 'Floor')
             if mutation == 'raised':
                 node.position = (0.,0.,.1)
             elif mutation == 'box':
@@ -163,7 +173,6 @@ class NativeColliderContractTests(unittest.TestCase):
                 node.fields['rotation'] = (1.,0.,0.,.1)
             else:
                 node.fields['_base_fields']['locked'] = False
-            scene.nodes.append(node)
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
                 verify_native_boxes(scene, plan, boxes)
 
