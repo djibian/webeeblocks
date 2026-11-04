@@ -7,6 +7,8 @@ from tools.grand_prix.corridor_sweep_v2 import (
 )
 
 
+from tools.ci.test_grand_prix_leg_cursor_v2 import VariableLegCursorTests  # noqa: F401
+
 class VariableCorridorSweepTests(unittest.TestCase):
     def test_108_routes_leg_centres_and_corner_transitions_are_admissible(self):
         count = 0
