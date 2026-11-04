@@ -47,7 +47,7 @@ try {
   assert.strictEqual(loaded.ast, null, 'a partial student starter is not an executable GP solution');
   Blockly.serialization.workspaces.load(initial.workspace, workspace);
   Contract.preflightWorkspace(profile, workspace);
-  assert.strictEqual(workspace.getAllBlocks(false).length, 1);
+  assert.strictEqual(workspace.getAllBlocks(false).filter(block => !block.isShadow()).length, 1);
   assert.throws(() => Semantic.compileWorkspace(workspace), /program must start with takeoff and end with land/);
   // The learner can attach an ordinary block; this is a format/round-trip
   // probe only, NOT a flight strategy and NOT an oracle success.
