@@ -709,9 +709,10 @@ async function exerciseWwiBoundary() {
   assert.strictEqual(transport.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'), false, 'broker consumed runtime traffic');
 }
 
-// #826: real Blockly 13 / actual .wbb manager + AST, under two host-only
-// route selections. This is not an OS dialog, native sensor, or GUI probe.
-async function proveVariableCourseRealBlocklyRoundTrip() {
+// #826: real Blockly 13, .wbb manager and AST roundtrip for the stable
+// variable-course activity profile. Host route switching, native Webots and
+// OS file dialogs are NOT exercised by this test.
+async function proveVariableProfileRealBlocklyRoundTrip() {
   const source = fs.readFileSync(path.join(ROOT,
     'plugins/robot_windows/grand_prix_route_v2/setup.js'), 'utf8');
   const context = {
@@ -741,20 +742,15 @@ async function proveVariableCourseRealBlocklyRoundTrip() {
   const initialAst = ast(original, profile);
   const manager = create(original);
   assert.strictEqual(manager.hasCurrentTarget(), false);
-  const firstCourse = 'gp-route-v2-L2000-2500-3000-TGD-s17-H2';
-  const secondCourse = 'gp-route-v2-L3000-2000-2500-TDG-s5-H3';
-  let hostSelection = firstCourse;
   await manager.saveAs('grand-prix-variable');
   await manager.save();
   const bytes = transport.state.currentText;
   const project = ProjectFiles.parseProject(bytes);
   assert.deepStrictEqual(Object.keys(project.activity).sort(), ['id', 'semantics']);
   assert.strictEqual(project.activity.id, profile.id);
-  assert(!bytes.includes(hostSelection), 'host CoursePlan leaked into first .wbb');
 
-  // Recreate the editor under another host route: only native world/attempt
-  // authority may change, never the file's activity identity or pupil AST.
-  hostSelection = secondCourse;
+  // Recreate the editor with the same logical profile and stored file.
+  // Host-course selection is a distinct, not-yet-tested integration boundary.
   const reopenedWorkspace = new Blockly.Workspace();
   const reopened = create(reopenedWorkspace);
   transport.state.openText = bytes;
@@ -764,8 +760,6 @@ async function proveVariableCourseRealBlocklyRoundTrip() {
   await reopened.save();
   assert.strictEqual(transport.state.currentText, bytes,
     'Save after real Blockly Open changed the same .wbb without an edit');
-  assert(!transport.state.currentText.includes(hostSelection),
-    'second host CoursePlan leaked into same-file Save');
 
   // A historical U project is a different profile: reject it atomically,
   // preserving the editable workspace and current Save target.
@@ -780,7 +774,7 @@ async function proveVariableCourseRealBlocklyRoundTrip() {
 }
 
 (async function() {
-  await proveVariableCourseRealBlocklyRoundTrip();
+  await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
   await exerciseWwiBoundary();
