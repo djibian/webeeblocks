@@ -90,6 +90,17 @@ class CompleteCourseFootprintTests(unittest.TestCase):
                 seam = last.at(last.length-.95)
                 self.assertGreater(swept_course_clearance(route, seam, seam), .20)
 
+    def test_directed_gate_cursor_adversarial_suite_is_canonical(self):
+        from tools.ci.test_grand_prix_gate_progress_v2 import DirectedGateProgressTests
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
+            DirectedGateProgressTests)
+        result = unittest.TestResult()
+        suite.run(result)
+        self.assertEqual(result.testsRun, 6)
+        if result.failures or result.errors:
+            self.fail('directed H gate progression: ' +
+                      repr(result.failures + result.errors))
+
     def test_invalid_inputs_fail_closed(self):
         route = build_route(0, (2., 2.5, 3.), ('G','D'))
         for value in (None, (), True):
