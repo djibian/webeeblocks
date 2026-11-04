@@ -128,6 +128,8 @@ class NativeColliderContractTests(unittest.TestCase):
         for mutation in ('missing', 'extra', 'duplicate',
                          'reserved-non-solid', 'nested-extra',
                          'nested-pose-extra', 'attached-extra',
+                         'decorative-hidden-solid', 'decorative-nested-solid',
+                         'decorative-collider',
                          'decorative-pose', 'decorative-group'):
             scene = _Supervisor(boxes)
             if mutation == 'missing':
@@ -150,6 +152,24 @@ class NativeColliderContractTests(unittest.TestCase):
                 else:
                     scene.nodes.append(_Node(None, 'Solid',
                                              boundingObject=hidden, children=[]))
+            elif mutation == 'decorative-hidden-solid':
+                scene.nodes.append(_Node(
+                    'GP_V2_COURSE_RED_0', 'Pose', children=[
+                        _Supervisor.solid(NativeBox(
+                            'UNRESERVED_HIDDEN', (0., 0., .65),
+                            (.1, .1, 1.3)))]))
+            elif mutation == 'decorative-nested-solid':
+                scene.nodes.append(_Node(
+                    None, 'Group', children=[
+                        _Node('GP_V2_WHITE_0', 'Pose', children=[
+                            _Node(None, 'Group', children=[
+                                _Supervisor.solid(NativeBox(
+                                    'UNRESERVED_HIDDEN', (0., 0., .65),
+                                    (.1, .1, 1.3)))])])]))
+            elif mutation == 'decorative-collider':
+                scene.nodes.append(_Node(
+                    'GP_V2_COURSE_RED_0', 'Pose', children=[],
+                    boundingObject=_Node(None, 'Box', size=(.1, .1, 1.3))))
             elif mutation == 'decorative-group':
                 scene.nodes.append(_Node(None, 'Group', children=[
                     _Node('GP_V2_COURSE_RED_0', 'Pose', children=[])]))
