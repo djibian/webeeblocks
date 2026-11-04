@@ -20,7 +20,13 @@ class _Field:
     def getSFVec3f(self):
         return self.value
 
+    def getSFVec2f(self):
+        return self.value
+
     def getSFRotation(self):
+        return self.value
+
+    def getSFString(self):
         return self.value
 
     def getCount(self):
@@ -31,8 +37,8 @@ class _Field:
 
 
 class _Node:
-    def __init__(self, name, kind, **fields):
-        self.name, self.kind, self.fields = name, kind, fields
+    def __init__(self, def_name, kind, **fields):
+        self.name, self.kind, self.fields = def_name, kind, fields
         self.position = fields.get('position')
 
     def getDef(self):
@@ -40,6 +46,16 @@ class _Node:
 
     def getTypeName(self):
         return self.kind
+
+    def getBaseTypeName(self):
+        return self.fields.get('_base', self.kind)
+
+    def isProto(self):
+        return self.fields.get('_proto', False)
+
+    def getBaseNodeField(self, name):
+        base_fields = self.fields.get('_base_fields', {})
+        return _Field(base_fields[name]) if name in base_fields else None
 
     def getField(self, name):
         return _Field(self.fields[name]) if name in self.fields else None
@@ -73,7 +89,84 @@ def _plan_and_manifest():
     plan = plan_course(17, (2., 2.5, 3.), ('G', 'D'), 2)
     return plan, canonical_native_boxes(plan)
 
+
+def _floor():
+    return _Node(None, 'Floor', _base='Solid', _proto=True,
+                 position=(0.,0.,0.), rotation=(0.,0.,1.,0.),
+                 _base_fields={'locked': True, 'boundingObject':
+                               _Node(None, 'Plane', size=(20.,20.))})
+
 class NativeColliderContractTests(unittest.TestCase):
+    def test_unreserved_physics_and_proto_wrappers_cannot_escape_inventory(self):
+        plan, boxes = _plan_and_manifest()
+        for placement in ('root', 'group', 'pose', 'slot', 'switch',
+                          'physical-proto', 'group-proto', 'vehicle-slot',
+                          'second-vehicle', 'second-floor', 'other-robot'):
+            scene = _Supervisor(boxes)
+            hidden = _Supervisor.solid(NativeBox(
+                'UNRESERVED_EXTRA_DIRECT_ROOT', (0., 0., .65), (.1,.1,1.3)))
+            if placement == 'root':
+                node = hidden
+            elif placement in ('group', 'pose'):
+                node = _Node(None, placement.title(), children=[hidden])
+            elif placement == 'slot':
+                node = _Node(None, 'Slot', endPoint=hidden)
+            elif placement == 'switch':
+                node = _Node(None, 'Switch', choice=[hidden])
+            elif placement == 'physical-proto':
+                node = _Node(None, 'UnlistedObstacle', _base='Solid', _proto=True)
+            elif placement == 'group-proto':
+                node = _Node(None, 'OpaqueGroup', _base='Group', _proto=True,
+                             _base_fields={'children': [hidden]})
+            elif placement in ('vehicle-slot', 'second-vehicle'):
+                node = _Node(None, 'Crazyflie', _base='Robot', _proto=True,
+                             name='Crazyflie WebeeBlocks',
+                             extensionSlot=[hidden] if placement == 'vehicle-slot' else [])
+                if placement == 'second-vehicle':
+                    scene.nodes.append(node)
+            elif placement == 'second-floor':
+                node = _floor()
+                scene.nodes.append(node)
+            else:
+                node = _Node(None, 'Robot')
+            scene.nodes.append(node)
+            with self.subTest(placement=placement), self.assertRaises(RuntimeError):
+                verify_native_boxes(scene, plan, boxes)
+
+    def test_legitimate_model_roots_and_nonphysical_decor_remain_admissible(self):
+        plan, boxes = _plan_and_manifest()
+        scene = _Supervisor(boxes)
+        scene.nodes.extend([
+            _floor(),
+            _Node(None, 'Crazyflie', _base='Robot', _proto=True,
+                  name='Crazyflie WebeeBlocks', extensionSlot=[
+                      _Node(None, 'Pose', children=[
+                          _Node(None, 'Shape', geometry=_Node(None, 'Box'))])]),
+            _Node('GP_ROUTE_EVALUATOR', 'Robot', children=[]),
+            _Node(None, 'Group', children=[_Node(None, 'Pose', children=[])]),
+        ])
+        self.assertIsNone(verify_native_boxes(scene, plan, boxes))
+
+    def test_floor_allowance_does_not_admit_raised_box_or_incomplete_floor(self):
+        plan, boxes = _plan_and_manifest()
+        for mutation in ('raised', 'box', 'small', 'tilted', 'unlocked'):
+            scene = _Supervisor(boxes)
+            node = _floor()
+            if mutation == 'raised':
+                node.position = (0.,0.,.1)
+            elif mutation == 'box':
+                node.fields['_base_fields']['boundingObject'] = _Node(
+                    None, 'Box', size=(20.,20.,.05))
+            elif mutation == 'small':
+                node.fields['_base_fields']['boundingObject'].fields['size'] = (1.,1.)
+            elif mutation == 'tilted':
+                node.fields['rotation'] = (1.,0.,0.,.1)
+            else:
+                node.fields['_base_fields']['locked'] = False
+            scene.nodes.append(node)
+            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                verify_native_boxes(scene, plan, boxes)
+
     def test_full_manifest_and_authority_neutrality(self):
         plan, boxes = _plan_and_manifest()
         self.assertEqual(tuple(b.name for b in boxes), required_box_names(plan))
