@@ -168,4 +168,8 @@ class Tests(unittest.TestCase):
         self.assertIn('basicTimeStep 8',world_text(generate(0)))
 
 
+# Additive pure rotated low-flight tests; historical U checks remain unchanged.
+from tools.ci.test_grand_prix_low_v2 import VariableLowZoneTests  # noqa: F401
+
+
 if __name__ == '__main__': unittest.main()
