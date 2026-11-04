@@ -388,7 +388,9 @@ script = r'''
     const lightBlue = workspace.newBlock('webeeblocks_v2_light');
     const lightOff = workspace.newBlock('webeeblocks_v2_light');
     const lightLand = workspace.newBlock('webeeblocks_v2_land');
-    lightTakeoff.setFieldValue('0.4', 'HEIGHT');
+    const lightNumber=workspace.newBlock('math_number');
+    lightNumber.setFieldValue('0.4','NUM');
+    lightTakeoff.getInput('HEIGHT').connection.connect(lightNumber.outputConnection);
     lightBlue.setFieldValue('blue', 'COLOR');
     lightOff.setFieldValue('off', 'COLOR');
     lightTakeoff.nextConnection.connect(lightBlue.previousConnection);

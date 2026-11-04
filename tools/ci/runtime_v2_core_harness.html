@@ -34,7 +34,7 @@
 <pre id="result">RUNNING</pre>
 <xml id="reactiveProgram" style="display:none">
   <block type="webeeblocks_v2_takeoff">
-    <field name="HEIGHT">0.5</field>
+    <value name="HEIGHT"><shadow type="math_number"><field name="NUM">0.5</field></shadow></value>
     <next><block type="controls_repeat_ext">
       <value name="TIMES"><block type="math_number"><field name="NUM">3</field></block></value>
       <statement name="DO"><block type="controls_if">
@@ -44,8 +44,8 @@
           <value name="A"><block type="webeeblocks_v2_range"><field name="DIRECTION">front</field></block></value>
           <value name="B"><block type="math_number"><field name="NUM">0.5</field></block></value>
         </block></value>
-        <statement name="DO0"><block type="webeeblocks_v2_move"><field name="DIRECTION">left</field><field name="DISTANCE">0.3</field></block></statement>
-        <statement name="ELSE"><block type="webeeblocks_v2_move"><field name="DIRECTION">forward</field><field name="DISTANCE">0.3</field></block></statement>
+        <statement name="DO0"><block type="webeeblocks_v2_move"><field name="DIRECTION">left</field><value name="DISTANCE"><shadow type="math_number"><field name="NUM">0.3</field></shadow></value></block></statement>
+        <statement name="ELSE"><block type="webeeblocks_v2_move"><field name="DIRECTION">forward</field><value name="DISTANCE"><shadow type="math_number"><field name="NUM">0.3</field></shadow></value></block></statement>
       </block></statement>
       <next><block type="webeeblocks_v2_land"></block></next>
     </block></next>
@@ -132,7 +132,9 @@
     var lightBlue = lightWorkspace.newBlock('webeeblocks_v2_light');
     var lightOff = lightWorkspace.newBlock('webeeblocks_v2_light');
     var lightLand = lightWorkspace.newBlock('webeeblocks_v2_land');
-    lightTakeoff.setFieldValue('0.5', 'HEIGHT');
+    var lightNumber=lightWorkspace.newBlock('math_number');
+    lightNumber.setFieldValue('0.5','NUM');
+    lightTakeoff.getInput('HEIGHT').connection.connect(lightNumber.outputConnection);
     lightBlue.setFieldValue('blue', 'COLOR');
     lightOff.setFieldValue('off', 'COLOR');
     lightTakeoff.nextConnection.connect(lightBlue.previousConnection);
