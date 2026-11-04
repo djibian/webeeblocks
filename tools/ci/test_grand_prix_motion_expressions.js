@@ -119,6 +119,35 @@ module.exports=async function(){
    assert.deepStrictEqual(C.compileWorkspace(copyLesson),compiled);
    copyLesson.dispose();simple.dispose();
  }
+ // Every elapsed-time motion expression needs simulation capability BEFORE
+ // any takeoff or motor action, even on a direct Interpreter.run entry path.
+ for(const kind of ['takeoff','move','vertical']){
+   const elapsed={kind:'elapsed_time',unit:'s'};
+   const command=kind==='takeoff'?{kind,height_m:elapsed}:
+     {kind,direction:kind==='move'?'forward':'up',distance_m:elapsed};
+   const candidate={version:1,semantics:'webeeblocks-ast-v1',program:
+     kind==='takeoff'?[command,{kind:'land'}]:
+       [{kind:'takeoff',height_m:.5},command,{kind:'land'}]};
+   const calls=[];
+   const deny={capabilities:{elapsedSimulationTime:false},
+     readElapsedTime:async()=>{calls.push('elapsed_time');return .4;},
+     takeoff:async()=>calls.push('takeoff'),move:async()=>calls.push('move'),
+     vertical:async()=>calls.push('vertical'),land:async()=>calls.push('land')};
+   await assert.rejects(()=>I.run(candidate,deny,{motionBounds:p.runtime.astBounds}),
+     /elapsed simulation time unavailable/);
+   assert.deepStrictEqual(calls,[],kind+' accessed backend before capability preflight');
+   const missing=Object.assign({},deny,{capabilities:{elapsedSimulationTime:true}});
+   delete missing.readElapsedTime;
+   await assert.rejects(()=>I.run(candidate,missing,{motionBounds:p.runtime.astBounds}),
+     /elapsed simulation time unavailable/);
+   assert.deepStrictEqual(calls,[],kind+' executed with missing elapsed reader');
+   const allowed=Object.assign({},deny,{capabilities:{elapsedSimulationTime:true}});
+   await I.run(candidate,allowed,{motionBounds:p.runtime.astBounds});
+   assert.deepStrictEqual(calls,kind==='takeoff'?
+     ['elapsed_time','takeoff','land']:
+     ['takeoff','elapsed_time',kind,'land'],
+     kind+' explicit simulation capability did not dispatch correctly');
+ }
  const old={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.8},{kind:'move',direction:'forward',distance_m:.3},{kind:'land'}]};
  I.validateProgram(old);A.preflightAst(p,old);
  copy.dispose();ws.dispose();

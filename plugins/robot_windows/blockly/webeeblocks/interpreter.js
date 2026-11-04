@@ -293,7 +293,12 @@
   }
   function containsElapsedTime(sequence){
     function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
-    return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
+    return sequence.some(function(node){return expression(node.value)||expression(node.condition)
+      || (node.kind==='takeoff'&&expression(node.height_m))
+      || ((node.kind==='move'||node.kind==='vertical')&&expression(node.distance_m))
+      || (node.body&&containsElapsedTime(node.body))
+      || (node.then&&containsElapsedTime(node.then))
+      || (node.else&&containsElapsedTime(node.else));});
   }
   async function run(ast,backend,options){
     validateProgram(ast);
