@@ -165,6 +165,13 @@ def verify_native_boxes(supervisor, course, boxes):
                 scene_names.append(name)
             elif name.startswith(('GP_V2_L_', 'GP_V2_H_', 'GP_V2_FINAL_')):
                 raise RuntimeError('non-Solid using a reserved physical DEF')
+            elif not (name.startswith(('GP_V2_WHITE_', 'GP_V2_RED_',
+                                       'GP_V2_COURSE_RED_')) and
+                      node.getTypeName() == 'Pose'):
+                # The GP_V2_* namespace is reserved for the exact physical
+                # inventory and non-colliding visual guides. An unknown Group
+                # could otherwise conceal an unprefixed Solid below it.
+                raise RuntimeError('unexpected reserved course node: ' + name)
             # White/red course guides are non-colliding Pose nodes.
     _reject_nested_course_nodes(root_nodes)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):

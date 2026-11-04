@@ -126,7 +126,9 @@ class NativeColliderContractTests(unittest.TestCase):
     def test_fails_closed_on_missing_extra_or_duplicate_physical_solids(self):
         plan, boxes = _plan_and_manifest()
         for mutation in ('missing', 'extra', 'duplicate',
-                         'reserved-non-solid', 'nested-extra',
+                         'reserved-non-solid', 'reserved-wrapper-hidden-solid',
+                         'reserved-wrapper-empty', 'reserved-unknown-pose',
+                         'nested-extra',
                          'nested-pose-extra', 'attached-extra',
                          'decorative-hidden-solid', 'decorative-nested-solid',
                          'decorative-collider',
@@ -141,6 +143,14 @@ class NativeColliderContractTests(unittest.TestCase):
                 scene.nodes.append(scene.nodes[0])
             elif mutation == 'reserved-non-solid':
                 scene.nodes.append(_Node('GP_V2_L_0_0', 'Pose', children=[]))
+            elif mutation == 'reserved-wrapper-hidden-solid':
+                scene.nodes.append(_Node('GP_V2_EXTRA', 'Group', children=[
+                    _Supervisor.solid(NativeBox(
+                        'UNRESERVED_HIDDEN', (0., 0., .65), (.1, .1, 1.3)))]))
+            elif mutation == 'reserved-wrapper-empty':
+                scene.nodes.append(_Node('GP_V2_EXTRA', 'Group', children=[]))
+            elif mutation == 'reserved-unknown-pose':
+                scene.nodes.append(_Node('GP_V2_UNKNOWN', 'Pose', children=[]))
             elif mutation in ('nested-extra', 'nested-pose-extra', 'attached-extra'):
                 hidden = _Supervisor.solid(NativeBox(
                     'GP_V2_EXTRA', (0., 0., .65), (.1, .1, 1.3)))
