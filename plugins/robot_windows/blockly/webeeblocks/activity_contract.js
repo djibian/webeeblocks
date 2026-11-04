@@ -58,6 +58,29 @@
   function applyFieldBounds(profile, workspace) {
     var definitions = profile.parameterBounds || {};
     workspace.getAllBlocks(false).forEach(function(block) {
+      // Numeric values directly plugged into movements obey movement bounds,
+      // independently of Number-operator limits used for repeat counts.
+      var parent = typeof block.getParent === 'function' ? block.getParent() : null;
+      var socket = parent && parent.type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE';
+      var motion = parent && ['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_vertical'].indexOf(parent.type) >= 0;
+      if (block.type === 'math_number' && motion &&
+          parent.getInputTargetBlock(socket) === block) {
+        var limits = profile.runtime.astBounds || {};
+        var key = parent.type === 'webeeblocks_v2_takeoff' ? 'takeoff.height_m' :
+          parent.type === 'webeeblocks_v2_vertical' ? 'vertical.distance_m' : 'move.distance_m';
+        var generic = limits[key] || {};
+        var min = Number.isFinite(generic.min) ? generic.min : 0.01;
+        var max = Number.isFinite(generic.max) ? generic.max : 2;
+        if (parent.type === 'webeeblocks_v2_move') {
+          var dir = parent.getFieldValue('DIRECTION');
+          var directional = limits[dir==='left'||dir==='right'?'move.lateral.distance_m':'move.forward.distance_m'] || {};
+          if (Number.isFinite(directional.min)) min = Math.max(min,directional.min);
+          if (Number.isFinite(directional.max)) max = Math.min(max,directional.max);
+        }
+        if (min > max) fail('invalid movement literal bounds in profile');
+        block.getField('NUM').setConstraints(min,max,0.01);
+        return;
+      }
       var fields = definitions[block.type] || {};
       Object.keys(fields).forEach(function(fieldName) {
         var field = block.getField(fieldName);
