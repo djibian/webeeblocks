@@ -14,8 +14,16 @@
           "id": "gp-pupil-observe-start",
           "x": 48,
           "y": 48,
-          "fields": {
-            "HEIGHT": 0.8
+          "inputs": {
+            "HEIGHT": {
+              "shadow": {
+                "type": "math_number",
+                "id": "gp-pupil-observe-height",
+                "fields": {
+                  "NUM": 0.8
+                }
+              }
+            }
           }
         }
       ]

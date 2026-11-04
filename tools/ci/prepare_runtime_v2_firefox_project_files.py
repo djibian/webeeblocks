@@ -124,14 +124,14 @@ harness = r'''
           throw new Error('Open cancellation changed state/target');
         await report('FIREFOX_OPEN_CANCEL_OK', {target:window.WebeeBlocksProjectManager.currentName()});
 
-        firstMove().setFieldValue('0.8', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.8', 'NUM');
         if (same(currentAst(), initialAst)) throw new Error('fixture edit did not change AST before Open');
         const opened = await clickAndAwait('projectOpen', 'open', false);
         if (opened.name !== 'roundtrip.wbb' || !same(currentAst(), initialAst))
           throw new Error('valid Firefox Open did not restore the saved project');
         await report('FIREFOX_OPEN_OK', {name:opened.name, ast:currentAst()});
 
-        firstMove().setFieldValue('0.7', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.7', 'NUM');
         const editedAst = currentAst();
         const saved = await clickAndAwait('projectSave', 'save', false);
         if (saved.name !== 'roundtrip.wbb' || window.WebeeBlocksProjectManager.currentName() !== 'roundtrip.wbb')
@@ -143,7 +143,7 @@ harness = r'''
         await expectRejectedOpen('unsupported-version', editedAst, stableTarget);
         await expectRejectedOpen('unknown-activity', editedAst, stableTarget);
 
-        firstMove().setFieldValue('0.6', 'DISTANCE');
+        firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.6', 'NUM');
         const finalAst = currentAst();
         const finalSave = await clickAndAwait('projectSave', 'save', false);
         if (finalSave.name !== 'roundtrip.wbb' || window.WebeeBlocksProjectManager.currentName() !== stableTarget)

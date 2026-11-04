@@ -9,11 +9,11 @@ MARKER = '<!-- WEBEEBLOCKS_OBSERVABILITY_CI -->'
 REACTIVE = (ROOT / 'controllers/Blockly_Programs/CrazyflieReactiveV2.xml').read_text(encoding='utf-8')
 BLOCKED = '''<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="webeeblocks_v2_takeoff" id="ci_blocked_takeoff" x="40" y="40">
-    <field name="HEIGHT">1</field>
+    <value name="HEIGHT"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
     <next>
       <block type="webeeblocks_v2_move" id="ci_blocked_move">
         <field name="DIRECTION">forward</field>
-        <field name="DISTANCE">2</field>
+        <value name="DISTANCE"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
         <next><block type="webeeblocks_v2_land" id="ci_blocked_land"></block></next>
       </block>
     </next>

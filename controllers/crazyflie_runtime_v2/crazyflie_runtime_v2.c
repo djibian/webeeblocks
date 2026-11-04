@@ -648,7 +648,7 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_MOVE) {
-        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 2.0 ||
+        if (!airborne || !isfinite(request.value) || request.value < 0.01 || request.value > 2.0 ||
             (strcmp(request.direction, "forward") != 0 && strcmp(request.direction, "back") != 0 &&
              strcmp(request.direction, "left") != 0 && strcmp(request.direction, "right") != 0)) {
           response_error(request.id, "INVALID_MOVE");

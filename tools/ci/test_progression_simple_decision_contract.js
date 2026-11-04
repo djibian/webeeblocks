@@ -27,8 +27,8 @@ assert.deepStrictEqual(profile.toolbox, [
 ]);
 assert.deepStrictEqual(profile.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
 assert.deepStrictEqual(profile.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
-assert.deepStrictEqual(profile.parameterBounds.webeeblocks_v2_takeoff.HEIGHT, {min:0.5,max:1.0,step:0.1});
-assert.deepStrictEqual(profile.parameterBounds.webeeblocks_v2_move.DISTANCE, {min:0.1,max:1.2,step:0.1});
+assert.deepStrictEqual(profile.runtime.astBounds['takeoff.height_m'], {min:0.5,max:1.0});
+assert.deepStrictEqual(profile.runtime.astBounds['move.distance_m'], {min:0.1,max:1.2});
 assert.deepStrictEqual(profile.parameterBounds.math_number.NUM, {min:1,max:2,step:1});
 assert.deepStrictEqual(profile.runtime.allowedStatementKinds, ['takeoff','move','if','land']);
 assert.deepStrictEqual(profile.runtime.rangeDirections, ['front']);
