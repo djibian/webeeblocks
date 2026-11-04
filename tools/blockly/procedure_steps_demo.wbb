@@ -14,9 +14,6 @@
           "id": "i!wp:SB.wmg?uh9}~d7%",
           "x": 20,
           "y": 40,
-          "fields": {
-            "HEIGHT": 0.8
-          },
           "next": {
             "block": {
               "type": "variables_set",
@@ -70,6 +67,17 @@
                 }
               }
             }
+          },
+          "inputs": {
+            "HEIGHT": {
+              "block": {
+                "type": "math_number",
+                "id": "i!wp:SB.wmg?uh9}~d7%_numeric",
+                "fields": {
+                  "NUM": 0.8
+                }
+              }
+            }
           }
         },
         {
@@ -86,8 +94,7 @@
                 "type": "webeeblocks_v2_move",
                 "id": "XCkR$*|g=Dv{^xJ[cEK)",
                 "fields": {
-                  "DIRECTION": "forward",
-                  "DISTANCE": 0.1
+                  "DIRECTION": "forward"
                 },
                 "next": {
                   "block": {
@@ -107,6 +114,17 @@
                             "NUM": 1
                           }
                         }
+                      }
+                    }
+                  }
+                },
+                "inputs": {
+                  "DISTANCE": {
+                    "block": {
+                      "type": "math_number",
+                      "id": "XCkR$*|g=Dv{^xJ[cEK)_numeric",
+                      "fields": {
+                        "NUM": 0.1
                       }
                     }
                   }

@@ -47,10 +47,7 @@
         },
         pedagogy: { objective: 'Construire et comprendre une séquence ordonnée d’actions.' },
         toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
-        parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.1, step: 0.1 } }
-        },
+        parameterBounds: {},
         fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward' ] } },
         hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
         timer: { enabled: false },
@@ -80,10 +77,7 @@
           objective: 'Choisir et ajuster les paramètres de déplacement pour obtenir un déplacement précis en réutilisant une séquence ordonnée.'
         },
         toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
-        parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } }
-        },
+        parameterBounds: {},
         fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
         hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
         timer: { enabled: false },
@@ -120,8 +114,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } },
+
           math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
         fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
@@ -163,8 +156,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+
           math_number: { NUM: { min: 1, max: 2, step: 1 } }
         },
         fieldOptions: {
@@ -209,8 +201,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+
           math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
         fieldOptions: {
@@ -257,8 +248,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+
           math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
         fieldOptions: {
@@ -310,8 +300,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+
           math_number: { NUM: { min: -10, max: 10, step: 1 } }
         },
         fieldOptions: {
@@ -363,8 +352,7 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+
           math_number: { NUM: { min: -10, max: 10, step: 1 } }
         },
         fieldOptions: {
@@ -453,9 +441,6 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.2, max: 1.5, step: 0.1 } },
-          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 2.0, step: 0.1 } },
-          webeeblocks_v2_vertical: { DISTANCE: { min: 0.1, max: 0.8, step: 0.1 } },
           webeeblocks_v2_turn: { ANGLE: { min: 1, max: 179, step: 1 } },
           webeeblocks_v2_wait: { SECONDS: { min: 0.1, max: 5.0, step: 0.1 } },
           webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.35, step: 0.05 } }

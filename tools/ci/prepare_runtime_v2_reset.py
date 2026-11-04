@@ -8,11 +8,11 @@ MARKER = '<!-- WEBEEBLOCKS_RESET_REPLAY_CI -->'
 
 NORMAL = '''<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="webeeblocks_v2_takeoff" id="reset_normal_takeoff" x="40" y="40">
-    <field name="HEIGHT">0.5</field>
+    <value name="HEIGHT"><shadow type="math_number"><field name="NUM">0.5</field></shadow></value>
     <next>
       <block type="webeeblocks_v2_move" id="reset_normal_move">
         <field name="DIRECTION">forward</field>
-        <field name="DISTANCE">0.2</field>
+        <value name="DISTANCE"><shadow type="math_number"><field name="NUM">0.2</field></shadow></value>
         <next><block type="webeeblocks_v2_land" id="reset_normal_land"></block></next>
       </block>
     </next>
@@ -21,11 +21,11 @@ NORMAL = '''<xml xmlns="https://developers.google.com/blockly/xml">
 
 BLOCKED = '''<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="webeeblocks_v2_takeoff" id="reset_blocked_takeoff" x="40" y="40">
-    <field name="HEIGHT">0.5</field>
+    <value name="HEIGHT"><shadow type="math_number"><field name="NUM">0.5</field></shadow></value>
     <next>
       <block type="webeeblocks_v2_move" id="reset_blocked_move">
         <field name="DIRECTION">forward</field>
-        <field name="DISTANCE">2</field>
+        <value name="DISTANCE"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
         <next><block type="webeeblocks_v2_land" id="reset_blocked_land"></block></next>
       </block>
     </next>

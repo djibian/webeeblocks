@@ -14,20 +14,22 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const WwiProjectFileTransport = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js'));
 const WwiBackend = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 
-Blockly.defineBlocksWithJsonArray([
-  {type:'webeeblocks_v2_takeoff', message0:'takeoff %1', args0:[{type:'field_number',name:'HEIGHT',value:1,min:0.2,max:1.5,precision:0.1}], previousStatement:null,nextStatement:null},
-  {type:'webeeblocks_v2_move', message0:'move %1 %2', args0:[{type:'field_dropdown',name:'DIRECTION',options:[['forward','forward'],['left','left']]},{type:'field_number',name:'DISTANCE',value:0.3,min:0.1,max:2,precision:0.1}], previousStatement:null,nextStatement:null},
-  {type:'webeeblocks_v2_land', message0:'land', previousStatement:null}
-]);
+require(path.join(ROOT,'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
+global.Blockly=Blockly;require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js'));delete global.Blockly;
+function setMotionNumber(block,name,value){
+  let literal=block.getInputTargetBlock(name);
+  if(!literal){literal=block.workspace.newBlock('math_number');block.getInput(name).connection.connect(literal.outputConnection);}
+  literal.setFieldValue(String(value),'NUM');
+}
 
 function buildWorkspace(distance) {
   const workspace = new Blockly.Workspace();
   const takeoff = workspace.newBlock('webeeblocks_v2_takeoff');
   const move = workspace.newBlock('webeeblocks_v2_move');
   const land = workspace.newBlock('webeeblocks_v2_land');
-  takeoff.setFieldValue('1', 'HEIGHT');
+  setMotionNumber(takeoff,'HEIGHT',1);
   move.setFieldValue('forward', 'DIRECTION');
-  move.setFieldValue(String(distance), 'DISTANCE');
+  setMotionNumber(move,'DISTANCE',distance);
   takeoff.nextConnection.connect(move.previousConnection);
   move.nextConnection.connect(land.previousConnection);
   return workspace;
@@ -743,7 +745,7 @@ async function exerciseWwiBoundary() {
   });
 
   // Editing/compiling is deliberately persistence-inert.
-  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].setFieldValue('0.8','DISTANCE');
+  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].getInputTargetBlock('DISTANCE').setFieldValue('0.8','NUM');
   ast(liveWorkspace, profileRef.value);
   assert.strictEqual(transport.state.writes.length, 1, 'workspace edit caused implicit persistence write');
 
@@ -753,14 +755,14 @@ async function exerciseWwiBoundary() {
   assert.deepStrictEqual(ast(liveWorkspace, profileRef.value), initialAst, 'round-trip AST differs');
 
   // Explicit Save updates the same chosen target; no hidden version/history file exists.
-  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].setFieldValue('0.7','DISTANCE');
+  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].getInputTargetBlock('DISTANCE').setFieldValue('0.7','NUM');
   const editedAst = ast(liveWorkspace, profileRef.value);
   const writesBeforeSave = transport.state.writes.length;
   await manager.save();
   assert.strictEqual(transport.state.writes.length, writesBeforeSave + 1, 'explicit Save did not write once');
   assert.strictEqual(transport.state.writes.at(-1).kind, 'save');
   transport.state.openText = transport.state.currentText;
-  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].setFieldValue('0.4','DISTANCE');
+  liveWorkspace.getBlocksByType('webeeblocks_v2_move', false)[0].getInputTargetBlock('DISTANCE').setFieldValue('0.4','NUM');
   await manager.open();
   assert.deepStrictEqual(ast(liveWorkspace, profileRef.value), editedAst, 'Save bytes did not restore edited AST');
 
@@ -779,7 +781,7 @@ async function exerciseWwiBoundary() {
     format:'webeeblocks-project',
     version:1,
     activity:{id:injectedProfile.id,semantics:'webeeblocks-ast-v1'},
-    workspace:{blocks:{languageVersion:0,blocks:[{type:'webeeblocks_v2_move',fields:{DIRECTION:'right',DISTANCE:0.3}}]}}
+    workspace:{blocks:{languageVersion:0,blocks:[{type:'webeeblocks_v2_move',fields:{DIRECTION:'right'},inputs:{DISTANCE:{block:{type:'math_number',fields:{NUM:0.3}}}}}]}}
   };
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(injected), liveWorkspace, profileRef, 'hidden dropdown injection');
   assert.strictEqual(transport.state.writes.length, writesBeforeSave + 1, 'failed opens caused persistence writes');
@@ -806,7 +808,7 @@ async function exerciseWwiBoundary() {
   const incompleteProfile = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
   const incomplete = new Blockly.Workspace();
   const takeoffOnly = incomplete.newBlock('webeeblocks_v2_takeoff');
-  takeoffOnly.setFieldValue('0.8', 'HEIGHT');
+  setMotionNumber(takeoffOnly,'HEIGHT',0.8);
   const incompleteTransport = memoryTransport();
   const incompleteManager = managerFor(incomplete, incompleteProfile, incompleteTransport);
   await incompleteManager.saveAs('en-cours');
