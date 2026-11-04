@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical
+from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical, reference_configurations
 
 
 class LinuxGrandPrixLauncherTests(unittest.TestCase):
@@ -89,6 +89,45 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
                 [str(home / "webots"), "--mode=pause", "--stdout", "--stderr", str(world)],
             )
             self.assertFalse(run.call_args.kwargs["check"])
+
+    def test_reference_catalog_is_canonical_and_discovery_never_launches(self):
+        """Host-only listing must not imply qualification or touch Webots."""
+        from io import StringIO
+        from tools.grand_prix.route_courses_v2 import (
+            course_from_identifier, reference_course,
+        )
+        entries = reference_configurations()
+        self.assertEqual(tuple(i for i, _ in entries), tuple(range(12)))
+        self.assertEqual(len({identifier for _, identifier in entries}), 12)
+        for index, identifier in entries:
+            self.assertEqual(course_from_identifier(identifier), reference_course(index))
+
+        with mock.patch("tools.grand_prix.launch_linux.webots_home") as home, \
+             mock.patch("tools.grand_prix.launch_linux.prepare_native") as native, \
+             mock.patch("tools.grand_prix.launch_linux.launch_graphical") as gui, \
+             mock.patch("sys.stdout", new_callable=StringIO) as output:
+            self.assertEqual(main(["--list-configurations"]), 0)
+        home.assert_not_called()
+        native.assert_not_called()
+        gui.assert_not_called()
+        text = output.getvalue()
+        self.assertIn("NON QUALIFIÉS", text)
+        for index, identifier in entries:
+            self.assertIn(f"  {index:02d}  {identifier}\n", text)
+        self.assertEqual(sum(line.startswith("  ") for line in text.splitlines()), 12)
+
+    def test_listing_conflicts_fail_closed_before_preflight(self):
+        with mock.patch("tools.grand_prix.launch_linux.webots_home") as home:
+            for arguments in (
+                ["--list-configurations", "--legacy-u"],
+                ["--list-configurations", "--preflight-only"],
+                ["--list-configurations", "--seed", "5"],
+                ["--list-configurations", "--webots-home", "/unused"],
+            ):
+                with self.subTest(arguments=arguments), self.assertRaises(SystemExit) as caught:
+                    main(arguments)
+                self.assertEqual(caught.exception.code, 2)
+            home.assert_not_called()
 
     def test_headless_run_does_not_claim_gui_delivery(self):
         with mock.patch.dict(os.environ, {"DISPLAY": "", "WAYLAND_DISPLAY": ""}):
