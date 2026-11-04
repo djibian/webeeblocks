@@ -61,17 +61,39 @@ def validate(directory, seed):
 
 
 def stop(process):
-    if process is None or process.poll() is not None:
+    if process is None:
+        return
+    status = process.poll()
+    if status is not None:
+        if status != 0:
+            raise RuntimeError(
+                f'Owned Windows PID {process.pid} exited unexpectedly: '
+                f'process={status!r}'
+            )
         return
     # This runner is Windows-only. Retire only the launched PID's process tree.
     try:
         subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
-    except subprocess.CalledProcessError:
-        # The owned engine may exit between poll() and taskkill. Accept ONLY
-        # a confirmed clean (zero) exit; live, crashed or unknown remains FAIL.
-        if process.poll() != 0:
-            raise
+    except subprocess.CalledProcessError as failure:
+        # An exiting process can still be visible to poll() momentarily when
+        # taskkill races its shutdown. Wait a strictly bounded interval, but
+        # accept ONLY a proven zero exit; nonzero and still-running remain FAIL.
+        status = process.poll()
+        if status is None:
+            try:
+                status = process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                status = None
+        if status != 0:
+            detail = failure.output or b''
+            if isinstance(detail, bytes):
+                detail = detail.decode('utf-8', errors='replace')
+            raise RuntimeError(
+                f'Owned Windows PID {process.pid} cleanup unproven: '
+                f'taskkill={failure.returncode}, process={status!r}, '
+                f'output={detail[-512:]!r}'
+            ) from failure
     process.wait(timeout=20)
 
 
@@ -188,13 +210,12 @@ def trial(package, home, output, seed):
                 time.sleep(.1)
     finally:
         try:
-            try:
-                metadata['node_exit'] = node.poll() if node else None
-                metadata['webots_exit'] = webots.poll() if webots else None
-                stop(node)
-            finally:
-                stop(webots)
+            metadata['node_exit'] = node.poll() if node else None
+            metadata['webots_exit'] = webots.poll() if webots else None
+            stop(node)
         finally:
+            # captured_engine already retired Webots once. Do not reinterpret
+            # an intentional taskkill exit as a spontaneous crash on retry.
             (directory / 'launch.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     result = validate(directory, seed)
     (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
