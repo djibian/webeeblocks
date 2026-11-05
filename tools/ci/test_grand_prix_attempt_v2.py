@@ -90,6 +90,26 @@ class PureVariableAttemptTests(unittest.TestCase):
         self.assertEqual(failed.result.reason, 'contact')
         self.assertIs(fail_pure_attempt(failed, 9, 'anything'), failed)
 
+    def test_duplicate_native_timestamp_refuses_phantom_progress(self):
+        """No lateral or longitudinal progress can accrue without fresh native time."""
+        course = reference_course(5)
+        initial = start_pure_attempt(course, 7, .015, 1000)
+        # Before the fix, a repeated timestamp could move up to 6 cm because
+        # displacement was bounded by max(.06, dt/500) even when dt == 0.
+        same_start = observe(initial, 7, 1000, (.05, 0., .015),
+                             (0., 0., 0.))
+        self.assertEqual(same_start.result.reason, 'invalid-attempt-clock')
+        self.assertEqual(same_start.progress, initial.progress)
+        fresh = observe(initial, 7, 1008, initial.progress.pose,
+                        (0., 0., 0.))
+        self.assertIsNone(fresh.result)
+        duplicate = observe(fresh, 7, 1008, (.05, 0., .015),
+                            (0., 0., 0.))
+        self.assertEqual(duplicate.result.reason, 'invalid-attempt-clock')
+        self.assertEqual(duplicate.progress, fresh.progress)
+        self.assertIs(observe(duplicate, 7, 1016, (.06, 0., .015),
+                              (0., 0., 0.)), duplicate)
+
     def test_contact_altitude_sample_and_low_safety_rejections(self):
         course = reference_course(0)
         s = start_pure_attempt(course, 3, .015, 0)

@@ -123,7 +123,7 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
     if state.result is not None:
         return state
     if (type(attempt) is not int or attempt != state.attempt or
-            type(now_ms) is not int or now_ms < state.last_ms or
+            type(now_ms) is not int or now_ms <= state.last_ms or
             type(completed) is not bool):
         return _end(state, state.last_ms, 'invalid-attempt-clock')
     if now_ms - state.started_ms >= DEADLINE_MS:
