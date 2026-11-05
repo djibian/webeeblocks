@@ -112,7 +112,7 @@ class VariableTerminalTests(unittest.TestCase):
                 self.assertNotIn('grand_prix_route_flight', text)
                 self.assertNotIn('grand_prix_u_flight', text)
                 self.assertNotIn('controllerArgs', text)
-                physical = re.findall(r'^DEF (\\S+) Solid ', text, re.MULTILINE)
+                physical = re.findall(r'^DEF (\S+) Solid ', text, re.MULTILINE)
                 self.assertEqual(tuple(physical), required_box_names(plan))
                 self.assertEqual(text.count('boundingObject Box'), len(physical))
                 self.assertIn('DEF GP_V2_START Pose', text)
