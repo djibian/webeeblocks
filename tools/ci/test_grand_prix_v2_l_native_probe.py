@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 from tools.ci import run_grand_prix_v2_l_native as runner
+from tools.ci import run_grand_prix_v2_h_native as h_runner
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.ci.run_grand_prix_v2_l_native import (
     DEFAULT_INDICES, probe_scene, check_native,
@@ -113,6 +114,37 @@ class NativeLProbePreparationTests(unittest.TestCase):
             self.assertEqual(len(list(out.glob('invocation-*/summary.json'))), 1)
             self.assertEqual(len(list(out.glob('invocation-*/*/native.json'))), 1)
             self.assertFalse((out / 'summary.json').exists())
+
+    def test_full_H_native_probe_uses_canonical_course_without_evaluator(self):
+        # Scene preparation only. Native sensor/contact evidence is not claimed.
+        self.assertEqual([reference_course(i).route.turns
+                          for i in h_runner.DEFAULT_INDICES],
+                         [('G', 'G'), ('G', 'D'), ('D', 'G'), ('D', 'D')])
+        for i in h_runner.DEFAULT_INDICES:
+            with self.subTest(index=i):
+                course = reference_course(i)
+                scene = h_runner.probe_scene(i)
+                self.assertEqual(scene.count('controller "grand_prix_v2_h_probe"'), 1)
+                self.assertEqual(scene.count('window "<none>"'), 1)
+                self.assertEqual(scene.count('DEF GP_V2_L_'), 4)
+                self.assertEqual(scene.count('DEF GP_V2_H_'), 3 * course.count)
+                self.assertEqual(scene.count('DEF GP_V2_FINAL_'), 4)
+                self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
+                self.assertNotIn('controllerArgs', scene)
+
+    def test_full_H_native_proof_rejects_static_and_incomplete_records(self):
+        course = reference_course(5)
+        with self.assertRaisesRegex(RuntimeError, 'identity'):
+            h_runner.check_native({'claim': 'static-only',
+                                   'configuration': course.identifier}, course)
+        with self.assertRaisesRegex(RuntimeError, 'incomplete'):
+            h_runner.check_native({'claim': h_runner.CLAIM,
+                                   'configuration': course.identifier,
+                                   'webots': 'R2025a',
+                                   'timestep_ms': 8, 'opened': []}, course)
+        for index in (-1, 12, None, '5'):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                h_runner.probe_scene(index)
 
     def test_index_outside_reference_set_rejected(self):
         for index in (-1, 12, None, '5'):
