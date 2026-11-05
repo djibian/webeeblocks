@@ -90,6 +90,47 @@ class VariableTerminalTests(unittest.TestCase):
             self.fail('native collider preflight contract: ' +
                       repr(result.errors + result.failures))
 
+    def test_static_course_composite_has_all_colliders_but_no_mission(self):
+        # Native probe input only: real R2025a sensor/contact and admission
+        # remain separate obligations, independent of VRML-string assertions.
+        import re
+        from tools.grand_prix.route_courses_v2 import CoursePlan, reference_course
+        from tools.grand_prix.course_static_world_v2 import static_course_world
+        from tools.grand_prix.native_collider_contract_v2 import required_box_names
+        from tools.grand_prix.course_footprint_v2 import red_boundary_marks
+
+        for index in range(12):
+            with self.subTest(reference=index):
+                plan = reference_course(index)
+                text = static_course_world(plan)
+                self.assertEqual(text, static_course_world(plan))
+                self.assertIn(plan.identifier, text)
+                self.assertIn('basicTimeStep 8', text)
+                self.assertEqual(text.count('controller "<none>"'), 1)
+                self.assertEqual(text.count('window "<none>"'), 1)
+                self.assertNotIn('GP_ROUTE_EVALUATOR', text)
+                self.assertNotIn('grand_prix_route_flight', text)
+                self.assertNotIn('grand_prix_u_flight', text)
+                self.assertNotIn('controllerArgs', text)
+                physical = re.findall(r'^DEF (\S+) Solid ', text, re.MULTILINE)
+                self.assertEqual(tuple(physical), required_box_names(plan))
+                self.assertEqual(text.count('boundingObject Box { size'), len(physical))
+                self.assertIn('DEF GP_ROUTE_START Pose', text)
+                for number in (1, 2, 3):
+                    self.assertIn(f'DEF GP_ROUTE_TARGET_{number} Pose', text)
+                for leg in plan.route.legs:
+                    self.assertIn(f'DEF GP_V2_WHITE_{leg.index} Pose', text)
+                self.assertEqual(text.count('DEF GP_V2_COURSE_RED_'),
+                                 len(red_boundary_marks(plan.route)))
+                self.assertEqual(text.count('DEF GP_ROUTE_BAND_'), 16 * plan.count)
+
+        plan = reference_course(1)
+        with self.assertRaises(ValueError):
+            static_course_world(None)
+        with self.assertRaises(ValueError):
+            static_course_world(CoursePlan(plan.route, plan.gates[:-1],
+                                           plan.count))
+
     def test_unrelated_objects_cannot_be_mistaken_for_routes(self):
         for value in (None, False, (), object()):
             with self.assertRaises(TypeError):

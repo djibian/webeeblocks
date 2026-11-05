@@ -8,12 +8,12 @@ Blockly, simulator flight, deadline or landing qualification.
 """
 from dataclasses import dataclass
 
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier, LOW_BEFORE, LOW_AFTER
 from tools.grand_prix.route_solid_v2 import (
     HEIGHT as L_HEIGHT, corner_boxes, static_world, visual, visual_guides,
 )
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
-from tools.grand_prix.route_terminal_v2 import terminal_boxes
+from tools.grand_prix.route_terminal_v2 import terminal_boxes, landing_targets, LANDING_TILE
 from tools.grand_prix.course_footprint_v2 import red_boundary_marks
 
 
@@ -79,7 +79,30 @@ def static_course_world(course):
                 for index, (x, y, sx, sy) in enumerate(red_boundary_marks(route)))
     if not red:
         raise RuntimeError('empty complete-course boundary')
-    base = base.replace(old_guides_block, '\n'.join(whites + red) + '\n', 1)
+
+    # Teacher-visible start, direction-relative landing choices and the exact
+    # 0.55 m low-flight band edges are decorative floor marks. They grant no
+    # sensing API, safety exception or attempt/mission authority. Keep their
+    # names distinct from the reserved GP_V2 physical inventory.
+    overlay = [visual('GP_ROUTE_START', 0., 0., LANDING_TILE, LANDING_TILE,
+                      '.12 .42 .90')]
+    for number, (x, y) in enumerate(landing_targets(route), start=1):
+        overlay.append(visual(f'GP_ROUTE_TARGET_{number}', x, y,
+                              LANDING_TILE, LANDING_TILE, '.10 .72 .28'))
+    for index, gate in enumerate(course.gates):
+        leg = route.legs[gate.leg_index]
+        pitch = .60 / 8
+        for side, along in (('BEFORE', gate.along - LOW_BEFORE),
+                            ('AFTER', gate.along + LOW_AFTER)):
+            for dash in range(8):
+                lateral = -.30 + (dash + .5) * pitch
+                x, y = leg.at(along, lateral)
+                sx, sy = ((.012, pitch / 2) if leg.direction % 2 == 0
+                          else (pitch / 2, .012))
+                overlay.append(visual(f'GP_ROUTE_BAND_{index}_{side}_{dash}',
+                                      x, y, sx, sy, '.98 .85 .10'))
+    base = base.replace(old_guides_block,
+                        '\n'.join(whites + red + tuple(overlay)) + '\n', 1)
 
     l_solids = tuple(box.vrml() for box in corner_boxes(route))
     l_block = '\n'.join(l_solids) + '\n'
