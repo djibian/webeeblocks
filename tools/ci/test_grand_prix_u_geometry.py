@@ -21,6 +21,7 @@ from tools.ci.test_grand_prix_attempt_v2 import PureVariableAttemptTests  # noqa
 from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
 from tools.ci.test_grand_prix_route_admission import VariableNativeAdmissionTests  # noqa: F401
 from tools.ci.test_grand_prix_route_observation import FlightObservationTests  # noqa: F401
+from tools.ci.test_grand_prix_evaluator_native_ranges_v2 import NativeFlightRangeReaderTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_wire_v2 import VariableEvaluatorWireTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_native_contacts_v2 import NativeRouteContactReadbackTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_scene_identity_v2 import NativeEvaluatorSceneIdentityTests  # noqa: F401
