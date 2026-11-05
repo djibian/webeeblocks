@@ -58,6 +58,37 @@ deux évaluateurs ou tentatives. Le monde temporaire et son projet Webots
 temporaire sont nettoyés après le retour du processus de lancement. Les
 fichiers personnels `.wbb` enregistrés ailleurs ne sont pas effacés.
 
+## Voir les 12 parcours variables, sans activer la mission
+
+Le dépôt possède aussi une **inspection graphique statique** de la nouvelle
+géométrie (longueurs indépendantes, virages GG/GD/DG/DD, cornières en L,
+H ouverts et terminal). Elle est utile pour examiner les tracés sur le
+poste Linux **avant** la qualification du vrai lanceur variable. Depuis la
+racine du même checkout, avec `WEBOTS_HOME` et une session graphique :
+
+```bash
+python3 tools/grand_prix/launch_linux.py --list-configurations
+python3 tools/grand_prix/inspect_static_linux.py --index 5
+```
+
+La première commande affiche les **12 indices (00 à 11)** et leur identifiant
+`CoursePlan` reproductible, sans exiger Webots ni démarrer de simulateur.
+La seconde vérifie les ressources officielles locales de **Webots R2025a**,
+génère le monde temporaire correspondant puis l'ouvre graphiquement
+**en pause**. Remplacer `5` par un indice de `0` à `11` pour visualiser
+une autre variante ; fermer la simulation précédente avant d'en changer.
+Aucun téléchargement réseau ni accès administrateur n'est effectué par
+cet inspecteur.
+
+**Frontière de sécurité :** cet aperçu affiche le Robot **sans contrôleur
+actif ni Robot Window Blockly** et **sans évaluateur**. Il ne mesure ni
+les capteurs ni les contacts, n'admet aucune tentative, ne permet ni
+exécution du programme ni cycle `.wbb`, et ne démontre pas un rendu
+visuel effectivement observé sur le poste tant qu'il n'a pas été ouvert.
+Le véritable environnement enseignant (#809/#826), l'admission native
+(#824) et les qualifications perception/contact (#825) restent à livrer.
+Ne pas confondre cet aperçu avec le lancement historique `--legacy-u`.
+
 ## Parcours utilisateur à vérifier (pas encore qualifié par ce script)
 
 Dans la fenêtre Blockly dédiée : démarrer un projet **sans corrigé**, choisir
