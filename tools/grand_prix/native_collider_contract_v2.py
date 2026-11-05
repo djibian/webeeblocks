@@ -11,6 +11,7 @@ from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
 from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as CORNER_HEIGHT
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
 from tools.grand_prix.route_terminal_v2 import terminal_boxes
+from tools.grand_prix.course_footprint_v2 import course_rectangles
 
 
 @dataclass(frozen=True)
@@ -82,8 +83,34 @@ def _equal(actual, expected):
         return False
 
 
-def _reject_nested_course_nodes(root_nodes):
-    """Reject GP_V2 physics hidden under a Group/Pose/Transform/SFNode.
+def _verify_floor(node, route):
+    """A permitted floor is the locked horizontal Plane at z=0, not an obstacle."""
+    position = tuple(node.getPosition())
+    _vector(position)
+    locked = node.getBaseNodeField('locked')
+    rotation = node.getField('rotation')
+    rotation = rotation.getSFRotation() if rotation else None
+    field = node.getBaseNodeField('boundingObject')
+    body = field.getSFNode() if field else None
+    if (abs(position[2]) > 1e-9 or locked is None or
+            locked.getSFBool() is not True or
+            not isinstance(rotation, (list, tuple)) or len(rotation) != 4 or
+            any(type(v) not in (int, float) or not math.isfinite(v) for v in rotation) or
+            abs(rotation[3]) > 1e-9 or body is None or body.getTypeName() != 'Plane'):
+        raise RuntimeError('floor must be the locked horizontal z=0 Plane')
+    size = body.getField('size')
+    size = size.getSFVec2f() if size else None
+    if (not isinstance(size, (list, tuple)) or len(size) != 2 or
+            any(type(v) not in (int, float) or not math.isfinite(v) or v <= 0 for v in size)):
+        raise RuntimeError('invalid native floor extent')
+    for xmin, ymin, xmax, ymax in course_rectangles(route):
+        if not (position[0]-size[0]/2 <= xmin <= xmax <= position[0]+size[0]/2 and
+                position[1]-size[1]/2 <= ymin <= ymax <= position[1]+size[1]/2):
+            raise RuntimeError('native floor does not cover the full course')
+
+
+def _reject_nested_course_nodes(root_nodes, expected_names, route):
+    """Reject unlisted physics, including bodies outside the GP_V2 namespace.
 
     Physical GP_V2 solids are direct root children by contract. Fail closed
     on cycles, unreadable nodes and oversized traversal rather than accepting
@@ -91,6 +118,7 @@ def _reject_nested_course_nodes(root_nodes):
     """
     pending = [(node, 0, False) for node in root_nodes]
     visited = 0
+    models = set()
     while pending:
         node, depth, under_guide = pending.pop()
         visited += 1
@@ -98,6 +126,35 @@ def _reject_nested_course_nodes(root_nodes):
             raise RuntimeError('unreadable/oversized native course scene graph')
         name = node.getDef()
         kind = node.getTypeName()
+        base = node.getBaseTypeName()
+        if not isinstance(base, str) or not base:
+            raise RuntimeError('unreadable native base node type')
+        # The installed, pinned R2025a models are the only opaque physics
+        # roots. Their editable extension slots remain subject to traversal.
+        # Source/asset provenance and live reset are separate preconditions
+        # of future admission; this static function grants no READY.
+        model = depth == 0 and kind in ('Floor', 'Crazyflie')
+        if model:
+            if (not node.isProto() or kind in models or
+                    base != {'Floor': 'Solid', 'Crazyflie': 'Robot'}[kind]):
+                raise RuntimeError('duplicate or invalid pinned scene model')
+            models.add(kind)
+            if kind == 'Crazyflie':
+                field = node.getField('name')
+                if field is None or field.getSFString() != 'Crazyflie WebeeBlocks':
+                    raise RuntimeError('unrecognized native vehicle')
+            else:
+                _verify_floor(node, route)
+        physical = node.getField('boundingObject')
+        if physical is None and node.isProto() and not model:
+            physical = node.getBaseNodeField('boundingObject')
+        has_collider = physical is not None and physical.getSFNode() is not None
+        evaluator = (depth == 0 and name == 'GP_ROUTE_EVALUATOR' and
+                     kind == 'Robot' and base == 'Robot' and not has_collider)
+        listed = depth == 0 and name in expected_names and kind == 'Solid'
+        if not (model or listed or evaluator) and (
+                base in ('Solid', 'Robot', 'Fluid') or has_collider):
+            raise RuntimeError('unlisted native physical body: ' + str(name))
         guide = (isinstance(name, str) and
                  name.startswith(('GP_V2_WHITE_', 'GP_V2_RED_',
                                   'GP_V2_COURSE_RED_')))
@@ -111,21 +168,30 @@ def _reject_nested_course_nodes(root_nodes):
                     name.startswith(('GP_V2_L_', 'GP_V2_H_',
                                      'GP_V2_FINAL_'))):
                 raise RuntimeError('nested reserved course body: ' + name)
-        children = node.getField('children')
-        if children is not None:
-            count = children.getCount()
-            if type(count) is not int or not 0 <= count <= 4096:
-                raise RuntimeError('invalid nested course child inventory')
-            for i in range(count):
-                pending.append((children.getMFNode(i), depth + 1, under_guide))
+        for field_name in ('children', 'extensionSlot', 'choice'):
+            children = node.getField(field_name)
+            if children is None and node.isProto() and not model:
+                children = node.getBaseNodeField(field_name)
+            if children is not None:
+                count = children.getCount()
+                if type(count) is not int or not 0 <= count <= 4096:
+                    raise RuntimeError('invalid nested course child inventory')
+                for i in range(count):
+                    pending.append((children.getMFNode(i), depth + 1, under_guide))
         for field_name in ('endPoint', 'boundingObject', 'geometry'):
             field = node.getField(field_name)
+            if field is None and node.isProto() and not model:
+                field = node.getBaseNodeField(field_name)
             if field is not None:
                 nested = field.getSFNode()
                 if nested is not None:
                     if guide and field_name == 'boundingObject':
                         raise RuntimeError('collidable course guide: ' + name)
                     pending.append((nested, depth + 1, under_guide))
+
+    if models != {'Floor', 'Crazyflie'}:
+        missing = ', '.join(sorted({'Floor', 'Crazyflie'} - models))
+        raise RuntimeError('missing required pinned scene model: ' + missing)
 
 
 def verify_native_boxes(supervisor, course, boxes):
@@ -173,7 +239,7 @@ def verify_native_boxes(supervisor, course, boxes):
                 # could otherwise conceal an unprefixed Solid below it.
                 raise RuntimeError('unexpected reserved course node: ' + name)
             # White/red course guides are non-colliding Pose nodes.
-    _reject_nested_course_nodes(root_nodes)
+    _reject_nested_course_nodes(root_nodes, set(expected_names), course.route)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
 
