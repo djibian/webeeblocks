@@ -27,6 +27,7 @@ class CoupledCourseProgress:
     leg: LegCursor
     gates: DirectedGateProgress
     pose: tuple[float, float, float]
+    next_gates: DirectedGateProgress | None = None
 
     @property
     def count(self):
@@ -56,9 +57,10 @@ def advance_course_progress(state, observed_pose):
 
     The old leg consumes the full observed sweep before any promotion. The
     next leg may consume that same sweep ONLY after all previous-leg H are
-    counted, preventing a route-only promotion from skipping an H. Reusing
-    the entry sweep matters for an H near the next corner: a centerline sample
-    may still be inside the shared junction when the leg attribution changes.
+    counted, preventing a route-only promotion from skipping an H. Upstream
+    observations of its H inside the shared corner are retained separately:
+    exclusive leg attribution must not discard a real arming observation.
+    This witness cannot advance a count or justify promotion by itself.
     Neither the returned count nor active_leg is an outcome or actuator grant.
     """
     if (type(state) is not CoupledCourseProgress or
@@ -76,6 +78,18 @@ def advance_course_progress(state, observed_pose):
             type(state.leg.active_leg) is not int or
             state.leg.active_leg not in (0, 1, 2)):
         raise CourseProgressError('incoherent host cursors or sample')
+    pending = state.next_gates
+    if pending is not None:
+        if (type(pending) is not DirectedGateProgress or
+                pending.course != state.course or
+                pending.active_leg != state.leg.active_leg + 1 or
+                pending.cursor != state.gates.cursor or pending.crossed or
+                type(pending.armed) is not bool or
+                state.leg.active_leg >= 2):
+            raise CourseProgressError('incoherent next-leg gate witness')
+        box = state.course.route.legs[pending.active_leg].bounds()
+        if not (box[0] <= previous[0] <= box[2] and box[1] <= previous[1] <= box[3]):
+            raise CourseProgressError('next-leg witness outside shared junction')
     observed = _finite_pose(observed_pose)
     new_leg = advance_leg_cursor(state.leg, observed[:2])
     new_gates = advance_directed_gates(
@@ -85,5 +99,28 @@ def advance_course_progress(state, observed_pose):
                for g in state.course.gates[new_gates.count:]):
             raise CourseProgressError('uncompleted H before leg promotion')
         new_gates = advance_directed_gates(
-            new_gates, new_leg.active_leg, previous, observed)
-    return CoupledCourseProgress(state.course, new_leg, new_gates, observed)
+            pending if pending is not None else new_gates,
+            new_leg.active_leg, previous, observed)
+        pending = None
+    else:
+        # A short terminal-leg H can have its upstream arming plane INSIDE
+        # the shared corner. Keep the actual observation while the leg cursor
+        # correctly waits for exclusive entry. Do not invent arm authority at
+        # promotion, and never count a gate or promote a leg in this overlap.
+        next_index = new_leg.active_leg + 1
+        if next_index < 3:
+            box = state.course.route.legs[next_index].bounds()
+            in_next = box[0] <= observed[0] <= box[2] and box[1] <= observed[1] <= box[3]
+        else:
+            in_next = False
+        if in_next and not any(g.leg_index <= new_leg.active_leg
+                               for g in state.course.gates[new_gates.count:]):
+            witness = advance_directed_gates(
+                pending if pending is not None else new_gates,
+                next_index, previous, observed)
+            if witness.count != new_gates.count or witness.crossed:
+                raise CourseProgressError('gate crossing before proven leg promotion')
+            pending = witness
+        else:
+            pending = None
+    return CoupledCourseProgress(state.course, new_leg, new_gates, observed, pending)
