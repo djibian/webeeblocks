@@ -154,6 +154,16 @@ class VariableRouteTests(unittest.TestCase):
                       repr(result.errors + result.failures))
         self.assertEqual(result.testsRun, 3)
 
+    def test_active_course_world_contract_in_canonical_geometry_suite(self):
+        from tools.ci.test_grand_prix_course_active_world_v2 import ActiveCourseWorldTests
+        case = unittest.defaultTestLoader.loadTestsFromTestCase(ActiveCourseWorldTests)
+        result = unittest.TestResult()
+        case.run(result)
+        if result.errors or result.failures:
+            self.fail('Active host scene counterexamples failed: ' +
+                      repr(result.errors + result.failures))
+        self.assertEqual(result.testsRun, 4)
+
     def test_physical_open_h_geometry_matrix(self):
         from tools.ci.test_grand_prix_open_h_v2 import VariableOpenHTests
         case = unittest.defaultTestLoader.loadTestsFromTestCase(VariableOpenHTests)
