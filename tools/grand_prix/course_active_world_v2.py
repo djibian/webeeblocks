@@ -14,6 +14,7 @@ FLIGHT_CONTROLLER = "grand_prix_route_flight"
 ROBOT_WINDOW = "grand_prix_route_v2"
 EVALUATOR_CONTROLLER = "grand_prix_route_evaluator"
 EVALUATOR_DEF = "GP_ROUTE_EVALUATOR"
+DEDICATED_WORLD_DEF = "WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD"
 
 _INERT_FLIGHT = ('  controller "<none>"\n'
                  '  window "<none>"\n'
@@ -36,6 +37,8 @@ def active_course_world(course):
             inert.count('window "<none>"') != 1 or
             inert.count("controllerArgs") != 0 or
             inert.count(title) != 1 or
+            inert.count('WorldInfo {') != 1 or
+            DEDICATED_WORLD_DEF in inert or
             not inert.rstrip("\n").endswith("}") or
             EVALUATOR_DEF in inert or
             'controller "grand_prix_u_flight"' in inert or
@@ -48,6 +51,9 @@ def active_course_world(course):
               f'  controllerArgs [ "{identifier}" ]\n'
               '  supervisor TRUE\n')
     scene = inert.replace(_INERT_FLIGHT, flight, 1)
+    # The shared Runtime rejects untyped empty scenes. Use its existing
+    # dedicated-world contract; this does not supply evaluator READY.
+    scene = scene.replace('WorldInfo {', f'DEF {DEDICATED_WORLD_DEF} WorldInfo {{', 1)
     scene = scene.replace(title, "Grand Prix variable EXPERIMENTAL " + identifier, 1)
     # The evaluator is a non-physical Robot; the already-validated collider
     # inventory and floor remain byte-identical to the static scene.
