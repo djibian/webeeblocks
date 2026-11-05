@@ -36,7 +36,7 @@ def active_course_world(course):
             inert.count('window "<none>"') != 1 or
             inert.count("controllerArgs") != 0 or
             inert.count(title) != 1 or
-            not inert.endswith("}\n") or
+            not inert.rstrip("\n").endswith("}") or
             EVALUATOR_DEF in inert or
             'controller "grand_prix_u_flight"' in inert or
             'window "grand_prix_u"' in inert):
