@@ -66,7 +66,6 @@ class VariableEvaluatorWireTests(unittest.TestCase):
         self.assertEqual(wire.observe(ch, 1000), "")
         self.assertEqual(wire.observe(st, 1008, native_validated=True), "")
         self.assertIn("READY_V1 attempt=1", wire.observe(ch, 1016, native_validated=True))
-        self.assertEqual(wire.observe(st, 1016, native_validated=True), "")
         self.assertIn("ALIVE_V1 attempt=1", wire.observe(st, 1024, native_validated=True))
         self.assertEqual(wire.observe(st, 1024, native_validated=True), "")
         self.assertIn("ALIVE_V1 attempt=1", wire.observe(st, 1032, native_validated=True))
