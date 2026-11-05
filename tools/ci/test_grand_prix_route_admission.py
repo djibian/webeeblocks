@@ -5,11 +5,13 @@ The canonical native job additionally builds the complete route controller.
 """
 from pathlib import Path
 import shutil
+import sys
 import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 
 class VariableNativeAdmissionTests(unittest.TestCase):
@@ -39,7 +41,7 @@ extern "C" const char* wb_supervisor_field_get_mf_string(WbFieldRef,int);
 #include <limits>
 #include <string>
 #include "grand_prix_u_hook.h"
-std::string vehicle, request, evidence, config, reply;
+std::string vehicle, request, evidence, config, reply, sample;
 const std::string canonical="gp-route-v2-L2000-2500-3000-TGD-s17-H2";
 int argsCount=1; double now=2.112; bool present=true, description=true;
 extern "C" double wb_robot_get_time(){return now;}
@@ -54,6 +56,7 @@ extern "C" void* wb_supervisor_node_get_field(void* node,const char* field){
   if(!std::strcmp(field,"controllerArgs"))return &config;
  }else if(node==&request){
   if(!std::strcmp(field,"customData"))return &request;
+  if(!std::strcmp(field,"model"))return &sample;
   if(!std::strcmp(field,"description"))return description?&evidence:nullptr;
  }
  return nullptr;
@@ -168,6 +171,43 @@ int main(){
  assert(request.empty());assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";gp_u_file_idle(1);
  challenge=request;evidence=response("READY","212112");assert(gp_u_start(now)==1);
+ // Real snapshot writer, same compiled hook as the native flight controller.
+ const double ranges[5]={0.,.2,1.234567,2.,2.001};
+ fresh();gp_route_observe_native(now,1,1,ranges);
+ assert(sample=="GP_ROUTE_SAMPLE_V1"+challenge.substr(std::strlen("GP_ROUTE_CHALLENGE_V1"))+
+  " time_ms=2112 period_ms=32 ground=1 ranges_um=0,200000,1234567,2000000,2001000");
+ std::printf("GP_ROUTE_CAPTURED %s|%s\n",challenge.c_str(),sample.c_str());
+ // Sampling does not overwrite the outcome or the evaluator-owned fields.
+ assert(vehicle=="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");assert(request==challenge);assert(evidence.empty());
+ gp_route_observe_native(now,1,1,ranges);assert(sample.empty()); // no invented refresh
+ fresh();now=2.128;gp_route_observe_native(now,1,0,ranges);assert(!sample.empty());
+ assert(sample.find("time_ms=2128 period_ms=32")!=std::string::npos);
+ gp_u_file_idle(0);assert(sample.empty());
+ for(int fault=0;fault<11;++fault){
+  fresh();gp_route_observe_native(now,1,1,ranges);assert(!sample.empty());
+  double changed[5]={0.,.2,1.234567,2.,2.001};
+  now=2.144;
+  if(fault==0)changed[0]=std::numeric_limits<double>::quiet_NaN();
+  if(fault==1)changed[1]=std::numeric_limits<double>::infinity();
+  if(fault==2)changed[2]=-.001;
+  if(fault==3)changed[3]=2.001001;
+  if(fault==4)config="gp-route-v2-L2000-2500-3000-TDG-s17-H2";
+  if(fault==5)vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";
+  if(fault==6)now=2.113; // outside the native 8-ms clock grid
+  if(fault==7)now=2.080; // clock rewind
+  gp_route_observe_native(now,fault==8?0:1,fault==9?2:1,fault==10?nullptr:changed);
+  assert(sample.empty());
+ }
+ fresh();gp_route_observe_native(now,1,1,ranges);std::string previous=sample;
+ gp_u_reset_complete();assert(sample.empty());gp_u_file_idle(1);challenge=request;
+ gp_route_observe_native(now,1,1,ranges);assert(!sample.empty()&&sample!=previous);
+ std::printf("GP_ROUTE_CAPTURED %s|%s\n",challenge.c_str(),sample.c_str());
+ admit();vehicle="WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=grand-prix-route-v2";
+ gp_u_file_idle(0);now=2.144;gp_route_observe_native(now,1,0,ranges);
+ assert(!sample.empty()); // active attempt binds the private epoch, not the completion text
+ std::printf("GP_ROUTE_CAPTURED %s|%s\n",request.c_str(),sample.c_str());
+ admit();now=212.112;gp_route_observe_native(now,1,0,ranges);assert(sample.empty());
+ assert(gp_u_deadline(now,0)==1); // snapshot publication cannot rescue exact expiry
 }
 ''')
             binary = base / 'test'
@@ -179,6 +219,18 @@ int main(){
             ], check=True)
             result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr)
+            from tools.grand_prix.route_evaluator_wire_v2 import parse_flight_channel
+            from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
+            captures = [line.split(' ', 1)[1].split('|') for line in result.stdout.splitlines()
+                        if line.startswith('GP_ROUTE_CAPTURED ')]
+            self.assertEqual(len(captures), 3)
+            for i, (channel, raw) in enumerate(captures):
+                config = 'gp-route-v2-L2000-2500-3000-TGD-s17-H2'
+                event = parse_flight_channel(channel, config)
+                observed = parse_flight_observation(raw, event, 2144 if i == 2 else 2112)
+                self.assertEqual(observed.ranges_m, (0., .2, 1.234567, 2., 2.001))
+                self.assertEqual(observed.ground_confirmed, i != 2)
+
 
 
 if __name__ == '__main__':

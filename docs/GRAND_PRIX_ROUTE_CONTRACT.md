@@ -144,3 +144,56 @@ R2025a. Neither is a route trajectory, sensor/contact qualification, or Linux
 GUI acceptance. The native evaluator publisher, active world/Robot Window and
 the real Blockly/Save/Open journey remain required in #824/#825/#826 before a
 variable experiment can be offered.
+
+## Flight-owned device observations
+
+The flight controller additionally owns the **`model` SFString of the plain
+`GP_ROUTE_EVALUATOR` Robot**. The evaluator only reads it. This unused descriptive
+field does not change a node's Webots type, geometry, controller or device list.
+It keeps the existing CHALLENGE/START and READY/ALIVE fields unchanged. The pinned
+Crazyflie PROTO does **not** expose `description`; its internal base-node fields
+are read-only through `getBaseNodeField`. Do not write those fields or alter the
+pinned model to invent a device channel. See the pinned
+[Crazyflie interface](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto)
+and [Supervisor field contract](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/docs/reference/supervisor.md).
+
+Exact observation message:
+
+```text
+GP_ROUTE_SAMPLE_V1 attempt=N config=ID epoch=E time_ms=T period_ms=32 ground=G ranges_um=F,B,L,R,U
+```
+
+`N/ID/E` bind the same private flight context as admission. `T` is the **native
+pilot observation time**, on the 8-ms world grid, not an invented per-device
+acquisition timestamp. The five effective DistanceSensor periods must all be
+32 ms. Values come from `wb_distance_sensor_get_value` on the flight Robot after
+its native step, in front/back/left/right/up order, converted from millimetres
+to metres and encoded as nearest integer micrometres. Each must be finite in
+`[0, 2.001]` m, the existing Runtime range domain. This encoding does not change
+the student's range results or expose the course to Blockly.
+
+The native producer clears this field on invalid control/range observations,
+wrong context, non-increasing clock, deadline or context revocation/RESET. It
+uses the existing full finite pose/velocity/attitude/gyro predicates;
+`ground=1` comes only from the existing continuously stable native idle/ground
+confirmation. The 32-ms sampling period is unchanged. **No absolute phase-zero
+assumption** is made: controller restart and the 16-ms shortened deadline step
+must not make the next RESET permanently unable to emit observations.
+
+The evaluator reads `model` from the independently verified native Robot and
+uses `route_flight_observation_v2.parse_flight_observation` with the parsed
+CHALLENGE/START and its current simulation time. Observation age must be in
+`[0, 32]` ms. Receipt never refreshes `T`. Because Webots provides no individual
+DistanceSensor acquisition timestamp, the conservative measurement-age bound is
+**observation age + native sensor period, at most 64 ms**. Do not call this a
+32-ms acquisition proof. The READY/ALIVE **message** freshness remains 32 ms;
+the independent Supervisor's own pose/velocity/contact observations and scene
+checks remain necessary. A packet alone is neither READY, RESET attestation nor
+success, and an arbitrary caller's matching string is not native provenance.
+
+The required native geometry job also runs a quarantined two-Robot transport
+bench: real near/far range echoes, an off-phase step, invalid sample revocation,
+stale replay, reset clearing and a new private attempt epoch. It never calls
+TAKEOFF, writes READY/ALIVE, commands motors or opens Blockly. Passing this bench
+establishes cross-Robot native range transport only; it cannot qualify a whole
+course, flight, RESET recovery or the teacher's Linux journey.

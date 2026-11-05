@@ -214,6 +214,8 @@ class SelectCiTests(unittest.TestCase):
             "tools/ci/test_webots_startup_diagnostics.py",
             "tools/ci/test_grand_prix_u_timeout_probe.py",
             "tools/ci/test_grand_prix_evaluator_bootstrap.py",
+            "controllers/grand_prix_route_observation_probe/grand_prix_route_observation_probe.cpp",
+            "controllers/grand_prix_route_observation_reader/grand_prix_route_observation_reader.py",
         ):
             with self.subTest(path=path):
                 selection = select([path])

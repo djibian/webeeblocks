@@ -8,4 +8,5 @@ from tools.grand_prix.prepare_u_runtime import prepare
 
 
 if __name__ == '__main__':
-    prepare(ROOT / 'controllers/grand_prix_route_flight/build', legacy_worlds=False)
+    prepare(ROOT / 'controllers/grand_prix_route_flight/build',
+            legacy_worlds=False, route_observations=True)

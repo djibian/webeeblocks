@@ -9,6 +9,10 @@ int gp_u_next_step(int);
 void gp_u_reset_complete(void);
 int gp_u_filter_raw(const char *);
 void gp_u_file_idle(int);
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+/* Native flight owns these samples; never called by the pupil transport. */
+void gp_route_observe_native(double, int, int, const double *);
+#endif
 const char *gp_u_receive(void);
 void gp_u_send(const char *, int);
 #ifdef __cplusplus
