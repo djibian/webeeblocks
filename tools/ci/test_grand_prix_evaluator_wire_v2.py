@@ -67,10 +67,15 @@ class VariableEvaluatorWireTests(unittest.TestCase):
         self.assertEqual(wire.observe(st, 1008, native_validated=True), "")
         self.assertIn("READY_V1 attempt=1", wire.observe(ch, 1016, native_validated=True))
         self.assertIn("ALIVE_V1 attempt=1", wire.observe(st, 1024, native_validated=True))
-        self.assertEqual(wire.observe(st, 1024, native_validated=True), "")
         self.assertIn("ALIVE_V1 attempt=1", wire.observe(st, 1032, native_validated=True))
         self.assertEqual(wire.observe(start(course, state="deadline"), 1040, native_validated=True), "")
         self.assertEqual(wire.observe(st, 1048, native_validated=True), "")
+        # A duplicate timestamp must invalidate the epoch; it cannot be
+        # treated as harmless and followed by later ALIVE from stale state.
+        self.assertIn("READY_V1", wire.observe(ch, 1056, native_validated=True))
+        self.assertEqual(wire.observe(ch, 1056, native_validated=True), "")
+        self.assertEqual(wire.observe(start(course, time=1056), 1064,
+                                      native_validated=True), "")
 
     def test_start_stale_epoch_clock_and_lost_scene_fail_closed(self):
         course = reference_course(1)
