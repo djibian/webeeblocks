@@ -89,6 +89,7 @@ class NativeKinematicsSampler:
         vehicle = vehicles[0]
         if (not vehicle.isProto() or vehicle.getTypeName() != 'Crazyflie' or
                 vehicle.getBaseTypeName() != 'Robot' or
+                _one_field(vehicle, 'name').getSFString() != 'Crazyflie WebeeBlocks' or
                 _one_field(vehicle, 'supervisor').getSFBool() is not True or
                 _one_field(vehicle, 'controller').getSFString() != 'grand_prix_route_flight' or
                 _one_field(vehicle, 'window').getSFString() != 'grand_prix_route_v2'):
@@ -101,6 +102,7 @@ class NativeKinematicsSampler:
             raise RuntimeError('invalid native vehicle ID')
         self._robot = supervisor
         self._vehicle_id = identity
+        self._course = course_identifier
         self._last_ms = None
 
     def snapshot(self):
@@ -112,6 +114,17 @@ class NativeKinematicsSampler:
                 node.getTypeName() != 'Crazyflie' or
                 node.getBaseTypeName() != 'Robot'):
             raise RuntimeError('native vehicle identity disappeared')
+        # A stable node ID/type alone is not sufficient provenance: supervisors
+        # may change a Robot's fields between native steps. Reject drift.
+        if (not node.isProto() or
+                _one_field(node, 'name').getSFString() != 'Crazyflie WebeeBlocks' or
+                _one_field(node, 'supervisor').getSFBool() is not True or
+                _one_field(node, 'controller').getSFString() != 'grand_prix_route_flight' or
+                _one_field(node, 'window').getSFString() != 'grand_prix_route_v2'):
+            raise RuntimeError('native vehicle provenance changed')
+        args = _one_field(node, 'controllerArgs')
+        if args.getCount() != 1 or args.getMFString(0) != self._course:
+            raise RuntimeError('native vehicle course changed')
         ms = _now_ms(self._robot.getTime())
         if self._last_ms is not None and ms <= self._last_ms:
             raise RuntimeError('replayed or nonmonotonic native pose')
