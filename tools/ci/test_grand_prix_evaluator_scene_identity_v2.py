@@ -292,6 +292,37 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.native.vehicle.kind = 'Crazyflie'
         self.assertEqual(reader.snapshot().time_ms, 8)
 
+    def test_native_kinematics_rejects_live_source_drift_after_binding(self):
+        from tools.grand_prix.evaluator_native_kinematics_v2 import NativeKinematicsSampler
+        reader = NativeKinematicsSampler(self.native, self.course.identifier)
+        self.native.time = .008
+        self.assertEqual(reader.snapshot().time_ms, 8)
+        self.native.time = .016
+        drift = (
+            ('name', 'Other Robot'),
+            ('supervisor', False),
+            ('controller', 'other_controller'),
+            ('window', 'other_window'),
+            ('controllerArgs', [reference_course(1).identifier]),
+        )
+        for name, replacement in drift:
+            with self.subTest(field=name):
+                prior = self.native.vehicle.fields[name]
+                self.native.vehicle.fields[name] = replacement
+                try:
+                    with self.assertRaisesRegex(RuntimeError, 'native vehicle .* changed'):
+                        reader.snapshot()
+                finally:
+                    self.native.vehicle.fields[name] = prior
+        self.native.vehicle.proto = False
+        try:
+            with self.assertRaisesRegex(RuntimeError, 'native vehicle provenance changed'):
+                reader.snapshot()
+        finally:
+            self.native.vehicle.proto = True
+        # Invalid observations must not consume the next legitimate tick.
+        self.assertEqual(reader.snapshot().time_ms, 16)
+
     def test_preflight_invalid_native_velocity_rejects_and_erases_stale_ready(self):
         from tools.grand_prix.evaluator_preflight_v2 import serve_fail_closed
         class Description:
