@@ -229,6 +229,8 @@ class SelectCiTests(unittest.TestCase):
             "controllers/grand_prix_u_flight/Makefile",
             "controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp",
             "controllers/grand_prix_u_flight/new_native_probe.c",
+            "controllers/grand_prix_route_flight/Makefile",
+            "controllers/grand_prix_route_flight/runtime.ini",
             "controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py",
             "controllers/grand_prix_u_evaluator/new_oracle.py",
         ):

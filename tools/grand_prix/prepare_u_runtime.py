@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
-def prepare():
+def prepare(output_dir=None, *, legacy_worlds=True):
     source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
     edits=[
       ('''        if (now - stable_since >= STOP_WINDOW) {
@@ -202,7 +202,8 @@ static double wrap_angle(double angle) {
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')
         result=result.replace(old,new)
-    output=ROOT/'controllers/grand_prix_u_flight/build/runtime_u.c'
+    destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
+    output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
     if not output.exists() or output.read_text()!=result:output.write_text(result)
     broker=(ROOT/'controllers/crazyflie_runtime_v2/file_broker_runtime.cpp').read_text()
@@ -212,7 +213,7 @@ static double wrap_angle(double angle) {
     broker_output=output.with_name('file_broker_u.cpp')
     if not broker_output.exists() or broker_output.read_text()!=broker:broker_output.write_text(broker)
     print('GP_U_COMPOSED_BROKER_SHA256 '+hashlib.sha256(broker.encode()).hexdigest())
-    if (ROOT/'tools/grand_prix/layout_u.py').exists():
+    if legacy_worlds and (ROOT/'tools/grand_prix/layout_u.py').exists():
         from tools.grand_prix.layout_u import generate,world_text
         for seed in (0,1,4):
             (ROOT/f'worlds/grand_prix_u_seed{seed}.wbt').write_text(world_text(generate(seed),controller='grand_prix_u_flight',window='grand_prix_u',evaluator=True))
