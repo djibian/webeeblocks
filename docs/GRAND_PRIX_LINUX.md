@@ -1,12 +1,13 @@
-# Grand Prix sur Linux — première entrée interactive, U historique uniquement
+# Grand Prix sur Linux — U historique actif et aperçu variable inerte
 
-**Statut : incrément expérimental non accepté.** Cette commande réutilise le
-Grand Prix **U de référence** (`gp-u-v1`, trois côtés de 2 m et virages gauche,
-**sans cornières en L**). Elle ne réalise pas le nouveau parcours décidé le
-3 novembre 2026. En particulier, elle ne livre **ni** les longueurs de segments
-indépendantes 2/2,5/3 m, **ni** les virages GG/GD/DG/DD, **ni** les 12 parcours
-variables demandés par [#808](https://github.com/djibian/webeeblocks/issues/808)
-et [#809](https://github.com/djibian/webeeblocks/issues/809).
+**Statut : incrément expérimental non accepté.** Le lancement **actif** ci-dessous
+réutilise le Grand Prix **U de référence** (`gp-u-v1`, trois côtés de 2 m et
+virages gauche, **sans cornières en L**). Il ne lance pas la nouvelle mission
+variable décidée le 3 novembre 2026. Les 12 parcours variables et leurs
+variantes personnalisées sont disponibles **pour inspection statique inerte
+uniquement**, sans Blockly ni mission qualifiée. Voir
+[#808](https://github.com/djibian/webeeblocks/issues/808) et
+[#809](https://github.com/djibian/webeeblocks/issues/809).
 
 L'objectif limité de cet incrément est de fournir une entrée directe **sans
 Docker** qui assemble les composants existants du simulateur sur un poste
@@ -69,6 +70,7 @@ racine du même checkout, avec `WEBOTS_HOME` et une session graphique :
 ```bash
 python3 tools/grand_prix/launch_linux.py --list-configurations
 python3 tools/grand_prix/inspect_static_linux.py --index 5
+python3 tools/grand_prix/inspect_static_linux.py --course-id gp-route-v2-L2000-2500-3000-TGD-s17-H2
 ```
 
 La première commande affiche les **12 indices (00 à 11)** et leur identifiant
@@ -77,6 +79,14 @@ La seconde vérifie les ressources officielles locales de **Webots R2025a**,
 génère le monde temporaire correspondant puis l'ouvre graphiquement
 **en pause**. Remplacer `5` par un indice de `0` à `11` pour visualiser
 une autre variante ; fermer la simulation précédente avant d'en changer.
+La troisième commande accepte **tout identifiant CoursePlan canonique** :
+`L2000-2500-3000` code les trois longueurs en millimètres,
+`TGD` les deux virages gauche/droite, `s17` la graine reproductible,
+`H2` le nombre de H ouverts. Les domaines autorisés sont
+`2000/2500/3000`, `GG/GD/DG/DD`, graine `0..65535` et `H1/H2/H3`.
+Copier exactement l'identifiant imprimé pour rejouer la même scène.
+`--index` et `--course-id` sont mutuellement exclus. Les identifiants
+inconnus ou non canoniques échouent avant tout lancement Webots.
 Aucun téléchargement réseau ni accès administrateur n'est effectué par
 cet inspecteur.
 
