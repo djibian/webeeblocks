@@ -53,9 +53,30 @@ def run_native(home):
 
 
 def route_observation_scene():
-    """A sensor-transport bench, deliberately not a qualified course/flight."""
+    """Real, production-equivalent Crazyflie range deck in an isolated bench.
+
+    A bare R2025a Crazyflie PROTO has four horizontal sensors but not range_up:
+    the fifth sensor is an extensionSlot node of the actual WebeeBlocks robot.
+    Reuse those exact native devices; absent/drifted template is a hard failure.
+    """
     from tools.grand_prix.route_courses_v2 import reference_course
-    config=reference_course(5).identifier
+    config = reference_course(5).identifier
+    source = (ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text(encoding='utf-8')
+    anchor = '# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN'
+    if source.count('Crazyflie {') != 1 or source.count(anchor) != 1:
+        raise RuntimeError('noncanonical Crazyflie student Robot template')
+    robot = source[source.index('Crazyflie {'):source.index(anchor)]
+    required = ('controller "crazyflie_runtime_v2"', 'window "blockly_v2"',
+                '  synchronization TRUE', '  extensionSlot [', 'name "range_up"')
+    if any(robot.count(part) != 1 for part in required):
+        raise RuntimeError('missing or ambiguous native student sensor deck')
+    robot = robot.replace('Crazyflie {',
+                          'DEF GP_SAMPLE_VEHICLE Crazyflie {\n  translation 0 0 .65', 1)
+    robot = robot.replace('controller "crazyflie_runtime_v2"',
+                          'controller "grand_prix_route_observation_probe"', 1)
+    robot = robot.replace('window "blockly_v2"', 'window "<none>"', 1)
+    robot = robot.replace('  synchronization TRUE',
+                          f'  synchronization TRUE\n  controllerArgs [ "{config}" ]', 1)
     return ('#VRML_SIM R2025a utf8\n'
         'EXTERNPROTO "webots://projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"\n'
         'EXTERNPROTO "webots://projects/objects/floors/protos/Floor.proto"\n'
@@ -63,10 +84,7 @@ def route_observation_scene():
         'Floor { size 4 4 }\n'
         'Solid { translation .8 0 .65 locked TRUE children [ Shape { '
         'geometry Box { size .1 2 1.3 } } ] boundingObject Box { size .1 2 1.3 } }\n'
-        'DEF GP_SAMPLE_VEHICLE Crazyflie { translation 0 0 .65 '
-        'name "Crazyflie WebeeBlocks" supervisor TRUE '
-        'controller "grand_prix_route_observation_probe" window "<none>" '
-        f'controllerArgs [ "{config}" ] }}\n'
+        f'{robot}\n'
         'DEF GP_ROUTE_EVALUATOR Robot { name "Native range reader" supervisor TRUE '
         'controller "grand_prix_route_observation_reader" window "<none>" '
         f'controllerArgs [ "{config}" ] }}\n'

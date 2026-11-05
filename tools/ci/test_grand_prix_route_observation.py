@@ -66,14 +66,42 @@ class FlightObservationTests(unittest.TestCase):
             with self.subTest(event=event), self.assertRaises(ValueError):
                 parse_flight_observation(RAW, event, 2144)
 
+    def test_native_bench_uses_exact_student_range_up_extension(self):
+        from tools.ci import run_grand_prix_u_deadline_native as runner
+        template = (runner.ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
+        drone = template[template.index('Crazyflie {'):
+                         template.index('# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN')]
+        slot = drone[drone.index('  extensionSlot ['):]
+        scene = runner.route_observation_scene()
+        self.assertIn(slot, scene)
+        self.assertEqual(scene.count('DEF GP_SAMPLE_VEHICLE Crazyflie {'), 1)
+        self.assertIn('controller "grand_prix_route_observation_probe"', scene)
+        self.assertIn('name "range_up"', scene)
+        self.assertNotIn('controller "crazyflie_runtime_v2"', scene)
+        self.assertEqual(scene.count('DEF GP_ROUTE_EVALUATOR Robot {'), 1)
+
+    def test_native_bench_refuses_missing_range_up_extension(self):
+        from tools.ci import run_grand_prix_u_deadline_native as runner
+        template = (runner.ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'worlds').mkdir()
+            (root/'worlds/crazyflie_runtime_v2.wbt').write_text(
+                template.replace('name "range_up"', 'name "miswired_up"'))
+            with patch.object(runner, 'ROOT', root), self.assertRaisesRegex(
+                    RuntimeError, 'missing or ambiguous native student sensor deck'):
+                runner.route_observation_scene()
+
     def test_native_bench_refuses_exit_zero_without_native_evidence(self):
         from tools.ci import run_grand_prix_u_deadline_native as runner
+        source_scene = runner.route_observation_scene()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'worlds').mkdir()
             out = root / 'out'
             out.mkdir()
             with patch.object(runner, 'ROOT', root), patch.object(runner, 'OUT', out), patch.object(
+                    runner, 'route_observation_scene', return_value=source_scene), patch.object(
                     runner.subprocess, 'run'):
                 with self.assertRaisesRegex(RuntimeError, 'native route sample evidence failed'):
                     runner.run_route_observation_native(root / 'webots', {})
