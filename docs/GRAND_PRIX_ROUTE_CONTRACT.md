@@ -42,6 +42,32 @@ script can fail while its node still exists. Readiness must be explicitly bound
 to the active configuration and fresh attempt after the checks and confirmed
 RESET; stale readiness and an absent/crashed evaluator must refuse admission.
 
+### Boundary: native sensors belong to the flight Robot
+
+In Webots R2025a a separate Supervisor Robot **cannot read the internal
+DistanceSensor measurements of the Crazyflie Robot**. A call such as
+`getDevice("range_front")` on the route evaluator refers to its own
+devices, not the Crazyflie's front Multi-Ranger. See the pinned
+[Webots R2025a Supervisor reference](https://github.com/cyberbotics/webots/blob/R2025a/docs/reference/supervisor.md).
+The evaluator may independently inspect the scene, collider readback,
+vehicle pose/velocity and available contact points through Supervisor APIs;
+none of these observations establishes a live drone range sample.
+
+The native publisher must **not** claim that its own `getDevice()`,
+static PROTO sensor names, predicted Python rays or #825 test-bench traces
+attest live in-attempt front/back/left/right readings. If fresh drone
+ranges are necessary for a runtime safety claim, they must be measured
+on the flight Robot and conveyed through a separately specified and
+reviewed **host-only** channel bound to configuration, attempt and RESET.
+No student Blockly, AST or project file may supply that evidence.
+
+Before READY, distinguish scene geometry attestation from actual sensor
+measurement provenance; absent, stale or evaluator-local readings must
+never be labelled as readings from the flight Robot. This clarification
+does not implement a new channel, waive any existing native admission
+condition, authorize flight, or substitute for the real R2025a perception
+and contact qualifications required by #825.
+
 Route progress, directed H crossings, low-altitude bands, complete swept craft
 envelope, collision, stable correct landing and irreversible failure remain
 independent of the pupil algorithm. The native authority retains independent
