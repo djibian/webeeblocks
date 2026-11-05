@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 import re
+import json
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'ci-artifacts/grand-prix-u-geometry'
@@ -17,7 +19,8 @@ def run_native(home):
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     OUT.mkdir(parents=True,exist_ok=True)
     with (OUT/'deadline-build.log').open('w') as log:
-        for controller in ('grand_prix_u_flight','grand_prix_route_flight','grand_prix_u_deadline_probe'):
+        for controller in ('grand_prix_u_flight','grand_prix_route_flight','grand_prix_u_deadline_probe',
+                           'grand_prix_route_observation_probe'):
             subprocess.run(['make','-C',str(ROOT/'controllers'/controller)],env=env,
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=90)
     target=ROOT/'worlds/ci_gp_u_deadline.wbt'
@@ -46,6 +49,60 @@ def run_native(home):
         target.unlink(missing_ok=True)
         target.with_name('.ci_gp_u_deadline.wbproj').unlink(missing_ok=True)
     run_pose_native(home,env)
+    run_route_observation_native(home,env)
+
+
+def route_observation_scene():
+    """A sensor-transport bench, deliberately not a qualified course/flight."""
+    from tools.grand_prix.route_courses_v2 import reference_course
+    config=reference_course(5).identifier
+    return ('#VRML_SIM R2025a utf8\n'
+        'EXTERNPROTO "webots://projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"\n'
+        'EXTERNPROTO "webots://projects/objects/floors/protos/Floor.proto"\n'
+        'WorldInfo { basicTimeStep 8 }\n'
+        'Floor { size 4 4 }\n'
+        'Solid { translation .8 0 .65 locked TRUE children [ Shape { '
+        'geometry Box { size .1 2 1.3 } } ] boundingObject Box { size .1 2 1.3 } }\n'
+        'DEF GP_SAMPLE_VEHICLE Crazyflie { translation 0 0 .65 '
+        'name "Crazyflie WebeeBlocks" supervisor TRUE '
+        'controller "grand_prix_route_observation_probe" window "<none>" '
+        f'controllerArgs [ "{config}" ] }}\n'
+        'DEF GP_ROUTE_EVALUATOR Robot { name "Native range reader" supervisor TRUE '
+        'controller "grand_prix_route_observation_reader" window "<none>" '
+        f'controllerArgs [ "{config}" ] }}\n'
+        'DEF GP_SAMPLE_PHASE Robot { name "Transport bench phase" controller "<none>" window "<none>" }\n')
+
+
+def run_route_observation_native(home,env):
+    from tools.grand_prix.route_courses_v2 import reference_course
+    # Each invocation owns its world, logs and output; no previous record can pass.
+    with tempfile.NamedTemporaryFile(mode='w',suffix='.wbt',prefix='ci-route-samples-',
+                                     dir=ROOT/'worlds',delete=False) as world:
+        target=Path(world.name)
+        world.write(route_observation_scene())
+    record=OUT/(target.stem+'-native.json')
+    logpath=OUT/(target.stem+'.log')
+    native_env=dict(env,GP_ROUTE_SAMPLE_OUT=str(record))
+    try:
+        with logpath.open('w') as log:
+            subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
+                           cwd=ROOT,env=native_env,stdout=log,stderr=subprocess.STDOUT,
+                           timeout=45,check=True)
+        text=logpath.read_text()
+        data=json.loads(record.read_text()) if record.exists() else None
+        markers=[json.loads(line.split(' ',1)[1]) for line in text.splitlines()
+                 if line.startswith('GP_ROUTE_SAMPLE_NATIVE ')]
+        if (data is None or data.get('claim')!='native-cross-robot-range-transport-no-admission' or
+                data.get('webots')!='R2025a' or
+                data.get('configuration')!=reference_course(5).identifier or markers!=[data] or
+                [case['phase'] for case in data['cases']]!=['far','near','shifted','invalid','stale','reset','new-epoch'] or
+                any(line.startswith('ERROR:') for line in text.splitlines()) or
+                'Traceback (most recent call last)' in text or 'GP_ROUTE_SAMPLE_FAIL' in text):
+            raise RuntimeError('native route sample evidence failed: '+str(logpath))
+        print('PASS real R2025a cross-Robot range transport; no READY/flight/RESET qualification',flush=True)
+    finally:
+        target.unlink(missing_ok=True)
+        target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
 
 def run_pose_native(home,env):
     from test_grand_prix_u_pose import instrument, CASES, FILE_PROBES, expected_reset, expected_teleports

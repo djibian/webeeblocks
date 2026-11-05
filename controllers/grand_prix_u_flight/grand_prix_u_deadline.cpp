@@ -22,7 +22,7 @@ constexpr const char *oracleName="grand-prix-route-v2";
 constexpr const char *evaluatorDef="GP_ROUTE_EVALUATOR";
 std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
-long long routeIssued=-1,routeAlive=-1;
+long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -58,7 +58,15 @@ bool currentConfig(std::string& config) {
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.
 }
-void clearRouteEpoch() {routeEpoch.clear();routeConfig.clear();routeAttempt=0;routeIssued=-1;routeAlive=-1;}
+void clearRouteObservation() {
+  WbNodeRef node=wb_supervisor_node_get_from_def(evaluatorDef);
+  WbFieldRef f=node?wb_supervisor_node_get_field(node,"model"):nullptr;
+  if(f)wb_supervisor_field_set_sf_string(f,"");
+}
+void clearRouteEpoch() {
+  routeEpoch.clear();routeConfig.clear();routeAttempt=0;
+  routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
+}
 void challengeRoute() {
   unsigned long long current=0;std::string config;long long now=0;
   WbFieldRef f=channel();
@@ -118,6 +126,41 @@ void failed_outcome() {
   if(field)wb_supervisor_field_set_sf_string(field,result);
 }
 }
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+extern "C" void gp_route_observe_native(double now,int controlValid,int ground,const double *ranges) {
+  // Called after the native pilot step, with effective device periods checked
+  // in the composed C. time_ms is the observation time, not a fabricated device
+  // acquisition timestamp. A restart or shortened step can change phase.
+  long long observed=0;unsigned long long current=0;std::string config;
+  // Crazyflie's inherited description is not exposed by the pinned PROTO;
+  // get_base_node_field would be read-only. The plain evaluator Robot's model
+  // is an unused writable SFString, owned exclusively by this flight writer.
+  WbNodeRef node=wb_supervisor_node_get_from_def(evaluatorDef);
+  WbFieldRef f=node?wb_supervisor_node_get_field(node,"model"):nullptr;
+  if(!f)return;
+  if(controlValid!=1 || (ground!=0 && ground!=1) || !ranges || expired || success ||
+     routeEpoch.empty() || !routeTime(now,observed) || observed%8 ||
+     observed<routeIssued || observed<=routeObserved ||
+     (begin>=0 && observed-begin>=210000) ||
+     !currentConfig(config) || config!=routeConfig ||
+     (begin<0 && (!fileIdle || !currentAttempt(current) || current!=routeAttempt))) {
+    clearRouteObservation();return;
+  }
+  long long micrometres[5];
+  for(int i=0;i<5;++i) {
+    if(!std::isfinite(ranges[i]) || ranges[i]<0 || ranges[i]>2.001) {
+      clearRouteObservation();return;
+    }
+    micrometres[i]=std::llround(ranges[i]*1000000);
+  }
+  char data[384];
+  std::snprintf(data,sizeof(data),
+    "GP_ROUTE_SAMPLE_V1 attempt=%llu config=%s epoch=%s time_ms=%lld period_ms=32 ground=%d ranges_um=%lld,%lld,%lld,%lld,%lld",
+    routeAttempt,routeConfig.c_str(),routeEpoch.c_str(),observed,ground,
+    micrometres[0],micrometres[1],micrometres[2],micrometres[3],micrometres[4]);
+  routeObserved=observed;wb_supervisor_field_set_sf_string(f,data);
+}
+#endif
 extern "C" int gp_u_start(double now) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   unsigned long long current=0;long long observed=0;

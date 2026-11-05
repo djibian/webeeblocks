@@ -20,6 +20,7 @@ from tools.ci.test_grand_prix_course_active_world_v2 import ActiveCourseWorldTes
 from tools.ci.test_grand_prix_attempt_v2 import PureVariableAttemptTests  # noqa: F401
 from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
 from tools.ci.test_grand_prix_route_admission import VariableNativeAdmissionTests  # noqa: F401
+from tools.ci.test_grand_prix_route_observation import FlightObservationTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_wire_v2 import VariableEvaluatorWireTests  # noqa: F401
 
 
