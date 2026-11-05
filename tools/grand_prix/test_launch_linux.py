@@ -177,5 +177,91 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
                 home.assert_not_called()
 
 
+    def test_variable_static_inspection_has_full_inert_l_h_world(self):
+        from tools.grand_prix.route_courses_v2 import reference_course
+        from tools.grand_prix import inspect_static_linux as preview
+        for index in (0, 5, 6, 11):
+            with self.subTest(index=index):
+                identifier, world = preview.render_preview(index)
+                course = reference_course(index)
+                self.assertEqual(identifier, course.identifier)
+                self.assertIn('basicTimeStep 8', world)
+                self.assertEqual(world.count('DEF GP_V2_L_'), 4)
+                self.assertEqual(world.count('DEF GP_V2_H_'), 3 * course.count)
+                self.assertEqual(world.count('DEF GP_V2_FINAL_'), 4)
+                self.assertEqual(world.count('controller "<none>"'), 1)
+                self.assertEqual(world.count('window "<none>"'), 1)
+                self.assertNotIn('GP_ROUTE_EVALUATOR', world)
+                self.assertNotIn('controller "grand_prix_u_flight"', world)
+        for index in (-1, 12, None, True):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                preview.render_preview(index)
+
+    def test_static_inspection_gui_is_resource_checked_and_tempfile_is_retired(self):
+        from tools.grand_prix import inspect_static_linux as preview
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'webots'
+            worlds = Path(directory) / 'worlds'
+            worlds.mkdir()
+            observed = {}
+
+            def graphical(mock_home, world, env):
+                self.assertEqual(mock_home, home)
+                self.assertEqual(env['WEBOTS_HOME'], str(home))
+                observed['world'] = world
+                observed['scene'] = world.read_text(encoding='utf-8')
+                return mock.Mock(returncode=0)
+
+            with mock.patch.dict(os.environ, {'DISPLAY': ':99', 'WAYLAND_DISPLAY': ''}), \
+                 mock.patch.object(preview, 'ROOT', Path(directory)), \
+                 mock.patch.object(preview, 'webots_home', return_value=home) as version, \
+                 mock.patch.object(preview, 'ensure_webots_assets', return_value=24) as assets, \
+                 mock.patch.object(preview, 'launch_graphical', side_effect=graphical) as launch:
+                self.assertEqual(preview.main(['--index', '5']), 0)
+            version.assert_called_once_with(None)
+            assets.assert_called_once_with(home)
+            launch.assert_called_once()
+            self.assertIn('Grand Prix STATIC ', observed['scene'])
+            self.assertNotIn('GP_ROUTE_EVALUATOR', observed['scene'])
+            self.assertFalse(observed['world'].exists())
+            self.assertFalse(observed['world'].with_name(
+                '.' + observed['world'].stem + '.wbproj').exists())
+
+    def test_static_inspection_headless_and_missing_assets_refuse_before_gui(self):
+        from tools.grand_prix import inspect_static_linux as preview
+        with mock.patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}), \
+             mock.patch.object(preview, 'webots_home') as home, \
+             mock.patch.object(preview, 'launch_graphical') as launch:
+            self.assertEqual(preview.main(['--index', '5']), 1)
+            home.assert_not_called()
+            launch.assert_not_called()
+        with mock.patch.dict(os.environ, {'DISPLAY': ':99'}), \
+             mock.patch.object(preview, 'webots_home', return_value=Path('/mock/webots')), \
+             mock.patch.object(preview, 'ensure_webots_assets',
+                               side_effect=RuntimeError('official resources missing')), \
+             mock.patch.object(preview, 'launch_graphical') as launch:
+            self.assertEqual(preview.main(['--index', '5']), 1)
+            launch.assert_not_called()
+        for index in ('-1', '12'):
+            with self.subTest(index=index), self.assertRaises(SystemExit) as caught:
+                preview.main(['--index', index])
+            self.assertEqual(caught.exception.code, 2)
+
+
+    def test_static_inspection_direct_script_imports_from_any_cwd_without_pythonpath(self):
+        from tools.grand_prix import inspect_static_linux as preview
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            env = os.environ.copy()
+            env.pop('PYTHONPATH', None)
+            result = subprocess.run(
+                [sys.executable, str(Path(preview.__file__).resolve()), '--help'],
+                cwd=directory, env=env, capture_output=True, text=True, timeout=20,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('INSPECTION SEULEMENT', result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
