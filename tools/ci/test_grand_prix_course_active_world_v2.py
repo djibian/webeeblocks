@@ -27,6 +27,9 @@ class ActiveCourseWorldTests(unittest.TestCase):
                 self.assertEqual(scene.count('controller "grand_prix_route_evaluator"'), 1)
                 self.assertEqual(scene.count('description ""'), 1)
                 self.assertEqual(scene.count("basicTimeStep 8"), 1)
+                self.assertEqual(scene.count(
+                    f'DEF {active.DEDICATED_WORLD_DEF} WorldInfo {{'), 1)
+                self.assertNotIn(active.DEDICATED_WORLD_DEF, static)
                 self.assertNotIn('controller "grand_prix_u_flight"', scene)
                 self.assertNotIn('controller "<none>"', scene)
                 self.assertEqual(scene.count('boundingObject Box { size'),
@@ -41,6 +44,8 @@ class ActiveCourseWorldTests(unittest.TestCase):
                 self.assertNotIn('children [', evaluator)
                 self.assertIn('synchronization TRUE', evaluator)
                 restored = before.replace(
+                    f'DEF {active.DEDICATED_WORLD_DEF} WorldInfo {{', 'WorldInfo {', 1
+                ).replace(
                     "Grand Prix variable EXPERIMENTAL " + course.identifier,
                     "Grand Prix STATIC " + course.identifier, 1
                 ).replace(
@@ -65,6 +70,8 @@ class ActiveCourseWorldTests(unittest.TestCase):
                         self.assertEqual(scene.count('DEF GP_V2_H_'), 3*gates)
                         self.assertEqual(scene.count('DEF GP_V2_L_'), 4)
                         self.assertEqual(scene.count('DEF GP_V2_FINAL_'), 4)
+                        self.assertEqual(scene.count(
+                            f'DEF {active.DEDICATED_WORLD_DEF} WorldInfo {{'), 1)
                     checked += 1
         self.assertEqual(checked, 324)
 
@@ -94,6 +101,9 @@ class ActiveCourseWorldTests(unittest.TestCase):
             inert.replace('  controller "<none>"\n',
                           '  controller "<none>"\n  controllerArgs [ "injected" ]\n', 1),
             inert + '# unexpected trailing content\n',
+            inert.replace('WorldInfo {', 'Group {', 1),
+            inert.replace('WorldInfo {',
+                          f'DEF {active.DEDICATED_WORLD_DEF} WorldInfo {{', 1),
         )
         for index, forged in enumerate(variants):
             with self.subTest(index=index):

@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import re
+import sys
 ROOT=Path(__file__).resolve().parents[2]
 HEADER=r'''
 #pragma once
@@ -73,7 +74,10 @@ int main(int argc,char**argv){
  nodes.push_back(&dedicated);
  nodes.push_back(&classroom);
  if(argc==3){
-   const std::string mode=argv[2];
+   std::string mode=argv[2];
+   // The identifier below is extracted from an ACTUAL generated route world,
+   // not copied from the production C++ or this fixture's default marker.
+   if(mode.rfind("worlddef:",0)==0){dedicated.def=mode.substr(9);mode="dedicated";}
    if(mode.rfind("classroom",0)==0){
      legacy.alive=evaluators.alive=sequence.alive=extra7.alive=extra8.alive=false;
      classroom.alive=true;
@@ -220,6 +224,16 @@ def main():
                      'classroom','classroom-missing','classroom-wrong-type',
                      'classroom-partial-existing','classroom-partial-import'):
             subprocess.run([str(root/'probe'),str(root),mode],check=True)
+        # Cross the generator/production Runtime boundary. Merely asserting
+        # that each side's own constant is present would miss divergent names.
+        sys.path.insert(0,str(ROOT))
+        from tools.grand_prix.course_active_world_v2 import active_course_world
+        from tools.grand_prix.route_courses_v2 import reference_course
+        for index in range(12):
+            generated=active_course_world(reference_course(index))
+            worlds=re.findall(r'^DEF (\w+) WorldInfo \{',generated,re.M)
+            assert len(worlds)==1, 'route world lacks unique typed Runtime scene identity'
+            subprocess.run([str(root/'probe'),str(root),'worlddef:'+worlds[0]],check=True)
         for mutation in ('missing-scene','empty-evaluators','oversized-scene'):
             case=root/mutation
             target=case/'worlds/scenes';target.mkdir(parents=True)
