@@ -91,6 +91,11 @@ def run(robot):
                 json.dumps(result, allow_nan=False, sort_keys=True) + '\n')
             print('GP_ROUTE_SAMPLE_NATIVE ' + json.dumps(result, allow_nan=False, sort_keys=True), flush=True)
             reader_trace('reader-success-evidence-written')
+            # Let Webots collect the flushed controller stdout before quitting.
+            # The native JSON alone is insufficient: the host also requires the
+            # identical GP_ROUTE_SAMPLE_NATIVE marker in the Webots log.
+            if robot.step(8) == -1:
+                raise RuntimeError('native sample evidence stdout not retired')
             robot.simulationQuit(0)
             return
     raise RuntimeError('native observer ended without complete evidence')
