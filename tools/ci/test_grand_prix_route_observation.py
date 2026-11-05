@@ -108,6 +108,27 @@ class FlightObservationTests(unittest.TestCase):
             self.assertEqual(list((root / 'worlds').iterdir()), [])
             self.assertFalse(list(out.glob('*native.json')))
 
+    def test_native_reader_retires_stdout_before_normal_quit(self):
+        # Host-only contract assertion: only R2025a can prove actual output
+        # forwarding; an exit=0 with missing stdout must still be refused.
+        source = (Path(__file__).resolve().parents[2] /
+                  'controllers/grand_prix_route_observation_reader/'
+                  'grand_prix_route_observation_reader.py').read_text()
+        marker = "print('GP_ROUTE_SAMPLE_NATIVE '"
+        retirement = "if robot.step(8) == -1:"
+        quit_call = 'robot.simulationQuit(0)'
+        self.assertEqual(source.count(marker), 1)
+        self.assertEqual(source.count(retirement), 1)
+        self.assertEqual(source.count(quit_call), 1)
+        self.assertLess(source.index(marker), source.index(retirement))
+        self.assertLess(source.index(retirement), source.index(quit_call))
+        self.assertIn("raise RuntimeError('native sample evidence stdout not retired')",
+                      source)
+        runner = (Path(__file__).resolve().parents[2] /
+                  'tools/ci/run_grand_prix_u_deadline_native.py').read_text()
+        self.assertIn('markers!=[data]', runner)
+        self.assertIn('timeout=45,check=True', runner)
+
     def test_real_preparer_samples_own_devices_before_admission_only_in_route(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
             root = Path(directory)
