@@ -11,7 +11,16 @@ from tools.grand_prix.route_evaluator_wire_v2 import parse_flight_channel, Chall
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation, OBSERVATION_FIELD
 
 
+def reader_trace(message):
+    """Diagnostic-only; intentionally never used as success evidence."""
+    target = os.environ.get('GP_ROUTE_SAMPLE_READER_TRACE')
+    if target:
+        with Path(target).open('a', encoding='utf-8') as log:
+            log.write(message + '\n')
+
+
 def run(robot):
+    reader_trace('reader-start')
     config = sys.argv[1]
     vehicle = robot.getFromDef('GP_SAMPLE_VEHICLE')
     if vehicle is None or vehicle.getField('controller').getSFString() != 'grand_prix_route_observation_probe':
@@ -35,6 +44,9 @@ def run(robot):
         if label != expected[len(records)] or evidence.getSFString():
             raise RuntimeError('phase mismatch or accidental READY')
         raw, control = sample.getSFString(), request.getSFString()
+        # Log lengths and phase, never the private epoch/nonce or sensor data.
+        reader_trace(f'phase={label} index={len(records)} time_ms={now} '
+                     f'sample_bytes={len(raw)} control_bytes={len(control)}')
         event = parse_flight_channel(control, config)
         if label in ('invalid', 'stale', 'reset'):
             try:
@@ -68,6 +80,7 @@ def run(robot):
             record = dict(phase=label, observed_ms=now, time_ms=value.time_ms,
                           ranges_m=value.ranges_m, raw=raw, control=control)
         records.append(record)
+        reader_trace(f'phase-checked={label} rejected={record.get("rejected", False)}')
         if len(records) == len(expected):
             far, near = records[0]['ranges_m'][0], records[1]['ranges_m'][0]
             if not (.05 < near < far < 1.3 and far - near > .20):
@@ -77,6 +90,7 @@ def run(robot):
             Path(os.environ['GP_ROUTE_SAMPLE_OUT']).write_text(
                 json.dumps(result, allow_nan=False, sort_keys=True) + '\n')
             print('GP_ROUTE_SAMPLE_NATIVE ' + json.dumps(result, allow_nan=False, sort_keys=True), flush=True)
+            reader_trace('reader-success-evidence-written')
             robot.simulationQuit(0)
             return
     raise RuntimeError('native observer ended without complete evidence')
@@ -86,8 +100,12 @@ if __name__ == '__main__':
     robot = Supervisor()
     try:
         run(robot)
-    except Exception:
+    except Exception as exc:
         import traceback
+        try:
+            reader_trace(f'exception={type(exc).__name__}: {exc}')
+        except OSError:
+            pass  # Preserve the original failure, never manufacture a PASS.
         traceback.print_exc()
         robot.simulationQuit(1)
         raise

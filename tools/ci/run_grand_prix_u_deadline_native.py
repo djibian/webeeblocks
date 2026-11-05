@@ -82,7 +82,13 @@ def run_route_observation_native(home,env):
         world.write(route_observation_scene())
     record=OUT/(target.stem+'-native.json')
     logpath=OUT/(target.stem+'.log')
-    native_env=dict(env,GP_ROUTE_SAMPLE_OUT=str(record))
+    # Separate controller traces survive Webots batch exit=1. They are
+    # diagnostic only, not substitutes for native JSON + stdout agreement.
+    producer_trace=OUT/(target.stem+'-producer.trace')
+    reader_trace=OUT/(target.stem+'-reader.trace')
+    native_env=dict(env,GP_ROUTE_SAMPLE_OUT=str(record),
+                    GP_ROUTE_SAMPLE_PROBE_TRACE=str(producer_trace),
+                    GP_ROUTE_SAMPLE_READER_TRACE=str(reader_trace))
     try:
         with logpath.open('w') as log:
             subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
