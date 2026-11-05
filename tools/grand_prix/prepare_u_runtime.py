@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
-def prepare(output_dir=None, *, legacy_worlds=True):
+def prepare(output_dir=None, *, legacy_worlds=True, route_observations=False):
     source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
     edits=[
       ('''        if (now - stable_since >= STOP_WINDOW) {
@@ -202,6 +202,28 @@ static double wrap_angle(double angle) {
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')
         result=result.replace(old,new)
+    if route_observations:
+        anchor='    if (gp_u_deadline(now, gp_pose_confirmed)) {'
+        if result.count(anchor)!=1:
+            raise RuntimeError('native route observation anchor changed; revalidation required')
+        result=result.replace(anchor, '''    /* Host-only evidence, measured on this Robot, after the native step.
+       Verify the effective 32-ms device periods without assuming phase zero. */
+    const double gp_route_ranges[5] = {
+      wb_distance_sensor_get_value(range_front) / 1000.0,
+      wb_distance_sensor_get_value(range_back) / 1000.0,
+      wb_distance_sensor_get_value(range_left) / 1000.0,
+      wb_distance_sensor_get_value(range_right) / 1000.0,
+      wb_distance_sensor_get_value(range_up) / 1000.0
+    };
+    const int gp_route_periods_valid =
+      wb_distance_sensor_get_sampling_period(range_front) == step &&
+      wb_distance_sensor_get_sampling_period(range_back) == step &&
+      wb_distance_sensor_get_sampling_period(range_left) == step &&
+      wb_distance_sensor_get_sampling_period(range_right) == step &&
+      wb_distance_sensor_get_sampling_period(range_up) == step;
+    gp_route_observe_native(now, gp_control_sample && gp_route_periods_valid,
+                            gp_pose_confirmed, gp_route_ranges);
+''' + anchor, 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
