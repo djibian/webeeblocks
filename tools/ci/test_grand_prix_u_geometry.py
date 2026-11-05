@@ -15,6 +15,10 @@ from tools.ci.test_grand_prix_terminal_dwell_v2 import VariableTerminalDwellTest
 from tools.ci.test_grand_prix_course_footprint_v2 import CompleteCourseFootprintTests  # noqa: F401
 from tools.ci.test_grand_prix_attempt_v2 import PureVariableAttemptTests  # noqa: F401
 from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
+# Exercise the complete inert and declared active CoursePlan worlds in the
+# canonical required geometry suite (host evidence only, never native PASS).
+from tools.ci.test_grand_prix_course_static_world_v2 import StaticCourseWorldTests  # noqa: F401
+from tools.ci.test_grand_prix_course_active_world_v2 import ActiveCourseWorldTests  # noqa: F401
 from tools.ci.test_grand_prix_route_admission import VariableNativeAdmissionTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_wire_v2 import VariableEvaluatorWireTests  # noqa: F401
 
