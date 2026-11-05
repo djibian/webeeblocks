@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Reproducible native L-corner probe; never labels synthetic geometry as PASS.
+"""Reproducible native L-corner rays in the complete inert CoursePlan scene.
 
-Manual R2025a runner for #825. A separate mission evaluator, open H, closed H,
-collision/contact and pupil GUI still require their own evidence.
+Manual R2025a runner for #825. It attests the full L/open-H/closed-H
+collider inventory, but only *measures L rays*. H ray behavior, contact,
+mission admission, autonomous flight and pupil GUI need separate evidence.
 """
 import argparse
 import hashlib
@@ -16,7 +17,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.grand_prix.route_courses_v2 import reference_course
-from tools.grand_prix.route_solid_v2 import static_world
+from tools.grand_prix.course_static_world_v2 import static_course_world
 
 DEFAULT_INDICES = (0, 5, 6, 11)  # GG/GD/DG/DD; short, mixed and 3 m legs.
 OUT = ROOT / 'ci-artifacts/grand-prix-v2-l-native'
@@ -24,14 +25,19 @@ OUT = ROOT / 'ci-artifacts/grand-prix-v2-l-native'
 
 def probe_scene(index):
     course = reference_course(index)
-    source = static_world(course.route)
+    # Consume the *same full scene* as the H probe and future evaluator.
+    # Do not construct a second L-only world or omit hidden H collisions.
+    source = static_course_world(course)
     old = 'controller "<none>"'
     if (source.count(old) != 1 or source.count('window "<none>"') != 1 or
             source.count('DEF GP_V2_L_') != 4 or
-            source.count('boundingObject Box { size ') != 4 or
-            'GP_ROUTE_EVALUATOR' in source or
-            'controller "grand_prix_u_flight"' in source):
-        raise RuntimeError('static L world contract changed; refusing native probe')
+            source.count('DEF GP_V2_H_') != 3 * course.count or
+            source.count('DEF GP_V2_FINAL_') != 4 or
+            source.count('boundingObject Box { size ') != 8 + 3 * course.count or
+            'GP_ROUTE_EVALUATOR' in source or 'controllerArgs' in source or
+            'controller "grand_prix_u_flight"' in source or
+            'controller "grand_prix_route_flight"' in source):
+        raise RuntimeError('full static course contract changed; refusing native L probe')
     source = source.replace(old, 'controller "grand_prix_v2_l_probe"', 1)
     return source
 
