@@ -17,7 +17,7 @@ def run_native(home):
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     OUT.mkdir(parents=True,exist_ok=True)
     with (OUT/'deadline-build.log').open('w') as log:
-        for controller in ('grand_prix_u_flight','grand_prix_u_deadline_probe'):
+        for controller in ('grand_prix_u_flight','grand_prix_route_flight','grand_prix_u_deadline_probe'):
             subprocess.run(['make','-C',str(ROOT/'controllers'/controller)],env=env,
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=90)
     target=ROOT/'worlds/ci_gp_u_deadline.wbt'
