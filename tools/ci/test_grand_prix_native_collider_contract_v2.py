@@ -148,6 +148,38 @@ class NativeColliderContractTests(unittest.TestCase):
         ])
         self.assertIsNone(verify_native_boxes(scene, plan, boxes))
 
+    def test_reserved_evaluator_identity_must_be_unique_and_authentic(self):
+        plan, boxes = _plan_and_manifest()
+        # Static native probes legitimately have no evaluator; active courses
+        # may have exactly one non-colliding root Supervisor.
+        self.assertIsNone(verify_native_boxes(_Supervisor(boxes), plan, boxes))
+        valid = _Supervisor(boxes)
+        valid.nodes.append(_Node('GP_ROUTE_EVALUATOR', 'Robot', children=[]))
+        self.assertIsNone(verify_native_boxes(valid, plan, boxes))
+        for defect in ('duplicate', 'wrong-kind', 'wrong-base',
+                       'collidable', 'nested', 'nested-pose'):
+            scene = _Supervisor(boxes)
+            evaluator = _Node('GP_ROUTE_EVALUATOR', 'Robot', children=[])
+            if defect == 'duplicate':
+                scene.nodes.extend([evaluator,
+                                    _Node('GP_ROUTE_EVALUATOR', 'Robot', children=[])])
+            elif defect == 'wrong-kind':
+                scene.nodes.append(_Node('GP_ROUTE_EVALUATOR', 'Pose', children=[]))
+            elif defect == 'wrong-base':
+                scene.nodes.append(_Node('GP_ROUTE_EVALUATOR', 'Robot',
+                                         _base='Group', children=[]))
+            elif defect == 'collidable':
+                scene.nodes.append(_Node('GP_ROUTE_EVALUATOR', 'Robot',
+                                         children=[], boundingObject=_Node(
+                                             None, 'Box', size=(.1, .1, .1))))
+            elif defect == 'nested':
+                scene.nodes.append(_Node(None, 'Group', children=[evaluator]))
+            else:
+                scene.nodes.append(_Node(None, 'Pose', children=[evaluator]))
+            with self.subTest(defect=defect), self.assertRaisesRegex(
+                    RuntimeError, 'evaluator'):
+                verify_native_boxes(scene, plan, boxes)
+
     def test_missing_canonical_floor_or_vehicle_fails_closed(self):
         plan, boxes = _plan_and_manifest()
         for missing in ('Floor', 'Crazyflie'):
