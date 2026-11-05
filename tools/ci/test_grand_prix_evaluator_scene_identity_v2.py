@@ -163,5 +163,70 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.check.assert_called_once()
 
 
+    def test_preflight_bootstrap_rejects_stale_or_forged_ready_during_steps(self):
+        from tools.grand_prix.evaluator_preflight_v2 import serve_fail_closed
+
+        class Description:
+            value = 'GP_ROUTE_READY_V1 forged stale'
+            writes = []
+            def setSFString(self, value):
+                self.value = value
+                self.writes.append(value)
+
+        description = Description()
+        original_field = self.native.evaluator.getField
+        calls = []
+
+        def field(name):
+            return description if name == 'description' else original_field(name)
+
+        def step(milliseconds):
+            calls.append(milliseconds)
+            if len(calls) == 1:
+                description.value = 'GP_ROUTE_READY_V1 injected between native steps'
+                return 0
+            if len(calls) == 2:
+                return 0
+            return -1
+
+        with patch.object(self.native.evaluator, 'getField', side_effect=field):
+            with patch.object(self.native, 'step', side_effect=step, create=True):
+                self.assertIsNone(serve_fail_closed(self.native, self.course.identifier))
+        self.assertEqual(calls, [8, 8, 8])
+        self.assertEqual(description.writes, ['', '', ''])
+        self.assertEqual(description.value, '')
+        self.check.assert_called_once()
+
+    def test_preflight_failure_clears_prior_claim_before_native_verification(self):
+        from tools.grand_prix.evaluator_preflight_v2 import serve_fail_closed
+
+        class Description:
+            value = 'GP_ROUTE_READY_V1 old claim'
+            def setSFString(self, value):
+                self.value = value
+
+        description = Description()
+        original_field = self.native.evaluator.getField
+        self.check.side_effect = RuntimeError('hidden native collider')
+        with patch.object(self.native.evaluator, 'getField',
+                          side_effect=lambda name: (
+                              description if name == 'description' else original_field(name))):
+            with self.assertRaisesRegex(RuntimeError, 'hidden native collider'):
+                serve_fail_closed(self.native, self.course.identifier)
+        self.assertEqual(description.value, '')
+        self.check.assert_called_once()
+
+    def test_preflight_rejects_missing_authority_field(self):
+        from tools.grand_prix.evaluator_preflight_v2 import serve_fail_closed
+        original_field = self.native.evaluator.getField
+        with patch.object(self.native.evaluator, 'getField',
+                          side_effect=lambda name: (
+                              None if name == 'description' else original_field(name))):
+            with self.assertRaisesRegex(RuntimeError, 'description field absent'):
+                serve_fail_closed(self.native, self.course.identifier)
+        self.check.assert_not_called()
+
+
+
 if __name__ == '__main__':
     unittest.main()
