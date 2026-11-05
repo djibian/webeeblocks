@@ -22,9 +22,25 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 scene = probe_scene(index)
                 self.assertEqual(scene.count('controller "grand_prix_v2_l_probe"'), 1)
                 self.assertIn('window "<none>"', scene)
+                course = reference_course(index)
                 self.assertEqual(scene.count('DEF GP_V2_L_'), 4)
-                self.assertEqual(scene.count('boundingObject Box { size '), 4)
+                self.assertEqual(scene.count('DEF GP_V2_H_'), 3 * course.count)
+                self.assertEqual(scene.count('DEF GP_V2_FINAL_'), 4)
+                self.assertEqual(scene.count('boundingObject Box { size '),
+                                 8 + 3 * course.count)
                 self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
+                self.assertNotIn('controllerArgs', scene)
+                self.assertNotIn('grand_prix_route_flight', scene)
+
+    def test_missing_full_course_body_refuses_probe_preparation(self):
+        # A historical four-L-only static world is no longer a valid probe
+        # source. This is a host-side guard, NOT native contact evidence.
+        from tools.grand_prix.route_solid_v2 import static_world
+        course = reference_course(5)
+        incomplete = static_world(course.route)
+        with patch.object(runner, 'static_course_world', return_value=incomplete):
+            with self.assertRaisesRegex(RuntimeError, 'full static course'):
+                probe_scene(5)
 
     def test_synthetic_result_never_qualifies_native(self):
         course = reference_course(5)

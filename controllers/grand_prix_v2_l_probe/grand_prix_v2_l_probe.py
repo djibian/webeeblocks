@@ -1,7 +1,8 @@
-"""Native R2025a L-corner sensor witness (#825); teleportation is NOT flight.
+"""Native R2025a L-corner sensor witness in the complete course (#825).
 
-No pupil program, evaluator, mission admission, scoring or motor commands.
-Only this explicitly named test controller may be inserted in a static scene.
+Native full-scene collider attestation precedes L-only ray samples. No pupil
+program, evaluator, mission admission, scoring or motor commands; teleportation
+is NOT flight and does not qualify H perception/contact.
 """
 import json
 import math
@@ -13,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from controller import Supervisor
 from tools.grand_prix.route_courses_v2 import reference_course
+from tools.grand_prix.native_collider_contract_v2 import (
+    canonical_native_boxes, verify_native_boxes,
+)
 from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT
 
 
@@ -40,6 +44,9 @@ def witness():
     step = int(robot.getBasicTimeStep())
     if step != 8:
         raise RuntimeError('expected R2025a 8 ms step')
+    # A scene containing just four Ls is insufficient: the same native L
+    # measurements must be made with *every* canonical H and terminal Solid.
+    verify_native_boxes(robot, course, canonical_native_boxes(course))
     self_node = robot.getSelf()
     translation, rotation = (self_node.getField(name) for name in ('translation', 'rotation'))
     if translation is None or rotation is None:
