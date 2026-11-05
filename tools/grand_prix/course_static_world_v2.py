@@ -89,6 +89,19 @@ def static_course_world(course):
     for number, (x, y) in enumerate(landing_targets(route), start=1):
         overlay.append(visual(f'GP_ROUTE_TARGET_{number}', x, y,
                               LANDING_TILE, LANDING_TILE, '.10 .72 .28'))
+        # Keep the accepted 25 cm black/white 4x4 checkerboard inside the
+        # 28 cm green tile, leaving a 15 mm border on every side. Pure Pose:
+        # no collision, range API, landing permission or oracle inference.
+        for col in range(4):
+            for row in range(4):
+                tx = x - .125 + (col + .5) * .0625
+                ty = y - .125 + (row + .5) * .0625
+                shade = '.06 .06 .06' if (col + row) % 2 == 0 else '.96 .96 .96'
+                overlay.append(
+                    f'DEF GP_ROUTE_TARGET_{number}_CELL_{col}_{row} Pose {{ '
+                    f'translation {tx:.6f} {ty:.6f} .0042 children [ Shape {{ '
+                    f'appearance PBRAppearance {{ baseColor {shade} roughness 1 }} '
+                    'geometry Box { size .0625 .0625 .0002 } } ] }')
     for index, gate in enumerate(course.gates):
         leg = route.legs[gate.leg_index]
         pitch = .60 / 8
