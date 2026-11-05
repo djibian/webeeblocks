@@ -1,7 +1,9 @@
 .DEFAULT_GOAL := release
 C_SOURCES = build/runtime_u.c ../crazyflie_square/pid_controller.c
-CFLAGS = -I../crazyflie_square -I../crazyflie_runtime_v2 -I.
-CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp build/file_broker_u.cpp grand_prix_u_deadline.cpp
+GP_DEADLINE_SOURCE ?= grand_prix_u_deadline.cpp
+GP_PREPARE_SCRIPT ?= ../../tools/grand_prix/prepare_u_runtime.py
+CFLAGS = -I../crazyflie_square -I../crazyflie_runtime_v2 -I. $(GP_EXTRA_CFLAGS)
+CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp build/file_broker_u.cpp $(GP_DEADLINE_SOURCE)
 USE_C_API = true
 ifeq ($(OS),Windows_NT)
  CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -include grand_prix_u_hook.h
@@ -19,6 +21,6 @@ CXX_SOURCES += $(wildcard ../crazyflie_runtime_v2/activity_scene.cpp)
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
-build/runtime_u.c build/file_broker_u.cpp &: ../../tools/grand_prix/prepare_u_runtime.py ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/file_broker_runtime.cpp
-	python3 ../../tools/grand_prix/prepare_u_runtime.py
+build/runtime_u.c build/file_broker_u.cpp &: $(GP_PREPARE_SCRIPT) ../../tools/grand_prix/prepare_u_runtime.py ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/file_broker_runtime.cpp
+	python3 $(GP_PREPARE_SCRIPT)
 include $(WEBOTS_HOME_PATH)/resources/Makefile.include
