@@ -119,6 +119,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
     pending = [(node, 0, False) for node in root_nodes]
     visited = 0
     models = set()
+    evaluator_seen = False
     while pending:
         node, depth, under_guide = pending.pop()
         visited += 1
@@ -151,6 +152,10 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
         has_collider = physical is not None and physical.getSFNode() is not None
         evaluator = (depth == 0 and name == 'GP_ROUTE_EVALUATOR' and
                      kind == 'Robot' and base == 'Robot' and not has_collider)
+        if name == 'GP_ROUTE_EVALUATOR':
+            if not evaluator or evaluator_seen:
+                raise RuntimeError('invalid or duplicate native course evaluator')
+            evaluator_seen = True
         listed = depth == 0 and name in expected_names and kind == 'Solid'
         if not (model or listed or evaluator) and (
                 base in ('Solid', 'Robot', 'Fluid') or has_collider):
