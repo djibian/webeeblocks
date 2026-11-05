@@ -95,7 +95,7 @@ class VariableTerminalTests(unittest.TestCase):
         # remain separate obligations, independent of VRML-string assertions.
         import re
         from tools.grand_prix.route_courses_v2 import CoursePlan, reference_course
-        from tools.grand_prix.course_world_v2 import static_course_world
+        from tools.grand_prix.course_static_world_v2 import static_course_world
         from tools.grand_prix.native_collider_contract_v2 import required_box_names
         from tools.grand_prix.course_footprint_v2 import red_boundary_marks
 
@@ -114,15 +114,15 @@ class VariableTerminalTests(unittest.TestCase):
                 self.assertNotIn('controllerArgs', text)
                 physical = re.findall(r'^DEF (\S+) Solid ', text, re.MULTILINE)
                 self.assertEqual(tuple(physical), required_box_names(plan))
-                self.assertEqual(text.count('boundingObject Box'), len(physical))
-                self.assertIn('DEF GP_V2_START Pose', text)
+                self.assertEqual(text.count('boundingObject Box { size'), len(physical))
+                self.assertIn('DEF GP_ROUTE_START Pose', text)
                 for number in (1, 2, 3):
-                    self.assertIn(f'DEF GP_V2_TARGET_{number} Pose', text)
+                    self.assertIn(f'DEF GP_ROUTE_TARGET_{number} Pose', text)
                 for leg in plan.route.legs:
                     self.assertIn(f'DEF GP_V2_WHITE_{leg.index} Pose', text)
                 self.assertEqual(text.count('DEF GP_V2_COURSE_RED_'),
                                  len(red_boundary_marks(plan.route)))
-                self.assertEqual(text.count('DEF GP_V2_BAND_'), 16 * plan.count)
+                self.assertEqual(text.count('DEF GP_ROUTE_BAND_'), 16 * plan.count)
 
         plan = reference_course(1)
         with self.assertRaises(ValueError):
