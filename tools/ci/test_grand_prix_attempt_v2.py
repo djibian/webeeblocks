@@ -72,6 +72,40 @@ class PureVariableAttemptTests(unittest.TestCase):
                 self.assertFalse(hasattr(state, 'ready'))
                 self.assertFalse(hasattr(state, 'land_command'))
 
+    def test_terminal_low_exception_requires_all_open_h_crossed(self):
+        """Entering the last leg does not license low flight near the landing pad."""
+        from dataclasses import replace
+        from unittest.mock import patch
+
+        course = reference_course(8)  # Three directed H, including leg 2.
+        self.assertEqual(course.count, 3)
+        self.assertEqual(tuple(gate.leg_index for gate in course.gates), (0, 1, 2))
+        initial = start_pure_attempt(course, 4, .015, 0)
+        xy = tuple(course.route.legs[2].at(course.route.legs[2].length - .5))
+        pose = (*xy, .75)
+        leg = replace(initial.progress.leg, active_leg=2, xy=xy)
+        pending = replace(initial.progress, leg=leg,
+                          gates=replace(initial.progress.gates, active_leg=2,
+                                        cursor=course.count - 1),
+                          pose=pose)
+        complete = replace(pending, gates=replace(pending.gates, cursor=course.count))
+        self.assertEqual(pending.count, course.count - 1)
+        self.assertEqual(complete.count, course.count)
+
+        for progress, allowed in ((pending, False), (complete, True)):
+            with self.subTest(crossings=progress.count):
+                sample = replace(initial, progress=progress, last_ms=160,
+                                 airborne=True, takeoff_done=True)
+                # Isolate the low-band *authorization* argument, not a
+                # synthetic mission PASS or a substitute for Webots contacts.
+                with patch('tools.grand_prix.oracle_attempt_v2._hits_mission_body',
+                           return_value=False), \
+                     patch('tools.grand_prix.oracle_attempt_v2.low_segment_allowed_v2',
+                           return_value=True) as low:
+                    observe(sample, 4, 168, pose, (0., 0., 0.))
+                low.assert_called_once()
+                self.assertIs(low.call_args.kwargs['final'], allowed)
+
     def test_irreversible_timeout_and_identity(self):
         course = reference_course(1)
         original = start_pure_attempt(course, 1, .015, 0)
