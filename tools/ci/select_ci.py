@@ -34,6 +34,9 @@ FORCE_FULL = (
     # cannot exercise either owner: request the entire gate.
     "controllers/grand_prix_u_flight/**",
     "controllers/grand_prix_u_evaluator/**",
+    # The variable flight adapter shares the U native/Qt runtime and is built
+    # by the same mandatory Runtime job, including when edited on its own.
+    "controllers/grand_prix_route_flight/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
 )

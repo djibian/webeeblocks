@@ -60,3 +60,61 @@ sensing, step/continue, stop/reset and real Save/Open. A failed or incomplete
 pupil attempt is a valid experimentation result; it must never bypass safety.
 Extend the same vertical path to the twelve configurations. Proving one winning
 pupil program and obtaining pedagogical acceptance are subsequent obligations.
+
+## Native flight admission and evaluator liveness
+
+`grand_prix_route_flight` composes the existing U flight/PID, Runtime v2 broker,
+Qt file provider, full native ground confirmation and RESET. It builds in its
+own directory with `prepare_route_runtime.py`; it never generates or activates
+a variable world. The shared deadline hook enables this protocol only with
+`WEBEEBLOCKS_GP_ROUTE_MODE`; the historical U uses its unchanged protocol.
+
+Native fields have one writer per direction on `DEF GP_ROUTE_EVALUATOR`:
+
+| Field | Writer | Exact message |
+| --- | --- | --- |
+| `customData` | Flight | `GP_ROUTE_CHALLENGE_V1 attempt=N config=ID epoch=E` |
+| `description` | Evaluator | `GP_ROUTE_READY_V1 attempt=N config=ID epoch=E time_ms=T` |
+| `customData` | Flight | `GP_ROUTE_START_V1 attempt=N config=ID epoch=E start_ms=B state=admitted` |
+| `description` | Evaluator | `GP_ROUTE_ALIVE_V1 attempt=N config=ID epoch=E time_ms=T` |
+
+`ID` is the canonical identifier above, taken from the flight robot's sole
+`controllerArgs` entry. The evaluator must decode it independently, compare its
+own arguments and verify the complete native scene. The flight guard checks a
+bounded token, not a duplicate geometry parser. `N` is the positive canonical
+integer in the broker's `WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 N`. `E` is a fresh,
+private 128-bit random challenge (32 lowercase hexadecimal characters), created
+only during native idle/ground observations. Missing entropy refuses admission.
+RESET, loss of pre-admission idle, changed attempt or changed configuration
+invalidate it. A restarted flight process cannot reuse an earlier response.
+
+Before publishing READY, the evaluator must independently check canonical
+colliders/scene, sensor/contact availability, finite pose and confirmed fresh
+initial/reset state. Node presence is insufficient. It echoes the exact
+challenge only after these checks and refreshes READY while waiting for START.
+Both READY and ALIVE require a canonical nonnegative integer native simulation
+timestamp, no earlier than challenge creation, no later than the current native
+time, and at most **32 ms** old. After START the evaluator must publish ALIVE
+from fresh native observations; each pilot tick consumes a strictly newer
+timestamp, strictly after admission. An evaluator stepping at the world's **8 ms**
+basic step supplies this without writing the flight-owned field. Repeated
+pre-admission idle polling therefore cannot erase READY, and an old ALIVE cannot
+hide a crashed evaluator. These are product safety messages, not Controller
+execution coordination.
+
+Admission failure refuses TAKEOFF. Loss/mismatch/staleness after admission
+latches `grand-prix-route-v2 status=not-achieved` and invokes the existing
+independent native LAND path once; late success cannot rescue it. The flight
+publishes START with `state=failed` or `state=deadline` on these terminal paths.
+The **210000 ms** cap runs before ALIVE or success processing, with the existing
+shortened native step at the exact boundary. Success must have been observed
+with native landed confirmation before that boundary. RESET and file operations
+retain the existing landing/idle fences. The evaluator must clear its own
+evidence on invalid state and must not infer success from READY or ALIVE.
+
+The controlled-channel C++ tests exercise refusal, replay, liveness, expiry and
+RESET; the canonical native job also builds the complete adapter against
+R2025a. Neither is a route trajectory, sensor/contact qualification, or Linux
+GUI acceptance. The native evaluator publisher, active world/Robot Window and
+the real Blockly/Save/Open journey remain required in #824/#825/#826 before a
+variable experiment can be offered.
