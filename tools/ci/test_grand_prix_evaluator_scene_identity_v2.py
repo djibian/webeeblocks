@@ -50,6 +50,15 @@ class Node:
         value = self.fields.get(name)
         return Field(value) if value is not None else None
 
+    def getPosition(self):
+        return getattr(self, 'position', [0., 0., .65])
+
+    def getOrientation(self):
+        return getattr(self, 'orientation', [1., 0., 0., 0., 1., 0., 0., 0., 1.])
+
+    def getVelocity(self):
+        return getattr(self, 'velocity', [0.] * 6)
+
 
 class Supervisor:
     def __init__(self, course):
@@ -67,6 +76,13 @@ class Supervisor:
         })
         self.root = Node(0, 'Group', 'Group', {'children': [self.vehicle, self.evaluator]})
         self.timestep = 8
+        self.time = 0.
+
+    def getTime(self):
+        return self.time
+
+    def getFromId(self, identity):
+        return self.vehicle if identity == self.vehicle.getId() else None
 
     def getBasicTimeStep(self):
         return self.timestep
@@ -182,6 +198,7 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
 
         def step(milliseconds):
             calls.append(milliseconds)
+            self.native.time = len(calls) * .008
             if len(calls) == 1:
                 description.value = 'GP_ROUTE_READY_V1 injected between native steps'
                 return 0
@@ -225,6 +242,78 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'description field absent'):
                 serve_fail_closed(self.native, self.course.identifier)
         self.check.assert_not_called()
+
+
+
+    def test_native_kinematics_sampler_produces_data_not_authority(self):
+        from tools.grand_prix.evaluator_native_kinematics_v2 import NativeKinematicsSampler
+        reader = NativeKinematicsSampler(self.native, self.course.identifier)
+        self.native.time = .008
+        snapshot = reader.snapshot()
+        self.assertEqual(snapshot.time_ms, 8)
+        self.assertEqual(snapshot.position, (0., 0., .65))
+        self.assertEqual(snapshot.velocity, (0.,) * 6)
+        self.assertFalse(hasattr(snapshot, 'ready'))
+        self.assertFalse(hasattr(snapshot, 'native_validated'))
+        with self.assertRaisesRegex(RuntimeError, 'replayed'):
+            reader.snapshot()
+        self.native.time = .016
+        self.native.vehicle.position = [.15, 0., .65]
+        self.assertEqual(reader.snapshot().position, (.15, 0., .65))
+
+    def test_native_kinematics_rejects_invalid_pose_velocity_clock_and_provenance(self):
+        from tools.grand_prix.evaluator_native_kinematics_v2 import NativeKinematicsSampler
+        cases = (
+            ('position', [0., 0., float('nan')]),
+            ('position', [True, 0., 0.]),
+            ('orientation', [0.] * 9),
+            ('orientation', [1.,0.,0., 0.,1.,0., 0.,0.,-1.]),
+            ('velocity', [0.] * 5),
+            ('velocity', [0.,0.,0.,0.,0.,float('inf')]),
+        )
+        for name, value in cases:
+            with self.subTest(name=name, value=value):
+                setattr(self.native.vehicle, name, value)
+                reader = NativeKinematicsSampler(self.native, self.course.identifier)
+                self.native.time = .008
+                with self.assertRaises(RuntimeError):
+                    reader.snapshot()
+                delattr(self.native.vehicle, name)
+        reader = NativeKinematicsSampler(self.native, self.course.identifier)
+        for invalid_time in (-.008, .009, float('nan'), True):
+            with self.subTest(time=invalid_time):
+                self.native.time = invalid_time
+                with self.assertRaises(RuntimeError):
+                    reader.snapshot()
+        self.native.time = .008
+        self.native.vehicle.kind = 'Robot'
+        with self.assertRaisesRegex(RuntimeError, 'disappeared'):
+            reader.snapshot()
+        self.native.vehicle.kind = 'Crazyflie'
+        self.assertEqual(reader.snapshot().time_ms, 8)
+
+    def test_preflight_invalid_native_velocity_rejects_and_erases_stale_ready(self):
+        from tools.grand_prix.evaluator_preflight_v2 import serve_fail_closed
+        class Description:
+            value = 'GP_ROUTE_READY_V1 stale'
+            def setSFString(self, value):
+                self.value = value
+
+        description = Description()
+        original_field = self.native.evaluator.getField
+        self.native.vehicle.velocity = [0.,0.,0.,0.,0.,float('nan')]
+
+        def step(milliseconds):
+            self.native.time = .008
+            return 0
+
+        with patch.object(self.native.evaluator, 'getField', side_effect=lambda key: (
+                description if key == 'description' else original_field(key))):
+            with patch.object(self.native, 'step', side_effect=step, create=True):
+                with self.assertRaisesRegex(RuntimeError, 'native linear/angular velocity'):
+                    serve_fail_closed(self.native, self.course.identifier)
+        self.assertEqual(description.value, '')
+        self.check.assert_called_once()
 
 
 
