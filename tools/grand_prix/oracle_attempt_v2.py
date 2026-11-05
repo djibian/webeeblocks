@@ -152,7 +152,10 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
             until = remaining / dt if dt else (1. if remaining >= 0 else -1.)
         if not low_segment_allowed_v2(
                 before, observed, state.course.route, state.course.gates,
-                final=state.progress.leg.active_leg == 2,
+                # The terminal low-flight exception is earned only after
+                # every directed H has been counted, not on leg-3 entry alone.
+                final=(state.progress.leg.active_leg == 2 and
+                       state.progress.count == state.course.count),
                 takeoff_until=until):
             return _end(state, now_ms, 'low-outside-zone')
         progress = advance_course_progress(state.progress, observed)
