@@ -13,6 +13,10 @@ from tools.grand_prix.test_launch_linux import LinuxGrandPrixLauncherTests  # no
 from tools.ci.test_grand_prix_terminal_v2 import VariableTerminalTests  # noqa: F401
 from tools.ci.test_grand_prix_terminal_dwell_v2 import VariableTerminalDwellTests  # noqa: F401
 from tools.ci.test_grand_prix_course_footprint_v2 import CompleteCourseFootprintTests  # noqa: F401
+# Both full-course composers already have 324-case regression suites; select
+# them in the required native geometry CI job, not just as dormant test files.
+from tools.ci.test_grand_prix_course_static_world_v2 import StaticCourseWorldTests  # noqa: F401
+from tools.ci.test_grand_prix_course_active_world_v2 import ActiveCourseWorldTests  # noqa: F401
 from tools.ci.test_grand_prix_attempt_v2 import PureVariableAttemptTests  # noqa: F401
 from tools.ci.test_grand_prix_v2_l_native_probe import NativeLProbePreparationTests  # noqa: F401
 from tools.ci.test_grand_prix_route_admission import VariableNativeAdmissionTests  # noqa: F401
