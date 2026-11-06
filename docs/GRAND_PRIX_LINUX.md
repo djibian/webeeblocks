@@ -1,11 +1,12 @@
-# Grand Prix sur Linux — U historique actif et aperçu variable inerte
+# Grand Prix sur Linux — U historique actif et bac à sable variable limité
 
 **Statut : incrément expérimental non accepté.** Le lancement **actif** ci-dessous
 réutilise le Grand Prix **U de référence** (`gp-u-v1`, trois côtés de 2 m et
 virages gauche, **sans cornières en L**). Il ne lance pas la nouvelle mission
 variable décidée le 3 novembre 2026. Les 12 parcours variables et leurs
-variantes personnalisées sont disponibles **pour inspection statique inerte
-uniquement**, sans Blockly ni mission qualifiée. Voir
+variantes personnalisées sont disponibles en **inspection statique inerte** ;
+un bac à sable Blockly expérimental permet aussi l'édition, **sans READY ni
+mission de vol qualifiée**. Voir
 [#808](https://github.com/djibian/webeeblocks/issues/808) et
 [#809](https://github.com/djibian/webeeblocks/issues/809).
 
@@ -98,6 +99,44 @@ visuel effectivement observé sur le poste tant qu'il n'a pas été ouvert.
 Le véritable environnement enseignant (#809/#826), l'admission native
 (#824) et les qualifications perception/contact (#825) restent à livrer.
 Ne pas confondre cet aperçu avec le lancement historique `--legacy-u`.
+
+## Bac à sable Blockly sur un parcours variable (sans autorisation de vol)
+
+Un deuxième point d'entrée permet de **voir la Robot Window Blockly** du
+monde variable complet et de préparer des essais manuels du cycle
+`.wbb` sans attendre l'autorisation native de vol. C'est un **bac à sable
+d'édition**, pas un simulateur de mission prêt à l'emploi. La piste et les
+cornières L/H restent celles du `CoursePlan` canonique, le contrôleur natif
+de vol est compilé depuis le Runtime partagé, mais le **contrôleur de
+l'évaluateur est forcé à `"<none>"` dans ce monde temporaire**. Il ne peut
+donc émettre ni READY ni ALIVE, même si une version ultérieure apporte un
+publisher natif : TAKEOFF doit être refusé par le pilote.
+
+```bash
+python3 tools/grand_prix/launch_variable_editor_linux.py --index 5 --preflight-only
+python3 tools/grand_prix/launch_variable_editor_linux.py --index 5 --editor-sandbox
+python3 tools/grand_prix/launch_variable_editor_linux.py \
+  --course-id gp-route-v2-L2000-2500-3000-TGD-s17-H2 --editor-sandbox
+```
+
+La première commande vérifie les ressources Webots R2025a et Blockly, puis
+compose et compile le vrai pilote natif **sans démarrer Webots**. Les suivantes
+ouvrent le monde généré en mode **pause** ; fermer Webots avant de sélectionner
+une autre configuration. Il n'y a ni solution experte, ni programme imposé,
+ni réécriture du fichier `.wbb` par la configuration hôte. Le monde
+temporaire et **son seul** fichier de projet Webots sont retirés à la
+fermeture ; les programmes `.wbb` enregistrés dans le dossier utilisateur
+restent intacts.
+
+Le lancement exige `--editor-sandbox` explicitement, vérifie la présence
+d'une session graphique et refuse tout identifiant non canonique avant le
+préflight. Les tests hôtes attestent l'identité du monde, l'impossibilité de
+produire READY, le contrôle d'entrées et le nettoyage ciblé. **Ils ne prouvent
+pas que l'éditeur ou les dialogues du système fonctionnent réellement** :
+le cycle graphique Ouvrir / Enregistrer / Enregistrer sous sur Linux, les
+capteurs en cours de mission, les 12 configurations actives et la réussite
+pédagogique restent à qualifier. Ne pas utiliser ce bac à sable pour tester
+une mission de vol. Son existence ne change pas le statut de livraison #809.
 
 ## Parcours utilisateur à vérifier (pas encore qualifié par ce script)
 
