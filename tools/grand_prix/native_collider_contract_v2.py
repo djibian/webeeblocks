@@ -83,6 +83,16 @@ def _equal(actual, expected):
         return False
 
 
+def _native_enabled(value):
+    """R2025a Python Supervisor reports SFBool as integer 0/1.
+
+    Accept the exact enabled value, not arbitrary truthy objects; our host
+    fakes also use Python booleans. Never turn malformed field values into
+    valid collision geometry.
+    """
+    return value is True or (type(value) is int and value == 1)
+
+
 def _verify_floor(node, route):
     """A permitted floor is the locked horizontal Plane at z=0, not an obstacle."""
     position = tuple(node.getPosition())
@@ -98,7 +108,7 @@ def _verify_floor(node, route):
     native_locked = locked.getSFBool() if locked is not None else None
     native_shape = body.getTypeName() if body is not None else None
     if (abs(position[2]) > 1e-9 or locked is None or
-            native_locked is not True or
+            not _native_enabled(native_locked) or
             not isinstance(rotation, (list, tuple)) or len(rotation) != 4 or
             any(type(v) not in (int, float) or not math.isfinite(v) for v in rotation) or
             abs(rotation[3]) > 1e-9 or body is None or native_shape != 'Plane'):
@@ -261,7 +271,7 @@ def verify_native_boxes(supervisor, course, boxes):
         if node is None or node.getTypeName() != 'Solid':
             raise RuntimeError('missing or non-Solid course collider: ' + box.name)
         locked = node.getField('locked')
-        if locked is None or locked.getSFBool() is not True:
+        if locked is None or not _native_enabled(locked.getSFBool()):
             raise RuntimeError('movable course collider: ' + box.name)
         if not _equal(node.getPosition(), box.position):
             raise RuntimeError('native collider world pose mismatch: ' + box.name)

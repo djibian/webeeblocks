@@ -208,6 +208,34 @@ class NativeColliderContractTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
                 verify_native_boxes(scene, plan, boxes)
 
+    def test_r2025a_integer_boolean_readback_is_strict_for_floor_and_boxes(self):
+        # The real R2025a Floor.getSFBool() returned int 1 in the
+        # GD native artifact. Python fake booleans alone had masked this.
+        plan, boxes = _plan_and_manifest()
+        for enabled in (True, 1):
+            scene = _Supervisor(boxes)
+            for collider in scene.nodes[:len(boxes)]:
+                collider.fields['locked'] = enabled
+            floor = next(n for n in scene.nodes if n.kind == 'Floor')
+            floor.fields['_base_fields']['locked'] = enabled
+            with self.subTest(enabled=enabled):
+                self.assertIsNone(verify_native_boxes(scene, plan, boxes))
+
+        # Never let Python truthiness (2, -1, strings, float 1.0) authorize
+        # an unlocked/malformed floor or course collider.
+        for disabled in (False, 0, 2, -1, 1.0, '1', None):
+            for target in ('floor', 'collider'):
+                scene = _Supervisor(boxes)
+                floor = next(n for n in scene.nodes if n.kind == 'Floor')
+                floor.fields['_base_fields']['locked'] = 1
+                if target == 'floor':
+                    floor.fields['_base_fields']['locked'] = disabled
+                else:
+                    scene.nodes[0].fields['locked'] = disabled
+                with self.subTest(disabled=disabled, target=target), self.assertRaises(
+                        RuntimeError):
+                    verify_native_boxes(scene, plan, boxes)
+
     def test_full_manifest_and_authority_neutrality(self):
         plan, boxes = _plan_and_manifest()
         self.assertEqual(tuple(b.name for b in boxes), required_box_names(plan))
