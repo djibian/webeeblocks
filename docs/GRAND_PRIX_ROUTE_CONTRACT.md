@@ -197,3 +197,56 @@ stale replay, reset clearing and a new private attempt epoch. It never calls
 TAKEOFF, writes READY/ALIVE, commands motors or opens Blockly. Passing this bench
 establishes cross-Robot native range transport only; it cannot qualify a whole
 course, flight, RESET recovery or the teacher's Linux journey.
+
+## Native evaluator publisher and remaining delivery gate
+
+`grand_prix_route_evaluator` uses `NativeRouteEvaluator` in
+`evaluator_publisher_v2.py`. It consumes the existing coherent native sampler,
+full scene/collider check, strict wire state and pure attempt oracle; it accepts
+no caller-provided observation or `native_validated` flag. The sole native host
+boundary supplies that flag internally after checking real readbacks.
+
+Before READY it requires the flight-owned current attempt marker and private
+epoch, five fresh drone ranges, and **500 continuous simulation milliseconds**
+of native start position, upright attitude, bounded linear/angular motion,
+floor-only contact coordinates and the pilot's stable-ground bit. Native steps
+must advance exactly 8 ms. The fixed ground reference comes from the real
+pinned centered `Cylinder(height=.03, radius=.05)` above the validated z=0
+Plane; restarting an evaluator in flight cannot move that reference. A changed
+body or missing Physics refuses startup. During unused startup only, a new
+pilot nonce may discard a partial ground window before any READY was issued.
+After authority or a refutation, only a newer runtime RESET attempt may rearm.
+
+START must match this process's fresh READY. Missing/inconsistent observations,
+lost cadence or scene changes revoke evidence irreversibly for that attempt;
+the independent pilot retains LAND authority. Deadline is tested before any
+first success at **210000 ms**. Directed gates, swept geometry, altitude and
+terminal dwell use the unchanged pure oracle. A positive terminal additionally
+requires native landed evidence. ALIVE continues with current landing evidence
+after the one positive publication, until consumed by the pilot; there is no
+new acknowledgement protocol. Valid ticks publish one final response without
+an intermediate empty field visible to the pilot. A later fault revokes ALIVE
+without repeatedly overwriting an outcome the pilot may already have latched.
+
+The existing required geometry job runs two isolated native projects with the
+production evaluator class. The first keeps the real pilot **idle**: native
+ground/range data must establish READY, then a genuinely moved L must revoke it;
+restoring that L cannot revive the old attempt. The second wraps only the test
+pilot's WWI input and outgoing ACK observation. Generated C/broker bytes must
+equal production exactly; pose, sensors, PID, clocks and safety hooks are real.
+It supplies **one TAKEOFF request**, waits for real native airborne/ALIVE and
+TAKEOFF ACK, then stops the evaluator service without clearing its last ALIVE.
+The pilot must independently fail and initiate LAND within its bounded liveness
+interleaving (at most two 32-ms pilot steps); **no LAND request is injected**.
+Only its genuine forced-LAND ACK permits the test's sole RESET request through
+the normal broker. A reconstructed evaluator must then attest attempt 2, a new
+private epoch and fresh ground window; the old outcome must be gone. Each case
+requires unique JSON, agreeing native stdout and zero exit. No pupil program or
+solution trajectory is supplied by either probe.
+
+These are bounded automated obligations, **not a claim that they have passed**.
+Even successful native probes would not qualify complete L/H flight, the twelve
+courses, a successful pupil mission or Linux GUI acceptance. Before offering the
+variable launcher, qualify those remaining paths, reconfiguration and the real
+same-file Blockly Save/Open workflow. The Linux launcher deliberately remains
+gated; no expert solution or new pupil block is supplied by this publisher.

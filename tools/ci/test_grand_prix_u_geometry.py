@@ -23,6 +23,7 @@ from tools.ci.test_grand_prix_v2_h_required import RequiredNativeHRayTests  # no
 from tools.ci.test_grand_prix_route_admission import VariableNativeAdmissionTests  # noqa: F401
 from tools.ci.test_grand_prix_route_observation import FlightObservationTests  # noqa: F401
 from tools.ci.test_grand_prix_route_evaluator_data_v2 import NativeRouteDataTests  # noqa: F401
+from tools.ci.test_grand_prix_evaluator_publisher_v2 import NativePublisherTests, NativePublisherEvidenceTests  # noqa: F401
 from tools.ci.test_grand_prix_route_native_observation_v2 import NativeCourseObservationTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_wire_v2 import VariableEvaluatorWireTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_native_contacts_v2 import NativeRouteContactReadbackTests  # noqa: F401

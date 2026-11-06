@@ -50,6 +50,8 @@ def run_native(home):
         target.with_name('.ci_gp_u_deadline.wbproj').unlink(missing_ok=True)
     run_pose_native(home,env)
     run_route_observation_native(home,env)
+    from tools.ci.run_grand_prix_route_evaluator_native import run_native as run_evaluator
+    run_evaluator(home,env)
 
 
 def route_observation_scene():
