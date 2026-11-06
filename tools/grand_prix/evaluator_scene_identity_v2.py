@@ -8,6 +8,7 @@ from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, verify_native_boxes,
 )
 from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
 def _field_text(node, name):
@@ -32,7 +33,7 @@ def _one_arg(node):
 
 def _supervisor(node):
     field = node.getField('supervisor')
-    if field is None or field.getSFBool() is not True:
+    if field is None or not enabled(field.getSFBool()):
         raise RuntimeError('native route supervisor authority missing')
 
 

@@ -127,6 +127,22 @@ class NativeRouteDataTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "replayed"):
             reader.snapshot()
 
+    def test_r2025a_integer_supervisor_flags_and_strict_readback(self):
+        self.native.evaluator.fields["supervisor"] = 1
+        self.native.vehicle.fields["supervisor"] = 1
+        reader = NativeRouteDataReader(self.native, self.course.identifier)
+        self.assertEqual(reader.snapshot().time_ms, 2112)
+        self.native.now = 2.120
+        for target in ("evaluator", "vehicle"):
+            node = getattr(self.native, target)
+            for invalid in (False, 0, 2, -1, 1.0, "1", None):
+                node.fields["supervisor"] = invalid
+                with self.subTest(target=target, invalid=invalid):
+                    with self.assertRaises(RuntimeError):
+                        reader.snapshot()
+                node.fields["supervisor"] = 1
+        self.assertEqual(reader.snapshot().time_ms, 2120)
+
     def test_no_context_or_stale_sample_refuses_without_authorization(self):
         for wrong in ("", "GP_ROUTE_READY_V1", "x" * 384):
             with self.subTest(wrong=wrong):
