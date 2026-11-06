@@ -74,6 +74,9 @@ def native_run(home, indexes):
     # another invocation's proof or legacy top-level summary.
     OUT.mkdir(parents=True, exist_ok=True)
     run_dir = Path(tempfile.mkdtemp(prefix='invocation-', dir=OUT)).resolve()
+    # CI's isolated Webots container writes as root; the host must traverse
+    # the invocation directory to upload independently verified evidence.
+    run_dir.chmod(0o755)
     summary_file = run_dir / 'summary.json'
     print('GP_V2_L_NATIVE_RUN_DIR ' + str(run_dir), flush=True)
     version_file = home / 'resources/version.txt'
@@ -135,7 +138,8 @@ def native_run(home, indexes):
                 proc.kill()
                 proc.wait()
             world.unlink(missing_ok=True)
-            world.with_suffix('.wbproj').unlink(missing_ok=True)
+            # Webots uses a dot-prefixed per-world project, not 'name.wbproj'.
+            world.with_name('.' + world.stem + '.wbproj').unlink(missing_ok=True)
     summary = dict(claim='L-only-native-teleport-perception-not-flight',
                    invocation=run_dir.name, webots_version='R2025a', results=outcomes)
     # Publish a complete validated matrix atomically, never a partial success.
@@ -144,6 +148,9 @@ def native_run(home, indexes):
             encoding='utf-8', delete=False) as target:
         pending = Path(target.name)
         target.write(json.dumps(summary, indent=2) + '\n')
+    # tempfile defaults to 0600: make the atomically published manifest
+    # readable by the non-root artifact uploader without changing its bytes.
+    pending.chmod(0o644)
     try:
         os.replace(pending, summary_file)
     finally:
