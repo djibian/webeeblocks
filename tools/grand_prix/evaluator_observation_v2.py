@@ -33,10 +33,21 @@ class NativeCourseObservationSampler:
         check_native_evaluator_scene(supervisor, identifier)
         self._kinematics = NativeKinematicsSampler(supervisor, identifier)
         self._data = NativeRouteDataReader(supervisor, identifier)
+        self._failed = False
 
     def snapshot(self):
-        pose = self._kinematics.snapshot()
-        data = self._data.snapshot()
-        if pose.time_ms != data.time_ms or data.contacts.time_ms != data.time_ms:
-            raise RuntimeError("native pose/range/contact tick mismatch")
-        return NativeCourseObservation(data.time_ms, pose, data.flight, data.contacts)
+        # The published data boundary is fail-stop, not merely fail-closed on
+        # one call. A later valid tick cannot erase a previous bad read or
+        # mismatched native streams. A new sampler requires new validation;
+        # it does NOT itself attest RESET or authorize READY.
+        if self._failed:
+            raise RuntimeError("native observation sampler terminal after failure")
+        try:
+            pose = self._kinematics.snapshot()
+            data = self._data.snapshot()
+            if pose.time_ms != data.time_ms or data.contacts.time_ms != data.time_ms:
+                raise RuntimeError("native pose/range/contact tick mismatch")
+            return NativeCourseObservation(data.time_ms, pose, data.flight, data.contacts)
+        except Exception:
+            self._failed = True
+            raise
