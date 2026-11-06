@@ -2,7 +2,6 @@
 // pilot independently completed its safety LAND. No LAND is injected, no pose,
 // sensor, gyro, PID, time, oracle or safety function is replaced.
 #include <webots/robot.h>
-#include <webots/supervisor.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -27,11 +26,28 @@ void persist() {
 }
 extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
   if(phase==0) {
-    WbNodeRef node=wb_supervisor_node_get_from_def("GP_ROUTE_EVALUATOR");
-    WbFieldRef f=node?wb_supervisor_node_get_field(node,"description"):nullptr;
-    const char *text=f?wb_supervisor_field_get_sf_string(f):nullptr;
-    const char *prefix="GP_ROUTE_READY_V1 attempt=1 ";
-    if(text && !std::strncmp(text,prefix,std::strlen(prefix))) {
+    // The native evaluator alone writes this test-only cue AFTER observing
+    // its real, continuous READY. Never query another synchronized Supervisor
+    // from inside the flight controller's WWI receive callback: that can stall
+    // the two Webots controller steps. Production admission is still checked
+    // independently by gp_u_start; this file grants no flight authority.
+    const char *path=std::getenv("GP_ROUTE_PILOT_NATIVE_READY_OUT");
+    const char *expected_course=std::getenv("GP_ROUTE_PILOT_COURSE_ID");
+    bool observed=false;
+    if(path && expected_course) {
+      FILE *stream=std::fopen(path,"r");
+      if(stream) {
+        char line[256]={}, course[160]={}, trailing='\0';
+        long long native_ms=-1;
+        if(std::fgets(line,sizeof line,stream) &&
+           std::sscanf(line,"GP_ROUTE_PROBE_READY_V1 attempt=1 course=%159s time_ms=%lld %c",
+                       course,&native_ms,&trailing)==2 &&
+           std::strcmp(course,expected_course)==0 && native_ms>=500 && native_ms%8==0)
+          observed=true;
+        std::fclose(stream);
+      }
+    }
+    if(observed) {
       phase=1;
       std::puts("GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF");std::fflush(stdout);
       return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4";

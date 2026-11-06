@@ -20,6 +20,7 @@ def witness():
     if mode not in ('idle', 'flight-reset'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
+    ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
     evaluator = NativeRouteEvaluator(robot, course.identifier)
     body = robot.getFromDef(corner_boxes(course.route)[0].name)
     translation = body.getField('translation')
@@ -69,6 +70,14 @@ def witness():
             if first_context.attempt != 1:
                 raise RuntimeError('native first attempt is not fresh')
             if mode == 'flight-reset':
+                # Stimulus only: atomically expose READY proven by the actual
+                # production evaluator and unmodified native sensor data. The
+                # pilot still must pass its own real READY/START authority gate.
+                marker = ('GP_ROUTE_PROBE_READY_V1 attempt=1 course='
+                          + course.identifier + ' time_ms=' + str(now) + '\n')
+                pending = ready_path.with_name(ready_path.name + '.pending')
+                pending.write_text(marker, encoding='utf-8')
+                pending.replace(ready_path)
                 phase = 'flying'
                 continue
             # A genuine native scene fault; do not replace sensor or pose data.

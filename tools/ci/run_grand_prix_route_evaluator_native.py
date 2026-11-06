@@ -112,7 +112,9 @@ def run_case(home, env, mode):
         log = case / 'native.log'
         environment = dict(env, WEBOTS_HOME=str(home),
             GP_ROUTE_EVALUATOR_SOURCE=str(ROOT), GP_ROUTE_EVALUATOR_OUT=str(record),
-            GP_ROUTE_EVALUATOR_MODE=mode, GP_ROUTE_PILOT_ACK_OUT=str(case / 'pilot-acks.json'))
+            GP_ROUTE_EVALUATOR_MODE=mode, GP_ROUTE_PILOT_ACK_OUT=str(case / 'pilot-acks.json'),
+            GP_ROUTE_PILOT_NATIVE_READY_OUT=str(case / 'pilot-native-ready.txt'),
+            GP_ROUTE_PILOT_COURSE_ID=reference_course(5).identifier)
         process = None
         try:
             with log.open('w') as stream:
@@ -137,6 +139,13 @@ def run_case(home, env, mode):
         if type(data) is dict and data.get('claim') != (CLAIM if mode == 'idle' else FLIGHT_CLAIM):
             raise RuntimeError('native evaluator probe mode/claim mismatch')
         check_native(data)
+        if mode == 'flight-reset':
+            marker = case / 'pilot-native-ready.txt'
+            expected_marker = ('GP_ROUTE_PROBE_READY_V1 attempt=1 course='
+                               + data['configuration'] + ' time_ms='
+                               + str(data['ready']['time_ms']) + '\n')
+            if not marker.is_file() or marker.read_text() != expected_marker:
+                raise RuntimeError('native pilot READY stimulus provenance missing')
         expected = 'GP_ROUTE_EVALUATOR_NATIVE ' + json.dumps(data, allow_nan=False, sort_keys=True)
         if ([line for line in text.splitlines() if line.startswith('GP_ROUTE_EVALUATOR_NATIVE ')] != [expected] or
                 'Traceback (most recent call last)' in text or
