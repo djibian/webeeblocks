@@ -204,6 +204,19 @@ class NativeLProbePreparationTests(unittest.TestCase):
                         free=[tick(56, []), tick(64, []), tick(72, [])],
                         collision=[tick(80, [other_own], [other_hit]),
                                    tick(88, []), tick(96, [])]))
+        base['other_corner'] = [
+            dict(target=corner_boxes(course.route)[i].name,
+                 target_node_id=23+i,
+                 free=[tick(ms, []) for ms in (8+48*i, 16+48*i, 24+48*i)],
+                 collision=[
+                     tick(32+48*i, [dict(node_id=8, point=[
+                         corner_boxes(course.route)[i].x,
+                         corner_boxes(course.route)[i].y, .65])],
+                          [dict(node_id=23+i, point=[
+                              corner_boxes(course.route)[i].x,
+                              corner_boxes(course.route)[i].y, .65])]),
+                     tick(40+48*i, []), tick(48+48*i, []),
+                 ]) for i in (2, 3)]
         # Host-shaped fakes are only parser tests; they are never native proof.
         contact.check_native(base, course)
         import copy
@@ -253,6 +266,28 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     contact.check_native(bad, course)
 
+        for mutation in ('missing-corner', 'third-empty', 'fourth-wrong-id',
+                         'third-stale', 'fourth-reused-id', 'fourth-wrong-target',
+                         'fourth-nonreciprocal'):
+            with self.subTest(mutation=mutation):
+                bad = copy.deepcopy(base)
+                if mutation == 'missing-corner':
+                    del bad['other_corner']
+                elif mutation == 'third-empty':
+                    bad['other_corner'][0]['collision'][0]['target_contacts'] = []
+                elif mutation == 'fourth-wrong-id':
+                    bad['other_corner'][1]['collision'][0]['target_contacts'][0]['node_id'] = 999
+                elif mutation == 'third-stale':
+                    bad['other_corner'][0]['free'][0]['time_ms'] = 96
+                elif mutation == 'fourth-reused-id':
+                    bad['other_corner'][1]['target_node_id'] = 23
+                elif mutation == 'fourth-wrong-target':
+                    bad['other_corner'][1]['target'] = corner_boxes(course.route)[2].name
+                elif mutation == 'fourth-nonreciprocal':
+                    bad['other_corner'][1]['collision'][0]['contacts'] = []
+                with self.assertRaises(RuntimeError):
+                    contact.check_native(bad, course)
+
     def test_native_contact_runner_refuses_zero_exit_without_native_bytes(self):
         from tools.ci import run_grand_prix_v2_contact_native as contact
         from tempfile import TemporaryDirectory
@@ -283,7 +318,7 @@ class NativeLProbePreparationTests(unittest.TestCase):
         from tools.ci import run_grand_prix_v2_contact_native as contact
         from tools.grand_prix.route_solid_v2 import corner_boxes
         course = reference_course(5)
-        boxes = corner_boxes(course.route)[:2]
+        boxes = corner_boxes(course.route)[:4]
         state = dict(time_ms=0, position=[0., 0., .65], target=boxes[0])
         translation, rotation = Mock(), Mock()
         translation.setSFVec3f.side_effect = lambda value: state.update(position=value)
@@ -353,32 +388,36 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 producer['witness']()
             record = json.loads(output.read_text())
             contact.check_native(record, course)
-            self.assertEqual([record['target'], record['additional']['target']],
+            self.assertEqual([record['target'], record['additional']['target']] +
+                             [arm['target'] for arm in record['other_corner']],
                              [box.name for box in boxes])
-            self.assertEqual([record['target_node_id'], record['additional']['target_node_id']],
-                             [23, 24])
+            self.assertEqual([record['target_node_id'], record['additional']['target_node_id']] +
+                             [arm['target_node_id'] for arm in record['other_corner']],
+                             [23, 24, 25, 26])
             diagnostics = [json.loads(line.removeprefix('GP_V2_CONTACT_DIAG '))
                            for line in captured.getvalue().splitlines()
                            if line.startswith('GP_V2_CONTACT_DIAG ')]
-            self.assertEqual(len(diagnostics), 16)
+            self.assertEqual(len(diagnostics), 32)
             expected = ([('free', 'after_reset', 0)] +
                         [('free', 'after_step', i) for i in (1, 2, 3)] +
                         [('collision', 'after_reset', 0)] +
                         [('collision', 'after_step', i) for i in (1, 2, 3)])
             self.assertEqual(
                 [(row['phase'], row['event'], row['tick']) for row in diagnostics],
-                expected + expected)
+                expected * 4)
             self.assertEqual(diagnostics[4]['vehicle_position'], collision_position(boxes[0]))
             self.assertEqual(diagnostics[12]['vehicle_position'], collision_position(boxes[1]))
-            self.assertEqual(diagnostics[-1]['time_ms'], 96)
-            self.assertEqual(vehicle.getContactPoints.call_count, 12)
+            self.assertEqual(diagnostics[20]['vehicle_position'], collision_position(boxes[2]))
+            self.assertEqual(diagnostics[28]['vehicle_position'], collision_position(boxes[3]))
+            self.assertEqual(diagnostics[-1]['time_ms'], 192)
+            self.assertEqual(vehicle.getContactPoints.call_count, 24)
             for collider in colliders.values():
                 self.assertEqual(collider.getContactPoints.call_count, 6)
                 collider.getContactPoints.assert_called_with(includeDescendants=False)
             robot.simulationQuit.assert_called_once_with(0)
 
     def test_required_native_contact_matrix_covers_all_turn_pairs(self):
-        # Four native courses, each requiring both first-L arms, not synthetic rays.
+        # Four native courses, each requiring all four L arms, not synthetic rays.
         # Each candidate is still required to pass real R2025a independently.
         from tools.ci import run_grand_prix_v2_contact_native as contact
         self.assertEqual(contact.DEFAULT_INDICES, (0, 5, 6, 11))
