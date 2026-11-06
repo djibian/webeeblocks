@@ -12,6 +12,7 @@ from tools.grand_prix.evaluator_native_contacts_v2 import NativeContactSampler
 from tools.grand_prix.route_courses_v2 import course_from_identifier
 from tools.grand_prix.route_evaluator_wire_v2 import parse_flight_channel
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
+from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ class NativeRouteDataReader:
         supervisor = own.getField("supervisor")
         args = own.getField("controllerArgs")
         if (controller is None or controller.getSFString() != "grand_prix_route_evaluator" or
-                supervisor is None or supervisor.getSFBool() is not True or
+                supervisor is None or not enabled(supervisor.getSFBool()) or
                 args is None or args.getCount() != 1 or
                 args.getMFString(0) != self._identifier):
             raise RuntimeError("native evaluator controller/course changed")

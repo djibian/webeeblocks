@@ -120,6 +120,30 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.assertEqual(args[1], self.course)
         self.assertEqual(args[2], ('locked-native-colliders',))
 
+    def test_r2025a_integer_supervisor_readback_and_strict_rejection(self):
+        # Pinned Webots Python Field.getSFBool() reports exact integer 0/1.
+        self.native.evaluator.fields['supervisor'] = 1
+        self.native.vehicle.fields['supervisor'] = 1
+        self.assertIsNone(self.run_check())
+        self.check.reset_mock()
+        from tools.grand_prix.evaluator_native_kinematics_v2 import NativeKinematicsSampler
+        reader = NativeKinematicsSampler(self.native, self.course.identifier)
+        self.native.time = .008
+        self.assertEqual(reader.snapshot().time_ms, 8)
+        for target in ('evaluator', 'vehicle'):
+            node = getattr(self.native, target)
+            for invalid in (False, 0, 2, -1, 1.0, '1', None):
+                node.fields['supervisor'] = invalid
+                with self.subTest(target=target, invalid=invalid):
+                    with self.assertRaisesRegex(RuntimeError, 'supervisor authority'):
+                        self.run_check()
+                    if target == 'vehicle':
+                        self.native.time = .016
+                        with self.assertRaises(RuntimeError):
+                            reader.snapshot()
+                node.fields['supervisor'] = 1
+        self.assertEqual(reader.snapshot().time_ms, 16)
+
     def test_reject_mismatched_host_course_and_wrong_runtime(self):
         other = reference_course(6).identifier
         with self.assertRaisesRegex(RuntimeError, 'identity'):

@@ -103,6 +103,19 @@ class NativeRouteContactReadbackTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "replayed"):
             sample.snapshot()
 
+    def test_native_integer_supervisor_flag_and_strict_live_revalidation(self):
+        self.native.vehicle.fields["supervisor"] = 1
+        sample = NativeContactSampler(self.native, self.course.identifier)
+        self.assertEqual(sample.snapshot().time_ms, 8)
+        self.native.time = .016
+        for invalid in (False, 0, 2, -1, 1.0, "1", None):
+            with self.subTest(invalid=invalid):
+                self.native.vehicle.fields["supervisor"] = invalid
+                with self.assertRaises(RuntimeError):
+                    sample.snapshot()
+        self.native.vehicle.fields["supervisor"] = 1
+        self.assertEqual(sample.snapshot().time_ms, 16)
+
     def test_invalid_contact_values_fail_without_authority(self):
         invalid = [
             SimpleNamespace(point=(0, 0, float("nan")), node_id=3),
