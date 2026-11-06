@@ -175,12 +175,17 @@ def main():
               "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
               # Seven geometry + five time + fifty-six existing runtime probes,
               # plus five blocking-file composition/transition probes.
-              # Simulation deadlines and every per-case assertion are unchanged.
-              'timeout -k 5s 1200s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              # All historical and added native cases remain mandatory. The
+              # evaluator's second 120s-bounded R2025a flight/RESET witness
+              # starts after ~19 minutes of earlier evidence; the previous
+              # 1200s global cap cut it off at ~3008ms simulated, just before
+              # native READY (~3072ms). Reserve 150s more INSIDE the existing
+              # 25-minute job; unchanged per-case/210000ms LAND limits.
+              'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()
-                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1260)
+                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1400)
         finally:
             if cid.exists():
                 identifier=cid.read_text().strip()
