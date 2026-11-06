@@ -50,11 +50,30 @@ class RequiredNativeHRayTests(unittest.TestCase):
             (home / 'webots').write_text('stub')
             (home / 'webots').chmod(0o755)
             evidence = root / 'geometry' / 'route-h-native'
-            with patch.object(h_runner.subprocess, 'Popen') as spawned:
-                spawned.return_value.wait.return_value = 0
-                spawned.return_value.poll.return_value = 0
+            worlds = root / 'worlds'
+            worlds.mkdir()
+            unrelated = worlds / '.unrelated.wbproj'
+            unrelated.write_text('preserve')
+            created = []
+
+            def spawn(command, **kwargs):
+                world = Path(command[-1])
+                hidden = world.with_name('.' + world.stem + '.wbproj')
+                hidden.write_text('owned temporary project')
+                created.append(hidden)
+                process = Mock()
+                process.wait.return_value = 0
+                process.poll.return_value = 0
+                return process
+
+            with patch.object(h_runner, 'ROOT', root), \
+                 patch.object(h_runner.subprocess, 'Popen', side_effect=spawn):
                 with self.assertRaisesRegex(RuntimeError, 'no native H ray evidence'):
                     h_runner.native_run(home, (5,), output_root=evidence)
+            self.assertEqual(len(created), 1)
+            self.assertFalse(created[0].exists(), 'owned hidden project not removed')
+            self.assertEqual(list(worlds.iterdir()), [unrelated],
+                             'unrelated Webots project must be preserved')
             invocations = list(evidence.glob('invocation-*'))
             self.assertEqual(len(invocations), 1)
             self.assertFalse(list(evidence.rglob('summary.json')))
