@@ -273,12 +273,28 @@ class NativeLProbePreparationTests(unittest.TestCase):
         vehicle.getTypeName.return_value = 'Crazyflie'
         vehicle.getPosition.side_effect = lambda: state['position']
         vehicle.getVelocity.return_value = [0.] * 6
+        cylinder, radius, height, physics = Mock(), Mock(), Mock(), Mock()
+        cylinder.getTypeName.return_value = 'Cylinder'
+        radius.getSFFloat.return_value = .05
+        height.getSFFloat.return_value = .03
+        cylinder.getField.side_effect = lambda key: {
+            'radius': radius, 'height': height}[key]
+        physics.getTypeName.return_value = 'Physics'
+        bound_field, physics_field = Mock(), Mock()
+        bound_field.getSFNode.return_value = cylinder
+        physics_field.getSFNode.return_value = physics
+        vehicle.getBaseNodeField.side_effect = lambda key: {
+            'boundingObject': bound_field, 'physics': physics_field}[key]
         vehicle.getField.side_effect = lambda key: {
             'translation': translation, 'rotation': rotation}[key]
         collider.getTypeName.return_value = 'Solid'
         collider.getId.return_value = 23
+        face_offset = min(box.sx, box.sy) / 2 + .05 - .015
+        collision_pos = ([box.x, box.y + face_offset, .65]
+                         if box.sy < box.sx else
+                         [box.x + face_offset, box.y, .65])
         def contacts(node_id):
-            if state['position'][0] == box.x and state['position'][1] == box.y:
+            if state['position'] == collision_pos:
                 return [SimpleNamespace(point=[box.x, box.y, .65], node_id=node_id)]
             return []
         vehicle.getContactPoints.side_effect = lambda **kw: contacts(8)
@@ -314,7 +330,7 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 [('collision', 'after_reset', 0)] +
                 [('collision', 'after_step', i) for i in (1, 2, 3)])
             self.assertEqual(diagnostics[4]['vehicle_position'],
-                             [box.x, box.y, .65])
+                             collision_pos)
             self.assertEqual(diagnostics[-1]['time_ms'], 48)
             self.assertEqual(record['collision'][0]['contacts'][0]['node_id'], 8)
             self.assertEqual(record['collision'][0]['target_contacts'][0]['node_id'], 23)

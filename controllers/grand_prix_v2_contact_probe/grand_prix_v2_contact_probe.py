@@ -46,6 +46,36 @@ def witness():
     target_id = collider.getId()
     if type(target_id) is not int or target_id <= 0:
         raise RuntimeError("invalid real L node ID")
+    # Pinned official R2025a Crazyflie.proto: one Cylinder boundingObject,
+    # radius 0.05 m, height 0.03 m, with dynamic Physics. The old probe
+    # teleported its cylinder centre into the 0.04 m thin L: the real native
+    # trace showed zero reciprocal contacts with no lateral response.
+    bound_field = vehicle.getBaseNodeField("boundingObject")
+    bound = bound_field.getSFNode() if bound_field is not None else None
+    physical_field = vehicle.getBaseNodeField("physics")
+    physical = physical_field.getSFNode() if physical_field is not None else None
+    radius_field = bound.getField("radius") if bound is not None else None
+    height_field = bound.getField("height") if bound is not None else None
+    radius = radius_field.getSFFloat() if radius_field is not None else None
+    height = height_field.getSFFloat() if height_field is not None else None
+    if (bound is None or bound.getTypeName() != "Cylinder" or
+            physical is None or physical.getTypeName() != "Physics" or
+            type(radius) not in (int, float) or
+            type(height) not in (int, float) or
+            not math.isclose(radius, 0.05, rel_tol=0, abs_tol=1e-9) or
+            not math.isclose(height, 0.03, rel_tol=0, abs_tol=1e-9)):
+        raise RuntimeError("pinned Crazyflie collision Cylinder/Physics mismatch")
+
+    # Offset toward a *face*, leaving 15 mm shallow overlap rather than
+    # symmetrically embedding the larger cylinder in the narrower L Box.
+    # This is only a physical excitation, never a synthetic contact oracle.
+    thin = min(target.sx, target.sy)
+    face_offset = thin / 2 + radius - 0.015
+    collision_position = (
+        (target.x, target.y + face_offset, HEIGHT / 2)
+        if target.sy < target.sx else
+        (target.x + face_offset, target.y, HEIGHT / 2)
+    )
 
     def contacts(node, descendants):
         raw = node.getContactPoints(includeDescendants=descendants)
@@ -107,7 +137,7 @@ def witness():
     free = capture((0., 0., HEIGHT / 2), "free")
     # Deliberate controlled overlap of the unpowered robot with an actual L Solid.
     # Contact observations are real physics, not an intersection formula.
-    collision = capture((target.x, target.y, HEIGHT / 2), "collision")
+    collision = capture(collision_position, "collision")
     result = dict(claim=CLAIM, configuration=course.identifier,
                   webots="R2025a", timestep_ms=8,
                   source="Robot.getContactPoints(includeDescendants=True)",
