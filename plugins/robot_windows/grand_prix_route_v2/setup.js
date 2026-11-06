@@ -19,7 +19,7 @@ const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
 const OriginalBackend=WebeeBlocksWwiBackend;
 window.WebeeBlocksWwiBackend=function(robotWindow,options){
- return new OriginalBackend(robotWindow,Object.assign({},options,{simulationScenes:false}));
+ return new OriginalBackend(robotWindow,Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
 };
 const originalOutcome=window.WebeeBlocksRuntimeOutcome;
 window.WebeeBlocksRuntimeOutcome=Object.assign({},originalOutcome,{

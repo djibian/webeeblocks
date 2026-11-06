@@ -433,6 +433,7 @@ function proveProgressionProfilesAndFieldOptions() {
   });
 
   await proveUnavailableBackendCapabilityIsStudentCorrectable();
+  await require('./test_grand_prix_route_admission_wait')();
 
   console.log('PASS Runtime v2 preflight + compact #66 pedagogical granularity/current-Webots capability/fail-closed checks');
 })().catch(error => {

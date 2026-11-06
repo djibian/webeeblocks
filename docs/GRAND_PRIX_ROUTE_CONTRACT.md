@@ -145,6 +145,41 @@ GUI acceptance. The native evaluator publisher, active world/Robot Window and
 the real Blockly/Save/Open journey remain required in #824/#825/#826 before a
 variable experiment can be offered.
 
+## Host observation before the first TAKEOFF
+
+Only the variable-route profile opts into the backend capability
+`simulationAdmission: true`. Generic Runtime READY remains a connection signal,
+not evidence that the evaluator has finished its continuous ground window.
+Before issuing the single TAKEOFF request, this backend waits for:
+
+```text
+WEBEEBLOCKS_RUNTIME_V2 REQUEST N ADMISSION
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE N VALUE 0
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE N VALUE 1
+```
+
+Each query has one response. The route-mode native filter returns 1 only while
+idle, before admission, without a latched failure, for the current attempt and
+configuration and an exact private READY no older than 32 ms. It returns 0 when
+unavailable. This observation neither starts the mission clock nor consumes
+ALIVE, creates/rotates a challenge, clears failure, resets or moves the vehicle.
+It discloses no course, oracle result, nonce or hidden geometry to Blockly.
+The historical U controller does not gain this protocol command.
+
+The host polls at 50 ms wall intervals within one existing request-timeout
+budget, using a monotonic clock. Missing/malformed/unsupported responses fail
+closed; they never cause an automatic TAKEOFF retry. STOP, RESET and controller
+startup invalidate the captured backend epoch, including the gap between a
+positive answer and sending TAKEOFF. Only read requests may repeat. The actual
+native `gp_u_start` still rechecks its private current READY at the physical
+effect boundary; a positive host answer is never execution authority.
+
+Controlled WWI/timer tests exercise bounded waiting, cancellation and one-shot
+effects; controlled-channel C++ tests exercise the real filter, epoch/freshness
+and non-consumption. Neither establishes a GUI, native flight or Linux file
+dialog PASS. An inactive/missing publisher remains unavailable, including in
+an explicitly inert editor sandbox.
+
 ## Flight-owned device observations
 
 The flight controller additionally owns the **`model` SFString of the plain
