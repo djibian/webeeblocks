@@ -26,6 +26,7 @@ from tools.ci.test_grand_prix_route_evaluator_data_v2 import NativeRouteDataTest
 from tools.ci.test_grand_prix_route_native_observation_v2 import NativeCourseObservationTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_wire_v2 import VariableEvaluatorWireTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_native_contacts_v2 import NativeRouteContactReadbackTests  # noqa: F401
+from tools.ci.test_grand_prix_v2_contact_required import FourArmNativeContactSchemaTests  # noqa: F401
 from tools.ci.test_grand_prix_evaluator_scene_identity_v2 import NativeEvaluatorSceneIdentityTests  # noqa: F401
 
 
