@@ -70,10 +70,40 @@ class NativeCourseObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "native linear/angular velocity"):
             reader.snapshot()
         self.native.vehicle.getVelocity = lambda: [0.] * 6
+        self.native.now = 2.120
+        with self.assertRaisesRegex(RuntimeError, "terminal after failure"):
+            reader.snapshot()
+        # Distinct fresh sampler: isolate and verify the flight-identity
+        # negative rather than reusing the poisoned reader.
+        reader = NativeCourseObservationSampler(self.native, self.course.identifier)
         self.native.evaluator.fields["model"] = self.native.evaluator.fields["model"].replace(
             "epoch=" + "ab" * 16, "epoch=" + "cd" * 16)
         with self.assertRaisesRegex(ValueError, "identity"):
             reader.snapshot()
+        self.native.now = 2.128
+        with self.assertRaisesRegex(RuntimeError, "terminal after failure"):
+            reader.snapshot()
+        self.assertEqual(self.native.evaluator.fields["description"], "FORGED_READY")
+
+    def test_failed_tick_cannot_be_recovered_by_later_valid_data(self):
+        reader = NativeCourseObservationSampler(self.native, self.course.identifier)
+        original = reader._data.snapshot
+
+        def advance_between_readers():
+            self.native.now = 2.120
+            return original()
+
+        reader._data.snapshot = advance_between_readers
+        with self.assertRaisesRegex(RuntimeError, "tick mismatch"):
+            reader.snapshot()
+        reader._data.snapshot = original
+        self.native.now = 2.128
+        with self.assertRaisesRegex(RuntimeError, "terminal after failure"):
+            reader.snapshot()
+        self.assertEqual(self.native.evaluator.fields["description"], "FORGED_READY")
+        # A fresh read-only reader may be built, but this cannot create READY.
+        fresh = NativeCourseObservationSampler(self.native, self.course.identifier)
+        self.assertEqual(fresh.snapshot().time_ms, 2128)
         self.assertEqual(self.native.evaluator.fields["description"], "FORGED_READY")
 
     def test_changed_vehicle_provenance_is_not_a_fresh_snapshot(self):
