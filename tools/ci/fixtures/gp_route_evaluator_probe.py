@@ -56,7 +56,11 @@ def witness():
             raise RuntimeError('native evaluator stdout grace step interrupted')
         robot.simulationQuit(0)
 
-    while robot.step(8) != -1:
+    while True:
+        step_started = time.monotonic()
+        if robot.step(8) == -1:
+            break
+        step_wall = time.monotonic() - step_started
         tick_started = time.monotonic()
         if not service_lost:
             evaluator.tick()
@@ -67,7 +71,7 @@ def witness():
             log.write(json.dumps(dict(time_ms=now, phase=evaluator.phase,
                                       error=evaluator.last_error,
                                       wall_elapsed_s=time.monotonic() - wall_started,
-                                      tick_wall_s=tick_wall,
+                                      step_wall_s=step_wall, tick_wall_s=tick_wall,
                                       position=(evaluator.observation.kinematics.position
                                                 if evaluator.observation is not None else None))) + '\n')
         if now > (4000 if mode == 'idle' else 30000):

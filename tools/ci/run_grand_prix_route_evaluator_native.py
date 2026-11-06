@@ -122,7 +122,13 @@ def run_case(home, env, mode):
                            '--stdout', '--stderr', str(world)]
                 process = subprocess.Popen(command, cwd=project, env=environment,
                     stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
-                status = process.wait(timeout=120)
+                # Native CI 42273038753: 886 ticks reached 7088 ms in 120 s,
+                # still rising (z=0.322 m; TAKEOFF target 0.4 m). The probe
+                # cannot acknowledge a completed ascent before that point.
+                # Bound the flight/LAND/RESET wall budget using this actual
+                # R2025a pace; retain idle's 120 s, all native assertions,
+                # 8-ms sampling and the 210000-ms mission deadline.
+                status = process.wait(timeout=120 if mode == 'idle' else 420)
                 if status != 0:
                     raise RuntimeError('native evaluator Webots failed: ' + str(log))
         finally:
