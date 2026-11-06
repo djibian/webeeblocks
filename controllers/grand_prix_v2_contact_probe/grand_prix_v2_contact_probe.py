@@ -1,4 +1,4 @@
-"""Actual R2025a contact witnesses for both arms of the first L in a full course.
+"""Actual R2025a reciprocal contact witnesses for both L corners in a full course.
 
 No motor commands, Blockly, evaluator, mission or attempt admission. A Supervisor
 teleports the unpowered PROTO into a native L and reads real contact points.
@@ -66,16 +66,8 @@ def witness():
             not math.isclose(height, 0.03, rel_tol=0, abs_tol=1e-9)):
         raise RuntimeError("pinned Crazyflie collision Cylinder/Physics mismatch")
 
-    # Offset toward a *face*, leaving 15 mm shallow overlap rather than
-    # symmetrically embedding the larger cylinder in the narrower L Box.
-    # This is only a physical excitation, never a synthetic contact oracle.
-    thin = min(target.sx, target.sy)
-    face_offset = thin / 2 + radius - 0.015
-    collision_position = (
-        (target.x, target.y + face_offset, HEIGHT / 2)
-        if target.sy < target.sx else
-        (target.x + face_offset, target.y, HEIGHT / 2)
-    )
+    # All four arm observations must come from this single unpowered native
+    # course; reuse only the pinned Cylinder bounds and the exact scene solids.
 
     def contacts(node, descendants):
         raw = node.getContactPoints(includeDescendants=descendants)
@@ -134,36 +126,41 @@ def witness():
                                      target_contacts=contacts(collider, False)))
         return observations
 
-    free = capture((0., 0., HEIGHT / 2), "free")
-    # Actual ODE contact on one L arm never establishes contact on its sibling.
-    collision = capture(collision_position, "collision")
-    first_target, first_id = target, target_id
-    first_free, first_collision = free, collision
+    arms = corner_boxes(course.route)
+    if len(arms) != 4:
+        raise RuntimeError("canonical course must expose exactly four L arms")
+    witnesses = []
+    distinct_ids = set()
+    for index, target in enumerate(arms):
+        collider = robot.getFromDef(target.name)
+        if collider is None or collider.getTypeName() != "Solid":
+            raise RuntimeError("native L arm collider absent: " + target.name)
+        target_id = collider.getId()
+        if type(target_id) is not int or target_id <= 0 or target_id in distinct_ids:
+            raise RuntimeError("missing or duplicate native L collider identity")
+        distinct_ids.add(target_id)
+        # Pinned, unpowered Cylinder: collide shallowly with the outer face
+        # rather than embedding its centre inside the narrow L. Same geometry
+        # and physical response for both independent corners.
+        face_offset = min(target.sx, target.sy) / 2 + radius - 0.015
+        collision_position = (
+            (target.x, target.y + face_offset, HEIGHT / 2)
+            if target.sy < target.sx else
+            (target.x + face_offset, target.y, HEIGHT / 2)
+        )
+        free = capture((0., 0., HEIGHT / 2), "free-" + str(index))
+        collision = capture(collision_position, "collision-" + str(index))
+        witnesses.append(dict(target=target.name, target_node_id=target_id,
+                              free=free, collision=collision))
 
-    # Independently excite the other arm of the SAME L, without motor commands.
-    target = corner_boxes(course.route)[1]
-    collider = robot.getFromDef(target.name)
-    if collider is None or collider.getTypeName() != "Solid":
-        raise RuntimeError("second native L collider absent")
-    target_id = collider.getId()
-    if type(target_id) is not int or target_id <= 0 or target_id == first_id:
-        raise RuntimeError("second native L collider identity invalid")
-    face_offset = min(target.sx, target.sy) / 2 + radius - 0.015
-    collision_position = (
-        (target.x, target.y + face_offset, HEIGHT / 2)
-        if target.sy < target.sx else
-        (target.x + face_offset, target.y, HEIGHT / 2)
-    )
-    second_free = capture((0., 0., HEIGHT / 2), "free")
-    second_collision = capture(collision_position, "collision")
+    first = witnesses[0]
     result = dict(claim=CLAIM, configuration=course.identifier,
                   webots="R2025a", timestep_ms=8,
                   source="Robot.getContactPoints(includeDescendants=True)",
                   target_source="Solid.getContactPoints(includeDescendants=False)",
-                  target=first_target.name, target_node_id=first_id,
-                  free=first_free, collision=first_collision,
-                  additional=dict(target=target.name, target_node_id=target_id,
-                                  free=second_free, collision=second_collision))
+                  target=first["target"], target_node_id=first["target_node_id"],
+                  free=first["free"], collision=first["collision"],
+                  additional=witnesses[1], second_corner=witnesses[2:])
     output.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(result, sort_keys=True, allow_nan=False)
     output.write_text(encoded + "\n", encoding="utf-8")
