@@ -42,8 +42,8 @@ def probe_scene(index):
                          'controller "grand_prix_v2_contact_probe"', 1)
 
 
-def check_native(record, course):
-    target = corner_boxes(course.route)[0]
+def _check_arm(record, course, arm_index):
+    target = corner_boxes(course.route)[arm_index]
     if (type(record) is not dict or record.get("claim") != CLAIM or
             record.get("configuration") != course.identifier or
             record.get("webots") != "R2025a" or
@@ -93,6 +93,23 @@ def check_native(record, course):
                 raise RuntimeError("native contact at free-space baseline")
     if not seen_hit:
         raise RuntimeError("reciprocal real L contact not observed")
+
+
+def check_native(record, course):
+    # Two independent colliders, real reciprocal contacts, strictly fresh ticks.
+    _check_arm(record, course, 0)
+    extra = record.get("additional")
+    if type(extra) is not dict or set(extra) != {
+            "target", "target_node_id", "free", "collision"}:
+        raise RuntimeError("incomplete second-arm native contact witness")
+    if extra["target_node_id"] == record["target_node_id"]:
+        raise RuntimeError("native L arms share collider identity")
+    if (type(extra["free"]) is not list or not extra["free"] or
+            type(extra["free"][0]) is not dict or
+            type(extra["free"][0].get("time_ms")) is not int or
+            extra["free"][0]["time_ms"] <= record["collision"][-1]["time_ms"]):
+        raise RuntimeError("stale second-arm native contact clock")
+    _check_arm({**record, **extra}, course, 1)
 
 
 def native_run(home, indexes):
@@ -150,7 +167,7 @@ def native_run(home, indexes):
                                 world_sha256=hashlib.sha256(scene.encode()).hexdigest(),
                                 evidence_file=str(evidence.relative_to(folder)),
                                 evidence_sha256=hashlib.sha256(data).hexdigest()))
-            print("PASS bounded native L-contact witness (not mission/flight) " +
+            print("PASS bounded native two-arm L-contact witness (not mission/flight) " +
                   course.identifier, flush=True)
         finally:
             if process is not None and process.poll() is None:
