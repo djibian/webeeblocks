@@ -136,19 +136,44 @@ def run_native(home, tcp=False):
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
 
 
+def run_evaluator_native_only(home):
+    """Own both exact native route-evaluator witnesses in a separate CI leg.
+
+    No soft PASS: production pilot and byte-identical probe must compile;
+    idle READY/revocation and flight/LAND/RESET must both finish R2025a.
+    """
+    if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
+        raise RuntimeError('required native R2025a evaluator unavailable')
+    env = os.environ.copy()
+    env.update(WEBOTS_HOME=str(home), LIBGL_ALWAYS_SOFTWARE='true',
+               WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
+    from tools.ci.run_grand_prix_route_evaluator_native import run_native as run_evaluator
+    evidence = OUT / 'route-evaluator-native'
+    evidence.mkdir(parents=True, exist_ok=True)
+    with (evidence / 'production-pilot-build.log').open('w') as log:
+        subprocess.run(['make', '-C', str(ROOT / 'controllers/grand_prix_route_flight')],
+                       env=env, stdout=log, stderr=subprocess.STDOUT,
+                       timeout=90, check=True)
+    run_evaluator(home, env)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--native', action='store_true')
     parser.add_argument('--tcp', action='store_true')
+    parser.add_argument('--evaluator-only', action='store_true')
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
+    if args.tcp and (not args.native or args.evaluator_only):
+        raise ValueError('--tcp requires full --native geometry')
     if args.native:
-        run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
+        if args.evaluator_only:
+            run_evaluator_native_only(Path(os.environ['WEBOTS_HOME']))
+        else:
+            run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
         return
-    if args.tcp:
-        raise ValueError('--tcp requires --native')
     if not shutil.which('docker'):
         raise RuntimeError('Docker absent; required native evidence unavailable')
     assets = ROOT/'.ci-grand-prix-u-webots'
@@ -164,7 +189,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     # Explicit entry point and startup diagnostics separate preparation from
     # geometry. Always retain a file before Docker can block or fail.
-    with tempfile.TemporaryDirectory(prefix='gp-u-geometry-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='gp-u-evaluator-' if args.evaluator_only else 'gp-u-geometry-') as temporary:
         cid=Path(temporary)/'container.cid'
         args=['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash',
               '-e','WEBOTS_HOME=/usr/local/webots',
@@ -173,15 +198,13 @@ def main():
               '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
               IMAGE,'-lc',
               "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
-              # Seven geometry + five time + fifty-six existing runtime probes,
-              # plus five blocking-file composition/transition probes.
-              # All historical and added native cases remain mandatory. The
-              # evaluator's second 120s-bounded R2025a flight/RESET witness
-              # starts after ~19 minutes of earlier evidence; the previous
-              # 1200s global cap cut it off at ~3008ms simulated, just before
-              # native READY (~3072ms). Reserve 150s more INSIDE the existing
-              # 25-minute job; unchanged per-case/210000ms LAND limits.
-              'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              # Independent native campaigns: U/L/H geometry retains its
+              # historical 1350 s container cap. Evaluator READY/revocation
+              # and flight/LAND/RESET have their own mandatory Runtime job
+              # (900 s cap), without changing any per-case native timeout.
+              + ('timeout -k 5s 900s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --evaluator-only'
+                 if args.evaluator_only else
+                 'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()

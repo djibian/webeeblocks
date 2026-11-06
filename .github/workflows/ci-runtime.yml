@@ -20,7 +20,7 @@ permissions:
 jobs:
   grand-prix-u-geometry:
     runs-on: ubuntu-22.04
-    # The 1200 s native campaign also needs image preparation and artifact upload.
+    # The 1350 s native campaign also needs image preparation and artifact upload.
     # Keep every per-probe timeout and assertion in the runner unchanged.
     timeout-minutes: 25
     steps:
@@ -34,6 +34,28 @@ jobs:
         with:
           name: grand-prix-u-geometry-r2025a
           path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+
+  # Mandatory R2025a evaluator qualification runs independently of U/L/H
+  # geometry so the verified pilot LAND/RESET no longer truncates later probes.
+  # The reusable Runtime suite fails if either of these two jobs fails.
+  grand-prix-route-evaluator:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Prove native variable Grand Prix READY and pilot LAND RESET
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --evaluator-only
+      - name: Upload exact native route evaluator evidence and Docker diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-route-evaluator-r2025a
+          path: |
+            ci-artifacts/grand-prix-u-geometry/route-evaluator-native/
+            ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
   runtime-v2-core:
