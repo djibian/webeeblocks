@@ -337,14 +337,22 @@ int main(){
   // Fake cues cannot trigger the one test TAKEOFF: no marker, wrong
   // course, missing timestamp, malformed/extra fields.
   { FILE *f=std::fopen(path,"wb"); assert(f);
-    assert(std::fputs("NOT_READY\n",f)>=0); assert(std::fclose(f)==0); }
+    assert(std::fputs("NOT_READY\\n",f)>=0); assert(std::fclose(f)==0); }
   assert(!__wrap_wb_robot_wwi_receive_text());
   { FILE *f=std::fopen(path,"wb"); assert(f);
-    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=wrong time_ms=3072\n",f)>=0);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=wrong time_ms=3072\\n",f)>=0);
     assert(std::fclose(f)==0); }
   assert(!__wrap_wb_robot_wwi_receive_text());
   { FILE *f=std::fopen(path,"wb"); assert(f);
-    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072\n",f)>=0);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3073\\n",f)>=0);
+    assert(std::fclose(f)==0); }
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  { FILE *f=std::fopen(path,"wb"); assert(f);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072 extra\\n",f)>=0);
+    assert(std::fclose(f)==0); }
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  { FILE *f=std::fopen(path,"wb"); assert(f);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072\\n",f)>=0);
     assert(std::fclose(f)==0); }
   const char *takeoff=__wrap_wb_robot_wwi_receive_text();
   assert(takeoff && !std::strcmp(takeoff,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4"));
