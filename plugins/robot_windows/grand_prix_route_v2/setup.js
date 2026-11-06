@@ -23,6 +23,6 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
 };
 const originalOutcome=window.WebeeBlocksRuntimeOutcome;
 window.WebeeBlocksRuntimeOutcome=Object.assign({},originalOutcome,{
- classify(error){return error&&error.code==='TIME_LIMIT'?{state:'MISSION ÉCHOUÉE',detail:'Temps écoulé — atterrissage imposé',machineCode:'TIME_LIMIT'}:originalOutcome.classify(error);}
+ classify(error){return error&&error.code==='TIME_LIMIT'?{state:'MISSION ÉCHOUÉE',detail:'Atterrissage de sûreté imposé',machineCode:'TIME_LIMIT'}:originalOutcome.classify(error);}
 });
 })();

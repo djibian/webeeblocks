@@ -1,21 +1,15 @@
-# Grand Prix sur Linux — U historique actif et bac à sable variable limité
+# Grand Prix sur Linux — parcours variables expérimentaux
 
-**Statut : incrément expérimental non accepté.** Le lancement **actif** ci-dessous
-réutilise le Grand Prix **U de référence** (`gp-u-v1`, trois côtés de 2 m et
-virages gauche, **sans cornières en L**). Il ne lance pas la nouvelle mission
-variable décidée le 3 novembre 2026. Les 12 parcours variables et leurs
-variantes personnalisées sont disponibles en **inspection statique inerte** ;
-un bac à sable Blockly expérimental permet aussi l'édition, **sans READY ni
-mission de vol qualifiée**. Voir
-[#808](https://github.com/djibian/webeeblocks/issues/808) et
-[#809](https://github.com/djibian/webeeblocks/issues/809).
+Le lanceur assemble le CoursePlan canonique, les L/H réels, le pilote natif,
+l'évaluateur et la Robot Window Blockly existants. **Condition d'intégration :
+le publisher natif #886 doit être intégré après ses preuves R2025a et sa revue
+V5.** Un script absent, arrêté ou incapable de prouver READY n'autorise jamais
+TAKEOFF. Le lanceur ne remplace aucune garde native et ne fournit aucun programme.
 
-L'objectif limité de cet incrément est de fournir une entrée directe **sans
-Docker** qui assemble les composants existants du simulateur sur un poste
-Linux disposant de Webots R2025a. Le vrai cycle graphique/Blockly et les
-dialogues du système d'exploitation doivent encore être constatés sur un
-poste adéquat ; la présence du script et ses tests statiques **ne valent pas**
-`PRÊT POUR EMMANUEL`.
+Les tests du lanceur qualifient sa composition et ses refus, **pas** le vrai
+cycle graphique Linux, les dialogues OS, un parcours réussi, les 12 missions
+ou l'acceptation pédagogique. Ce document ne déclare pas `PRÊT POUR EMMANUEL`.
+Le bac à sable sans évaluateur et l'inspection inerte restent des modes distincts.
 
 ## Prérequis
 
@@ -32,7 +26,61 @@ poste adéquat ; la présence du script et ses tests statiques **ne valent pas**
   n'est demandé par le lanceur. La préparation garde la version Blockly
   contractuelle 13.2.1.
 
-## Préparer et lancer
+## Lancer un parcours variable
+
+Sur un checkout exact intégrant l'évaluateur qualifié, relever `git rev-parse HEAD`,
+puis exécuter depuis le dépôt dans une session graphique :
+
+```bash
+export WEBOTS_HOME=/usr/local/webots   # adapter au poste
+python3 tools/grand_prix/launch_linux.py --list-configurations
+python3 tools/grand_prix/launch_linux.py --index 5 --preflight-only
+python3 tools/grand_prix/launch_linux.py --index 5
+```
+
+L'indice **5** désigne le premier GD à longueurs mixtes 2 / 2,5 / 3 m.
+Les indices 0 à 11 sélectionnent les douze références reproductibles ; cette
+sélection n'établit pas leur qualification de vol complète. Pour reproduire une
+variante canonique personnalisée, utiliser son identifiant hôte exact :
+
+```bash
+python3 tools/grand_prix/launch_linux.py --course-id gp-route-v2-L2000-2500-3000-TGD-s17-H2
+```
+
+`--index`, `--course-id` et `--legacy-u` sont exclusifs. `--seed` reste réservé
+à l'ancien U. Aucun repli vers cet ancien monde n'est effectué en cas d'erreur.
+Le préflight vérifie les ressources officielles épinglées, prépare Blockly
+13.2.1, compose le Runtime route partagé et compile **le pilote de production**,
+jamais une sonde. `--preflight-only` n'ouvre pas Webots et n'atteste aucun READY.
+
+Le monde temporaire garde `grand_prix_route_flight`, `grand_prix_route_evaluator`
+et `grand_prix_route_v2`. Les paramètres du CoursePlan restent natifs ; le
+`.wbb` conserve son profil et son monde logique stables. Fermer Webots avant de
+relancer une autre configuration : le nouvel évaluateur et le pilote repartent
+dans un nouveau monde, sans hériter d'un ancien résultat.
+
+Pour éprouver le premier cycle réel, sans chercher une solution gagnante :
+
+1. Webots s'ouvre en pause. Démarrer sa simulation avec son bouton Lecture,
+   puis attendre la connexion de la Robot Window. Le premier TAKEOFF Blockly
+   attend également l'admission native, distincte du simple signal de connexion.
+2. Construire librement le programme avec les blocs existants. Exécuter,
+   observer les portées, utiliser Step/Continue, Stop puis Réinitialiser.
+   Un essai incomplet ou incorrect ne constitue pas une réussite de mission.
+3. Enregistrer par **Save As**, modifier puis **Save** : vérifier que le même
+   fichier local est réécrit, sans copie numérotée. Éprouver aussi l'annulation
+   d'Open/Save As, qui doit laisser le projet et sa cible inchangés.
+4. Fermer Webots, relancer avec `--index 6`, puis ouvrir **le même .wbb**.
+   Sans modifier le programme, vérifier l'espace de travail restauré et une
+   tentative fraîche ; relever l'empreinte `sha256sum mon-programme.wbb` avant
+   et après Open/Save sans édition. Ne pas convertir le projet vers le profil U.
+
+Conserver le SHA du checkout, la commande et l'identifiant affiché, les versions,
+la sortie du terminal et le fichier réellement utilisé. Ces observations ne
+sont pas encore réalisées par les tests automatisés du lanceur. Aucun test
+humain supplémentaire n'est demandé en dehors du mécanisme V5 existant.
+
+## Préparer et lancer le U historique
 
 Depuis la racine du dépôt, terminal ouvert dans la **session graphique** :
 
@@ -54,7 +102,7 @@ L'évaluateur, la piste et l'échéance de 210000 ms proviennent du code U
 existant ; aucun oracle n'est affaibli.
 
 Choisir une autre graine historique avec `--seed 0`, `--seed 1`, etc.
-(0 à 65535). **Ce ne sont pas des configurations de la future course variable.**
+(0 à 65535). **Ce ne sont pas des configurations des parcours variables.**
 Fermer Webots avant de relancer un autre monde, afin de ne pas mélanger
 deux évaluateurs ou tentatives. Le monde temporaire et son projet Webots
 temporaire sont nettoyés après le retour du processus de lancement. Les
@@ -144,8 +192,8 @@ Dans la fenêtre Blockly dédiée : démarrer un projet **sans corrigé**, choi
 les blocs, observer les capteurs, lancer le vol, utiliser le pas-à-pas et
 Continuer, arrêter/réinitialiser, modifier, **Enregistrer sous** dans le dossier
 personnel, fermer puis **Ouvrir** ce même fichier `.wbb`. Relancer le même
-`.wbb` sans modification sur une autre graine U, puis, quand #808/#811 auront
-livré leurs mondes et oracles, sur une **vraie configuration variable**.
+`.wbb` sans modification sur une autre configuration variable, avec nouvel
+évaluateur et résultat non hérité ; le U historique reste une expérience séparée.
 Ne pas déduire de la réussite d'un simple décollage une réussite de la mission
 ni une qualification de l'altitude 0,8 m du prototype #805.
 
@@ -161,7 +209,8 @@ Le test `python3 -m unittest tools.grand_prix.test_launch_linux`
 falsifie uniquement l'identité des contrôleurs et de la fenêtre générée,
 la reproductibilité, la version stricte et le refus du lancement graphique
 sans affichage. Il **n'exécute pas Webots** et ne peut garantir l'ouverture
-des dialogues OS. Le futur livrable #809 doit ajouter les configurations
-de #808, l'oracle généralisé #811, les vrais essais natifs R2025a et le
-cycle enseignant observé. Aucun vol physique, aucune acceptation pédagogique,
+des dialogues OS. La livraison #809 exige encore les vrais essais natifs
+R2025a applicables aux configurations choisies et le cycle enseignant observé.
+La composition existante consomme déjà les modèles de #808 et l'oracle de #811 ;
+leur présence seule ne qualifie pas une mission. Aucun vol physique, aucune acceptation pédagogique,
 aucune modification du catalogue officiel des activités 2–7/8.
