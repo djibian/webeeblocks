@@ -18,21 +18,39 @@ permissions:
   contents: read
 
 jobs:
+  # Run 42308090512 exhausted its 1350-s container budget after real
+  # evaluator flight/RESET and only the first of four mandatory L witnesses.
+  # Isolate all L/H native cases in an independent required reusable-CI job.
+  # The two jobs collectively exercise exactly the previous full campaign.
   grand-prix-u-geometry:
     runs-on: ubuntu-22.04
-    # The 1200 s native campaign also needs image preparation and artifact upload.
-    # Keep every per-probe timeout and assertion in the runner unchanged.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_sha || github.sha }}
-      - name: Falsify Grand Prix U static geometry in real R2025a
-        run: python3 tools/ci/run_grand_prix_u_geometry.py
+      - name: Falsify Grand Prix U geometry, deadline, pose and route evaluator in real R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --partition core
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: grand-prix-u-geometry-r2025a
+          path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+
+  grand-prix-v2-route-contact:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Falsify four native L configurations and mixed-GD H clearance/contact in R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --partition contacts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-v2-route-contact-r2025a
           path: ci-artifacts/grand-prix-u-geometry/
           if-no-files-found: error
 

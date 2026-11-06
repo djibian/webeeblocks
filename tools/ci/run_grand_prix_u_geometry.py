@@ -35,11 +35,44 @@ def cases():
     return selected
 
 
-def run_native(home, tcp=False):
+def run_contact_campaign(home):
+    """Exactly the existing four L-contact cases and mixed-GD H evidence.
+
+    A dedicated REQUIRED CI job runs all native cases on its own isolated
+    checkout. Splitting the sequential 1350-s campaign never skips a probe.
+    """
+    # Extend the first native mixed-GD contact to one GG/GD/DG/DD course,
+    # spanning variable lengths and gate counts. Every case is required;
+    # preserve all historical U/deadline/pose/range assertions as well.
+    from tools.ci.run_grand_prix_v2_contact_native import (
+        DEFAULT_INDICES, native_run as run_contact,
+    )
+    run_contact(home, DEFAULT_INDICES)
+    # The complete GD mixed-length world must also yield real low/high H rays
+    # for every open gate and the closed terminal obstacle. No H result from a
+    # Python fake, old summary or another invocation qualifies this campaign.
+    # The existing geometry artifact retains its per-run native JSON/log bytes.
+    from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
+    run_h(home, (5,), output_root=OUT / 'route-h-native')
+
+
+def write_manifest():
+    manifest = {p.relative_to(OUT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in OUT.rglob('*') if p.is_file() and p != OUT / 'sha256.json'}
+    (OUT / 'sha256.json').write_text(json.dumps(manifest, indent=2) + '\n')
+
+
+def run_native(home, tcp=False, *, partition='all'):
     version = (home/'resources/version.txt').read_text().strip()
     if version != 'R2025a':
         raise RuntimeError('required Webots R2025a unavailable: '+version)
+    if partition not in ('all', 'core', 'contacts'):
+        raise ValueError('unknown mandatory native partition')
     OUT.mkdir(parents=True, exist_ok=True)
+    if partition == 'contacts':
+        run_contact_campaign(home)
+        write_manifest()
+        return
     env = os.environ.copy()
     env.update(WEBOTS_HOME=str(home), LIBGL_ALWAYS_SOFTWARE='true',
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
@@ -118,34 +151,24 @@ def run_native(home, tcp=False):
     if (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').exists():
         from run_grand_prix_u_deadline_native import run_native as run_deadline
         run_deadline(home)
-    # Extend the first native mixed-GD contact to one GG/GD/DG/DD course,
-    # spanning variable lengths and gate counts. Every case is required;
-    # preserve all historical U/deadline/pose/range assertions as well.
-    from tools.ci.run_grand_prix_v2_contact_native import (
-        DEFAULT_INDICES, native_run as run_contact,
-    )
-    run_contact(home, DEFAULT_INDICES)
-    # The complete GD mixed-length world must also yield real low/high H rays
-    # for every open gate and the closed terminal obstacle. No H result from a
-    # Python fake, old summary or another invocation qualifies this campaign.
-    # The existing geometry artifact retains its per-run native JSON/log bytes.
-    from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
-    run_h(home, (5,), output_root=OUT / 'route-h-native')
-    manifest = {p.relative_to(OUT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
-                for p in OUT.rglob('*') if p.is_file() and p != OUT/'sha256.json'}
-    (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
+    if partition == 'all':
+        run_contact_campaign(home)
+    write_manifest()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--native', action='store_true')
     parser.add_argument('--tcp', action='store_true')
+    parser.add_argument('--partition', choices=('all', 'core', 'contacts'),
+                        default='all')
     args = parser.parse_args()
-    print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
+    partition = args.partition
+    print('GP_U_GEOMETRY_ENTRY native='+str(args.native)+' partition='+partition, flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
     if args.native:
-        run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
+        run_native(Path(os.environ['WEBOTS_HOME']), args.tcp, partition=partition)
         return
     if args.tcp:
         raise ValueError('--tcp requires --native')
@@ -176,7 +199,7 @@ def main():
               # Seven geometry + five time + fifty-six existing runtime probes,
               # plus five blocking-file composition/transition probes.
               # Simulation deadlines and every per-case assertion are unchanged.
-              'timeout -k 5s 1200s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              'timeout -k 5s 1200s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --partition '+partition]
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()

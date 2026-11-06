@@ -187,4 +187,70 @@ class Tests(unittest.TestCase):
 from tools.ci.test_grand_prix_low_v2 import VariableLowZoneTests  # noqa: F401
 
 
+
+class NativeGeometryPartitionTests(unittest.TestCase):
+    """Host mocks exercise dispatch only, never a native PASS."""
+
+    def test_core_runs_legacy_deadline_not_contact(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from tempfile import TemporaryDirectory
+        from tools.ci import run_grand_prix_u_geometry as geometry
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        from tools.ci import run_grand_prix_v2_h_native as h_probe
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            home = root / "webots"
+            (home / "resources").mkdir(parents=True)
+            (home / "resources/version.txt").write_text("R2025a\n")
+            (home / "bin").mkdir()
+            (home / "bin/webots-bin").write_bytes(b"host fake - no native PASS")
+            out = root / "out"
+            deadline = Mock()
+            with patch.object(geometry, "OUT", out), \
+                 patch.object(geometry, "cases", return_value=[]), \
+                 patch.dict(sys.modules, {"run_grand_prix_u_deadline_native":
+                     SimpleNamespace(run_native=deadline)}), \
+                 patch.object(contact, "native_run") as l, \
+                 patch.object(h_probe, "native_run") as h:
+                geometry.run_native(home, partition="core")
+            deadline.assert_called_once_with(home)
+            l.assert_not_called()
+            h.assert_not_called()
+            self.assertTrue((out / "summary.json").is_file())
+            self.assertTrue((out / "sha256.json").is_file())
+
+    def test_contacts_requires_all_four_L_and_mixed_GD_H(self):
+        from unittest.mock import patch
+        from tempfile import TemporaryDirectory
+        from tools.ci import run_grand_prix_u_geometry as geometry
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        from tools.ci import run_grand_prix_v2_h_native as h_probe
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            home = root / "webots"
+            (home / "resources").mkdir(parents=True)
+            (home / "resources/version.txt").write_text("R2025a\n")
+            out = root / "out"
+            with patch.object(geometry, "OUT", out), \
+                 patch.object(geometry, "cases", side_effect=AssertionError("unexpected U core")), \
+                 patch.object(contact, "native_run") as l, \
+                 patch.object(h_probe, "native_run") as h:
+                geometry.run_native(home, partition="contacts")
+            l.assert_called_once_with(home, contact.DEFAULT_INDICES)
+            h.assert_called_once_with(home, (5,), output_root=out / "route-h-native")
+            self.assertFalse((out / "summary.json").exists())
+            self.assertTrue((out / "sha256.json").is_file())
+
+    def test_unknown_partition_rejected_not_skipped(self):
+        from tempfile import TemporaryDirectory
+        from tools.ci import run_grand_prix_u_geometry as geometry
+        with TemporaryDirectory() as temp:
+            home = Path(temp) / "webots"
+            (home / "resources").mkdir(parents=True)
+            (home / "resources/version.txt").write_text("R2025a\n")
+            with self.assertRaisesRegex(ValueError, "unknown mandatory"):
+                geometry.run_native(home, partition="unknown")
+
+
 if __name__ == '__main__': unittest.main()
