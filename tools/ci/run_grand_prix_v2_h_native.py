@@ -148,6 +148,69 @@ def check_contacts(result, course):
         if not observed_hit:
             raise RuntimeError("reciprocal native H physical contact absent")
 
+    # In addition to the beam/panel proof above, each real upright must
+    # remain physically solid. Both lateral posts of each present gate are
+    # required; neither the centreline nor an unrelated collider may qualify.
+    posts = {box.name: box for box in open_h_boxes(course)}
+    expected = [posts[f"GP_V2_H_{gate.leg_index}_{part}"]
+                for gate in course.gates for part in ("LEFT", "RIGHT")]
+    records = result.get("post_witnesses")
+    if type(records) is not list or len(records) != len(expected):
+        raise RuntimeError("missing native open-H upright evidence")
+    for box, record in zip(expected, records):
+        if (type(record) is not dict or set(record) !=
+                {"target", "target_node_id", "free", "collision"} or
+                record["target"] != box.name or
+                type(record["target_node_id"]) is not int or
+                record["target_node_id"] <= 0 or
+                record["target_node_id"] in used_ids):
+            raise RuntimeError("wrong native open-H upright identity")
+        used_ids.add(record["target_node_id"])
+        reciprocal = False
+        for phase in ("free", "collision"):
+            observations = record[phase]
+            if type(observations) is not list or len(observations) != 3:
+                raise RuntimeError("incomplete native open-H upright phase")
+            for sample in observations:
+                if (type(sample) is not dict or set(sample) !=
+                        {"time_ms", "contacts", "target_contacts"} or
+                        type(sample["time_ms"]) is not int or
+                        sample["time_ms"] <= last_ms or sample["time_ms"] % 8 or
+                        type(sample["contacts"]) is not list or
+                        type(sample["target_contacts"]) is not list or
+                        len(sample["contacts"]) > 2048 or
+                        len(sample["target_contacts"]) > 2048):
+                    raise RuntimeError("stale or malformed native upright tick")
+                last_ms = sample["time_ms"]
+                for point in sample["contacts"] + sample["target_contacts"]:
+                    if (type(point) is not dict or set(point) !=
+                            {"point", "node_id"} or
+                            type(point["node_id"]) is not int or
+                            not -(2**31) <= point["node_id"] < 2**31 or
+                            type(point["point"]) is not list or
+                            len(point["point"]) != 3 or
+                            any(type(value) not in (int, float) or
+                                not math.isfinite(value)
+                                for value in point["point"])):
+                        raise RuntimeError("invalid native upright contact point")
+                if phase == "free":
+                    if sample["contacts"] or sample["target_contacts"]:
+                        raise RuntimeError("native upright centre passage not free")
+                    continue
+                for point in sample["target_contacts"]:
+                    if point["node_id"] != record["target_node_id"]:
+                        raise RuntimeError("native upright Solid contact ID mismatch")
+                    xyz = point["point"]
+                    if (abs(xyz[0] - box.x) > box.sx / 2 + .002 or
+                            abs(xyz[1] - box.y) > box.sy / 2 + .002 or
+                            abs(xyz[2] - box.z) > box.sz / 2 + .002):
+                        raise RuntimeError("native upright contact outside Box")
+                    if any(math.dist(xyz, own["point"]) <= 1e-6
+                           for own in sample["contacts"]):
+                        reciprocal = True
+        if not reciprocal:
+            raise RuntimeError("reciprocal native open-H upright contact absent")
+
 
 def native_run(home, indexes, *, output_root=None):
     # Allow the required CI campaign to retain complete H evidence inside its
@@ -209,7 +272,7 @@ def native_run(home, indexes, *, output_root=None):
                                  world_sha256=hashlib.sha256(source.encode()).hexdigest(),
                                  evidence_file=str(proof.relative_to(invocation)),
                                  evidence_sha256=hashlib.sha256(contents).hexdigest()))
-            print("PASS native H rays, passage and beam/panel contact (not flight) " +
+            print("PASS native H rays, passage and beam/panel/upright contacts (not flight) " +
                   course.identifier, flush=True)
         finally:
             if process is not None and process.poll() is None:

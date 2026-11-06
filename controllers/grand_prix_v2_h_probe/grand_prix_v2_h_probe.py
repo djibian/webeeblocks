@@ -2,7 +2,7 @@
 
 The physical L/open-H/closed-H scene is canonical. The pupil Runtime is off.
 This probe measures native rays, open-passage clearance and reciprocal physical
-beam/panel contacts, NOT mission progress, autonomous flight, READY/ALIVE or GUI.
+beam/panel/post contacts, NOT mission progress, autonomous flight, READY/ALIVE or GUI.
 """
 import json
 import math
@@ -178,13 +178,42 @@ def witness():
     contact_witnesses.append(dict(target=panel.name, target_node_id=node_id,
                                   passage=None, free=free, collision=collision))
 
+    # Each real vertical H post is independently collision-enabled; the
+    # absence of a contact in the centre passage cannot prove that alone.
+    # Move the unpowered Cylinder 15 mm into the inside lateral face.
+    post_witnesses = []
+    for gate in course.gates:
+        leg = course.route.legs[gate.leg_index]
+        centre = leg.at(gate.along)
+        for part in ("LEFT", "RIGHT"):
+            name = f"GP_V2_H_{gate.leg_index}_{part}"
+            post = beam_boxes[name]
+            collider = robot.getFromDef(name)
+            if collider is None or collider.getTypeName() != "Solid":
+                raise RuntimeError("native open-H post missing: " + name)
+            node_id = collider.getId()
+            if type(node_id) is not int or node_id <= 0:
+                raise RuntimeError("invalid native open-H post ID")
+            free = contact_capture([*centre, .40], collider)
+            inset = (post.sy if leg.direction % 2 == 0 else post.sx) / 2 + radius - .015
+            if leg.direction % 2 == 0:
+                side = 1 if post.y > centre[1] else -1
+                hit = [post.x, post.y - side * inset, .40]
+            else:
+                side = 1 if post.x > centre[0] else -1
+                hit = [post.x - side * inset, post.y, .40]
+            collision = contact_capture(hit, collider)
+            post_witnesses.append(dict(target=name, target_node_id=node_id,
+                                       free=free, collision=collision))
+
     evidence = dict(claim="full-course-native-H-rays-and-contact-no-flight",
                     configuration=course.identifier, webots="R2025a",
                     timestep_ms=step, opened=opened,
                     terminal=dict(box="GP_V2_FINAL_PANEL",
                                   low=terminal_low, high=terminal_high),
                     contact_source="Robot+Solid.getContactPoints R2025a",
-                    contact_witnesses=contact_witnesses)
+                    contact_witnesses=contact_witnesses,
+                    post_witnesses=post_witnesses)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(evidence, allow_nan=False, sort_keys=True) + "\n")
     print("GP_V2_H_NATIVE " + json.dumps(evidence, allow_nan=False, sort_keys=True),
