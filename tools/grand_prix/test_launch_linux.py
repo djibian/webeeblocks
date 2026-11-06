@@ -322,5 +322,134 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
         self.assertIn('INSPECTION SEULEMENT', result.stdout)
 
 
+    def test_variable_editor_sandbox_preserves_course_and_disables_evaluator_only(self):
+        from tools.grand_prix.course_active_world_v2 import active_course_world
+        from tools.grand_prix.route_courses_v2 import reference_course
+        from tools.grand_prix.launch_variable_editor_linux import render_editor_sandbox
+        for index in range(12):
+            course = reference_course(index)
+            active = active_course_world(course)
+            sandbox = render_editor_sandbox(course)
+            with self.subTest(index=index):
+                self.assertEqual(sandbox, active.replace(
+                    '  controller "grand_prix_route_evaluator"\n',
+                    '  controller "<none>"\n', 1))
+                self.assertEqual(sandbox.count('  controller "<none>"'), 1)
+                self.assertEqual(sandbox.count('controller "grand_prix_route_flight"'), 1)
+                self.assertEqual(sandbox.count('window "grand_prix_route_v2"'), 1)
+                self.assertEqual(sandbox.count('DEF GP_ROUTE_EVALUATOR Robot {'), 1)
+                self.assertEqual(sandbox.count('DEF GP_V2_L_'), 4)
+                self.assertEqual(sandbox.count('DEF GP_V2_H_'), 3 * course.count)
+                self.assertNotIn('controller "grand_prix_route_evaluator"', sandbox)
+                self.assertNotIn('controller "grand_prix_u_flight"', sandbox)
+
+    def test_variable_editor_preflight_checks_assets_before_build(self):
+        from tools.grand_prix import launch_variable_editor_linux as sandbox
+        with mock.patch.object(sandbox, "ensure_webots_assets",
+                               side_effect=RuntimeError("official R2025a assets absent")) as assets, \
+             mock.patch.object(sandbox, "ensure_blockly_assets") as blockly, \
+             mock.patch.object(sandbox.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "assets absent"):
+                sandbox.prepare_editor(Path("/mock/webots"))
+            assets.assert_called_once()
+            blockly.assert_not_called()
+            run.assert_not_called()
+        with tempfile.TemporaryDirectory() as directory:
+            flight = Path(directory) / "controllers/grand_prix_route_flight"
+            flight.mkdir(parents=True)
+            binary = flight / "grand_prix_route_flight"
+            binary.write_text("fake binary", encoding="utf-8")
+            binary.chmod(0o755)
+            with mock.patch.object(sandbox, "ROOT", Path(directory)), \
+                 mock.patch.object(sandbox, "FLIGHT", flight), \
+                 mock.patch.object(sandbox, "ensure_webots_assets") as assets, \
+                 mock.patch.object(sandbox, "ensure_blockly_assets") as blockly, \
+                 mock.patch.object(sandbox.subprocess, "run") as run:
+                env = sandbox.prepare_editor(Path("/mock/webots"))
+            self.assertEqual(env["WEBOTS_HOME"], "/mock/webots")
+            assets.assert_called_once()
+            blockly.assert_called_once()
+            self.assertEqual(run.call_count, 2)
+            self.assertIn("prepare_route_runtime.py", str(run.call_args_list[0]))
+            self.assertIn("release", str(run.call_args_list[1]))
+
+    def test_variable_editor_sandbox_gui_is_paused_and_retires_only_owned_world(self):
+        from tools.grand_prix import launch_variable_editor_linux as sandbox
+        from tools.grand_prix.route_courses_v2 import reference_course
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / "worlds").mkdir()
+            fixed = base / "worlds/user_existing.wbt"
+            fixed.write_text("existing user world", encoding="utf-8")
+            seen = {}
+            def graphical(_home, world, _env):
+                seen["world"] = world
+                seen["scene"] = world.read_text(encoding="utf-8")
+                world.with_name("." + world.stem + ".wbproj").write_text(
+                    "owned generated project", encoding="utf-8")
+                return mock.Mock(returncode=0)
+            with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
+                 mock.patch.object(sandbox, "ROOT", base), \
+                 mock.patch.object(sandbox, "webots_home", return_value=base) as home, \
+                 mock.patch.object(sandbox, "prepare_editor",
+                                   return_value={"WEBOTS_HOME": str(base)}) as prepared, \
+                 mock.patch.object(sandbox, "launch_graphical", side_effect=graphical) as gui:
+                self.assertEqual(sandbox.main([
+                    "--course-id", reference_course(5).identifier,
+                    "--editor-sandbox"]), 0)
+            home.assert_called_once_with(None)
+            prepared.assert_called_once_with(base)
+            gui.assert_called_once()
+            self.assertIn('Grand Prix variable EXPERIMENTAL ', seen["scene"])
+            self.assertIn('controller "grand_prix_route_flight"', seen["scene"])
+            self.assertIn('window "grand_prix_route_v2"', seen["scene"])
+            self.assertIn('controller "<none>"', seen["scene"])
+            self.assertNotIn('controller "grand_prix_route_evaluator"', seen["scene"])
+            self.assertFalse(seen["world"].exists())
+            self.assertFalse(seen["world"].with_name(
+                "." + seen["world"].stem + ".wbproj").exists())
+            self.assertEqual(fixed.read_text(encoding="utf-8"), "existing user world")
+
+    def test_variable_editor_invalid_input_and_headless_refuse_before_preflight(self):
+        from tools.grand_prix import launch_variable_editor_linux as sandbox
+        from tools.grand_prix.route_courses_v2 import reference_course
+        config = reference_course(5).identifier
+        for arguments in (
+            [], ["--index", "5", "--course-id", config],
+            ["--index", "5"], ["--editor-sandbox", "--index", "12"],
+        ):
+            with self.subTest(arguments=arguments), self.assertRaises(SystemExit) as error:
+                sandbox.main(arguments)
+            self.assertEqual(error.exception.code, 2)
+        with mock.patch.object(sandbox, "webots_home") as home:
+            self.assertEqual(sandbox.main([
+                "--course-id", config + "-alias", "--editor-sandbox"]), 1)
+            home.assert_not_called()
+        with mock.patch.dict(os.environ, {"DISPLAY": "", "WAYLAND_DISPLAY": ""}), \
+             mock.patch.object(sandbox, "webots_home") as home:
+            self.assertEqual(sandbox.main(["--index", "5", "--editor-sandbox"]), 1)
+            home.assert_not_called()
+        with mock.patch.object(sandbox, "webots_home", return_value=Path("/mock")) as home, \
+             mock.patch.object(sandbox, "prepare_editor", return_value={}) as prepared, \
+             mock.patch.object(sandbox, "launch_graphical") as graphical:
+            self.assertEqual(sandbox.main(["--index", "5", "--preflight-only"]), 0)
+            home.assert_called_once_with(None)
+            prepared.assert_called_once()
+            graphical.assert_not_called()
+
+    def test_variable_editor_entry_imports_from_any_workdir(self):
+        from tools.grand_prix import launch_variable_editor_linux as sandbox
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            env = os.environ.copy()
+            env.pop("PYTHONPATH", None)
+            output = subprocess.run(
+                [sys.executable, str(Path(sandbox.__file__).resolve()), "--help"],
+                cwd=directory, env=env, capture_output=True, text=True, timeout=20)
+        self.assertEqual(output.returncode, 0, output.stderr)
+        self.assertIn("SANDBOX Blockly Linux", output.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
