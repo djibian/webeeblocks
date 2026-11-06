@@ -271,6 +271,8 @@ class NativeLProbePreparationTests(unittest.TestCase):
         translation.setSFVec3f.side_effect = lambda value: state.update(position=value)
         vehicle, collider, robot = Mock(), Mock(), Mock()
         vehicle.getTypeName.return_value = 'Crazyflie'
+        vehicle.getPosition.side_effect = lambda: state['position']
+        vehicle.getVelocity.return_value = [0.] * 6
         vehicle.getField.side_effect = lambda key: {
             'translation': translation, 'rotation': rotation}[key]
         collider.getTypeName.return_value = 'Solid'
@@ -289,17 +291,31 @@ class NativeLProbePreparationTests(unittest.TestCase):
             return 0
         robot.step.side_effect = step
         robot.getTime.side_effect = lambda: state['time_ms'] / 1000
+        captured = io.StringIO()
         with TemporaryDirectory() as temp:
             output = Path(temp) / 'native.json'
             with patch.dict(sys.modules, {'controller': SimpleNamespace(Supervisor=lambda: robot)}), \
                  patch.dict('os.environ', GP_V2_CONTACT_INDEX='5', GP_V2_CONTACT_OUT=str(output)), \
                  patch('tools.grand_prix.native_collider_contract_v2.verify_native_boxes'), \
-                 contextlib.redirect_stdout(io.StringIO()):
+                 contextlib.redirect_stdout(captured):
                 producer = runpy.run_path(str(contact.ROOT /
                     'controllers/grand_prix_v2_contact_probe/grand_prix_v2_contact_probe.py'))
                 producer['witness']()
             record = json.loads(output.read_text())
             contact.check_native(record, course)
+            diagnostics = [json.loads(line.removeprefix('GP_V2_CONTACT_DIAG '))
+                           for line in captured.getvalue().splitlines()
+                           if line.startswith('GP_V2_CONTACT_DIAG ')]
+            self.assertEqual(len(diagnostics), 8)
+            self.assertEqual(
+                [(row['phase'], row['event'], row['tick']) for row in diagnostics],
+                [('free', 'after_reset', 0)] +
+                [('free', 'after_step', i) for i in (1, 2, 3)] +
+                [('collision', 'after_reset', 0)] +
+                [('collision', 'after_step', i) for i in (1, 2, 3)])
+            self.assertEqual(diagnostics[4]['vehicle_position'],
+                             [box.x, box.y, .65])
+            self.assertEqual(diagnostics[-1]['time_ms'], 48)
             self.assertEqual(record['collision'][0]['contacts'][0]['node_id'], 8)
             self.assertEqual(record['collision'][0]['target_contacts'][0]['node_id'], 23)
             self.assertEqual(vehicle.getContactPoints.call_count, 6)

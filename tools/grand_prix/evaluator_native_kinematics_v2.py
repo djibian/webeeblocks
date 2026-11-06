@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import math
 
 from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class NativeKinematicsSampler:
         if (not vehicle.isProto() or vehicle.getTypeName() != 'Crazyflie' or
                 vehicle.getBaseTypeName() != 'Robot' or
                 _one_field(vehicle, 'name').getSFString() != 'Crazyflie WebeeBlocks' or
-                _one_field(vehicle, 'supervisor').getSFBool() is not True or
+                not enabled(_one_field(vehicle, 'supervisor').getSFBool()) or
                 _one_field(vehicle, 'controller').getSFString() != 'grand_prix_route_flight' or
                 _one_field(vehicle, 'window').getSFString() != 'grand_prix_route_v2'):
             raise RuntimeError('noncanonical native flight Robot')
@@ -118,7 +119,7 @@ class NativeKinematicsSampler:
         # may change a Robot's fields between native steps. Reject drift.
         if (not node.isProto() or
                 _one_field(node, 'name').getSFString() != 'Crazyflie WebeeBlocks' or
-                _one_field(node, 'supervisor').getSFBool() is not True or
+                not enabled(_one_field(node, 'supervisor').getSFBool()) or
                 _one_field(node, 'controller').getSFString() != 'grand_prix_route_flight' or
                 _one_field(node, 'window').getSFString() != 'grand_prix_route_v2'):
             raise RuntimeError('native vehicle provenance changed')

@@ -63,15 +63,38 @@ def witness():
             points.append(dict(point=[float(v) for v in coords], node_id=identity))
         return points
 
-    def capture(position):
+    def trace(phase, event, tick):
+        # Diagnostics cannot authorize a contact: log actual ODE readback
+        # before/after stepping while check_native still requires real hits.
+        actual = vehicle.getPosition()
+        velocity = vehicle.getVelocity()
+        if (not isinstance(actual, (list, tuple)) or len(actual) != 3 or
+                not isinstance(velocity, (list, tuple)) or len(velocity) != 6 or
+                any(type(value) not in (int, float) or not math.isfinite(value)
+                    for value in (*actual, *velocity))):
+            raise RuntimeError("invalid native contact pose/velocity diagnostic")
+        payload = dict(
+            phase=phase, event=event, tick=tick,
+            time_ms=round(robot.getTime() * 1000),
+            vehicle_position=[float(v) for v in actual],
+            vehicle_velocity=[float(v) for v in velocity],
+            target_position=[target.x, target.y, HEIGHT / 2],
+            target_size=[target.sx, target.sy, HEIGHT],
+        )
+        print("GP_V2_CONTACT_DIAG " +
+              json.dumps(payload, sort_keys=True, allow_nan=False), flush=True)
+
+    def capture(position, phase):
         translation.setSFVec3f(list(position))
         rotation.setSFRotation([0, 0, 1, 0])
         vehicle.resetPhysics()
+        trace(phase, "after_reset", 0)
         observations = []
-        for _ in range(3):
+        for tick in range(3):
             if robot.step(step) == -1:
                 raise RuntimeError("Webots stopped during contact acquisition")
             ms = round(robot.getTime() * 1000)
+            trace(phase, "after_step", tick + 1)
             if ms % 8:
                 raise RuntimeError("noncanonical native contact clock")
             # R2025a reports the contacted body's OWN Solid/descendant ID,
@@ -81,10 +104,10 @@ def witness():
                                      target_contacts=contacts(collider, False)))
         return observations
 
-    free = capture((0., 0., HEIGHT / 2))
+    free = capture((0., 0., HEIGHT / 2), "free")
     # Deliberate controlled overlap of the unpowered robot with an actual L Solid.
     # Contact observations are real physics, not an intersection formula.
-    collision = capture((target.x, target.y, HEIGHT / 2))
+    collision = capture((target.x, target.y, HEIGHT / 2), "collision")
     result = dict(claim=CLAIM, configuration=course.identifier,
                   webots="R2025a", timestep_ms=8,
                   source="Robot.getContactPoints(includeDescendants=True)",

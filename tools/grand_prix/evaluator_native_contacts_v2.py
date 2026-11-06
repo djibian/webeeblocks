@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import math
 
 from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ def _valid_vehicle(node, identifier):
             node.getTypeName() != "Crazyflie" or
             node.getBaseTypeName() != "Robot" or
             _field(node, "name").getSFString() != "Crazyflie WebeeBlocks" or
-            _field(node, "supervisor").getSFBool() is not True or
+            not enabled(_field(node, "supervisor").getSFBool()) or
             _field(node, "controller").getSFString() != "grand_prix_route_flight" or
             _field(node, "window").getSFString() != "grand_prix_route_v2"):
         raise RuntimeError("invalid native contact source identity")
