@@ -1,8 +1,8 @@
 """Native R2025a full-course H sensor probe. Teleportation is not flight.
 
 The physical L/open-H/closed-H scene is canonical. The pupil Runtime is off.
-This probe measures native horizontal rays, NOT contacts, mission progress,
-autonomous trajectories, READY/ALIVE or an accepted teacher GUI journey.
+This probe measures native rays, open-passage clearance and reciprocal physical
+beam/panel contacts, NOT mission progress, autonomous flight, READY/ALIVE or GUI.
 """
 import json
 import math
@@ -17,6 +17,8 @@ from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, verify_native_boxes,
 )
 from tools.grand_prix.route_courses_v2 import reference_course
+from tools.grand_prix.route_open_h_v2 import open_h_boxes
+from tools.grand_prix.route_terminal_v2 import terminal_boxes
 
 
 def witness():
@@ -83,11 +85,106 @@ def witness():
     if not (.07 < terminal_low["front"] < .55 and
             .07 < terminal_high["front"] < .55):
         raise RuntimeError("terminal closed H not detected in native rays")
-    evidence = dict(claim="full-course-native-H-rays-no-flight-no-contact",
+    # Physical counter-test on the same pinned, unpowered full course: an
+    # open H passage at 0.4 m must have NO real contact, while its overhead
+    # beam at its actual height, and the closed terminal panel at 0.4 m,
+    # must each report reciprocal, same-tick Robot/Solid ODE contacts.
+    bound_field = self_node.getBaseNodeField("boundingObject")
+    bound = bound_field.getSFNode() if bound_field is not None else None
+    radius_field = bound.getField("radius") if bound is not None else None
+    height_field = bound.getField("height") if bound is not None else None
+    radius = radius_field.getSFFloat() if radius_field is not None else None
+    height = height_field.getSFFloat() if height_field is not None else None
+    if (bound is None or bound.getTypeName() != "Cylinder" or
+            type(radius) not in (int, float) or
+            type(height) not in (int, float) or
+            not math.isclose(radius, .05, rel_tol=0, abs_tol=1e-9) or
+            not math.isclose(height, .03, rel_tol=0, abs_tol=1e-9)):
+        raise RuntimeError("pinned native Crazyflie Cylinder differs")
+
+    def contact_points(node, descendants):
+        raw = node.getContactPoints(includeDescendants=descendants)
+        if not isinstance(raw, (list, tuple)) or len(raw) > 2048:
+            raise RuntimeError("invalid native H contact collection")
+        points = []
+        for hit in raw:
+            coords = hit.point
+            identity = hit.node_id
+            if (not isinstance(coords, (tuple, list)) or len(coords) != 3 or
+                    any(type(v) not in (int, float) or not math.isfinite(v)
+                        for v in coords) or
+                    type(identity) is not int or
+                    not -(2**31) <= identity < 2**31):
+                raise RuntimeError("malformed native H contact point")
+            points.append(dict(point=[float(v) for v in coords], node_id=identity))
+        return points
+
+    def contact_capture(position, collider):
+        translation.setSFVec3f(list(position))
+        rotation.setSFRotation([0, 0, 1, 0])
+        self_node.resetPhysics()
+        observations = []
+        for _ in range(3):
+            if robot.step(step) == -1:
+                raise RuntimeError("native H contact acquisition interrupted")
+            ms = round(robot.getTime() * 1000)
+            if ms % step:
+                raise RuntimeError("native H contact clock not on 8-ms grid")
+            observations.append(dict(time_ms=ms,
+                                     contacts=contact_points(self_node, True),
+                                     target_contacts=contact_points(collider, False)))
+        return observations
+
+    contact_witnesses = []
+    beam_boxes = {box.name: box for box in open_h_boxes(course)}
+    for gate in course.gates:
+        leg = course.route.legs[gate.leg_index]
+        name = f"GP_V2_H_{gate.leg_index}_BEAM"
+        beam = beam_boxes[name]
+        collider = robot.getFromDef(name)
+        if collider is None or collider.getTypeName() != "Solid":
+            raise RuntimeError("native open-H beam missing")
+        node_id = collider.getId()
+        if type(node_id) is not int or node_id <= 0:
+            raise RuntimeError("invalid native open-H beam ID")
+        # Centre at 0.4 m passes below the 0.62 m opening limit.
+        opening = leg.at(gate.along)
+        passage = contact_capture([*opening, .40], collider)
+        upstream = leg.at(gate.along - .24)
+        free = contact_capture([*upstream, beam.z], collider)
+        # Shallow 15-mm overlap against a longitudinal face of the beam.
+        offset = min(beam.sx, beam.sy) / 2 + radius - .015
+        collision = contact_capture(
+            [beam.x + offset, beam.y, beam.z] if leg.direction % 2 == 0
+            else [beam.x, beam.y + offset, beam.z], collider)
+        contact_witnesses.append(dict(target=name, target_node_id=node_id,
+                                      passage=passage, free=free, collision=collision))
+
+    panel = next(box for box in terminal_boxes(course.route)
+                 if box.name == "GP_V2_FINAL_PANEL")
+    collider = robot.getFromDef(panel.name)
+    if collider is None or collider.getTypeName() != "Solid":
+        raise RuntimeError("native terminal H panel missing")
+    node_id = collider.getId()
+    if type(node_id) is not int or node_id <= 0:
+        raise RuntimeError("invalid native terminal H panel ID")
+    last_leg = course.route.legs[-1]
+    free_point = last_leg.at(last_leg.length - .30)
+    free = contact_capture([*free_point, .40], collider)
+    offset = min(panel.sx, panel.sy) / 2 + radius - .015
+    collision = contact_capture(
+        [panel.x + offset, panel.y, .40] if last_leg.direction % 2 == 0
+        else [panel.x, panel.y + offset, .40], collider)
+    contact_witnesses.append(dict(target=panel.name, target_node_id=node_id,
+                                  passage=None, free=free, collision=collision))
+
+    evidence = dict(claim="full-course-native-H-rays-and-contact-no-flight",
                     configuration=course.identifier, webots="R2025a",
                     timestep_ms=step, opened=opened,
                     terminal=dict(box="GP_V2_FINAL_PANEL",
-                                  low=terminal_low, high=terminal_high))
+                                  low=terminal_low, high=terminal_high),
+                    contact_source="Robot+Solid.getContactPoints R2025a",
+                    contact_witnesses=contact_witnesses)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(evidence, allow_nan=False, sort_keys=True) + "\n")
     print("GP_V2_H_NATIVE " + json.dumps(evidence, allow_nan=False, sort_keys=True),
