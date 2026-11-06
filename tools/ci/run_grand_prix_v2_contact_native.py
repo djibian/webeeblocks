@@ -2,7 +2,7 @@
 """Strict Webots R2025a contact witness for #825, never flight PASS.
 
 No synthetic success, no pooled result files, no motorized commands. Requires
-reciprocal vehicle/L contact points after forced overlap in the full course.
+reciprocal vehicle/L contact points on all four arms after forced overlap.
 """
 import argparse
 import hashlib
@@ -96,7 +96,7 @@ def _check_arm(record, course, arm_index):
 
 
 def check_native(record, course):
-    # Two independent colliders, real reciprocal contacts, strictly fresh ticks.
+    """Four distinct real L Solids, reciprocal contacts and fresh 8-ms ticks."""
     _check_arm(record, course, 0)
     extra = record.get("additional")
     if type(extra) is not dict or set(extra) != {
@@ -110,6 +110,26 @@ def check_native(record, course):
             extra["free"][0]["time_ms"] <= record["collision"][-1]["time_ms"]):
         raise RuntimeError("stale second-arm native contact clock")
     _check_arm({**record, **extra}, course, 1)
+
+    remaining = record.get("other_corner")
+    if type(remaining) is not list or len(remaining) != 2:
+        raise RuntimeError("incomplete second-corner native L contact witness")
+    seen_ids = {record["target_node_id"], extra["target_node_id"]}
+    previous_ms = extra["collision"][-1]["time_ms"]
+    for arm_index, arm in enumerate(remaining, start=2):
+        if type(arm) is not dict or set(arm) != {
+                "target", "target_node_id", "free", "collision"}:
+            raise RuntimeError("malformed second-corner native L witness")
+        if arm["target_node_id"] in seen_ids:
+            raise RuntimeError("duplicate native L arm collider identity")
+        if (type(arm["free"]) is not list or not arm["free"] or
+                type(arm["free"][0]) is not dict or
+                type(arm["free"][0].get("time_ms")) is not int or
+                arm["free"][0]["time_ms"] <= previous_ms):
+            raise RuntimeError("stale second-corner native contact clock")
+        _check_arm({**record, **arm}, course, arm_index)
+        seen_ids.add(arm["target_node_id"])
+        previous_ms = arm["collision"][-1]["time_ms"]
 
 
 def native_run(home, indexes):
@@ -167,7 +187,7 @@ def native_run(home, indexes):
                                 world_sha256=hashlib.sha256(scene.encode()).hexdigest(),
                                 evidence_file=str(evidence.relative_to(folder)),
                                 evidence_sha256=hashlib.sha256(data).hexdigest()))
-            print("PASS bounded native two-arm L-contact witness (not mission/flight) " +
+            print("PASS bounded native four-arm L-contact witness (not mission/flight) " +
                   course.identifier, flush=True)
         finally:
             if process is not None and process.poll() is None:
