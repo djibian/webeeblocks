@@ -92,12 +92,20 @@ def _verify_floor(node, route):
     rotation = rotation.getSFRotation() if rotation else None
     field = node.getBaseNodeField('boundingObject')
     body = field.getSFNode() if field else None
+    # Preserve every native rejection. The exact R2025a Floor PROTO readback
+    # is retained in the failure artifact when a native preflight fails,
+    # allowing geometry vs Supervisor API mismatch to be distinguished.
+    native_locked = locked.getSFBool() if locked is not None else None
+    native_shape = body.getTypeName() if body is not None else None
     if (abs(position[2]) > 1e-9 or locked is None or
-            locked.getSFBool() is not True or
+            native_locked is not True or
             not isinstance(rotation, (list, tuple)) or len(rotation) != 4 or
             any(type(v) not in (int, float) or not math.isfinite(v) for v in rotation) or
-            abs(rotation[3]) > 1e-9 or body is None or body.getTypeName() != 'Plane'):
-        raise RuntimeError('floor must be the locked horizontal z=0 Plane')
+            abs(rotation[3]) > 1e-9 or body is None or native_shape != 'Plane'):
+        raise RuntimeError(
+            'floor must be the locked horizontal z=0 Plane; native readback '
+            f'position={position!r} locked={native_locked!r} '
+            f'rotation={rotation!r} boundingObject={native_shape!r}')
     size = body.getField('size')
     size = size.getSFVec2f() if size else None
     if (not isinstance(size, (list, tuple)) or len(size) != 2 or
