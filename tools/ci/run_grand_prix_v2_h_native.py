@@ -141,7 +141,8 @@ def native_run(home, indexes, *, output_root=None):
                 process.kill()
                 process.wait()
             world.unlink(missing_ok=True)
-            world.with_suffix(".wbproj").unlink(missing_ok=True)
+            # Webots writes a dot-prefixed project for each temporary world.
+            world.with_name("." + world.stem + ".wbproj").unlink(missing_ok=True)
     summary = dict(claim=CLAIM, invocation=invocation.name,
                    webots="R2025a", results=outcomes)
     # An incomplete attempt never publishes a PASSED summary. Concurrent
