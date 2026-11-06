@@ -98,7 +98,7 @@ def _check_arm(record, course, arm_index):
 def check_native(record, course):
     """Falsify all four L-arm contacts in the same native course invocation.
 
-    The first corner retains its established top-level/\`additional\` proof.
+    The first corner retains its established top-level and additional-arm proof.
     The other corner must contribute two further independent, chronologically
     fresh, reciprocal Solid/vehicle witnesses. No test-only contact is minted.
     """
@@ -187,7 +187,7 @@ def native_run(home, indexes):
                                 world_sha256=hashlib.sha256(scene.encode()).hexdigest(),
                                 evidence_file=str(evidence.relative_to(folder)),
                                 evidence_sha256=hashlib.sha256(data).hexdigest()))
-            print("PASS bounded native two-arm L-contact witness (not mission/flight) " +
+            print("PASS bounded native four-arm L-contact witness (not mission/flight) " +
                   course.identifier, flush=True)
         finally:
             if process is not None and process.poll() is None:
