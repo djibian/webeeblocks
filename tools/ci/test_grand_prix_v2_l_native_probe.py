@@ -371,11 +371,11 @@ class NativeLProbePreparationTests(unittest.TestCase):
             (home / 'bin/webots-bin').write_bytes(b'host fake, not Webots')
             out = root / 'evidence'
             deadline = Mock()
-            with patch.object(geometry, 'OUT', out), \\
-                 patch.object(geometry, 'cases', return_value=[]), \\
+            with patch.object(geometry, 'OUT', out), \
+                 patch.object(geometry, 'cases', return_value=[]), \
                  patch.dict(sys.modules, {'run_grand_prix_u_deadline_native':
-                            SimpleNamespace(run_native=deadline)}), \\
-                 patch.object(contact, 'native_run') as contacts, \\
+                            SimpleNamespace(run_native=deadline)}), \
+                 patch.object(contact, 'native_run') as contacts, \
                  patch.object(h_probe, 'native_run', side_effect=RuntimeError(
                      'native H ray missing')) as rays:
                 with self.assertRaisesRegex(RuntimeError, 'native H ray missing'):
