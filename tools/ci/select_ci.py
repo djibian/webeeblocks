@@ -135,6 +135,7 @@ GRAND_PRIX_RUNTIME_EVIDENCE = (
     "tools/ci/*grand_prix*",
     # The range producer/reader bench is owned by Runtime's native geometry job.
     "controllers/grand_prix_route_observation_*/**",
+    "controllers/grand_prix_v2_contact_probe/**",
     # These gp_u_* native pose fixtures are compiled by the Windows composition
     # test in ci-runtime.yml; the original grand_prix* name glob misses them.
     "tools/ci/fixtures/gp_u_*",

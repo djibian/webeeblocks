@@ -118,8 +118,13 @@ def run_native(home, tcp=False):
     if (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').exists():
         from run_grand_prix_u_deadline_native import run_native as run_deadline
         run_deadline(home)
-    manifest = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in OUT.iterdir()
-                if p.is_file() and p.name != 'sha256.json'}
+    # First variable vertical target: GD with mixed lengths, in the full
+    # canonical world. This real contact acquisition is mandatory, in addition
+    # to (not in place of) every historical U/deadline/pose/range assertion.
+    from tools.ci.run_grand_prix_v2_contact_native import native_run as run_contact
+    run_contact(home, (5,))
+    manifest = {p.relative_to(OUT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in OUT.rglob('*') if p.is_file() and p != OUT/'sha256.json'}
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
 
 
