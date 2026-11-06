@@ -79,6 +79,94 @@ class RequiredNativeHRayTests(unittest.TestCase):
             self.assertFalse(list(evidence.rglob('summary.json')))
             self.assertTrue(list(evidence.rglob('native.log')))
 
+    def test_required_native_h_contacts_reject_fake_missing_and_replayed_evidence(self):
+        # Host-schema examples cannot prove a native contact. They must fail
+        # when the real required runner's contact witness is absent or forged.
+        from tools.grand_prix.route_courses_v2 import reference_course
+        from tools.grand_prix.route_open_h_v2 import open_h_boxes
+        from tools.grand_prix.route_terminal_v2 import terminal_boxes
+        import copy
+        course = reference_course(5)
+        beams = {box.name: box for box in open_h_boxes(course)}
+        bodies = [beams[f"GP_V2_H_{gate.leg_index}_BEAM"]
+                  for gate in course.gates]
+        bodies.append(next(box for box in terminal_boxes(course.route)
+                           if box.name == "GP_V2_FINAL_PANEL"))
+        now = 0
+        records = []
+        for index, body in enumerate(bodies):
+            def samples(collision):
+                nonlocal now
+                values = []
+                for _ in range(3):
+                    now += 8
+                    point = [body.x, body.y, body.z if index < len(bodies)-1 else .40]
+                    values.append(dict(time_ms=now,
+                        contacts=[dict(node_id=3, point=point)] if collision else [],
+                        target_contacts=[dict(node_id=100+index, point=point)] if collision else []))
+                return values
+            passage = samples(False) if index < len(bodies)-1 else None
+            records.append(dict(target=body.name, target_node_id=100+index,
+                                passage=passage, free=samples(False),
+                                collision=samples(True)))
+        posts = {box.name: box for box in open_h_boxes(course)}
+        uprights = []
+        for gate in course.gates:
+            for part in ("LEFT", "RIGHT"):
+                body = posts[f"GP_V2_H_{gate.leg_index}_{part}"]
+                post_id = 200 + len(uprights)
+                def samples_for_post(collision):
+                    nonlocal now
+                    points = []
+                    for _ in range(3):
+                        now += 8
+                        xyz = [body.x, body.y, .40]
+                        points.append(dict(time_ms=now,
+                            contacts=[dict(node_id=3, point=xyz)] if collision else [],
+                            target_contacts=[dict(node_id=post_id, point=xyz)]
+                            if collision else []))
+                    return points
+                uprights.append(dict(target=body.name, target_node_id=post_id,
+                                     free=samples_for_post(False),
+                                     collision=samples_for_post(True)))
+        fake = dict(contact_source="Robot+Solid.getContactPoints R2025a",
+                    contact_witnesses=records, post_witnesses=uprights)
+        h_runner.check_contacts(fake, course)
+        for mutation in ("absent", "missing", "foreign-id", "replay",
+                         "missing-hit", "false-passage", "outside-panel",
+                         "missing-upright", "upright-id-reuse",
+                         "upright-false-passage", "upright-missing-hit"):
+            with self.subTest(mutation=mutation):
+                record = copy.deepcopy(fake)
+                if mutation == "absent":
+                    record.pop("contact_witnesses")
+                elif mutation == "missing":
+                    record["contact_witnesses"].pop()
+                elif mutation == "foreign-id":
+                    record["contact_witnesses"][0]["collision"][0]["target_contacts"][0]["node_id"] = 5
+                elif mutation == "replay":
+                    record["contact_witnesses"][1]["free"][0]["time_ms"] = 8
+                elif mutation == "missing-hit":
+                    for sample in record["contact_witnesses"][0]["collision"]:
+                        sample["target_contacts"] = []
+                elif mutation == "false-passage":
+                    record["contact_witnesses"][0]["passage"][0]["contacts"] = [
+                        dict(node_id=3, point=[0., 0., .4])]
+                elif mutation == "outside-panel":
+                    for sample in record["contact_witnesses"][-1]["collision"]:
+                        sample["target_contacts"][0]["point"][2] = 2.
+                elif mutation == "missing-upright":
+                    record["post_witnesses"].pop()
+                elif mutation == "upright-id-reuse":
+                    record["post_witnesses"][0]["target_node_id"] = 100
+                elif mutation == "upright-false-passage":
+                    record["post_witnesses"][0]["free"][0]["contacts"] = [
+                        dict(node_id=3, point=[0., 0., .40])]
+                elif mutation == "upright-missing-hit":
+                    for sample in record["post_witnesses"][0]["collision"]:
+                        sample["target_contacts"] = []
+                with self.assertRaises(RuntimeError):
+                    h_runner.check_contacts(record, course)
 
 
 if __name__ == "__main__":
