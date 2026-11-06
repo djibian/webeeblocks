@@ -62,6 +62,14 @@ extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
 extern "C" void __wrap_gp_u_send(const char *data,int size) {
   // Broker sees the genuine ACK first; it alone advances RESET attempt state.
   __real_gp_u_send(data,size);
+  // Bounded observation of the REAL outgoing buffer, including startup/error
+  // responses. This diagnoses dispatch vs delayed completion without creating
+  // an ACK or changing its broker path. No Supervisor query is made here.
+  if(data && size>0) {
+    std::printf("GP_ROUTE_PILOT_SEND phase=%d size=%d data=%.*s\n",
+                phase,size,size<128?size:128,data);
+    std::fflush(stdout);
+  }
   if(!data || size<1 || data[size-1]!='\0')return;
   const long long now=std::llround(wb_robot_get_time()*1000);
   if(phase==1 && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK")) {

@@ -6,6 +6,7 @@ expected numeric geometry as the world, verify it here, and only then establish
 its separately attempt-bound readiness with the native flight controller.
 """
 from dataclasses import dataclass
+from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 import math
 from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
 from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as CORNER_HEIGHT
@@ -134,6 +135,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
     on cycles, unreadable nodes and oversized traversal rather than accepting
     a visually plausible scene with an extra collidable descendant.
     """
+    fields = NativeFieldLookup()
     pending = [(node, 0, False) for node in root_nodes]
     visited = 0
     models = set()
@@ -159,12 +161,12 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                 raise RuntimeError('duplicate or invalid pinned scene model')
             models.add(kind)
             if kind == 'Crazyflie':
-                field = node.getField('name')
+                field = fields.get(node, 'name')
                 if field is None or field.getSFString() != 'Crazyflie WebeeBlocks':
                     raise RuntimeError('unrecognized native vehicle')
             else:
                 _verify_floor(node, route)
-        physical = node.getField('boundingObject')
+        physical = fields.get(node, 'boundingObject')
         if physical is None and node.isProto() and not model:
             physical = node.getBaseNodeField('boundingObject')
         has_collider = physical is not None and physical.getSFNode() is not None
@@ -192,7 +194,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                                      'GP_V2_FINAL_'))):
                 raise RuntimeError('nested reserved course body: ' + name)
         for field_name in ('children', 'extensionSlot', 'choice'):
-            children = node.getField(field_name)
+            children = fields.get(node, field_name)
             if children is None and node.isProto() and not model:
                 children = node.getBaseNodeField(field_name)
             if children is not None:
@@ -202,7 +204,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                 for i in range(count):
                     pending.append((children.getMFNode(i), depth + 1, under_guide))
         for field_name in ('endPoint', 'boundingObject', 'geometry'):
-            field = node.getField(field_name)
+            field = fields.get(node, field_name)
             if field is None and node.isProto() and not model:
                 field = node.getBaseNodeField(field_name)
             if field is not None:

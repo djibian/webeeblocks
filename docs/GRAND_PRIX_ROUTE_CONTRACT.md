@@ -145,6 +145,41 @@ GUI acceptance. The native evaluator publisher, active world/Robot Window and
 the real Blockly/Save/Open journey remain required in #824/#825/#826 before a
 variable experiment can be offered.
 
+## Host observation before the first TAKEOFF
+
+Only the variable-route profile opts into the backend capability
+`simulationAdmission: true`. Generic Runtime READY remains a connection signal,
+not evidence that the evaluator has finished its continuous ground window.
+Before issuing the single TAKEOFF request, this backend waits for:
+
+```text
+WEBEEBLOCKS_RUNTIME_V2 REQUEST N ADMISSION
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE N VALUE 0
+WEBEEBLOCKS_RUNTIME_V2 RESPONSE N VALUE 1
+```
+
+Each query has one response. The route-mode native filter returns 1 only while
+idle, before admission, without a latched failure, for the current attempt and
+configuration and an exact private READY no older than 32 ms. It returns 0 when
+unavailable. This observation neither starts the mission clock nor consumes
+ALIVE, creates/rotates a challenge, clears failure, resets or moves the vehicle.
+It discloses no course, oracle result, nonce or hidden geometry to Blockly.
+The historical U controller does not gain this protocol command.
+
+The host polls at 50 ms wall intervals within one existing request-timeout
+budget, using a monotonic clock. Missing/malformed/unsupported responses fail
+closed; they never cause an automatic TAKEOFF retry. STOP, RESET and controller
+startup invalidate the captured backend epoch, including the gap between a
+positive answer and sending TAKEOFF. Only read requests may repeat. The actual
+native `gp_u_start` still rechecks its private current READY at the physical
+effect boundary; a positive host answer is never execution authority.
+
+Controlled WWI/timer tests exercise bounded waiting, cancellation and one-shot
+effects; controlled-channel C++ tests exercise the real filter, epoch/freshness
+and non-consumption. Neither establishes a GUI, native flight or Linux file
+dialog PASS. An inactive/missing publisher remains unavailable, including in
+an explicitly inert editor sandbox.
+
 ## Flight-owned device observations
 
 The flight controller additionally owns the **`model` SFString of the plain
@@ -250,3 +285,24 @@ courses, a successful pupil mission or Linux GUI acceptance. Before offering the
 variable launcher, qualify those remaining paths, reconfiguration and the real
 same-file Blockly Save/Open workflow. The Linux launcher deliberately remains
 gated; no expert solution or new pupil block is supplied by this publisher.
+
+### Live scene-check cost and native diagnostics
+
+The publisher still executes the entire scene/collider check at every 8-ms
+observation. `NativeFieldLookup` avoids probes of nonexistent fields on
+non-PROTO built-ins by enumerating their field declarations once per type
+**within that check only**. No schema survives to the next check. Real field
+values, SFNode/MFNode edges, counts, poses and provenance are still read; no
+scene-validation result or authority is cached. PROTO exposed/internal fields
+retain their original lookup path. Invalid enumeration fails closed.
+
+This addresses the pinned R2025a C API's uncached negative `get_field` path:
+[supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
+The controlled test proves avoided absent lookups and preserved live mutation
+refusals, **not** a measured native speedup. The required real publisher witness
+must still pass within its unchanged 120-second per-case wall budget.
+
+The isolated witness retains per-tick wall elapsed time, tick wall duration and
+native observed position, plus the actual outgoing pilot response buffer after
+broker forwarding. These are diagnostics only, not substitutes for the original
+JSON/stdout/exit, TAKEOFF/independent LAND/RESET or fresh native authority proofs.

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 sys.path.insert(0, os.environ['GP_ROUTE_EVALUATOR_SOURCE'])
 from controller import Supervisor
@@ -29,6 +30,7 @@ def witness():
                           if mode == 'idle' else 'native-route-evaluator-flight-service-loss-LAND-RESET-no-pupil-program'),
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
     phase = 'waiting'
+    wall_started = time.monotonic()
     restored_ticks = 0
     service_lost = False
     first_context = None
@@ -55,13 +57,19 @@ def witness():
         robot.simulationQuit(0)
 
     while robot.step(8) != -1:
+        tick_started = time.monotonic()
         if not service_lost:
             evaluator.tick()
+        tick_wall = time.monotonic() - tick_started
         now = round(robot.getTime() * 1000)
         description = robot.getSelf().getField('description').getSFString()
         with trace.open('a') as log:
             log.write(json.dumps(dict(time_ms=now, phase=evaluator.phase,
-                                      error=evaluator.last_error)) + '\n')
+                                      error=evaluator.last_error,
+                                      wall_elapsed_s=time.monotonic() - wall_started,
+                                      tick_wall_s=tick_wall,
+                                      position=(evaluator.observation.kinematics.position
+                                                if evaluator.observation is not None else None))) + '\n')
         if now > (4000 if mode == 'idle' else 30000):
             raise RuntimeError('native READY/refusal witness incomplete: ' + evaluator.phase)
         if phase == 'waiting' and evaluator.phase == 'ready':

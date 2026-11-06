@@ -60,6 +60,8 @@
       capabilities.simulationStop = true;
     if (options && options.simulationScenes === true)
       capabilities.simulationScenes = true;
+    if (options && options.simulationAdmission === true)
+      capabilities.simulationAdmission = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -94,7 +96,7 @@
     });
   };
 
-  RuntimeV2WwiBackend.prototype._request = function(parts) {
+  RuntimeV2WwiBackend.prototype._request = function(parts, waitMs) {
     var self = this;
     var sceneNonce = null;
     if (parts[0] === 'SCENE') {
@@ -107,14 +109,21 @@
       sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       parts = parts.concat([sceneNonce]);
     }
+    var requestTimeout = this.timeoutMs;
+    if (waitMs !== undefined) {
+      if (!Number.isFinite(waitMs) || waitMs <= 0)
+        return Promise.reject(new RuntimeV2BackendError('ADMISSION_UNAVAILABLE'));
+      requestTimeout = Math.min(requestTimeout, waitMs);
+    }
     var id = this.nextId++;
     return new Promise(function(resolve, reject) {
       var timer = setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
-      }, self.timeoutMs);
-      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
+      }, requestTimeout);
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce,
+        admission: parts[0] === 'ADMISSION'};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -122,6 +131,17 @@
         delete self.pending[id];
         reject(error);
       }
+    });
+  };
+
+  RuntimeV2WwiBackend.prototype._cancelAdmissionRequests = function(code) {
+    var self = this;
+    Object.keys(this.pending).forEach(function(id) {
+      var request = self.pending[id];
+      if (!request.admission) return;
+      delete self.pending[id];
+      clearTimeout(request.timer);
+      request.reject(new RuntimeV2BackendError(code));
     });
   };
 
@@ -149,6 +169,7 @@
       // No scene identity survives that liveness message as positive evidence.
       if (startupReady) {
         this.timeObservationEpoch += 1;
+        this._cancelAdmissionRequests('RESET_CANCELLED');
         if (this.ready) this._cancelPendingForReset();
         this.sceneIdentity = null;
       }
@@ -213,7 +234,61 @@
     return oracle;
   };
 
-  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { this.timeObservationEpoch += 1; return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype._waitForAdmission = function(epoch) {
+    var self = this, previous = -Infinity;
+    function clock() {
+      if (typeof performance === 'undefined' || typeof performance.now !== 'function')
+        throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+      var now = performance.now();
+      if (!Number.isFinite(now) || now < previous)
+        throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+      previous = now;
+      return now;
+    }
+    function current() {
+      if (self.simulationStopped) throw new RuntimeV2BackendError('USER_STOPPED');
+      if (self.timeObservationEpoch !== epoch) throw new RuntimeV2BackendError('RESET_CANCELLED');
+      if (!self.ready) throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+    }
+    var deadline;
+    try {
+      current();
+      if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0)
+        throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+      deadline = clock() + this.timeoutMs;
+    } catch (error) { return Promise.reject(error); }
+    function poll() {
+      current();
+      var remaining = deadline - clock();
+      if (remaining <= 0) throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+      return self._request(['ADMISSION'], remaining).then(function(value) {
+        current();
+        var left = deadline - clock();
+        if (left <= 0) throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+        if (value === 1) return;
+        if (value !== 0) throw new RuntimeV2BackendError('ADMISSION_UNAVAILABLE');
+        return new Promise(function(resolve) {
+          setTimeout(resolve, Math.min(50, left));
+        }).then(poll);
+      });
+    }
+    return Promise.resolve().then(poll);
+  };
+
+  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) {
+    this.timeObservationEpoch += 1;
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    var parts = ['TAKEOFF', Number(heightM).toPrecision(17)];
+    if (!this.capabilities.simulationAdmission) return this._request(parts);
+    var self = this, epoch = this.timeObservationEpoch;
+    return this._waitForAdmission(epoch).then(function() {
+      // A positive peek never authorizes an effect after STOP/RESET/restart.
+      if (self.simulationStopped) throw new RuntimeV2BackendError('USER_STOPPED');
+      if (self.timeObservationEpoch !== epoch) throw new RuntimeV2BackendError('RESET_CANCELLED');
+      return self._request(parts); // Exactly once; the native guard rechecks READY.
+    });
+  };
   RuntimeV2WwiBackend.prototype.prepareActivity = function(profile) {
     if (!this.capabilities.simulationScenes)
       return Promise.reject(new Error('Runtime v2 simulation scenes unavailable'));
@@ -315,6 +390,7 @@
       return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
     this.timeObservationEpoch += 1;
     this.simulationStopped = true;
+    this._cancelAdmissionRequests('USER_STOPPED');
     this.sceneIdentity = null;
     return this._request(['STOP']);
   };

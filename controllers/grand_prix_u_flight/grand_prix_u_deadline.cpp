@@ -252,6 +252,27 @@ extern "C" int gp_u_filter_raw(const char *message) {
     }
     return 0;
   }
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // Host-only, non-actuating readiness peek. Do not consume ALIVE, rotate an
+  // epoch, start an attempt or disclose the private evaluator context to WWI.
+  const std::string queryPrefix="WEBEEBLOCKS_RUNTIME_V2 REQUEST ";
+  if(message && !std::strncmp(message,queryPrefix.c_str(),queryPrefix.size())) {
+    const std::string query=message+queryPrefix.size();
+    const auto separator=query.find(' ');
+    int queryId=0;
+    if(separator!=std::string::npos && query.substr(separator)==" ADMISSION" &&
+       canonicalNumber(query.substr(0,separator),queryId) && queryId>0) {
+      unsigned long long current=0;long long now=0;
+      const bool available=begin<0 && !expired && fileIdle &&
+        currentAttempt(current) && current==routeAttempt &&
+        routeTime(wb_robot_get_time(),now) && freshRouteEvidence("READY",now);
+      char reply[128];
+      std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d VALUE %d",
+                    queryId,available?1:0);
+      wb_robot_wwi_send_text(reply);return 0;
+    }
+  }
+#endif
   int id=-1;char cmd[32]={0};
   const bool parsed=message && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,cmd)==2;
   // Also fence RESET after an abnormal termination before the deadline.

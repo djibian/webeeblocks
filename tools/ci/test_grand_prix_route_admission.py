@@ -92,7 +92,35 @@ void oneLand(){
  assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
  vehicle=achieved;assert(gp_u_deadline(now+0.032,1)==0);assert(vehicle==failed);
 }
+void query(int expected){
+ const std::string beforeRequest=request,beforeEvidence=evidence,beforeSample=sample;
+ assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 ADMISSION")==0);
+ assert(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 91 VALUE "+std::to_string(expected));
+ assert(request==beforeRequest && evidence==beforeEvidence && sample==beforeSample);
+}
 int main(){
+ // ADMISSION observes only the current native READY; it never creates authority.
+ fresh();query(0);assert(request==challenge);ready();query(1);query(1);
+ assert(vehicle=="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+ now=2.144;query(1);now=2.145;query(0);now=2.111;query(0);
+ now=std::numeric_limits<double>::quiet_NaN();query(0);now=2.112;query(1);
+ present=false;query(0);present=true;description=false;query(0);description=true;
+ config="gp-route-v2-L2000-2500-3000-TDG-s17-H2";query(0);config=canonical;
+ vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";query(0);
+ vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1";query(1);
+ assert(gp_u_start(now)==1);query(0); // peek did not consume READY or start the clock
+ alive(2144);query(0);assert(gp_u_deadline(now,0)==0); // peek never consumes ALIVE
+ fresh();ready();std::string peekStale=evidence;gp_u_reset_complete();gp_u_file_idle(1);
+ evidence=peekStale;query(0); // old epoch is refused even at the same timestamp/attempt
+ fresh();ready();gp_u_file_idle(0);query(0);
+ fresh();assert(gp_u_start(now)==0);ready();query(0); // failed admission stays unavailable
+ for(const char* raw:{"WEBEEBLOCKS_RUNTIME_V2 REQUEST 0 ADMISSION",
+                     "WEBEEBLOCKS_RUNTIME_V2 REQUEST -1 ADMISSION",
+                     "WEBEEBLOCKS_RUNTIME_V2 REQUEST 091 ADMISSION",
+                     "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2147483648 ADMISSION",
+                     "WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 ADMISSION extra"}){
+  fresh();ready();reply.clear();assert(gp_u_filter_raw(raw)==1);assert(reply.empty());
+ }
  // Presence, identity strings and a leftover READY never establish admission.
  fresh();assert(gp_u_start(now)==0);
  fresh();ready();present=false;assert(gp_u_start(now)==0);
