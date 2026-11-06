@@ -75,9 +75,14 @@ def check_native(result, course):
         raise RuntimeError("native terminal H ray evidence missing")
 
 
-def native_run(home, indexes):
-    OUT.mkdir(parents=True, exist_ok=True)
-    invocation = Path(tempfile.mkdtemp(prefix="invocation-", dir=OUT)).resolve()
+def native_run(home, indexes, *, output_root=None):
+    # Allow the required CI campaign to retain complete H evidence inside its
+    # existing always-uploaded geometry artifact; keep manual runs unchanged.
+    destination = OUT if output_root is None else Path(output_root)
+    destination.mkdir(parents=True, exist_ok=True)
+    invocation = Path(tempfile.mkdtemp(prefix="invocation-", dir=destination)).resolve()
+    # R2025a CI runs as root in Docker; host Actions must read the evidence.
+    invocation.chmod(0o755)
     print("GP_V2_H_NATIVE_RUN_DIR " + str(invocation), flush=True)
     version = home / "resources/version.txt"
     executable = home / "webots"
@@ -146,6 +151,8 @@ def native_run(home, indexes):
             dir=invocation, encoding="utf-8", delete=False) as tmp:
         pending = Path(tmp.name)
         tmp.write(json.dumps(summary, indent=2) + "\n")
+    # tempfile uses mode 0600 inside the container, hidden from the uploader.
+    pending.chmod(0o644)
     try:
         os.replace(pending, invocation / "summary.json")
     finally:
