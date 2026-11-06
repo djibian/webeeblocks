@@ -109,11 +109,33 @@ class RequiredNativeHRayTests(unittest.TestCase):
             records.append(dict(target=body.name, target_node_id=100+index,
                                 passage=passage, free=samples(False),
                                 collision=samples(True)))
+        posts = {box.name: box for box in open_h_boxes(course)}
+        uprights = []
+        for gate in course.gates:
+            for part in ("LEFT", "RIGHT"):
+                body = posts[f"GP_V2_H_{gate.leg_index}_{part}"]
+                post_id = 200 + len(uprights)
+                def samples_for_post(collision):
+                    nonlocal now
+                    points = []
+                    for _ in range(3):
+                        now += 8
+                        xyz = [body.x, body.y, .40]
+                        points.append(dict(time_ms=now,
+                            contacts=[dict(node_id=3, point=xyz)] if collision else [],
+                            target_contacts=[dict(node_id=post_id, point=xyz)]
+                            if collision else []))
+                    return points
+                uprights.append(dict(target=body.name, target_node_id=post_id,
+                                     free=samples_for_post(False),
+                                     collision=samples_for_post(True)))
         fake = dict(contact_source="Robot+Solid.getContactPoints R2025a",
-                    contact_witnesses=records)
+                    contact_witnesses=records, post_witnesses=uprights)
         h_runner.check_contacts(fake, course)
         for mutation in ("absent", "missing", "foreign-id", "replay",
-                         "missing-hit", "false-passage", "outside-panel"):
+                         "missing-hit", "false-passage", "outside-panel",
+                         "missing-upright", "upright-id-reuse",
+                         "upright-false-passage", "upright-missing-hit"):
             with self.subTest(mutation=mutation):
                 record = copy.deepcopy(fake)
                 if mutation == "absent":
@@ -133,6 +155,16 @@ class RequiredNativeHRayTests(unittest.TestCase):
                 elif mutation == "outside-panel":
                     for sample in record["contact_witnesses"][-1]["collision"]:
                         sample["target_contacts"][0]["point"][2] = 2.
+                elif mutation == "missing-upright":
+                    record["post_witnesses"].pop()
+                elif mutation == "upright-id-reuse":
+                    record["post_witnesses"][0]["target_node_id"] = 100
+                elif mutation == "upright-false-passage":
+                    record["post_witnesses"][0]["free"][0]["contacts"] = [
+                        dict(node_id=3, point=[0., 0., .40])]
+                elif mutation == "upright-missing-hit":
+                    for sample in record["post_witnesses"][0]["collision"]:
+                        sample["target_contacts"] = []
                 with self.assertRaises(RuntimeError):
                     h_runner.check_contacts(record, course)
 
