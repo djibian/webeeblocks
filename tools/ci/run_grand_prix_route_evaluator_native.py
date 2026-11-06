@@ -96,6 +96,8 @@ def run_case(home, env, mode):
             flight.mkdir()
             shutil.copy2(ROOT / 'controllers/grand_prix_route_publisher_probe/grand_prix_route_publisher_probe',
                          flight / 'grand_prix_route_flight')
+            shutil.copy2(ROOT / 'controllers/grand_prix_route_flight/runtime.ini',
+                         flight / 'runtime.ini')
         (project / 'plugins').symlink_to(ROOT / 'plugins', target_is_directory=True)
         evaluator = controllers / 'grand_prix_route_evaluator'
         evaluator.mkdir()
