@@ -131,6 +131,40 @@ class VariableTerminalTests(unittest.TestCase):
             static_course_world(CoursePlan(plan.route, plan.gates[:-1],
                                            plan.count))
 
+    def test_variable_landing_targets_have_accepted_checkered_visuals(self):
+        # Reuse the historical U's green-bordered black/white 4x4 mark,
+        # independently of the final leg heading. This is host-only geometry.
+        from tools.grand_prix.course_static_world_v2 import static_course_world
+        from tools.grand_prix.route_courses_v2 import reference_course
+
+        for index in range(12):
+            course = reference_course(index)
+            lines = static_course_world(course).splitlines()
+            with self.subTest(configuration=course.identifier):
+                self.assertEqual(sum(
+                    line.startswith('DEF GP_ROUTE_TARGET_') for line in lines), 51)
+                for number, (x, y) in enumerate(landing_targets(course.route), start=1):
+                    tiles = [line for line in lines if line.startswith(
+                        f'DEF GP_ROUTE_TARGET_{number}_CELL_')]
+                    self.assertEqual(len(tiles), 16)
+                    self.assertEqual(sum('baseColor .06 .06 .06' in line
+                                         for line in tiles), 8)
+                    self.assertEqual(sum('baseColor .96 .96 .96' in line
+                                         for line in tiles), 8)
+                    for col in range(4):
+                        for row in range(4):
+                            prefix = f'DEF GP_ROUTE_TARGET_{number}_CELL_{col}_{row} Pose'
+                            expected = [line for line in tiles
+                                        if line.startswith(prefix + ' {')]
+                            self.assertEqual(len(expected), 1)
+                            tile = expected[0]
+                            tx = x - .125 + (col + .5) * .0625
+                            ty = y - .125 + (row + .5) * .0625
+                            self.assertIn(
+                                f'translation {tx:.6f} {ty:.6f} .0042', tile)
+                            self.assertIn('size .0625 .0625 .0002', tile)
+                            self.assertNotIn('boundingObject', tile)
+
     def test_unrelated_objects_cannot_be_mistaken_for_routes(self):
         for value in (None, False, (), object()):
             with self.assertRaises(TypeError):
