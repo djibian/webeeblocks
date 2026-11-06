@@ -248,6 +248,65 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, 2)
 
 
+    def test_custom_course_id_reuses_full_inert_canonical_world(self):
+        from tools.grand_prix.route_courses_v2 import plan_course, course_from_identifier
+        from tools.grand_prix import inspect_static_linux as preview
+        course = plan_course(17, (2.0, 2.5, 3.0), ('G', 'D'), 2)
+        identifier, world = preview.render_identifier(course.identifier)
+        self.assertEqual(identifier, course.identifier)
+        self.assertEqual(course_from_identifier(identifier), course)
+        self.assertIn('Grand Prix STATIC ' + identifier, world)
+        self.assertEqual(world.count('DEF GP_V2_L_'), 4)
+        self.assertEqual(world.count('DEF GP_V2_H_'), 6)
+        self.assertEqual(world.count('DEF GP_V2_FINAL_'), 4)
+        self.assertEqual(world.count('controller "<none>"'), 1)
+        self.assertEqual(world.count('window "<none>"'), 1)
+        self.assertNotIn('GP_ROUTE_EVALUATOR', world)
+        for rejected in (None, True, 'gp-u-v1', identifier + '-alias',
+                         identifier.replace('-H2', '-H4')):
+            with self.subTest(rejected=rejected), self.assertRaises(ValueError):
+                preview.render_identifier(rejected)
+
+    def test_custom_course_id_cli_rejects_ambiguous_or_forged_input(self):
+        from tools.grand_prix.route_courses_v2 import reference_course
+        from tools.grand_prix import inspect_static_linux as preview
+        identity = reference_course(5).identifier
+        for args in ([], ['--index', '5', '--course-id', identity]):
+            with self.subTest(args=args), self.assertRaises(SystemExit) as error:
+                preview.main(args)
+            self.assertEqual(error.exception.code, 2)
+        with mock.patch.dict(os.environ, {'DISPLAY': ':99'}), \
+             mock.patch.object(preview, 'webots_home') as home:
+            self.assertEqual(preview.main(['--course-id', identity + '-alias']), 1)
+            home.assert_not_called()
+
+    def test_custom_course_id_cli_opens_paused_inert_world_and_cleans_up(self):
+        from tools.grand_prix.route_courses_v2 import plan_course
+        from tools.grand_prix import inspect_static_linux as preview
+        course = plan_course(17, (2., 2.5, 3.), ('G', 'D'), 2)
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            (directory / 'worlds').mkdir()
+            observed = {}
+            def launch(_home, world, _env):
+                observed['text'] = world.read_text(encoding='utf-8')
+                observed['world'] = world
+                return mock.Mock(returncode=0)
+            with mock.patch.dict(os.environ, {'DISPLAY': ':99'}), \
+                 mock.patch.object(preview, 'ROOT', directory), \
+                 mock.patch.object(preview, 'webots_home', return_value=directory) as home, \
+                 mock.patch.object(preview, 'ensure_webots_assets', return_value=12), \
+                 mock.patch.object(preview, 'launch_graphical', side_effect=launch) as gui:
+                self.assertEqual(preview.main(['--course-id', course.identifier]), 0)
+            home.assert_called_once_with(None)
+            gui.assert_called_once()
+            self.assertIn('Grand Prix STATIC ' + course.identifier, observed['text'])
+            self.assertNotIn('GP_ROUTE_EVALUATOR', observed['text'])
+            self.assertIn('controller "<none>"', observed['text'])
+            self.assertFalse(observed['world'].exists())
+            self.assertFalse(observed['world'].with_name(
+                '.' + observed['world'].stem + '.wbproj').exists())
+
     def test_static_inspection_direct_script_imports_from_any_cwd_without_pythonpath(self):
         from tools.grand_prix import inspect_static_linux as preview
         import subprocess
