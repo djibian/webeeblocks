@@ -7,6 +7,7 @@ with true sensor evidence, and do not run alongside non-isolated experiments.
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -17,10 +18,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.grand_prix.course_static_world_v2 import static_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
+from tools.grand_prix.route_open_h_v2 import open_h_boxes
+from tools.grand_prix.route_terminal_v2 import terminal_boxes
 
 DEFAULT_INDICES = (0, 5, 6, 11)
 OUT = ROOT / "ci-artifacts/grand-prix-v2-h-native"
-CLAIM = "full-course-native-H-rays-no-flight-no-contact"
+CLAIM = "full-course-native-H-rays-and-contact-no-flight"
 DIRECTIONS = {"front", "back", "left", "right"}
 
 
@@ -75,6 +78,77 @@ def check_native(result, course):
         raise RuntimeError("native terminal H ray evidence missing")
 
 
+def check_contacts(result, course):
+    """Require real beam and terminal collisions plus physically free open H."""
+    beams = {box.name: box for box in open_h_boxes(course)}
+    boxes = [beams[f"GP_V2_H_{gate.leg_index}_BEAM"]
+             for gate in course.gates]
+    boxes.append(next(box for box in terminal_boxes(course.route)
+                      if box.name == "GP_V2_FINAL_PANEL"))
+    witnesses = result.get("contact_witnesses") if type(result) is dict else None
+    if (result.get("contact_source") != "Robot+Solid.getContactPoints R2025a" or
+            type(witnesses) is not list or len(witnesses) != len(boxes)):
+        raise RuntimeError("missing native H physical contact witness")
+    used_ids = set()
+    last_ms = -1
+    for index, (box, record) in enumerate(zip(boxes, witnesses)):
+        if (type(record) is not dict or set(record) !=
+                {"target", "target_node_id", "passage", "free", "collision"} or
+                record["target"] != box.name or
+                type(record["target_node_id"]) is not int or
+                record["target_node_id"] <= 0 or
+                record["target_node_id"] in used_ids):
+            raise RuntimeError("wrong native H collider identity")
+        used_ids.add(record["target_node_id"])
+        if (index == len(boxes) - 1 and record["passage"] is not None):
+            raise RuntimeError("terminal H must not assert open passage")
+        phases = ("free", "collision") if index == len(boxes) - 1 else (
+            "passage", "free", "collision")
+        observed_hit = False
+        for phase in phases:
+            observations = record[phase]
+            if type(observations) is not list or len(observations) != 3:
+                raise RuntimeError("incomplete native H physical contact phase")
+            for sample in observations:
+                if (type(sample) is not dict or set(sample) !=
+                        {"time_ms", "contacts", "target_contacts"} or
+                        type(sample["time_ms"]) is not int or
+                        sample["time_ms"] <= last_ms or
+                        sample["time_ms"] % 8 or
+                        type(sample["contacts"]) is not list or
+                        type(sample["target_contacts"]) is not list or
+                        len(sample["contacts"]) > 2048 or
+                        len(sample["target_contacts"]) > 2048):
+                    raise RuntimeError("stale or malformed native H contact tick")
+                last_ms = sample["time_ms"]
+                for point in sample["contacts"] + sample["target_contacts"]:
+                    if (type(point) is not dict or set(point) != {"point", "node_id"} or
+                            type(point["node_id"]) is not int or
+                            not -(2**31) <= point["node_id"] < 2**31 or
+                            type(point["point"]) is not list or
+                            len(point["point"]) != 3 or
+                            any(type(v) not in (int, float) or
+                                not math.isfinite(v) for v in point["point"])):
+                        raise RuntimeError("invalid native H contact point")
+                if phase != "collision":
+                    if sample["contacts"] or sample["target_contacts"]:
+                        raise RuntimeError("native open H passage/baseline not free")
+                    continue
+                for point in sample["target_contacts"]:
+                    if point["node_id"] != record["target_node_id"]:
+                        raise RuntimeError("native H Solid contact own ID mismatch")
+                    xyz = point["point"]
+                    if (abs(xyz[0] - box.x) > box.sx / 2 + .002 or
+                            abs(xyz[1] - box.y) > box.sy / 2 + .002 or
+                            abs(xyz[2] - box.z) > box.sz / 2 + .002):
+                        raise RuntimeError("native H contact outside physical Box")
+                    if any(math.dist(xyz, own["point"]) <= 1e-6
+                           for own in sample["contacts"]):
+                        observed_hit = True
+        if not observed_hit:
+            raise RuntimeError("reciprocal native H physical contact absent")
+
+
 def native_run(home, indexes, *, output_root=None):
     # Allow the required CI campaign to retain complete H evidence inside its
     # existing always-uploaded geometry artifact; keep manual runs unchanged.
@@ -126,6 +200,7 @@ def native_run(home, indexes, *, output_root=None):
             contents = proof.read_bytes()
             record = json.loads(contents)
             check_native(record, course)
+            check_contacts(record, course)
             witness = "GP_V2_H_NATIVE " + json.dumps(record, allow_nan=False,
                                                       sort_keys=True)
             if witness not in logs.splitlines():
@@ -134,7 +209,7 @@ def native_run(home, indexes, *, output_root=None):
                                  world_sha256=hashlib.sha256(source.encode()).hexdigest(),
                                  evidence_file=str(proof.relative_to(invocation)),
                                  evidence_sha256=hashlib.sha256(contents).hexdigest()))
-            print("PASS native H rays (not contacts/flight) " +
+            print("PASS native H rays, passage and beam/panel contact (not flight) " +
                   course.identifier, flush=True)
         finally:
             if process is not None and process.poll() is None:
