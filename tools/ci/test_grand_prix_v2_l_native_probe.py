@@ -162,6 +162,208 @@ class NativeLProbePreparationTests(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 h_runner.probe_scene(index)
 
+    def test_native_contact_full_course_scene_uses_unpowered_proto(self):
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        for index in contact.DEFAULT_INDICES:
+            with self.subTest(index=index):
+                course = reference_course(index)
+                world = contact.probe_scene(index)
+                self.assertEqual(world.count('controller "grand_prix_v2_contact_probe"'), 1)
+                self.assertIn('window "<none>"', world)
+                self.assertNotIn('GP_ROUTE_EVALUATOR', world)
+                self.assertNotIn('grand_prix_route_flight', world)
+                self.assertEqual(world.count('DEF GP_V2_L_'), 4)
+                self.assertEqual(world.count('DEF GP_V2_H_'), 3 * course.count)
+                self.assertEqual(world.count('DEF GP_V2_FINAL_'), 4)
+        for invalid in (-1, 12, True, '5'):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                contact.probe_scene(invalid)
+
+    def test_native_contact_output_requires_real_node_id_hit_and_clock(self):
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        from tools.grand_prix.route_solid_v2 import corner_boxes
+        course = reference_course(5)
+        box = corner_boxes(course.route)[0]
+        def tick(ms, points, target_points=None):
+            return dict(time_ms=ms, contacts=points,
+                        target_contacts=[] if target_points is None else target_points)
+        hit = dict(node_id=23, point=[box.x, box.y, .65])
+        own = dict(node_id=8, point=[box.x, box.y, .65])
+        base = dict(claim=contact.CLAIM, configuration=course.identifier,
+                    webots='R2025a', timestep_ms=8,
+                    source='Robot.getContactPoints(includeDescendants=True)',
+                    target_source='Solid.getContactPoints(includeDescendants=False)',
+                    target=box.name, target_node_id=23,
+                    free=[tick(8, []), tick(16, []), tick(24, [])],
+                    collision=[tick(32, [own], [hit]), tick(40, []), tick(48, [])])
+        # Host-shaped fakes are only parser tests; they are never native proof.
+        contact.check_native(base, course)
+        import copy
+        for mutation in ('missing', 'stale', 'spoofed', 'nan', 'wrong-course',
+                         'wrong-source', 'free-hit', 'free-foreign-contact',
+                         'missing-reciprocal', 'unmatched-point', 'old-partner-id-assumption'):
+            with self.subTest(mutation=mutation):
+                bad = copy.deepcopy(base)
+                if mutation == 'missing':
+                    bad['collision'][0]['contacts'] = []
+                elif mutation == 'stale':
+                    bad['collision'][0]['time_ms'] = 24
+                elif mutation == 'spoofed':
+                    bad['collision'][0]['target_contacts'][0]['node_id'] = 9
+                elif mutation == 'nan':
+                    bad['collision'][0]['contacts'][0]['point'][0] = float('nan')
+                elif mutation == 'wrong-course':
+                    bad['configuration'] = reference_course(1).identifier
+                elif mutation == 'wrong-source':
+                    bad['source'] = 'synthetic geometry'
+                elif mutation == 'free-hit':
+                    bad['free'][0]['contacts'].append(hit)
+                elif mutation == 'free-foreign-contact':
+                    bad['free'][0]['contacts'].append(
+                        dict(node_id=99, point=[0., 0., .65]))
+                elif mutation == 'missing-reciprocal':
+                    bad['collision'][0]['target_contacts'] = []
+                elif mutation == 'unmatched-point':
+                    bad['collision'][0]['contacts'][0]['point'][0] += .01
+                elif mutation == 'old-partner-id-assumption':
+                    # The old impossible proof accepted partner IDs on the
+                    # vehicle alone; it must not substitute for a Solid read.
+                    bad['collision'][0]['contacts'] = [hit]
+                    bad['collision'][0]['target_contacts'] = []
+                with self.assertRaises(RuntimeError):
+                    contact.check_native(bad, course)
+
+    def test_native_contact_runner_refuses_zero_exit_without_native_bytes(self):
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as temp:
+            base = Path(temp)
+            home = base / 'webots'
+            (home / 'resources').mkdir(parents=True)
+            (home / 'resources/version.txt').write_text('R2025a\n')
+            (home / 'webots').write_text('stub')
+            (home / 'webots').chmod(0o755)
+            out = base / 'evidence'
+            with patch.object(contact, 'OUT', out), \
+                 patch.object(contact.subprocess, 'Popen') as spawned:
+                spawned.return_value.wait.return_value = 0
+                spawned.return_value.poll.return_value = 0
+                with self.assertRaisesRegex(RuntimeError, 'missing native contact output'):
+                    contact.native_run(home, (5,))
+            self.assertEqual(len(list(out.glob('invocation-*'))), 1)
+            self.assertFalse(list(out.glob('invocation-*/summary.json')))
+
+    def test_contact_producer_reads_both_bodies_with_r2025a_own_ids(self):
+        # Execute the real producer against API-shaped contacts. R2025a sends
+        # each queried body's OWN ID, not its collision partner's ID. This
+        # checks Python composition only, never native physics qualification.
+        import contextlib
+        import io
+        import runpy
+        import sys
+        from types import SimpleNamespace
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        from tools.grand_prix.route_solid_v2 import corner_boxes
+        course = reference_course(5)
+        box = corner_boxes(course.route)[0]
+        state = dict(time_ms=0, position=[0., 0., .65])
+        translation, rotation = Mock(), Mock()
+        translation.setSFVec3f.side_effect = lambda value: state.update(position=value)
+        vehicle, collider, robot = Mock(), Mock(), Mock()
+        vehicle.getTypeName.return_value = 'Crazyflie'
+        vehicle.getField.side_effect = lambda key: {
+            'translation': translation, 'rotation': rotation}[key]
+        collider.getTypeName.return_value = 'Solid'
+        collider.getId.return_value = 23
+        def contacts(node_id):
+            if state['position'][0] == box.x and state['position'][1] == box.y:
+                return [SimpleNamespace(point=[box.x, box.y, .65], node_id=node_id)]
+            return []
+        vehicle.getContactPoints.side_effect = lambda **kw: contacts(8)
+        collider.getContactPoints.side_effect = lambda **kw: contacts(23)
+        robot.getBasicTimeStep.return_value = 8
+        robot.getSelf.return_value = vehicle
+        robot.getFromDef.return_value = collider
+        def step(period):
+            state['time_ms'] += period
+            return 0
+        robot.step.side_effect = step
+        robot.getTime.side_effect = lambda: state['time_ms'] / 1000
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / 'native.json'
+            with patch.dict(sys.modules, {'controller': SimpleNamespace(Supervisor=lambda: robot)}), \
+                 patch.dict('os.environ', GP_V2_CONTACT_INDEX='5', GP_V2_CONTACT_OUT=str(output)), \
+                 patch('tools.grand_prix.native_collider_contract_v2.verify_native_boxes'), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                producer = runpy.run_path(str(contact.ROOT /
+                    'controllers/grand_prix_v2_contact_probe/grand_prix_v2_contact_probe.py'))
+                producer['witness']()
+            record = json.loads(output.read_text())
+            contact.check_native(record, course)
+            self.assertEqual(record['collision'][0]['contacts'][0]['node_id'], 8)
+            self.assertEqual(record['collision'][0]['target_contacts'][0]['node_id'], 23)
+            self.assertEqual(vehicle.getContactPoints.call_count, 6)
+            self.assertEqual(collider.getContactPoints.call_count, 6)
+            collider.getContactPoints.assert_called_with(includeDescendants=False)
+            robot.simulationQuit.assert_called_once_with(0)
+
+    def test_native_contact_failure_refutes_required_geometry_campaign(self):
+        # Actual campaign orchestration with only native executors replaced:
+        # a missing mixed-GD contact must fail after the historical probes,
+        # before the campaign digest can be published. No native PASS claimed.
+        from tools.ci import run_grand_prix_u_geometry as geometry
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        import sys
+        from types import SimpleNamespace
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            home = root / 'webots'
+            (home / 'resources').mkdir(parents=True)
+            (home / 'resources/version.txt').write_text('R2025a\n')
+            (home / 'bin').mkdir()
+            (home / 'bin/webots-bin').write_bytes(b'host fake, not Webots')
+            out = root / 'evidence'
+            deadline = Mock()
+            with patch.object(geometry, 'OUT', out), \
+                 patch.object(geometry, 'cases', return_value=[]), \
+                 patch.dict(sys.modules, {'run_grand_prix_u_deadline_native':
+                            SimpleNamespace(run_native=deadline)}), \
+                 patch.object(contact, 'native_run', side_effect=RuntimeError(
+                     'real L collider node-ID contact not observed')) as native:
+                with self.assertRaisesRegex(RuntimeError, 'contact not observed'):
+                    geometry.run_native(home)
+            deadline.assert_called_once_with(home)
+            native.assert_called_once_with(home, (5,))
+            self.assertFalse((out / 'sha256.json').exists())
+        self.assertEqual(contact.OUT.parent, geometry.OUT)
+
+    def test_contact_producer_seals_native_failure_before_simulation_quit(self):
+        # A native non-zero exit may retire the controller before Webots
+        # forwards stderr. Keep the original exception in a host-readable
+        # failure artifact, but NEVER write a successful native witness.
+        import contextlib
+        import io
+        import runpy
+        import sys
+        from types import SimpleNamespace
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / 'case' / 'native.json'
+            robot = Mock()
+            robot.getBasicTimeStep.side_effect = RuntimeError('forced native probe fault')
+            with patch.dict(sys.modules, {'controller': SimpleNamespace(Supervisor=lambda: robot)}), \
+                 patch.dict('os.environ', GP_V2_CONTACT_INDEX='5', GP_V2_CONTACT_OUT=str(output)), \
+                 contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, 'forced native probe fault'):
+                    runpy.run_path(str(contact.ROOT /
+                        'controllers/grand_prix_v2_contact_probe/grand_prix_v2_contact_probe.py'),
+                        run_name='__main__')
+            failure = output.with_suffix('.failure.log')
+            self.assertTrue(failure.is_file())
+            self.assertIn('RuntimeError: forced native probe fault', failure.read_text())
+            self.assertFalse(output.exists(), 'fatal trace must not count as native evidence')
+            robot.simulationQuit.assert_called_once_with(1)
+
     def test_index_outside_reference_set_rejected(self):
         for index in (-1, 12, None, '5'):
             with self.subTest(index=index), self.assertRaises(ValueError):
