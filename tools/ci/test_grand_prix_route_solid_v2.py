@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.route_v2 import WIDTH, build_route
 from tools.grand_prix.route_solid_v2 import corner_boxes, static_world, visual_guides, THICKNESS, HEIGHT
+from tools.ci.test_grand_prix_v2_l_native_file_ownership import NativeLArtifactFileTests  # noqa: F401
 
 
 class CornerSolidTests(unittest.TestCase):
