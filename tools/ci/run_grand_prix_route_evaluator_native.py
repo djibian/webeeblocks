@@ -1,4 +1,4 @@
-"""Mandatory real R2025a idle admission/refusal; no flight or pupil program."""
+"""Mandatory R2025a READY/refusal and real-pilot LAND/RESET; no pupil program."""
 import hashlib
 import json
 import math

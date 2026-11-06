@@ -300,7 +300,10 @@ This addresses the pinned R2025a C API's uncached negative `get_field` path:
 [supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
 The controlled test proves avoided absent lookups and preserved live mutation
 refusals, **not** a measured native speedup. The required real publisher witness
-must still pass within its unchanged 120-second per-case wall budget.
+must still pass within its bounded wall budget: 120 seconds for idle and
+420 seconds for flight-reset. The latter bound follows the retained native
+trace (7088 ms simulated in 113.41 s wall time, before TAKEOFF completion); it
+does not alter the 8-ms cadence or 210000-ms mission limit.
 
 The isolated witness retains per-tick wall elapsed time, tick wall duration and
 native observed position, plus the actual outgoing pilot response buffer after
