@@ -320,12 +320,11 @@ extern "C" const char *wb_supervisor_field_get_sf_string(WbFieldRef);
             driver = folder / 'driver.cpp'
             driver.write_text('''
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-static double now=0; static const char *reply=""; static int forwarded=0;
+static double now=0; static int forwarded=0;
 extern "C" double wb_robot_get_time(){return now;}
-extern "C" void *wb_supervisor_node_get_from_def(const char *){return (void*)1;}
-extern "C" void *wb_supervisor_node_get_field(void*,const char *){return (void*)1;}
-extern "C" const char *wb_supervisor_field_get_sf_string(void*){return reply;}
 extern "C" const char *__real_wb_robot_wwi_receive_text(){return nullptr;}
 extern "C" void __real_gp_u_send(const char*,int){++forwarded;}
 extern "C" const char *__wrap_wb_robot_wwi_receive_text();
@@ -333,7 +332,20 @@ extern "C" void __wrap_gp_u_send(const char*,int);
 static void ack(const char *s){__wrap_gp_u_send(s,std::strlen(s)+1);}
 int main(){
   assert(!__wrap_wb_robot_wwi_receive_text());
-  reply="GP_ROUTE_READY_V1 attempt=1 config=host-only";
+  const char *path=std::getenv("GP_ROUTE_PILOT_NATIVE_READY_OUT");
+  assert(path);
+  // Fake cues cannot trigger the one test TAKEOFF: no marker, wrong
+  // course, missing timestamp, malformed/extra fields.
+  { FILE *f=std::fopen(path,"wb"); assert(f);
+    assert(std::fputs("NOT_READY\n",f)>=0); assert(std::fclose(f)==0); }
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  { FILE *f=std::fopen(path,"wb"); assert(f);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=wrong time_ms=3072\n",f)>=0);
+    assert(std::fclose(f)==0); }
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  { FILE *f=std::fopen(path,"wb"); assert(f);
+    assert(std::fputs("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072\n",f)>=0);
+    assert(std::fclose(f)==0); }
   const char *takeoff=__wrap_wb_robot_wwi_receive_text();
   assert(takeoff && !std::strcmp(takeoff,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4"));
   assert(!__wrap_wb_robot_wwi_receive_text());
@@ -353,7 +365,9 @@ int main(){
                 '-o', str(binary)], check=True, capture_output=True, text=True)
             output = folder / 'acks.json'
             subprocess.run([str(binary)], check=True, capture_output=True,
-                           env=dict(os.environ, GP_ROUTE_PILOT_ACK_OUT=str(output)))
+                           env=dict(os.environ, GP_ROUTE_PILOT_ACK_OUT=str(output),
+                                    GP_ROUTE_PILOT_NATIVE_READY_OUT=str(folder / 'ready.txt'),
+                                    GP_ROUTE_PILOT_COURSE_ID=reference_course(5).identifier))
             import json
             self.assertEqual(json.loads(output.read_text()), dict(takeoff_ack_ms=1024,
                              land_ack_ms=2048, reset_ack_ms=2560))
