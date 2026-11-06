@@ -1,4 +1,4 @@
-"""Actual R2025a contact witnesses for both arms of the first L in a full course.
+"""Actual R2025a contact witnesses for both L corners (four arms) in a full course.
 
 No motor commands, Blockly, evaluator, mission or attempt admission. A Supervisor
 teleports the unpowered PROTO into a native L and reads real contact points.
@@ -140,30 +140,36 @@ def witness():
     first_target, first_id = target, target_id
     first_free, first_collision = free, collision
 
-    # Independently excite the other arm of the SAME L, without motor commands.
-    target = corner_boxes(course.route)[1]
-    collider = robot.getFromDef(target.name)
-    if collider is None or collider.getTypeName() != "Solid":
-        raise RuntimeError("second native L collider absent")
-    target_id = collider.getId()
-    if type(target_id) is not int or target_id <= 0 or target_id == first_id:
-        raise RuntimeError("second native L collider identity invalid")
-    face_offset = min(target.sx, target.sy) / 2 + radius - 0.015
-    collision_position = (
-        (target.x, target.y + face_offset, HEIGHT / 2)
-        if target.sy < target.sx else
-        (target.x + face_offset, target.y, HEIGHT / 2)
-    )
-    second_free = capture((0., 0., HEIGHT / 2), "free")
-    second_collision = capture(collision_position, "collision")
+    # Require real reciprocal contacts on all four canonical L arms.
+    # Each corner arm has its own unpowered, same-tick excitation and baseline.
+    observed = [dict(target=first_target.name, target_node_id=first_id,
+                     free=first_free, collision=first_collision)]
+    for target in corner_boxes(course.route)[1:]:
+        collider = robot.getFromDef(target.name)
+        if collider is None or collider.getTypeName() != "Solid":
+            raise RuntimeError("remaining native L collider absent")
+        target_id = collider.getId()
+        if (type(target_id) is not int or target_id <= 0 or
+                target_id in {arm["target_node_id"] for arm in observed}):
+            raise RuntimeError("remaining native L collider identity invalid")
+        face_offset = min(target.sx, target.sy) / 2 + radius - 0.015
+        collision_position = (
+            (target.x, target.y + face_offset, HEIGHT / 2)
+            if target.sy < target.sx else
+            (target.x + face_offset, target.y, HEIGHT / 2)
+        )
+        free = capture((0., 0., HEIGHT / 2), "free")
+        collision = capture(collision_position, "collision")
+        observed.append(dict(target=target.name, target_node_id=target_id,
+                             free=free, collision=collision))
+    if len(observed) != 4:
+        raise RuntimeError("canonical four-arm L contact inventory incomplete")
     result = dict(claim=CLAIM, configuration=course.identifier,
                   webots="R2025a", timestep_ms=8,
                   source="Robot.getContactPoints(includeDescendants=True)",
                   target_source="Solid.getContactPoints(includeDescendants=False)",
-                  target=first_target.name, target_node_id=first_id,
-                  free=first_free, collision=first_collision,
-                  additional=dict(target=target.name, target_node_id=target_id,
-                                  free=second_free, collision=second_collision))
+                  **observed[0], additional=observed[1],
+                  other_corner=observed[2:])
     output.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(result, sort_keys=True, allow_nan=False)
     output.write_text(encoded + "\n", encoding="utf-8")
