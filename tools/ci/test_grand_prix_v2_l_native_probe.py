@@ -339,9 +339,23 @@ class NativeLProbePreparationTests(unittest.TestCase):
             collider.getContactPoints.assert_called_with(includeDescendants=False)
             robot.simulationQuit.assert_called_once_with(0)
 
+    def test_required_native_contact_matrix_covers_all_turn_pairs(self):
+        # Four *native* physical collisions, not four synthetic ray tests.
+        # Each candidate is still required to pass real R2025a independently.
+        from tools.ci import run_grand_prix_v2_contact_native as contact
+        self.assertEqual(contact.DEFAULT_INDICES, (0, 5, 6, 11))
+        courses = [reference_course(index) for index in contact.DEFAULT_INDICES]
+        self.assertEqual([course.count for course in courses], [1, 2, 2, 3])
+        self.assertEqual(
+            [course.identifier.split("-T", 1)[1][:2] for course in courses],
+            ["GG", "GD", "DG", "DD"])
+        self.assertEqual(
+            {leg.length for course in courses for leg in course.route.legs},
+            {2., 2.5, 3.})
+
     def test_native_contact_failure_refutes_required_geometry_campaign(self):
         # Actual campaign orchestration with only native executors replaced:
-        # a missing mixed-GD contact must fail after the historical probes,
+        # any missing mandatory route contact must fail after the historical probes,
         # before the campaign digest can be published. No native PASS claimed.
         from tools.ci import run_grand_prix_u_geometry as geometry
         from tools.ci import run_grand_prix_v2_contact_native as contact
@@ -365,7 +379,7 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'contact not observed'):
                     geometry.run_native(home)
             deadline.assert_called_once_with(home)
-            native.assert_called_once_with(home, (5,))
+            native.assert_called_once_with(home, contact.DEFAULT_INDICES)
             self.assertFalse((out / 'sha256.json').exists())
         self.assertEqual(contact.OUT.parent, geometry.OUT)
 
