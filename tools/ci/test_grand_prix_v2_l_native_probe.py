@@ -181,37 +181,45 @@ class NativeLProbePreparationTests(unittest.TestCase):
 
     def test_native_contact_output_requires_real_node_id_hit_and_clock(self):
         from tools.ci import run_grand_prix_v2_contact_native as contact
-        from tools.grand_prix.route_solid_v2 import corner_boxes
+        from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT
+        import copy
         course = reference_course(5)
-        box = corner_boxes(course.route)[0]
+        boxes = corner_boxes(course.route)
+
         def tick(ms, points, target_points=None):
             return dict(time_ms=ms, contacts=points,
                         target_contacts=[] if target_points is None else target_points)
-        hit = dict(node_id=23, point=[box.x, box.y, .65])
-        own = dict(node_id=8, point=[box.x, box.y, .65])
-        other = corner_boxes(course.route)[1]
-        other_hit = dict(node_id=24, point=[other.x, other.y, .65])
-        other_own = dict(node_id=8, point=[other.x, other.y, .65])
-        base = dict(claim=contact.CLAIM, configuration=course.identifier,
-                    webots='R2025a', timestep_ms=8,
-                    source='Robot.getContactPoints(includeDescendants=True)',
-                    target_source='Solid.getContactPoints(includeDescendants=False)',
-                    target=box.name, target_node_id=23,
-                    free=[tick(8, []), tick(16, []), tick(24, [])],
-                    collision=[tick(32, [own], [hit]), tick(40, []), tick(48, [])],
-                    additional=dict(
-                        target=other.name, target_node_id=24,
-                        free=[tick(56, []), tick(64, []), tick(72, [])],
-                        collision=[tick(80, [other_own], [other_hit]),
-                                   tick(88, []), tick(96, [])]))
-        # Host-shaped fakes are only parser tests; they are never native proof.
+
+        witnesses = []
+        for index, box in enumerate(boxes):
+            target_id = 23 + index
+            own = dict(node_id=8, point=[box.x, box.y, HEIGHT / 2])
+            hit = dict(node_id=target_id, point=[box.x, box.y, HEIGHT / 2])
+            offset = 48 * index
+            witnesses.append(dict(
+                target=box.name, target_node_id=target_id,
+                free=[tick(offset + 8, []), tick(offset + 16, []),
+                      tick(offset + 24, [])],
+                collision=[tick(offset + 32, [own], [hit]),
+                           tick(offset + 40, []), tick(offset + 48, [])]))
+        base = dict(
+            claim=contact.CLAIM, configuration=course.identifier,
+            webots='R2025a', timestep_ms=8,
+            source='Robot.getContactPoints(includeDescendants=True)',
+            target_source='Solid.getContactPoints(includeDescendants=False)',
+            **witnesses[0], additional=witnesses[1], second_corner=witnesses[2:])
+        # Schema fakes are never native evidence; retain all historical
+        # counterexamples while proving the expanded four-arm shape.
         contact.check_native(base, course)
-        import copy
-        for mutation in ('missing', 'stale', 'spoofed', 'nan', 'wrong-course',
-                         'wrong-source', 'free-hit', 'free-foreign-contact',
-                         'missing-reciprocal', 'unmatched-point', 'old-partner-id-assumption',
-                         'no-second', 'second-missing-hit', 'second-mismatched-id',
-                         'second-stale', 'second-same-node'):
+        for mutation in (
+                'missing', 'stale', 'spoofed', 'nan', 'wrong-course',
+                'wrong-source', 'free-hit', 'free-foreign-contact',
+                'missing-reciprocal', 'unmatched-point',
+                'old-partner-id-assumption', 'no-second', 'second-missing-hit',
+                'second-mismatched-id', 'second-stale', 'second-same-node',
+                'no-third', 'no-fourth', 'third-missing-hit', 'fourth-wrong-id',
+                'third-stale', 'fourth-replayed-node', 'third-free-hit',
+                'fourth-outside'):
             with self.subTest(mutation=mutation):
                 bad = copy.deepcopy(base)
                 if mutation == 'missing':
@@ -227,18 +235,18 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 elif mutation == 'wrong-source':
                     bad['source'] = 'synthetic geometry'
                 elif mutation == 'free-hit':
-                    bad['free'][0]['contacts'].append(hit)
+                    bad['free'][0]['contacts'].append(
+                        dict(node_id=8, point=[boxes[0].x, boxes[0].y, HEIGHT / 2]))
                 elif mutation == 'free-foreign-contact':
                     bad['free'][0]['contacts'].append(
-                        dict(node_id=99, point=[0., 0., .65]))
+                        dict(node_id=99, point=[0., 0., HEIGHT / 2]))
                 elif mutation == 'missing-reciprocal':
                     bad['collision'][0]['target_contacts'] = []
                 elif mutation == 'unmatched-point':
                     bad['collision'][0]['contacts'][0]['point'][0] += .01
                 elif mutation == 'old-partner-id-assumption':
-                    # The old impossible proof accepted partner IDs on the
-                    # vehicle alone; it must not substitute for a Solid read.
-                    bad['collision'][0]['contacts'] = [hit]
+                    bad['collision'][0]['contacts'] = [
+                        bad['collision'][0]['target_contacts'][0]]
                     bad['collision'][0]['target_contacts'] = []
                 elif mutation == 'no-second':
                     del bad['additional']
@@ -250,6 +258,23 @@ class NativeLProbePreparationTests(unittest.TestCase):
                     bad['additional']['free'][0]['time_ms'] = 48
                 elif mutation == 'second-same-node':
                     bad['additional']['target_node_id'] = 23
+                elif mutation == 'no-third':
+                    del bad['second_corner']
+                elif mutation == 'no-fourth':
+                    bad['second_corner'].pop()
+                elif mutation == 'third-missing-hit':
+                    bad['second_corner'][0]['collision'][0]['target_contacts'] = []
+                elif mutation == 'fourth-wrong-id':
+                    bad['second_corner'][1]['target_node_id'] = 999
+                elif mutation == 'third-stale':
+                    bad['second_corner'][0]['free'][0]['time_ms'] = 96
+                elif mutation == 'fourth-replayed-node':
+                    bad['second_corner'][1]['target_node_id'] = 24
+                elif mutation == 'third-free-hit':
+                    bad['second_corner'][0]['free'][0]['contacts'] = [
+                        dict(node_id=8, point=[boxes[2].x, boxes[2].y, HEIGHT / 2])]
+                elif mutation == 'fourth-outside':
+                    bad['second_corner'][1]['collision'][0]['target_contacts'][0]['point'][2] = HEIGHT + 1
                 with self.assertRaises(RuntimeError):
                     contact.check_native(bad, course)
 
@@ -273,18 +298,18 @@ class NativeLProbePreparationTests(unittest.TestCase):
             self.assertEqual(len(list(out.glob('invocation-*'))), 1)
             self.assertFalse(list(out.glob('invocation-*/summary.json')))
 
-    def test_contact_producer_reads_both_arms_with_native_own_ids(self):
-        # API-shaped mocks test Python composition, not R2025a contact physics.
+    def test_contact_producer_reads_all_four_arms_with_native_own_ids(self):
+        # API-shaped mocks prove composition only, never R2025a contact physics.
         import contextlib
         import io
         import runpy
         import sys
         from types import SimpleNamespace
         from tools.ci import run_grand_prix_v2_contact_native as contact
-        from tools.grand_prix.route_solid_v2 import corner_boxes
+        from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT
         course = reference_course(5)
-        boxes = corner_boxes(course.route)[:2]
-        state = dict(time_ms=0, position=[0., 0., .65], target=boxes[0])
+        boxes = corner_boxes(course.route)
+        state = dict(time_ms=0, position=[0., 0., HEIGHT / 2], target=boxes[0])
         translation, rotation = Mock(), Mock()
         translation.setSFVec3f.side_effect = lambda value: state.update(position=value)
         vehicle, robot = Mock(), Mock()
@@ -308,13 +333,13 @@ class NativeLProbePreparationTests(unittest.TestCase):
 
         def collision_position(box):
             face = min(box.sx, box.sy) / 2 + .05 - .015
-            return ([box.x, box.y + face, .65] if box.sy < box.sx
-                    else [box.x + face, box.y, .65])
+            return ([box.x, box.y + face, HEIGHT / 2] if box.sy < box.sx
+                    else [box.x + face, box.y, HEIGHT / 2])
 
         def contacts(node_id):
             box = state['target']
             if state['position'] == collision_position(box):
-                return [SimpleNamespace(point=[box.x, box.y, .65], node_id=node_id)]
+                return [SimpleNamespace(point=[box.x, box.y, HEIGHT / 2], node_id=node_id)]
             return []
 
         vehicle.getContactPoints.side_effect = lambda **kw: contacts(8)
@@ -353,32 +378,38 @@ class NativeLProbePreparationTests(unittest.TestCase):
                 producer['witness']()
             record = json.loads(output.read_text())
             contact.check_native(record, course)
-            self.assertEqual([record['target'], record['additional']['target']],
+            self.assertEqual([record['target'], record['additional']['target']] +
+                             [arm['target'] for arm in record['second_corner']],
                              [box.name for box in boxes])
-            self.assertEqual([record['target_node_id'], record['additional']['target_node_id']],
-                             [23, 24])
+            self.assertEqual([record['target_node_id'],
+                              record['additional']['target_node_id']] +
+                             [arm['target_node_id'] for arm in record['second_corner']],
+                             [23, 24, 25, 26])
             diagnostics = [json.loads(line.removeprefix('GP_V2_CONTACT_DIAG '))
                            for line in captured.getvalue().splitlines()
                            if line.startswith('GP_V2_CONTACT_DIAG ')]
-            self.assertEqual(len(diagnostics), 16)
-            expected = ([('free', 'after_reset', 0)] +
-                        [('free', 'after_step', i) for i in (1, 2, 3)] +
-                        [('collision', 'after_reset', 0)] +
-                        [('collision', 'after_step', i) for i in (1, 2, 3)])
+            self.assertEqual(len(diagnostics), 32)
+            expected = []
+            for index in range(4):
+                expected.extend([('free-' + str(index), 'after_reset', 0)])
+                expected.extend(('free-' + str(index), 'after_step', i) for i in (1, 2, 3))
+                expected.extend([('collision-' + str(index), 'after_reset', 0)])
+                expected.extend(('collision-' + str(index), 'after_step', i) for i in (1, 2, 3))
             self.assertEqual(
                 [(row['phase'], row['event'], row['tick']) for row in diagnostics],
-                expected + expected)
-            self.assertEqual(diagnostics[4]['vehicle_position'], collision_position(boxes[0]))
-            self.assertEqual(diagnostics[12]['vehicle_position'], collision_position(boxes[1]))
-            self.assertEqual(diagnostics[-1]['time_ms'], 96)
-            self.assertEqual(vehicle.getContactPoints.call_count, 12)
+                expected)
+            for index, box in enumerate(boxes):
+                self.assertEqual(diagnostics[8 * index + 4]['vehicle_position'],
+                                 collision_position(box))
+            self.assertEqual(diagnostics[-1]['time_ms'], 192)
+            self.assertEqual(vehicle.getContactPoints.call_count, 24)
             for collider in colliders.values():
                 self.assertEqual(collider.getContactPoints.call_count, 6)
                 collider.getContactPoints.assert_called_with(includeDescendants=False)
             robot.simulationQuit.assert_called_once_with(0)
 
     def test_required_native_contact_matrix_covers_all_turn_pairs(self):
-        # Four native courses, each requiring both first-L arms, not synthetic rays.
+        # Four native courses, each requiring all four L arms, not synthetic rays.
         # Each candidate is still required to pass real R2025a independently.
         from tools.ci import run_grand_prix_v2_contact_native as contact
         self.assertEqual(contact.DEFAULT_INDICES, (0, 5, 6, 11))
