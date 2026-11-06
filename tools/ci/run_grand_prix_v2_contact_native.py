@@ -96,20 +96,40 @@ def _check_arm(record, course, arm_index):
 
 
 def check_native(record, course):
-    # Two independent colliders, real reciprocal contacts, strictly fresh ticks.
-    _check_arm(record, course, 0)
+    """Falsify all four L-arm contacts in the same native course invocation.
+
+    The first corner retains its established top-level/\`additional\` proof.
+    The other corner must contribute two further independent, chronologically
+    fresh, reciprocal Solid/vehicle witnesses. No test-only contact is minted.
+    """
+    if type(record) is not dict:
+        raise RuntimeError("missing native L contact record")
     extra = record.get("additional")
-    if type(extra) is not dict or set(extra) != {
-            "target", "target_node_id", "free", "collision"}:
-        raise RuntimeError("incomplete second-arm native contact witness")
-    if extra["target_node_id"] == record["target_node_id"]:
-        raise RuntimeError("native L arms share collider identity")
-    if (type(extra["free"]) is not list or not extra["free"] or
-            type(extra["free"][0]) is not dict or
-            type(extra["free"][0].get("time_ms")) is not int or
-            extra["free"][0]["time_ms"] <= record["collision"][-1]["time_ms"]):
-        raise RuntimeError("stale second-arm native contact clock")
-    _check_arm({**record, **extra}, course, 1)
+    second = record.get("second_corner")
+    if (type(extra) is not dict or
+            set(extra) != {"target", "target_node_id", "free", "collision"} or
+            type(second) is not list or len(second) != 2 or
+            any(type(item) is not dict or
+                set(item) != {"target", "target_node_id", "free", "collision"}
+                for item in second)):
+        raise RuntimeError("incomplete four-arm native L contact witness")
+    witnesses = (record, extra, *second)
+    identities = set()
+    last_time = -1
+    for arm_index, item in enumerate(witnesses):
+        # The arm-specific verifier checks all real samples, the exact
+        # canonical Solid name, own node ID, position, reciprocal point and
+        # three independent collision/free observations.
+        _check_arm({**record, **item}, course, arm_index)
+        identity = item["target_node_id"]
+        if identity in identities:
+            raise RuntimeError("native L arms share collider identity")
+        identities.add(identity)
+        if item["free"][0]["time_ms"] <= last_time:
+            raise RuntimeError("stale or interleaved L-arm native contact clock")
+        last_time = item["collision"][-1]["time_ms"]
+    if len(identities) != 4:
+        raise RuntimeError("incomplete L collider identity coverage")
 
 
 def native_run(home, indexes):
