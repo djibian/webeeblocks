@@ -130,7 +130,8 @@ def witness():
                 if 'failure_observed_ms' not in evidence:
                     raise RuntimeError('native failed outcome not observed before RESET')
                 evidence['acks'] = acks
-                evaluator = NativeRouteEvaluator(robot, course.identifier)
+                # Resume the production evaluator in place after the broker
+                # ACK. Recreating it would hide stale writes across RESET.
                 service_lost = False
                 phase = 'reset-ready'
         elif phase == 'reset-ready' and evaluator.phase == 'ready':
