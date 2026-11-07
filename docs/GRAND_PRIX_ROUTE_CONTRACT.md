@@ -262,6 +262,9 @@ after the one positive publication, until consumed by the pilot; there is no
 new acknowledgement protocol. Valid ticks publish one final response without
 an intermediate empty field visible to the pilot. A later fault revokes ALIVE
 without repeatedly overwriting an outcome the pilot may already have latched.
+The evaluator publishes a negative outcome once and only while the flight
+channel still names that attempt. A RESET marker belongs to the broker and
+must survive closure of an older evaluator attempt.
 
 The existing required geometry job runs two isolated native projects with the
 production evaluator class. The first keeps the real pilot **idle**: native
@@ -274,7 +277,7 @@ TAKEOFF ACK, then stops the evaluator service without clearing its last ALIVE.
 The pilot must independently fail and initiate LAND within its bounded liveness
 interleaving (at most two 32-ms pilot steps); **no LAND request is injected**.
 Only its genuine forced-LAND ACK permits the test's sole RESET request through
-the normal broker. A reconstructed evaluator must then attest attempt 2, a new
+the normal broker. The same evaluator instance must then attest attempt 2, a new
 private epoch and fresh ground window; the old outcome must be gone. Each case
 requires unique JSON, agreeing native stdout and zero exit. No pupil program or
 solution trajectory is supplied by either probe.
