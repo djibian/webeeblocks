@@ -349,6 +349,7 @@ extern "C" const char *wb_supervisor_field_get_sf_string(WbFieldRef);
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 static double now=0; static int forwarded=0;
 extern "C" double wb_robot_get_time(){return now;}
 extern "C" const char *__real_wb_robot_wwi_receive_text(){return nullptr;}
@@ -390,7 +391,22 @@ int main(){
   assert(reset && !std::strcmp(reset,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 RESET"));
   assert(!__wrap_wb_robot_wwi_receive_text());
   now=2.560;ack("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK");
-  assert(!__wrap_wb_robot_wwi_receive_text());assert(forwarded==3);
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  const auto second_path=std::string(path)+".second";
+  const auto cue=[&](const char *line){
+    FILE *f=std::fopen(second_path.c_str(),"wb"); assert(f);
+    assert(std::fputs(line,f)>=0); assert(std::fclose(f)==0);
+  };
+  cue("GP_ROUTE_PROBE_READY_V1 attempt=1 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072\\n");
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  cue("GP_ROUTE_PROBE_READY_V1 attempt=2 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3000\\n");
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  cue("GP_ROUTE_PROBE_READY_V1 attempt=2 course=gp-route-v2-L2000-2500-3000-TGD-s105-H2 time_ms=3072\\n");
+  const char *second=__wrap_wb_robot_wwi_receive_text();
+  assert(second && !std::strcmp(second,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 TAKEOFF 0.4"));
+  assert(!__wrap_wb_robot_wwi_receive_text());
+  now=4.096;ack("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK");
+  assert(!__wrap_wb_robot_wwi_receive_text());assert(forwarded==4);
 }
 ''')
             binary = folder / 'probe'
@@ -404,7 +420,7 @@ int main(){
                                     GP_ROUTE_PILOT_COURSE_ID=reference_course(5).identifier))
             import json
             self.assertEqual(json.loads(output.read_text()), dict(takeoff_ack_ms=1024,
-                             land_ack_ms=2048, reset_ack_ms=2560))
+                             land_ack_ms=2048, reset_ack_ms=2560, second_takeoff_ack_ms=4096))
             self.assertFalse(output.with_name('acks.json.pending').exists())
 
     def test_native_ready_record_requires_consistent_stability_and_revocation(self):
@@ -450,7 +466,7 @@ int main(){
             import stat
             self.assertEqual(stat.S_IMODE(next(out.glob('*-invocation-*')).stat().st_mode), 0o755)
 
-    def test_native_flight_record_requires_failed_outcome_then_land_ack_and_fresh_reset(self):
+    def test_native_flight_record_requires_failed_outcome_land_reset_and_second_takeoff(self):
         from tools.ci.run_grand_prix_route_evaluator_native import check_native, FLIGHT_CLAIM
         import copy
         def ready(now):
@@ -459,11 +475,15 @@ int main(){
         good = dict(claim=FLIGHT_CLAIM, configuration=reference_course(5).identifier,
             webots='R2025a', timestep_ms=8, ready=ready(1120), reset_ready=ready(5632),
             start_ms=1152, stalled_ms=2080, failure_observed_ms=2112, airborne_z=.4,
-            fresh_epoch=True, acks=dict(takeoff_ack_ms=2048, land_ack_ms=4096, reset_ack_ms=4480))
+            fresh_epoch=True, acks=dict(takeoff_ack_ms=2048, land_ack_ms=4096, reset_ack_ms=4480,
+                                        second_takeoff_ack_ms=7016),
+            second_takeoff=dict(start_ms=5640, observed_ms=7024, airborne_z=.4))
         # API-shaped record only. The native runner additionally requires the
         # original C guard's LAND/ACK/RESET stdout and exact generated sources.
         check_native(good)
-        for mutation in ('no-acks', 'land-before-failure', 'old-epoch', 'old-window', 'not-airborne', 'bad-clock'):
+        for mutation in ('no-acks', 'land-before-failure', 'old-epoch', 'old-window', 'not-airborne',
+                         'bad-clock', 'no-second-takeoff', 'stale-second-start', 'second-ack-in-future',
+                         'second-not-airborne'):
             with self.subTest(mutation=mutation):
                 bad = copy.deepcopy(good)
                 if mutation == 'no-acks': del bad['acks']
@@ -472,6 +492,10 @@ int main(){
                 elif mutation == 'old-window': bad['reset_ready'] = ready(4680)
                 elif mutation == 'not-airborne': bad['airborne_z'] = .015
                 elif mutation == 'bad-clock': bad['start_ms'] = True
+                elif mutation == 'no-second-takeoff': del bad['second_takeoff']
+                elif mutation == 'stale-second-start': bad['second_takeoff']['start_ms'] = 5624
+                elif mutation == 'second-ack-in-future': bad['acks']['second_takeoff_ack_ms'] = 7032
+                elif mutation == 'second-not-airborne': bad['second_takeoff']['airborne_z'] = .015
                 with self.assertRaises(RuntimeError): check_native(bad)
 
 
