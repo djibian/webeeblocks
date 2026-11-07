@@ -27,13 +27,14 @@ def witness():
     translation = body.getField('translation')
     original = list(translation.getSFVec3f())
     evidence = dict(claim=('native-route-evaluator-ready-and-scene-revocation-no-flight'
-                          if mode == 'idle' else 'native-route-evaluator-flight-service-loss-LAND-RESET-no-pupil-program'),
+                          if mode == 'idle' else 'native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program'),
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
     phase = 'waiting'
     wall_started = time.monotonic()
     restored_ticks = 0
     service_lost = False
     first_context = None
+    reset_context = None
 
     def ready_record(now):
         sample = evaluator.observation
@@ -55,6 +56,14 @@ def witness():
         if robot.step(8) == -1:
             raise RuntimeError('native evaluator stdout grace step interrupted')
         robot.simulationQuit(0)
+
+    def cue_takeoff(attempt, now):
+        # Stimulus only. The production pilot still owns READY/START admission.
+        target = ready_path if attempt == 1 else ready_path.with_suffix(ready_path.suffix + '.second')
+        marker = f'GP_ROUTE_PROBE_READY_V1 attempt={attempt} course={course.identifier} time_ms={now}\n'
+        pending = target.with_suffix(target.suffix + '.pending')
+        pending.write_text(marker, encoding='utf-8')
+        pending.replace(target)
 
     while True:
         step_started = time.monotonic()
@@ -82,14 +91,7 @@ def witness():
             if first_context.attempt != 1:
                 raise RuntimeError('native first attempt is not fresh')
             if mode == 'flight-reset':
-                # Stimulus only: atomically expose READY proven by the actual
-                # production evaluator and unmodified native sensor data. The
-                # pilot still must pass its own real READY/START authority gate.
-                marker = ('GP_ROUTE_PROBE_READY_V1 attempt=1 course='
-                          + course.identifier + ' time_ms=' + str(now) + '\n')
-                pending = ready_path.with_name(ready_path.name + '.pending')
-                pending.write_text(marker, encoding='utf-8')
-                pending.replace(ready_path)
+                cue_takeoff(1, now)
                 phase = 'flying'
                 continue
             # A genuine native scene fault; do not replace sensor or pose data.
@@ -129,7 +131,6 @@ def witness():
             if acks.get('reset_ack_ms', -1) >= 0:
                 if 'failure_observed_ms' not in evidence:
                     raise RuntimeError('native failed outcome not observed before RESET')
-                evidence['acks'] = acks
                 # Resume the production evaluator in place after the broker
                 # ACK. Recreating it would hide stale writes across RESET.
                 service_lost = False
@@ -140,8 +141,21 @@ def witness():
                 raise RuntimeError('native RESET retained an old attempt/epoch/outcome')
             evidence['reset_ready'] = ready_record(now)
             evidence['fresh_epoch'] = True
-            finish()
-            return
+            reset_context = evaluator._context
+            cue_takeoff(2, now)
+            phase = 'flying-after-reset'
+        elif phase == 'flying-after-reset':
+            acks = json.loads(ack_path.read_text())
+            if acks.get('second_takeoff_ack_ms', -1) >= 0:
+                if (evaluator.phase != 'active' or evaluator._context != reset_context or
+                        not description.startswith('GP_ROUTE_ALIVE_V1 attempt=2 ') or
+                        evaluator.observation.kinematics.position[2] < .20):
+                    raise RuntimeError('native second TAKEOFF/ALIVE/airborne evidence absent')
+                evidence['acks'] = acks
+                evidence['second_takeoff'] = dict(start_ms=evaluator._start_ms, observed_ms=now,
+                    airborne_z=evaluator.observation.kinematics.position[2])
+                finish()
+                return
     raise RuntimeError('native evaluator witness interrupted')
 
 

@@ -16,7 +16,7 @@ from tools.grand_prix.route_courses_v2 import reference_course
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry/route-evaluator-native'
 CLAIM = 'native-route-evaluator-ready-and-scene-revocation-no-flight'
-FLIGHT_CLAIM = 'native-route-evaluator-flight-service-loss-LAND-RESET-no-pupil-program'
+FLIGHT_CLAIM = 'native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program'
 
 
 def _check_ready(ready):
@@ -69,6 +69,17 @@ def check_native(data):
         _check_ready(reset_ready)
         if reset_ready['time_ms'] <= reset + 500:
             raise RuntimeError('native RESET did not establish a fresh window')
+        second = data.get('second_takeoff')
+        if type(second) is not dict:
+            raise RuntimeError('native second TAKEOFF absent')
+        second_start = second.get('start_ms')
+        second_ack = acks.get('second_takeoff_ack_ms')
+        second_observed = second.get('observed_ms')
+        if (any(type(t) is not int or t < 0 or t % 8 for t in (second_start, second_ack, second_observed)) or
+                not reset_ready['time_ms'] <= second_start < second_ack <= second_observed or
+                type(second.get('airborne_z')) not in (int, float) or
+                not .20 <= second['airborne_z'] <= 1.165):
+            raise RuntimeError('native second admission/TAKEOFF sequence invalid')
 
 
 def run_case(home, env, mode):
@@ -146,12 +157,13 @@ def run_case(home, env, mode):
             raise RuntimeError('native evaluator probe mode/claim mismatch')
         check_native(data)
         if mode == 'flight-reset':
-            marker = case / 'pilot-native-ready.txt'
-            expected_marker = ('GP_ROUTE_PROBE_READY_V1 attempt=1 course='
-                               + data['configuration'] + ' time_ms='
-                               + str(data['ready']['time_ms']) + '\n')
-            if not marker.is_file() or marker.read_text() != expected_marker:
-                raise RuntimeError('native pilot READY stimulus provenance missing')
+            for attempt, suffix, key in ((1, '', 'ready'), (2, '.second', 'reset_ready')):
+                marker = case / ('pilot-native-ready.txt' + suffix)
+                expected_marker = (f'GP_ROUTE_PROBE_READY_V1 attempt={attempt} course='
+                                   + data['configuration'] + ' time_ms='
+                                   + str(data[key]['time_ms']) + '\n')
+                if not marker.is_file() or marker.read_text() != expected_marker:
+                    raise RuntimeError('native pilot READY stimulus provenance missing')
         expected = 'GP_ROUTE_EVALUATOR_NATIVE ' + json.dumps(data, allow_nan=False, sort_keys=True)
         if ([line for line in text.splitlines() if line.startswith('GP_ROUTE_EVALUATOR_NATIVE ')] != [expected] or
                 'Traceback (most recent call last)' in text or
@@ -159,13 +171,18 @@ def run_case(home, env, mode):
             raise RuntimeError('native evaluator JSON/stdout/exit evidence disagrees')
         if mode == 'flight-reset':
             commands = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=-?\d+$', text, re.M)
+            admissions = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', text, re.M)
+            expected_admissions = [('1', str(data['start_ms'])), ('2', str(data['second_takeoff']['start_ms']))]
             if (len(commands) != 1 or not 0 < int(commands[0]) - data['stalled_ms'] <= 64 or
+                    admissions != expected_admissions or
                     text.splitlines().count('GP_ROUTE_SAFETY_LAND evaluator-unavailable') != 1 or
                     text.splitlines().count('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1') != 1 or
                     text.count('GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF') != 1 or
-                    text.count('GP_ROUTE_PILOT_REQUEST id=2 command=RESET') != 1):
-                raise RuntimeError('independent native LAND/RESET command evidence absent')
-            for identifier, key in ((1, 'takeoff_ack_ms'), (2147483646, 'land_ack_ms'), (2, 'reset_ack_ms')):
+                    text.count('GP_ROUTE_PILOT_REQUEST id=2 command=RESET') != 1 or
+                    text.count('GP_ROUTE_PILOT_REQUEST id=3 command=TAKEOFF') != 1):
+                raise RuntimeError('native TAKEOFF, independent LAND or RESET command evidence absent')
+            for identifier, key in ((1, 'takeoff_ack_ms'), (2147483646, 'land_ack_ms'),
+                                    (2, 'reset_ack_ms'), (3, 'second_takeoff_ack_ms')):
                 expected_ack = f'GP_ROUTE_PILOT_ACK id={identifier} time_ms={data["acks"][key]}'
                 if text.splitlines().count(expected_ack) != 1:
                     raise RuntimeError('native pilot ACK trace/file evidence disagrees')
