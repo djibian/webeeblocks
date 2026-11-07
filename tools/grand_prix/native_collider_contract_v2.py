@@ -94,12 +94,12 @@ def _native_enabled(value):
     return value is True or (type(value) is int and value == 1)
 
 
-def _verify_floor(node, route):
+def _verify_floor(node, route, fields):
     """A permitted floor is the locked horizontal Plane at z=0, not an obstacle."""
-    position = tuple(node.getPosition())
+    position = tuple(fields.position(node))
     _vector(position)
     locked = node.getBaseNodeField('locked')
-    rotation = node.getField('rotation')
+    rotation = fields.get(node, 'rotation')
     rotation = rotation.getSFRotation() if rotation else None
     field = node.getBaseNodeField('boundingObject')
     body = field.getSFNode() if field else None
@@ -128,17 +128,17 @@ def _verify_floor(node, route):
             raise RuntimeError('native floor does not cover the full course')
 
 
-def _reject_nested_course_nodes(root_nodes, expected_names, route):
+def _read_scene_boxes(root_nodes, expected_names, route, fields):
     """Reject unlisted physics, including bodies outside the GP_V2 namespace.
 
     Physical GP_V2 solids are direct root children by contract. Fail closed
     on cycles, unreadable nodes and oversized traversal rather than accepting
     a visually plausible scene with an extra collidable descendant.
     """
-    fields = NativeFieldLookup()
     pending = [(node, 0, False) for node in root_nodes]
     visited = 0
     models = set()
+    boxes = {}
     evaluator_seen = False
     while pending:
         node, depth, under_guide = pending.pop()
@@ -165,7 +165,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                 if field is None or field.getSFString() != 'Crazyflie WebeeBlocks':
                     raise RuntimeError('unrecognized native vehicle')
             else:
-                _verify_floor(node, route)
+                _verify_floor(node, route, fields)
         physical = fields.get(node, 'boundingObject')
         if physical is None and node.isProto() and not model:
             physical = node.getBaseNodeField('boundingObject')
@@ -196,6 +196,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                     name.startswith(('GP_V2_L_', 'GP_V2_H_',
                                      'GP_V2_FINAL_'))):
                 raise RuntimeError('nested reserved course body: ' + name)
+        display = None
         for field_name in ('children', 'extensionSlot', 'choice'):
             children = fields.get(node, field_name)
             if children is None and node.isProto() and not model:
@@ -204,8 +205,12 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                 count = children.getCount()
                 if type(count) is not int or not 0 <= count <= 4096:
                     raise RuntimeError('invalid nested course child inventory')
-                for i in range(count):
-                    pending.append((children.getMFNode(i), depth + 1, under_guide))
+                nodes = [children.getMFNode(i) for i in range(count)]
+                if listed and field_name == 'children':
+                    display = nodes
+                pending.extend((child, depth + 1, under_guide) for child in nodes)
+        if listed:
+            boxes[name] = (node, collider, display)
         if has_collider:
             pending.append((collider, depth + 1, under_guide))
         for field_name in ('endPoint', 'geometry'):
@@ -220,6 +225,7 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
     if models != {'Floor', 'Crazyflie'}:
         missing = ', '.join(sorted({'Floor', 'Crazyflie'} - models))
         raise RuntimeError('missing required pinned scene model: ' + missing)
+    return boxes
 
 
 def _read_native_root_nodes(supervisor):
@@ -242,16 +248,11 @@ def verify_native_boxes(supervisor, course, boxes):
     from scene readback must fail even if it matches every observed collider.
     This still provides no READY or real R2025a contact qualification.
     """
-    _verify_native_boxes(supervisor, course, boxes, _read_native_root_nodes(supervisor))
-
-
-def _verify_native_boxes(supervisor, course, boxes, root_nodes):
     canonical = canonical_native_boxes(course)
-    expected_names = tuple(box.name for box in canonical)
-    if not isinstance(boxes, tuple) or len(boxes) != len(expected_names):
+    if not isinstance(boxes, tuple) or len(boxes) != len(canonical):
         raise ValueError('incomplete native collider manifest')
     if (any(type(box) is not NativeBox for box in boxes) or
-            tuple(box.name for box in boxes) != expected_names):
+            tuple(box.name for box in boxes) != tuple(box.name for box in canonical)):
         raise ValueError('native collider manifest names/order mismatch')
     for box, expected in zip(boxes, canonical):
         _vector(box.position)
@@ -259,7 +260,11 @@ def _verify_native_boxes(supervisor, course, boxes, root_nodes):
         if (_serialized(box.position) != _serialized(expected.position) or
                 _serialized(box.size) != _serialized(expected.size)):
             raise ValueError('native collider manifest differs from canonical geometry')
+    _verify_scene_boxes(course, canonical, _read_native_root_nodes(supervisor), NativeFieldLookup())
 
+
+def _verify_scene_boxes(course, boxes, root_nodes, fields):
+    expected_names = {box.name for box in boxes}
     # Reject unexpected course Solids too: a hidden collidable object is not
     # made safe by verifying all the expected objects are present.
     scene_names = []
@@ -279,20 +284,18 @@ def _verify_native_boxes(supervisor, course, boxes, root_nodes):
                 # could otherwise conceal an unprefixed Solid below it.
                 raise RuntimeError('unexpected reserved course node: ' + name)
             # White/red course guides are non-colliding Pose nodes.
-    _reject_nested_course_nodes(root_nodes, set(expected_names), course.route)
-    if len(scene_names) != len(set(scene_names)) or set(scene_names) != set(expected_names):
+    live_boxes = _read_scene_boxes(root_nodes, expected_names, course.route, fields)
+    if len(scene_names) != len(set(scene_names)) or set(scene_names) != expected_names:
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
 
     for box in boxes:
-        node = supervisor.getFromDef(box.name)
-        if node is None or node.getTypeName() != 'Solid':
-            raise RuntimeError('missing or non-Solid course collider: ' + box.name)
-        locked = node.getField('locked')
+        node, collider, display = live_boxes[box.name]
+        locked = fields.get(node, 'locked')
         if locked is None or not _native_enabled(locked.getSFBool()):
             raise RuntimeError('movable course collider: ' + box.name)
-        if not _equal(node.getPosition(), box.position):
+        if not _equal(fields.position(node), box.position):
             raise RuntimeError('native collider world pose mismatch: ' + box.name)
-        rotation = node.getField('rotation')
+        rotation = fields.get(node, 'rotation')
         actual_rotation = rotation.getSFRotation() if rotation is not None else None
         if (not isinstance(actual_rotation, (tuple, list)) or
                 len(actual_rotation) != 4 or
@@ -301,24 +304,21 @@ def _verify_native_boxes(supervisor, course, boxes, root_nodes):
                 abs(actual_rotation[3]) > 1e-6):
             # Current host GP Solids use Webots' default identity rotation.
             raise RuntimeError('rotated/malformed native collider: ' + box.name)
-        field = node.getField('boundingObject')
-        collider = field.getSFNode() if field else None
         if collider is None or collider.getTypeName() != 'Box':
             raise RuntimeError('missing physical Box: ' + box.name)
-        size_field = collider.getField('size')
+        size_field = fields.get(collider, 'size')
         if size_field is None or not _equal(size_field.getSFVec3f(), box.size):
             raise RuntimeError('physical Box dimensions mismatch: ' + box.name)
-        display = node.getField('children')
-        if display is None or display.getCount() != 1:
+        if display is None or len(display) != 1:
             raise RuntimeError('missing/extra native child under ' + box.name)
-        child = display.getMFNode(0)
+        child = display[0]
         if child is None or child.getTypeName() != 'Shape':
             raise RuntimeError('unexpected native child under ' + box.name)
-        geometry = child.getField('geometry')
+        geometry = fields.get(child, 'geometry')
         visible = geometry.getSFNode() if geometry else None
         if visible is None or visible.getTypeName() != 'Box':
             raise RuntimeError('invisible or ambiguous rendered collider: ' + box.name)
-        visual_size = visible.getField('size')
+        visual_size = fields.get(visible, 'size')
         if visual_size is None or not _equal(visual_size.getSFVec3f(), box.size):
             raise RuntimeError('rendered and physical Box mismatch: ' + box.name)
     # Explicitly return *no* authority token: READY is a separate live

@@ -62,6 +62,21 @@ def _valid_vehicle(node, identifier):
         raise RuntimeError("native contact source course mismatch")
 
 
+def read_contacts(node, milliseconds):
+    """Read descendant contact points from the verified vehicle."""
+    observed = node.getContactPoints(includeDescendants=True)
+    if not isinstance(observed, (list, tuple)) or len(observed) > 4096:
+        raise RuntimeError("invalid native contact collection")
+    points = []
+    for item in observed:
+        coords = _strict_vector(item.point)
+        node_id = item.node_id
+        if type(node_id) is not int or not -(2**31) <= node_id < 2**31:
+            raise RuntimeError("invalid native contact node ID")
+        points.append(NativeContactPoint(coords, node_id))
+    return NativeContactObservation(milliseconds, tuple(points))
+
+
 class NativeContactSampler:
     """Sample the real Robot's contacts after each native 8-ms step.
 
@@ -107,15 +122,6 @@ class NativeContactSampler:
         milliseconds = _time_ms(self._supervisor.getTime())
         if self._last_ms is not None and milliseconds <= self._last_ms:
             raise RuntimeError("replayed or nonmonotonic native contacts")
-        observed = node.getContactPoints(includeDescendants=True)
-        if not isinstance(observed, (list, tuple)) or len(observed) > 4096:
-            raise RuntimeError("invalid native contact collection")
-        points = []
-        for item in observed:
-            coords = _strict_vector(item.point)
-            node_id = item.node_id
-            if type(node_id) is not int or not -(2**31) <= node_id < 2**31:
-                raise RuntimeError("invalid native contact node ID")
-            points.append(NativeContactPoint(coords, node_id))
+        observation = read_contacts(node, milliseconds)
         self._last_ms = milliseconds
-        return NativeContactObservation(milliseconds, tuple(points))
+        return observation

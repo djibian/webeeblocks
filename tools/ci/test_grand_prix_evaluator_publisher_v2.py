@@ -51,15 +51,12 @@ class NativePublisherTests(unittest.TestCase):
         self.physics = LiveNode(11, '', 'Physics', {})
         self.base = {'boundingObject': self.bounds, 'physics': self.physics}
         self.native.vehicle.getBaseNodeField = lambda name: LiveField(self.base, name)
-        # Scene identity/colliders have their own full readback tests. Keep all
-        # real data readers, wire, RESET window and pure attempt code in this
-        # composition; only the physical API and static-scene check are fakes.
-        self.scene = patch('tools.grand_prix.evaluator_publisher_v2.check_native_evaluator_scene')
+        # Keep the production tick's data readers, wire, RESET window and pure
+        # attempt code. The scene check has its own full readback tests.
+        self.scene = patch('tools.grand_prix.evaluator_publisher_v2.read_native_evaluator_scene',
+                           return_value=self.native.vehicle)
         self.checked = self.scene.start()
         self.addCleanup(self.scene.stop)
-        nested = patch('tools.grand_prix.evaluator_observation_v2.check_native_evaluator_scene')
-        nested.start()
-        self.addCleanup(nested.stop)
         self.evaluator = NativeRouteEvaluator(self.native, self.course.identifier)
         self.ms = 2112
         self.attempt = 1

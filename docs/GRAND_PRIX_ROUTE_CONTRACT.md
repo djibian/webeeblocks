@@ -291,24 +291,36 @@ gated; no expert solution or new pupil block is supplied by this publisher.
 
 ### Live scene-check cost and native diagnostics
 
-The publisher still executes the entire scene/collider check at every 8-ms
-observation. `NativeFieldLookup` avoids probes of nonexistent fields on
-non-PROTO built-ins by enumerating their field declarations once per type
-**within that check only**. No schema survives to the next check. Real field
-values, SFNode/MFNode edges, counts, poses and provenance are still read; no
-scene-validation result or authority is cached. PROTO exposed/internal fields
-retain their original lookup path. Invalid enumeration fails closed.
+The publisher validates the scene at every 8-ms observation. After the full
+startup check it subscribes to the validated single-field values and world
+poses through the R2025a Supervisor APIs. Webots supplies those samples
+together in its step response. Native getters still run on every check and
+request the current value if no current sample is available.
+
+`NativeFieldLookup` reuses only immutable built-in field declarations between
+steps. Every MFNode and MFString entry is still read from Webots, including
+after a replacement that leaves the field count unchanged. No scene-validation
+result, mutable graph edge, pose or authority is cached by the evaluator. PROTO
+internal fields and the pilot/evaluator protocol retain their synchronous
+read paths. Invalid enumeration fails closed.
+
+Each publisher tick reuses the verified Crazyflie node for its pose, velocity
+and contacts. The pose and descendant contacts are subscribed at 8 ms. The
+publisher still reads velocity from the Supervisor and reads the pilot's
+request, sensor packet and attempt marker through their existing channels.
+The scene traversal supplies the same tick's collider and display child
+references to the geometry checks.
 
 This addresses the pinned R2025a C API's uncached negative `get_field` path:
 [supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
-The controlled test proves avoided absent lookups and preserved live mutation
-refusals, **not** a measured native speedup. The required real publisher witness
-must still pass within its bounded wall budget: 120 seconds for idle and
+The required real publisher witness must still pass within its bounded wall
+budget: 120 seconds for idle and
 420 seconds for flight-reset. The latter bound follows the retained native
 trace (7088 ms simulated in 113.41 s wall time, before TAKEOFF completion); it
 does not alter the 8-ms cadence or 210000-ms mission limit.
 
-The isolated witness retains per-tick wall elapsed time, tick wall duration and
-native observed position, plus the actual outgoing pilot response buffer after
+The isolated witness retains elapsed wall time, wall and process CPU time for
+both the step and the evaluator tick, and native observed position. It also
+retains the actual outgoing pilot response buffer after
 broker forwarding. These are diagnostics only, not substitutes for the original
 JSON/stdout/exit, TAKEOFF/independent LAND/RESET or fresh native authority proofs.

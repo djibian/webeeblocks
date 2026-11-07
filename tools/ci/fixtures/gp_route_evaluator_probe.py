@@ -67,12 +67,16 @@ def witness():
 
     while True:
         step_started = time.monotonic()
+        step_cpu_started = time.process_time()
         if robot.step(8) == -1:
             break
+        step_cpu = time.process_time() - step_cpu_started
         step_wall = time.monotonic() - step_started
         tick_started = time.monotonic()
+        tick_cpu_started = time.process_time()
         if not service_lost:
             evaluator.tick()
+        tick_cpu = time.process_time() - tick_cpu_started
         tick_wall = time.monotonic() - tick_started
         now = round(robot.getTime() * 1000)
         description = robot.getSelf().getField('description').getSFString()
@@ -81,6 +85,7 @@ def witness():
                                       error=evaluator.last_error,
                                       wall_elapsed_s=time.monotonic() - wall_started,
                                       step_wall_s=step_wall, tick_wall_s=tick_wall,
+                                      step_cpu_s=step_cpu, tick_cpu_s=tick_cpu,
                                       position=(evaluator.observation.kinematics.position
                                                 if evaluator.observation is not None else None))) + '\n')
         if now > (4000 if mode == 'idle' else 30000):

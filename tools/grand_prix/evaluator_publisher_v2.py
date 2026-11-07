@@ -7,15 +7,18 @@ The Linux launcher remains gated on the separate native/GUI qualifications.
 import logging
 import math
 
-from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservationSampler
-from tools.grand_prix.evaluator_scene_identity_v2 import check_native_evaluator_scene
-from tools.grand_prix.evaluator_native_kinematics_v2 import _now_ms
+from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservation
+from tools.grand_prix.evaluator_scene_identity_v2 import read_native_evaluator_scene
+from tools.grand_prix.evaluator_native_contacts_v2 import read_contacts
+from tools.grand_prix.evaluator_native_kinematics_v2 import _now_ms, read_kinematics
+from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 from tools.grand_prix.oracle_attempt_v2 import (
     start_pure_attempt, observe_pure_attempt, fail_pure_attempt,
 )
 from tools.grand_prix.oracle_u import DEADLINE_MS
 from tools.grand_prix.route_courses_v2 import course_from_identifier
-from tools.grand_prix.route_evaluator_wire_v2 import Challenge, Start, EvaluatorHandshake, parse_flight_channel
+from tools.grand_prix.route_evaluator_wire_v2 import Challenge, EvaluatorHandshake, parse_flight_channel
+from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
 
 ORACLE = 'grand-prix-route-v2'
 LOGGER = logging.getLogger(__name__)
@@ -27,7 +30,7 @@ class NativeRouteEvaluator:
     READY requires 500 continuous ms of independently observed canonical ground
     pose, motion, contacts and the flight controller's own stable-ground bit.
     A lost tick or invalid read revokes this attempt, rather than repairing the
-    sampler in place. A later attempt rebuilds and revalidates its readers.
+    observation in place. A later attempt must establish fresh ground evidence.
     """
 
     def __init__(self, robot, identifier):
@@ -38,13 +41,20 @@ class NativeRouteEvaluator:
         if self._reply is None:
             raise RuntimeError('native evaluator description absent')
         self._reply.setSFString('')
-        check_native_evaluator_scene(robot, identifier)
+        self._scene_fields = NativeFieldLookup(prepare_tracking=True)
+        self._vehicle = read_native_evaluator_scene(robot, self.course, self._scene_fields)
+        self._scene_fields.start_tracking()
         self._self_id = own.getId()
-        children = robot.getRoot().getField('children')
-        self._vehicle = next(children.getMFNode(i) for i in range(children.getCount())
-            if children.getMFNode(i).getField('name') is not None and
-            children.getMFNode(i).getField('name').getSFString() == 'Crazyflie WebeeBlocks')
         self._vehicle_id = self._vehicle.getId()
+        if type(self._vehicle_id) is not int or self._vehicle_id <= 0:
+            raise RuntimeError('invalid native vehicle ID')
+        track_pose = getattr(self._vehicle, 'enablePoseTracking', None)
+        self._tracked_pose = callable(track_pose)
+        if self._tracked_pose:
+            track_pose(8)
+        track_contacts = getattr(self._vehicle, 'enableContactPointsTracking', None)
+        if callable(track_contacts):
+            track_contacts(8, includeDescendants=True)
         self._channel = self._vehicle.getField('customData')
         self._request = own.getField('customData')
         self._model = own.getField('model')
@@ -72,7 +82,6 @@ class NativeRouteEvaluator:
         self._clock_failed = False
         self._closed_attempt = 0
         self._context = None
-        self._sampler = None
         self._wire = EvaluatorHandshake(identifier)
         self._ground_since = None
         self._challenge_since = None
@@ -172,9 +181,9 @@ class NativeRouteEvaluator:
             return
         self._last_ms = now
         try:
+            source = self._robot.getFromId(self._vehicle_id)
             if (self._robot.getSelf().getId() != self._self_id or
-                    self._robot.getFromId(self._vehicle_id) is None or
-                    self._robot.getFromId(self._vehicle_id).getId() != self._vehicle_id):
+                    source is None or source.getId() != self._vehicle_id):
                 raise RuntimeError('native source replaced')
             raw = self._request.getSFString()
             event = parse_flight_channel(raw, self.course.identifier)
@@ -215,18 +224,22 @@ class NativeRouteEvaluator:
                 self._challenge_since = now
                 self._ready = False
                 self._wire = EvaluatorHandshake(self.course.identifier)
-                self._sampler = NativeCourseObservationSampler(self._robot, self.course.identifier)
                 self.phase = 'observing-reset'
             # The pilot publishes its first challenge AFTER that tick's sample
             # hook. An initial empty model may therefore last one pilot period;
-            # this bootstrap wait never calls/repairs a failed sampler or grants
-            # READY. Once data have been observed, absence is terminal.
+            # this bootstrap wait never grants READY. Once data have been
+            # observed, absence is terminal.
+            model = self._model.getSFString()
             if (self.observation is None and type(event) is Challenge and
-                    self._model.getSFString() == '' and now - self._challenge_since <= 32):
+                    model == '' and now - self._challenge_since <= 32):
                 return
-            check_native_evaluator_scene(self._robot, self.course.identifier)
-            observation = self._sampler.snapshot()
-            if observation.flight.challenge != context or observation.time_ms != now:
+            vehicle = read_native_evaluator_scene(self._robot, self.course, self._scene_fields)
+            if vehicle.getId() != self._vehicle_id:
+                raise RuntimeError('native observation vehicle replaced')
+            observation = NativeCourseObservation(
+                now, read_kinematics(vehicle, now, tracked_pose=self._tracked_pose),
+                parse_flight_observation(model, event, now), read_contacts(vehicle, now))
+            if observation.flight.challenge != context or _now_ms(self._robot.getTime()) != now:
                 raise RuntimeError('native context/tick changed during observation')
             previous = self.observation
             self.observation = observation
