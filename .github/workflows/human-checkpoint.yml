@@ -64,6 +64,7 @@ jobs:
               'windows-low-end': 'WebeeBlocks-Windows-R2025a',
               'm2-private-windows-r2025a': 'M2-Windows-Exact-R2025a',
               'grand-prix-windows': 'grand-prix-u-windows-project',
+              'grand-prix-linux-r2025a': 'WebeeBlocks-Grand-Prix-Linux-R2025a',
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
               'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
               'physical-capabilities-representative': 'WebeeBlocks-Physical-Qualification',
@@ -73,6 +74,7 @@ jobs:
               'windows-low-end': {'checkpoint', 'release'},
               'm2-private-windows-r2025a': {'checkpoint'},
               'grand-prix-windows': {'checkpoint'},
+              'grand-prix-linux-r2025a': {'checkpoint'},
               's3-props-off': {'checkpoint'},
               'physical-capabilities-readonly': {'checkpoint'},
               'physical-capabilities-representative': {'checkpoint'},
@@ -459,9 +461,57 @@ jobs:
           if-no-files-found: error
 
 
+  grand-prix-linux:
+    name: Prepare exact Grand Prix Linux teacher checkpoint
+    needs: validate
+    if: needs.validate.outputs.test_profile == 'grand-prix-linux-r2025a'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.target_sha }}
+          persist-credentials: false
+      - name: Verify launcher and package exact reproducible Linux source
+        env:
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          python3 -m unittest tools.grand_prix.test_launch_linux
+          dest=ci-artifacts/grand-prix-linux
+          mkdir -p "$dest"
+          git archive --format=tar --prefix=webeeblocks/ "$TARGET_SHA" | gzip -n > "$dest/webeeblocks-source.tar.gz"
+          test -s "$dest/webeeblocks-source.tar.gz"
+          tar -tzf "$dest/webeeblocks-source.tar.gz" > "$RUNNER_TEMP/gp-linux-source-list.txt"
+          for relative in \
+            tools/grand_prix/launch_linux.py \
+            tools/grand_prix/course_active_world_v2.py \
+            controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py \
+            controllers/grand_prix_route_flight/Makefile \
+            plugins/robot_windows/grand_prix_route_v2/setup.js \
+            docs/GRAND_PRIX_LINUX.md; do
+            test "$(grep -Fxc "webeeblocks/$relative" "$RUNNER_TEMP/gp-linux-source-list.txt")" = "1"
+          done
+          printf '%s\n' "$TARGET_SHA" > "$dest/TARGET_SHA.txt"
+          cp docs/GRAND_PRIX_LINUX.md "$dest/PROCEDURE_FR.md"
+          (
+            cd "$dest"
+            sha256sum TARGET_SHA.txt PROCEDURE_FR.md webeeblocks-source.tar.gz > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+      - name: Upload exact Linux teacher checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Grand-Prix-Linux-R2025a
+          path: ci-artifacts/grand-prix-linux/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
   publish:
     name: Publish one TEST_REQUIRED
-    needs: [validate, runtime, webots, physical]
+    needs: [validate, runtime, webots, physical, grand-prix-linux]
     if: >-
       always() &&
       needs.validate.outputs.target_sha != '' &&
@@ -470,7 +520,9 @@ jobs:
       ((needs.validate.outputs.test_profile != 'physical-capabilities-readonly' &&
         needs.validate.outputs.test_profile != 'physical-capabilities-representative' &&
         needs.validate.outputs.test_profile != 'x3-independent-props-off') ||
-       needs.physical.result == 'success')
+       needs.physical.result == 'success') &&
+      (needs.validate.outputs.test_profile != 'grand-prix-linux-r2025a' ||
+       needs.grand-prix-linux.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
       group: webeeblocks-human-test-open
