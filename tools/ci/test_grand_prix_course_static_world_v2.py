@@ -1,6 +1,7 @@
 """Host-only full variable course static scene checks; no Webots PASS."""
 from dataclasses import replace
 import itertools
+import re
 import unittest
 
 from tools.grand_prix.route_courses_v2 import plan_course, reference_course
@@ -9,6 +10,33 @@ from tools.grand_prix.course_footprint_v2 import red_boundary_marks
 from tools.grand_prix.course_static_world_v2 import (
     course_physical_boxes, static_course_world,
 )
+
+
+def assert_visual_boxes(test, scene, name, marks, color, bottom, top):
+    """Verify each original rectangle has its own closed decorative volume."""
+    mesh, = [line for line in scene.splitlines() if line.startswith(f'DEF {name} Pose ')]
+    test.assertIn(f'baseColor {color} roughness 1', mesh)
+    test.assertNotIn('boundingObject', mesh)
+    vertices = [tuple(map(float, point.split())) for point in
+                re.search(r'point \[ (.*?) \]', mesh)[1].split(', ')]
+    faces = [tuple(map(int, face.split())) for face in
+             re.search(r'coordIndex \[ (.*?) \]', mesh)[1].split(', ')]
+    test.assertEqual(len(vertices), 8 * len(marks))
+    test.assertEqual(len(faces), 6 * len(marks))
+    for i, (x, y, sx, sy) in enumerate(marks):
+        block = vertices[8*i:8*i+8]
+        axes = (sorted({p[0] for p in block}), sorted({p[1] for p in block}))
+        for (lo, hi), center, size in zip(axes, (x, y), (sx, sy)):
+            test.assertAlmostEqual((lo + hi) / 2, round(center, 6), places=7)
+            test.assertAlmostEqual(hi - lo, round(size, 6), places=7)
+        test.assertEqual(set(block), set(itertools.product(*axes, (bottom, top))))
+        quads = faces[6*i:6*i+6]
+        test.assertTrue(all(len(q) == 5 and q[-1] == -1 and len(set(q)) == 5 and
+                            all(8*i <= vertex < 8*i+8 for vertex in q[:-1]) for q in quads))
+        for axis in range(3):
+            planes = [block[q[0] - 8*i][axis] for q in quads
+                      if len({block[j - 8*i][axis] for j in q[:-1]}) == 1]
+            test.assertEqual(sorted(planes), sorted({p[axis] for p in block}))
 
 
 class StaticCourseWorldTests(unittest.TestCase):
@@ -32,9 +60,7 @@ class StaticCourseWorldTests(unittest.TestCase):
                         self.assertEqual(world.count('DEF GP_V2_H_'), 3*count)
                         self.assertEqual(world.count('DEF GP_V2_FINAL_'), 4)
                         self.assertEqual(world.count('DEF GP_V2_WHITE_'), 3)
-                        self.assertEqual(
-                            world.count('DEF GP_V2_COURSE_RED_'),
-                            len(red_boundary_marks(course.route)))
+                        self.assertEqual(world.count('DEF GP_V2_COURSE_RED_MARKS Pose'), 1)
                         self.assertEqual(world.count('controller "<none>"'), 1)
                         self.assertEqual(world.count('window "<none>"'), 1)
                         self.assertEqual(world.count('EXTERNPROTO '), 4)
@@ -55,9 +81,8 @@ class StaticCourseWorldTests(unittest.TestCase):
         for guide in old:
             if guide.startswith('DEF GP_V2_RED_'):
                 self.assertNotIn(guide, world)
-        for index, (x, y, sx, sy) in enumerate(red_boundary_marks(course.route)):
-            red = f'DEF GP_V2_COURSE_RED_{index} Pose'
-            self.assertIn(red, world)
+        assert_visual_boxes(self, world, 'GP_V2_COURSE_RED_MARKS',
+                            red_boundary_marks(course.route), '.95 .06 .06', 0, .004)
         # All course boundary marks are purely decorative: Pose/Shape,
         # without colliders; physical solids remain a separate manifest.
         self.assertEqual(world.count('boundingObject Box { size'),

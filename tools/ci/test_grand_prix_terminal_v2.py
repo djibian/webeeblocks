@@ -2,6 +2,7 @@
 import itertools
 import math
 import unittest
+from tools.ci.test_grand_prix_course_static_world_v2 import assert_visual_boxes
 from tools.grand_prix.route_v2 import build_route
 from tools.grand_prix.route_terminal_v2 import (
     ARRIVAL_LENGTH, ARRIVAL_WIDTH, CLOSURE_SPAN, HEIGHT, LANDING_TILE,
@@ -120,9 +121,17 @@ class VariableTerminalTests(unittest.TestCase):
                     self.assertIn(f'DEF GP_ROUTE_TARGET_{number} Pose', text)
                 for leg in plan.route.legs:
                     self.assertIn(f'DEF GP_V2_WHITE_{leg.index} Pose', text)
-                self.assertEqual(text.count('DEF GP_V2_COURSE_RED_'),
-                                 len(red_boundary_marks(plan.route)))
-                self.assertEqual(text.count('DEF GP_ROUTE_BAND_'), 16 * plan.count)
+                assert_visual_boxes(self, text, 'GP_V2_COURSE_RED_MARKS',
+                                    red_boundary_marks(plan.route), '.95 .06 .06', 0, .004)
+                bands = []
+                for gate in plan.gates:
+                    leg = plan.route.legs[gate.leg_index]
+                    sx, sy = (.012, .0375) if leg.direction % 2 == 0 else (.0375, .012)
+                    for along in (gate.along - .55, gate.along + .55):
+                        bands.extend((*leg.at(along, -.30 + (i + .5) * .075), sx, sy)
+                                     for i in range(8))
+                assert_visual_boxes(self, text, 'GP_ROUTE_BAND_MARKS',
+                                    bands, '.98 .85 .10', 0, .004)
 
         plan = reference_course(1)
         with self.assertRaises(ValueError):
@@ -139,31 +148,17 @@ class VariableTerminalTests(unittest.TestCase):
 
         for index in range(12):
             course = reference_course(index)
-            lines = static_course_world(course).splitlines()
+            scene = static_course_world(course)
             with self.subTest(configuration=course.identifier):
-                self.assertEqual(sum(
-                    line.startswith('DEF GP_ROUTE_TARGET_') for line in lines), 51)
                 for number, (x, y) in enumerate(landing_targets(course.route), start=1):
-                    tiles = [line for line in lines if line.startswith(
-                        f'DEF GP_ROUTE_TARGET_{number}_CELL_')]
-                    self.assertEqual(len(tiles), 16)
-                    self.assertEqual(sum('baseColor .06 .06 .06' in line
-                                         for line in tiles), 8)
-                    self.assertEqual(sum('baseColor .96 .96 .96' in line
-                                         for line in tiles), 8)
-                    for col in range(4):
-                        for row in range(4):
-                            prefix = f'DEF GP_ROUTE_TARGET_{number}_CELL_{col}_{row} Pose'
-                            expected = [line for line in tiles
-                                        if line.startswith(prefix + ' {')]
-                            self.assertEqual(len(expected), 1)
-                            tile = expected[0]
-                            tx = x - .125 + (col + .5) * .0625
-                            ty = y - .125 + (row + .5) * .0625
-                            self.assertIn(
-                                f'translation {tx:.6f} {ty:.6f} .0042', tile)
-                            self.assertIn('size .0625 .0625 .0002', tile)
-                            self.assertNotIn('boundingObject', tile)
+                    for parity, label, color in ((0, 'DARK', '.06 .06 .06'),
+                                                  (1, 'LIGHT', '.96 .96 .96')):
+                        cells = [(x - .125 + (col + .5) * .0625,
+                                  y - .125 + (row + .5) * .0625, .0625, .0625)
+                                 for col in range(4) for row in range(4)
+                                 if (col + row) % 2 == parity]
+                        assert_visual_boxes(self, scene, f'GP_ROUTE_TARGET_{number}_CELLS_{label}',
+                                            cells, color, .0041, .0043)
 
     def test_unrelated_objects_cannot_be_mistaken_for_routes(self):
         for value in (None, False, (), object()):
