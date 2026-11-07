@@ -4,6 +4,7 @@ All authority originates in this Supervisor's verified live scene and coherent
 native observations. No caller supplies observations or a validation boolean.
 The Linux launcher remains gated on the separate native/GUI qualifications.
 """
+import logging
 import math
 
 from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservationSampler
@@ -17,6 +18,7 @@ from tools.grand_prix.route_courses_v2 import course_from_identifier
 from tools.grand_prix.route_evaluator_wire_v2 import Challenge, Start, EvaluatorHandshake, parse_flight_channel
 
 ORACLE = 'grand-prix-route-v2'
+LOGGER = logging.getLogger(__name__)
 
 
 class NativeRouteEvaluator:
@@ -82,13 +84,13 @@ class NativeRouteEvaluator:
         self.phase = 'waiting'
         self.last_error = None
 
-    def _close(self, now, reason):
+    def _close(self, now, reason, *, error=None):
         self._reply.setSFString('')  # revoke before any outcome or diagnostic
         if self._context is not None:
             if self._context.attempt <= self._closed_attempt:
                 return
             self._closed_attempt = self._context.attempt
-        self.last_error = reason
+        self.last_error = reason if error is None else type(error).__name__ + ': ' + str(error)
         self.phase = 'authority-revoked' if self._positive_written else 'failed'
         self._ready = False
         self._ground_since = None
@@ -105,6 +107,9 @@ class NativeRouteEvaluator:
                     f'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt={attempt} oracle={ORACLE}',
                     self._outcome('achieved')):
                 self._channel.setSFString(self._outcome('not-achieved'))
+        if self._context is not None:
+            LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
+                           self._context.attempt, now, reason, self.last_error)
         # A positive result is written only once. After publication, invalid
         # observations still revoke ALIVE, but may not overwrite a success that
         # the pilot already latched. The pilot independently fails if it had
@@ -300,8 +305,7 @@ class NativeRouteEvaluator:
             self._reply.setSFString(reply)  # keep ALIVE after a positive publication
             self.phase = 'result-published' if self._positive_written else 'active'
         except Exception as error:
-            self._close(now, 'invalid-native-observation')
-            self.last_error = type(error).__name__ + ': ' + str(error)
+            self._close(now, 'invalid-native-observation', error=error)
 
 
 def serve_native(robot, identifier):
