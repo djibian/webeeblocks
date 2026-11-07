@@ -103,7 +103,7 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.native = Supervisor(self.course)
         self.boxes = patch('tools.grand_prix.evaluator_scene_identity_v2.canonical_native_boxes',
                            return_value=('locked-native-colliders',))
-        self.verify = patch('tools.grand_prix.evaluator_scene_identity_v2.verify_native_boxes')
+        self.verify = patch('tools.grand_prix.evaluator_scene_identity_v2._verify_native_boxes')
         self.boxes.start()
         self.check = self.verify.start()
         self.addCleanup(self.boxes.stop)
@@ -119,6 +119,24 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.assertIs(args[0], self.native)
         self.assertEqual(args[1], self.course)
         self.assertEqual(args[2], ('locked-native-colliders',))
+        self.assertEqual(args[3], [self.native.vehicle, self.native.evaluator])
+
+    def test_root_nodes_are_read_once_per_scene_check_and_again_on_next_tick(self):
+        original = Field.getMFNode
+        indices = []
+
+        def read(field, index):
+            indices.append(index)
+            return original(field, index)
+
+        with patch.object(Field, 'getMFNode', read):
+            self.run_check()
+            self.assertEqual(indices, [0, 1])
+            self.native.time = .008
+            self.native.root.fields['children'].append(self.native.vehicle)
+            with self.assertRaisesRegex(RuntimeError, 'duplicated canonical Crazyflie'):
+                self.run_check()
+            self.assertEqual(indices, [0, 1, 0, 1, 2])
 
     def test_r2025a_integer_supervisor_readback_and_strict_rejection(self):
         # Pinned Webots Python Field.getSFBool() reports exact integer 0/1.
