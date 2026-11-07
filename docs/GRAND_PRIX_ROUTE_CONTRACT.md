@@ -232,3 +232,80 @@ stale replay, reset clearing and a new private attempt epoch. It never calls
 TAKEOFF, writes READY/ALIVE, commands motors or opens Blockly. Passing this bench
 establishes cross-Robot native range transport only; it cannot qualify a whole
 course, flight, RESET recovery or the teacher's Linux journey.
+
+## Native evaluator publisher and remaining delivery gate
+
+`grand_prix_route_evaluator` uses `NativeRouteEvaluator` in
+`evaluator_publisher_v2.py`. It consumes the existing coherent native sampler,
+full scene/collider check, strict wire state and pure attempt oracle; it accepts
+no caller-provided observation or `native_validated` flag. The sole native host
+boundary supplies that flag internally after checking real readbacks.
+
+Before READY it requires the flight-owned current attempt marker and private
+epoch, five fresh drone ranges, and **500 continuous simulation milliseconds**
+of native start position, upright attitude, bounded linear/angular motion,
+floor-only contact coordinates and the pilot's stable-ground bit. Native steps
+must advance exactly 8 ms. The fixed ground reference comes from the real
+pinned centered `Cylinder(height=.03, radius=.05)` above the validated z=0
+Plane; restarting an evaluator in flight cannot move that reference. A changed
+body or missing Physics refuses startup. During unused startup only, a new
+pilot nonce may discard a partial ground window before any READY was issued.
+After authority or a refutation, only a newer runtime RESET attempt may rearm.
+
+START must match this process's fresh READY. Missing/inconsistent observations,
+lost cadence or scene changes revoke evidence irreversibly for that attempt;
+the independent pilot retains LAND authority. Deadline is tested before any
+first success at **210000 ms**. Directed gates, swept geometry, altitude and
+terminal dwell use the unchanged pure oracle. A positive terminal additionally
+requires native landed evidence. ALIVE continues with current landing evidence
+after the one positive publication, until consumed by the pilot; there is no
+new acknowledgement protocol. Valid ticks publish one final response without
+an intermediate empty field visible to the pilot. A later fault revokes ALIVE
+without repeatedly overwriting an outcome the pilot may already have latched.
+
+The existing required geometry job runs two isolated native projects with the
+production evaluator class. The first keeps the real pilot **idle**: native
+ground/range data must establish READY, then a genuinely moved L must revoke it;
+restoring that L cannot revive the old attempt. The second wraps only the test
+pilot's WWI input and outgoing ACK observation. Generated C/broker bytes must
+equal production exactly; pose, sensors, PID, clocks and safety hooks are real.
+It supplies **one TAKEOFF request**, waits for real native airborne/ALIVE and
+TAKEOFF ACK, then stops the evaluator service without clearing its last ALIVE.
+The pilot must independently fail and initiate LAND within its bounded liveness
+interleaving (at most two 32-ms pilot steps); **no LAND request is injected**.
+Only its genuine forced-LAND ACK permits the test's sole RESET request through
+the normal broker. A reconstructed evaluator must then attest attempt 2, a new
+private epoch and fresh ground window; the old outcome must be gone. Each case
+requires unique JSON, agreeing native stdout and zero exit. No pupil program or
+solution trajectory is supplied by either probe.
+
+These are bounded automated obligations, **not a claim that they have passed**.
+Even successful native probes would not qualify complete L/H flight, the twelve
+courses, a successful pupil mission or Linux GUI acceptance. Before offering the
+variable launcher, qualify those remaining paths, reconfiguration and the real
+same-file Blockly Save/Open workflow. The Linux launcher deliberately remains
+gated; no expert solution or new pupil block is supplied by this publisher.
+
+### Live scene-check cost and native diagnostics
+
+The publisher still executes the entire scene/collider check at every 8-ms
+observation. `NativeFieldLookup` avoids probes of nonexistent fields on
+non-PROTO built-ins by enumerating their field declarations once per type
+**within that check only**. No schema survives to the next check. Real field
+values, SFNode/MFNode edges, counts, poses and provenance are still read; no
+scene-validation result or authority is cached. PROTO exposed/internal fields
+retain their original lookup path. Invalid enumeration fails closed.
+
+This addresses the pinned R2025a C API's uncached negative `get_field` path:
+[supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
+The controlled test proves avoided absent lookups and preserved live mutation
+refusals, **not** a measured native speedup. The required real publisher witness
+must still pass within its bounded wall budget: 120 seconds for idle and
+420 seconds for flight-reset. The latter bound follows the retained native
+trace (7088 ms simulated in 113.41 s wall time, before TAKEOFF completion); it
+does not alter the 8-ms cadence or 210000-ms mission limit.
+
+The isolated witness retains per-tick wall elapsed time, tick wall duration and
+native observed position, plus the actual outgoing pilot response buffer after
+broker forwarding. These are diagnostics only, not substitutes for the original
+JSON/stdout/exit, TAKEOFF/independent LAND/RESET or fresh native authority proofs.

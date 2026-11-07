@@ -23,7 +23,7 @@ EXPECTED = {
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
-        "runtime-v2-webots", "student-ui", "grand-prix-u-geometry",
+        "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -48,6 +48,26 @@ def workflow_files() -> list[Path]:
     )
 
 class WorkflowTests(unittest.TestCase):
+    def test_grand_prix_route_evaluator_is_a_separate_required_runtime_job(self):
+        workflow = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        geometry = workflow.split("\n  grand-prix-u-geometry:\n", 1)[1].split(
+            "\n  grand-prix-route-evaluator:\n", 1)[0]
+        evaluator = workflow.split("\n  grand-prix-route-evaluator:\n", 1)[1].split(
+            "\n  runtime-v2-core:\n", 1)[0]
+        self.assertIn("run: python3 tools/ci/run_grand_prix_u_geometry.py\n", geometry)
+        self.assertIn("run: python3 tools/ci/run_grand_prix_u_geometry.py --evaluator-only", evaluator)
+        self.assertIn("if-no-files-found: error", evaluator)
+        self.assertIn("grand-prix-route-evaluator-r2025a", evaluator)
+        runner = (ROOT / "tools/ci/run_grand_prix_u_geometry.py").read_text(encoding="utf-8")
+        deadlines = (ROOT / "tools/ci/run_grand_prix_u_deadline_native.py").read_text(encoding="utf-8")
+        self.assertIn("def run_evaluator_native_only(home):", runner)
+        self.assertIn("run_evaluator(home, env)", runner)
+        self.assertNotIn("run_evaluator(home,env)", deadlines)
+        self.assertIn("run_pose_native(home,env)", deadlines)
+        self.assertIn("run_route_observation_native(home,env)", deadlines)
+        self.assertIn("run_contact(home, DEFAULT_INDICES)", runner)
+        self.assertIn("run_h(home, (5,)", runner)
+
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))

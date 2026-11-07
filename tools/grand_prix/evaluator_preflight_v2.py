@@ -1,10 +1,10 @@
-"""First native variable Grand Prix evaluator process: preflight, not admission.
+"""Quarantined historical startup helper: preflight only, not admission.
 
 The R2025a Supervisor validates the current physical scene and host identity,
 then deliberately publishes no READY, ALIVE, RESULT or flight permission. This
-is a quarantined, fail-closed bootstrap pending qualified real device, contact,
-RESET and route-oracle evidence. Never mistake the process's liveness for
-evaluator authorization or a usable pupil Linux simulation.
+is retained as a fail-closed diagnostic. The production route entry now uses
+evaluator_publisher_v2; this helper cannot authorize flight or establish a
+usable pupil Linux simulation.
 """
 from tools.grand_prix.evaluator_scene_identity_v2 import check_native_evaluator_scene
 from tools.grand_prix.evaluator_native_kinematics_v2 import NativeKinematicsSampler

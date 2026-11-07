@@ -217,6 +217,9 @@ class SelectCiTests(unittest.TestCase):
             "controllers/grand_prix_route_observation_probe/grand_prix_route_observation_probe.cpp",
             "controllers/grand_prix_route_observation_reader/grand_prix_route_observation_reader.py",
             "controllers/grand_prix_v2_contact_probe/grand_prix_v2_contact_probe.py",
+            "controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py",
+            "controllers/grand_prix_route_publisher_probe/grand_prix_route_publisher_probe.cpp",
+            "tools/ci/fixtures/gp_route_evaluator_probe.py",
         ):
             with self.subTest(path=path):
                 selection = select([path])

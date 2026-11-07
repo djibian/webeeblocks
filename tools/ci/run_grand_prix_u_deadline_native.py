@@ -50,6 +50,8 @@ def run_native(home):
         target.with_name('.ci_gp_u_deadline.wbproj').unlink(missing_ok=True)
     run_pose_native(home,env)
     run_route_observation_native(home,env)
+    # Both evaluator witnesses are instead in an independent *required*
+    # Runtime CI leg, so geometry, L and H cannot be cut off by their wall cost.
 
 
 def route_observation_scene():
