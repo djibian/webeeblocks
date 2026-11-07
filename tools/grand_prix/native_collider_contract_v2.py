@@ -169,7 +169,8 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
         physical = fields.get(node, 'boundingObject')
         if physical is None and node.isProto() and not model:
             physical = node.getBaseNodeField('boundingObject')
-        has_collider = physical is not None and physical.getSFNode() is not None
+        collider = physical.getSFNode() if physical is not None else None
+        has_collider = collider is not None
         evaluator = (depth == 0 and name == 'GP_ROUTE_EVALUATOR' and
                      kind == 'Robot' and base == 'Robot' and not has_collider)
         if name == 'GP_ROUTE_EVALUATOR':
@@ -185,6 +186,8 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                                   'GP_V2_COURSE_RED_')))
         if guide and kind != 'Pose':
             raise RuntimeError('course guide is not a visual Pose: ' + name)
+        if guide and has_collider:
+            raise RuntimeError('collidable course guide: ' + name)
         if under_guide and kind == 'Solid':
             raise RuntimeError('hidden Solid under visual course guide')
         under_guide = under_guide or guide
@@ -203,20 +206,32 @@ def _reject_nested_course_nodes(root_nodes, expected_names, route):
                     raise RuntimeError('invalid nested course child inventory')
                 for i in range(count):
                     pending.append((children.getMFNode(i), depth + 1, under_guide))
-        for field_name in ('endPoint', 'boundingObject', 'geometry'):
+        if has_collider:
+            pending.append((collider, depth + 1, under_guide))
+        for field_name in ('endPoint', 'geometry'):
             field = fields.get(node, field_name)
             if field is None and node.isProto() and not model:
                 field = node.getBaseNodeField(field_name)
             if field is not None:
                 nested = field.getSFNode()
                 if nested is not None:
-                    if guide and field_name == 'boundingObject':
-                        raise RuntimeError('collidable course guide: ' + name)
                     pending.append((nested, depth + 1, under_guide))
 
     if models != {'Floor', 'Crazyflie'}:
         missing = ', '.join(sorted({'Floor', 'Crazyflie'} - models))
         raise RuntimeError('missing required pinned scene model: ' + missing)
+
+
+def _read_native_root_nodes(supervisor):
+    """Read the root inventory once per check, never across native steps."""
+    children = supervisor.getRoot().getField('children')
+    count = children.getCount() if children is not None else None
+    if type(count) is not int or not 0 < count < 8192:
+        raise RuntimeError('invalid native root inventory')
+    nodes = [children.getMFNode(index) for index in range(count)]
+    if any(node is None for node in nodes):
+        raise RuntimeError('unreadable native root node')
+    return nodes
 
 
 def verify_native_boxes(supervisor, course, boxes):
@@ -227,6 +242,10 @@ def verify_native_boxes(supervisor, course, boxes):
     from scene readback must fail even if it matches every observed collider.
     This still provides no READY or real R2025a contact qualification.
     """
+    _verify_native_boxes(supervisor, course, boxes, _read_native_root_nodes(supervisor))
+
+
+def _verify_native_boxes(supervisor, course, boxes, root_nodes):
     canonical = canonical_native_boxes(course)
     expected_names = tuple(box.name for box in canonical)
     if not isinstance(boxes, tuple) or len(boxes) != len(expected_names):
@@ -243,12 +262,8 @@ def verify_native_boxes(supervisor, course, boxes):
 
     # Reject unexpected course Solids too: a hidden collidable object is not
     # made safe by verifying all the expected objects are present.
-    children = supervisor.getRoot().getField('children')
     scene_names = []
-    root_nodes = []
-    for index in range(children.getCount()):
-        node = children.getMFNode(index)
-        root_nodes.append(node)
+    for node in root_nodes:
         name = node.getDef()
         if name and name.startswith('GP_V2_'):
             if node.getTypeName() == 'Solid':
