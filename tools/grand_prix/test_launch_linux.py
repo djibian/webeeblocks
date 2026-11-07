@@ -1,4 +1,4 @@
-"""Static falsification for the bounded historical-U Linux entry point.
+"""Host orchestration and refusals for the bounded Linux Grand Prix entry points.
 
 No headless test substitutes for real interactive Webots/Blockly/file dialogs.
 """
@@ -449,6 +449,116 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
                 cwd=directory, env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(output.returncode, 0, output.stderr)
         self.assertIn("SANDBOX Blockly Linux", output.stdout)
+
+
+class ActiveVariableLinuxLauncherTests(unittest.TestCase):
+    def test_every_reference_and_custom_course_reuses_exact_active_composer(self):
+        from tools.grand_prix.launch_linux import render_route
+        from tools.grand_prix.course_active_world_v2 import active_course_world
+        from tools.grand_prix.route_courses_v2 import reference_course, plan_course
+        courses = [reference_course(i) for i in range(12)]
+        courses.append(plan_course(17, (2., 2.5, 3.), ('G', 'D'), 2))
+        for course in courses:
+            world = render_route(course)
+            self.assertEqual(world, active_course_world(course).replace(
+                'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/', 'webots://'))
+            self.assertEqual(world.count('controllerArgs [ "' + course.identifier + '" ]'), 2)
+            self.assertIn('window "grand_prix_route_v2"', world)
+            self.assertNotIn('controller "<none>"', world)
+            self.assertNotIn('grand_prix_u_flight', world)
+
+    def test_route_asset_refusal_precedes_any_preparation(self):
+        from tools.grand_prix import launch_linux as launcher
+        with mock.patch.object(launcher, 'ensure_webots_assets',
+                               side_effect=RuntimeError('missing pinned assets')), \
+             mock.patch.object(launcher, 'ensure_blockly_assets') as blockly, \
+             mock.patch.object(launcher.subprocess, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'missing pinned assets'):
+                launcher.prepare_route_native(Path('/mock/webots'))
+            blockly.assert_not_called()
+            run.assert_not_called()
+
+    def test_route_build_targets_production_and_refuses_missing_executable(self):
+        from tools.grand_prix import launch_linux as launcher
+        with tempfile.TemporaryDirectory() as temp:
+            flight = Path(temp) / 'grand_prix_route_flight'
+            flight.mkdir()
+            home = Path('/mock/webots')
+            with mock.patch.object(launcher, 'ROUTE_FLIGHT', flight), \
+                 mock.patch.object(launcher, 'ensure_webots_assets'), \
+                 mock.patch.object(launcher, 'ensure_blockly_assets'), \
+                 mock.patch.object(launcher.subprocess, 'run') as run:
+                with self.assertRaisesRegex(RuntimeError, 'compilé introuvable'):
+                    launcher.prepare_route_native(home)
+                self.assertEqual(run.call_count, 2)
+                self.assertTrue(str(run.call_args_list[0].args[0][1]).endswith('prepare_route_runtime.py'))
+                self.assertEqual(run.call_args_list[1].args[0], ['make', '-C', str(flight), 'release'])
+                binary = flight / 'grand_prix_route_flight'
+                binary.write_text('fixture, not a native binary')
+                binary.chmod(0o755)
+                self.assertEqual(launcher.prepare_route_native(home)['WEBOTS_HOME'], str(home))
+
+    def test_ambiguous_invalid_and_headless_route_never_build_or_launch(self):
+        from tools.grand_prix import launch_linux as launcher
+        with mock.patch.object(launcher, 'prepare_native') as legacy, \
+             mock.patch.object(launcher, 'prepare_route_native') as prepare, \
+             mock.patch.object(launcher, 'launch_graphical') as gui:
+            for arguments in ([], ['--index', '12'], ['--index', '5', '--legacy-u'],
+                              ['--index', '5', '--course-id', 'x'],
+                              ['--index', '5', '--seed', '4'],
+                              ['--list-configurations', '--index', '5']):
+                with self.subTest(arguments=arguments), self.assertRaises(SystemExit):
+                    launcher.main(arguments)
+            self.assertEqual(launcher.main(['--course-id', 'gp-u-v1', '--preflight-only']), 1)
+            with mock.patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}):
+                self.assertEqual(launcher.main(['--index', '5']), 1)
+            legacy.assert_not_called()
+            prepare.assert_not_called()
+            gui.assert_not_called()
+
+    def test_route_gui_receives_production_world_and_retires_only_owned_files(self):
+        from tools.grand_prix import launch_linux as launcher
+        from tools.grand_prix.route_courses_v2 import reference_course
+        for selection in (['--index', '5'], ['--course-id', reference_course(5).identifier]):
+            for failure in (False, True):
+                with self.subTest(selection=selection, failure=failure), tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    (root / 'worlds').mkdir()
+                    unrelated = root / 'worlds/.keep.wbproj'
+                    unrelated.write_text('keep')
+                    observed = []
+                    def gui(home, world, env):
+                        self.assertIn('controller "grand_prix_route_evaluator"', world.read_text())
+                        self.assertIn('window "grand_prix_route_v2"', world.read_text())
+                        world.with_name('.' + world.stem + '.wbproj').write_text('owned')
+                        observed.append(world)
+                        if failure:
+                            raise OSError('native launch failed')
+                        return mock.Mock(returncode=7)
+                    with mock.patch.dict(os.environ, {'DISPLAY': ':99'}), \
+                         mock.patch.object(launcher, 'ROOT', root), \
+                         mock.patch.object(launcher, 'webots_home', return_value=Path('/mock/webots')), \
+                         mock.patch.object(launcher, 'prepare_native') as legacy, \
+                         mock.patch.object(launcher, 'prepare_route_native', return_value={}) as prepare, \
+                         mock.patch.object(launcher, 'launch_graphical', side_effect=gui):
+                        self.assertEqual(launcher.main(selection), 1 if failure else 7)
+                    legacy.assert_not_called()
+                    prepare.assert_called_once()
+                    self.assertEqual(len(observed), 1)
+                    self.assertFalse(observed[0].exists())
+                    self.assertEqual(list((root / 'worlds').iterdir()), [unrelated])
+
+    def test_route_preflight_can_run_headless_without_claiming_gui(self):
+        from tools.grand_prix import launch_linux as launcher
+        with mock.patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}), \
+             mock.patch.object(launcher, 'webots_home', return_value=Path('/mock/webots')), \
+             mock.patch.object(launcher, 'prepare_native') as legacy, \
+             mock.patch.object(launcher, 'prepare_route_native', return_value={}) as prepare, \
+             mock.patch.object(launcher, 'launch_graphical') as gui:
+            self.assertEqual(launcher.main(['--index', '5', '--preflight-only']), 0)
+            prepare.assert_called_once()
+            legacy.assert_not_called()
+            gui.assert_not_called()
 
 
 if __name__ == "__main__":
