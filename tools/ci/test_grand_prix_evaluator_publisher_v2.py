@@ -195,8 +195,14 @@ class NativePublisherTests(unittest.TestCase):
         self.admitted()
         self.native.evaluator.fields['model'] = self.native.evaluator.fields['model'].replace(
             'epoch=' + self.epoch, 'epoch=' + 'ef' * 16)
-        self.assertEqual(self.tick(sample=False), '')
-        for _ in range(70): self.assertEqual(self.tick(), '')
+        with self.assertLogs('tools.grand_prix.evaluator_publisher_v2') as log:
+            self.assertEqual(self.tick(sample=False), '')
+            failed_ms = self.ms
+            for _ in range(70): self.assertEqual(self.tick(), '')
+        self.assertEqual(len(log.records), 1)
+        self.assertIn(f'attempt=1 time_ms={failed_ms} reason=invalid-native-observation',
+                      log.records[0].getMessage())
+        self.assertIn('detail=', log.records[0].getMessage())
         self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
 
     def test_unused_bootstrap_epoch_change_discards_the_partial_window(self):
@@ -229,7 +235,10 @@ class NativePublisherTests(unittest.TestCase):
         self.admitted()
         self.native.vehicle.fields['customData'] = (
             f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle={ORACLE}')
-        for _ in range(190): self.tick()
+        with self.assertLogs('tools.grand_prix.evaluator_publisher_v2') as log:
+            for _ in range(190): self.tick()
+        self.assertEqual(len(log.records), 1)
+        self.assertIn('reason=wrong-landing', log.records[0].getMessage())
         self.assertEqual(self.native.evaluator.fields['description'], '')
         self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
 
