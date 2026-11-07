@@ -9,6 +9,7 @@ from tools.grand_prix.native_collider_contract_v2 import (
 )
 from tools.grand_prix.route_courses_v2 import course_from_identifier
 from tools.grand_prix.native_sfbbool_v2 import enabled
+from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 
 
 def _field_text(node, name):
@@ -65,11 +66,12 @@ def check_native_evaluator_scene(supervisor, identifier):
     if children is None or type(children.getCount()) is not int or not 0 < children.getCount() < 8192:
         raise RuntimeError('invalid native root inventory')
     vehicles = []
+    fields = NativeFieldLookup()
     for index in range(children.getCount()):
         node = children.getMFNode(index)
         if node is None:
             raise RuntimeError('unreadable native root node')
-        name = node.getField('name')
+        name = fields.get(node, 'name')
         if name is not None and name.getSFString() == 'Crazyflie WebeeBlocks':
             vehicles.append(node)
     if len(vehicles) != 1:
