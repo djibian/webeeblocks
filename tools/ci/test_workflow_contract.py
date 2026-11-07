@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
-    "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "publish"},
+    "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
     "ci-runtime.yml": {
@@ -486,6 +486,39 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("test_grand_prix_windows_native.py", native)
         self.assertIn("test_grand_prix_windows_project.ps1", native)
         self.assertIn("if-no-files-found: error", upload)
+
+
+    def test_grand_prix_linux_checkpoint_prepares_and_gates_exact_archive(self):
+        checkpoint = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        self.assertIn("'grand-prix-linux-r2025a': 'WebeeBlocks-Grand-Prix-Linux-R2025a',", checkpoint)
+        self.assertIn("'grand-prix-linux-r2025a': {'checkpoint'},", checkpoint)
+        self.assertNotIn("'grand-prix-linux-r2025a': {'checkpoint', 'release'}", checkpoint)
+        preparation = checkpoint.split("\n  grand-prix-linux:\n", 1)[1].split("\n  publish:\n", 1)[0]
+        for required in (
+            "needs: validate",
+            "if: needs.validate.outputs.test_profile == 'grand-prix-linux-r2025a'",
+            "ref: ${{ needs.validate.outputs.target_sha }}",
+            'test "$(git rev-parse HEAD)" = "$TARGET_SHA"',
+            "python3 -m unittest tools.grand_prix.test_launch_linux",
+            'git archive --format=tar --prefix=webeeblocks/ "$TARGET_SHA" | gzip -n',
+            "tar -tzf",
+            "tools/grand_prix/launch_linux.py",
+            "controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py",
+            "plugins/robot_windows/grand_prix_route_v2/setup.js",
+            "sha256sum -c SHA256SUMS",
+            "name: WebeeBlocks-Grand-Prix-Linux-R2025a",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, preparation)
+        publish = checkpoint.split("\n  publish:\n", 1)[1]
+        self.assertIn("needs: [validate, runtime, webots, physical, grand-prix-linux]", publish)
+        self.assertIn("needs.runtime.result == 'success'", publish)
+        self.assertIn("needs.webots.result == 'success'", publish)
+        self.assertIn("needs.validate.outputs.test_profile != 'grand-prix-linux-r2025a' ||", publish)
+        self.assertIn("needs.grand-prix-linux.result == 'success'", publish)
+        self.assertIn("len(matching) != 1", publish)
+        self.assertIn("sha256:[0-9a-f]{64}", publish)
+        self.assertIn("group: webeeblocks-human-test-open", publish)
 
     def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
