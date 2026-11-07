@@ -136,6 +136,48 @@ def run_native(home, tcp=False):
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
 
 
+
+def run_full_route_matrix_native(home):
+    """Falsify all 12 canonical geometries with actual R2025a L/H contacts.
+
+    The existing probe implementations own their real observations, refusal
+    rules and per-case 120-s caps. Never replace missing proof with a mock.
+    """
+    if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
+        raise RuntimeError('full native matrix needs pinned Webots R2025a')
+    from tools.grand_prix.route_courses_v2 import reference_course
+    from tools.ci import run_grand_prix_v2_contact_native as contact
+    from tools.ci import run_grand_prix_v2_h_native as h_probe
+
+    indices = tuple(range(12))
+    contact.native_run(home, indices)
+    h_probe.native_run(home, indices, output_root=OUT / 'route-h-native')
+    expected = [reference_course(index).identifier for index in indices]
+    for source in (contact.OUT, OUT / 'route-h-native'):
+        summaries = list(source.glob('invocation-*/summary.json'))
+        if len(summaries) != 1:
+            raise RuntimeError('missing or ambiguous full native matrix summary')
+        summary_path = summaries[0]
+        summary = json.loads(summary_path.read_text())
+        results = summary.get('results') if type(summary) is dict else None
+        if (summary.get('webots') != 'R2025a' or type(results) is not list
+                or [r.get('configuration') for r in results
+                    if type(r) is dict] != expected or len(results) != 12):
+            raise RuntimeError('incomplete full native matrix')
+        for position, (identifier, record) in enumerate(zip(expected, results)):
+            expected_file = f'{position:02d}-{identifier}/native.json'
+            if record.get('evidence_file') != expected_file:
+                raise RuntimeError('native matrix evidence path mismatch')
+            file = summary_path.parent / expected_file
+            if (not file.is_file() or hashlib.sha256(file.read_bytes()).hexdigest()
+                    != record.get('evidence_sha256')):
+                raise RuntimeError('native matrix evidence digest mismatch')
+    OUT.mkdir(parents=True, exist_ok=True)
+    manifest = {file.relative_to(OUT).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest()
+                for file in OUT.rglob('*') if file.is_file() and file != OUT / 'sha256.json'}
+    (OUT / 'sha256.json').write_text(json.dumps(manifest, indent=2) + '\n')
+
+
 def run_evaluator_native_only(home):
     """Own both exact native route-evaluator witnesses in a separate CI leg.
 
@@ -162,15 +204,20 @@ def main():
     parser.add_argument('--native', action='store_true')
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
+    parser.add_argument('--full-matrix-only', action='store_true')
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
-    if args.tcp and (not args.native or args.evaluator_only):
+    if args.evaluator_only and args.full_matrix_only:
+        raise ValueError('native matrix and evaluator modes are exclusive')
+    if args.tcp and (not args.native or args.evaluator_only or args.full_matrix_only):
         raise ValueError('--tcp requires full --native geometry')
     if args.native:
         if args.evaluator_only:
             run_evaluator_native_only(Path(os.environ['WEBOTS_HOME']))
+        elif args.full_matrix_only:
+            run_full_route_matrix_native(Path(os.environ['WEBOTS_HOME']))
         else:
             run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
         return
@@ -189,7 +236,9 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     # Explicit entry point and startup diagnostics separate preparation from
     # geometry. Always retain a file before Docker can block or fail.
-    with tempfile.TemporaryDirectory(prefix='gp-u-evaluator-' if args.evaluator_only else 'gp-u-geometry-') as temporary:
+    with tempfile.TemporaryDirectory(prefix=('gp-u-evaluator-' if args.evaluator_only else
+                                              'gp-v2-matrix-' if args.full_matrix_only else
+                                              'gp-u-geometry-')) as temporary:
         cid=Path(temporary)/'container.cid'
         args=['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash',
               '-e','WEBOTS_HOME=/usr/local/webots',
@@ -204,6 +253,8 @@ def main():
               # (900 s cap), without changing any per-case native timeout.
               + ('timeout -k 5s 900s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --evaluator-only'
                  if args.evaluator_only else
+                 'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
+                 if args.full_matrix_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]
         try:
             with (OUT/'docker.log').open('w') as log:
