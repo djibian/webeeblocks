@@ -1,10 +1,9 @@
 # Grand Prix sur Linux — parcours variables expérimentaux
 
 Le lanceur assemble le CoursePlan canonique, les L/H réels, le pilote natif,
-l'évaluateur et la Robot Window Blockly existants. **Condition d'intégration :
-le publisher natif #886 doit être intégré après ses preuves R2025a et sa revue
-V5.** Un script absent, arrêté ou incapable de prouver READY n'autorise jamais
-TAKEOFF. Le lanceur ne remplace aucune garde native et ne fournit aucun programme.
+l'évaluateur et la Robot Window Blockly existants. Le publisher natif de
+l'évaluateur (#886) et le lancement actif (#890) sont intégrés. Un script absent,
+arrêté ou incapable de prouver READY n'autorise jamais TAKEOFF. Le lanceur ne remplace aucune garde native et ne fournit aucun programme.
 
 Les tests du lanceur qualifient sa composition et ses refus, **pas** le vrai
 cycle graphique Linux, les dialogues OS, un parcours réussi, les 12 missions
@@ -25,6 +24,58 @@ Le bac à sable sans évaluateur et l'inspection inerte restent des modes distin
   ressources Blockly ; celle-ci peut nécessiter Internet. Aucun accès root
   n'est demandé par le lanceur. La préparation garde la version Blockly
   contractuelle 13.2.1.
+
+## Essai Linux au moyen d'un TEST_REQUIRED de confiance
+
+**Ne pas lancer de test sur simple fusion ou CI verte.** Le profil
+`grand-prix-linux-r2025a` (checkpoint uniquement) prépare dans le workflow
+GitHub de confiance `human-checkpoint.yml` l'artefact
+`WebeeBlocks-Grand-Prix-Linux-R2025a` associé à **un SHA de commit exact**.
+Sa publication est interdite si les suites complètes Runtime/Webots ou la
+préparation du paquet échouent, si l'archive/digest manque, ou si un autre
+`TEST_REQUIRED` est ouvert. Le paquet **ne démontre pas** que la GUI a été
+utilisée : c'est précisément l'observation demandée à l'enseignant.
+
+Uniquement après création d'une issue `[TEST_REQUIRED] grand-prix-linux-r2025a`
+par le mécanisme de confiance :
+
+1. Télécharger **l'artefact du run indiqué dans l'issue**, extraire son ZIP
+   dans un dossier personnel, ouvrir un terminal dans le dossier extrait.
+2. Vérifier les fichiers avant extraction des sources :
+   `sha256sum -c SHA256SUMS`, puis relever `cat TARGET_SHA.txt`. L'issue
+   doit désigner **ce même SHA** et l'artefact doit porter son digest GitHub.
+   Ne rien exécuter si cette vérification échoue.
+3. Extraire `tar -xzf webeeblocks-source.tar.gz` ; se placer dans
+   `webeeblocks/`. Il s'agit d'une archive de sources figées, **sans .git** :
+   utiliser le SHA du `TARGET_SHA.txt` vérifié, pas `git rev-parse HEAD`.
+4. Avec Webots R2025a, Python 3, Make/C++, Node.js ≥ 22 et npm disponibles,
+   définir `WEBOTS_HOME` pour le répertoire d'installation de Webots.
+   Exécuter successivement :
+
+   ```bash
+   python3 tools/grand_prix/launch_linux.py --index 5 --preflight-only
+   python3 tools/grand_prix/launch_linux.py --index 5
+   ```
+
+5. Dans Webots, démarrer la simulation puis Blockly, créer un petit programme
+   libre, observer les distances des capteurs et essayer Lecture, Pas à pas,
+   Continuer, STOP et RESET. Un programme incomplet ou un échec de mission
+   sont des résultats d'essai valables. Faire Enregistrer sous → modifier →
+   Enregistrer → Ouvrir le **même .wbb**. Fermer Webots, relancer avec
+   `--index 6`, rouvrir le **même .wbb** sans modification et vérifier le
+   rétablissement du programme, les capteurs et une tentative fraîche.
+6. Reporter **PASS** uniquement si l'ensemble du parcours d'interface
+   demandé fonctionne ; sinon **FAIL**, avec la première action défaillante,
+   sorties de terminal, version Linux et Webots, navigateur/Robot Window
+   utilisé et observations factuelles. La réussite du Grand Prix ne fait
+   **pas** partie de cette acceptation Linux initiale.
+
+Le profil prépare une archive de sources complète à partir du commit exact,
+la procédure française et un manifeste `SHA256SUMS`. Les dépendances
+Blockly épinglées sont préparées par le lanceur au premier usage et peuvent
+nécessiter un accès au registre npm ; les ressources officielles Webots
+R2025a doivent déjà être installées sur le poste. Le checkpoint n'impose
+aucune installation root ni vol physique.
 
 ## Lancer un parcours variable
 
