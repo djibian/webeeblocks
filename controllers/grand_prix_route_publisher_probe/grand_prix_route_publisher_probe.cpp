@@ -1,6 +1,5 @@
-// Quarantined protocol stimulus: ONE TAKEOFF, then RESET only AFTER the real
-// pilot independently completed its safety LAND. No LAND is injected, no pose,
-// sensor, gyro, PID, time, oracle or safety function is replaced.
+// Quarantined protocol stimulus: TAKEOFF, independent safety LAND, RESET,
+// then one fresh TAKEOFF. No LAND is injected and no native flight logic is replaced.
 #include <webots/robot.h>
 #include <cmath>
 #include <cstdio>
@@ -11,21 +10,27 @@
 extern "C" const char *__real_wb_robot_wwi_receive_text(void);
 extern "C" void __real_gp_u_send(const char *, int);
 namespace {
-int phase=0;
-long long takeoff=-1,land=-1,reset=-1;
+enum Phase {
+  wait_first_ready, first_takeoff_sent, wait_safety_land, send_reset,
+  reset_sent, wait_second_ready, second_takeoff_sent, finished
+};
+Phase phase=wait_first_ready;
+long long takeoff=-1,land=-1,reset=-1,second_takeoff=-1;
 void persist() {
   const char *path=std::getenv("GP_ROUTE_PILOT_ACK_OUT");
   if(!path)std::abort();
   const std::string pending=std::string(path)+".pending";
   FILE *f=std::fopen(pending.c_str(),"w");
   if(!f)std::abort();
-  std::fprintf(f,"{\"takeoff_ack_ms\":%lld,\"land_ack_ms\":%lld,\"reset_ack_ms\":%lld}\n",takeoff,land,reset);
+  std::fprintf(f,"{\"takeoff_ack_ms\":%lld,\"land_ack_ms\":%lld,"
+                 "\"reset_ack_ms\":%lld,\"second_takeoff_ack_ms\":%lld}\n",
+               takeoff,land,reset,second_takeoff);
   if(std::fclose(f))std::abort();
   if(std::rename(pending.c_str(),path))std::abort();
 }
 }
 extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
-  if(phase==0) {
+  if(phase==wait_first_ready || phase==wait_second_ready) {
     // The native evaluator alone writes this test-only cue AFTER observing
     // its real, continuous READY. Never query another synchronized Supervisor
     // from inside the flight controller's WWI receive callback: that can stall
@@ -33,27 +38,36 @@ extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
     // independently by gp_u_start; this file grants no flight authority.
     const char *path=std::getenv("GP_ROUTE_PILOT_NATIVE_READY_OUT");
     const char *expected_course=std::getenv("GP_ROUTE_PILOT_COURSE_ID");
+    const bool after_reset=phase==wait_second_ready;
     bool observed=false;
     if(path && expected_course) {
-      FILE *stream=std::fopen(path,"r");
+      const std::string marker=std::string(path)+(after_reset?".second":"");
+      FILE *stream=std::fopen(marker.c_str(),"r");
       if(stream) {
         char line[256]={}, course[160]={}, trailing='\0';
+        int attempt=0;
         long long native_ms=-1;
         if(std::fgets(line,sizeof line,stream) &&
-           std::sscanf(line,"GP_ROUTE_PROBE_READY_V1 attempt=1 course=%159s time_ms=%lld %c",
-                       course,&native_ms,&trailing)==2 &&
-           std::strcmp(course,expected_course)==0 && native_ms>=500 && native_ms%8==0)
+           std::sscanf(line,"GP_ROUTE_PROBE_READY_V1 attempt=%1d course=%159s time_ms=%lld %c",
+                       &attempt,course,&native_ms,&trailing)==3 &&
+           attempt==(after_reset?2:1) && std::strcmp(course,expected_course)==0 &&
+           native_ms>=500 && native_ms%8==0 && (!after_reset || native_ms>reset+500))
           observed=true;
         std::fclose(stream);
       }
     }
     if(observed) {
-      phase=1;
+      if(after_reset) {
+        phase=second_takeoff_sent;
+        std::puts("GP_ROUTE_PILOT_REQUEST id=3 command=TAKEOFF");std::fflush(stdout);
+        return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 TAKEOFF 0.4";
+      }
+      phase=first_takeoff_sent;
       std::puts("GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF");std::fflush(stdout);
       return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4";
     }
-  } else if(phase==3) {
-    phase=4;
+  } else if(phase==send_reset) {
+    phase=reset_sent;
     std::puts("GP_ROUTE_PILOT_REQUEST id=2 command=RESET");std::fflush(stdout);
     return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 RESET";
   }
@@ -72,14 +86,17 @@ extern "C" void __wrap_gp_u_send(const char *data,int size) {
   }
   if(!data || size<1 || data[size-1]!='\0')return;
   const long long now=std::llround(wb_robot_get_time()*1000);
-  if(phase==1 && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK")) {
-    takeoff=now;phase=2;persist();
+  if(phase==first_takeoff_sent && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK")) {
+    takeoff=now;phase=wait_safety_land;persist();
     std::printf("GP_ROUTE_PILOT_ACK id=1 time_ms=%lld\n",now);std::fflush(stdout);
-  } else if(phase==2 && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK")) {
-    land=now;phase=3;persist();
+  } else if(phase==wait_safety_land && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK")) {
+    land=now;phase=send_reset;persist();
     std::printf("GP_ROUTE_PILOT_ACK id=2147483646 time_ms=%lld\n",now);std::fflush(stdout);
-  } else if(phase==4 && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK")) {
-    reset=now;phase=5;persist();
+  } else if(phase==reset_sent && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK")) {
+    reset=now;phase=wait_second_ready;persist();
     std::printf("GP_ROUTE_PILOT_ACK id=2 time_ms=%lld\n",now);std::fflush(stdout);
+  } else if(phase==second_takeoff_sent && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK")) {
+    second_takeoff=now;phase=finished;persist();
+    std::printf("GP_ROUTE_PILOT_ACK id=3 time_ms=%lld\n",now);std::fflush(stdout);
   }
 }
