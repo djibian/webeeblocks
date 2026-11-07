@@ -24,6 +24,7 @@ EXPECTED = {
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
+        "grand-prix-v2-native-matrix",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
