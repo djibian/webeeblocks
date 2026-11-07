@@ -12,6 +12,7 @@ from tools.grand_prix.evaluator_scene_identity_v2 import read_native_evaluator_s
 from tools.grand_prix.evaluator_native_contacts_v2 import read_contacts
 from tools.grand_prix.evaluator_native_kinematics_v2 import _now_ms, read_kinematics
 from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
+from tools.grand_prix.native_scene_snapshot_v2 import NativeSceneSnapshot
 from tools.grand_prix.oracle_attempt_v2 import (
     start_pure_attempt, observe_pure_attempt, fail_pure_attempt,
 )
@@ -42,7 +43,9 @@ class NativeRouteEvaluator:
             raise RuntimeError('native evaluator description absent')
         self._reply.setSFString('')
         self._scene_fields = NativeFieldLookup(prepare_tracking=True)
-        self._vehicle = read_native_evaluator_scene(robot, self.course, self._scene_fields)
+        self._scene_snapshot = NativeSceneSnapshot(self.course)
+        self._vehicle = read_native_evaluator_scene(
+            robot, self.course, self._scene_fields, self._scene_snapshot)
         self._scene_fields.start_tracking()
         self._self_id = own.getId()
         self._vehicle_id = self._vehicle.getId()
@@ -233,7 +236,8 @@ class NativeRouteEvaluator:
             if (self.observation is None and type(event) is Challenge and
                     model == '' and now - self._challenge_since <= 32):
                 return
-            vehicle = read_native_evaluator_scene(self._robot, self.course, self._scene_fields)
+            vehicle = read_native_evaluator_scene(
+                self._robot, self.course, self._scene_fields, self._scene_snapshot)
             if vehicle.getId() != self._vehicle_id:
                 raise RuntimeError('native observation vehicle replaced')
             observation = NativeCourseObservation(

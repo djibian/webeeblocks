@@ -294,15 +294,24 @@ gated; no expert solution or new pupil block is supplied by this publisher.
 The publisher validates the scene at every 8-ms observation. After the full
 startup check it subscribes to the validated single-field values and world
 poses through the R2025a Supervisor APIs. Webots supplies those samples
-together in its step response. Native getters still run on every check and
-request the current value if no current sample is available.
+together in its step response. Native getters still request the current value
+if no current sample is available.
 
-`NativeFieldLookup` reuses only immutable built-in field declarations between
-steps. Every MFNode and MFString entry is still read from Webots, including
-after a replacement that leaves the field count unchanged. No scene-validation
-result, mutable graph edge, pose or authority is cached by the evaluator. PROTO
-internal fields and the pilot/evaluator protocol retain their synchronous
-read paths. Invalid enumeration fails closed.
+`NativeFieldLookup` reuses immutable built-in field declarations between
+steps. The evaluator also requests one live R2025a VRML export of the root at
+each tick. The comparison removes only the two root robots' live pose,
+velocities and protocol strings. Every remaining byte, including graph edges
+and names, must match a scene verified by the full native traversal. A changed
+export forces a full traversal even when the node count stays constant.
+Unsupported exports, USE references and nested PROTOs keep the full traversal.
+
+The evaluator rereads the root count and the identities of the PROTO roots
+and evaluator. It still checks the Floor's native Plane and world pose, the
+live colliders' lock, world pose, rotation and dimensions, and both controllers'
+identity and arguments. Unknown opaque roots are fully traversed. The pinned
+Floor/Crazyflie expose their inspected node parameters in the VRML export.
+The evaluator checks the protocol and flight observations separately on every
+step. A snapshot cannot grant READY or preserve a closed attempt.
 
 Each publisher tick reuses the verified Crazyflie node for its pose, velocity
 and contacts. The pose and descendant contacts are subscribed at 8 ms. The

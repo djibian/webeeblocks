@@ -128,7 +128,8 @@ def _verify_floor(node, route, fields):
             raise RuntimeError('native floor does not cover the full course')
 
 
-def _read_scene_boxes(root_nodes, expected_names, route, fields):
+def _read_scene_boxes(root_nodes, expected_names, route, fields, inspect=None,
+                      *, verified_model_edges=False):
     """Reject unlisted physics, including bodies outside the GP_V2 namespace.
 
     Physical GP_V2 solids are direct root children by contract. Fail closed
@@ -148,6 +149,8 @@ def _read_scene_boxes(root_nodes, expected_names, route, fields):
         name = node.getDef()
         kind = node.getTypeName()
         base = node.getBaseTypeName()
+        if inspect is not None:
+            inspect(node, depth)
         if not isinstance(base, str) or not base:
             raise RuntimeError('unreadable native base node type')
         # The installed, pinned R2025a models are the only opaque physics
@@ -166,6 +169,11 @@ def _read_scene_boxes(root_nodes, expected_names, route, fields):
                     raise RuntimeError('unrecognized native vehicle')
             else:
                 _verify_floor(node, route, fields)
+            # The pinned Floor/Crazyflie checks above are independent of the
+            # export. Their exposed node parameters are covered by the exact
+            # bulk comparison after a full traversal with no nested PROTO.
+            if verified_model_edges:
+                continue
         physical = fields.get(node, 'boundingObject')
         if physical is None and node.isProto() and not model:
             physical = node.getBaseNodeField('boundingObject')
@@ -230,14 +238,19 @@ def _read_scene_boxes(root_nodes, expected_names, route, fields):
 
 def _read_native_root_nodes(supervisor):
     """Read the root inventory once per check, never across native steps."""
-    children = supervisor.getRoot().getField('children')
-    count = children.getCount() if children is not None else None
-    if type(count) is not int or not 0 < count < 8192:
-        raise RuntimeError('invalid native root inventory')
+    children, count = _root_inventory(supervisor.getRoot())
     nodes = [children.getMFNode(index) for index in range(count)]
     if any(node is None for node in nodes):
         raise RuntimeError('unreadable native root node')
     return nodes
+
+
+def _root_inventory(root):
+    children = root.getField('children')
+    count = children.getCount() if children is not None else None
+    if type(count) is not int or not 0 < count < 8192:
+        raise RuntimeError('invalid native root inventory')
+    return children, count
 
 
 def verify_native_boxes(supervisor, course, boxes):
@@ -263,7 +276,7 @@ def verify_native_boxes(supervisor, course, boxes):
     _verify_scene_boxes(course, canonical, _read_native_root_nodes(supervisor), NativeFieldLookup())
 
 
-def _verify_scene_boxes(course, boxes, root_nodes, fields):
+def _verify_scene_boxes(course, boxes, root_nodes, fields, inspect=None):
     expected_names = {box.name for box in boxes}
     # Reject unexpected course Solids too: a hidden collidable object is not
     # made safe by verifying all the expected objects are present.
@@ -284,10 +297,14 @@ def _verify_scene_boxes(course, boxes, root_nodes, fields):
                 # could otherwise conceal an unprefixed Solid below it.
                 raise RuntimeError('unexpected reserved course node: ' + name)
             # White/red course guides are non-colliding Pose nodes.
-    live_boxes = _read_scene_boxes(root_nodes, expected_names, course.route, fields)
+    live_boxes = _read_scene_boxes(root_nodes, expected_names, course.route, fields, inspect)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != expected_names:
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
+    _verify_box_measurements(boxes, live_boxes, fields)
+    return live_boxes
 
+
+def _verify_box_measurements(boxes, live_boxes, fields):
     for box in boxes:
         node, collider, display = live_boxes[box.name]
         locked = fields.get(node, 'locked')
@@ -321,6 +338,3 @@ def _verify_scene_boxes(course, boxes, root_nodes, fields):
         visual_size = fields.get(visible, 'size')
         if visual_size is None or not _equal(visual_size.getSFVec3f(), box.size):
             raise RuntimeError('rendered and physical Box mismatch: ' + box.name)
-    # Explicitly return *no* authority token: READY is a separate live
-    # handshake following validated RESET, never a static function result.
-    return None
