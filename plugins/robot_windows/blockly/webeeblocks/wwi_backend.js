@@ -120,7 +120,7 @@
       var timer = setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
-        reject(new Error('Runtime v2 request timeout id=' + id));
+        reject(new Error('Runtime v2 request timeout id=' + id + ' command=' + parts[0]));
       }, requestTimeout);
       self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce,
         admission: parts[0] === 'ADMISSION'};

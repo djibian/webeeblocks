@@ -104,8 +104,16 @@ async function run() {
   f = fixture();
   let failed = observe(f.backend.takeoff(.4));
   await f.advance(120);
-  assert((await failed).error);
+  assert.match((await failed).error.message, /timeout id=1 command=ADMISSION$/);
   assert.equal(f.takeoffs().length, 0);
+  assert.equal(Object.keys(f.backend.pending).length, 0);
+  f = fixture({}, (item, backend) => {
+    if (item.command === 'ADMISSION') response(backend, item, 'VALUE 1');
+  });
+  failed = observe(f.backend.takeoff(.4));
+  await f.advance(120);
+  assert.match((await failed).error.message, /timeout id=2 command=TAKEOFF$/);
+  assert.equal(f.takeoffs().length, 1);
   assert.equal(Object.keys(f.backend.pending).length, 0);
   f = fixture({}, (item, backend) => response(backend, item, 'VALUE 0'));
   failed = observe(f.backend.takeoff(.4));
