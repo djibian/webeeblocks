@@ -165,6 +165,32 @@ class NativePublisherTests(unittest.TestCase):
         self.assertIsNone(self.evaluator._active)
         self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2')
 
+    def test_reset_marker_survives_old_evaluator_and_next_attempt_is_admitted(self):
+        for already_closed, advance in ((False, 8), (False, 16), (True, 8)):
+            with self.subTest(already_closed=already_closed, advance=advance):
+                self.evaluator = NativeRouteEvaluator(self.native, self.course.identifier)
+                self.attempt, self.epoch, self.start = 1, 'ab' * 16, None
+                self.native.vehicle.fields['customData'] = 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1'
+                self.admitted()
+                if already_closed:
+                    self.assertEqual(self.tick(advance=16), '')
+                    self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+
+                # The broker can publish the successful RESET marker before
+                # the evaluator sees the new challenge. Keep its old process.
+                reset_marker = 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2'
+                self.native.vehicle.fields['customData'] = reset_marker
+                self.native.evaluator.fields['model'] = ''
+                self.assertEqual(self.tick(advance=advance, sample=False, raw=''), '')
+                self.assertEqual(self.tick(sample=False, raw=''), '')
+                self.assertEqual(self.native.vehicle.fields['customData'], reset_marker)
+
+                self.attempt, self.epoch, self.start = 2, 'cd' * 16, None
+                self.admitted()
+                self.assertIn('GP_ROUTE_ALIVE_V1 attempt=2 ',
+                              self.native.evaluator.fields['description'])
+                self.assertEqual(self.native.vehicle.fields['customData'], reset_marker)
+
     def test_invalid_sample_is_fail_stop_for_this_attempt(self):
         self.admitted()
         self.native.evaluator.fields['model'] = self.native.evaluator.fields['model'].replace(
