@@ -54,6 +54,30 @@ def course_physical_boxes(course):
     return tuple(result)
 
 
+def _visual_boxes(name, marks, color, bottom, top):
+    """Draw disjoint decorative boxes as one shape, with no physics node."""
+    points = []
+    faces = []
+    for x, y, sx, sy in marks:
+        # Match the centres and sizes of the existing six-decimal Box marks.
+        x, y, sx, sy = (float(f'{value:.6f}') for value in (x, y, sx, sy))
+        corners = ((x - sx/2, y - sy/2), (x + sx/2, y - sy/2),
+                   (x + sx/2, y + sy/2), (x - sx/2, y + sy/2))
+        start = len(points)
+        points.extend(f'{px:.7f} {py:.7f} {z}'
+                      for z in (bottom, top) for px, py in corners)
+        for face in ((3, 2, 1, 0), (4, 5, 6, 7), (0, 1, 5, 4),
+                     (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
+            faces.append(' '.join(str(start + i) for i in face) + ' -1')
+    if not points:
+        raise RuntimeError('empty course decoration')
+    return (f'DEF {name} Pose {{ children [ Shape {{ '
+            f'appearance PBRAppearance {{ baseColor {color} roughness 1 }} '
+            'geometry IndexedFaceSet { '
+            f'coord Coordinate {{ point [ {", ".join(points)} ] }} '
+            f'coordIndex [ {", ".join(faces)} ] }} }} ] }}')
+
+
 def static_course_world(course):
     """Compose an unpowered observable course, not an active Grand Prix.
 
@@ -75,10 +99,8 @@ def static_course_world(course):
                    if item.startswith('DEF GP_V2_WHITE_'))
     if len(whites) != 3 or base.count(old_guides_block) != 1:
         raise RuntimeError('static scene guide anchors changed')
-    red = tuple(visual(f'GP_V2_COURSE_RED_{index}', x, y, sx, sy, '.95 .06 .06')
-                for index, (x, y, sx, sy) in enumerate(red_boundary_marks(route)))
-    if not red:
-        raise RuntimeError('empty complete-course boundary')
+    red = _visual_boxes('GP_V2_COURSE_RED_MARKS', red_boundary_marks(route),
+                        '.95 .06 .06', 0, .004)
 
     # Teacher-visible start, direction-relative landing choices and the exact
     # 0.55 m low-flight band edges are decorative floor marks. They grant no
@@ -92,30 +114,28 @@ def static_course_world(course):
         # Keep the accepted 25 cm black/white 4x4 checkerboard inside the
         # 28 cm green tile, leaving a 15 mm border on every side. Pure Pose:
         # no collision, range API, landing permission or oracle inference.
-        for col in range(4):
-            for row in range(4):
-                tx = x - .125 + (col + .5) * .0625
-                ty = y - .125 + (row + .5) * .0625
-                shade = '.06 .06 .06' if (col + row) % 2 == 0 else '.96 .96 .96'
-                overlay.append(
-                    f'DEF GP_ROUTE_TARGET_{number}_CELL_{col}_{row} Pose {{ '
-                    f'translation {tx:.6f} {ty:.6f} .0042 children [ Shape {{ '
-                    f'appearance PBRAppearance {{ baseColor {shade} roughness 1 }} '
-                    'geometry Box { size .0625 .0625 .0002 } } ] }')
-    for index, gate in enumerate(course.gates):
+        for parity, (label, shade) in enumerate((('DARK', '.06 .06 .06'),
+                                                 ('LIGHT', '.96 .96 .96'))):
+            cells = ((x - .125 + (col + .5) * .0625,
+                      y - .125 + (row + .5) * .0625, .0625, .0625)
+                     for col in range(4) for row in range(4)
+                     if (col + row) % 2 == parity)
+            overlay.append(_visual_boxes(f'GP_ROUTE_TARGET_{number}_CELLS_{label}',
+                                         cells, shade, .0041, .0043))
+    bands = []
+    for gate in course.gates:
         leg = route.legs[gate.leg_index]
         pitch = .60 / 8
-        for side, along in (('BEFORE', gate.along - LOW_BEFORE),
-                            ('AFTER', gate.along + LOW_AFTER)):
+        for along in (gate.along - LOW_BEFORE, gate.along + LOW_AFTER):
             for dash in range(8):
                 lateral = -.30 + (dash + .5) * pitch
                 x, y = leg.at(along, lateral)
                 sx, sy = ((.012, pitch / 2) if leg.direction % 2 == 0
                           else (pitch / 2, .012))
-                overlay.append(visual(f'GP_ROUTE_BAND_{index}_{side}_{dash}',
-                                      x, y, sx, sy, '.98 .85 .10'))
+                bands.append((x, y, sx, sy))
+    overlay.append(_visual_boxes('GP_ROUTE_BAND_MARKS', bands, '.98 .85 .10', 0, .004))
     base = base.replace(old_guides_block,
-                        '\n'.join(whites + red + tuple(overlay)) + '\n', 1)
+                        '\n'.join((*whites, red, *overlay)) + '\n', 1)
 
     l_solids = tuple(box.vrml() for box in corner_boxes(route))
     l_block = '\n'.join(l_solids) + '\n'
