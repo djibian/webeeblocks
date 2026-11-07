@@ -5,7 +5,7 @@ DistanceSensors, certify contacts/RESET, return READY, or authorize flight.
 The native evaluator must separately establish all live admission evidence.
 """
 from tools.grand_prix.native_collider_contract_v2 import (
-    canonical_native_boxes, verify_native_boxes,
+    canonical_native_boxes, _read_native_root_nodes, _verify_native_boxes,
 )
 from tools.grand_prix.route_courses_v2 import course_from_identifier
 from tools.grand_prix.native_sfbbool_v2 import enabled
@@ -62,15 +62,10 @@ def check_native_evaluator_scene(supervisor, identifier):
     if (_one_arg(evaluator) != identifier or
             _field_text(evaluator, 'controller') != 'grand_prix_route_evaluator'):
         raise RuntimeError('native evaluator identity differs from canonical route')
-    children = supervisor.getRoot().getField('children')
-    if children is None or type(children.getCount()) is not int or not 0 < children.getCount() < 8192:
-        raise RuntimeError('invalid native root inventory')
+    root_nodes = _read_native_root_nodes(supervisor)
     vehicles = []
     fields = NativeFieldLookup()
-    for index in range(children.getCount()):
-        node = children.getMFNode(index)
-        if node is None:
-            raise RuntimeError('unreadable native root node')
+    for node in root_nodes:
         name = fields.get(node, 'name')
         if name is not None and name.getSFString() == 'Crazyflie WebeeBlocks':
             vehicles.append(node)
@@ -87,5 +82,5 @@ def check_native_evaluator_scene(supervisor, identifier):
         raise RuntimeError('native flight identity differs from canonical route')
     # Full live Supervisor readback: floor, every collision box and absence
     # of hidden extra bodies. This function itself returns no READY token.
-    verify_native_boxes(supervisor, course, canonical_native_boxes(course))
+    _verify_native_boxes(supervisor, course, canonical_native_boxes(course), root_nodes)
     return None
