@@ -32,8 +32,10 @@ $knownExecutables = @(
   (Join-Path $WebotsHome 'msys64\mingw64\bin\webots.exe'),
   (Join-Path $WebotsHome 'webotsw.exe'),
   (Join-Path $WebotsHome 'webots.exe')
-) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-    ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
+)
+# Preserve an array even when only one installed executable is found.
+$knownExecutables = @($knownExecutables | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
 if ($knownExecutables.Count -lt 1) {
   throw 'No Webots executable found in the selected R2025a installation.'
 }
