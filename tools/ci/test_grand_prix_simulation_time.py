@@ -31,6 +31,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(elapsed_seconds(2.016,2.048),.032)
 from test_grand_prix_step_wall_probe import StepWallProbeTests, ServeNativeSafetyTests
 from test_grand_prix_analyze_step_wall import AnalyzePhaseTests
+from test_grand_prix_compare_render_ab import RenderABTests
 from test_grand_prix_u_deadline import DeadlineTests
 from test_grand_prix_u_pose import PoseTests
 from test_grand_prix_u_oracle import Tests as UOracleTests
