@@ -14,10 +14,14 @@ if ($SourceSha -and $SourceSha -cnotmatch '^[0-9a-f]{40}$') {
   throw 'SourceSha must be an exact lowercase 40-character Git commit SHA.'
 }
 $webots = (Resolve-Path -LiteralPath $WebotsHome -ErrorAction Stop).Path
-$exe = Join-Path $webots 'webots.exe'
+# Match the supported Windows R2025a layout used by the classroom launcher.
+$bin = Join-Path $webots 'msys64\mingw64\bin'
+$exe = @('webotsw.exe', 'webots.exe') |
+  ForEach-Object { Join-Path $bin $_ } |
+  Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+  Select-Object -First 1
 $versionFile = Join-Path $webots 'resources\version.txt'
-if (-not (Test-Path -LiteralPath $exe -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
+if (-not $exe -or -not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
   throw 'Webots executable or resources/version.txt is missing.'
 }
 $webotsVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()
@@ -87,6 +91,9 @@ $inventory = [ordered]@{
 }
 $json = $inventory | ConvertTo-Json -Depth 8
 $utf8NoBom = [Text.UTF8Encoding]::new($false)
-[IO.File]::WriteAllText($target, ($json + "`n"), $utf8NoBom)
+# Atomically refuse late creation by another measurement, too.
+$bytes = $utf8NoBom.GetBytes($json + "`n")
+$stream = [IO.File]::Open($target, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
 Write-Host "WEBEEBLOCKS_GP_WINDOWS_INVENTORY=$target"
 Write-Host 'Inventory only: no measured OpenGL renderer, FPS, p99, native safety or human PASS.'

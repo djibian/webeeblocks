@@ -11,7 +11,9 @@ $root = Join-Path ([IO.Path]::GetTempPath()) ('gp-host-test-' + [Guid]::NewGuid(
 $webots = Join-Path $root 'webots'
 $versionDir = Join-Path $webots 'resources'
 New-Item -ItemType Directory -Path $versionDir -Force | Out-Null
-$webotsExe = Join-Path $webots 'webots.exe'
+$webotsBin = Join-Path $webots 'msys64\mingw64\bin'
+New-Item -ItemType Directory -Path $webotsBin -Force | Out-Null
+$webotsExe = Join-Path $webotsBin 'webotsw.exe'
 $versionPath = Join-Path $versionDir 'version.txt'
 $browser = Join-Path $root 'browser.exe'
 $target = Join-Path $root 'inventory.json'
