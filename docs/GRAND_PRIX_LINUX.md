@@ -112,8 +112,9 @@ dans un nouveau monde, sans hériter d'un ancien résultat.
 
 Pour éprouver le premier cycle réel, sans chercher une solution gagnante :
 
-1. Webots s'ouvre en pause. Démarrer sa simulation avec son bouton Lecture,
-   puis attendre la connexion de la Robot Window. Le premier TAKEOFF Blockly
+1. Webots s'ouvre en pause et ouvre la Robot Window Blockly dans le navigateur
+   configuré dans Webots. Démarrer la simulation avec le bouton Lecture, puis
+   attendre la connexion de la Robot Window. Le premier TAKEOFF Blockly
    attend également l'admission native, distincte du simple signal de connexion.
 2. Construire librement le programme avec les blocs existants. Exécuter,
    observer les portées, utiliser Step/Continue, Stop puis Réinitialiser.

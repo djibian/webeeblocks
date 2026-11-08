@@ -279,16 +279,24 @@ def main(argv=None):
                                     suffix=".wbt", dir=ROOT / "worlds")
         world = Path(name)
         project = world.with_name("." + world.stem + ".wbproj")
+        owns_project = args.legacy_u  # R2025a may create the legacy perspective.
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 stream.write(scene)
+            if not args.legacy_u:
+                # R2025a restores the robot window from the world perspective.
+                with project.open("x", encoding="utf-8") as stream:
+                    owns_project = True
+                    stream.write("Webots Project File version R2025a\n"
+                                 "robotWindow: Crazyflie WebeeBlocks\n")
             print(f"Simulation Grand Prix {label}, monde={world}", flush=True)
             print("La réussite de cette ouverture n'atteste pas encore le cycle GUI/Save/Open.", flush=True)
             result = launch_graphical(home, world, env)
             return result.returncode
         finally:
             world.unlink(missing_ok=True)
-            project.unlink(missing_ok=True)
+            if owns_project:
+                project.unlink(missing_ok=True)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f"ÉCHEC préparation/lancement Grand Prix Linux : {error}", file=sys.stderr)
         return 1
