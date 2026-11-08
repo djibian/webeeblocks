@@ -86,7 +86,7 @@ $inventory = [ordered]@{
   measurement_state = 'INVENTORY_ONLY_NOT_A_PERFORMANCE_OR_ACCEPTANCE_RESULT'
 }
 $json = $inventory | ConvertTo-Json -Depth 8
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$utf8NoBom = [Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllText($target, ($json + "`n"), $utf8NoBom)
 Write-Host "WEBEEBLOCKS_GP_WINDOWS_INVENTORY=$target"
 Write-Host 'Inventory only: no measured OpenGL renderer, FPS, p99, native safety or human PASS.'
