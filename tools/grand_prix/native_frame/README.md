@@ -101,8 +101,34 @@ rendering enabled the gains in read cost did not remove the observed
 long-tail stalls. See [the raw per-run summaries](results-linux.json)
 for the measured endpoints and hashes.
 
-The fixture does not run the Grand Prix evaluator, the actual Crazyflie
-or Blockly. #910 still needs the route shadow matrix, #911 the mutation
-coverage and atomic fence, #912 the rendered Grand Prix bottleneck, and
-#914 the personal Windows laptop qualification. The transport supplies no
-READY/ALIVE verdict, mutation counter, RESET admission or LAND command.
+## Grand Prix route 5
+
+The separate Linux driver reuses the existing native pilot/evaluator witness.
+It only adds observation and aliases the two deliberately externalized controller
+names in the test fixture for TCP loopback. Build the existing publisher probe
+against the official SDK and prepare the assets pinned by WebeeBlocks.
+
+```sh
+WEBOTS_HOME=/path/to/stock make -C controllers/grand_prix_route_publisher_probe release
+python3 tools/grand_prix/native_frame/route_shadow.py --official /path/to/stock \
+  --patched /path/to/patched --output /path/to/new-route-run
+```
+
+The [route-5 evidence](route-5-linux.json) contains identical stock and
+patched authority witnesses, including READY at 3072 ms, first TAKEOFF ACK
+at 8096 ms, independent LAND ACK at 10368 ms after evaluator service loss,
+RESET ACK at 10944 ms, fresh READY at 12000 ms, and second TAKEOFF ACK
+at 17024 ms.
+
+2128 of 2129 shadow observations matched exactly. At 10400 ms, after
+the RESET request, the frame captured a vertical velocity of
+−3.702689602658097e−6 m/s and the subsequent Supervisor reads returned zero.
+The pose, orientation and contacts matched. The driver writes the
+counterexample and exits nonzero on observation divergence. A consumer
+cannot use equality of the simulated clock as an action-freshness proof.
+This test did not run Blockly or test the 210000-ms independent deadline.
+
+#910 still needs route and platform qualification. #911 must cover the
+mutation paths and enforce the revision at the actual action point before
+#913 can change authority. #912 and #914 require rendered Grand Prix
+measurements and the personal Windows laptop.
