@@ -7,6 +7,7 @@ param(
   [Parameter(Mandatory = $true)][ValidateRange(1, 2147483647)][int]$WebotsProcessId,
   [Parameter(Mandatory = $true)][string]$WebotsHome,
   [Parameter(Mandatory = $true)][string]$OutputDirectory,
+  [string]$BrowserExe,
   [ValidateRange(5, 3600)][int]$DurationSeconds = 30,
   [ValidateRange(200, 5000)][int]$SamplePeriodMs = 500
 )
@@ -37,6 +38,22 @@ if ($knownExecutables.Count -lt 1) {
 $initial = Get-Process -Id $WebotsProcessId -ErrorAction Stop
 if ($initial.ProcessName -notmatch '(?i)^webots
 if ($null -eq $initial.CPU) { throw 'Webots CPU time unavailable.' }
+# An optional external browser executable identifies prepared bytes, not
+# proof of which browser Webots actually opened in a GUI run.
+$browserEvidence = $null
+if ($BrowserExe) {
+  $browserPath = (Resolve-Path -LiteralPath $BrowserExe -ErrorAction Stop).Path
+  if (-not (Test-Path -LiteralPath $browserPath -PathType Leaf)) {
+    throw 'Selected browser executable is missing.'
+  }
+  $browserFile = Get-Item -LiteralPath $browserPath
+  $browserEvidence = [ordered]@{
+    product = [string]$browserFile.VersionInfo.ProductName
+    version = [string]$browserFile.VersionInfo.ProductVersion
+    exe_sha256 = (Get-FileHash -LiteralPath $browserPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    used_in_gui = 'UNVERIFIED'
+  }
+}
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $destination) {
   throw "Use a fresh folder for each trial: $destination"
@@ -54,6 +71,7 @@ $metadata = [ordered]@{
   variant = $Variant
   webots_version = $version
   webots_executable_sha256 = $webotsExecutableSha256
+  external_browser = $browserEvidence
   process_name = $initial.ProcessName
   webots_pid = $WebotsProcessId
   process_start_utc = $initial.StartTime.ToUniversalTime().ToString('o')
