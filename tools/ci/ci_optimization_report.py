@@ -32,7 +32,8 @@ def timestamp(value: str) -> datetime:
 def minutes(start: str | None, end: str | None) -> float | None:
     if not start or not end:
         return None
-    return max(0.0, (timestamp(end) - timestamp(start)).total_seconds() / 60)
+    elapsed = (timestamp(end) - timestamp(start)).total_seconds() / 60
+    return elapsed if elapsed >= 0 else None
 
 
 def observed_setup(jobs: list[dict]) -> dict:
@@ -141,15 +142,20 @@ def summarize_run(run: dict, jobs: list[dict]) -> dict:
                     and selected_runtime and selected_webots and all_success
                     and (not any_shards or has_shards))
     job_minutes = [minutes(j.get("started_at"), j.get("completed_at")) for j in jobs]
-    job_minutes = [v for v in job_minutes if v is not None]
+    # A missing or inverted job timestamp must not produce a partial cost sum.
+    timing_complete = bool(jobs) and all(v is not None for v in job_minutes)
+    runner_minutes = round(sum(job_minutes), 3) if timing_complete else None
+    ends = [j.get("completed_at") for j in jobs]
+    # run.updated_at is metadata freshness, not the completion timestamp.
+    last_end = max(ends, key=timestamp) if timing_complete and all(ends) else None
     active = {j["name"]: round(minutes(j.get("started_at"), j.get("completed_at")), 3)
               for j in jobs if j.get("name") and minutes(j.get("started_at"), j.get("completed_at")) is not None}
     return {
         "id": run["id"], "head_sha": run.get("head_sha"), "event": run.get("event"),
         "run_attempt": run.get("run_attempt"), "status": run.get("status"),
         "conclusion": run.get("conclusion"), "url": run.get("html_url"),
-        "wall_minutes": minutes(run.get("run_started_at"), run.get("updated_at")),
-        "runner_minutes_estimate": round(sum(job_minutes), 3),
+        "wall_minutes": minutes(run.get("run_started_at"), last_end),
+        "runner_minutes_estimate": runner_minutes,
         "job_count": len(jobs), "job_set": sorted(str(j.get("name")) for j in jobs),
         "all_jobs_success": all_success,
         "full_success": full_success, "seven_shards_proven": has_shards,
@@ -185,21 +191,21 @@ def discover(runs: list[dict], counts: dict, *, comparable_successes: list[dict]
             for name, duration in run["jobs"].items():
                 grouped.setdefault(name, []).append(duration)
         for name, durations in grouped.items():
-            if len(durations) >= 3 and statistics.median(durations) >= 12:
-                proposals.append({"kind": "critical_path", "candidate": name,
+            if len(durations) == len(successes) and len(durations) >= 3 and statistics.median(durations) >= 12:
+                proposals.append({"kind": "long_job_observation", "candidate": name,
                                   "median_minutes": round(statistics.median(durations), 2),
                                   "sample": len(durations),
-                                  "proposal": "Investigate bounded partitioning or setup cost without dropping native evidence."})
+                                  "proposal": "Long job observed; critical-path impact and potential savings are unproven."})
         historical = [(name, d) for name, d in grouped.items() if any(tag in name.lower() for tag in HISTORICAL_NAMES)]
         if historical:
-            costs = [sum(run["jobs"].get(name, 0) for name, _ in historical) for run in successes]
-            proposals.append({"kind": "historical_audit", "jobs": sorted(name for name, _ in historical),
-                              "median_runner_minutes": round(statistics.median(costs), 2),
-                              "proposal": "Review active product dependencies before considering any retirement; no automatic deletion."})
-    repeated = sum(v["explicit_docker_pull"] for v in counts.values())
-    if repeated >= 5:
-        proposals.append({"kind": "repeated_setup", "explicit_docker_pull_sites": repeated,
-                          "proposal": "Compare content-addressed, verified image provisioning to cold pulls; preserve pinned Webots."})
+            costs = [sum(run["jobs"][name] for name, _ in historical) for run in successes
+                     if all(name in run["jobs"] for name, _ in historical)]
+            if len(costs) == len(successes):
+                proposals.append({"kind": "historical_audit", "jobs": sorted(name for name, _ in historical),
+                                  "median_runner_minutes": round(statistics.median(costs), 2),
+                                  "proposal": "Review active product dependencies before considering any retirement; no automatic deletion."})
+    # Static workflow text counts remain inventory only; they do not show
+    # actual setup duration, saved wall time, or a justified optimization.
     errors = [r for r in runs if r["conclusion"] == "failure"]
     if errors:
         names = Counter(j["name"] for r in errors for j in r["non_success"]
@@ -221,7 +227,7 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
     comparable_ids = {r["id"] for r in complete}
     def median(key: str) -> float | None:
         values = [r[key] for r in complete if r[key] is not None]
-        return round(statistics.median(values), 2) if values else None
+        return round(statistics.median(values), 2) if values and len(values) == len(complete) else None
     # Avoid an apparently precise zero when an expected step has no timing.
     # A category not observed in every cohort run has no comparable median.
     setup_medians = {
@@ -267,7 +273,7 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
              "and not proof that caching would reduce elapsed time.",
              "None means insufficient comparable step timing or no matching step; "
              "it never means a free operation.", "",
-             "## Proposals requiring dedicated CI and independent V5 review", ""]
+             "## Diagnostic observations — not proven optimizations", ""]
     if not complete:
         lines.append("Not enough fully successful sharded evidence; no performance claim.")
     if not data["candidates"]:
@@ -282,7 +288,10 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
                      f"{r['wall_minutes']} | {r['runner_minutes_estimate']} | "
                      f"{r['setup']['webots_pull']['steps']} | "
                      f"{r['setup']['webots_pull']['minutes']} |")
-    lines += ["", "*Full evidence in this table means same-workload comparability; "
+    lines += ["", "*Elapsed wall time spans run start to the latest completed job, not the GitHub metadata update.",
+              "Missing or inverted timestamps make metrics unknown (None), never zero.",
+              "Static setup counts below are inventory, not measured runtime cost or savings.",
+              "*Full evidence in this table means same-workload comparability; "
               "it does not prove selection of every scientifically applicable oracle.",
               "*Sum of job occupied minutes, **not** invoiced GitHub usage.",
               "This is a bounded sample, not an exhaustive history or a causal before/after experiment.",

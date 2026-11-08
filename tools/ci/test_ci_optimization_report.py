@@ -39,7 +39,7 @@ class MetricsTests(TestCase):
         self.assertTrue(r["full_success"])
         self.assertTrue(r["seven_shards_proven"])
         self.assertEqual(r["runner_minutes_estimate"], 55)
-        self.assertEqual(r["wall_minutes"], 25)
+        self.assertEqual(r["wall_minutes"], 10)
 
     def test_false_green_selector_skips_runtime(self):
         jobs = [job("CI Gate"), job("Select suites"), job("Webots suite / webots-smoke"),
@@ -110,7 +110,7 @@ class MetricsTests(TestCase):
             variants.append(audit.summarize_run(run(ident=idx), jobs))
         p = audit.discover(variants, {"ci-webots.yml": {"explicit_docker_pull": 20}})
         self.assertTrue(any(x["kind"] == "historical_audit" for x in p))
-        self.assertTrue(any(x["kind"] == "repeated_setup" for x in p))
+        self.assertFalse(any(x["kind"] == "repeated_setup" for x in p))
         self.assertIn("no automatic deletion", str(p).lower())
 
     def test_measured_named_setup_is_independently_visible(self):
@@ -155,7 +155,48 @@ class MetricsTests(TestCase):
 
     def test_missing_time_never_yields_negative_or_forged_duration(self):
         self.assertIsNone(audit.minutes(None, "2026-10-23T10:01:00Z"))
-        self.assertEqual(audit.minutes("2026-10-23T10:05:00Z", "2026-10-23T10:01:00Z"), 0)
+        self.assertIsNone(audit.minutes("2026-10-23T10:05:00Z", "2026-10-23T10:01:00Z"))
+
+    def test_job_completion_not_late_run_metadata_defines_elapsed_span(self):
+        r = run()
+        r["updated_at"] = "2026-10-23T11:45:00Z"
+        observed = audit.summarize_run(r, full_jobs())
+        self.assertEqual(observed["wall_minutes"], 10)
+        self.assertEqual(observed["runner_minutes_estimate"], 55)
+
+    def test_incomplete_or_inverted_job_times_are_unknown_not_partial_cost(self):
+        for bad in (
+            job("Runtime suite / last", started=None),
+            job("Runtime suite / last", started="2026-10-23T10:10:00Z",
+                finished="2026-10-23T10:05:00Z"),
+        ):
+            jobs = full_jobs() + [bad]
+            observed = audit.summarize_run(run(), jobs)
+            self.assertIsNone(observed["wall_minutes"])
+            self.assertIsNone(observed["runner_minutes_estimate"])
+            cohort = [observed, audit.summarize_run(run(ident=43), full_jobs() + [
+                job("Runtime suite / last")])]
+            data, _ = audit.build_report("example/repo", cohort, {}, days=21,
+                                         now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+            self.assertIsNone(data["wall_median_minutes"])
+            self.assertIsNone(data["runner_median_minutes_estimate"])
+
+    def test_long_job_is_observation_not_proven_critical_path(self):
+        runs = [audit.summarize_run(run(ident=300 + i), full_jobs() + [
+            job("Runtime suite / long-job",
+                finished="2026-10-23T10:15:00Z")]) for i in range(3)]
+        proposals = audit.discover(runs, {})
+        self.assertTrue(any(p["kind"] == "long_job_observation" and
+                            p["candidate"] == "Runtime suite / long-job" for p in proposals))
+        self.assertFalse(any(p["kind"] == "critical_path" for p in proposals))
+        runs[-1]["jobs"].pop("Runtime suite / long-job")
+        proposals = audit.discover(runs, {})
+        self.assertFalse(any(p["candidate"] == "Runtime suite / long-job"
+                             for p in proposals if "candidate" in p))
+
+    def test_static_pull_inventory_never_becomes_savings_proposal(self):
+        proposals = audit.discover([], {"ci-webots.yml": {"explicit_docker_pull": 100}})
+        self.assertEqual(proposals, [])
 
     def test_pagination_fails_closed(self):
         with patch.object(audit, "get_json", side_effect=[{"total_count": 101, "jobs": [{"name": "x"}]},
