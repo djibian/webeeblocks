@@ -85,3 +85,24 @@ The complete stock and patched lifecycle witnesses are identical.
 This establishes rejection of the observed ordering case for the instrumented
 paths. It neither qualifies exhaustive mutation coverage nor admits a
 product transition to the compact observation.
+
+## Draft repair: reply isolation (not native-qualified)
+
+The two experimental revision replies (105/106) are now emitted by
+`WbController::writeAnswer` **after** the ordinary robot, Supervisor and device
+answers, and before the already-terminal optional frame 104. The decoder
+accepts a revision token only when exactly 24 bytes remain and an outstanding
+revision request exists; it accepts an effect acknowledgement only when exactly
+one byte remains and an outstanding guarded request exists. Unexpected lengths,
+unsolicited replies and missing payloads fail closed. The ordinary responses
+have already been written before any of these experimental trailers.
+
+These methods are separately flushed under the existing robot mutex; combined
+105/106 or 104/revision responses deliberately fail closed rather than claim
+a valid token or effect acknowledgement. A lost acknowledgement does not prove
+that the native velocity effect was absent; callers must not blindly retry.
+Host-side source contract tests: `python3 -m unittest
+tools.grand_prix.native_revision.test_reply_tail`. This does **not** constitute
+a Webots R2025a rebuilt-binary protocol injection test or a production
+attestation. Test valid and truncated 105/106 alongside ordinary time and
+device replies, then an optional frame, before declaring the repair qualified.
