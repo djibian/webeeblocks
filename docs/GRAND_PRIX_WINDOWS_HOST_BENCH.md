@@ -75,4 +75,4 @@ Aucun TEST_REQUIRED n'est demandé par cet outil.
 
 ## Contre-test Windows sans moteur Webots
 
-La suite CI complète inclut le test natif `tools/ci/test_grand_prix_windows_host_capture.ps1` : un exécutable Windows local renommé `webots.exe` joue un processus mesurable et un second exécutable homonyme dans un autre répertoire est explicitement refusé. Les horodatages/échantillons et l'empreinte binaire sont vérifiés. Ce témoin **ne simule pas la physique**, ne qualifie pas l'interface réelle ni le matériel Windows personnel ; aucun PASS ne lui est attribué en dehors du contrat de capture hôte.
+La suite CI complète inclut le test natif `tools/ci/test_grand_prix_windows_host_capture.ps1` : un exécutable Windows local renommé `webotsw.exe` joue un processus mesurable et un second exécutable homonyme dans un autre répertoire est explicitement refusé. Les horodatages/échantillons et l'empreinte binaire sont vérifiés. Ce témoin **ne simule pas la physique**, ne qualifie pas l'interface réelle ni le matériel Windows personnel ; aucun PASS ne lui est attribué en dehors du contrat de capture hôte.
