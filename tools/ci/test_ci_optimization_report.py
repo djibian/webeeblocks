@@ -40,6 +40,8 @@ class MetricsTests(TestCase):
         self.assertTrue(r["seven_shards_proven"])
         self.assertEqual(r["runner_minutes_estimate"], 55)
         self.assertEqual(r["wall_minutes"], 25)
+        self.assertEqual(r["gate_elapsed_minutes"], 10)
+        self.assertTrue(r["timing_complete"])
 
     def test_false_green_selector_skips_runtime(self):
         jobs = [job("CI Gate"), job("Select suites"), job("Webots suite / webots-smoke"),
@@ -110,8 +112,20 @@ class MetricsTests(TestCase):
             variants.append(audit.summarize_run(run(ident=idx), jobs))
         p = audit.discover(variants, {"ci-webots.yml": {"explicit_docker_pull": 20}})
         self.assertTrue(any(x["kind"] == "historical_audit" for x in p))
-        self.assertTrue(any(x["kind"] == "repeated_setup" for x in p))
+        self.assertFalse(any(x["kind"] == "repeated_setup" for x in p))
         self.assertIn("no automatic deletion", str(p).lower())
+
+    def test_static_inventory_never_creates_an_optimization_candidate(self):
+        inventory = {"ci-webots.yml": {"explicit_docker_pull": 100}}
+        self.assertEqual(audit.discover([], inventory), [])
+        data, report = audit.build_report(
+            "example/repo", [], inventory, days=21,
+            now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertEqual(data["candidates"], [])
+        self.assertEqual(data["counts"], inventory)
+        self.assertEqual(data["qualification"]["verdict"], "INSUFFICIENT_EVIDENCE")
+        self.assertIn("CI setup inventory", report)
+        self.assertNotIn("repeated_setup", report)
 
     def test_measured_named_setup_is_independently_visible(self):
         jobs = full_jobs()
@@ -155,7 +169,8 @@ class MetricsTests(TestCase):
 
     def test_missing_time_never_yields_negative_or_forged_duration(self):
         self.assertIsNone(audit.minutes(None, "2026-10-23T10:01:00Z"))
-        self.assertEqual(audit.minutes("2026-10-23T10:05:00Z", "2026-10-23T10:01:00Z"), 0)
+        self.assertIsNone(audit.minutes("2026-10-23T10:05:00Z", "2026-10-23T10:01:00Z"))
+        self.assertIsNone(audit.minutes("bad-timestamp", "2026-10-23T10:01:00Z"))
 
     def test_pagination_fails_closed(self):
         with patch.object(audit, "get_json", side_effect=[{"total_count": 101, "jobs": [{"name": "x"}]},
@@ -176,6 +191,108 @@ class MetricsTests(TestCase):
                                         now=datetime(2026, 10, 23, tzinfo=timezone.utc))
         self.assertIsNone(data["wall_median_minutes"])
         self.assertIn("Not enough fully successful", text)
+        self.assertEqual(data["qualification"]["verdict"], "INSUFFICIENT_EVIDENCE")
+
+
+    def test_gate_finish_is_distinct_from_updated_at(self):
+        r = run()
+        r["updated_at"] = "2026-10-23T11:00:00Z"
+        jobs = full_jobs()
+        jobs[0]["completed_at"] = "2026-10-23T10:07:00Z"
+        record = audit.summarize_run(r, jobs)
+        self.assertEqual(record["gate_elapsed_minutes"], 12)
+        self.assertEqual(record["wall_minutes"], 65)
+        data, text = audit.build_report("example/repo",
+            [record, audit.summarize_run(run(ident=43), full_jobs())], {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertEqual(data["gate_median_minutes"], 11)
+        self.assertIn("Legacy run-start to updated_at span", text)
+
+    def test_long_job_and_static_pull_not_promoted(self):
+        jobs = full_jobs()
+        jobs[2]["completed_at"] = "2026-10-23T10:14:00Z"
+        records = [audit.summarize_run(run(ident=n), jobs) for n in (101, 102, 103)]
+        data, _ = audit.build_report("example/repo", records,
+            {"ci-webots.yml": {"explicit_docker_pull": 12}},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertTrue(any(p["kind"] == "long_job_observation" for p in data["candidates"]))
+        self.assertFalse(any(p["kind"] == "repeated_setup" for p in data["candidates"]))
+        self.assertFalse(any(p["kind"] == "critical_path" for p in data["candidates"]))
+        self.assertEqual(data["qualification"]["verdict"], "NO_ACTION")
+        self.assertIsNone(data["qualification"]["candidate"])
+
+    def test_one_or_incomparable_cohort_is_insufficient(self):
+        first = audit.summarize_run(run(ident=101), full_jobs())
+        other = audit.summarize_run(run(ident=102), full_jobs() +
+                                    [job("Webots suite / different-job")])
+        data, _ = audit.build_report("example/repo", [first, other], {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertEqual(data["qualification"]["verdict"], "INSUFFICIENT_EVIDENCE")
+        self.assertEqual(data["qualification"]["evidence"]["run_ids"], [101])
+
+    def test_incoherent_timing_excludes_measurement(self):
+        jobs = full_jobs()
+        jobs[0]["completed_at"] = "2026-10-23T09:00:00Z"
+        bad_gate = audit.summarize_run(run(ident=101), jobs)
+        self.assertIsNone(bad_gate["gate_elapsed_minutes"])
+        jobs = full_jobs()
+        jobs[2]["completed_at"] = "2026-10-23T09:00:00Z"
+        bad_job = audit.summarize_run(run(ident=102), jobs)
+        self.assertIsNone(bad_job["runner_minutes_estimate"])
+        data, _ = audit.build_report("example/repo", [bad_gate, bad_job], {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertIsNone(data["gate_median_minutes"])
+        self.assertEqual(data["qualification"]["verdict"], "INSUFFICIENT_EVIDENCE")
+
+    def test_repeated_failure_only_proposes_investigation(self):
+        successes = [audit.summarize_run(run(ident=n), full_jobs()) for n in (101, 102)]
+        jobs = full_jobs()
+        jobs[1] = job("Select suites", conclusion="failure")
+        failures = [audit.summarize_run(run(ident=n, result="failure"), jobs)
+                    for n in (103, 104)]
+        data, text = audit.build_report("example/repo", successes + failures, {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertEqual(data["qualification"]["verdict"], "EXPERIMENT_CANDIDATE")
+        self.assertEqual(data["qualification"]["candidate"]["job"], "Select suites")
+        self.assertIn("no speedup or cause established", text)
+
+
+    def test_duplicate_failed_jobs_and_duplicate_run_do_not_imply_recurrence(self):
+        successes = [audit.summarize_run(run(ident=n), full_jobs()) for n in (101, 102)]
+        jobs = full_jobs()
+        jobs[1] = job("Select suites", conclusion="failure")
+        jobs.append(job("Select suites", conclusion="failure"))
+        failed = audit.summarize_run(run(ident=103, result="failure"), jobs)
+        data, report = audit.build_report(
+            "example/repo", successes + [failed, failed], {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        signal = [p for p in data["candidates"] if p["kind"] == "reliability"]
+        self.assertEqual(signal, [])
+        # The independent historical-audit observation may still appear;
+        # only a one-run *reliability* investigation is forbidden.
+        self.assertTrue(any(p["kind"] == "historical_audit" for p in data["candidates"]))
+        self.assertEqual(data["qualification"]["verdict"], "NO_ACTION")
+        self.assertIsNone(data["qualification"]["candidate"])
+        self.assertNotIn("**reliability**", report)
+        self.assertIn("Evidence verdict: **NO_ACTION**", report)
+
+    def test_two_distinct_failed_runs_are_counted_once_each(self):
+        successes = [audit.summarize_run(run(ident=n), full_jobs()) for n in (101, 102)]
+        jobs = full_jobs()
+        jobs[1] = job("Select suites", conclusion="failure")
+        first = audit.summarize_run(
+            run(ident=103, result="failure"),
+            jobs + [job("Select suites", conclusion="failure")])
+        second = audit.summarize_run(run(ident=104, result="failure"), jobs)
+        data, report = audit.build_report(
+            "example/repo", successes + [first, second], {},
+            days=21, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        signal = [p for p in data["candidates"] if p["kind"] == "reliability"]
+        self.assertEqual(len(signal), 1)
+        self.assertEqual(signal[0]["failed_runs"], 2)
+        self.assertEqual(data["qualification"]["verdict"], "EXPERIMENT_CANDIDATE")
+        self.assertEqual(data["qualification"]["candidate"]["failed_runs"], 2)
+        self.assertIn("Evidence verdict: **EXPERIMENT_CANDIDATE**", report)
 
 
 if __name__ == "__main__":
