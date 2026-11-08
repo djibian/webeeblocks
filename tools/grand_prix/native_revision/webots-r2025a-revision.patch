@@ -281,6 +281,11 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
    invalidatePhysicsFrame();
    foreach (int labelId, mLabelIds)
      WbWrenLabelOverlay::removeLabel(labelId);
+@@ -665,3 +668,4 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+     case C_SUPERVISOR_SIMULATION_RESET_PHYSICS:
++      WbWorld::instance()->noteSceneEffect();
+       WbApplication::instance()->resetPhysics();
+       return;
 @@ -983,11 +987,25 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
          mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
        return;

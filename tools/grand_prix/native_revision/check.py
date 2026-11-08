@@ -146,6 +146,25 @@ def observe():
     require(mf_inserted.revision == mf_captured.revision + 1 and mf_removed.revision == mf_inserted.revision + 1 and
             bytes(mf_captured.incarnation) == bytes(mf_inserted.incarnation) == bytes(mf_removed.incarnation),
             'native MF pulse did not produce two distinct revisions in the same world')
+    # The global simulation reset is distinct from WbSolid::reset and the
+    # per-node reset. Invalidate an already-live token before clearing ODE.
+    global_prepare = token_now()
+    require(effect(target_id, c.byref(global_prepare), velocity),
+            'could not establish moving Solid before global physics reset')
+    global_captured = token_now()
+    require(abs(target.getVelocity()[0] - velocity[0]) < 1e-9,
+            'global reset witness did not establish a nonzero velocity')
+    reset_instant = robot.getTime()
+    robot.simulationResetPhysics()
+    global_after = token_now()
+    require(robot.getTime() == reset_instant and
+            global_after.revision == global_captured.revision + 1 and
+            list(target.getVelocity()) == [0.] * 6,
+            'global reset did not zero physics and advance the revision once')
+    require(not effect(target_id, c.byref(global_captured), velocity) and
+            list(target.getVelocity()) == [0.] * 6,
+            'stale token survived global simulation resetPhysics')
+
     Path(os.environ['WEEBEE_FRAME_RESULT']).write_text(json.dumps({
         'time_ms': round(1000 * instant), 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
         'captured_revision': captured.revision, 'moved_revision': moved.revision,
@@ -155,6 +174,10 @@ def observe():
         'mf_collision_triangle': {
             'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
             'restored_points': original_points, 'inserted_point': inserted_point, 'stale_effect_refused': True,
+        },
+        'global_physics_reset': {
+            'captured_revision': global_captured.revision, 'reset_revision': global_after.revision,
+            'same_simulated_instant': True, 'zero_velocity': True, 'stale_effect_refused': True,
         },
     }, indent=2) + '\n', encoding='utf-8')
     robot.simulationQuit(0)

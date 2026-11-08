@@ -106,3 +106,18 @@ tools.grand_prix.native_revision.test_reply_tail`. This does **not** constitute
 a Webots R2025a rebuilt-binary protocol injection test or a production
 attestation. Test valid and truncated 105/106 alongside ordinary time and
 device replies, then an optional frame, before declaring the repair qualified.
+
+## Draft global-RESET coverage repair (native proof pending)
+
+The source review of the previous Draft HEAD identified a distinct uncounted
+`C_SUPERVISOR_SIMULATION_RESET_PHYSICS` path: it calls
+`WbApplication::resetPhysics()` directly, not `WbSolid::reset()` nor the
+per-node RESET_PHYSICS case. This patch increments the revision once at the
+global Supervisor effect boundary, before the call to clear ODE physics.
+`check.py` now tests a moving Solid's fresh token, global RESET without a
+simulation step, revision increment, zeroed velocity and native refusal of
+the older token. This is a **new, unexecuted witness** until both Webots
+binaries are rebuilt from the pinned sources and the output is recorded.
+The previous `results-linux.json` remains historical proof of the older
+scope and is not presented as qualification of this repair. Joint-position,
+GUI and other mutation paths remain unqualified.
