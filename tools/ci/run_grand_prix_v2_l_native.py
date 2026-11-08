@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reproducible native L-corner rays in the complete inert CoursePlan scene.
 
-Manual R2025a runner for #825. It attests the full L/open-H/closed-H
+R2025a runner for #825. It attests the full L/open-H/closed-H
 collider inventory, but only *measures L rays*. H ray behavior, contact,
 mission admission, autonomous flight and pupil GUI need separate evidence.
 """
@@ -69,11 +69,12 @@ def check_native(result, course):
             raise RuntimeError('native L near/far discrimination failed')
 
 
-def native_run(home, indexes):
+def native_run(home, indexes, *, output_root=None):
     # Each invocation owns its output directory; never read, modify or delete
     # another invocation's proof or legacy top-level summary.
-    OUT.mkdir(parents=True, exist_ok=True)
-    run_dir = Path(tempfile.mkdtemp(prefix='invocation-', dir=OUT)).resolve()
+    root = OUT if output_root is None else output_root
+    root.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix='invocation-', dir=root)).resolve()
     # CI's isolated Webots container writes as root; the host must traverse
     # the invocation directory to upload independently verified evidence.
     run_dir.chmod(0o755)
@@ -122,10 +123,10 @@ def native_run(home, indexes):
                 raise RuntimeError('no native output for ' + course.identifier)
             result = json.loads(native_file.read_text())
             check_native(result, course)
-            witness = ['GP_V2_L_NATIVE ' + json.dumps(result, sort_keys=True)]
+            witness = 'GP_V2_L_NATIVE ' + json.dumps(result, sort_keys=True, allow_nan=False)
             # Require the native log and durable JSON to describe one and the
             # same sensor readings, not separate synthetic/static witnesses.
-            if not any(line in content.splitlines() for line in witness):
+            if content.splitlines().count(witness) != 1:
                 raise RuntimeError('native log and evidence file disagree')
             outcomes.append(dict(configuration=course.identifier,
                                  generated_world_sha256=digest,

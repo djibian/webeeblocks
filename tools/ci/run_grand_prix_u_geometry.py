@@ -138,7 +138,7 @@ def run_native(home, tcp=False):
 
 
 def run_full_route_matrix_native(home):
-    """Falsify all 12 canonical geometries with actual R2025a L/H contacts.
+    """Check native L ranges, L contacts and H geometry on all 12 courses.
 
     The existing probe implementations own their real observations, refusal
     rules and per-case 120-s caps. Never replace missing proof with a mock.
@@ -148,19 +148,25 @@ def run_full_route_matrix_native(home):
     from tools.grand_prix.route_courses_v2 import reference_course
     from tools.ci import run_grand_prix_v2_contact_native as contact
     from tools.ci import run_grand_prix_v2_h_native as h_probe
+    from tools.ci import run_grand_prix_v2_l_native as l_range
 
     indices = tuple(range(12))
     contact.native_run(home, indices)
-    h_probe.native_run(home, indices, output_root=OUT / 'route-h-native')
+    h_root = OUT / 'route-h-native'
+    range_root = OUT / 'route-l-range-native'
+    h_probe.native_run(home, indices, output_root=h_root)
+    l_range.native_run(home, indices, output_root=range_root)
     expected = [reference_course(index).identifier for index in indices]
-    for source in (contact.OUT, OUT / 'route-h-native'):
+    for source, version_key in ((contact.OUT, 'webots'), (h_root, 'webots'),
+                                (range_root, 'webots_version')):
         summaries = list(source.glob('invocation-*/summary.json'))
         if len(summaries) != 1:
             raise RuntimeError('missing or ambiguous full native matrix summary')
         summary_path = summaries[0]
         summary = json.loads(summary_path.read_text())
         results = summary.get('results') if type(summary) is dict else None
-        if (summary.get('webots') != 'R2025a' or type(results) is not list
+        if (type(summary) is not dict or summary.get(version_key) != 'R2025a'
+                or type(results) is not list
                 or [r.get('configuration') for r in results
                     if type(r) is dict] != expected or len(results) != 12):
             raise RuntimeError('incomplete full native matrix')
