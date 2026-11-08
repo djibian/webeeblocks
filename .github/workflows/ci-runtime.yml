@@ -1501,13 +1501,34 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installed Grand Prix composition failed.' }
 
       # R2025a's own Windows test suite uses Mesa 24.2.1 release-mingw on
-      # hosted runners. Install only on this disposable CI host, after building
-      # the archives, and verify the exact upstream archive before execution.
+      # hosted runners. The pinned archive is ~138 MB; reuse a verified cache
+      # instead of requiring an external release download for every PR.
+      - name: Cache pinned Mesa archive for native Windows simulation
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mesa3d-24.2.1-release-mingw.7z
+          key: ci-mesa3d-r2025a-24.2.1-f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214
+
+      # Only install on this disposable CI host after building the archives.
+      # A GitHub release download can fail transiently with HTTP 504; use the
+      # corresponding *fixed asset ID* as a second transport, never as a trust
+      # substitute. The original exact SHA256 is mandatory on every path.
       - name: Prepare verified software OpenGL for native Windows simulation
         shell: pwsh
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'mesa3d-24.2.1-release-mingw.7z'
-          Invoke-WebRequest -Uri 'https://github.com/pal1000/mesa-dist-win/releases/download/24.2.1/mesa3d-24.2.1-release-mingw.7z' -OutFile $archive
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+            try {
+              Invoke-WebRequest -Uri 'https://github.com/pal1000/mesa-dist-win/releases/download/24.2.1/mesa3d-24.2.1-release-mingw.7z' -OutFile $archive -ErrorAction Stop
+            }
+            catch {
+              Write-Warning 'Pinned Mesa release URL failed; requesting the same asset through GitHub REST.'
+              Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+              Invoke-WebRequest -Uri 'https://api.github.com/repos/pal1000/mesa-dist-win/releases/assets/189177330' `
+                -Headers @{ Accept = 'application/octet-stream'; 'X-GitHub-Api-Version' = '2022-11-28' } `
+                -OutFile $archive -ErrorAction Stop
+            }
+          }
           if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214') {
             throw 'Mesa CI renderer archive checksum mismatch.'
           }
