@@ -123,3 +123,25 @@ binaries are rebuilt from the pinned sources and the output is recorded.
 The previous `results-linux.json` remains historical proof of the older
 scope and is not presented as qualification of this repair. Joint-position,
 GUI and other mutation paths remain unqualified.
+
+## Draft correction to reply 105 / terminal frame 104 collision
+
+An independently reviewed malformed packet showed that `105` with 13
+token bytes followed by the 11-byte `104` refusal gives the 24 bytes
+expected by the earlier decoder. A remaining-length check alone does
+not delimit two concatenated replies.
+
+The source serializer now **excludes** a frame 104 if a revision reply
+105/106 has consumed the terminal slot; it invalidates the outstanding
+frame rather than emitting it. Simultaneous 105 and 106 requests return
+neither experimental reply, clearing both pending flags. These paths
+conservatively sacrifice availability; neither an absent reply nor an
+ambiguous guarded-effect acknowledgement proves non-application or
+authorizes a retry. Normal standalone 104 remains terminal; ordinary
+robot/device answers are emitted before experimental replies.
+
+The source-contract test checks the serialization boundary. A rebuilt
+R2025a decoder injection (including the 13+11 counterexample, all 1..23
+truncations, normal 105/106, unrelated ordinary replies) is **still
+required** before claiming the repair qualified. No production Grand
+Prix authority, PASS, Ready or flight qualification is implied.

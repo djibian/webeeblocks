@@ -31,9 +31,21 @@ class RevisionTrailerContract(unittest.TestCase):
         indices = [controller.index(part) for part in ordered]
         self.assertEqual(indices, sorted(indices))
         writer = section(self.patch, "src/webots/nodes/utils/WbSupervisorUtilities.cpp")
-        self.assertIn("+void WbSupervisorUtilities::writeSceneRevisionAnswer(", writer)
+        self.assertIn("+bool WbSupervisorUtilities::writeSceneRevisionAnswer(", writer)
         ordinary = writer.split(" void WbSupervisorUtilities::writeAnswer(WbDataStream &stream) {", 1)[1]
         self.assertNotIn("if (mSendSceneRevision)", ordinary)
+
+    def test_revision_reply_is_exclusive_of_frame_104(self):
+        controller = section(self.patch, "src/webots/control/WbController.cpp")
+        writer = section(self.patch, "src/webots/nodes/utils/WbSupervisorUtilities.cpp")
+        self.assertIn("const bool revisionReplyConsumed", controller)
+        self.assertIn("if (revisionReplyConsumed)", controller)
+        self.assertIn("mRobot->supervisorUtilities()->invalidatePhysicsFrame();", controller)
+        self.assertLess(controller.index("writeSceneRevisionAnswer(stream)"),
+                        controller.index("writePhysicsFrame(stream"))
+        self.assertIn("if (mSendSceneRevision && mRevisionEffectResult >= 0)", writer)
+        self.assertIn("mRevisionEffectResult = -1;", writer)
+        self.assertIn("+  return true;", writer)
 
     def test_revision_token_requires_exact_terminal_length(self):
         reader = section(self.patch, "src/controller/c/supervisor.c")

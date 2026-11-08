@@ -213,12 +213,25 @@ index 05a20ccfc841daa107c07f9e6a7e3362b21a4fe9..76539d57c3af1910a63fc8193b782982
 diff --git a/src/webots/control/WbController.cpp b/src/webots/control/WbController.cpp
 --- a/src/webots/control/WbController.cpp
 +++ b/src/webots/control/WbController.cpp
-@@ -1057,3 +1057,5 @@ void WbController::writeAnswer(bool immediateAnswer) {
+@@ -1057,9 +1057,16 @@ void WbController::writeAnswer(bool immediateAnswer) {
    mRobot->dispatchAnswer(stream);
    if (mRobot->hasImmediateAnswer())
      mRobot->writeImmediateAnswer(stream);
-+  if (mRobot->supervisorUtilities())
-+    mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
++  const bool revisionReplyConsumed = mRobot->supervisorUtilities() &&
++                                     mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
+   // Keep the optional observation last: malformed frames cannot consume
+   // ordinary replies such as C_ROBOT_TIME or other device messages.
+-  if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities())
+-    mRobot->supervisorUtilities()->writePhysicsFrame(stream, mDeltaTimeRequested == 8 ? mRequestTime + 8.0 : -1.0);
++  if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities()) {
++    // Experimental revision replies are exclusive with frame 104.
++    if (revisionReplyConsumed)
++      mRobot->supervisorUtilities()->invalidatePhysicsFrame();
++    else
++      mRobot->supervisorUtilities()->writePhysicsFrame(stream, mDeltaTimeRequested == 8 ? mRequestTime + 8.0 : -1.0);
++  }
+ 
+   // size management
 diff --git a/src/webots/nodes/WbRobot.cpp b/src/webots/nodes/WbRobot.cpp
 --- a/src/webots/nodes/WbRobot.cpp
 +++ b/src/webots/nodes/WbRobot.cpp
@@ -460,7 +473,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            multipleValue->removeItem(index);
            modified = true;
            break;
-@@ -2069,9 +2109,28 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
+@@ -2069,9 +2109,38 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
      const WbVector3 &point = points.at(i);
      stream << point.x() << point.y() << point.z() << (qint32)solids.at(i)->uniqueId();
    }
@@ -470,7 +483,16 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
 +  stream << world->sceneRevision();
  }
 
-+void WbSupervisorUtilities::writeSceneRevisionAnswer(WbDataStream &stream) {
++bool WbSupervisorUtilities::writeSceneRevisionAnswer(WbDataStream &stream) {
++  if (!mSendSceneRevision && mRevisionEffectResult < 0)
++    return false;
++  // No combined 105/106 payload: both callers must treat absent replies
++  // as unknown, including if a guarded native effect was already applied.
++  if (mSendSceneRevision && mRevisionEffectResult >= 0) {
++    mSendSceneRevision = false;
++    mRevisionEffectResult = -1;
++    return true;
++  }
 +  if (mSendSceneRevision) {
 +    const WbWorld *const world = WbWorld::instance();
 +    const QByteArray incarnation = world->sceneIncarnation().toRfc4122();
@@ -483,6 +505,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
 +    stream << (quint16)0 << (quint8)C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION << (quint8)mRevisionEffectResult;
 +    mRevisionEffectResult = -1;
 +  }
++  return true;
 +}
 +
  void WbSupervisorUtilities::writeAnswer(WbDataStream &stream) {
@@ -496,7 +519,7 @@ index 94f6ea71f7e07327df0851f3d3e2f8e34c0bce67..b77ba7f77b91b9be81475e401bb22952
 @@ -50,4 +50,5 @@ public:
    void handleMessage(QDataStream &stream);
    void writeAnswer(WbDataStream &stream);
-+  void writeSceneRevisionAnswer(WbDataStream &stream);
++  bool writeSceneRevisionAnswer(WbDataStream &stream);
    void writePhysicsFrame(WbDataStream &stream, double expectedTime);
    void invalidatePhysicsFrame();
 @@ -79,6 +79,8 @@ private slots:
