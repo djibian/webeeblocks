@@ -1,0 +1,66 @@
+diff --git a/include/wren/viewport.h b/include/wren/viewport.h
+--- a/include/wren/viewport.h
++++ b/include/wren/viewport.h
+@@ -58,7 +58,10 @@
+ void wr_viewport_set_anti_aliasing_effect(WrViewport *viewport, WrPostProcessingEffect *anti_aliasing_effect);
+ 
+ int wr_viewport_get_width(WrViewport *viewport);
+-int wr_viewport_get_height(WrViewport *viewport);
++int wr_viewport_get_height(WrViewport *viewport);
++/* The visible onscreen extent stays unscaled for pointer picking. */
++int wr_viewport_get_screen_width(WrViewport *viewport);
++int wr_viewport_get_screen_height(WrViewport *viewport);
+ WrCamera *wr_viewport_get_camera(WrViewport *viewport);
+ WrFrameBuffer *wr_viewport_get_frame_buffer(WrViewport *viewport);
+ 
+diff --git a/src/wren/Viewport.cpp b/src/wren/Viewport.cpp
+--- a/src/wren/Viewport.cpp
++++ b/src/wren/Viewport.cpp
+@@ -370,9 +370,17 @@
+   return reinterpret_cast<wren::Viewport *>(viewport)->width();
+ }
+ 
+-int wr_viewport_get_height(WrViewport *viewport) {
+-  return reinterpret_cast<wren::Viewport *>(viewport)->height();
+-}
++int wr_viewport_get_height(WrViewport *viewport) {
++  return reinterpret_cast<wren::Viewport *>(viewport)->height();
++}
++
++int wr_viewport_get_screen_width(WrViewport *viewport) {
++  return reinterpret_cast<wren::Viewport *>(viewport)->screenWidth();
++}
++
++int wr_viewport_get_screen_height(WrViewport *viewport) {
++  return reinterpret_cast<wren::Viewport *>(viewport)->screenHeight();
++}
+ 
+ WrCamera *wr_viewport_get_camera(WrViewport *viewport) {
+   return reinterpret_cast<WrCamera *>(reinterpret_cast<wren::Viewport *>(viewport)->camera());
+diff --git a/src/webots/wren/WbWrenPicker.cpp b/src/webots/wren/WbWrenPicker.cpp
+--- a/src/webots/wren/WbWrenPicker.cpp
++++ b/src/webots/wren/WbWrenPicker.cpp
+@@ -73,8 +73,10 @@
+   WbWrenOpenGlContext::makeWrenCurrent();
+ 
+   WrViewport *viewport = wr_scene_get_viewport(wr_scene_get_instance());
+-  mWidth = wr_viewport_get_width(viewport);
+-  mHeight = wr_viewport_get_height(viewport);
++  // Qt pointer coordinates refer to the unscaled onscreen size.
++  // Keep picking full-resolution even when the color framebuffer is scaled.
++  mWidth = wr_viewport_get_screen_width(viewport);
++  mHeight = wr_viewport_get_screen_height(viewport);
+   wr_viewport_set_size(mViewport, mWidth, mHeight);
+ 
+   mFrameBuffer = wr_frame_buffer_new();
+@@ -103,8 +105,8 @@
+ 
+ bool WbWrenPicker::hasSizeChanged() {
+   WrViewport *viewport = wr_scene_get_viewport(wr_scene_get_instance());
+-  const int width = wr_viewport_get_width(viewport);
+-  const int height = wr_viewport_get_height(viewport);
++  const int width = wr_viewport_get_screen_width(viewport);
++  const int height = wr_viewport_get_screen_height(viewport);
+ 
+   if (mWidth != width || mHeight != height) {
+     mWidth = width;

@@ -99,6 +99,35 @@ speed on this fixture. The trace does not distinguish shader execution from
 driver work inside the WREN span. See [results-linux.json](results-linux.json)
 for each paired run and the separate frame-cap control.
 
+## Experimental full-size picking under scaled main view
+
+The third, narrowly scoped `webots-r2025a-picker-full-screen.patch` keeps
+mouse picking at the **Qt destination dimensions**, separately from the
+optional half-resolution main 3D color framebuffer. The unmodified R2025a
+`WbWrenPicker` allocates its picking framebuffer from the main WREN
+viewport size while `WbView3D` passes full-size Qt pointer coordinates.
+At 50% render scale a click at x=600 in a 736-pixel view would address
+a picking framebuffer only 368 pixels wide. The patch exposes the main
+viewport's existing `screenWidth()/screenHeight()` fallback through the
+WREN C API and uses those dimensions in `WbWrenPicker::setup()` and
+`hasSizeChanged()`. Picking only renders on demand and does not touch
+the 8-ms physics clock, sensors or normal frame presentation.
+
+Apply this **after** the main-render-scale patch and rebuild both WREN
+and Webots; the default 100% mode retains the prior dimensions:
+
+```sh
+git -C "$WEBOTS_HOME" apply --check "$PWD/tools/grand_prix/native_render/webots-r2025a-picker-full-screen.patch"
+git -C "$WEBOTS_HOME" apply "$PWD/tools/grand_prix/native_render/webots-r2025a-picker-full-screen.patch"
+```
+
+**GUI QA is still required** before Ready or any product use: at 100% and
+50%, pick the same scene object and translation/rotation handles near the
+center, right edge and lower edge, inspect picked IDs and 3D coordinates,
+then repeat after resizing the window and after video stop/cancel. Check
+HiDPI separately. This source fix is a testable candidate, not a reported
+real Webots/Windows GUI PASS.
+
 ## Windows qualification boundary
 
 Reuse the [Windows host and A/B protocol](../../../docs/GRAND_PRIX_WINDOWS_BENCH.md).
