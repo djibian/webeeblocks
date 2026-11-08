@@ -72,9 +72,14 @@ checks the actual source and destination dimensions, verifies every sampled
 trajectory and contact against its reference and writes the complete engine
 and Supervisor traces. With `--scale-ab` omitted, it compares the 60/25 caps
 using the repository's `StepWallProbe` and `compare_render_ab.py`.
-The stage attribution measures the overlap of WREN drawing with the slowest
-physical cycles. It refuses absent stages or an incompatible monotonic
-clock interval. Both trials use the same visibly lit ODE fixture.
+The stage attribution measures the **union of WREN drawing intervals**
+intersecting the slowest physical cycles, so duplicate or overlapping spans
+cannot inflate the apparent fraction of a cycle spent drawing. It refuses
+absent stages or an incompatible monotonic clock interval. Both trials use
+the same visibly lit ODE fixture. Check the deterministic overlap regressions
+with `python3 -m unittest tools.grand_prix.native_render.test_attribution`.
+Older recorded overlap-majority counts were generated before this protection:
+reanalyze their original spans before treating those counts as qualified.
 The benchmark does not open the Grand Prix or Blockly.
 
 ## Linux result
@@ -91,8 +96,10 @@ and its obstacle was visible. The 50% arm drew at 368×239.
 | OpenGL swap completions per wall second | 14.17–14.51 | 27.26–28.20 |
 | Simulated time / wall time | 0.996–1.031× | 0.957–0.965× |
 
-In the 100% arm, drawing overlaps at least half of every cycle in the worst
-1%. The physics stage itself remains below 0.12 ms at p99 in both arms.
+The originally reported 100% arm overlap-majority result was calculated
+without merging intersecting WREN spans; it remains exploratory until the
+original native trace is reanalyzed with union attribution. The measured physics
+stage itself remained below 0.12 ms at p99 in both arms.
 The source-scale change reduces the physical-step stalls and increases swap
 throughput at the cost of image resolution and a lower average simulation
 speed on this fixture. The trace does not distinguish shader execution from

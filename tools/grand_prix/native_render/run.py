@@ -41,8 +41,21 @@ def attribute(trace, path, start_index):
 
     worst = sorted(cycles, key=lambda cycle: cycle[1] - cycle[0], reverse=True)[:math.ceil(len(cycles) / 100)]
 
+    # Measure the union of WREN drawing time intersecting each physical cycle.
+    # Native trace spans can overlap or repeat; adding their lengths would
+    # double-count the time and invent a majority-of-tail diagnosis.
+    draw_intervals = sorted(sections['wren_draw'])
+
     def draw_overlap(a, b):
-        return sum(max(0, min(b, y) - max(a, x)) for x, y in sections['wren_draw'])
+        covered_ns, covered_until = 0, a
+        for start, end in draw_intervals:
+            if start >= b:
+                break
+            lo, hi = max(a, start, covered_until), min(b, end)
+            if hi > lo:
+                covered_ns += hi - lo
+                covered_until = hi
+        return covered_ns
 
     durations = [b - a for a, b in cycles]
     return {
