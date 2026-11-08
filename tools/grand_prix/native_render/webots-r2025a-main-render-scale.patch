@@ -38,15 +38,18 @@ index 909f8bc9c293d9150e2f6cf92435c1ca08ce6830..edffe6787329b294214ec605674d0e6b
    WbWrenOpenGlContext::makeWrenCurrent();
 
    mVideoWidth = width();
-@@ -358,6 +367,7 @@ void WbWrenWindow::completeVideoPBOProcessing(bool canceled) {
+@@ -358,6 +367,10 @@ void WbWrenWindow::completeVideoPBOProcessing(bool canceled) {
    wr_scene_terminate_frame_capture(wr_scene_get_instance());
 
    WbWrenOpenGlContext::doneWren();
 +  mNativeVideoCapture = false;
++  // The next 3D frame must return to experimental scale after either exit.
++  if (qEnvironmentVariableIntValue("WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE") == 50)
++    resizeWren(width(), height());
  }
 
  void WbWrenWindow::processVideoPBO() {
-@@ -393,8 +403,12 @@ void WbWrenWindow::updateFrameBuffer() {
+@@ -393,8 +406,12 @@ void WbWrenWindow::updateFrameBuffer() {
    if (mWrenDepthFrameBufferTexture)
      wr_texture_delete(WR_TEXTURE(mWrenDepthFrameBufferTexture));
 
@@ -60,7 +63,7 @@ index 909f8bc9c293d9150e2f6cf92435c1ca08ce6830..edffe6787329b294214ec605674d0e6b
 
    mWrenMainFrameBufferTexture = wr_texture_rtt_new();
    wr_texture_set_internal_format(WR_TEXTURE(mWrenMainFrameBufferTexture), WR_TEXTURE_INTERNAL_FORMAT_RGB16F);
-@@ -413,7 +427,12 @@ void WbWrenWindow::updateFrameBuffer() {
+@@ -413,7 +430,12 @@ void WbWrenWindow::updateFrameBuffer() {
    wr_frame_buffer_setup(mWrenMainFrameBuffer);
    wr_viewport_set_frame_buffer(wr_scene_get_viewport(wr_scene_get_instance()), mWrenMainFrameBuffer);
 
