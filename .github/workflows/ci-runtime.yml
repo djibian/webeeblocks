@@ -1360,6 +1360,12 @@ jobs:
         with:
           ref: ${{ inputs.target_sha || github.sha }}
 
+      # This native Windows test owns the passive #914 PID/metadata contract.
+      # It runs with full CI; no Webots engine or hardware is required.
+      - name: Falsify passive Grand Prix Windows host capture
+        shell: pwsh
+        run: ./tools/ci/test_grand_prix_windows_host_capture.ps1
+
       - name: Checkout pinned Webots R2025a release assets
         uses: actions/checkout@v4
         with:
