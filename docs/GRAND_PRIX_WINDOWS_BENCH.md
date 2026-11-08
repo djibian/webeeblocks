@@ -11,7 +11,7 @@ Sur le **portable Windows personnel**, depuis un dossier source préparé et
 
 ```powershell
 $root = (Get-Location).Path
-$sha = (Get-Content .\TARGET_SHA.txt -Raw).Trim() # seulement si fourni par l'artefact exact
+$sha = if (Test-Path -LiteralPath '.\TARGET_SHA.txt') { (Get-Content -LiteralPath '.\TARGET_SHA.txt' -Raw).Trim() } else { $null }
 & "$root\tools\grand_prix\windows_host_inventory.ps1" `
   -WebotsHome 'C:\Webots-R2025a' `
   -BrowserExe 'C:\Program Files\Mozilla Firefox\firefox.exe' `
@@ -26,6 +26,15 @@ mais indispensable pour documenter le navigateur réellement choisi. Le dossier
 de sortie doit exister ; un fichier déjà présent n'est jamais écrasé.
 Pour comparer deux Webots, refaire l'inventaire avec des fichiers distincts
 (`host-reference.json`, `host-native.json`) sur **la même machine**.
+
+Le test d'inventaire exécutable localement sur Windows, sans Webots installé et sans réseau, est :
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\ci\test_grand_prix_windows_host_inventory.ps1
+```
+
+Ce test vérifie le schéma et plusieurs refus, mais le résultat réel Windows/GL
+et l'acceptation du Grand Prix restent distincts.
 
 L'outil lit CIM/WMI et les exécutables locaux ; il écrit un JSON UTF-8 portant
 Windows, CPU, RAM, GPU/pilote, version et SHA-256 de Webots R2025a, navigateur
