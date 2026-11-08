@@ -451,6 +451,70 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
         self.assertIn("SANDBOX Blockly Linux", output.stdout)
 
 
+class ControlledRenderFpsABTests(unittest.TestCase):
+    """#912: display-only renderer settings must not modify native physics."""
+
+    def test_canonical_world_only_changes_render_budget(self):
+        from tools.grand_prix.launch_linux import configure_render_fps, render_route
+        from tools.grand_prix.route_courses_v2 import reference_course
+        for index in (0, 5, 11):
+            source = render_route(reference_course(index))
+            self.assertEqual(configure_render_fps(source, None), source)
+            for fps in (25, 30, 60):
+                with self.subTest(index=index, fps=fps):
+                    changed = configure_render_fps(source, fps)
+                    self.assertEqual(changed.replace(f"FPS {fps} ", "", 1), source)
+                    self.assertIn(f"basicTimeStep 8 randomSeed 1 FPS {fps}", changed)
+                    self.assertEqual(changed.count("WorldInfo {"), 1)
+                    self.assertIn('controller "grand_prix_route_flight"', changed)
+                    self.assertIn('controller "grand_prix_route_evaluator"', changed)
+                    self.assertIn('window "grand_prix_route_v2"', changed)
+
+    def test_malformed_or_unknown_world_fails_closed(self):
+        from tools.grand_prix.launch_linux import configure_render_fps, render_route
+        from tools.grand_prix.route_courses_v2 import reference_course
+        source = render_route(reference_course(5))
+        for invalid in (False, True, -1, 0, 24, 61, "25", 25.0):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                configure_render_fps(source, invalid)
+        for altered in (source.replace("basicTimeStep 8", "basicTimeStep 16"),
+                        source.replace("WorldInfo {", "WorldInfo { FPS 90 ", 1),
+                        source + "\nWorldInfo {}\n"):
+            with self.subTest(length=len(altered)), self.assertRaises(RuntimeError):
+                configure_render_fps(altered, 25)
+
+    def test_explicit_cli_render_cap_does_not_activate_legacy_or_listing(self):
+        from tools.grand_prix import launch_linux as launcher
+        for arguments in (["--legacy-u", "--render-fps", "25"],
+                          ["--list-configurations", "--render-fps", "25"],
+                          ["--index", "5", "--render-fps", "24"]):
+            with self.subTest(arguments=arguments), self.assertRaises(SystemExit) as caught:
+                launcher.main(arguments)
+            self.assertEqual(caught.exception.code, 2)
+
+        from tools.grand_prix.route_courses_v2 import reference_course
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "worlds").mkdir()
+            scenes = []
+            def gui(_home, world, _env):
+                scenes.append(world.read_text(encoding="utf-8"))
+                return mock.Mock(returncode=0)
+            with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
+                 mock.patch.object(launcher, "ROOT", root), \
+                 mock.patch.object(launcher, "webots_home", return_value=Path("/mock/webots")), \
+                 mock.patch.object(launcher, "prepare_route_native", return_value={}), \
+                 mock.patch.object(launcher, "launch_graphical", side_effect=gui):
+                for fps in (25, 30, 60):
+                    self.assertEqual(launcher.main(["--index", "5", "--render-fps", str(fps)]), 0)
+                self.assertEqual(launcher.main(["--index", "5"]), 0)
+            self.assertEqual(len(scenes), 4)
+            original = launcher.render_route(reference_course(5))
+            for actual, fps in zip(scenes[:3], (25, 30, 60)):
+                self.assertEqual(actual.replace(f"FPS {fps} ", "", 1), original)
+            self.assertEqual(scenes[3], original, "default arm must stay byte-identical")
+
+
 class ActiveVariableLinuxLauncherTests(unittest.TestCase):
     def test_every_reference_and_custom_course_reuses_exact_active_composer(self):
         from tools.grand_prix.launch_linux import render_route
