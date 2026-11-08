@@ -131,6 +131,14 @@ la sortie du terminal et le fichier réellement utilisé. Ces observations ne
 sont pas encore réalisées par les tests automatisés du lanceur. Aucun test
 humain supplémentaire n'est demandé en dehors du mécanisme V5 existant.
 
+Si la Robot Window Grand Prix affiche **ERREUR** après un vol ou en Pas à pas,
+relever également la ligne **« Diagnostic : … »** dans le panneau
+« Observation de l’exécution » ; elle montre le code et/ou message technique
+borné transmis par le Runtime, même après la fin de l’observation. Le message
+ne prouve pas la cause native à lui seul : le recouper avec les ACK,
+`GP_U_ADMISSION` et le journal Webots du même essai. Cette lecture ne nécessite
+aucun nouveau TEST_REQUIRED et n'altère pas le comportement du vol.
+
 ## Préparer et lancer le U historique
 
 Depuis la racine du dépôt, terminal ouvert dans la **session graphique** :
