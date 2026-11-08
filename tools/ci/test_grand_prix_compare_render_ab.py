@@ -80,16 +80,17 @@ class RenderABTests(unittest.TestCase):
 
         # Add a four-second stall at the boundary of two complete native
         # windows. The measured window costs remain favorable.
-        path = self.root / 'run-1.log'
-        rows = []
-        for index, line in enumerate(path.read_text(encoding='utf-8').splitlines()):
-            prefix, raw = line.split('GP_STEP_WALL_V1 ', 1)
-            row = json.loads(raw)
-            if index >= 1:
-                row['first_start_wall_ns'] += 4_000_000_000
-                row['last_end_wall_ns'] += 4_000_000_000
-            rows.append(prefix + 'GP_STEP_WALL_V1 ' + json.dumps(row))
-        path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
+        for name in ('run-1.log', 'run-2.log'):
+            path = self.root / name
+            rows = []
+            for index, line in enumerate(path.read_text(encoding='utf-8').splitlines()):
+                prefix, raw = line.split('GP_STEP_WALL_V1 ', 1)
+                row = json.loads(raw)
+                if index >= 1:
+                    row['first_start_wall_ns'] += 4_000_000_000
+                    row['last_end_wall_ns'] += 4_000_000_000
+                rows.append(prefix + 'GP_STEP_WALL_V1 ' + json.dumps(row))
+            path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
         measured = compare(self.root / 'trial.json')
         prior = baseline['arms']['B']['per_trial'][0]
         current = measured['arms']['B']['per_trial'][0]
