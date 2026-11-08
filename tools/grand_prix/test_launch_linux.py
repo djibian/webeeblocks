@@ -385,8 +385,10 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             def graphical(_home, world, _env):
                 seen["world"] = world
                 seen["scene"] = world.read_text(encoding="utf-8")
-                world.with_name("." + world.stem + ".wbproj").write_text(
-                    "owned generated project", encoding="utf-8")
+                self.assertEqual(
+                    world.with_name("." + world.stem + ".wbproj").read_text(encoding="utf-8"),
+                    "Webots Project File version R2025a\n"
+                    "robotWindow: Crazyflie WebeeBlocks\n")
                 return mock.Mock(returncode=0)
             with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
                  mock.patch.object(sandbox, "ROOT", base), \
@@ -409,6 +411,28 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             self.assertFalse(seen["world"].with_name(
                 "." + seen["world"].stem + ".wbproj").exists())
             self.assertEqual(fixed.read_text(encoding="utf-8"), "existing user world")
+
+    def test_variable_editor_refuses_foreign_perspective_without_deleting_it(self):
+        from tools.grand_prix import launch_variable_editor_linux as sandbox
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "worlds").mkdir()
+            world = root / "worlds/editor.wbt"
+            project = root / "worlds/.editor.wbproj"
+            project.write_text("existing teacher perspective", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
+                 mock.patch.object(sandbox, "ROOT", root), \
+                 mock.patch.object(sandbox, "webots_home", return_value=root), \
+                 mock.patch.object(sandbox, "prepare_editor", return_value={}), \
+                 mock.patch.object(sandbox.tempfile, "mkstemp", side_effect=lambda **_: (
+                     os.open(world, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600),
+                     str(world))), \
+                 mock.patch.object(sandbox, "launch_graphical") as gui:
+                self.assertEqual(sandbox.main(["--index", "5", "--editor-sandbox"]), 1)
+            gui.assert_not_called()
+            self.assertFalse(world.exists())
+            self.assertEqual(project.read_text(encoding="utf-8"),
+                             "existing teacher perspective")
 
     def test_variable_editor_invalid_input_and_headless_refuse_before_preflight(self):
         from tools.grand_prix import launch_variable_editor_linux as sandbox
