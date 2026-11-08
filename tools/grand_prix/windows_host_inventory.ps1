@@ -81,6 +81,8 @@ $inventory = [ordered]@{
   display_adapters = $gpu
   webots = [ordered]@{
     release = $webotsVersion
+    # Selected executable path relative to the installation; no private absolute directory.
+    exe_relative_path = 'msys64/mingw64/bin/' + $webotsExe.Name
     product_version = [string]$webotsExe.VersionInfo.ProductVersion
     exe_sha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
   }

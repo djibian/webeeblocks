@@ -52,6 +52,7 @@ try {
   Require ($json.source_sha -ceq ('a' * 40)) 'Wrong exact source SHA.'
   Require ($json.webots.release -eq 'R2025a') 'Wrong Webots release.'
   Require ($json.webots.exe_sha256 -eq (Get-FileHash -LiteralPath $webotsExe -Algorithm SHA256).Hash.ToLowerInvariant()) 'Wrong Webots executable digest.'
+  Require ($json.webots.exe_relative_path -ceq 'msys64/mingw64/bin/webotsw.exe') 'Wrong selected Webots executable path.'
   Require ($json.browser.exe_sha256 -eq (Get-FileHash -LiteralPath $browser -Algorithm SHA256).Hash.ToLowerInvariant()) 'Wrong browser executable digest.'
   Require ($json.actual_opengl_renderer -eq $null) 'Invented OpenGL renderer.'
   Require ($json.measurement_state -eq 'INVENTORY_ONLY_NOT_A_PERFORMANCE_OR_ACCEPTANCE_RESULT') 'Invented performance result.'
@@ -73,6 +74,23 @@ try {
   $wasRejected = $false
   try { & $script -WebotsHome $webots -OutputPath $invalid } catch { $wasRejected = $true }
   Require ($wasRejected -and -not (Test-Path -LiteralPath $invalid)) 'Wrong Webots release was accepted.'
+
+  # Exercise the supported fallback from webotsw.exe to webots.exe.
+  [IO.File]::WriteAllText($versionPath, 'R2025a')
+  Remove-Item -LiteralPath $webotsExe
+  $fallbackExe = Join-Path $webotsBin 'webots.exe'
+  [IO.File]::WriteAllText($fallbackExe, 'dummy-Webots-console-R2025a')
+  $fallbackTarget = Join-Path $root 'inventory-fallback.json'
+  & $script -WebotsHome $webots -OutputPath $fallbackTarget
+  $fallback = Get-Content -LiteralPath $fallbackTarget -Raw | ConvertFrom-Json
+  Require ($fallback.webots.exe_relative_path -ceq 'msys64/mingw64/bin/webots.exe') 'Incorrect fallback executable path.'
+  Require ($fallback.webots.exe_sha256 -eq (Get-FileHash -LiteralPath $fallbackExe -Algorithm SHA256).Hash.ToLowerInvariant()) 'Incorrect fallback executable digest.'
+
+  Remove-Item -LiteralPath $fallbackExe
+  $missingTarget = Join-Path $root 'inventory-missing.json'
+  $wasRejected = $false
+  try { & $script -WebotsHome $webots -OutputPath $missingTarget } catch { $wasRejected = $true }
+  Require ($wasRejected -and -not (Test-Path -LiteralPath $missingTarget)) 'Missing Webots executable was accepted.'
 
   Write-Host 'PASS Windows host inventory: exact provenance, privacy, no invented metrics, negative cases.'
 }
