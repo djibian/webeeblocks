@@ -78,6 +78,26 @@ def observe():
     before = list(target.getVelocity())
     require(not effect(target_id, c.byref(captured), velocity) and list(target.getVelocity()) == before,
             'stale frame token allowed the native velocity effect')
+
+    # A current revision alone is insufficient: incarnation is part of the
+    # exact token. Conversely, a correct incarnation cannot mint a future
+    # revision. Both refusals must leave the physical effect unapplied.
+    wrong_incarnation = Token()
+    wrong_incarnation.incarnation[:] = restored.incarnation[:]
+    wrong_incarnation.incarnation[0] ^= 1
+    wrong_incarnation.revision = restored.revision
+    future_revision = Token()
+    future_revision.incarnation[:] = restored.incarnation[:]
+    future_revision.revision = restored.revision + 1
+    require(not effect(target_id, c.byref(wrong_incarnation), velocity) and
+            list(target.getVelocity()) == before,
+            'incorrect incarnation with current revision allowed the native effect')
+    require(not effect(target_id, c.byref(future_revision), velocity) and
+            list(target.getVelocity()) == before,
+            'future revision with current incarnation allowed the native effect')
+    require(token_now().revision == restored.revision,
+            'rejected native effects changed the scene revision')
+
     require(effect(target_id, c.byref(restored), velocity) and list(target.getVelocity()) == list(velocity),
             'fresh token did not apply the native velocity effect')
     applied = token_now()
