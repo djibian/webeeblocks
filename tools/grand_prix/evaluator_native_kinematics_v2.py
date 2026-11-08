@@ -62,6 +62,14 @@ def _one_field(node, key):
     return field
 
 
+def read_kinematics(node, ms):
+    """Read a verified vehicle's current pose and velocity."""
+    position = _vector(node.getPosition(), 3, 'position')
+    orientation = _orientation(node.getOrientation())
+    velocity = _vector(node.getVelocity(), 6, 'linear/angular velocity')
+    return NativeKinematics(ms, position, orientation, velocity)
+
+
 class NativeKinematicsSampler:
     """Strictly increasing native R2025a pose and velocity snapshots.
 
@@ -129,8 +137,6 @@ class NativeKinematicsSampler:
         ms = _now_ms(self._robot.getTime())
         if self._last_ms is not None and ms <= self._last_ms:
             raise RuntimeError('replayed or nonmonotonic native pose')
-        position = _vector(node.getPosition(), 3, 'position')
-        orientation = _orientation(node.getOrientation())
-        velocity = _vector(node.getVelocity(), 6, 'linear/angular velocity')
+        observation = read_kinematics(node, ms)
         self._last_ms = ms
-        return NativeKinematics(ms, position, orientation, velocity)
+        return observation

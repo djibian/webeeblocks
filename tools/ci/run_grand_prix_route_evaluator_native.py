@@ -49,7 +49,9 @@ def check_native(data):
     stamps = _check_ready(data.get('ready'))
     if data['claim'] == CLAIM:
         refused, restored = data.get('refused_ms'), data.get('restored_still_refused_ms')
+        mutated = data.get('mutated_ms')
         if (type(refused) is not int or type(restored) is not int or
+                type(mutated) is not int or mutated != refused or
                 refused != stamps[2] + 8 or restored != refused + 32):
             raise RuntimeError('native evaluator revocation clock invalid')
     else:

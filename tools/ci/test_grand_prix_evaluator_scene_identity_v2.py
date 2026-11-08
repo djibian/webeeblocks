@@ -103,7 +103,7 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.native = Supervisor(self.course)
         self.boxes = patch('tools.grand_prix.evaluator_scene_identity_v2.canonical_native_boxes',
                            return_value=('locked-native-colliders',))
-        self.verify = patch('tools.grand_prix.evaluator_scene_identity_v2._verify_native_boxes')
+        self.verify = patch('tools.grand_prix.evaluator_scene_identity_v2._verify_scene_boxes')
         self.boxes.start()
         self.check = self.verify.start()
         self.addCleanup(self.boxes.stop)
@@ -116,10 +116,9 @@ class NativeEvaluatorSceneIdentityTests(unittest.TestCase):
         self.assertIsNone(self.run_check(), 'a scene-only check must grant no authority')
         self.check.assert_called_once()
         args = self.check.call_args.args
-        self.assertIs(args[0], self.native)
-        self.assertEqual(args[1], self.course)
-        self.assertEqual(args[2], ('locked-native-colliders',))
-        self.assertEqual(args[3], [self.native.vehicle, self.native.evaluator])
+        self.assertEqual(args[0], self.course)
+        self.assertEqual(args[1], ('locked-native-colliders',))
+        self.assertEqual(args[2], [self.native.vehicle, self.native.evaluator])
 
     def test_root_nodes_are_read_once_per_scene_check_and_again_on_next_tick(self):
         original = Field.getMFNode
