@@ -1,0 +1,180 @@
+{
+  "stock": {
+    "engine": {
+      "webots-bin": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a",
+      "libController.so": "d4883c4f101d585bf6317451a4afb76cff4617d55633cbf0cb21314be51517da"
+    },
+    "witness": {
+      "acks": {
+        "land_ack_ms": 10368,
+        "reset_ack_ms": 10944,
+        "second_takeoff_ack_ms": 17024,
+        "takeoff_ack_ms": 8096
+      },
+      "airborne_z": 0.3800554402545453,
+      "claim": "native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program",
+      "configuration": "gp-route-v2-L2000-2500-3000-TGD-s105-H2",
+      "failure_observed_ms": 8168,
+      "fresh_epoch": true,
+      "ready": {
+        "contact_count": 4,
+        "position": [
+          2.58222145674695e-18,
+          -8.029318642109741e-19,
+          0.014995095000000002
+        ],
+        "ranges_m": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "sample_time_ms": 3040,
+        "stable_since_ms": 2568,
+        "time_ms": 3072,
+        "velocity": [
+          2.1128060987475553e-18,
+          -1.740608908371333e-18,
+          -4.440275726660817e-17,
+          2.2089414889701118e-16,
+          -2.1740606421461534e-16,
+          -6.014599752508339e-19
+        ]
+      },
+      "reset_ready": {
+        "contact_count": 4,
+        "position": [
+          -8.118017625784011e-19,
+          -1.2388636784796971e-18,
+          0.014995095001231975
+        ],
+        "ranges_m": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "sample_time_ms": 11968,
+        "stable_since_ms": 11496,
+        "time_ms": 12000,
+        "velocity": [
+          -3.1163591523796063e-18,
+          -7.463301577085017e-19,
+          -3.851803320279298e-11,
+          -2.5767146026664015e-16,
+          6.611535011244786e-18,
+          -4.377247192500034e-19
+        ]
+      },
+      "second_takeoff": {
+        "airborne_z": 0.3800554402545205,
+        "observed_ms": 17024,
+        "start_ms": 12032
+      },
+      "stalled_ms": 8096,
+      "start_ms": 3104,
+      "timestep_ms": 8,
+      "webots": "R2025a"
+    },
+    "parity": {
+      "comparisons": 0,
+      "mismatches": [],
+      "invalidated": []
+    }
+  },
+  "shadow": {
+    "engine": {
+      "webots-bin": "793246ee6f6eae40944314dd3de14c9725d0f6625158f22c2807ade6001fbaa6",
+      "libController.so": "da8b3de1ddc922e13af7160cfb0cd1a21a55b01c62ac78792543e7ebf77861de"
+    },
+    "witness": {
+      "acks": {
+        "land_ack_ms": 10368,
+        "reset_ack_ms": 10944,
+        "second_takeoff_ack_ms": 17024,
+        "takeoff_ack_ms": 8096
+      },
+      "airborne_z": 0.3800554402545453,
+      "claim": "native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program",
+      "configuration": "gp-route-v2-L2000-2500-3000-TGD-s105-H2",
+      "failure_observed_ms": 8168,
+      "fresh_epoch": true,
+      "ready": {
+        "contact_count": 4,
+        "position": [
+          2.58222145674695e-18,
+          -8.029318642109741e-19,
+          0.014995095000000002
+        ],
+        "ranges_m": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "sample_time_ms": 3040,
+        "stable_since_ms": 2568,
+        "time_ms": 3072,
+        "velocity": [
+          2.1128060987475553e-18,
+          -1.740608908371333e-18,
+          -4.440275726660817e-17,
+          2.2089414889701118e-16,
+          -2.1740606421461534e-16,
+          -6.014599752508339e-19
+        ]
+      },
+      "reset_ready": {
+        "contact_count": 4,
+        "position": [
+          -8.118017625784011e-19,
+          -1.2388636784796971e-18,
+          0.014995095001231975
+        ],
+        "ranges_m": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "sample_time_ms": 11968,
+        "stable_since_ms": 11496,
+        "time_ms": 12000,
+        "velocity": [
+          -3.1163591523796063e-18,
+          -7.463301577085017e-19,
+          -3.851803320279298e-11,
+          -2.5767146026664015e-16,
+          6.611535011244786e-18,
+          -4.377247192500034e-19
+        ]
+      },
+      "second_takeoff": {
+        "airborne_z": 0.3800554402545205,
+        "observed_ms": 17024,
+        "start_ms": 12032
+      },
+      "stalled_ms": 8096,
+      "start_ms": 3104,
+      "timestep_ms": 8,
+      "webots": "R2025a"
+    },
+    "parity": {
+      "comparisons": 2128,
+      "mismatches": [],
+      "invalidated": [
+        {
+          "time_ms": 10400,
+          "captured_revision": 1315,
+          "live_revision": 1316,
+          "same_world": true,
+          "observations_differ": true
+        }
+      ]
+    }
+  }
+}

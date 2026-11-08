@@ -57,7 +57,7 @@ index 5ff3afc29850a06fe49939d8655544ee79604d86..c7c666cc286d001e9156eaa27dd02613
  // for the abstract camera device
  // sim -> ctr
 diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
-index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f97089358 100644
+index 05a20ccfc841daa107c07f9e6a7e3362b21a4fe9..76539d57c3af1910a63fc8193b782982d75ddbed 100644
 --- a/src/controller/c/supervisor.c
 +++ b/src/controller/c/supervisor.c
 @@ -567,6 +567,46 @@ static int32_t physics_frame_queued_id = 0;
@@ -158,7 +158,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
    if (simulation_change_mode) {
      request_write_uchar(r, C_SUPERVISOR_SIMULATION_CHANGE_MODE);
      request_write_int32(r, robot_get_simulation_mode());
-@@ -1056,8 +1119,9 @@ static void read_physics_frame(WbRequest *r) {
+@@ -1055,7 +1118,8 @@ static void read_physics_frame(WbRequest *r) {
      return;
    }
 
@@ -168,8 +168,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
                             count * (int)sizeof(int32_t);
    // The optional frame is the terminal suffix of an ordinary answer.
    if (end - request_get_position(r) != payload_size)
-     goto malformed;
-@@ -1072,6 +1136,10 @@ static void read_physics_frame(WbRequest *r) {
+@@ -1075,6 +1139,10 @@ static void read_physics_frame(WbRequest *r) {
      memcpy(contact->point, request_read_data(r, sizeof(contact->point)), sizeof(contact->point));
      memcpy(&contact->node_id, request_read_data(r, sizeof(contact->node_id)), sizeof(contact->node_id));
    }
@@ -180,7 +179,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
    physics_frame_ready = !robot_is_immediate_message() && physics_frame_sent_id > 0 &&
                          f->solid_id == physics_frame_sent_id && self_node_ref && f->supervisor_id == self_node_ref->id;
    physics_frame_sent_id = 0;
-@@ -1368,6 +1436,26 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
+@@ -1371,6 +1439,26 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
      case C_SUPERVISOR_NODE_GET_STATIC_BALANCE:
        static_balance_node_ref->static_balance = request_read_uchar(r) == 1;
        break;
@@ -241,7 +240,7 @@ index 7de6cd41eec7c7e2d11f8d788022a66b2dbaf18a..dbd96432dc28033dbe0dbe35f64601a0
    bool success;
    if (sfnode) {
 diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
-index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..3e49c9d23bd2536b3c396ba76659eca584e873f8 100644
+index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346afa0894915 100644
 --- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
 +++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
 @@ -64,6 +64,7 @@
@@ -324,7 +323,96 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..3e49c9d23bd2536b3c396ba76659eca5
          solidNode->resetPhysics(false);
          solidNode->pausePhysics(true);
        }
-@@ -2069,9 +2100,26 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
+@@ -1674,25 +1705,32 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+       const WbNode *const node = WbNode::findNode(nodeId);
+       const WbField *field = node->field(fieldId);
+
++      const auto insertPrimitive = [&stream, index](auto *values, const auto &value) {
++        if (stream.status() != QDataStream::Ok || index > static_cast<unsigned int>(values->size()))
++          return;
++        WbWorld::instance()->noteSceneEffect();
++        values->insertItem(index, value);
++      };
++
+       switch (field->type()) {  // import value
+         case WB_MF_BOOL: {
+           // cppcheck-suppress unassignedVariable
+           unsigned char value;
+           stream >> value;
+           // cppcheck-suppress knownConditionTrueFalse
+-          (dynamic_cast<WbMFBool *>(field->value()))->insertItem(index, value == 1);
++          insertPrimitive(dynamic_cast<WbMFBool *>(field->value()), value == 1);
+           break;
+         }
+         case WB_MF_INT32: {
+           int value;
+           stream >> value;
+-          (dynamic_cast<WbMFInt *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFInt *>(field->value()), value);
+           break;
+         }
+         case WB_MF_FLOAT: {
+           double value;
+           stream >> value;
+-          (dynamic_cast<WbMFDouble *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFDouble *>(field->value()), value);
+           break;
+         }
+         case WB_MF_VEC2F: {
+@@ -1700,7 +1738,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           stream >> d0;
+           stream >> d1;
+           WbVector2 value(d0, d1);
+-          (dynamic_cast<WbMFVector2 *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFVector2 *>(field->value()), value);
+           break;
+         }
+         case WB_MF_VEC3F: {
+@@ -1709,7 +1747,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           stream >> d1;
+           stream >> d2;
+           WbVector3 value(d0, d1, d2);
+-          (dynamic_cast<WbMFVector3 *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFVector3 *>(field->value()), value);
+           break;
+         }
+         case WB_MF_ROTATION: {
+@@ -1719,7 +1757,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           stream >> d2;
+           stream >> d3;
+           WbRotation value(d0, d1, d2, d3);
+-          (dynamic_cast<WbMFRotation *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFRotation *>(field->value()), value);
+           break;
+         }
+         case WB_MF_COLOR: {
+@@ -1728,12 +1766,12 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           stream >> d1;
+           stream >> d2;
+           WbRgb value(d0, d1, d2);
+-          (dynamic_cast<WbMFColor *>(field->value()))->insertItem(index, value);
++          insertPrimitive(dynamic_cast<WbMFColor *>(field->value()), value);
+           break;
+         }
+         case WB_MF_STRING: {
+           const QString string = readString(stream);
+-          (dynamic_cast<WbMFString *>(field->value()))->insertItem(index, string);
++          insertPrimitive(dynamic_cast<WbMFString *>(field->value()), string);
+           break;
+         }
+         case WB_MF_NODE:
+@@ -1802,7 +1840,9 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+         case WB_MF_COLOR:
+         case WB_MF_STRING: {
+           WbMultipleValue *multipleValue = dynamic_cast<WbMultipleValue *>(field->value());
+-          assert(multipleValue->size() > index);
++          if (stream.status() != QDataStream::Ok || index < 0 || index >= multipleValue->size())
++            break;
++          WbWorld::instance()->noteSceneEffect();
+           multipleValue->removeItem(index);
+           modified = true;
+           break;
+@@ -2069,9 +2109,26 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
      const WbVector3 &point = points.at(i);
      stream << point.x() << point.y() << point.z() << (qint32)solids.at(i)->uniqueId();
    }

@@ -119,12 +119,43 @@ def observe():
     require(robot.getTime() == instant and root_children.getCount() == count and
             reset.revision < added.revision < removed.revision, 'transient topology did not invalidate')
     require(not effect(target_id, c.byref(captured), velocity), 'older frame token resurrected')
+    require(added.revision == reset.revision + 1 and removed.revision == added.revision + 1,
+            'node insertion or removal was counted twice')
+
+    mesh = robot.getFromDef('MESH_COLLIDER').getField('boundingObject').getSFNode()
+    points = mesh.getField('coord').getSFNode().getField('point')
+    original_points = [list(points.getMFVec3f(i)) for i in range(points.getCount())]
+    inserted_point = [1., 1., .5]
+    mf_captured = Token()
+    require(request(target_id) and robot.step(8) != -1 and read(c.byref(frame), c.byref(mf_captured)),
+            'missing frame before native MF geometry mutation')
+    mf_instant = robot.getTime()
+    points.insertMFVec3f(1, inserted_point)
+    require(robot.getTime() == mf_instant and points.getCount() == len(original_points) + 1 and
+            list(points.getMFVec3f(1)) == inserted_point, 'MF insertion did not change the collision triangle')
+    mf_inserted = token_now()
+    points.removeMF(1)
+    require(robot.getTime() == mf_instant and
+            [list(points.getMFVec3f(i)) for i in range(points.getCount())] == original_points,
+            'MF removal did not restore the collision triangle')
+    mf_removed = token_now()
+    before_mf_effect = list(target.getVelocity())
+    require(not effect(target_id, c.byref(mf_captured), velocity) and
+            list(target.getVelocity()) == before_mf_effect,
+            'same-time primitive MF insertion/removal allowed a stale velocity effect')
+    require(mf_inserted.revision == mf_captured.revision + 1 and mf_removed.revision == mf_inserted.revision + 1 and
+            bytes(mf_captured.incarnation) == bytes(mf_inserted.incarnation) == bytes(mf_removed.incarnation),
+            'native MF pulse did not produce two distinct revisions in the same world')
     Path(os.environ['WEEBEE_FRAME_RESULT']).write_text(json.dumps({
-        'time_ms': frame.time_ms, 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
+        'time_ms': round(1000 * instant), 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
         'captured_revision': captured.revision, 'moved_revision': moved.revision,
         'restored_revision': restored.revision, 'applied_revision': applied.revision,
         'reset_revision': reset.revision, 'added_revision': added.revision, 'removed_revision': removed.revision,
         'before_and_after_child_count': count, 'stale_effect_refused': True, 'fresh_effect_applied_once': True,
+        'mf_collision_triangle': {
+            'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
+            'restored_points': original_points, 'inserted_point': inserted_point, 'stale_effect_refused': True,
+        },
     }, indent=2) + '\n', encoding='utf-8')
     robot.simulationQuit(0)
 
@@ -145,6 +176,17 @@ def main():
     worlds.mkdir()
     source = (FRAME / 'observation.wbt').read_text(encoding='utf-8')
     source = source.replace('\nSolid {', '\nDEF COLLIDER Solid {', 1).replace('controller "observe"', 'controller "<extern>"')
+    source += '''
+DEF MESH_COLLIDER Solid {
+  translation 20 0 0
+  boundingObject IndexedFaceSet {
+    coord Coordinate {
+      point [ 0 0 0, 1 0 0, 0 1 0 ]
+    }
+    coordIndex [ 0 1 2 -1 ]
+  }
+}
+'''
     world = worlds / 'revision.wbt'
     world.write_text(source, encoding='utf-8')
     trace = output / 'revision.json'

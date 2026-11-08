@@ -38,9 +38,24 @@ def observe():
     Node.getField = fixture_field
     comparisons = 0
     mismatches = []
-    if os.environ['WEEBEE_ROUTE_FRAME'] == 'shadow':
+    invalidated = []
+    lane = os.environ['WEEBEE_ROUTE_FRAME']
+    if lane != 'baseline':
         request, read = bind_frame_api()
         frame = Frame()
+        current_revision = None
+        if lane == 'revision-shadow':
+            from controller.wb import wb
+            from tools.grand_prix.native_revision.check import Token
+
+            captured = Token()
+            live = Token()
+            read_with_revision = wb.wb_supervisor_physics_frame_read_with_revision
+            read_with_revision.argtypes = [ctypes.POINTER(Frame), ctypes.POINTER(Token)]
+            read_with_revision.restype = ctypes.c_bool
+            current_revision = wb.wb_supervisor_get_scene_revision
+            current_revision.argtypes = [ctypes.POINTER(Token)]
+            current_revision.restype = ctypes.c_bool
         target = None
         supervisor_id = None
         original_step = Supervisor.step
@@ -55,9 +70,23 @@ def observe():
             require(duration == 8 and request(target.getId()), 'could not queue route frame')
             status = original_step(robot, duration)
             if status != -1:
-                require(read(ctypes.byref(frame)), 'missing route frame')
+                if current_revision:
+                    require(read_with_revision(ctypes.byref(frame), ctypes.byref(captured)),
+                            'missing route frame and captured revision')
+                else:
+                    require(read(ctypes.byref(frame)), 'missing route frame')
                 actual = compact_observation(frame, robot, target.getId(), supervisor_id)
                 official = official_observation(target)
+                if current_revision:
+                    require(current_revision(ctypes.byref(live)), 'missing live revision after legacy reads')
+                    same_world = bytes(captured.incarnation) == bytes(live.incarnation)
+                    if not same_world or captured.revision != live.revision:
+                        invalidated.append({
+                            'time_ms': round(robot.getTime() * 1000),
+                            'captured_revision': captured.revision, 'live_revision': live.revision,
+                            'same_world': same_world, 'observations_differ': actual != official,
+                        })
+                        return status
                 comparisons += 1
                 if actual != official:
                     names = ('position', 'orientation', 'velocity', 'contacts')
@@ -72,7 +101,8 @@ def observe():
         runpy.run_path(str(ROOT / 'tools/ci/fixtures/gp_route_evaluator_probe.py'), run_name='__main__')
     finally:
         path = Path(os.environ['GP_ROUTE_EVALUATOR_OUT']).with_name('frame-parity.json')
-        path.write_text(json.dumps({'comparisons': comparisons, 'mismatches': mismatches}, indent=2) + '\n',
+        path.write_text(json.dumps({'comparisons': comparisons, 'mismatches': mismatches,
+                                    'invalidated': invalidated}, indent=2) + '\n',
                         encoding='utf-8')
 
 
@@ -160,11 +190,14 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--port', type=int, default=1330)
     parser.add_argument('--timeout', type=int, default=90)
+    parser.add_argument('--with-revision', action='store_true',
+                        help='classify frames invalidated by native revisions without transferring authority')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(exist_ok=False, parents=True)
     stock = run(args.official.resolve(), output / 'stock', args.port, 'baseline', args.timeout)
-    shadow = run(args.patched.resolve(), output / 'shadow', args.port + 1, 'shadow', args.timeout)
+    lane = 'revision-shadow' if args.with_revision else 'shadow'
+    shadow = run(args.patched.resolve(), output / 'shadow', args.port + 1, lane, args.timeout)
     summary = {'stock': stock, 'shadow': shadow}
     (output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     if stock['witness']['acks'] != shadow['witness']['acks'] or not shadow['parity']['comparisons']:

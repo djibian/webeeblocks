@@ -1,5 +1,5 @@
 {
-  "time_ms": 16.0,
+  "time_ms": 16,
   "original_collider_x": 0.0,
   "moved_collider_x": 0.1,
   "captured_revision": 3,
@@ -9,11 +9,49 @@
   "reset_revision": 7,
   "added_revision": 8,
   "removed_revision": 9,
-  "before_and_after_child_count": 5,
+  "before_and_after_child_count": 6,
   "stale_effect_refused": true,
   "fresh_effect_applied_once": true,
+  "mf_collision_triangle": {
+    "time_ms": 24.0,
+    "revisions": [
+      9,
+      10,
+      11
+    ],
+    "restored_points": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "inserted_point": [
+      1.0,
+      1.0,
+      0.5
+    ],
+    "stale_effect_refused": true
+  },
   "engine_fingerprints": {
-    "webots-bin": "b08fb607156c1f915d7ad5c9b318d02da07efcf352b71679447bab849a4661b2",
-    "libController.so": "e683f219e47d765e06f93828399efa43f1a10b283ce21c59ce576dcb3fa32b4b"
+    "webots-bin": "793246ee6f6eae40944314dd3de14c9725d0f6625158f22c2807ade6001fbaa6",
+    "libController.so": "da8b3de1ddc922e13af7160cfb0cd1a21a55b01c62ac78792543e7ebf77861de"
+  },
+  "reproduced_before_fix": {
+    "engine_fingerprints": {
+      "webots-bin": "ad75dcc15588c9b40baea169ee189341e197410c93ab283e3b1e4e1d6204d452",
+      "libController.so": "da8b3de1ddc922e13af7160cfb0cd1a21a55b01c62ac78792543e7ebf77861de"
+    },
+    "result": "same-time primitive MF insertion/removal allowed a stale velocity effect"
   }
 }

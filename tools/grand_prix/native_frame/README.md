@@ -15,6 +15,21 @@ adds 187 bytes plus 28 per descendant contact, including the device tag and
 message byte. It uses the R2025a controller protocol's little-endian fields on
 x86-64 Linux and Windows. There is no mapped-file layout or machine-code hook.
 
+The experimental frame is appended **after** the normal step/device replies,
+as the last message of a well-framed reply packet. The reader requires exactly
+the declared payload size (including zero trailing payload for count −1). It
+rejects unknown versions, truncated or excess payload without swallowing
+ordinary replies that precede this optional suffix. This is source-level
+hardening on the later candidate; **native malformed-reply injection has not
+yet qualified it**. The recorded Linux timings and parities predate this change.
+
+Required negative regression before Ready: append a bad-version frame, a
+truncated frame, an overlong frame and count −1 with extra bytes after
+ordinary time/device replies. Each case must reject the optional frame while
+preserving the normal simulated clock and device observations. Exercise the
+supported local and TCP transports. No product authority is attached to the
+frame or to these unrun tests.
+
 The reply contains the format version, count, 16-byte observation incarnation,
 Supervisor and requested Solid IDs, simulated milliseconds, position, row-major
 orientation with scale removed, linear and angular velocities, and ODE contact
@@ -132,3 +147,16 @@ This test did not run Blockly or test the 210000-ms independent deadline.
 mutation paths and enforce the revision at the actual action point before
 #913 can change authority. #912 and #914 require rendered Grand Prix
 measurements and the personal Windows laptop.
+ 
+## Terminal wire-suffix C regression
+
+Run `python3 tools/grand_prix/native_frame/test_wire_suffix.py` with an
+available C compiler. The test compiles the actual added C decoder extracted
+from `webots-r2025a.patch`, checks ten valid/malformed suffix fixtures,
+verifies request consumption and checks that engine emission follows ordinary
+device and immediate answers. The ordinary prefix is modeled as already
+consumed. **This is not a native Webots transport injection test**: the
+matched engine/libController must still be rebuilt and tested for malformed
+replies without loss of ordinary time/device updates. It proves neither the
+full Grand Prix safety contract nor Windows performance. The Draft status
+remains until the outstanding native qualification is completed.
