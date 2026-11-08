@@ -96,16 +96,24 @@ def main(argv=None):
                                         dir=ROOT / "worlds")
         world = Path(filename)
         project = world.with_name("." + world.stem + ".wbproj")
+        owns_project = False
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as output:
                 output.write(scene)
+            # Restore the Blockly Robot Window on R2025a, like the route launcher.
+            # An unrelated perspective must never be overwritten or removed.
+            with project.open("x", encoding="utf-8") as output:
+                owns_project = True
+                output.write("Webots Project File version R2025a\n"
+                             "robotWindow: Crazyflie WebeeBlocks\n")
             print("SANDBOX Blockly Grand Prix variable : " + course.identifier, flush=True)
             print("AUCUN VOL : évaluateur volontairement désactivé ; Save/Open GUI NON QUALIFIÉ.",
                   flush=True)
             return launch_graphical(home, world, env).returncode
         finally:
             world.unlink(missing_ok=True)
-            project.unlink(missing_ok=True)
+            if owns_project:
+                project.unlink(missing_ok=True)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print("ÉCHEC sandbox Blockly variable : " + str(error), file=sys.stderr)
         return 1
