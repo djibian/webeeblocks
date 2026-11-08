@@ -298,7 +298,7 @@
 
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
-    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+    setRuntimeLocked(state === 'EXÉCUTION' || state === 'RÉINITIALISATION');
     if (state === 'PRÉPARATION') setRuntimeLocked(true);
   });
 
