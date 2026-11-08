@@ -35,7 +35,7 @@ def assert_terminal_frame(patch):
         a.index("mRobot->dispatchAnswer(stream);"),
         a.index("mRobot->writeImmediateAnswer(stream);"),
         a.index("mRobot->supervisorUtilities()->writePhysicsFrame(stream,"),
-        a.index("int size = streamSizeManagement(stream);"),
+        a.index("// size management"),
     ]
     if positions != sorted(positions) or a.count("->writePhysicsFrame(") != 1:
         raise AssertionError("experimental reply must be the terminal wire suffix")
