@@ -154,5 +154,5 @@ $utf8 = [Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllText((Join-Path $destination 'metadata.json'),
   (($metadata | ConvertTo-Json -Depth 8) + [Environment]::NewLine), $utf8)
 $samples | Export-Csv -LiteralPath (Join-Path $destination 'samples.csv') -NoTypeInformation -Encoding UTF8
-Write-Host "WEBEEBLOCKS_WINDOWS_HOST_EVIDENCE=$destination"
+Write-Host 'WEBEEBLOCKS_WINDOWS_HOST_EVIDENCE_WRITTEN=1'
 Write-Host 'HOST ONLY: simulator speed, p99 step latency, OpenGL renderer and GUI acceptance are NOT measured.'
