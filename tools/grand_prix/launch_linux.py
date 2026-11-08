@@ -54,6 +54,24 @@ def render_route(course):
         "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/", "webots://")
 
 
+def configure_render_fps(scene, fps):
+    """Control only the 3D display budget for a #912 A/B, never the 8-ms physics.
+
+    The unmodified launcher remains the control arm; an explicit variant must
+    match the canonical, already composed WorldInfo anchor or fail closed.
+    """
+    if fps is None:
+        return scene
+    if type(fps) is not int or fps not in (25, 30, 60):
+        raise ValueError("fréquence de rendu expérimentale invalide")
+    anchor = ("DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo { "
+              "basicTimeStep 8 randomSeed 1 ")
+    if (scene.count(anchor) != 1 or scene.count("WorldInfo {") != 1 or
+            " FPS " in scene.split("}", 1)[0]):
+        raise RuntimeError("WorldInfo Grand Prix inattendu : refus de modifier le rendu")
+    return scene.replace(anchor, anchor + f"FPS {fps} ", 1)
+
+
 def prepare_route_native(home):
     """Build the existing production route pilot, never a test/probe binary."""
     if not ROUTE_EVALUATOR.is_file():
@@ -208,6 +226,9 @@ def main(argv=None):
                         help="confirmer l'utilisation du parcours U historique (sans cornières en L)")
     parser.add_argument("--seed", type=int, help="graine U 0..65535 (défaut : 4)")
     parser.add_argument("--webots-home", help="répertoire d'installation Webots R2025a")
+    parser.add_argument("--render-fps", type=int, choices=(25, 30, 60),
+                        help="EXPÉRIENCE A/B #912 : plafond du rendu Webots (25, 30 ou 60 FPS), "
+                             "physique 8 ms inchangée, parcours variable seulement")
     parser.add_argument("--preflight-only", action="store_true",
                         help="préparer les ressources natives, sans prétendre valider le GUI")
     parser.add_argument("--list-configurations", action="store_true",
@@ -215,7 +236,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.list_configurations:
         if (args.legacy_u or args.index is not None or args.course_id is not None or
-                args.preflight_only or args.webots_home is not None or args.seed is not None):
+                args.preflight_only or args.webots_home is not None or args.seed is not None or
+                args.render_fps is not None):
             parser.error("--list-configurations ne peut pas être combiné avec les options de lancement")
         print("Parcours Grand Prix variables — identifiants hôtes reproductibles :")
         for index, identifier in reference_configurations():
@@ -224,6 +246,8 @@ def main(argv=None):
         return 0
     if not args.legacy_u and args.index is None and args.course_id is None:
         parser.error("choisir --index, --course-id ou explicitement --legacy-u")
+    if args.legacy_u and args.render_fps is not None:
+        parser.error("--render-fps est réservé au Grand Prix variable")
     if not args.legacy_u and args.seed is not None:
         parser.error("--seed est réservé au U historique ; utiliser --course-id pour une variante")
     seed = 4 if args.seed is None else args.seed
@@ -239,7 +263,11 @@ def main(argv=None):
             course = (reference_course(args.index) if args.index is not None
                       else course_from_identifier(args.course_id))
             scene = render_route(course)
+            if args.render_fps is not None:
+                scene = configure_render_fps(scene, args.render_fps)
             label = "parcours variable : " + course.identifier
+            if args.render_fps is not None:
+                label += f" ; plafond rendu {args.render_fps} FPS (A/B #912, non qualifié)"
         if not args.preflight_only and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             raise RuntimeError("Session graphique absente : ouvrir une session Linux avec affichage")
         home = webots_home(args.webots_home)
