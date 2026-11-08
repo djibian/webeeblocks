@@ -219,17 +219,6 @@ diff --git a/src/webots/control/WbController.cpp b/src/webots/control/WbControll
      mRobot->writeImmediateAnswer(stream);
 +  if (mRobot->supervisorUtilities())
 +    mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
-diff --git a/src/webots/app/WbApplication.cpp b/src/webots/app/WbApplication.cpp
---- a/src/webots/app/WbApplication.cpp
-+++ b/src/webots/app/WbApplication.cpp
-@@ -348,4 +348,7 @@ void WbApplication::resetPhysics() {
- void WbApplication::resetPhysics() {
-+  // A global reset changes native ODE state without changing scene geometry.
-+  if (WbWorld::instance())
-+    WbWorld::instance()->noteSceneEffect();
-   foreach (WbSolid *solid, WbWorld::instance()->topSolids())
-     solid->resetPhysics();
- }
 diff --git a/src/webots/nodes/WbRobot.cpp b/src/webots/nodes/WbRobot.cpp
 --- a/src/webots/nodes/WbRobot.cpp
 +++ b/src/webots/nodes/WbRobot.cpp

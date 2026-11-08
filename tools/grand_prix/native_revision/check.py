@@ -178,23 +178,6 @@ def observe():
             list(target.getVelocity()) == velocity_before_restart_refusal,
             'stale controller-session token applied native velocity')
 
-    # A global Supervisor simulationResetPhysics runs through WbApplication,
-    # not the separately instrumented per-Node RESET_PHYSICS operation.
-    reset_global_before_set = token_now()
-    require(effect(target_id, c.byref(reset_global_before_set), velocity) and
-            list(target.getVelocity()) == list(velocity),
-            'could not establish nonzero velocity before global physics reset')
-    reset_global_before = token_now()
-    robot.simulationResetPhysics()
-    reset_global_after = token_now()
-    require(bytes(reset_global_before.incarnation) == bytes(reset_global_after.incarnation) and
-            reset_global_after.revision == reset_global_before.revision + 1,
-            'global simulationResetPhysics failed to advance the scene revision once')
-    require(list(target.getVelocity()) == [0.] * 6 and
-            not effect(target_id, c.byref(reset_global_before), velocity) and
-            list(target.getVelocity()) == [0.] * 6,
-            'stale token changed native velocity after global physics reset')
-
     Path(os.environ['WEEBEE_FRAME_RESULT']).write_text(json.dumps({
         'time_ms': round(1000 * instant), 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
         'captured_revision': captured.revision, 'moved_revision': moved.revision,
@@ -203,8 +186,6 @@ def observe():
         'before_and_after_child_count': count, 'stale_effect_refused': True, 'fresh_effect_applied_once': True,
         'controller_restart': {'before_revision': restart_before.revision,
                                'after_revision': restart_after.revision, 'stale_effect_refused': True},
-        'global_physics_reset': {'before_revision': reset_global_before.revision,
-                                 'after_revision': reset_global_after.revision, 'stale_effect_refused': True},
         'mf_collision_triangle': {
             'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
             'restored_points': original_points, 'inserted_point': inserted_point, 'stale_effect_refused': True,

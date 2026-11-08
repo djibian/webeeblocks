@@ -25,11 +25,10 @@ setter is a concrete native test effect for the ordering property.
 | Scene insertion and removal | `WbNodeOperations::initNewNode` and `deleteNode` at the parent field edit | Add and remove at 16 ms, original cardinality restored |
 | Native Supervisor velocity write | `WbSupervisorUtilities::handleMessage` before the Solid setters | Stale refusal, fresh application, replay refusal |
 | Supervisor node physics reset | `WbSupervisorUtilities::handleMessage` before `resetPhysics` | Zeroed velocity and invalidated token at 16 ms |
-| Global Supervisor physics reset | `WbApplication::resetPhysics` before resetting top-level ODE solids | New single-increment hook and stale-token refusal test; fresh native execution pending |
 | World reset | `WbWorld::reset` before reconstruction | Hook present, qualification pending |
 | Robot controller restart | `WbRobot::restartController` prior to session restart | Native stale-token refusal probe added; rebuilt-engine run pending |
 
-Both the controller-restart and global physics-reset experiments must be rerun on a rebuilt native engine; the retained results do not qualify these new probes. The engine can still be changed through other paths. GUI pose and field
+The controller-restart experiment must be rerun on a rebuilt native engine; retained results do not qualify it. The separate global-reset probe described below is already included. The engine can still be changed through other paths. GUI pose and field
 editing, unclassified native writes, direct topology edits, DEF/USE,
 full PROTO regeneration, save/load variants, world reload and
 disconnect/reconnect still need source coverage and native tests.
