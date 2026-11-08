@@ -158,7 +158,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
    if (simulation_change_mode) {
      request_write_uchar(r, C_SUPERVISOR_SIMULATION_CHANGE_MODE);
      request_write_int32(r, robot_get_simulation_mode());
-@@ -1053,7 +1116,8 @@ static void read_physics_frame(WbRequest *r) {
+@@ -1056,8 +1119,9 @@ static void read_physics_frame(WbRequest *r) {
      return;
    }
 
@@ -166,6 +166,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
 +  const int token_size = sizeof(scene_revision_at_capture.incarnation) + sizeof(scene_revision_at_capture.revision);
 +  const int payload_size = token_size + 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
                             count * (int)sizeof(int32_t);
+   // The optional frame is the terminal suffix of an ordinary answer.
    if (end - request_get_position(r) != payload_size)
      goto malformed;
 @@ -1072,6 +1136,10 @@ static void read_physics_frame(WbRequest *r) {
