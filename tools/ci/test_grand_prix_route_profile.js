@@ -193,6 +193,63 @@ async function proveSameFileAcrossHostRoutes() {
   fileText = originalFile;
 }
 
+
+/* #826/#905: a real Runtime-v2 diagnostic must be readable AFTER the
+ * interpreter's finish callback; this is a DOM/JS test, not a Webots GUI PASS. */
+async function proveRouteTechnicalDiagnostics() {
+  const events = new Map();
+  const rows = {
+    runtimeState: {textContent: 'EXÉCUTION'},
+    debugState: {textContent: 'En pause'}
+  };
+  const context = {
+    WebeeBlocksActivities: {BLOCK_CATALOG: Activities.BLOCK_CATALOG, DOCUMENT: Activities.DOCUMENT},
+    WebeeBlocksRuntimeOutcome: {classify() { return {state: 'ERREUR'}; }},
+    Blockly: {inject() {}},
+    WebeeBlocksWwiBackend: function() {},
+    addEventListener(name, fn) { events.set(name, fn); },
+    document: {getElementById(id) { return rows[id] || null; }}
+  };
+  context.window = context;
+  vm.runInNewContext(variable, context);
+  const listener = events.get('webeeblocks-runtime-v2-diagnostic');
+  assert.equal(typeof listener, 'function', 'Grand Prix diagnostic listener is missing');
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+
+  // Event arrives before generic Runtime-v2 state, and onFinish may overwrite
+  // the debug text synchronously. A deferred diagnostic must win only on ERREUR.
+  listener({detail: {studentState: 'ERREUR', machineCode: null,
+    technicalMessage: 'WWI timeout id=129 command=LAND'}});
+  rows.debugState.textContent = 'Observation terminée';
+  rows.runtimeState.textContent = 'ERREUR';
+  await flush();
+  assert.equal(rows.debugState.textContent, 'Diagnostic : WWI timeout id=129 command=LAND');
+
+  rows.debugState.textContent = 'Observation inactive';
+  rows.runtimeState.textContent = 'PRÊT';
+  listener({detail: {studentState: 'ERREUR', machineCode: 'BACKEND_FAILURE',
+    technicalMessage: 'old technical error'}});
+  await flush();
+  assert.equal(rows.debugState.textContent, 'Observation inactive',
+    'a late diagnostic must not contaminate a fresh RESET');
+
+  rows.runtimeState.textContent = 'ARRÊTÉ';
+  listener({detail: {studentState: 'ARRÊTÉ', machineCode: 'USER_STOPPED',
+    technicalMessage: 'stopped by user'}});
+  await flush();
+  assert.equal(rows.debugState.textContent, 'Observation inactive',
+    'a voluntary stop must not display a technical failure');
+
+  rows.runtimeState.textContent = 'ERREUR';
+  listener({detail: {studentState: 'ERREUR', machineCode: 'E\nCODE',
+    technicalMessage: '  line 1\n  line 2 '.repeat(50)}});
+  await flush();
+  assert(rows.debugState.textContent.startsWith('Diagnostic : E CODE — line 1 line 2 '));
+  assert(rows.debugState.textContent.length <= 'Diagnostic : '.length + 40 + 3 + 240);
+  assert(!rows.debugState.textContent.includes('\n'),
+    'diagnostic must remain one bounded visible line');
+}
+
 run(false);
 run(true);
 for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveAs',
@@ -202,6 +259,6 @@ for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveA
 assert(html.includes('src="setup.js"'));
 assert(html.includes('../blockly_v2/main.js'));
 assert(!html.includes('grand_prix_u'));
-proveSameFileAcrossHostRoutes().then(() => {
+Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics()]).then(() => {
   console.log('PASS isolated Grand Prix variable profile: stable .wbb world, generic blocks, unfinished same-file Save/Open across host routes');
 }).catch(error => { console.error(error); process.exitCode = 1; });

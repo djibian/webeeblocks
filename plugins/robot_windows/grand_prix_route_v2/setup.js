@@ -25,4 +25,25 @@ const originalOutcome=window.WebeeBlocksRuntimeOutcome;
 window.WebeeBlocksRuntimeOutcome=Object.assign({},originalOutcome,{
  classify(error){return error&&error.code==='TIME_LIMIT'?{state:'MISSION ÉCHOUÉE',detail:'Atterrissage de sûreté imposé',machineCode:'TIME_LIMIT'}:originalOutcome.classify(error);}
 });
+// This isolated profile makes a real unexpected GUI error observable on the
+// existing debug row. Runtime/mission verdicts and the generic pupil status
+// remain unchanged; the deferred write runs after the interpreter's onFinish.
+if (typeof window.addEventListener === 'function') {
+ window.addEventListener('webeeblocks-runtime-v2-diagnostic', function(event) {
+  const detail = event && event.detail;
+  if (!detail || detail.studentState !== 'ERREUR') return;
+  const code = typeof detail.machineCode === 'string'
+    ? detail.machineCode.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  const message = typeof detail.technicalMessage === 'string'
+    ? detail.technicalMessage.replace(/\s+/g, ' ').trim().slice(0, 240) : '';
+  const diagnostic = 'Diagnostic : ' + (code ? code + ' — ' : '') +
+    (message || 'erreur technique sans message');
+  Promise.resolve().then(function() {
+   const state = document.getElementById('runtimeState');
+   const output = document.getElementById('debugState');
+   if (state && state.textContent === 'ERREUR' && output)
+    output.textContent = diagnostic;
+  });
+ });
+}
 })();
