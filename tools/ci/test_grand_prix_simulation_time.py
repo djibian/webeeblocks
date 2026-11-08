@@ -29,7 +29,7 @@ class Tests(unittest.TestCase):
     def test_program_observation_and_official_clock_remain_separate(self):
         self.assertEqual(milliseconds(0),0)
         self.assertEqual(elapsed_seconds(2.016,2.048),.032)
-from test_grand_prix_step_wall_probe import StepWallProbeTests
+from test_grand_prix_step_wall_probe import StepWallProbeTests, ServeNativeSafetyTests
 from test_grand_prix_u_deadline import DeadlineTests
 from test_grand_prix_u_pose import PoseTests
 from test_grand_prix_u_oracle import Tests as UOracleTests
