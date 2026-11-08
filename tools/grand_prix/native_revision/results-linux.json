@@ -1,0 +1,19 @@
+{
+  "time_ms": 16.0,
+  "original_collider_x": 0.0,
+  "moved_collider_x": 0.1,
+  "captured_revision": 3,
+  "moved_revision": 4,
+  "restored_revision": 5,
+  "applied_revision": 6,
+  "reset_revision": 7,
+  "added_revision": 8,
+  "removed_revision": 9,
+  "before_and_after_child_count": 5,
+  "stale_effect_refused": true,
+  "fresh_effect_applied_once": true,
+  "engine_fingerprints": {
+    "webots-bin": "b08fb607156c1f915d7ad5c9b318d02da07efcf352b71679447bab849a4661b2",
+    "libController.so": "e683f219e47d765e06f93828399efa43f1a10b283ce21c59ce576dcb3fa32b4b"
+  }
+}

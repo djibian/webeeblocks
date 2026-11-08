@@ -1,0 +1,412 @@
+diff --git a/include/controller/c/webots/supervisor.h b/include/controller/c/webots/supervisor.h
+index dff5781ffa360bba7d44bf78fdd46314df687e73..7e7a2a92327a7e2dfa385407dd2f08ae0fdd5a46 100644
+--- a/include/controller/c/webots/supervisor.h
++++ b/include/controller/c/webots/supervisor.h
+@@ -32,7 +32,7 @@
+ extern "C" {
+ #endif
+
+-#define WB_SUPERVISOR_PHYSICS_FRAME_VERSION 1
++#define WB_SUPERVISOR_PHYSICS_FRAME_VERSION 2
+ #define WB_SUPERVISOR_PHYSICS_FRAME_MAX_CONTACTS 128
+
+ typedef struct {
+@@ -52,6 +52,17 @@ typedef struct {
+ bool wb_supervisor_physics_frame_request(int32_t solid_id);
+ bool wb_supervisor_physics_frame_read(WbSupervisorPhysicsFrame *frame);
+
++typedef struct {
++  unsigned char incarnation[16];
++  uint64_t revision;
++} WbSupervisorSceneRevision;
++
++// Experimental audit for covered source paths only. Never an attestation.
++bool wb_supervisor_physics_frame_read_with_revision(WbSupervisorPhysicsFrame *frame, WbSupervisorSceneRevision *token);
++bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token);
++bool wb_supervisor_set_velocity_at_scene_revision(int32_t solid_id, const WbSupervisorSceneRevision *token,
++                                                  const double velocity[6]);
++
+ typedef enum {
+   WB_NO_FIELD = 0x00,
+   WB_SF_BOOL = 0x01,
+diff --git a/src/controller/c/Controller.def b/src/controller/c/Controller.def
+index 3f01ab6bc582558eb1ecf9fb31be73fe42de19b8..c42447f04719ddc77f7c0c714406029951bd5f02 100644
+--- a/src/controller/c/Controller.def
++++ b/src/controller/c/Controller.def
+@@ -558,6 +558,9 @@ wb_supervisor_node_get_type_name
+ wb_supervisor_node_get_velocity
+ wb_supervisor_physics_frame_request
+ wb_supervisor_physics_frame_read
++wb_supervisor_physics_frame_read_with_revision
++wb_supervisor_get_scene_revision
++wb_supervisor_set_velocity_at_scene_revision
+ wb_supervisor_node_is_proto
+ wb_supervisor_node_load_state
+ wb_supervisor_node_move_viewpoint
+diff --git a/src/controller/c/messages.h b/src/controller/c/messages.h
+index 5ff3afc29850a06fe49939d8655544ee79604d86..c7c666cc286d001e9156eaa27dd026136a435ea8 100644
+--- a/src/controller/c/messages.h
++++ b/src/controller/c/messages.h
+@@ -126,6 +126,8 @@
+ #define C_SUPERVISOR_POSE_CHANGE_TRACKING_STATE 102
+ #define C_SUPERVISOR_CONTACT_POINTS_CHANGE_TRACKING_STATE 103
+ #define C_SUPERVISOR_PHYSICS_FRAME 104
++#define C_SUPERVISOR_GET_SCENE_REVISION 105
++#define C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION 106
+
+ // for the abstract camera device
+ // sim -> ctr
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f97089358 100644
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -567,6 +567,46 @@ static int32_t physics_frame_queued_id = 0;
+ static int32_t physics_frame_sent_id = 0;
+ static bool physics_frame_ready = false;
+ static WbSupervisorPhysicsFrame physics_frame;
++static bool scene_revision_request = false;
++static bool scene_revision_received = false;
++static WbSupervisorSceneRevision scene_revision_result;
++static WbSupervisorSceneRevision scene_revision_at_capture;
++static const WbSupervisorSceneRevision *scene_revision_expected = NULL;
++static const double *scene_revision_velocity = NULL;
++static int32_t scene_revision_solid_id = 0;
++static bool scene_revision_effect_applied = false;
++
++bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token) {
++  if (!wb_robot_get_supervisor() || !token)
++    return false;
++  robot_mutex_lock();
++  scene_revision_request = true;
++  scene_revision_received = false;
++  wb_robot_flush_unlocked(__FUNCTION__);
++  scene_revision_request = false;
++  const bool result = scene_revision_received && scene_revision_result.revision != 0;
++  if (result)
++    *token = scene_revision_result;
++  robot_mutex_unlock();
++  return result;
++}
++
++bool wb_supervisor_set_velocity_at_scene_revision(int32_t solid_id, const WbSupervisorSceneRevision *token,
++                                                  const double velocity[6]) {
++  if (!wb_robot_get_supervisor() || solid_id <= 0 || !token || !token->revision || !velocity)
++    return false;
++  robot_mutex_lock();
++  scene_revision_expected = token;
++  scene_revision_solid_id = solid_id;
++  scene_revision_velocity = velocity;
++  scene_revision_effect_applied = false;
++  wb_robot_flush_unlocked(__FUNCTION__);
++  scene_revision_expected = NULL;
++  scene_revision_velocity = NULL;
++  const bool result = scene_revision_effect_applied;
++  robot_mutex_unlock();
++  return result;
++}
+
+ bool wb_supervisor_physics_frame_request(int32_t solid_id) {
+   if (!wb_robot_get_supervisor() || solid_id <= 0 || wb_robot_get_basic_time_step() != 8.0)
+@@ -578,17 +618,29 @@ bool wb_supervisor_physics_frame_request(int32_t solid_id) {
+   return true;
+ }
+
+-bool wb_supervisor_physics_frame_read(WbSupervisorPhysicsFrame *frame) {
++static bool physics_frame_read_with_optional_revision(WbSupervisorPhysicsFrame *frame, WbSupervisorSceneRevision *token) {
+   if (!frame)
+     return false;
+   robot_mutex_lock();
+   const bool ready = physics_frame_ready && wb_robot_get_step_duration() == 8 &&
+                      fabs(physics_frame.time_ms - 1000.0 * wb_robot_get_time()) < 1e-6;
+   physics_frame_ready = false;
+-  if (ready)
++  const bool valid = ready && (!token || scene_revision_at_capture.revision != 0);
++  if (valid) {
+     *frame = physics_frame;
++    if (token)
++      *token = scene_revision_at_capture;
++  }
+   robot_mutex_unlock();
+-  return ready;
++  return valid;
++}
++
++bool wb_supervisor_physics_frame_read(WbSupervisorPhysicsFrame *frame) {
++  return physics_frame_read_with_optional_revision(frame, NULL);
++}
++
++bool wb_supervisor_physics_frame_read_with_revision(WbSupervisorPhysicsFrame *frame, WbSupervisorSceneRevision *token) {
++  return token && physics_frame_read_with_optional_revision(frame, token);
+ }
+
+ static void supervisor_cleanup(WbDevice *d) {
+@@ -652,6 +704,17 @@ static void supervisor_write_request(WbDevice *d, WbRequest *r) {
+     physics_frame_queued_id = 0;
+   }
+
++  if (scene_revision_request)
++    request_write_uchar(r, C_SUPERVISOR_GET_SCENE_REVISION);
++  if (scene_revision_expected) {
++    request_write_uchar(r, C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION);
++    request_write_int32(r, scene_revision_solid_id);
++    request_write_data(r, scene_revision_expected->incarnation, sizeof(scene_revision_expected->incarnation));
++    request_write_uint64(r, scene_revision_expected->revision);
++    for (int i = 0; i < 6; ++i)
++      request_write_double(r, scene_revision_velocity[i]);
++  }
++
+   if (simulation_change_mode) {
+     request_write_uchar(r, C_SUPERVISOR_SIMULATION_CHANGE_MODE);
+     request_write_int32(r, robot_get_simulation_mode());
+@@ -1053,7 +1116,8 @@ static void read_physics_frame(WbRequest *r) {
+     return;
+   }
+
+-  const int payload_size = 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
++  const int token_size = sizeof(scene_revision_at_capture.incarnation) + sizeof(scene_revision_at_capture.revision);
++  const int payload_size = token_size + 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
+                            count * (int)sizeof(int32_t);
+   if (end - request_get_position(r) < payload_size)
+     goto malformed;
+@@ -1072,6 +1136,10 @@ static void read_physics_frame(WbRequest *r) {
+     memcpy(contact->point, request_read_data(r, sizeof(contact->point)), sizeof(contact->point));
+     memcpy(&contact->node_id, request_read_data(r, sizeof(contact->node_id)), sizeof(contact->node_id));
+   }
++  memcpy(scene_revision_at_capture.incarnation,
++         request_read_data(r, sizeof(scene_revision_at_capture.incarnation)), sizeof(scene_revision_at_capture.incarnation));
++  memcpy(&scene_revision_at_capture.revision, request_read_data(r, sizeof(scene_revision_at_capture.revision)),
++         sizeof(scene_revision_at_capture.revision));
+   physics_frame_ready = !robot_is_immediate_message() && physics_frame_sent_id > 0 &&
+                         f->solid_id == physics_frame_sent_id && self_node_ref && f->supervisor_id == self_node_ref->id;
+   physics_frame_sent_id = 0;
+@@ -1368,6 +1436,26 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
+     case C_SUPERVISOR_NODE_GET_STATIC_BALANCE:
+       static_balance_node_ref->static_balance = request_read_uchar(r) == 1;
+       break;
++    case C_SUPERVISOR_GET_SCENE_REVISION: {
++      const int end = request_get_size(r);
++      if (end - request_get_position(r) < (int)sizeof(scene_revision_result)) {
++        request_set_position(r, end);
++        break;
++      }
++      memcpy(scene_revision_result.incarnation, request_read_data(r, sizeof(scene_revision_result.incarnation)),
++             sizeof(scene_revision_result.incarnation));
++      memcpy(&scene_revision_result.revision, request_read_data(r, sizeof(scene_revision_result.revision)),
++             sizeof(scene_revision_result.revision));
++      scene_revision_received = scene_revision_request;
++      break;
++    }
++    case C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION: {
++      if (request_get_position(r) < request_get_size(r)) {
++        const bool applied = request_read_uchar(r) == 1;
++        scene_revision_effect_applied = scene_revision_expected && applied;
++      }
++      break;
++    }
+     case C_SUPERVISOR_PHYSICS_FRAME:
+       read_physics_frame(r);
+       break;
+diff --git a/src/webots/nodes/WbSolid.cpp b/src/webots/nodes/WbSolid.cpp
+index 14b1154caeac34755f663e7230e4be328be3f0f8..6e9f246e56877fdcdf276def1904278b07738e15 100644
+--- a/src/webots/nodes/WbSolid.cpp
++++ b/src/webots/nodes/WbSolid.cpp
+@@ -2121,6 +2121,8 @@ void WbSolid::setMatrixNeedUpdate() {
+ }
+
+ void WbSolid::reset(const QString &id) {
++  if (WbWorld::instance())
++    WbWorld::instance()->noteSceneEffect();
+   WbMatter::reset(id);
+
+   for (int i = 0; i < mImmersionProperties->size(); ++i)
+diff --git a/src/webots/nodes/utils/WbNodeOperations.cpp b/src/webots/nodes/utils/WbNodeOperations.cpp
+index 7de6cd41eec7c7e2d11f8d788022a66b2dbaf18a..dbd96432dc28033dbe0dbe35f64601a0334771ea 100644
+--- a/src/webots/nodes/utils/WbNodeOperations.cpp
++++ b/src/webots/nodes/utils/WbNodeOperations.cpp
+@@ -229,6 +229,7 @@ WbNodeOperations::OperationResult WbNodeOperations::initNewNode(WbNode *newNode,
+   bool isInsideATemplateRegenerator = upperTemplate && (upperTemplate != baseNode);
+
+   // insert in parent field
++  WbWorld::instance()->noteSceneEffect();
+   mNodesAreAboutToBeInserted = true;
+   WbMFNode *const mfnode = dynamic_cast<WbMFNode *>(field->value());
+   if (mfnode) {
+@@ -317,6 +318,7 @@ bool WbNodeOperations::deleteNode(WbNode *node, bool fromSupervisor) {
+   WbSFNode *sfnode = dynamic_cast<WbSFNode *>(parentField->value());
+   WbMFNode *mfnode = dynamic_cast<WbMFNode *>(parentField->value());
+   assert(sfnode || mfnode);
++  WbWorld::instance()->noteSceneEffect();
+   notifyNodeDeleted(node);
+   bool success;
+   if (sfnode) {
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..3e49c9d23bd2536b3c396ba76659eca584e873f8 100644
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -64,6 +64,7 @@
+ #include <QtCore/QDataStream>
+ #include <QtCore/QDir>
+ #include <QtCore/QFile>
++#include <QtCore/QThread>
+ #include <QtCore/QUuid>
+ #include <algorithm>
+ #include <cassert>
+@@ -386,6 +387,7 @@ void WbSupervisorUtilities::processImmediateMessages(bool blockRegeneration) {
+   for (int i = 0; i < n; ++i) {
+     const WbFieldSetRequest *r = mFieldSetRequests.at(i);
+     WbWrenOpenGlContext::makeWrenCurrent();
++    WbWorld::instance()->noteSceneEffect();
+     r->apply();
+     WbWrenOpenGlContext::doneWren();
+     delete r;
+@@ -412,6 +414,8 @@ void WbSupervisorUtilities::postPhysicsStep() {
+ }
+
+ void WbSupervisorUtilities::reset() {
++  mSendSceneRevision = false;
++  mRevisionEffectResult = -1;
+   invalidatePhysicsFrame();
+   foreach (int labelId, mLabelIds)
+     WbWrenLabelOverlay::removeLabel(labelId);
+@@ -983,11 +987,25 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+         mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
+       return;
+     }
++    case C_SUPERVISOR_GET_SCENE_REVISION:
++      mSendSceneRevision = true;
++      return;
++    case C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION:
+     case C_SUPERVISOR_NODE_SET_VELOCITY: {
+       unsigned int id;
+       double a0, a1, a2, l0, l1, l2;
++      const bool guarded = byte == C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION;
++      QByteArray expectedIncarnation;
++      quint64 expectedRevision = 0;
+
+       stream >> id;
++      if (guarded) {
++        mRevisionEffectResult = 0;
++        expectedIncarnation.resize(16);
++        if (stream.readRawData(expectedIncarnation.data(), expectedIncarnation.size()) != expectedIncarnation.size())
++          return;
++        stream >> expectedRevision;
++      }
+       stream >> l0;
+       stream >> l1;
+       stream >> l2;
+@@ -1000,8 +1018,20 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+       WbNode *const node = getProtoParameterNodeInstance(id, "wb_supervisor_node_set_velocity()");
+       WbSolid *const solid = dynamic_cast<WbSolid *>(node);
+       if (solid) {
++        WbWorld *const world = WbWorld::instance();
++        if (guarded && (stream.status() != QDataStream::Ok || QThread::currentThread() != world->thread() ||
++                        !mFieldSetRequests.isEmpty() || !std::isfinite(l0) || !std::isfinite(l1) ||
++                        !std::isfinite(l2) || !std::isfinite(a0) || !std::isfinite(a1) || !std::isfinite(a2) ||
++                        expectedRevision == 0 || expectedRevision != world->sceneRevision() ||
++                        QUuid::fromRfc4122(expectedIncarnation) != world->sceneIncarnation()))
++          return;
++        // The same engine-thread dispatch verifies the token and applies the
++        // native effect, with no network reply or event-loop turn in between.
++        world->noteSceneEffect();
+         solid->setLinearVelocity(linearVelocity);
+         solid->setAngularVelocity(angularVelocity);
++        if (guarded)
++          mRevisionEffectResult = 1;
+       } else
+         mRobot->warn(tr("wb_supervisor_node_set_velocity() can exclusively be used with a Solid"));
+       return;
+@@ -1014,6 +1044,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+       WbNode *const node = getProtoParameterNodeInstance(id, "wb_supervisor_simulation_reset_physics()");
+       WbSolid *solidNode = dynamic_cast<WbSolid *>(node);
+       if (solidNode) {
++        WbWorld::instance()->noteSceneEffect();
+         solidNode->resetPhysics(false);
+         solidNode->pausePhysics(true);
+       }
+@@ -2069,9 +2100,26 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
+     const WbVector3 &point = points.at(i);
+     stream << point.x() << point.y() << point.z() << (qint32)solids.at(i)->uniqueId();
+   }
++  const WbWorld *const world = WbWorld::instance();
++  const QByteArray incarnation = world->sceneIncarnation().toRfc4122();
++  stream.writeRawData(incarnation.constData(), incarnation.size());
++  stream << world->sceneRevision();
+ }
+
+ void WbSupervisorUtilities::writeAnswer(WbDataStream &stream) {
++  if (mSendSceneRevision) {
++    const WbWorld *const world = WbWorld::instance();
++    const QByteArray incarnation = world->sceneIncarnation().toRfc4122();
++    stream << (quint16)0 << (quint8)C_SUPERVISOR_GET_SCENE_REVISION;
++    stream.writeRawData(incarnation.constData(), incarnation.size());
++    stream << world->sceneRevision();
++    mSendSceneRevision = false;
++  }
++  if (mRevisionEffectResult >= 0) {
++    stream << (quint16)0 << (quint8)C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION << (quint8)mRevisionEffectResult;
++    mRevisionEffectResult = -1;
++  }
++
+   if (!mUpdatedNodeIds.isEmpty()) {
+     foreach (int id, mUpdatedNodeIds) {
+       const WbBaseNode *baseNode = dynamic_cast<const WbBaseNode *>(WbNode::findNode(id));
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.hpp b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+index 94f6ea71f7e07327df0851f3d3e2f8e34c0bce67..b77ba7f77b91b9be81475e401bb229521dbba77d 100644
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.hpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+@@ -79,6 +79,8 @@ private slots:
+
+ private:
+   WbRobot *mRobot;
++  bool mSendSceneRevision = false;
++  int mRevisionEffectResult = -1;
+   int mPhysicsFrameTarget = 0;
+   QByteArray mPhysicsFrameIncarnation;
+   double mPhysicsFrameTime = 0.0;
+diff --git a/src/webots/nodes/utils/WbWorld.hpp b/src/webots/nodes/utils/WbWorld.hpp
+index 4f1bbaa046901ef57ee654fc88696e89511a420f..62395bed660ad2453d82335f1d7f085b0bfeb6e4 100644
+--- a/src/webots/nodes/utils/WbWorld.hpp
++++ b/src/webots/nodes/utils/WbWorld.hpp
+@@ -24,6 +24,9 @@
+ #include <QtCore/QMutex>
+ #include <QtCore/QObject>
+ #include <QtCore/QString>
++#include <QtCore/QUuid>
++
++#include <limits>
+
+ class WbGroup;
+ class WbNode;
+@@ -140,12 +143,23 @@ public:
+   void retrieveNodeNamesWithOptionalRendering(QStringList &centerOfMassNodeNames, QStringList &centerOfBuoyancyNodeNames,
+                                               QStringList &supportPolygonNodeNames) const;
+
++  // Source audit only. The covered effects are explicitly listed by the experiment.
++  const QUuid &sceneIncarnation() const { return mSceneIncarnation; }
++  quint64 sceneRevision() const {
++    return mSceneRevision == std::numeric_limits<quint64>::max() ? 0 : mSceneRevision;
++  }
++  void noteSceneEffect() {
++    if (mSceneRevision < std::numeric_limits<quint64>::max())
++      ++mSceneRevision;
++  }
++
+   void setResetRequested(bool restartControllers) {
+     mResetRequested = true;
+     if (!mRestartControllers)
+       mRestartControllers = restartControllers;
+   }
+   virtual void reset(bool restartControllers) {
++    noteSceneEffect();
+     mResetRequested = false;
+     mRestartControllers = false;
+   }
+@@ -183,6 +197,8 @@ protected slots:
+   virtual void storeAddedNodeIfNeeded(WbNode *node) {}
+
+ private:
++  const QUuid mSceneIncarnation = QUuid::createUuid();
++  quint64 mSceneRevision = 1;
+   QString mFileName;
+   bool mIsModified;
+   bool mIsModifiedFromSceneTree;
