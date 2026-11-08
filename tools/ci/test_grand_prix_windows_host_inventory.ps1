@@ -72,6 +72,22 @@ try {
   $wasRejected = $false
   try { & $script -WebotsHome $webots -OutputPath $invalid -SourceSha 'not-a-sha' } catch { $wasRejected = $true }
   Require ($wasRejected -and -not (Test-Path -LiteralPath $invalid)) 'Invalid source SHA was accepted.'
+  # Invalid user-local paths must fail closed without disclosing the path in
+  # the thrown message; the successful-output check above is not sufficient.
+  $missingInputTarget = Join-Path $root 'missing-input-inventory.json'
+  foreach ($probe in @(
+    @{ Kind = 'Webots'; Home = (Join-Path $root 'profile-private-missing-webots'); Browser = $browser },
+    @{ Kind = 'Browser'; Home = $webots; Browser = (Join-Path $root 'profile-private-missing-browser.exe') }
+  )) {
+    $failureMessage = $null
+    try {
+      & $script -WebotsHome ([string]$probe.Home) -BrowserExe ([string]$probe.Browser) -OutputPath $missingInputTarget 6>&1 | Out-Null
+    } catch { $failureMessage = $_.Exception.Message }
+    Require ($failureMessage -and $failureMessage.Contains('missing or inaccessible')) ($probe.Kind + ' missing path was not refused cleanly.')
+    Require (-not $failureMessage.Contains($root)) ($probe.Kind + ' error exposed a private absolute path.')
+    Require (-not (Test-Path -LiteralPath $missingInputTarget)) 'Failed input path wrote an inventory.'
+  }
+
   [IO.File]::WriteAllText($versionPath, 'R2024b')
   $wasRejected = $false
   try { & $script -WebotsHome $webots -OutputPath $invalid } catch { $wasRejected = $true }
