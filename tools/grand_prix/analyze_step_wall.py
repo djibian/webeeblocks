@@ -51,6 +51,9 @@ def parse_windows(lines):
                     row['wall_ns'] != row['last_end_wall_ns'] - row['first_start_wall_ns'] or
                     row['wall_ns'] <= 0):
                 raise ValueError('inconsistent window bounds')
+            # The native StepWallProbe emits a complete window only after 125 steps.
+            if row['reason'] == 'complete' and n != 125:
+                raise ValueError('non-native complete window size')
             # Each step and tick interval is monotone and non-overlapping by
             # construction of StepWallProbe.record(). The enclosing wall span
             # must never be shorter than their sum, even in a forged log.
@@ -91,6 +94,8 @@ def analyze(windows, course, start_ms, end_ms, minimum_sim_ms=30000):
     first, last = selected[0], selected[-1]
     steps = [v for w in selected for v in w['step_ns']]
     ticks = [v for w in selected for v in w['tick_ns']]
+    # A physical iteration also pays its evaluator tick, not only Webots step().
+    cycles = [step + tick for step, tick in zip(steps, ticks)]
     measured_ms = len(steps) * STEP_MS
     wall_ns = last['last_end_wall_ns'] - first['first_start_wall_ns']
     if wall_ns <= 0 or wall_ns < sum(w['wall_ns'] for w in selected):
@@ -98,6 +103,7 @@ def analyze(windows, course, start_ms, end_ms, minimum_sim_ms=30000):
     sufficient = measured_ms >= minimum_sim_ms
     speed = measured_ms * 1e6 / wall_ns
     p99 = percentile(steps, .99) / 1e6
+    cycle_p99 = percentile(cycles, .99) / 1e6
     return {
         'schema': 'webeeblocks-grand-prix-step-phase-v1',
         'status': 'MEASURED_ONLY' if sufficient else 'UNPROVEN_TOO_SHORT',
@@ -113,8 +119,13 @@ def analyze(windows, course, start_ms, end_ms, minimum_sim_ms=30000):
         'step_p99_ms': round(p99, 6),
         'step_max_ms': round(max(steps) / 1e6, 6),
         'evaluator_tick_p99_ms': round(percentile(ticks, .99) / 1e6, 6),
+        'cycle_p50_ms': round(percentile(cycles, .50) / 1e6, 6),
+        'cycle_p95_ms': round(percentile(cycles, .95) / 1e6, 6),
+        'cycle_p99_ms': round(cycle_p99, 6),
+        'cycle_max_ms': round(max(cycles) / 1e6, 6),
         'speed_target_0_95_met': sufficient and speed >= .95,
         'step_p99_target_25ms_met': sufficient and p99 <= 25,
+        'cycle_p99_target_25ms_met': sufficient and cycle_p99 <= 25,
         'display_fps': None, 'gui_latency': None, 'opengl_renderer': None,
         'overall_product_acceptance': 'UNPROVEN',
         'limitations': 'No native oracle/GUI/FPS evidence, no host identity or A/B comparability proof',

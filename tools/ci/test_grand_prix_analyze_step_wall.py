@@ -28,8 +28,39 @@ class AnalyzePhaseTests(unittest.TestCase):
         self.assertAlmostEqual(report['elapsed_wall_ms'], 37500)
         self.assertAlmostEqual(report['speed_x'], .8)
         self.assertEqual(report['step_p99_ms'], 8)
+        self.assertEqual(report['cycle_p99_ms'], 9)
+        self.assertTrue(report['cycle_p99_target_25ms_met'])
         self.assertIsNone(report['display_fps'])
         self.assertEqual(report['overall_product_acceptance'], 'UNPROVEN')
+
+    def test_slow_evaluator_tick_is_visible_in_full_cycle_p99(self):
+        # Recompute from raw records: a fast Webots step can still be followed by
+        # 30 ms of evaluator work, failing the 25 ms full-cycle target.
+        rows = [window(i, step=1_000_000) for i in range(30)]
+        for i, row in enumerate(rows):
+            row['first_start_wall_ns'] = i * 5_000_000_000
+            row['last_end_wall_ns'] = (i + 1) * 5_000_000_000
+            row['wall_ns'] = 5_000_000_000
+            row['tick_ns'] = [30_000_000] * row['count']
+            row['tick_p99_ns'] = 30_000_000
+        logs = [PREFIX + json.dumps(row) + '\n' for row in rows]
+        report = analyze(parse_windows(logs), 'route-5', 0, None)
+        self.assertEqual(report['step_p99_ms'], 1)
+        self.assertTrue(report['step_p99_target_25ms_met'])
+        self.assertEqual(report['evaluator_tick_p99_ms'], 30)
+        self.assertEqual(report['cycle_p99_ms'], 31)
+        self.assertFalse(report['cycle_p99_target_25ms_met'])
+        self.assertEqual(report['overall_product_acceptance'], 'UNPROVEN')
+
+    def test_forged_native_complete_window_size_is_refused(self):
+        # A native StepWallProbe marks a window 'complete' only after 125
+        # physical 8-ms samples. A forged 1/63/124-step window must not
+        # manufacture a MEASURED_ONLY 30-second phase from tiny records.
+        for count in (1, 63, 124):
+            forged = window(0, count=count)
+            with self.subTest(count=count), self.assertRaisesRegex(
+                    ValueError, 'non-native complete window size'):
+                parse_windows([PREFIX + json.dumps(forged) + '\n'])
 
     def test_only_29_seconds_is_unproven(self):
         report = analyze([window(i) for i in range(29)], 'route-5', 0, None)
