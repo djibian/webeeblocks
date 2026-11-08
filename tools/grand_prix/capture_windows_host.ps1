@@ -116,97 +116,11 @@ while ($clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
   if ($current.StartTime.ToUniversalTime().Ticks -ne $startTicks) {
     throw 'Original Webots process exited or the PID was reused.'
   }
-  if ($null -eq $current.CPU) { throw 'Webots CPU time became unavailable.' }
-  $elapsed = $clock.Elapsed.TotalSeconds
-  $period = $elapsed - $lastElapsed
-  $cpu = [double]$current.CPU
-  $delta = $cpu - $lastCpu
-  if ($period -le 0 -or $delta -lt -0.001) {
-    throw 'Non-monotonic host measurement.'
-  }
-  # One occupied logical CPU = 100%; a multicore process may exceed 100%.
-  $samples.Add([pscustomobject][ordered]@{
-    elapsed_ms = [Math]::Round($elapsed * 1000, 3)
-    utc = [DateTime]::UtcNow.ToString('o')
-    period_ms = [Math]::Round($period * 1000, 3)
-    cpu_percent_one_core = [Math]::Round([Math]::Max(0, $delta) / $period * 100, 3)
-    process_cpu_total_s = [Math]::Round($cpu, 6)
-    working_set_bytes = [long]$current.WorkingSet64
-    private_memory_bytes = [long]$current.PrivateMemorySize64
-    thread_count = $current.Threads.Count
-  })
-  $lastElapsed = $elapsed
-  $lastCpu = $cpu
-}
-$clock.Stop()
-if ($samples.Count -lt 2) { throw 'Insufficient samples.' }
-$metadata['actual_duration_s'] = [Math]::Round($clock.Elapsed.TotalSeconds, 6)
-$metadata['sample_count'] = $samples.Count
-$utf8 = [Text.UTF8Encoding]::new($false)
-[IO.File]::WriteAllText((Join-Path $destination 'metadata.json'),
-  (($metadata | ConvertTo-Json -Depth 8) + [Environment]::NewLine), $utf8)
-$samples | Export-Csv -LiteralPath (Join-Path $destination 'samples.csv') -NoTypeInformation -Encoding UTF8
-Write-Host "WEBEEBLOCKS_WINDOWS_HOST_EVIDENCE=$destination"
-Write-Host 'HOST ONLY: simulator speed, p99 step latency, OpenGL renderer and GUI acceptance are NOT measured.'
- -or -not $initial.Path) {
-  throw "PID $WebotsProcessId is not an inspectable Webots executable."
-}
-$actualProcessPath = [IO.Path]::GetFullPath($initial.Path)
-$matchedExecutable = @($knownExecutables | Where-Object {
-  [string]::Equals($_, $actualProcessPath, [StringComparison]::OrdinalIgnoreCase)
-})
-if ($matchedExecutable.Count -ne 1) {
-  throw 'Webots PID executable does not match the selected R2025a installation.'
-}
-$webotsExecutableSha256 = (Get-FileHash -LiteralPath $matchedExecutable[0] -Algorithm SHA256).Hash.ToLowerInvariant()
-$startTicks = $initial.StartTime.ToUniversalTime().Ticks
-if ($null -eq $initial.CPU) { throw 'Webots CPU time unavailable.' }
-$destination = [IO.Path]::GetFullPath($OutputDirectory)
-if (Test-Path -LiteralPath $destination) {
-  throw "Use a fresh folder for each trial: $destination"
-}
-New-Item -ItemType Directory -Path $destination -ErrorAction Stop | Out-Null
-
-# Equipment model/driver is NOT proof of actual OpenGL renderer/acceleration.
-$os = Get-CimInstance -ClassName Win32_OperatingSystem
-$cpus = @(Get-CimInstance -ClassName Win32_Processor)
-$video = @(Get-CimInstance -ClassName Win32_VideoController)
-$metadata = [ordered]@{
-  schema = 'webeeblocks.windows-passive-host-v1'
-  source_sha = $SourceSha.ToLowerInvariant()
-  course_id = $CourseId
-  variant = $Variant
-  webots_version = $version
-  process_name = $initial.ProcessName
-  webots_pid = $WebotsProcessId
-  process_start_utc = $initial.StartTime.ToUniversalTime().ToString('o')
-  measurement_start_utc = [DateTime]::UtcNow.ToString('o')
-  requested_duration_s = $DurationSeconds
-  requested_period_ms = $SamplePeriodMs
-  operating_system = [ordered]@{
-    caption = $os.Caption
-    version = $os.Version
-    build = $os.BuildNumber
-    ram_bytes = ([long]$os.TotalVisibleMemorySize * 1024)
-  }
-  cpus = @($cpus | ForEach-Object {
-    [ordered]@{ model = $_.Name; logical_processors = $_.NumberOfLogicalProcessors }
-  })
-  video_devices = @($video | Where-Object { $null -ne $_ } | ForEach-Object {
-    [ordered]@{ model = $_.Name; driver_version = $_.DriverVersion }
-  })
-  sampling_scope = 'single Webots PID; no children, GPU utilization or simulation clock'
-  performance_acceptance = 'NOT_MEASURED'
-}
-$clock = [Diagnostics.Stopwatch]::StartNew()
-$lastElapsed = $clock.Elapsed.TotalSeconds
-$lastCpu = [double]$initial.CPU
-$samples = [Collections.Generic.List[object]]::new()
-while ($clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
-  Start-Sleep -Milliseconds $SamplePeriodMs
-  $current = Get-Process -Id $WebotsProcessId -ErrorAction Stop
-  if ($current.StartTime.ToUniversalTime().Ticks -ne $startTicks) {
-    throw 'Original Webots process exited or the PID was reused.'
+  # Verify executable identity throughout the measurement, not only at startup.
+  if (-not $current.Path -or
+      -not [string]::Equals([IO.Path]::GetFullPath($current.Path),
+        $matchedExecutable[0], [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Webots executable identity changed during capture.'
   }
   if ($null -eq $current.CPU) { throw 'Webots CPU time became unavailable.' }
   $elapsed = $clock.Elapsed.TotalSeconds
