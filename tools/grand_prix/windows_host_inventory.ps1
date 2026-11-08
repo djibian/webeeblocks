@@ -97,5 +97,6 @@ $utf8NoBom = [Text.UTF8Encoding]::new($false)
 $bytes = $utf8NoBom.GetBytes($json + "`n")
 $stream = [IO.File]::Open($target, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
 try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
-Write-Host "WEBEEBLOCKS_GP_WINDOWS_INVENTORY=$target"
+# A full output path can expose the Windows user profile in shared terminal logs.
+Write-Host 'WEBEEBLOCKS_GP_WINDOWS_INVENTORY_WRITTEN=1'
 Write-Host 'Inventory only: no measured OpenGL renderer, FPS, p99, native safety or human PASS.'
