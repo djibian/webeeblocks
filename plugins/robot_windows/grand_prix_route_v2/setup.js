@@ -33,9 +33,9 @@ if (typeof window.addEventListener === 'function') {
   const detail = event && event.detail;
   if (!detail || detail.studentState !== 'ERREUR') return;
   const code = typeof detail.machineCode === 'string'
-    ? detail.machineCode.replace(/\\s+/g, ' ').trim().slice(0, 40) : '';
+    ? detail.machineCode.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
   const message = typeof detail.technicalMessage === 'string'
-    ? detail.technicalMessage.replace(/\\s+/g, ' ').trim().slice(0, 240) : '';
+    ? detail.technicalMessage.replace(/\s+/g, ' ').trim().slice(0, 240) : '';
   const diagnostic = 'Diagnostic : ' + (code ? code + ' — ' : '') +
     (message || 'erreur technique sans message');
   Promise.resolve().then(function() {
