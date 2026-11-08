@@ -166,7 +166,7 @@ index ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1..0034da3c7652daf137f8486302c61b5f
 +  const int token_size = sizeof(scene_revision_at_capture.incarnation) + sizeof(scene_revision_at_capture.revision);
 +  const int payload_size = token_size + 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
                             count * (int)sizeof(int32_t);
-   if (end - request_get_position(r) < payload_size)
+   if (end - request_get_position(r) != payload_size)
      goto malformed;
 @@ -1072,6 +1136,10 @@ static void read_physics_frame(WbRequest *r) {
      memcpy(contact->point, request_read_data(r, sizeof(contact->point)), sizeof(contact->point));
