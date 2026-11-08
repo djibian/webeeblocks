@@ -45,9 +45,11 @@ try {
            -not (Test-Path -LiteralPath $bad)) 'Invalid version metadata was disclosed or accepted.'
   [IO.File]::WriteAllText((Join-Path $versionDir 'version.txt'), 'R2025a')
 
-  & $source -SourceSha ('a' * 40) -CourseId 'gp-route-v2-L2000-2500-3000-TGD-s105-H2' `
+$captureOutput = (& $source -SourceSha ('a' * 40) -CourseId 'gp-route-v2-L2000-2500-3000-TGD-s105-H2' `
     -Variant reference -WebotsProcessId $p.Id -WebotsHome $webotsHome `
-    -BrowserExe $browserExe -OutputDirectory $good -DurationSeconds 5 -SamplePeriodMs 200
+    -BrowserExe $browserExe -OutputDirectory $good -DurationSeconds 5 -SamplePeriodMs 200 6>&1 | Out-String)
+  Require ($captureOutput.Contains('WEBEEBLOCKS_WINDOWS_HOST_EVIDENCE_WRITTEN=1')) 'Missing path-free completion marker.'
+  Require (-not $captureOutput.Contains($root) -and -not $captureOutput.Contains($good)) 'Host capture leaked a private path.'
 
   $metadata = Get-Content -LiteralPath (Join-Path $good 'metadata.json') -Raw | ConvertFrom-Json
   $samples = @(Import-Csv -LiteralPath (Join-Path $good 'samples.csv'))
