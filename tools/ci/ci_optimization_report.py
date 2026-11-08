@@ -32,7 +32,11 @@ def timestamp(value: str) -> datetime:
 def minutes(start: str | None, end: str | None) -> float | None:
     if not start or not end:
         return None
-    return max(0.0, (timestamp(end) - timestamp(start)).total_seconds() / 60)
+    try:
+        elapsed = (timestamp(end) - timestamp(start)).total_seconds() / 60
+    except (TypeError, ValueError):
+        return None
+    return elapsed if elapsed >= 0 else None
 
 
 def observed_setup(jobs: list[dict]) -> dict:
@@ -140,16 +144,27 @@ def summarize_run(run: dict, jobs: list[dict]) -> dict:
                     and gate is not None and gate.get("conclusion") == "success"
                     and selected_runtime and selected_webots and all_success
                     and (not any_shards or has_shards))
-    job_minutes = [minutes(j.get("started_at"), j.get("completed_at")) for j in jobs]
-    job_minutes = [v for v in job_minutes if v is not None]
-    active = {j["name"]: round(minutes(j.get("started_at"), j.get("completed_at")), 3)
-              for j in jobs if j.get("name") and minutes(j.get("started_at"), j.get("completed_at")) is not None}
+    job_minutes = []
+    active = {}
+    for job in jobs:
+        duration = minutes(job.get("started_at"), job.get("completed_at"))
+        if duration is not None:
+            job_minutes.append(duration)
+            if job.get("name"):
+                active[job["name"]] = round(duration, 3)
+    # Missing timing cannot become a fabricated smaller total.
+    runner_minutes = round(sum(job_minutes), 3) if len(job_minutes) == len(jobs) else None
+    gate_elapsed = (minutes(run.get("run_started_at"), gate.get("completed_at"))
+                    if gate is not None and gate.get("status") == "completed" else None)
     return {
         "id": run["id"], "head_sha": run.get("head_sha"), "event": run.get("event"),
         "run_attempt": run.get("run_attempt"), "status": run.get("status"),
         "conclusion": run.get("conclusion"), "url": run.get("html_url"),
+        # The legacy run-updated span is not the Gate completion time.
         "wall_minutes": minutes(run.get("run_started_at"), run.get("updated_at")),
-        "runner_minutes_estimate": round(sum(job_minutes), 3),
+        "gate_elapsed_minutes": gate_elapsed,
+        "runner_minutes_estimate": runner_minutes,
+        "timing_complete": gate_elapsed is not None and runner_minutes is not None,
         "job_count": len(jobs), "job_set": sorted(str(j.get("name")) for j in jobs),
         "all_jobs_success": all_success,
         "full_success": full_success, "seven_shards_proven": has_shards,
@@ -186,25 +201,37 @@ def discover(runs: list[dict], counts: dict, *, comparable_successes: list[dict]
                 grouped.setdefault(name, []).append(duration)
         for name, durations in grouped.items():
             if len(durations) >= 3 and statistics.median(durations) >= 12:
-                proposals.append({"kind": "critical_path", "candidate": name,
+                proposals.append({"kind": "long_job_observation", "candidate": name,
                                   "median_minutes": round(statistics.median(durations), 2),
                                   "sample": len(durations),
-                                  "proposal": "Investigate bounded partitioning or setup cost without dropping native evidence."})
+                                  "proposal": "Long-running job observed; actual Gate latency impact is unproven."})
         historical = [(name, d) for name, d in grouped.items() if any(tag in name.lower() for tag in HISTORICAL_NAMES)]
         if historical:
             costs = [sum(run["jobs"].get(name, 0) for name, _ in historical) for run in successes]
             proposals.append({"kind": "historical_audit", "jobs": sorted(name for name, _ in historical),
                               "median_runner_minutes": round(statistics.median(costs), 2),
                               "proposal": "Review active product dependencies before considering any retirement; no automatic deletion."})
-    repeated = sum(v["explicit_docker_pull"] for v in counts.values())
-    if repeated >= 5:
-        proposals.append({"kind": "repeated_setup", "explicit_docker_pull_sites": repeated,
-                          "proposal": "Compare content-addressed, verified image provisioning to cold pulls; preserve pinned Webots."})
+    # Workflow-text pull sites are inventory, not a measured setup expense.
+    # They belong in report["counts"], never in advisory optimization candidates.
     errors = [r for r in runs if r["conclusion"] == "failure"]
     if errors:
-        names = Counter(j["name"] for r in errors for j in r["non_success"]
-                        if j["name"] != "CI Gate" and j["result"] == "failure")
+        # A recurring failure needs distinct run IDs, not multiple jobs with the
+        # same display name inside one run (or a duplicate run record).
+        failed_names_by_run: dict[int, set[str]] = {}
+        for run in errors:
+            if not isinstance(run.get("id"), int):
+                continue
+            failed_names = {j.get("name") for j in run["non_success"]
+                            if j.get("name") not in {None, "CI Gate", "CI Gate (Draft)"}
+                            and j.get("result") == "failure"}
+            failed_names_by_run.setdefault(run["id"], set()).update(failed_names)
+        names = Counter(name for run_names in failed_names_by_run.values()
+                        for name in sorted(run_names))
         for name, count in names.most_common(3):
+            # A lone failed run is evidence to retain, not a recurring
+            # reliability candidate; NO_ACTION must not advertise one.
+            if count < 2:
+                continue
             proposals.append({"kind": "reliability", "candidate": name, "failed_runs": count,
                               "proposal": "Investigate original failing evidence; do not blindly retry or weaken oracle."})
     return proposals
@@ -214,9 +241,10 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
     eligible = [r for r in runs if r["full_success"] and r["seven_shards_proven"]]
     # The most recent eligible run defines the comparison cohort. Mixing selected
     # job sets (or event types) confounds runner-minute and duration medians.
-    anchor = eligible[0] if eligible else None
+    anchor = next((r for r in eligible if r["timing_complete"]), None)
     complete = ([r for r in eligible
-                 if r["event"] == anchor["event"] and r["job_set"] == anchor["job_set"]][:12]
+                 if r["timing_complete"] and r["event"] == anchor["event"]
+                 and r["job_set"] == anchor["job_set"]][:12]
                 if anchor else [])
     comparable_ids = {r["id"] for r in complete}
     def median(key: str) -> float | None:
@@ -231,8 +259,33 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
                else None)
         for kind in SETUP_KINDS
     }
+    proposals = discover(runs, counts, comparable_successes=complete)
+    # Two distinct compatible samples establish recurrence, not confidence.
+    recurring = next((p for p in proposals
+                      if p["kind"] == "reliability" and p["failed_runs"] >= 2), None)
+    if len({r["id"] for r in complete}) < 2:
+        verdict = "INSUFFICIENT_EVIDENCE"
+        reason = "Fewer than two distinct comparable successful runs with complete Gate/job timing."
+    elif recurring:
+        verdict = "EXPERIMENT_CANDIDATE"
+        reason = "Repeated failure deserves log-based investigation; no speedup or cause established."
+    else:
+        verdict = "NO_ACTION"
+        reason = ("No targeted investigation justified in this narrow evidence scope; "
+                  "long jobs and static setup repetitions are not causal speedups.")
+    qualification = {
+        "verdict": verdict,
+        "evidence": {"run_ids": [r["id"] for r in complete],
+                     "reference_run_id": anchor["id"] if anchor else None,
+                     "eligible_before_filter": len(eligible),
+                     "scope": "same trigger/job names and complete timing; workloads not proven identical"},
+        "reason": reason,
+        "candidate": ({"kind": "reliability", "job": recurring["candidate"],
+                       "failed_runs": recurring["failed_runs"]}
+                      if verdict == "EXPERIMENT_CANDIDATE" else None),
+    }
     data = {
-        "schema": "webeeblocks-ci-optimization-v1", "generated_at": now.isoformat(),
+        "schema": "webeeblocks-ci-optimization-v2", "generated_at": now.isoformat(),
         "repository": repo, "window_days": days, "inspected_runs": len(runs),
         "full_successful_sharded_runs": len(complete),
         "eligible_before_cohort_filter": len(eligible),
@@ -241,10 +294,11 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
         "cohort_job_count": len(anchor["job_set"]) if anchor else None,
         "coverage_disclaimer": "Gate/job metadata is NOT proof of test coverage or product correctness.",
         "wall_median_minutes": median("wall_minutes"),
+        "gate_median_minutes": median("gate_elapsed_minutes"),
         "runner_median_minutes_estimate": median("runner_minutes_estimate"),
         "observed_setup_median_runner_minutes": setup_medians,
         "counts": counts,
-        "candidates": discover(runs, counts, comparable_successes=complete),
+        "candidates": proposals, "qualification": qualification,
         "runs": [{**{k: v for k, v in r.items() if k not in ("jobs", "job_set")},
                   "cohort_comparable": r["id"] in comparable_ids} for r in runs],
     }
@@ -256,8 +310,12 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
              f"job count: {len(anchor['job_set']) if anchor else 'n/a'}.", "",
              "**Advisory only.** This report does not change CI Gate, selection, safety oracles or repository contents.",
              "A green Gate and job list cannot alone prove that the selector ran every affected oracle.", "",
-             f"Median elapsed (min): **{data['wall_median_minutes']}**; "
-             f"median summed runner minutes (not billing): **{data['runner_median_minutes_estimate']}**.", "",
+             f"Median run-start to actual CI Gate finish (min): **{data['gate_median_minutes']}**; "
+             f"median runner minutes (not billing): **{data['runner_median_minutes_estimate']}**.",
+             f"Legacy run-start to updated_at span (min): **{data['wall_median_minutes']}** "
+             "(not Gate completion; retained for continuity).", "",
+             f"Evidence verdict: **{qualification['verdict']}** — {qualification['reason']}",
+             f"Investigation candidate: **{qualification['candidate']}**.", "",
              "## Measured repeated preparation (same-workload cohort)", "",
              f"Median observed Webots image pull steps (runner min): "
              f"**{setup_medians['webots_pull']}**.",
@@ -267,7 +325,7 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
              "and not proof that caching would reduce elapsed time.",
              "None means insufficient comparable step timing or no matching step; "
              "it never means a free operation.", "",
-             "## Proposals requiring dedicated CI and independent V5 review", ""]
+             "## Observations and investigation signals (no causal savings claimed)", ""]
     if not complete:
         lines.append("Not enough fully successful sharded evidence; no performance claim.")
     if not data["candidates"]:
@@ -275,11 +333,11 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
     for item in data["candidates"]:
         lines.append(f"- **{item['kind']}** — {item.get('candidate', 'relevant CI area')}: {item['proposal']}")
     lines += ["", "## Provenance (latest inspected runs)", "",
-              "| Run | Event | Result | Full evidence | Wall min | Runner min* | Pull steps | Pull runner min* |", "|---|---|---|---|---:|---:|---:|---:|"]
+              "| Run | Event | Result | Full evidence | Gate min | Legacy updated span min | Runner min* | Pull steps | Pull runner min* |", "|---|---|---|---|---:|---:|---:|---:|---:|"]
     for r in runs[:25]:
         lines.append(f"| [{r['id']}]({r['url']}) | {r['event']} | {r['conclusion']} | "
                      f"{'yes' if r['id'] in comparable_ids else 'no'} | "
-                     f"{r['wall_minutes']} | {r['runner_minutes_estimate']} | "
+                     f"{r['gate_elapsed_minutes']} | {r['wall_minutes']} | {r['runner_minutes_estimate']} | "
                      f"{r['setup']['webots_pull']['steps']} | "
                      f"{r['setup']['webots_pull']['minutes']} |")
     lines += ["", "*Full evidence in this table means same-workload comparability; "
