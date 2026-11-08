@@ -42,7 +42,9 @@ try {
   [IO.File]::WriteAllText($webotsExe, 'dummy-Webots-R2025a')
   [IO.File]::WriteAllText($browser, 'dummy-browser')
   [IO.File]::WriteAllText($versionPath, 'R2025a')
-  & $script -WebotsHome $webots -BrowserExe $browser -SourceSha ('a' * 40) -OutputPath $target
+  $inventoryOutput = (& $script -WebotsHome $webots -BrowserExe $browser -SourceSha ('a' * 40) -OutputPath $target 6>&1 | Out-String)
+  Require ($inventoryOutput.Contains('WEBEEBLOCKS_GP_WINDOWS_INVENTORY_WRITTEN=1')) 'Missing path-free completion marker.'
+  Require (-not $inventoryOutput.Contains($root) -and -not $inventoryOutput.Contains($target)) 'Inventory printed a private absolute path.'
   Require (Test-Path -LiteralPath $target) 'Missing JSON inventory.'
   $text = Get-Content -LiteralPath $target -Raw
   $json = $text | ConvertFrom-Json
