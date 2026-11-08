@@ -1,0 +1,64 @@
+#VRML_SIM R2025a utf8
+
+WorldInfo {
+  basicTimeStep 8
+  randomSeed 42
+}
+Viewpoint {
+  orientation -0.3 0.54 0.78 1.84
+  position 1.2 1.7 1.4
+}
+Solid {
+  translation 0 0 -0.05
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6 0.6 0.6
+        roughness 1
+        metalness 0
+      }
+      geometry DEF GROUND Box {
+        size 4 4 0.1
+      }
+    }
+  ]
+  boundingObject USE GROUND
+}
+DEF TARGET Robot {
+  translation 0 0 0.3
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.2 0.8
+        roughness 1
+        metalness 0
+      }
+      geometry DEF BODY Box {
+        size 0.2 0.2 0.1
+      }
+    }
+    DEF CONTACT_CHILD Solid {
+      translation 0 0 -0.1
+      children [
+        Shape {
+          geometry DEF FOOT Box {
+            size 0.12 0.12 0.08
+          }
+        }
+      ]
+      boundingObject USE FOOT
+      physics Physics {
+      }
+    }
+  ]
+  name "observed body"
+  boundingObject USE BODY
+  physics Physics {
+  }
+  controller "<none>"
+}
+Robot {
+  name "physics-frame-probe"
+  supervisor TRUE
+  controller "observe"
+}

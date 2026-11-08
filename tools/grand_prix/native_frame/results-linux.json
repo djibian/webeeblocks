@@ -1,0 +1,192 @@
+[
+  {
+    "engine_fingerprints": {
+      "official": {
+        "webots-bin": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a",
+        "libController.so": "d4883c4f101d585bf6317451a4afb76cff4617d55633cbf0cb21314be51517da"
+      },
+      "patched": {
+        "webots-bin": "e255fe4bca71062dcf2838c8e90fbfc88704143dc048b1c821b39beae0d435f1",
+        "libController.so": "ebdeed1a857f48e46e844be92eb0ebedc20d0a901a81d512086c2644b4abc1b6"
+      }
+    },
+    "host": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "mode": "fast",
+    "render": false,
+    "fps_setting": 25,
+    "transport": "tcp-loopback",
+    "steps": 400,
+    "warmup_steps": 125,
+    "shadow_equal_steps": 400,
+    "descendant_contacts": 576,
+    "runs": [
+      {
+        "pair": 1,
+        "lane": "baseline",
+        "speed_x": 27.741600209141403,
+        "cycle_p50_ms": 0.275404,
+        "cycle_p95_ms": 0.339845,
+        "cycle_p99_ms": 0.518558,
+        "cycle_max_ms": 1.632315,
+        "step_mean_ms": 0.07209109454545454,
+        "read_mean_ms": 0.21564620727272726,
+        "read_p99_ms": 0.427378
+      },
+      {
+        "pair": 1,
+        "lane": "compact",
+        "speed_x": 62.02805985899499,
+        "cycle_p50_ms": 0.074098,
+        "cycle_p95_ms": 0.244275,
+        "cycle_p99_ms": 1.222721,
+        "cycle_max_ms": 5.023802,
+        "step_mean_ms": 0.10508418909090908,
+        "read_mean_ms": 0.023513836363636364,
+        "read_p99_ms": 0.105707
+      },
+      {
+        "pair": 2,
+        "lane": "compact",
+        "speed_x": 61.55409541780122,
+        "cycle_p50_ms": 0.118511,
+        "cycle_p95_ms": 0.206996,
+        "cycle_p99_ms": 0.454588,
+        "cycle_max_ms": 1.254461,
+        "step_mean_ms": 0.10079944727272727,
+        "read_mean_ms": 0.028354392727272727,
+        "read_p99_ms": 0.095749
+      },
+      {
+        "pair": 2,
+        "lane": "baseline",
+        "speed_x": 28.10037971659924,
+        "cycle_p50_ms": 0.258483,
+        "cycle_p95_ms": 0.520101,
+        "cycle_p99_ms": 1.536637,
+        "cycle_max_ms": 6.527257,
+        "step_mean_ms": 0.06454854181818181,
+        "read_mean_ms": 0.21975624727272727,
+        "read_p99_ms": 1.479671
+      },
+      {
+        "pair": 3,
+        "lane": "baseline",
+        "speed_x": 23.449496882517295,
+        "cycle_p50_ms": 0.330386,
+        "cycle_p95_ms": 0.411368,
+        "cycle_p99_ms": 0.721646,
+        "cycle_max_ms": 1.556485,
+        "step_mean_ms": 0.08410196,
+        "read_mean_ms": 0.2564705490909091,
+        "read_p99_ms": 0.547802
+      },
+      {
+        "pair": 3,
+        "lane": "compact",
+        "speed_x": 42.33962289714489,
+        "cycle_p50_ms": 0.119713,
+        "cycle_p95_ms": 0.445852,
+        "cycle_p99_ms": 0.547962,
+        "cycle_max_ms": 1.406443,
+        "step_mean_ms": 0.1606201381818182,
+        "read_mean_ms": 0.027854796363636365,
+        "read_p99_ms": 0.065623
+      }
+    ]
+  },
+  {
+    "engine_fingerprints": {
+      "official": {
+        "webots-bin": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a",
+        "libController.so": "d4883c4f101d585bf6317451a4afb76cff4617d55633cbf0cb21314be51517da"
+      },
+      "patched": {
+        "webots-bin": "e255fe4bca71062dcf2838c8e90fbfc88704143dc048b1c821b39beae0d435f1",
+        "libController.so": "ebdeed1a857f48e46e844be92eb0ebedc20d0a901a81d512086c2644b4abc1b6"
+      }
+    },
+    "host": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "mode": "realtime",
+    "render": true,
+    "fps_setting": 25,
+    "transport": "tcp-loopback",
+    "steps": 400,
+    "warmup_steps": 125,
+    "shadow_equal_steps": 400,
+    "descendant_contacts": 576,
+    "runs": [
+      {
+        "pair": 1,
+        "lane": "baseline",
+        "speed_x": 0.8440046117823777,
+        "cycle_p50_ms": 4.589168,
+        "cycle_p95_ms": 54.86829,
+        "cycle_p99_ms": 68.334856,
+        "cycle_max_ms": 72.455611,
+        "step_mean_ms": 8.968589614545456,
+        "read_mean_ms": 0.5090820290909092,
+        "read_p99_ms": 3.243384
+      },
+      {
+        "pair": 1,
+        "lane": "compact",
+        "speed_x": 0.852700472727026,
+        "cycle_p50_ms": 4.344475,
+        "cycle_p95_ms": 58.920494,
+        "cycle_p99_ms": 69.484307,
+        "cycle_max_ms": 72.063883,
+        "step_mean_ms": 9.303637472727273,
+        "read_mean_ms": 0.07659228363636363,
+        "read_p99_ms": 1.130198
+      },
+      {
+        "pair": 2,
+        "lane": "compact",
+        "speed_x": 0.8591388757480344,
+        "cycle_p50_ms": 4.375287,
+        "cycle_p95_ms": 60.421289,
+        "cycle_p99_ms": 66.23886,
+        "cycle_max_ms": 71.274366,
+        "step_mean_ms": 9.261636636363637,
+        "read_mean_ms": 0.049182065454545454,
+        "read_p99_ms": 0.334273
+      },
+      {
+        "pair": 2,
+        "lane": "baseline",
+        "speed_x": 0.8852741838406807,
+        "cycle_p50_ms": 4.536633,
+        "cycle_p95_ms": 55.01191,
+        "cycle_p99_ms": 64.71725,
+        "cycle_max_ms": 86.630655,
+        "step_mean_ms": 8.417992527272727,
+        "read_mean_ms": 0.6176023709090909,
+        "read_p99_ms": 3.499215
+      },
+      {
+        "pair": 3,
+        "lane": "baseline",
+        "speed_x": 0.8878596346478912,
+        "cycle_p50_ms": 4.597056,
+        "cycle_p95_ms": 51.123382,
+        "cycle_p99_ms": 61.903077,
+        "cycle_max_ms": 64.290556,
+        "step_mean_ms": 8.56193658909091,
+        "read_mean_ms": 0.44774856727272727,
+        "read_p99_ms": 2.648409
+      },
+      {
+        "pair": 3,
+        "lane": "compact",
+        "speed_x": 0.8872803972295293,
+        "cycle_p50_ms": 4.309179,
+        "cycle_p95_ms": 53.027835,
+        "cycle_p99_ms": 63.38223,
+        "cycle_max_ms": 64.420347,
+        "step_mean_ms": 8.976215439999999,
+        "read_mean_ms": 0.039431545454545455,
+        "read_p99_ms": 0.297304
+      }
+    ]
+  }
+]

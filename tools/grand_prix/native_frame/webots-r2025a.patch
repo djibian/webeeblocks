@@ -1,0 +1,361 @@
+diff --git a/include/controller/c/webots/supervisor.h b/include/controller/c/webots/supervisor.h
+index 092c02cba71dc9178ace4a455e9bcf3b5b615c73..dff5781ffa360bba7d44bf78fdd46314df687e73 100644
+--- a/include/controller/c/webots/supervisor.h
++++ b/include/controller/c/webots/supervisor.h
+@@ -22,6 +22,8 @@
+ #define WB_SUPERVISOR_H
+
+ #define WB_USING_C_API
++#include <stdint.h>
++
+ #include "contact_point.h"
+ #include "nodes.h"
+ #include "types.h"
+@@ -30,6 +32,26 @@
+ extern "C" {
+ #endif
+
++#define WB_SUPERVISOR_PHYSICS_FRAME_VERSION 1
++#define WB_SUPERVISOR_PHYSICS_FRAME_MAX_CONTACTS 128
++
++typedef struct {
++  double time_ms;
++  unsigned char incarnation[16];
++  int32_t supervisor_id;
++  int32_t solid_id;
++  double position[3];
++  double orientation[9];
++  double velocity[6];
++  int32_t contact_count;
++  WbContactPoint contacts[WB_SUPERVISOR_PHYSICS_FRAME_MAX_CONTACTS];
++} WbSupervisorPhysicsFrame;
++
++// Experimental read-only observation, available in a matched engine and Controller library.
++// Queue one observation for the next 8-ms robot step, then read it once after that step.
++bool wb_supervisor_physics_frame_request(int32_t solid_id);
++bool wb_supervisor_physics_frame_read(WbSupervisorPhysicsFrame *frame);
++
+ typedef enum {
+   WB_NO_FIELD = 0x00,
+   WB_SF_BOOL = 0x01,
+diff --git a/src/controller/c/Controller.def b/src/controller/c/Controller.def
+index d7fc80bbe2bdf44dedf2a98ea7f1d35de97fba08..3f01ab6bc582558eb1ecf9fb31be73fe42de19b8 100644
+--- a/src/controller/c/Controller.def
++++ b/src/controller/c/Controller.def
+@@ -556,6 +556,8 @@ wb_supervisor_node_get_static_balance
+ wb_supervisor_node_get_type
+ wb_supervisor_node_get_type_name
+ wb_supervisor_node_get_velocity
++wb_supervisor_physics_frame_request
++wb_supervisor_physics_frame_read
+ wb_supervisor_node_is_proto
+ wb_supervisor_node_load_state
+ wb_supervisor_node_move_viewpoint
+diff --git a/src/controller/c/messages.h b/src/controller/c/messages.h
+index 4eddad84b65855925671bb205711aa06839d264e..5ff3afc29850a06fe49939d8655544ee79604d86 100644
+--- a/src/controller/c/messages.h
++++ b/src/controller/c/messages.h
+@@ -125,6 +125,7 @@
+ #define C_SUPERVISOR_FIELD_CHANGE_TRACKING_STATE 101
+ #define C_SUPERVISOR_POSE_CHANGE_TRACKING_STATE 102
+ #define C_SUPERVISOR_CONTACT_POINTS_CHANGE_TRACKING_STATE 103
++#define C_SUPERVISOR_PHYSICS_FRAME 104
+
+ // for the abstract camera device
+ // sim -> ctr
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+index f18d19ece5338c0daaef50e784300e435c9bccd5..ccd37dcdab7f187c8647763a4a42ee6b6ae63cf1 100644
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -563,7 +563,38 @@ static const char *save_node_state_name = NULL;
+ static WbNodeRef reset_node_state_node_ref = NULL;
+ static const char *reset_node_state_name = NULL;
+
++static int32_t physics_frame_queued_id = 0;
++static int32_t physics_frame_sent_id = 0;
++static bool physics_frame_ready = false;
++static WbSupervisorPhysicsFrame physics_frame;
++
++bool wb_supervisor_physics_frame_request(int32_t solid_id) {
++  if (!wb_robot_get_supervisor() || solid_id <= 0 || wb_robot_get_basic_time_step() != 8.0)
++    return false;
++  robot_mutex_lock();
++  physics_frame_queued_id = solid_id;
++  physics_frame_ready = false;
++  robot_mutex_unlock();
++  return true;
++}
++
++bool wb_supervisor_physics_frame_read(WbSupervisorPhysicsFrame *frame) {
++  if (!frame)
++    return false;
++  robot_mutex_lock();
++  const bool ready = physics_frame_ready && wb_robot_get_step_duration() == 8 &&
++                     fabs(physics_frame.time_ms - 1000.0 * wb_robot_get_time()) < 1e-6;
++  physics_frame_ready = false;
++  if (ready)
++    *frame = physics_frame;
++  robot_mutex_unlock();
++  return ready;
++}
++
+ static void supervisor_cleanup(WbDevice *d) {
++  physics_frame_queued_id = 0;
++  physics_frame_sent_id = 0;
++  physics_frame_ready = false;
+   clean_field_request_garbage_collector();
+   while (field_list) {
+     WbFieldStruct *f = field_list->next;
+@@ -610,6 +641,17 @@ static void supervisor_write_request(WbDevice *d, WbRequest *r) {
+   // chain with base class
+   robot_write_request(d, r);
+
++  if (!robot_is_immediate_message()) {
++    physics_frame_ready = false;
++    physics_frame_sent_id = 0;
++    if (physics_frame_queued_id > 0 && wb_robot_get_step_duration() == 8) {
++      physics_frame_sent_id = physics_frame_queued_id;
++      request_write_uchar(r, C_SUPERVISOR_PHYSICS_FRAME);
++      request_write_int32(r, physics_frame_sent_id);
++    }
++    physics_frame_queued_id = 0;
++  }
++
+   if (simulation_change_mode) {
+     request_write_uchar(r, C_SUPERVISOR_SIMULATION_CHANGE_MODE);
+     request_write_int32(r, robot_get_simulation_mode());
+@@ -994,6 +1036,52 @@ static void supervisor_write_request(WbDevice *d, WbRequest *r) {
+   }
+ }
+
++static void read_physics_frame(WbRequest *r) {
++  const int end = request_get_size(r);
++  // Use memcpy for multibyte fields, which are unaligned after a message byte.
++  physics_frame_ready = false;
++  if (end - request_get_position(r) < 2 * (int)sizeof(int32_t))
++    goto malformed;
++  int32_t version, count;
++  memcpy(&version, request_read_data(r, sizeof(version)), sizeof(version));
++  memcpy(&count, request_read_data(r, sizeof(count)), sizeof(count));
++  if (version != WB_SUPERVISOR_PHYSICS_FRAME_VERSION || count < -1 ||
++      count > WB_SUPERVISOR_PHYSICS_FRAME_MAX_CONTACTS)
++    goto malformed;
++  if (count == -1) {
++    physics_frame_sent_id = 0;
++    return;
++  }
++
++  const int payload_size = 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
++                           count * (int)sizeof(int32_t);
++  if (end - request_get_position(r) < payload_size)
++    goto malformed;
++
++  WbSupervisorPhysicsFrame *f = &physics_frame;
++  f->contact_count = count;
++  memcpy(f->incarnation, request_read_data(r, sizeof(f->incarnation)), sizeof(f->incarnation));
++  memcpy(&f->supervisor_id, request_read_data(r, sizeof(f->supervisor_id)), sizeof(f->supervisor_id));
++  memcpy(&f->solid_id, request_read_data(r, sizeof(f->solid_id)), sizeof(f->solid_id));
++  memcpy(&f->time_ms, request_read_data(r, sizeof(f->time_ms)), sizeof(f->time_ms));
++  memcpy(f->position, request_read_data(r, sizeof(f->position)), sizeof(f->position));
++  memcpy(f->orientation, request_read_data(r, sizeof(f->orientation)), sizeof(f->orientation));
++  memcpy(f->velocity, request_read_data(r, sizeof(f->velocity)), sizeof(f->velocity));
++  for (int i = 0; i < count; ++i) {
++    WbContactPoint *contact = &f->contacts[i];
++    memcpy(contact->point, request_read_data(r, sizeof(contact->point)), sizeof(contact->point));
++    memcpy(&contact->node_id, request_read_data(r, sizeof(contact->node_id)), sizeof(contact->node_id));
++  }
++  physics_frame_ready = !robot_is_immediate_message() && physics_frame_sent_id > 0 &&
++                        f->solid_id == physics_frame_sent_id && self_node_ref && f->supervisor_id == self_node_ref->id;
++  physics_frame_sent_id = 0;
++  return;
++
++malformed:
++  physics_frame_sent_id = 0;
++  request_set_position(r, end);
++}
++
+ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
+   int i;
+
+@@ -1280,6 +1368,9 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
+     case C_SUPERVISOR_NODE_GET_STATIC_BALANCE:
+       static_balance_node_ref->static_balance = request_read_uchar(r) == 1;
+       break;
++    case C_SUPERVISOR_PHYSICS_FRAME:
++      read_physics_frame(r);
++      break;
+     case C_SUPERVISOR_NODE_GET_VELOCITY:
+       free(get_velocity_node_ref->solid_velocity);
+       get_velocity_node_ref->solid_velocity = malloc(6 * sizeof(double));
+diff --git a/src/webots/control/WbController.cpp b/src/webots/control/WbController.cpp
+index 661f5e2e3cd084f1a1caf3179980c59d333ea016..46b708a009db210c3b9b8845d5be43ca0962b960 100644
+--- a/src/webots/control/WbController.cpp
++++ b/src/webots/control/WbController.cpp
+@@ -31,6 +31,7 @@
+ #include "WbRobot.hpp"
+ #include "WbSimulationState.hpp"
+ #include "WbStandardPaths.hpp"
++#include "WbSupervisorUtilities.hpp"
+ #include "WbSysInfo.hpp"
+ #include "WbTemplateManager.hpp"
+ #include "WbVersion.hpp"
+@@ -1053,6 +1054,11 @@ void WbController::writeAnswer(bool immediateAnswer) {
+       delay = 0;
+   }
+   stream << delay;
++  // Sample only ordinary replies after one completed physics step. Immediate
++  // Supervisor RPC replies must never consume or publish a pending observation.
++  if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities())
++    mRobot->supervisorUtilities()->writePhysicsFrame(stream, mDeltaTimeRequested == 8 ? mRequestTime + 8.0 : -1.0);
++
+   // dispatch the stream to the devices
+   mRobot->dispatchAnswer(stream);
+   if (mRobot->hasImmediateAnswer())
+diff --git a/src/webots/nodes/WbRobot.cpp b/src/webots/nodes/WbRobot.cpp
+index dbfb47c643449e4acfbf411514823eb4bee505be..cf6d729a818d58ee17ed7bb4bfaa871201cb98d7 100644
+--- a/src/webots/nodes/WbRobot.cpp
++++ b/src/webots/nodes/WbRobot.cpp
+@@ -258,6 +258,8 @@ void WbRobot::reset(const QString &id) {
+   // restore battery level
+   if (mBatteryInitialValues[id] > 0)
+     mBattery->setItem(CURRENT_ENERGY, mBatteryInitialValues[id]);
++  if (mSupervisorUtilities)
++    mSupervisorUtilities->invalidatePhysicsFrame();
+   emit wasReset();
+ }
+
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+index 852f02a4cfc23d73bdfcfff28a542eda402e7619..56825beb8fd505d5f74bacf99c125dcfbd95fda9 100644
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -14,6 +14,7 @@
+
+ #include "WbSupervisorUtilities.hpp"
+
++
+ #include "WbAbstractCamera.hpp"
+ #include "WbApplication.hpp"
+ #include "WbDataStream.hpp"
+@@ -63,7 +64,10 @@
+ #include <QtCore/QDataStream>
+ #include <QtCore/QDir>
+ #include <QtCore/QFile>
++#include <QtCore/QUuid>
++#include <algorithm>
+ #include <cassert>
++#include <cmath>
+
+ static const int MAX_LABELS = 100;
+
+@@ -408,6 +412,7 @@ void WbSupervisorUtilities::postPhysicsStep() {
+ }
+
+ void WbSupervisorUtilities::reset() {
++  invalidatePhysicsFrame();
+   foreach (int labelId, mLabelIds)
+     WbWrenLabelOverlay::removeLabel(labelId);
+   mLabelIds.clear();
+@@ -872,6 +877,10 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+       }
+       return;
+     }
++    case C_SUPERVISOR_PHYSICS_FRAME: {
++      stream >> mPhysicsFrameTarget;
++      return;
++    }
+     case C_SUPERVISOR_NODE_GET_POSITION: {
+       unsigned int id;
+
+@@ -2007,6 +2016,61 @@ void WbSupervisorUtilities::pushContactPointsToStream(WbDataStream &stream, WbSo
+   }
+ }
+
++void WbSupervisorUtilities::invalidatePhysicsFrame() {
++  mPhysicsFrameTarget = 0;
++  mPhysicsFrameIncarnation.clear();
++  mPhysicsFrameTime = 0.0;
++}
++
++void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expectedTime) {
++  const int id = mPhysicsFrameTarget;
++  mPhysicsFrameTarget = 0;
++  if (id <= 0)
++    return;
++
++  stream << (quint16)0 << (quint8)C_SUPERVISOR_PHYSICS_FRAME << (qint32)WB_SUPERVISOR_PHYSICS_FRAME_VERSION;
++  const double time = WbSimulationState::instance()->time();
++  WbSolid *const solid = dynamic_cast<WbSolid *>(getProtoParameterNodeInstance(id, "wb_supervisor_physics_frame_request()"));
++  if (!solid || !mRobot->synchronization() || WbWorld::instance()->basicTimeStep() != 8.0 ||
++      time != expectedTime || time <= 0.0 || std::fmod(time, 8.0) != 0.0) {
++    stream << (qint32)-1;
++    return;
++  }
++
++  WbMatrix4 matrix(solid->matrix());
++  const WbVector3 position = matrix.translation();
++  const WbVector3 scale = matrix.scale();
++  const auto &points = solid->computedContactPoints(true);
++  const auto &solids = solid->computedSolidPerContactPoints();
++  const int count = points.size();
++  if (!(scale.x() > 0.0 && scale.y() > 0.0 && scale.z() > 0.0) || count != solids.size() ||
++      count > WB_SUPERVISOR_PHYSICS_FRAME_MAX_CONTACTS || std::any_of(solids.cbegin(), solids.cend(),
++        [](const WbSolid *contact) { return !contact; })) {
++    stream << (qint32)-1;
++    return;
++  }
++  matrix.scale(1.0 / scale.x(), 1.0 / scale.y(), 1.0 / scale.z());
++  if (mPhysicsFrameIncarnation.isEmpty() || time <= mPhysicsFrameTime)
++    mPhysicsFrameIncarnation = QUuid::createUuid().toRfc4122();
++  mPhysicsFrameTime = time;
++
++  stream << (qint32)count;
++  stream.writeRawData(mPhysicsFrameIncarnation.constData(), mPhysicsFrameIncarnation.size());
++  stream << (qint32)mRobot->uniqueId() << (qint32)id << time;
++  stream << position.x() << position.y() << position.z();
++  for (int row = 0; row < 3; ++row)
++    for (int column = 0; column < 3; ++column)
++      stream << matrix(row, column);
++
++  const WbVector3 linear = solid->relativeLinearVelocity();
++  const WbVector3 angular = solid->relativeAngularVelocity();
++  stream << linear.x() << linear.y() << linear.z() << angular.x() << angular.y() << angular.z();
++  for (int i = 0; i < count; ++i) {
++    const WbVector3 &point = points.at(i);
++    stream << point.x() << point.y() << point.z() << (qint32)solids.at(i)->uniqueId();
++  }
++}
++
+ void WbSupervisorUtilities::writeAnswer(WbDataStream &stream) {
+   if (!mUpdatedNodeIds.isEmpty()) {
+     foreach (int id, mUpdatedNodeIds) {
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.hpp b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+index 0614c364c2d71b561c0fc84d0ea4d723a237ce70..94f6ea71f7e07327df0851f3d3e2f8e34c0bce67 100644
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.hpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+@@ -17,6 +17,7 @@
+
+ #include "WbSimulationState.hpp"
+
++#include <QtCore/QByteArray>
+ #include <QtCore/QObject>
+ #include <QtCore/QVector>
+
+@@ -48,6 +49,8 @@ public:
+
+   void handleMessage(QDataStream &stream);
+   void writeAnswer(WbDataStream &stream);
++  void writePhysicsFrame(WbDataStream &stream, double expectedTime);
++  void invalidatePhysicsFrame();
+   void writeConfigure(WbDataStream &stream);
+   void processImmediateMessages(bool blockRegeneration = false);
+   void postPhysicsStep();
+@@ -76,6 +79,9 @@ private slots:
+
+ private:
+   WbRobot *mRobot;
++  int mPhysicsFrameTarget = 0;
++  QByteArray mPhysicsFrameIncarnation;
++  double mPhysicsFrameTime = 0.0;
+   int mFoundNodeUniqueId;
+   int mFoundNodeType;
+   int mFoundNodeTag;
