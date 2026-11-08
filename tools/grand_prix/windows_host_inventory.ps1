@@ -30,7 +30,7 @@ if (-not $exe -or -not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
   throw 'Webots executable or resources/version.txt is missing.'
 }
 $webotsVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()
-if ($webotsVersion -ne 'R2025a') { throw "Expected Webots R2025a; found $webotsVersion" }
+if ($webotsVersion -ne 'R2025a') { throw 'Expected Webots R2025a; unsupported version metadata.' }
 
 $target = [IO.Path]::GetFullPath($OutputPath)
 if (Test-Path -LiteralPath $target) { throw 'Refusing to overwrite an existing inventory.' }

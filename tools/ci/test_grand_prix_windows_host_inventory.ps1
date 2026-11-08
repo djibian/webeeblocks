@@ -93,6 +93,14 @@ try {
   try { & $script -WebotsHome $webots -OutputPath $invalid } catch { $wasRejected = $true }
   Require ($wasRejected -and -not (Test-Path -LiteralPath $invalid)) 'Wrong Webots release was accepted.'
 
+  # An untrusted version file must never leak its raw contents through an error.
+  [IO.File]::WriteAllText($versionPath, 'C:\Users\PrivateProfile\confidential\tokens.txt')
+  $versionError = $null
+  try { & $script -WebotsHome $webots -OutputPath $invalid } catch { $versionError = $_.Exception.Message }
+  Require ($versionError -ceq 'Expected Webots R2025a; unsupported version metadata.' -and
+           -not (Test-Path -LiteralPath $invalid)) 'Invalid version metadata was disclosed or accepted.'
+
+
   # Exercise the supported fallback from webotsw.exe to webots.exe.
   [IO.File]::WriteAllText($versionPath, 'R2025a')
   Remove-Item -LiteralPath $webotsExe

@@ -32,6 +32,19 @@ try {
   $processes.Add($p)
   Start-Sleep -Milliseconds 300
   Require (-not $p.HasExited) 'Windows fixture process ended prematurely.'
+
+  # Falsify privacy on an existing-but-invalid version.txt before any capture.
+  [IO.File]::WriteAllText((Join-Path $versionDir 'version.txt'), 'C:\Users\PrivateProfile\confidential\tokens.txt')
+  $versionError = $null
+  try {
+    & $source -SourceSha ('a' * 40) -CourseId 'test' -Variant candidate `
+      -WebotsProcessId $p.Id -WebotsHome $webotsHome -OutputDirectory $bad `
+      -DurationSeconds 5 -SamplePeriodMs 200
+  } catch { $versionError = $_.Exception.Message }
+  Require ($versionError -ceq 'Webots R2025a required; unsupported version metadata.' -and
+           -not (Test-Path -LiteralPath $bad)) 'Invalid version metadata was disclosed or accepted.'
+  [IO.File]::WriteAllText((Join-Path $versionDir 'version.txt'), 'R2025a')
+
   & $source -SourceSha ('a' * 40) -CourseId 'gp-route-v2-L2000-2500-3000-TGD-s105-H2' `
     -Variant reference -WebotsProcessId $p.Id -WebotsHome $webotsHome `
     -BrowserExe $browserExe -OutputDirectory $good -DurationSeconds 5 -SamplePeriodMs 200
