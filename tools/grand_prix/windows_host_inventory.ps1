@@ -19,15 +19,14 @@ try {
 } catch {
   throw 'Webots installation path is missing or inaccessible.'
 }
-# Match the supported Windows R2025a layout used by the classroom launcher.
-$bin = Join-Path $webots 'msys64\mingw64\bin'
-$exe = @('webotsw.exe', 'webots.exe') |
-  ForEach-Object { Join-Path $bin $_ } |
-  Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-  Select-Object -First 1
+# webots.exe/webotsw.exe only launch webots-bin.exe; the native engine
+# changes across reference/candidate builds even when those wrappers do not.
+# Bind the inventory to the binary whose code actually runs the simulation.
+$exe = Join-Path $webots 'msys64\mingw64\bin\webots-bin.exe'
 $versionFile = Join-Path $webots 'resources\version.txt'
-if (-not $exe -or -not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
-  throw 'Webots executable or resources/version.txt is missing.'
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
+  throw 'Webots simulation engine or resources/version.txt is missing.'
 }
 $webotsVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()
 if ($webotsVersion -ne 'R2025a') { throw 'Expected Webots R2025a; unsupported version metadata.' }
@@ -91,7 +90,7 @@ $inventory = [ordered]@{
   webots = [ordered]@{
     release = $webotsVersion
     # Selected executable path relative to the installation; no private absolute directory.
-    exe_relative_path = 'msys64/mingw64/bin/' + $webotsExe.Name
+    exe_relative_path = 'msys64/mingw64/bin/webots-bin.exe'
     product_version = [string]$webotsExe.VersionInfo.ProductVersion
     exe_sha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
   }

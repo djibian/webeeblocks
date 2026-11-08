@@ -13,7 +13,7 @@ $versionDir = Join-Path $webots 'resources'
 New-Item -ItemType Directory -Path $versionDir -Force | Out-Null
 $webotsBin = Join-Path $webots 'msys64\mingw64\bin'
 New-Item -ItemType Directory -Path $webotsBin -Force | Out-Null
-$webotsExe = Join-Path $webotsBin 'webotsw.exe'
+$webotsExe = Join-Path $webotsBin 'webots-bin.exe'
 $versionPath = Join-Path $versionDir 'version.txt'
 $browser = Join-Path $root 'browser.exe'
 $target = Join-Path $root 'inventory.json'
@@ -54,7 +54,7 @@ try {
   Require ($json.source_sha -ceq ('a' * 40)) 'Wrong exact source SHA.'
   Require ($json.webots.release -eq 'R2025a') 'Wrong Webots release.'
   Require ($json.webots.exe_sha256 -eq (Get-FileHash -LiteralPath $webotsExe -Algorithm SHA256).Hash.ToLowerInvariant()) 'Wrong Webots executable digest.'
-  Require ($json.webots.exe_relative_path -ceq 'msys64/mingw64/bin/webotsw.exe') 'Wrong selected Webots executable path.'
+  Require ($json.webots.exe_relative_path -ceq 'msys64/mingw64/bin/webots-bin.exe') 'Wrong selected Webots engine path.'
   Require ($json.browser.exe_sha256 -eq (Get-FileHash -LiteralPath $browser -Algorithm SHA256).Hash.ToLowerInvariant()) 'Wrong browser executable digest.'
   Require ($json.actual_opengl_renderer -eq $null) 'Invented OpenGL renderer.'
   Require ($json.measurement_state -eq 'INVENTORY_ONLY_NOT_A_PERFORMANCE_OR_ACCEPTANCE_RESULT') 'Invented performance result.'
@@ -101,16 +101,24 @@ try {
            -not (Test-Path -LiteralPath $invalid)) 'Invalid version metadata was disclosed or accepted.'
 
 
-  # Exercise the supported fallback from webotsw.exe to webots.exe.
+  # The native executable hash must change when only the engine changes.
   [IO.File]::WriteAllText($versionPath, 'R2025a')
+  [IO.File]::WriteAllText($webotsExe, 'patched-engine-only')
+  $engineTarget = Join-Path $root 'inventory-patched.json'
+  & $script -WebotsHome $webots -OutputPath $engineTarget
+  $patched = Get-Content -LiteralPath $engineTarget -Raw | ConvertFrom-Json
+  Require ($patched.webots.exe_sha256 -eq (Get-FileHash -LiteralPath $webotsExe -Algorithm SHA256).Hash.ToLowerInvariant() -and
+           $patched.webots.exe_sha256 -ne $json.webots.exe_sha256) 'Native engine change was invisible to provenance.'
+
+  # The launcher may exist while the actual simulation engine is missing.
   Remove-Item -LiteralPath $webotsExe
   $fallbackExe = Join-Path $webotsBin 'webots.exe'
   [IO.File]::WriteAllText($fallbackExe, 'dummy-Webots-console-R2025a')
-  $fallbackTarget = Join-Path $root 'inventory-fallback.json'
-  & $script -WebotsHome $webots -OutputPath $fallbackTarget
-  $fallback = Get-Content -LiteralPath $fallbackTarget -Raw | ConvertFrom-Json
-  Require ($fallback.webots.exe_relative_path -ceq 'msys64/mingw64/bin/webots.exe') 'Incorrect fallback executable path.'
-  Require ($fallback.webots.exe_sha256 -eq (Get-FileHash -LiteralPath $fallbackExe -Algorithm SHA256).Hash.ToLowerInvariant()) 'Incorrect fallback executable digest.'
+  $fallbackTarget = Join-Path $root 'inventory-launcher-only.json'
+  $launcherError = $null
+  try { & $script -WebotsHome $webots -OutputPath $fallbackTarget } catch { $launcherError = $_.Exception.Message }
+  Require ($launcherError -ceq 'Webots simulation engine or resources/version.txt is missing.' -and
+           -not (Test-Path -LiteralPath $fallbackTarget)) 'Launcher-only inventory was accepted.'
 
   Remove-Item -LiteralPath $fallbackExe
   $missingTarget = Join-Path $root 'inventory-missing.json'

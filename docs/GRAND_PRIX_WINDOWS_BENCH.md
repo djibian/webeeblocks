@@ -27,6 +27,11 @@ de sortie doit exister ; un fichier déjà présent n'est jamais écrasé.
 Pour comparer deux Webots, refaire l'inventaire avec des fichiers distincts
 (`host-reference.json`, `host-native.json`) sur **la même machine**.
 
+Sur Windows R2025a, `webots.exe` et `webotsw.exe` sont des **lanceurs** : ils
+attendent `webots-bin.exe`, le vrai moteur. L'inventaire exige et empreinte ce
+**moteur**, pas le lanceur : sinon deux versions patchées pourraient avoir le
+même SHA de lanceur. Un dossier ne contenant que le lanceur est refusé.
+
 Le test d'inventaire exécutable localement sur Windows, sans Webots installé et sans réseau, est :
 
 ```powershell
@@ -59,16 +64,16 @@ Webots R2025a réellement utilisé. Ne pas choisir arbitrairement le premier
 processus d'une liste :
 
 ```powershell
-Get-Process -Name webotsw,webots -ErrorAction SilentlyContinue |
+Get-Process -Name webots-bin -ErrorAction SilentlyContinue |
   Select-Object Id, ProcessName, Path, StartTime
 ```
 
 Dans le répertoire source exact de l'artefact, remplacer les chemins, le
-PID et l'identifiant du parcours par les valeurs de l'essai. Dans un ZIP
+PID **du moteur `webots-bin.exe` (jamais du lanceur)** et l'identifiant du parcours par les valeurs de l'essai. Dans un ZIP
 sans `.git`, `TARGET_SHA.txt` fournit le SHA contractuel ; dans un checkout
-Git, utiliser `git rev-parse HEAD`. Le collecteur vérifie que le PID
-correspond à **l'exécutable exact de l'installation** choisie et refuse
-un processus homonyme provenant d'ailleurs.
+Git, utiliser `git rev-parse HEAD`. Le collecteur vérifie que le PID est **celui de `webots-bin.exe` dans
+l'installation exacte** choisie : il refuse les lanceurs et un moteur
+homonyme provenant d'ailleurs.
 
 ```powershell
 $sha = if (Test-Path -LiteralPath '.\TARGET_SHA.txt') {

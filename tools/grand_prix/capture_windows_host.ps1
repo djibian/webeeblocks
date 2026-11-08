@@ -25,23 +25,23 @@ if (-not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
 }
 $version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
 if ($version -ne 'R2025a') { throw 'Webots R2025a required; unsupported version metadata.' }
-# A filename containing "webots" is insufficient: bind the PID to the
-# executable in the exact installation selected for this A/B capture.
-$knownExecutables = @(
-  (Join-Path $WebotsHome 'msys64\mingw64\bin\webotsw.exe'),
-  (Join-Path $WebotsHome 'msys64\mingw64\bin\webots.exe'),
-  (Join-Path $WebotsHome 'webotsw.exe'),
-  (Join-Path $WebotsHome 'webots.exe')
-)
-# Preserve an array even when only one installed executable is found.
-$knownExecutables = @($knownExecutables | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-    ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
-if ($knownExecutables.Count -lt 1) {
-  throw 'No Webots executable found in the selected R2025a installation.'
+# In upstream Windows R2025a, webots.exe/webotsw.exe are *launchers*:
+# they wait for a child webots-bin.exe. Measuring a launcher records the wrong
+# CPU/RAM process and hashing it cannot distinguish patched native engines.
+# Require the actual simulator binary at the exact selected installation.
+$enginePath = Join-Path $WebotsHome 'msys64\mingw64\bin\webots-bin.exe'
+if (-not (Test-Path -LiteralPath $enginePath -PathType Leaf)) {
+  throw 'No Webots simulation engine found in the selected R2025a installation.'
 }
+try {
+  $resolvedEngine = (Resolve-Path -LiteralPath $enginePath -ErrorAction Stop).Path
+} catch {
+  throw 'Webots simulation engine is inaccessible.'
+}
+$knownExecutables = @($resolvedEngine)
 $initial = Get-Process -Id $WebotsProcessId -ErrorAction Stop
-if ($initial.ProcessName -notmatch '(?i)^webotsw?$' -or -not $initial.Path) {
-  throw "PID $WebotsProcessId is not an inspectable Webots executable."
+if ($initial.ProcessName -ine 'webots-bin' -or -not $initial.Path) {
+  throw "PID $WebotsProcessId is not an inspectable Webots simulation engine."
 }
 $actualProcessPath = [IO.Path]::GetFullPath($initial.Path)
 $matchedExecutable = @($knownExecutables | Where-Object {
@@ -110,7 +110,7 @@ $metadata = [ordered]@{
   video_devices = @($video | Where-Object { $null -ne $_ } | ForEach-Object {
     [ordered]@{ model = $_.Name; driver_version = $_.DriverVersion }
   })
-  sampling_scope = 'single Webots PID; no children, GPU utilization or simulation clock'
+  sampling_scope = 'single Webots engine PID; no children, GPU utilization or simulation clock'
   performance_acceptance = 'NOT_MEASURED'
 }
 $clock = [Diagnostics.Stopwatch]::StartNew()
