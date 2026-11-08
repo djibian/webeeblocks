@@ -594,7 +594,10 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                     def gui(home, world, env):
                         self.assertIn('controller "grand_prix_route_evaluator"', world.read_text())
                         self.assertIn('window "grand_prix_route_v2"', world.read_text())
-                        world.with_name('.' + world.stem + '.wbproj').write_text('owned')
+                        perspective = world.with_name('.' + world.stem + '.wbproj')
+                        self.assertEqual(perspective.read_text(encoding='utf-8'),
+                                         'Webots Project File version R2025a\n'
+                                         'robotWindow: Crazyflie WebeeBlocks\n')
                         observed.append(world)
                         if failure:
                             raise OSError('native launch failed')
@@ -611,6 +614,27 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                     self.assertEqual(len(observed), 1)
                     self.assertFalse(observed[0].exists())
                     self.assertEqual(list((root / 'worlds').iterdir()), [unrelated])
+
+    def test_route_preserves_a_preexisting_perspective(self):
+        from tools.grand_prix import launch_linux as launcher
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            worlds = root / 'worlds'
+            worlds.mkdir()
+            world = worlds / 'route.wbt'
+            project = worlds / '.route.wbproj'
+            project.write_text('existing', encoding='utf-8')
+            with mock.patch.dict(os.environ, {'DISPLAY': ':99'}), \
+                 mock.patch.object(launcher, 'ROOT', root), \
+                 mock.patch.object(launcher, 'webots_home', return_value=Path('/mock/webots')), \
+                 mock.patch.object(launcher, 'prepare_route_native', return_value={}), \
+                 mock.patch.object(launcher.tempfile, 'mkstemp', side_effect=lambda **_: (
+                     os.open(world, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600), str(world))), \
+                 mock.patch.object(launcher, 'launch_graphical') as launch:
+                self.assertEqual(launcher.main(['--index', '5']), 1)
+            launch.assert_not_called()
+            self.assertFalse(world.exists())
+            self.assertEqual(project.read_text(encoding='utf-8'), 'existing')
 
     def test_route_preflight_can_run_headless_without_claiming_gui(self):
         from tools.grand_prix import launch_linux as launcher
