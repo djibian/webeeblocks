@@ -16,7 +16,7 @@ const classroomFixesSource = fs.readFileSync(path.resolve(__dirname, '../../plug
 assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/);
 assert.doesNotMatch(mainSource, /getElementById\('stepContinue'\)\.disabled = !runtimeRunning;/);
 assert.match(classroomFixesSource, /body\[data-runtime-state="À CORRIGER"\] #runtimeState/);
-assert.match(projectUiSource, /setRuntimeLocked\(state === 'EN VOL' \|\| state === 'RÉINITIALISATION'\);/);
+assert.match(projectUiSource, /setRuntimeLocked\(state === 'EXÉCUTION' \|\| state === 'RÉINITIALISATION'\);/);
 assert.match(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
 assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked\) return null;/);
@@ -199,7 +199,7 @@ async function proveOutcomePendingBlocksResetAndLateVerdicts() {
   await until(() => context.runtimeOutcomePending, 'mission completion wait');
   assert.strictEqual(context.runtimeRunning,false,'interpreter must have finished before mission outcome');
   assert.strictEqual(context.runtimeTerminal,true,'outcome wait must retain reset-required terminal state');
-  assert.strictEqual(element('runtimeState').textContent,'EN VOL',
+  assert.strictEqual(element('runtimeState').textContent,'EXÉCUTION',
     'late mission result must not be presented as completed');
   context.updateRuntimeActions(); // Adversarial delayed UI update.
   assert.strictEqual(element('resetSimulation').disabled,true,'reset exposed before mission outcome settled');

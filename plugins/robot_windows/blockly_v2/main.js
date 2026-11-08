@@ -345,7 +345,7 @@ async function runProgram() {
       hooks: hooks,
       onAst: function(ast) {
         window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
-        runtimeRunning = true; setDebugControls(false); setRuntimeStatus('EN VOL', 'Programme réactif en cours');
+        runtimeRunning = true; setDebugControls(false); setRuntimeStatus('EXÉCUTION', 'Programme en cours — vol non confirmé');
       }
     });
     if (runtimeStopRequested) throw userStoppedError();

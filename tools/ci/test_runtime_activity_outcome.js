@@ -253,7 +253,8 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
 
   assert.strictEqual(context.runtimeRunning, false, 'program execution must be finished while the mission result is pending');
   assert.strictEqual(context.runtimeTerminal, true, 'pending mission evaluation must remain terminal to block a second run');
-  assert.strictEqual(element('runtimeState').textContent, 'EN VOL', 'public runtime state must stay in the locked execution state until mission outcome settles');
+  assert.strictEqual(element('runtimeState').textContent, 'EXÉCUTION', 'public runtime state must stay in the locked execution state until mission outcome settles');
+  assert.strictEqual(element('runtimeDetail').textContent, 'Programme en cours — vol non confirmé', 'starting the interpreter must not claim flight');
   assert.strictEqual(element('resetSimulation').disabled, true, 'Reset must stay disabled while the mission outcome provider is pending');
   assert.strictEqual(element('submit').textContent, 'Arrêter le vol', 'primary action must not reopen as Lancer while mission outcome is pending');
   assert.strictEqual(element('submit').disabled, true,

@@ -88,7 +88,7 @@ button:disabled { cursor: default; opacity: .46; }
   letter-spacing: .025em;
 }
 body[data-runtime-state="PRÊT"] #runtimeState { background: #dff3e8; color: #17623a; }
-body[data-runtime-state="EN VOL"] #runtimeState { background: #dcecff; color: #174f8e; }
+body[data-runtime-state="EXÉCUTION"] #runtimeState { background: #dcecff; color: #174f8e; }
 body[data-runtime-state="TERMINÉ"] #runtimeState { background: #e8e3f7; color: #58449a; }
 body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a1362c; }
 
