@@ -23,6 +23,8 @@ class StepWallProbeTests(unittest.TestCase):
         self.assertEqual(result['step_p50_ns'], 2000000)
         self.assertEqual(result['simulated_ms'], 32)
         self.assertEqual(result['wall_ns'], 65000000)
+        self.assertEqual(result['first_start_wall_ns'], 0)
+        self.assertEqual(result['last_end_wall_ns'], 65000000)
         self.assertEqual(result['speed_x'], round(32 / 65, 6))
         self.assertEqual(result['reason'], 'complete')
         self.assertEqual(probe.records, [])
