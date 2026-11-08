@@ -17,6 +17,7 @@ from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, verify_native_boxes,
 )
+from tools.grand_prix.native_sfbbool_v2 import enabled
 from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT
 
 
@@ -85,7 +86,7 @@ def witness():
             locked = node.getField('locked')
             physical = node.getField('boundingObject')
             physical = physical.getSFNode() if physical is not None else None
-            if (locked is None or locked.getSFBool() is not True or
+            if (locked is None or not enabled(locked.getSFBool()) or
                     physical is None or physical.getTypeName() != 'Box' or
                     not close(node.getPosition(), (box.x, box.y, HEIGHT / 2)) or
                     not close(physical.getField('size').getSFVec3f(),

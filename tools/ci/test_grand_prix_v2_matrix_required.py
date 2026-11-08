@@ -1,4 +1,4 @@
-"""Host-only routing checks for mandatory all-12 native L/H matrix.
+"""Host-only routing checks for mandatory all-12 native route matrix.
 
 These tests never claim any real Webots result: missing native raw files fail.
 """
@@ -12,11 +12,12 @@ from unittest.mock import patch
 from tools.ci import run_grand_prix_u_geometry as geometry
 from tools.ci import run_grand_prix_v2_contact_native as contact
 from tools.ci import run_grand_prix_v2_h_native as h_probe
+from tools.ci import run_grand_prix_v2_l_native as l_range
 from tools.grand_prix.route_courses_v2 import reference_course
 
 
 class FullNativeMatrixRequiredTests(unittest.TestCase):
-    def _fake_producer(self, root, indices, *, omit_last=False):
+    def _fake_producer(self, root, indices, *, omit_last=False, version_key='webots'):
         directory = root / 'invocation-host-mock'
         directory.mkdir(parents=True)
         records = []
@@ -29,10 +30,10 @@ class FullNativeMatrixRequiredTests(unittest.TestCase):
             records.append(dict(configuration=identifier,
                                 evidence_file=relative,
                                 evidence_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-        (directory / 'summary.json').write_text(json.dumps(dict(
-            webots='R2025a', results=records)) + '\n')
+        (directory / 'summary.json').write_text(json.dumps({
+            version_key: 'R2025a', 'results': records}) + '\n')
 
-    def _run(self, *, incomplete_h=False, fail_l=False):
+    def _run(self, *, incomplete_h=False, incomplete_range=False, fail_l=False):
         with TemporaryDirectory() as temporary:
             base = Path(temporary)
             home = base / 'webots'
@@ -41,6 +42,7 @@ class FullNativeMatrixRequiredTests(unittest.TestCase):
             out = base / 'geometry'
             lroot = out / 'route-contact-native'
             hroot = out / 'route-h-native'
+            range_root = out / 'route-l-range-native'
             def fake_l(home_arg, indices):
                 if fail_l:
                     raise RuntimeError('native L refusal')
@@ -50,11 +52,17 @@ class FullNativeMatrixRequiredTests(unittest.TestCase):
                 self.assertEqual(indices, tuple(range(12)))
                 self.assertEqual(output_root, hroot)
                 self._fake_producer(hroot, indices, omit_last=incomplete_h)
+            def fake_range(home_arg, indices, *, output_root):
+                self.assertEqual(indices, tuple(range(12)))
+                self.assertEqual(output_root, range_root)
+                self._fake_producer(range_root, indices, omit_last=incomplete_range,
+                                    version_key='webots_version')
             with patch.object(geometry, 'OUT', out), \
                  patch.object(contact, 'OUT', lroot), \
                  patch.object(contact, 'native_run', side_effect=fake_l) as lcall, \
-                 patch.object(h_probe, 'native_run', side_effect=fake_h) as hcall:
-                if incomplete_h:
+                 patch.object(h_probe, 'native_run', side_effect=fake_h) as hcall, \
+                 patch.object(l_range, 'native_run', side_effect=fake_range) as range_call:
+                if incomplete_h or incomplete_range:
                     with self.assertRaisesRegex(RuntimeError, 'incomplete full native matrix'):
                         geometry.run_full_route_matrix_native(home)
                     self.assertFalse((out / 'sha256.json').exists())
@@ -62,19 +70,24 @@ class FullNativeMatrixRequiredTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, 'native L refusal'):
                         geometry.run_full_route_matrix_native(home)
                     hcall.assert_not_called()
+                    range_call.assert_not_called()
                     self.assertFalse((out / 'sha256.json').exists())
                 else:
                     geometry.run_full_route_matrix_native(home)
-                    self.assertEqual(len(json.loads((out / 'sha256.json').read_text())), 26)
+                    self.assertEqual(len(json.loads((out / 'sha256.json').read_text())), 39)
                 lcall.assert_called_once()
                 if not fail_l:
                     hcall.assert_called_once()
+                    range_call.assert_called_once()
 
     def test_exact_all_twelve_and_digest_manifest(self):
         self._run()
 
     def test_partial_h_evidence_refutes_whole_job(self):
         self._run(incomplete_h=True)
+
+    def test_partial_l_range_evidence_refutes_whole_job(self):
+        self._run(incomplete_range=True)
 
     def test_l_refutation_prevents_h_or_positive_digest(self):
         self._run(fail_l=True)
