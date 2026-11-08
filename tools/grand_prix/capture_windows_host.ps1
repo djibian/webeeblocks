@@ -21,7 +21,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 }
 $versionFile = Join-Path $WebotsHome 'resources\version.txt'
 if (-not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
-  throw "Missing Webots version file: $versionFile"
+  throw 'Missing Webots version file.'
 }
 $version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
 if ($version -ne 'R2025a') { throw 'Webots R2025a required; unsupported version metadata.' }
@@ -57,7 +57,12 @@ if ($null -eq $initial.CPU) { throw 'Webots CPU time unavailable.' }
 # proof of which browser Webots actually opened in a GUI run.
 $browserEvidence = $null
 if ($BrowserExe) {
-  $browserPath = (Resolve-Path -LiteralPath $BrowserExe -ErrorAction Stop).Path
+  # Invalid user-local input must fail without exposing a private profile path.
+  try {
+    $browserPath = (Resolve-Path -LiteralPath $BrowserExe -ErrorAction Stop).Path
+  } catch {
+    throw 'Selected browser executable is missing or inaccessible.'
+  }
   if (-not (Test-Path -LiteralPath $browserPath -PathType Leaf)) {
     throw 'Selected browser executable is missing.'
   }
@@ -71,7 +76,7 @@ if ($BrowserExe) {
 }
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $destination) {
-  throw "Use a fresh folder for each trial: $destination"
+  throw 'Output directory already exists; use a fresh folder for each trial.'
 }
 New-Item -ItemType Directory -Path $destination -ErrorAction Stop | Out-Null
 

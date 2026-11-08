@@ -63,13 +63,37 @@ $captureOutput = (& $source -SourceSha ('a' * 40) -CourseId 'gp-route-v2-L2000-2
   Require ([double]$samples[-1].elapsed_ms -gt [double]$samples[0].elapsed_ms) 'Non-monotonic sample times.'
   Require ($metadata.PSObject.Properties.Name -notcontains 'hostname') 'Host identity should not be exported.'
 
-  $rejected = $false
+  $rejectionMessage = $null
   try {
     & $source -SourceSha ('a' * 40) -CourseId 'test' -Variant candidate `
       -WebotsProcessId $p.Id -WebotsHome $webotsHome -OutputDirectory $good `
       -DurationSeconds 5 -SamplePeriodMs 200
-  } catch { $rejected = $true }
-  Require $rejected 'Second trial overwrote the already captured output.'
+  } catch { $rejectionMessage = $_.Exception.Message }
+  Require ($rejectionMessage -eq 'Output directory already exists; use a fresh folder for each trial.') `
+    'Existing destination refusal failed or disclosed the private path.'
+
+  # Reject user-profile input paths without echoing their absolute values.
+  $missingWebots = Join-Path $root 'profile-private-missing-webots'
+  $rejectionMessage = $null
+  try {
+    & $source -SourceSha ('a' * 40) -CourseId 'test' -Variant candidate `
+      -WebotsProcessId $p.Id -WebotsHome $missingWebots -OutputDirectory $bad `
+      -DurationSeconds 5 -SamplePeriodMs 200
+  } catch { $rejectionMessage = $_.Exception.Message }
+  Require ($rejectionMessage -eq 'Missing Webots version file.' -and `
+           -not (Test-Path -LiteralPath $bad)) `
+    'Missing Webots path refusal failed or disclosed the private path.'
+
+  $missingBrowser = Join-Path $root 'profile-private-missing-browser.exe'
+  $rejectionMessage = $null
+  try {
+    & $source -SourceSha ('a' * 40) -CourseId 'test' -Variant candidate `
+      -WebotsProcessId $p.Id -WebotsHome $webotsHome -BrowserExe $missingBrowser `
+      -OutputDirectory $bad -DurationSeconds 5 -SamplePeriodMs 200
+  } catch { $rejectionMessage = $_.Exception.Message }
+  Require ($rejectionMessage -eq 'Selected browser executable is missing or inaccessible.' -and `
+           -not (Test-Path -LiteralPath $bad)) `
+    'Missing browser path refusal failed or disclosed the private path.'
 
   $other = Start-Process -FilePath $foreignExe -ArgumentList '/C ping -n 20 127.0.0.1 >NUL' -PassThru -WindowStyle Hidden
   $processes.Add($other)
