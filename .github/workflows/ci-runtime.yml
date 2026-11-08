@@ -194,6 +194,10 @@ jobs:
         shell: pwsh
         run: node tools/ci/test_runtime_v2_preflight.js
 
+      - name: Verify portable Windows Grand Prix inventory and refusals (#914)
+        shell: pwsh
+        run: ./tools/ci/test_grand_prix_windows_host_inventory.ps1
+
       - name: Validate project-file core and AST round-trip on Windows
         shell: pwsh
         run: |
