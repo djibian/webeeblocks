@@ -353,6 +353,24 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
          solidNode->resetPhysics(false);
          solidNode->pausePhysics(true);
        }
+@@ -1086,4 +1086,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           const WbVector3 position =
+             solid->computedGlobalCenterOfMass() - solid->solidMerger()->solid()->computedGlobalCenterOfMass();
++          WbWorld::instance()->noteSceneEffect();
+           dBodyAddForceAtRelPos(body, force.x(), force.y(), force.z(), position.x(), position.y(), position.z());
+           dBodyEnable(body);
+@@ -1119,4 +1119,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+           if (relative == 1)
+             force = solidMatrix.extracted3x3Matrix() * force;
+           dBodyEnable(body);
++          WbWorld::instance()->noteSceneEffect();
+           dBodyAddForceAtPos(body, force.x(), force.y(), force.z(), offset.x(), offset.y(), offset.z());
+@@ -1145,4 +1145,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+         const dBodyID body = solid->bodyMerger();
+         if (body) {
+           dBodyEnable(body);
++          WbWorld::instance()->noteSceneEffect();
+           dBodyAddTorque(body, torque.x(), torque.y(), torque.z());
 @@ -1674,25 +1705,32 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
        const WbNode *const node = WbNode::findNode(nodeId);
        const WbField *field = node->field(fieldId);

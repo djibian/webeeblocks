@@ -178,6 +178,41 @@ def observe():
             list(target.getVelocity()) == velocity_before_restart_refusal,
             'stale controller-session token applied native velocity')
 
+    # Probe each genuine ODE mutator without relying on the upstream Python
+    # addForceWithOffset/addTorque wrappers (they route to add_force in R2025a).
+    cforce = (c.c_double * 3)(0.12, 0., 0.)
+    coffset = (c.c_double * 3)(0., 0., 0.)
+    ctorque = (c.c_double * 3)(0., 0., 0.02)
+    add_force = wb.wb_supervisor_node_add_force
+    add_force.argtypes = [c.c_void_p, c.POINTER(c.c_double), c.c_bool]
+    add_force.restype = None
+    add_offset = wb.wb_supervisor_node_add_force_with_offset
+    add_offset.argtypes = [c.c_void_p, c.POINTER(c.c_double), c.POINTER(c.c_double), c.c_bool]
+    add_offset.restype = None
+    add_torque = wb.wb_supervisor_node_add_torque
+    add_torque.argtypes = [c.c_void_p, c.POINTER(c.c_double), c.c_bool]
+    add_torque.restype = None
+    force_reports = []
+    for label, apply_force in (
+        ('add_force', lambda: add_force(target._ref, cforce, False)),
+        ('add_force_with_offset', lambda: add_offset(target._ref, cforce, coffset, False)),
+        ('add_torque', lambda: add_torque(target._ref, ctorque, False)),
+    ):
+        fresh = token_now()
+        old_velocity = list(target.getVelocity())
+        effect_time = robot.getTime()
+        apply_force()
+        after_force = token_now()
+        require(robot.getTime() == effect_time and
+                bytes(fresh.incarnation) == bytes(after_force.incarnation) and
+                after_force.revision == fresh.revision + 1,
+                f'{label}: native ODE effect did not invalidate the revision once')
+        require(not effect(target_id, c.byref(fresh), velocity) and
+                list(target.getVelocity()) == old_velocity,
+                f'{label}: stale token applied a native velocity effect')
+        force_reports.append({'effect': label, 'before_revision': fresh.revision,
+                              'after_revision': after_force.revision, 'stale_effect_refused': True})
+
     Path(os.environ['WEEBEE_FRAME_RESULT']).write_text(json.dumps({
         'time_ms': round(1000 * instant), 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
         'captured_revision': captured.revision, 'moved_revision': moved.revision,
@@ -186,6 +221,7 @@ def observe():
         'before_and_after_child_count': count, 'stale_effect_refused': True, 'fresh_effect_applied_once': True,
         'controller_restart': {'before_revision': restart_before.revision,
                                'after_revision': restart_after.revision, 'stale_effect_refused': True},
+        'supervisor_ode_effects': force_reports,
         'mf_collision_triangle': {
             'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
             'restored_points': original_points, 'inserted_point': inserted_point, 'stale_effect_refused': True,
