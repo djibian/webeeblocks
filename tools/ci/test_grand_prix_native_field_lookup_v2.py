@@ -38,39 +38,6 @@ class Node:
 
 
 class NativeFieldLookupTests(unittest.TestCase):
-    def test_streams_single_fields_and_pose_but_resolves_current_edges(self):
-        from unittest.mock import Mock
-
-        pose = [1, 0, 0, 2, 0, 1, 0, 3, 0, 0, 1, 4, 0, 0, 0, 1]
-        node = Node('Solid', ['boundingObject', 'children'])
-        node.getPosition = Mock(return_value=[2, 3, 4])
-        node.getPose = Mock(side_effect=lambda: pose)
-        node.enablePoseTracking = Mock()
-        collider = Mock(SF_NODE=9)
-        collider.getType.return_value = 9
-        children = Mock(SF_NODE=9)
-        children.getType.return_value = 24
-        node.getField = Mock(side_effect=lambda name: dict(
-            boundingObject=collider, children=children)[name])
-
-        lookup = NativeFieldLookup(prepare_tracking=True)
-        self.assertEqual(lookup.position(node), [2, 3, 4])
-        self.assertIs(lookup.get(node, 'boundingObject'), collider)
-        self.assertIs(lookup.get(node, 'children'), children)
-        lookup.start_tracking()
-        node.enablePoseTracking.assert_called_once_with(8)
-        collider.enableSFTracking.assert_called_once_with(8)
-        children.enableSFTracking.assert_not_called()
-
-        pose[3] = 9
-        node.getField.side_effect = None
-        replacement = Mock()
-        node.getField.return_value = replacement
-        self.assertEqual(lookup.position(node), (9, 3, 4))
-        self.assertIs(lookup.get(node, 'boundingObject'), replacement)
-        replacement.enableSFTracking.assert_not_called()
-        self.assertEqual(node.enumerations, 1)
-
     def test_full_collider_checks_still_refute_live_geometry_and_new_physics(self):
         from unittest.mock import patch
         from tools.ci.test_grand_prix_native_collider_contract_v2 import (
@@ -115,9 +82,8 @@ class NativeFieldLookupTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 verify_native_boxes(scene, plan, boxes)
             scene = _Supervisor(boxes)
-            lookup = NativeFieldLookup(prepare_tracking=True)
+            lookup = NativeFieldLookup()
             _verify_scene_boxes(plan, boxes, _read_native_root_nodes(scene), lookup)
-            lookup.start_tracking()
             # Keep the MFNode count unchanged while replacing its only child.
             scene.nodes[0].fields['children'][0] = _Supervisor.solid(boxes[1])
             with self.assertRaisesRegex(RuntimeError, 'unlisted native physical body'):

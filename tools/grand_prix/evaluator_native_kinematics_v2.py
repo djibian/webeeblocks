@@ -62,15 +62,10 @@ def _one_field(node, key):
     return field
 
 
-def read_kinematics(node, ms, *, tracked_pose=False):
-    """Read a verified vehicle's pose and velocity in world coordinates."""
-    if tracked_pose:
-        pose = _vector(node.getPose(), 16, 'world pose')
-        position = (pose[3], pose[7], pose[11])
-        orientation = _orientation(pose[:3] + pose[4:7] + pose[8:11])
-    else:
-        position = _vector(node.getPosition(), 3, 'position')
-        orientation = _orientation(node.getOrientation())
+def read_kinematics(node, ms):
+    """Read a verified vehicle's current pose and velocity."""
+    position = _vector(node.getPosition(), 3, 'position')
+    orientation = _orientation(node.getOrientation())
     velocity = _vector(node.getVelocity(), 6, 'linear/angular velocity')
     return NativeKinematics(ms, position, orientation, velocity)
 

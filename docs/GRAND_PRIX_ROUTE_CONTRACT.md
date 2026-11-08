@@ -313,12 +313,13 @@ Floor/Crazyflie expose their inspected node parameters in the VRML export.
 The evaluator checks the protocol and flight observations separately on every
 step. A snapshot cannot grant READY or preserve a closed attempt.
 
-Each publisher tick reuses the verified Crazyflie node for its pose, velocity
-and contacts. The pose and descendant contacts are subscribed at 8 ms. The
-publisher still reads velocity from the Supervisor and reads the pilot's
-request, sensor packet and attempt marker through their existing channels.
-The scene traversal supplies the same tick's collider and display child
-references to the geometry checks.
+Each publisher tick reuses the verified Crazyflie node and reads its live
+position, orientation, velocity and descendant contacts. Scene checks read
+collider measurements without Supervisor tracking. In R2025a a tracked pose
+or field can still describe the scene before a same-tick mutation. A changed
+export triggers a fresh traversal and measurement, even when simulation time
+has not advanced since the mutation. The existing pilot channels carry the
+request, sensor packet and attempt marker.
 
 This addresses the pinned R2025a C API's uncached negative `get_field` path:
 [supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).

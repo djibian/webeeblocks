@@ -436,16 +436,19 @@ int main(){
             webots='R2025a', timestep_ms=8,
             ready=dict(time_ms=1120, stable_since_ms=616, sample_time_ms=1120,
                        ranges_m=[2.] * 5, position=[0., 0., .015], velocity=[0.] * 6,
-                       contact_count=0), refused_ms=1128, restored_still_refused_ms=1160)
+                       contact_count=0), mutated_ms=1128, refused_ms=1128,
+            restored_still_refused_ms=1160)
         # Parser shape tests only, never a real native claim.
         check_native(good)
-        for mutation in ('absent', 'short-window', 'stale', 'no-revoke', 'nan', 'motion', 'range'):
+        for mutation in ('absent', 'short-window', 'stale', 'no-revoke',
+                         'prior-tick-mutation', 'nan', 'motion', 'range'):
             with self.subTest(mutation=mutation):
                 bad = copy.deepcopy(good)
                 if mutation == 'absent': del bad['ready']
                 elif mutation == 'short-window': bad['ready']['stable_since_ms'] = 624
                 elif mutation == 'stale': bad['ready']['sample_time_ms'] = 1080
                 elif mutation == 'no-revoke': bad['refused_ms'] += 8
+                elif mutation == 'prior-tick-mutation': bad['mutated_ms'] -= 8
                 elif mutation == 'nan': bad['ready']['position'][2] = float('nan')
                 elif mutation == 'motion': bad['ready']['velocity'][3] = .11
                 elif mutation == 'range': bad['ready']['ranges_m'][0] = 2.002

@@ -58,6 +58,26 @@ jobs:
             ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
+  # Full 12-route R2025a physical-contact/range geometry proof. This is a
+  # separately required witness: existing U/L/H/evaluator safety suites remain.
+  grand-prix-v2-native-matrix:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Reject missing, duplicate and stale 12-route host evidence
+        run: python3 -m unittest tools.ci.test_grand_prix_v2_matrix_required
+      - name: Falsify all 12 L/H geometries and contacts in real R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --full-matrix-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-v2-native-matrix-r2025a
+          path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+
   runtime-v2-core:
     runs-on: ubuntu-22.04
     steps:

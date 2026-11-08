@@ -42,22 +42,14 @@ class NativeRouteEvaluator:
         if self._reply is None:
             raise RuntimeError('native evaluator description absent')
         self._reply.setSFString('')
-        self._scene_fields = NativeFieldLookup(prepare_tracking=True)
+        self._scene_fields = NativeFieldLookup()
         self._scene_snapshot = NativeSceneSnapshot(self.course)
         self._vehicle = read_native_evaluator_scene(
             robot, self.course, self._scene_fields, self._scene_snapshot)
-        self._scene_fields.start_tracking()
         self._self_id = own.getId()
         self._vehicle_id = self._vehicle.getId()
         if type(self._vehicle_id) is not int or self._vehicle_id <= 0:
             raise RuntimeError('invalid native vehicle ID')
-        track_pose = getattr(self._vehicle, 'enablePoseTracking', None)
-        self._tracked_pose = callable(track_pose)
-        if self._tracked_pose:
-            track_pose(8)
-        track_contacts = getattr(self._vehicle, 'enableContactPointsTracking', None)
-        if callable(track_contacts):
-            track_contacts(8, includeDescendants=True)
         self._channel = self._vehicle.getField('customData')
         self._request = own.getField('customData')
         self._model = own.getField('model')
@@ -241,7 +233,7 @@ class NativeRouteEvaluator:
             if vehicle.getId() != self._vehicle_id:
                 raise RuntimeError('native observation vehicle replaced')
             observation = NativeCourseObservation(
-                now, read_kinematics(vehicle, now, tracked_pose=self._tracked_pose),
+                now, read_kinematics(vehicle, now),
                 parse_flight_observation(model, event, now), read_contacts(vehicle, now))
             if observation.flight.challenge != context or _now_ms(self._robot.getTime()) != now:
                 raise RuntimeError('native context/tick changed during observation')

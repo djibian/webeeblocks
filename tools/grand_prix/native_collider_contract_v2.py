@@ -96,7 +96,7 @@ def _native_enabled(value):
 
 def _verify_floor(node, route, fields):
     """A permitted floor is the locked horizontal Plane at z=0, not an obstacle."""
-    position = tuple(fields.position(node))
+    position = tuple(node.getPosition())
     _vector(position)
     locked = node.getBaseNodeField('locked')
     rotation = fields.get(node, 'rotation')
@@ -310,7 +310,7 @@ def _verify_box_measurements(boxes, live_boxes, fields):
         locked = fields.get(node, 'locked')
         if locked is None or not _native_enabled(locked.getSFBool()):
             raise RuntimeError('movable course collider: ' + box.name)
-        if not _equal(fields.position(node), box.position):
+        if not _equal(node.getPosition(), box.position):
             raise RuntimeError('native collider world pose mismatch: ' + box.name)
         rotation = fields.get(node, 'rotation')
         actual_rotation = rotation.getSFRotation() if rotation is not None else None

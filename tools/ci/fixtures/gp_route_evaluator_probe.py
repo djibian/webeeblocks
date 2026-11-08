@@ -22,10 +22,22 @@ def witness():
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
-    evaluator = NativeRouteEvaluator(robot, course.identifier)
     body = robot.getFromDef(corner_boxes(course.route)[0].name)
     translation = body.getField('translation')
     original = list(translation.getSFVec3f())
+    if mode == 'idle':
+        # Prepare two real scene states. loadState() later applies the moved
+        # pose after step() has returned, without advancing the native clock.
+        body.saveState('canonical')
+        moved = [original[0] + .10, original[1], original[2]]
+        translation.setSFVec3f(moved)
+        if robot.step(8) == -1 or abs(body.getPosition()[0] - moved[0]) > 1e-6:
+            raise RuntimeError('could not prepare displaced native L')
+        body.saveState('displaced')
+        body.loadState('canonical')
+        if abs(body.getPosition()[0] - original[0]) > 1e-6:
+            raise RuntimeError('could not restore canonical native L before READY')
+    evaluator = NativeRouteEvaluator(robot, course.identifier)
     evidence = dict(claim=('native-route-evaluator-ready-and-scene-revocation-no-flight'
                           if mode == 'idle' else 'native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program'),
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
@@ -72,6 +84,13 @@ def witness():
             break
         step_cpu = time.process_time() - step_cpu_started
         step_wall = time.monotonic() - step_started
+        if phase == 'corrupted':
+            before = robot.getTime()
+            body.loadState('displaced')
+            if (abs(body.getPosition()[0] - moved[0]) > 1e-6 or
+                    robot.getTime() != before):
+                raise RuntimeError('native L mutation did not occur at the current tick')
+            evidence['mutated_ms'] = round(before * 1000)
         tick_started = time.monotonic()
         tick_cpu_started = time.process_time()
         if not service_lost:
@@ -99,14 +118,14 @@ def witness():
                 cue_takeoff(1, now)
                 phase = 'flying'
                 continue
-            # A genuine native scene fault; do not replace sensor or pose data.
-            translation.setSFVec3f([original[0] + .10, original[1], original[2]])
             phase = 'corrupted'
         elif phase == 'corrupted':
             if description or evaluator.phase != 'failed' or evaluator.last_error is None:
                 raise RuntimeError('moved native L did not revoke READY')
             evidence['refused_ms'] = now
-            translation.setSFVec3f(original)
+            body.loadState('canonical')
+            if abs(body.getPosition()[0] - original[0]) > 1e-6:
+                raise RuntimeError('could not restore native L after revocation')
             phase = 'restored'
         elif phase == 'restored':
             if description or evaluator._active is not None:
