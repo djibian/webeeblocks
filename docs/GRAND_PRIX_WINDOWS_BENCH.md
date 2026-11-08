@@ -45,6 +45,78 @@ délibérément `null` : collecter séparément les sorties `webots.exe --sysinf
 et les informations du contexte OpenGL **de la session GUI active**, les
 vérifier et les joindre au relevé. Ne pas remplir ce champ par déduction.
 
+## Collecte passive CPU/RAM pendant un essai Windows approuvé
+
+Le collecteur `tools/grand_prix/capture_windows_host.ps1` est déjà présent.
+Il ne lance ni ne commande Webots, ne mesure pas l'horloge simulée et ne
+fournit aucune autorité de vol. Ce protocole prépare le banc A/B ; il
+n'autorise aucun essai humain hors du mécanisme de `TEST_REQUIRED` V5,
+sur un artefact exact, ni une utilisation des PC ou du réseau du lycée.
+
+Sur le portable Windows personnel et **uniquement dans le cadre du test
+autorisé**, ouvrir le Grand Prix et identifier manuellement le PID du
+Webots R2025a réellement utilisé. Ne pas choisir arbitrairement le premier
+processus d'une liste :
+
+```powershell
+Get-Process -Name webotsw,webots -ErrorAction SilentlyContinue |
+  Select-Object Id, ProcessName, Path, StartTime
+```
+
+Dans le répertoire source exact de l'artefact, remplacer les chemins, le
+PID et l'identifiant du parcours par les valeurs de l'essai. Dans un ZIP
+sans `.git`, `TARGET_SHA.txt` fournit le SHA contractuel ; dans un checkout
+Git, utiliser `git rev-parse HEAD`. Le collecteur vérifie que le PID
+correspond à **l'exécutable exact de l'installation** choisie et refuse
+un processus homonyme provenant d'ailleurs.
+
+```powershell
+$sha = if (Test-Path -LiteralPath '.\TARGET_SHA.txt') {
+  (Get-Content -LiteralPath '.\TARGET_SHA.txt' -Raw).Trim()
+} else {
+  (git rev-parse HEAD).Trim()
+}
+$webotsHome = 'C:\Webots-R2025a'   # Exemple à adapter
+$webotsPid = 12345                 # PID exact vérifié dans la liste
+$course = 'gp-route-v2-L2000-2500-3000-TGD-s17-H2'
+& .\tools\grand_prix\capture_windows_host.ps1 `
+  -SourceSha $sha -CourseId $course -Variant reference `
+  -WebotsProcessId $webotsPid -WebotsHome $webotsHome `
+  -OutputDirectory '.\reference-A1' `
+  -DurationSeconds 90 -SamplePeriodMs 500
+```
+
+Pour le bras candidat, employer `-Variant candidate`, un autre PID
+effectivement vérifié si nécessaire et un **nouveau** répertoire, par
+exemple `candidate-B1`. Répéter au moins trois paires AB/BA/AB
+avec même machine, programme, parcours et réglages d'affichage. Le
+collecteur refuse un dossier préexistant, afin de préserver les témoins.
+
+Chaque dossier contient `metadata.json` (SHA source déclaré, empreinte
+de l'exécutable Webots, PID, système et matériel) et `samples.csv`
+(temps monotone, charge CPU du PID en % d'un cœur, mémoire résidente et
+privée, nombre de threads). L'identité du navigateur fourni en option
+reste `UNVERIFIED` : elle ne prouve pas son emploi dans la GUI.
+
+**Limite des preuves :** la collecte ne mesure qu'un PID Webots,
+sans processus enfants, charge GPU, images visibles/s, vitesse
+simulée/murale, p99 de `step(8)` ou du tick évaluateur, temps de réponse
+Blockly, RESET ni LAND. Ces autres observations exigent des traces
+natives, des relevés OpenGL et des tests GUI séparés. Un CSV correct
+ne permet aucune conclusion ≥0,95× ni PASS technique ou pédagogique.
+
+Le banc de régression Windows du collecteur, sans vraie installation
+Webots ni mesure graphique, est exécuté ainsi :
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\ci\test_grand_prix_windows_host_capture.ps1
+```
+
+Conserver les fichiers bruts et leurs SHA dans le cadre du checkpoint
+autorisé, en examinant les journaux avant tout partage (les messages
+d'erreur système peuvent inclure des chemins locaux). Cette
+documentation n'ouvre aucun checkpoint et ne constitue pas un test réel.
+
 ## Protocole de performance à instrumenter séparément
 
 1. Préparer des artefacts **exactement identifiés** de la référence #906 et
