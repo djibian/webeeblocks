@@ -158,7 +158,7 @@ index e3093fbbdfd7937d55e8dfb5e6f944d7d8bc9c0f..3f86ca140e35dd193b6760e91c53777b
 +  mIsLogCompleted(false),
 +  mRenderTraceEnabled(qEnvironmentVariableIntValue("WEBOTS_RENDER_TRACE") == 1) {
 +  if (mRenderTraceEnabled)
-+    mRenderTrace.reserve(131072);
++    mRenderTrace.reserve(262144);
    mFile = new QFile(mFileName);
    for (int i = 0; i < INFO_COUNT; ++i)
      mTimers[i] = new QElapsedTimer();
