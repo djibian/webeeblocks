@@ -319,36 +319,61 @@ class NativeRouteEvaluator:
 
 def serve_native(robot, identifier):
     evaluator = NativeRouteEvaluator(robot, identifier)
-    # Measurement is strictly opt-in and never a prerequisite for authority.
+    # The ordinary mission path remains completely unchanged.
     import os
     if os.environ.get('WEBEEBLOCKS_GP_STEP_WALL_PROBE') != '1':
         while robot.step(8) != -1:
             evaluator.tick()
         return
+
     import sys
-    import time
-    from tools.grand_prix.step_wall_probe import StepWallProbe
-    probe = StepWallProbe(identifier, lambda line: print(line, flush=True))
+
+    def disable_probe(error):
+        # A broken diagnostic output stream must not interrupt the evaluator.
+        try:
+            print('GP_STEP_WALL_PROBE_DISABLED ' + type(error).__name__,
+                  file=sys.stderr, flush=True)
+        except Exception:
+            pass
+
+    try:
+        import time
+        from tools.grand_prix.step_wall_probe import StepWallProbe
+        probe = StepWallProbe(identifier, lambda line: print(line, flush=True))
+    except Exception as error:
+        disable_probe(error)
+        while robot.step(8) != -1:
+            evaluator.tick()
+        return
+
     while True:
-        start_ns = time.perf_counter_ns()
+        try:
+            start_ns = time.perf_counter_ns()
+        except Exception as error:
+            disable_probe(error)
+            break
         status = robot.step(8)
-        step_end_ns = time.perf_counter_ns()
         if status == -1:
-            if probe is not None:
-                try:
-                    probe.flush()
-                except Exception as error:
-                    print('GP_STEP_WALL_PROBE_DISABLED ' + type(error).__name__,
-                          file=sys.stderr, flush=True)
-            return
-        evaluator.tick()
-        tick_end_ns = time.perf_counter_ns()
-        if probe is not None:
             try:
-                probe.record(robot.getTime(), start_ns, step_end_ns, tick_end_ns)
+                probe.flush()
             except Exception as error:
-                # Diagnostic failure must never become a mission decision.
-                print('GP_STEP_WALL_PROBE_DISABLED ' + type(error).__name__,
-                      file=sys.stderr, flush=True)
-                probe = None
+                disable_probe(error)
+            return
+        try:
+            step_end_ns = time.perf_counter_ns()
+        except Exception as error:
+            disable_probe(error)
+            evaluator.tick()
+            break
+        evaluator.tick()
+        try:
+            probe.record(robot.getTime(), start_ns, step_end_ns,
+                         time.perf_counter_ns())
+        except Exception as error:
+            disable_probe(error)
+            break
+
+    # On any instrumentation failure, finish through the original path.
+    while robot.step(8) != -1:
+        evaluator.tick()
 
