@@ -26,6 +26,9 @@ def attribute(trace, path, start_index):
     cycles = [(a[0], b[0]) for a, b in zip(trace[start_index:], trace[start_index + 1:])]
     begin, end = cycles[0][0], cycles[-1][1]
     sections = {}
+    # Fully contained spans support stage p99; WREN overlap attribution also
+    # needs draws that straddle either boundary of the Supervisor window.
+    boundary_draws = []
     with path.open(encoding='utf-8', newline='') as log:
         if log.readline().strip() != '# webots-render-trace-v1 complete=1':
             raise ValueError('missing or saturated native render trace')
@@ -33,6 +36,8 @@ def attribute(trace, path, start_index):
             first, last = int(row['start_ns']), int(row['end_ns'])
             if last < first:
                 raise ValueError('negative native span')
+            if row['section'] == 'wren_draw' and first < end and last > begin:
+                boundary_draws.append((max(first, begin), min(last, end)))
             if first >= begin and last <= end:
                 sections.setdefault(row['section'], []).append((first, last))
     for required in ('physics', 'controller_reply', 'qt_controller_ready', 'wren_draw', 'opengl_swap'):
@@ -44,7 +49,7 @@ def attribute(trace, path, start_index):
     # Measure the union of WREN drawing time intersecting each physical cycle.
     # Native trace spans can overlap or repeat; adding their lengths would
     # double-count the time and invent a majority-of-tail diagnosis.
-    draw_intervals = sorted(sections['wren_draw'])
+    draw_intervals = sorted(boundary_draws)
 
     def draw_overlap(a, b):
         covered_ns, covered_until = 0, a
