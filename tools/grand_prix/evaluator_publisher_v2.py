@@ -319,6 +319,61 @@ class NativeRouteEvaluator:
 
 def serve_native(robot, identifier):
     evaluator = NativeRouteEvaluator(robot, identifier)
+    # The ordinary mission path remains completely unchanged.
+    import os
+    if os.environ.get('WEBEEBLOCKS_GP_STEP_WALL_PROBE') != '1':
+        while robot.step(8) != -1:
+            evaluator.tick()
+        return
+
+    import sys
+
+    def disable_probe(error):
+        # A broken diagnostic output stream must not interrupt the evaluator.
+        try:
+            print('GP_STEP_WALL_PROBE_DISABLED ' + type(error).__name__,
+                  file=sys.stderr, flush=True)
+        except Exception:
+            pass
+
+    try:
+        import time
+        from tools.grand_prix.step_wall_probe import StepWallProbe
+        probe = StepWallProbe(identifier, lambda line: print(line, flush=True))
+    except Exception as error:
+        disable_probe(error)
+        while robot.step(8) != -1:
+            evaluator.tick()
+        return
+
+    while True:
+        try:
+            start_ns = time.perf_counter_ns()
+        except Exception as error:
+            disable_probe(error)
+            break
+        status = robot.step(8)
+        if status == -1:
+            try:
+                probe.flush()
+            except Exception as error:
+                disable_probe(error)
+            return
+        try:
+            step_end_ns = time.perf_counter_ns()
+        except Exception as error:
+            disable_probe(error)
+            evaluator.tick()
+            break
+        evaluator.tick()
+        try:
+            probe.record(robot.getTime(), start_ns, step_end_ns,
+                         time.perf_counter_ns())
+        except Exception as error:
+            disable_probe(error)
+            break
+
+    # On any instrumentation failure, finish through the original path.
     while robot.step(8) != -1:
         evaluator.tick()
 
