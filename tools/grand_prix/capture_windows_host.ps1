@@ -28,7 +28,9 @@ if ($version -ne 'R2025a') { throw "Webots R2025a required, found $version" }
 # A filename containing "webots" is insufficient: bind the PID to the
 # executable in the exact installation selected for this A/B capture.
 $knownExecutables = @(
+  (Join-Path $WebotsHome 'msys64\mingw64\bin\webotsw.exe'),
   (Join-Path $WebotsHome 'msys64\mingw64\bin\webots.exe'),
+  (Join-Path $WebotsHome 'webotsw.exe'),
   (Join-Path $WebotsHome 'webots.exe')
 ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
     ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
@@ -36,7 +38,18 @@ if ($knownExecutables.Count -lt 1) {
   throw 'No Webots executable found in the selected R2025a installation.'
 }
 $initial = Get-Process -Id $WebotsProcessId -ErrorAction Stop
-if ($initial.ProcessName -notmatch '(?i)^webots
+if ($initial.ProcessName -notmatch '(?i)^webotsw?$' -or -not $initial.Path) {
+  throw "PID $WebotsProcessId is not an inspectable Webots executable."
+}
+$actualProcessPath = [IO.Path]::GetFullPath($initial.Path)
+$matchedExecutable = @($knownExecutables | Where-Object {
+  [string]::Equals($_, $actualProcessPath, [StringComparison]::OrdinalIgnoreCase)
+})
+if ($matchedExecutable.Count -ne 1) {
+  throw 'Webots PID executable does not match the selected R2025a installation.'
+}
+$webotsExecutableSha256 = (Get-FileHash -LiteralPath $matchedExecutable[0] -Algorithm SHA256).Hash.ToLowerInvariant()
+$startTicks = $initial.StartTime.ToUniversalTime().Ticks
 if ($null -eq $initial.CPU) { throw 'Webots CPU time unavailable.' }
 # An optional external browser executable identifies prepared bytes, not
 # proof of which browser Webots actually opened in a GUI run.
