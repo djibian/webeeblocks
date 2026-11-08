@@ -13,7 +13,12 @@ Set-StrictMode -Version Latest
 if ($SourceSha -and $SourceSha -cnotmatch '^[0-9a-f]{40}$') {
   throw 'SourceSha must be an exact lowercase 40-character Git commit SHA.'
 }
-$webots = (Resolve-Path -LiteralPath $WebotsHome -ErrorAction Stop).Path
+# Resolve-Path errors can include a private Windows profile directory in shared logs.
+try {
+  $webots = (Resolve-Path -LiteralPath $WebotsHome -ErrorAction Stop).Path
+} catch {
+  throw 'Webots installation path is missing or inaccessible.'
+}
 # Match the supported Windows R2025a layout used by the classroom launcher.
 $bin = Join-Path $webots 'msys64\mingw64\bin'
 $exe = @('webotsw.exe', 'webots.exe') |
@@ -56,7 +61,11 @@ if ($system.TotalPhysicalMemory -le 0) { throw 'Invalid physical memory size.' }
 
 $browser = $null
 if ($BrowserExe) {
-  $browserPath = (Resolve-Path -LiteralPath $BrowserExe -ErrorAction Stop).Path
+  try {
+    $browserPath = (Resolve-Path -LiteralPath $BrowserExe -ErrorAction Stop).Path
+  } catch {
+    throw 'Browser executable path is missing or inaccessible.'
+  }
   if (-not (Test-Path -LiteralPath $browserPath -PathType Leaf)) { throw 'Browser executable missing.' }
   $browserFile = Get-Item -LiteralPath $browserPath
   $browser = [ordered]@{
