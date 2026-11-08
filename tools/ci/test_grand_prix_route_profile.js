@@ -244,7 +244,7 @@ async function proveRouteTechnicalDiagnostics() {
   listener({detail: {studentState: 'ERREUR', machineCode: 'E\nCODE',
     technicalMessage: '  line 1\n  line 2 '.repeat(50)}});
   await flush();
-  assert(rows.debugState.textContent.startsWith('Diagnostic : E nCODE — line 1 line 2 '));
+  assert(rows.debugState.textContent.startsWith('Diagnostic : E CODE — line 1 line 2 '));
   assert(rows.debugState.textContent.length <= 'Diagnostic : '.length + 40 + 3 + 240);
   assert(!rows.debugState.textContent.includes('\n'),
     'diagnostic must remain one bounded visible line');
