@@ -82,13 +82,13 @@ $course = 'gp-route-v2-L2000-2500-3000-TGD-s17-H2'
 & .\tools\grand_prix\capture_windows_host.ps1 `
   -SourceSha $sha -CourseId $course -Variant reference `
   -WebotsProcessId $webotsPid -WebotsHome $webotsHome `
-  -OutputDirectory '.\mesures\reference-A1' `
+  -OutputDirectory '.\reference-A1' `
   -DurationSeconds 90 -SamplePeriodMs 500
 ```
 
 Pour le bras candidat, employer `-Variant candidate`, un autre PID
 effectivement vérifié si nécessaire et un **nouveau** répertoire, par
-exemple `mesures\candidate-B1`. Répéter au moins trois paires AB/BA/AB
+exemple `candidate-B1`. Répéter au moins trois paires AB/BA/AB
 avec même machine, programme, parcours et réglages d'affichage. Le
 collecteur refuse un dossier préexistant, afin de préserver les témoins.
 
