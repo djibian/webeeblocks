@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath $versionFile -PathType Leaf)) {
   throw "Missing Webots version file: $versionFile"
 }
 $version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
-if ($version -ne 'R2025a') { throw "Webots R2025a required, found $version" }
+if ($version -ne 'R2025a') { throw 'Webots R2025a required; unsupported version metadata.' }
 # A filename containing "webots" is insufficient: bind the PID to the
 # executable in the exact installation selected for this A/B capture.
 $knownExecutables = @(
