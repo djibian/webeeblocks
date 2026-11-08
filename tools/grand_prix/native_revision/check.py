@@ -165,12 +165,27 @@ def observe():
             list(target.getVelocity()) == [0.] * 6,
             'stale token survived global simulation resetPhysics')
 
+    # A Robot controller restart must revoke the former session's effect token.
+    restart_before = token_now()
+    target.restartController()
+    require(robot.step(8) != -1, 'could not complete native controller restart')
+    restart_after = token_now()
+    require(bytes(restart_before.incarnation) == bytes(restart_after.incarnation) and
+            restart_after.revision == restart_before.revision + 1,
+            'Robot controller restart did not advance native scene revision once')
+    velocity_before_restart_refusal = list(target.getVelocity())
+    require(not effect(target_id, c.byref(restart_before), velocity) and
+            list(target.getVelocity()) == velocity_before_restart_refusal,
+            'stale controller-session token applied native velocity')
+
     Path(os.environ['WEEBEE_FRAME_RESULT']).write_text(json.dumps({
         'time_ms': round(1000 * instant), 'original_collider_x': original[0], 'moved_collider_x': shifted[0],
         'captured_revision': captured.revision, 'moved_revision': moved.revision,
         'restored_revision': restored.revision, 'applied_revision': applied.revision,
         'reset_revision': reset.revision, 'added_revision': added.revision, 'removed_revision': removed.revision,
         'before_and_after_child_count': count, 'stale_effect_refused': True, 'fresh_effect_applied_once': True,
+        'controller_restart': {'before_revision': restart_before.revision,
+                               'after_revision': restart_after.revision, 'stale_effect_refused': True},
         'mf_collision_triangle': {
             'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
             'restored_points': original_points, 'inserted_point': inserted_point, 'stale_effect_refused': True,

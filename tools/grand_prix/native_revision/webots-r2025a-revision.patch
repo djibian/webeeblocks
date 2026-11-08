@@ -219,6 +219,18 @@ diff --git a/src/webots/control/WbController.cpp b/src/webots/control/WbControll
      mRobot->writeImmediateAnswer(stream);
 +  if (mRobot->supervisorUtilities())
 +    mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
+diff --git a/src/webots/nodes/WbRobot.cpp b/src/webots/nodes/WbRobot.cpp
+--- a/src/webots/nodes/WbRobot.cpp
++++ b/src/webots/nodes/WbRobot.cpp
+@@ -578,5 +578,8 @@ void WbRobot::restartController() {
+ void WbRobot::restartController() {
++  // A Robot controller restart invalidates the previous session's scene token.
++  if (WbWorld::instance())
++    WbWorld::instance()->noteSceneEffect();
+   mControllerStarted = false;
+   emit controllerChanged();
+ 
+   foreach (WbDevice *deviceObject, mDevices) {
 diff --git a/src/webots/nodes/WbSolid.cpp b/src/webots/nodes/WbSolid.cpp
 index 14b1154caeac34755f663e7230e4be328be3f0f8..6e9f246e56877fdcdf276def1904278b07738e15 100644
 --- a/src/webots/nodes/WbSolid.cpp

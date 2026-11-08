@@ -26,8 +26,9 @@ setter is a concrete native test effect for the ordering property.
 | Native Supervisor velocity write | `WbSupervisorUtilities::handleMessage` before the Solid setters | Stale refusal, fresh application, replay refusal |
 | Supervisor node physics reset | `WbSupervisorUtilities::handleMessage` before `resetPhysics` | Zeroed velocity and invalidated token at 16 ms |
 | World reset | `WbWorld::reset` before reconstruction | Hook present, qualification pending |
+| Robot controller restart | `WbRobot::restartController` prior to session restart | Native stale-token refusal probe added; rebuilt-engine run pending |
 
-The engine can still be changed through other paths. GUI pose and field
+The controller-restart experiment must be rerun on a rebuilt native engine; the retained results do not qualify it. The engine can still be changed through other paths. GUI pose and field
 editing, unclassified native writes, direct topology edits, DEF/USE,
 full PROTO regeneration, save/load variants, world reload and
 disconnect/reconnect still need source coverage and native tests.
