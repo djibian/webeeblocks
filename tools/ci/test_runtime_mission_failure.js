@@ -203,7 +203,8 @@ async function proveMissionFailure() {
   assert.strictEqual(pending.sent.length, 1);
   assert.strictEqual(pending.element('resetSimulation').disabled, true,
     'Reset must not become available while the failure outcome is pending');
-  assert.strictEqual(pending.element('runtimeState').textContent, 'EN VOL');
+  assert.strictEqual(pending.element('runtimeState').textContent, 'EXÉCUTION',
+    'awaiting an exact mission-failure witness must not falsely claim airborne flight');
   const requestId = pending.sent[0].split(' ')[2];
   pending.backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + requestId + ' STATE not-achieved');
   await running;

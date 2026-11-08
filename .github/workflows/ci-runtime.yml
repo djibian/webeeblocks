@@ -1184,7 +1184,7 @@ jobs:
           assert ready_detail['backendReady'] is True and ready_detail['submitDisabled'] is False and ready_detail['state'] == 'PRÊT', ready_detail
 
           states = [e.get('detail', {}).get('state') for e in events if e.get('event') == 'STATE' and isinstance(e.get('detail'), dict)]
-          assert 'EN VOL' in states and 'TERMINÉ' in states, states
+          assert 'EXÉCUTION' in states and 'EN VOL' not in states and 'TERMINÉ' in states, states
           print('PASS: Blockly.VERSION=13.2.1 -> causal pre-READY guard -> real READY -> Blockly AST -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
           PY
 
