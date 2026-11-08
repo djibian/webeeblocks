@@ -12,6 +12,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($DurationSeconds * 1000 -lt $SamplePeriodMs * 2) {
+  throw 'Sampling duration must cover at least two intervals.'
+}
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
   throw 'The passive benchmark requires Windows.'
 }
@@ -98,8 +101,8 @@ while ($clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
 }
 $clock.Stop()
 if ($samples.Count -lt 2) { throw 'Insufficient samples.' }
-$metadata.actual_duration_s = [Math]::Round($clock.Elapsed.TotalSeconds, 6)
-$metadata.sample_count = $samples.Count
+$metadata['actual_duration_s'] = [Math]::Round($clock.Elapsed.TotalSeconds, 6)
+$metadata['sample_count'] = $samples.Count
 $utf8 = [Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllText((Join-Path $destination 'metadata.json'),
   (($metadata | ConvertTo-Json -Depth 8) + [Environment]::NewLine), $utf8)
