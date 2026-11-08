@@ -37,11 +37,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\grand_prix\captu
 
 La sortie doit être un dossier **nouveau pour chaque essai**, contenant
 metadata.json et samples.csv. Le script refuse de réutiliser un dossier,
-un PID non Webots, un remplacement de PID ou une version Webots autre que
+un PID non Webots, un processus portant le même nom mais exécuté depuis
+une autre installation, un remplacement de PID ou une version autre que
 R2025a. Il n'écrit pas le nom de l'utilisateur, de la machine ni de série.
 
-**Variables enregistrées :** SHA, route, variante, date UTC, version et PID
-Webots, OS/build, CPU, RAM, modèle et pilote des cartes graphiques,
+**Variables enregistrées :** SHA WebeeBlocks, empreinte SHA-256 de
+l’exécutable Webots réellement sélectionné, route, variante, date UTC,
+version et PID Webots, OS/build, CPU, RAM, modèle et pilote des cartes graphiques,
 temps monotone, durée réellement échantillonnée, CPU cumulé et delta CPU
 (100 % = un cœur logique), mémoire résidente/privée et threads.
 La fréquence demandée et l'intervalle réel sont tous deux conservés.
@@ -68,3 +70,7 @@ capteurs, sécurité ou fichiers .wbb.
 (au moins 0,95×, p99 du pas au plus 25 ms, vue lisible 25–30 FPS)
 reste à établir séparément sur SHA et matériel exacts.
 Aucun TEST_REQUIRED n'est demandé par cet outil.
+
+## Contre-test Windows sans moteur Webots
+
+La suite CI complète inclut le test natif `tools/ci/test_grand_prix_windows_host_capture.ps1` : un exécutable Windows local renommé `webots.exe` joue un processus mesurable et un second exécutable homonyme dans un autre répertoire est explicitement refusé. Les horodatages/échantillons et l'empreinte binaire sont vérifiés. Ce témoin **ne simule pas la physique**, ne qualifie pas l'interface réelle ni le matériel Windows personnel ; aucun PASS ne lui est attribué en dehors du contrat de capture hôte.
