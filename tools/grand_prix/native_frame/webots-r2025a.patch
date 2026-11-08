@@ -124,7 +124,7 @@ index f18d19ece5338c0daaef50e784300e435c9bccd5..ccd37dcdab7f187c8647763a4a42ee6b
    if (simulation_change_mode) {
      request_write_uchar(r, C_SUPERVISOR_SIMULATION_CHANGE_MODE);
      request_write_int32(r, robot_get_simulation_mode());
-@@ -994,6 +1036,52 @@ static void supervisor_write_request(WbDevice *d, WbRequest *r) {
+@@ -994,6 +1036,55 @@ static void supervisor_write_request(WbDevice *d, WbRequest *r) {
    }
  }
 
@@ -142,12 +142,15 @@ index f18d19ece5338c0daaef50e784300e435c9bccd5..ccd37dcdab7f187c8647763a4a42ee6b
 +    goto malformed;
 +  if (count == -1) {
 +    physics_frame_sent_id = 0;
++    if (request_get_position(r) != end)
++      goto malformed;
 +    return;
 +  }
 +
 +  const int payload_size = 16 + 2 * (int)sizeof(int32_t) + (19 + 3 * count) * (int)sizeof(double) +
 +                           count * (int)sizeof(int32_t);
-+  if (end - request_get_position(r) < payload_size)
++  // The optional frame is the terminal suffix of an ordinary answer.
++  if (end - request_get_position(r) != payload_size)
 +    goto malformed;
 +
 +  WbSupervisorPhysicsFrame *f = &physics_frame;
@@ -177,7 +180,7 @@ index f18d19ece5338c0daaef50e784300e435c9bccd5..ccd37dcdab7f187c8647763a4a42ee6b
  static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
    int i;
 
-@@ -1280,6 +1368,9 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
+@@ -1280,6 +1371,9 @@ static void supervisor_read_answer(WbDevice *d, WbRequest *r) {
      case C_SUPERVISOR_NODE_GET_STATIC_BALANCE:
        static_balance_node_ref->static_balance = request_read_uchar(r) == 1;
        break;
@@ -199,18 +202,17 @@ index 661f5e2e3cd084f1a1caf3179980c59d333ea016..46b708a009db210c3b9b8845d5be43ca
  #include "WbSysInfo.hpp"
  #include "WbTemplateManager.hpp"
  #include "WbVersion.hpp"
-@@ -1053,6 +1054,11 @@ void WbController::writeAnswer(bool immediateAnswer) {
-       delay = 0;
-   }
-   stream << delay;
-+  // Sample only ordinary replies after one completed physics step. Immediate
-+  // Supervisor RPC replies must never consume or publish a pending observation.
-+  if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities())
-+    mRobot->supervisorUtilities()->writePhysicsFrame(stream, mDeltaTimeRequested == 8 ? mRequestTime + 8.0 : -1.0);
-+
+@@ -1056,6 +1057,10 @@ void WbController::writeAnswer(bool immediateAnswer) {
    // dispatch the stream to the devices
    mRobot->dispatchAnswer(stream);
    if (mRobot->hasImmediateAnswer())
+     mRobot->writeImmediateAnswer(stream);
++  // Keep the optional observation last: malformed frames cannot consume
++  // ordinary replies such as C_ROBOT_TIME or other device messages.
++  if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities())
++    mRobot->supervisorUtilities()->writePhysicsFrame(stream, mDeltaTimeRequested == 8 ? mRequestTime + 8.0 : -1.0);
+ 
+   // size management
 diff --git a/src/webots/nodes/WbRobot.cpp b/src/webots/nodes/WbRobot.cpp
 index dbfb47c643449e4acfbf411514823eb4bee505be..cf6d729a818d58ee17ed7bb4bfaa871201cb98d7 100644
 --- a/src/webots/nodes/WbRobot.cpp
