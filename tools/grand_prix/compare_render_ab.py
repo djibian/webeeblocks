@@ -92,6 +92,9 @@ def _windows(path, course, start, end):
                  'gapped/overlapping phase or multiple reset epochs')
     count = sum(row['count'] for row in result)
     _require(count >= 125, 'less than one simulated second of complete observations')
+    window_wall_ns = sum(row['wall_ns'] for row in result)
+    continuous_wall_ns = result[-1]['last_end_wall_ns'] - result[0]['first_start_wall_ns']
+    _require(continuous_wall_ns >= window_wall_ns, 'inconsistent continuous wall envelope')
     # Deduplicate native timing evidence, never an unchecked summary or
     # arbitrary metadata that could change without a new observation.
     native_fields = ('course', 'window', 'reason', 'start_sim_ms', 'end_sim_ms',
@@ -105,7 +108,9 @@ def _windows(path, course, start, end):
         'observed_start_ms': result[0]['start_sim_ms'],
         'observed_end_ms': result[-1]['end_sim_ms'] + STEP_MS,
         # These sums omit wall-clock gaps between completed probe windows.
-        'wall_ns_in_windows': sum(row['wall_ns'] for row in result),
+        'wall_ns_in_windows': window_wall_ns,
+        'wall_ns_continuous': continuous_wall_ns,
+        'inter_window_gap_ns': continuous_wall_ns - window_wall_ns,
         'step_ns': [x for row in result for x in row['step_ns']],
         'tick_ns': [x for row in result for x in row['tick_ns']],
     }
@@ -160,15 +165,21 @@ def compare(manifest_path):
     for arm, results in records.items():
         # Equal weight per trial prevents one long window from hiding a slow run.
         speeds = [r['simulated_ms'] * 1e6 / r['wall_ns_in_windows'] for r in results]
+        continuous_speeds = [r['simulated_ms'] * 1e6 / r['wall_ns_continuous'] for r in results]
         p99_ms = [_percentile(r['step_ns'], 99) / 1e6 for r in results]
         summary[arm] = {
             'render_fps_declared': fps[arm],
             'median_speed_in_windows_x': round(statistics.median(speeds), 6),
+            'median_continuous_speed_x': round(statistics.median(continuous_speeds), 6),
             'median_step_p99_ms': round(statistics.median(p99_ms), 6),
             'per_trial': [dict(pair=r['trial'], simulated_ms=r['simulated_ms'],
-                               speed_in_windows_x=round(speed, 6), step_p99_ms=round(p99, 6),
+                               speed_in_windows_x=round(speed, 6),
+                               continuous_speed_x=round(continuous, 6),
+                               inter_window_gap_ms=round(r['inter_window_gap_ns'] / 1e6, 6),
+                               step_p99_ms=round(p99, 6),
                                tick_p99_ms=round(_percentile(r['tick_ns'], 99) / 1e6, 6))
-                          for r, speed, p99 in zip(results, speeds, p99_ms)],
+                          for r, speed, continuous, p99 in
+                          zip(results, speeds, continuous_speeds, p99_ms)],
         }
     return {
         'schema': 1, 'source_sha': doc['source_sha'], 'course': doc['course'],
@@ -176,6 +187,11 @@ def compare(manifest_path):
         'phase_ms': phase, 'pair_count': len(trials) // 2,
         'arms': summary,
         'measurement_scope': 'WINDOW_DURATION_ONLY_INTER_WINDOW_GAPS_NOT_MEASURED',
+        'continuous_measurement_scope': 'FIRST_TO_LAST_COMPLETE_WINDOW_WALL_ENVELOPE',
+        'continuous_interpretation': (
+            'DIAGNOSTIC_ONLY: complete-window envelope includes inter-window stalls, '
+            'but excludes unobserved phase boundaries; no real FPS, GUI, comparable '
+            'hardware, safety or overall 0.95x acceptance'),
         'interpretation': ('DIAGNOSTIC_ONLY: reported speeds are from summed window durations, '
                            'NOT continuous wall-clock phase speed; inter-window stalls excluded; '
                            'no overall 0.95x, measured FPS/GUI or safety PASS'),
