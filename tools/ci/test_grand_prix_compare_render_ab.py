@@ -54,6 +54,13 @@ class RenderABTests(unittest.TestCase):
         self.assertEqual(report['arms']['B']['median_speed_in_windows_x'], round(8 / 3, 6))
         self.assertEqual(report['arms']['A']['median_step_p99_ms'], 4)
         self.assertEqual(report['arms']['B']['median_step_p99_ms'], 2)
+        self.assertEqual(report['arms']['A']['median_speed_observed_envelope_x'],
+                         round(3 / 2.625, 6))
+        self.assertEqual(report['arms']['B']['median_speed_observed_envelope_x'],
+                         round(3 / 2.375, 6))
+        # The requested 3.2 s phase contains only 3.0 s of full windows.
+        self.assertEqual(report['observed_complete_window_phase_ms'], [3200, 6200])
+        self.assertEqual(report['phase_ms'], [3200, 6400])
         self.assertEqual(report['arms']['A']['per_trial'][0]['simulated_ms'], 3000)
         self.assertIn('DIAGNOSTIC_ONLY', report['interpretation'])
 
@@ -65,9 +72,33 @@ class RenderABTests(unittest.TestCase):
         self.assertNotIn('median_speed_x', report['arms']['A'])
         self.assertTrue(report['arms']['B']['median_speed_in_windows_x'] >
                         report['arms']['A']['median_speed_in_windows_x'])
-        self.assertIn('inter-window stalls excluded', report['interpretation'])
+        self.assertIn('excludes inter-window stalls', report['interpretation'])
+        self.assertEqual(report['envelope_measurement_scope'],
+                         'FIRST_TO_LAST_COMPLETE_WINDOW_INCLUDING_GAPS')
+        self.assertNotIn('median_speed_x', report['arms']['A'])
         self.assertNotIn('speed_x', report['arms']['A']['per_trial'][0])
         self.assertIn('speed_in_windows_x', report['arms']['A']['per_trial'][0])
+
+    def test_inter_window_pause_reduces_envelope_speed_but_not_window_speed(self):
+        before = compare(self.root / 'trial.json')['arms']['B']['per_trial'][0]
+        path = self.root / 'run-1.log'
+        changed = []
+        for i, line in enumerate(path.read_text(encoding='utf-8').splitlines()):
+            header, payload = line.split('GP_STEP_WALL_V1 ', 1)
+            row = json.loads(payload)
+            if i > 0:
+                # Delay all later windows while keeping both simulated clock
+                # and each window's complete raw step/tick durations intact.
+                row['first_start_wall_ns'] += 400_000_000
+                row['last_end_wall_ns'] += 400_000_000
+            changed.append(header + 'GP_STEP_WALL_V1 ' + json.dumps(row))
+        path.write_text('\n'.join(changed) + '\n', encoding='utf-8')
+        after = compare(self.root / 'trial.json')['arms']['B']['per_trial'][0]
+        self.assertEqual(after['speed_in_windows_x'], before['speed_in_windows_x'])
+        self.assertEqual(after['step_p99_ms'], before['step_p99_ms'])
+        self.assertLess(after['speed_observed_envelope_x'],
+                        before['speed_observed_envelope_x'])
+        self.assertEqual(after['speed_observed_envelope_x'], round(3 / 2.775, 6))
 
     def test_non_alternating_or_incomplete_pairs_are_refused(self):
         self.manifest['trials'][2]['arm'] = 'A'

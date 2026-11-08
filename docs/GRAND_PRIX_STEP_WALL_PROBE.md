@@ -76,11 +76,23 @@ Linux règle uniquement le budget graphique ; `basicTimeStep=8` reste inchangé.
 Les identités SHA, machine, affichage et programme sont **déclarées dans ce
 manifeste**, non attestées par les journaux de la sonde. Elles doivent être
 contrôlées indépendamment ; les plafonds de rendu déclarés ne sont pas des FPS
-visibles mesurés. Les durées murales additionnées excluent les intervalles entre les
-fenêtres. Les seuls champs `speed_in_windows_x` et
-`median_speed_in_windows_x` sont donc **des vitesses partielles**, jamais
-la vitesse de la phase mur-à-mur. Aucun pourcentage global de gain A/B
-ni résultat `>=0,95x` ne peut être calculé par cet analyseur sans des bornes
-monotones de phase continue. L'instrumentation #926 porte cette exigence;
-elle n'est pas une dépendance nécessaire à l'analyse des p99. Aucune sortie de cet outil ne vaut acceptation
-Windows, fluidité ≥0,95×, passage des oracles ni qualification pédagogique.
+visibles mesurés.
+
+Deux vitesses distinctes sont maintenant exposées :
+
+- `speed_in_windows_x` / `median_speed_in_windows_x` additionnent seulement les
+  durées des fenêtres de 125 pas. Elles **excluent les pauses entre fenêtres**.
+- `speed_observed_envelope_x` / `median_speed_observed_envelope_x` utilisent
+  l'horloge monotone de la première acquisition à la fin de la dernière fenêtre
+  complète sélectionnée. Elles **incluent les pauses entre fenêtres** et peuvent
+  donc révéler un ralentissement invisible aux métriques précédentes.
+  `observed_complete_window_phase_ms` donne précisément l'intervalle simulé
+  effectivement couvert, potentiellement plus court que `phase_ms` déclaré.
+
+Cette enveloppe ne mesure ni le temps avant sa première fenêtre ni celui après
+sa dernière ; elle ne doit jamais être présentée comme le débit intégral de la
+phase demandée si sa couverture est partielle. La provenance hôte, l'affichage
+réel, la caméra, les FPS visibles et l'interface Blockly restent à contrôler
+indépendamment. Aucun calcul de cet analyseur ne constitue à lui seul un gain
+produit confirmé, un résultat `>=0,95x`, une acceptation Windows, un passage
+des oracles ou une qualification pédagogique.

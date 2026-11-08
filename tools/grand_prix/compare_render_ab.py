@@ -106,6 +106,10 @@ def _windows(path, course, start, end):
         'observed_end_ms': result[-1]['end_sim_ms'] + STEP_MS,
         # These sums omit wall-clock gaps between completed probe windows.
         'wall_ns_in_windows': sum(row['wall_ns'] for row in result),
+        # Continuous monotonic envelope of the selected complete windows.
+        # Includes stalls between windows, but not time outside the observed range.
+        'wall_ns_observed_envelope': (result[-1]['last_end_wall_ns'] -
+                                      result[0]['first_start_wall_ns']),
         'step_ns': [x for row in result for x in row['step_ns']],
         'tick_ns': [x for row in result for x in row['tick_ns']],
     }
@@ -160,24 +164,34 @@ def compare(manifest_path):
     for arm, results in records.items():
         # Equal weight per trial prevents one long window from hiding a slow run.
         speeds = [r['simulated_ms'] * 1e6 / r['wall_ns_in_windows'] for r in results]
+        envelope_speeds = [r['simulated_ms'] * 1e6 / r['wall_ns_observed_envelope'] for r in results]
         p99_ms = [_percentile(r['step_ns'], 99) / 1e6 for r in results]
         summary[arm] = {
             'render_fps_declared': fps[arm],
             'median_speed_in_windows_x': round(statistics.median(speeds), 6),
+            'median_speed_observed_envelope_x': round(statistics.median(envelope_speeds), 6),
             'median_step_p99_ms': round(statistics.median(p99_ms), 6),
             'per_trial': [dict(pair=r['trial'], simulated_ms=r['simulated_ms'],
-                               speed_in_windows_x=round(speed, 6), step_p99_ms=round(p99, 6),
+                               speed_in_windows_x=round(speed, 6),
+                               speed_observed_envelope_x=round(envelope_speed, 6),
+                               step_p99_ms=round(p99, 6),
                                tick_p99_ms=round(_percentile(r['tick_ns'], 99) / 1e6, 6))
-                          for r, speed, p99 in zip(results, speeds, p99_ms)],
+                          for r, speed, envelope_speed, p99 in
+                          zip(results, speeds, envelope_speeds, p99_ms)],
         }
     return {
         'schema': 1, 'source_sha': doc['source_sha'], 'course': doc['course'],
         'declared_host': doc['host_id'], 'display_mode': doc['display_mode'],
         'phase_ms': phase, 'pair_count': len(trials) // 2,
+        'observed_complete_window_phase_ms': [records['A'][0]['observed_start_ms'],
+                                              records['A'][0]['observed_end_ms']],
         'arms': summary,
         'measurement_scope': 'WINDOW_DURATION_ONLY_INTER_WINDOW_GAPS_NOT_MEASURED',
-        'interpretation': ('DIAGNOSTIC_ONLY: reported speeds are from summed window durations, '
-                           'NOT continuous wall-clock phase speed; inter-window stalls excluded; '
+        'envelope_measurement_scope': 'FIRST_TO_LAST_COMPLETE_WINDOW_INCLUDING_GAPS',
+        'interpretation': ('DIAGNOSTIC_ONLY: speed_in_windows_x excludes inter-window stalls; '
+                           'speed_observed_envelope_x includes gaps between the first and last '
+                           'selected complete windows, but not time outside their observed range '
+                           'or necessarily the full requested phase; '
                            'no overall 0.95x, measured FPS/GUI or safety PASS'),
     }
 
