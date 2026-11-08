@@ -69,6 +69,37 @@ class RenderABTests(unittest.TestCase):
         self.assertNotIn('speed_x', report['arms']['A']['per_trial'][0])
         self.assertIn('speed_in_windows_x', report['arms']['A']['per_trial'][0])
 
+    def test_continuous_speed_includes_stall_hidden_by_window_only_speed(self):
+        baseline = compare(self.root / 'trial.json')
+        self.assertEqual(baseline['arms']['A']['median_continuous_speed_x'],
+                         round(3000 / 2625, 6))
+        self.assertEqual(baseline['arms']['B']['median_continuous_speed_x'],
+                         round(3000 / 2375, 6))
+        self.assertIn('DIAGNOSTIC_ONLY', baseline['continuous_interpretation'])
+        self.assertNotIn('overall_product_acceptance', baseline)
+
+        # Add a four-second stall at the boundary of two complete native
+        # windows. The measured window costs remain favorable.
+        path = self.root / 'run-1.log'
+        rows = []
+        for index, line in enumerate(path.read_text(encoding='utf-8').splitlines()):
+            prefix, raw = line.split('GP_STEP_WALL_V1 ', 1)
+            row = json.loads(raw)
+            if index >= 1:
+                row['first_start_wall_ns'] += 4_000_000_000
+                row['last_end_wall_ns'] += 4_000_000_000
+            rows.append(prefix + 'GP_STEP_WALL_V1 ' + json.dumps(row))
+        path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
+        measured = compare(self.root / 'trial.json')
+        prior = baseline['arms']['B']['per_trial'][0]
+        current = measured['arms']['B']['per_trial'][0]
+        self.assertEqual(prior['speed_in_windows_x'], current['speed_in_windows_x'])
+        self.assertGreater(prior['continuous_speed_x'], current['continuous_speed_x'])
+        self.assertAlmostEqual(current['inter_window_gap_ms'] -
+                               prior['inter_window_gap_ms'], 4000)
+        self.assertLess(measured['arms']['B']['median_continuous_speed_x'],
+                        baseline['arms']['B']['median_continuous_speed_x'])
+
     def test_non_alternating_or_incomplete_pairs_are_refused(self):
         self.manifest['trials'][2]['arm'] = 'A'
         self.write()
