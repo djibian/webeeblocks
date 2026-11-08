@@ -35,6 +35,8 @@ Remplacer les valeurs entre chevrons ; cette commande est sur une ligne :
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\grand_prix\capture_windows_host.ps1 -SourceSha "<SHA complet de WebeeBlocks>" -CourseId "gp-route-v2-L2000-2500-3000-TGD-s105-H2" -Variant reference -WebotsProcessId <PID> -WebotsHome "C:\Program Files\Webots" -OutputDirectory ".\preuves-gp-reference-01" -DurationSeconds 30 -SamplePeriodMs 500
 ~~~
 
+L'option facultative `-BrowserExe 'C:\\Program Files\\Mozilla Firefox\\firefox.exe'` permet de conserver la version et le SHA-256 d'un navigateur externe installé. Le champ `used_in_gui=UNVERIFIED` rappelle qu'une empreinte de fichier ne prouve **pas** quel navigateur Webots a effectivement utilisé. Ne pas inventer cette provenance si le navigateur n'est pas connu.
+
 La sortie doit être un dossier **nouveau pour chaque essai**, contenant
 metadata.json et samples.csv. Le script refuse de réutiliser un dossier,
 un PID non Webots, un processus portant le même nom mais exécuté depuis
