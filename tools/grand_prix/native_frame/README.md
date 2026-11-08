@@ -147,3 +147,16 @@ This test did not run Blockly or test the 210000-ms independent deadline.
 mutation paths and enforce the revision at the actual action point before
 #913 can change authority. #912 and #914 require rendered Grand Prix
 measurements and the personal Windows laptop.
+ 
+## Terminal wire-suffix C regression
+
+Run `python3 tools/grand_prix/native_frame/test_wire_suffix.py` with an
+available C compiler. The test compiles the actual added C decoder extracted
+from `webots-r2025a.patch`, checks ten valid/malformed suffix fixtures,
+verifies request consumption and checks that engine emission follows ordinary
+device and immediate answers. The ordinary prefix is modeled as already
+consumed. **This is not a native Webots transport injection test**: the
+matched engine/libController must still be rebuilt and tested for malformed
+replies without loss of ordinary time/device updates. It proves neither the
+full Grand Prix safety contract nor Windows performance. The Draft status
+remains until the outstanding native qualification is completed.
