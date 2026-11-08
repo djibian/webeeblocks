@@ -68,3 +68,53 @@ checkpoint de confiance. Cette A/B Linux n'atteste pas l'objectif Windows.
 **Interprétation :** un plafond FPS dont les résultats n'améliorent pas le
 temps simulé/mural reste une hypothèse écartée ; conserver les mesures
 négatives. L'absence de données A/B réelles vaut `UNPROVEN`, pas un gain.
+
+## Analyse automatisée des journaux (préparation, sans PASS)
+
+Activer `WEBEEBLOCKS_GP_STEP_WALL_PROBE=1` pour chaque essai de référence et
+chaque essai `--render-fps 25` (ou 30/60), puis conserver **la sortie brute**
+de l'évaluateur, incluant `GP_STEP_WALL_V1`. Le script
+`tools/grand_prix/analyze_render_ab.py` compare six essais ou plus : au moins
+trois paires adjacentes A/B, avec ordres AB et BA, au même SHA et sur le même
+poste. Il vérifie les empreintes déclarées, le parcours, la continuité de
+l'horloge physique 8 ms, les données brutes de p99, et refuse toute fenêtre
+incomplète ou moins de 30 s simulées par essai et phase choisie.
+
+Créer un `runs.json` local (les logs restent dans le même dossier) :
+
+~~~json
+{
+  "schema": "webeeblocks.gp-render-ab-v1",
+  "common": {
+    "source_sha": "<40 caractères hexadécimaux>",
+    "webots_sha256": "<64 caractères hexadécimaux>",
+    "wbb_sha256": "<64 caractères hexadécimaux>",
+    "host_token": "poste-local-A",
+    "course_id": "<identifiant CoursePlan exact>",
+    "viewport": "1280x720", "renderer": "OpenGL logiciel ou matériel vérifié",
+    "browser": "version et navigateur vérifiés", "phase": "flight",
+    "physical_step_ms": 8, "gui_visible": true
+  },
+  "candidate_fps": 25,
+  "trials": [
+    {"pair": 1, "arm": "reference", "render_fps": null, "log": "A1.log", "first_window": 5, "last_window": 34},
+    {"pair": 1, "arm": "candidate", "render_fps": 25, "log": "B1.log", "first_window": 5, "last_window": 34}
+  ]
+}
+~~~
+
+L'exemple ne donne que la première paire : ajouter les paires 2 et 3, avec
+l'ordre BA puis AB, avant d'exécuter :
+
+~~~sh
+python3 tools/grand_prix/analyze_render_ab.py preuves/runs.json > preuves/rapport.json
+python3 -m unittest tools.ci.test_grand_prix_render_ab
+~~~
+
+Les conditions communes sont **déclarées, non attestées automatiquement** ;
+`first_window` et `last_window` doivent désigner uniquement la phase stabilisée.
+Le résultat donne des vitesses **internes aux fenêtres instrumentées**, des
+quantiles bruts de pas et des différences appariées, avec SHA-256 de chaque log.
+Les pauses entre fenêtres, le FPS effectivement affiché, la latence Blockly,
+les processus GPU et le temps mural externe ne sont pas mesurés. Ce rapport
+**n'est jamais un PASS de fluidité graphique, de sécurité ni de Windows**.
