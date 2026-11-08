@@ -4,7 +4,7 @@ R2025a supervisor.c caches successful get_field calls, but a missing field
 flushes the controller connection on EVERY call. Traversing visual Box/Shape/
 Pose nodes by probing all possible graph edges makes each 8-ms check perform
 hundreds of such round trips. Enumerate the immutable built-in declarations
-once per type and per check instead. Never cache a field VALUE or a node edge.
+once per built-in type. Read actual handles and values through Webots.
 
 PROTO interfaces/internal fields are deliberately not inferred from a base
 type. Unsupported test APIs use the original lookup; no check is exempted.
@@ -12,7 +12,7 @@ type. Unsupported test APIs use the original lookup; no check is exempted.
 
 
 class NativeFieldLookup:
-    """Short-lived, read-only schema lookup, discarded after one scene check."""
+    """Reuse only immutable built-in declarations across scene checks."""
 
     def __init__(self):
         self._schemas = {}
@@ -22,8 +22,7 @@ class NativeFieldLookup:
                 ('getNumberOfFields', 'getFieldByIndex')):
             return node.getField(name)
         # A non-PROTO Webots built-in has one fixed declaration for its type.
-        # The caller creates a fresh lookup for every check; no scene identity,
-        # previous topology, mutable value or authority survives here.
+        # Every actual handle and mutable value still comes from Webots.
         kind = node.getTypeName()
         if type(kind) is not str or not kind:
             raise RuntimeError('unavailable native built-in field schema')
@@ -41,4 +40,4 @@ class NativeFieldLookup:
             self._schemas[kind] = frozenset(names)
         if name not in self._schemas[kind]:
             return None
-        return node.getField(name)  # Actual handle; all reads remain live.
+        return node.getField(name)

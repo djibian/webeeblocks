@@ -291,24 +291,46 @@ gated; no expert solution or new pupil block is supplied by this publisher.
 
 ### Live scene-check cost and native diagnostics
 
-The publisher still executes the entire scene/collider check at every 8-ms
-observation. `NativeFieldLookup` avoids probes of nonexistent fields on
-non-PROTO built-ins by enumerating their field declarations once per type
-**within that check only**. No schema survives to the next check. Real field
-values, SFNode/MFNode edges, counts, poses and provenance are still read; no
-scene-validation result or authority is cached. PROTO exposed/internal fields
-retain their original lookup path. Invalid enumeration fails closed.
+The publisher validates the scene at every 8-ms observation. After the full
+startup check it subscribes to the validated single-field values and world
+poses through the R2025a Supervisor APIs. Webots supplies those samples
+together in its step response. Native getters still request the current value
+if no current sample is available.
+
+`NativeFieldLookup` reuses immutable built-in field declarations between
+steps. The evaluator also requests one live R2025a VRML export of the root at
+each tick. The comparison removes only the two root robots' live pose,
+velocities and protocol strings. Every remaining byte, including graph edges
+and names, must match a scene verified by the full native traversal. A changed
+export forces a full traversal even when the node count stays constant.
+Unsupported exports, USE references and nested PROTOs keep the full traversal.
+
+The evaluator rereads the root count and the identities of the PROTO roots
+and evaluator. It still checks the Floor's native Plane and world pose, the
+live colliders' lock, world pose, rotation and dimensions, and both controllers'
+identity and arguments. Unknown opaque roots are fully traversed. The pinned
+Floor/Crazyflie expose their inspected node parameters in the VRML export.
+The evaluator checks the protocol and flight observations separately on every
+step. A snapshot cannot grant READY or preserve a closed attempt.
+
+Each publisher tick reuses the verified Crazyflie node and reads its live
+position, orientation, velocity and descendant contacts. Scene checks read
+collider measurements without Supervisor tracking. In R2025a a tracked pose
+or field can still describe the scene before a same-tick mutation. A changed
+export triggers a fresh traversal and measurement, even when simulation time
+has not advanced since the mutation. The existing pilot channels carry the
+request, sensor packet and attempt marker.
 
 This addresses the pinned R2025a C API's uncached negative `get_field` path:
 [supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
-The controlled test proves avoided absent lookups and preserved live mutation
-refusals, **not** a measured native speedup. The required real publisher witness
-must still pass within its bounded wall budget: 120 seconds for idle and
+The required real publisher witness must still pass within its bounded wall
+budget: 120 seconds for idle and
 420 seconds for flight-reset. The latter bound follows the retained native
 trace (7088 ms simulated in 113.41 s wall time, before TAKEOFF completion); it
 does not alter the 8-ms cadence or 210000-ms mission limit.
 
-The isolated witness retains per-tick wall elapsed time, tick wall duration and
-native observed position, plus the actual outgoing pilot response buffer after
+The isolated witness retains elapsed wall time, wall and process CPU time for
+both the step and the evaluator tick, and native observed position. It also
+retains the actual outgoing pilot response buffer after
 broker forwarding. These are diagnostics only, not substitutes for the original
 JSON/stdout/exit, TAKEOFF/independent LAND/RESET or fresh native authority proofs.

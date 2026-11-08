@@ -51,15 +51,12 @@ class NativePublisherTests(unittest.TestCase):
         self.physics = LiveNode(11, '', 'Physics', {})
         self.base = {'boundingObject': self.bounds, 'physics': self.physics}
         self.native.vehicle.getBaseNodeField = lambda name: LiveField(self.base, name)
-        # Scene identity/colliders have their own full readback tests. Keep all
-        # real data readers, wire, RESET window and pure attempt code in this
-        # composition; only the physical API and static-scene check are fakes.
-        self.scene = patch('tools.grand_prix.evaluator_publisher_v2.check_native_evaluator_scene')
+        # Keep the production tick's data readers, wire, RESET window and pure
+        # attempt code. The scene check has its own full readback tests.
+        self.scene = patch('tools.grand_prix.evaluator_publisher_v2.read_native_evaluator_scene',
+                           return_value=self.native.vehicle)
         self.checked = self.scene.start()
         self.addCleanup(self.scene.stop)
-        nested = patch('tools.grand_prix.evaluator_observation_v2.check_native_evaluator_scene')
-        nested.start()
-        self.addCleanup(nested.stop)
         self.evaluator = NativeRouteEvaluator(self.native, self.course.identifier)
         self.ms = 2112
         self.attempt = 1
@@ -439,16 +436,19 @@ int main(){
             webots='R2025a', timestep_ms=8,
             ready=dict(time_ms=1120, stable_since_ms=616, sample_time_ms=1120,
                        ranges_m=[2.] * 5, position=[0., 0., .015], velocity=[0.] * 6,
-                       contact_count=0), refused_ms=1128, restored_still_refused_ms=1160)
+                       contact_count=0), mutated_ms=1128, refused_ms=1128,
+            restored_still_refused_ms=1160)
         # Parser shape tests only, never a real native claim.
         check_native(good)
-        for mutation in ('absent', 'short-window', 'stale', 'no-revoke', 'nan', 'motion', 'range'):
+        for mutation in ('absent', 'short-window', 'stale', 'no-revoke',
+                         'prior-tick-mutation', 'nan', 'motion', 'range'):
             with self.subTest(mutation=mutation):
                 bad = copy.deepcopy(good)
                 if mutation == 'absent': del bad['ready']
                 elif mutation == 'short-window': bad['ready']['stable_since_ms'] = 624
                 elif mutation == 'stale': bad['ready']['sample_time_ms'] = 1080
                 elif mutation == 'no-revoke': bad['refused_ms'] += 8
+                elif mutation == 'prior-tick-mutation': bad['mutated_ms'] -= 8
                 elif mutation == 'nan': bad['ready']['position'][2] = float('nan')
                 elif mutation == 'motion': bad['ready']['velocity'][3] = .11
                 elif mutation == 'range': bad['ready']['ranges_m'][0] = 2.002

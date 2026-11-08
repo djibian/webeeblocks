@@ -43,7 +43,9 @@ class NativeFieldLookupTests(unittest.TestCase):
         from tools.ci.test_grand_prix_native_collider_contract_v2 import (
             _Node, _Field, _Supervisor, _plan_and_manifest,
         )
-        from tools.grand_prix.native_collider_contract_v2 import verify_native_boxes
+        from tools.grand_prix.native_collider_contract_v2 import (
+            _read_native_root_nodes, _verify_scene_boxes, verify_native_boxes,
+        )
         original = _Node.getField
         absent = []
 
@@ -79,6 +81,13 @@ class NativeFieldLookupTests(unittest.TestCase):
                 _Supervisor.solid(boxes[1])]))
             with self.assertRaises(RuntimeError):
                 verify_native_boxes(scene, plan, boxes)
+            scene = _Supervisor(boxes)
+            lookup = NativeFieldLookup()
+            _verify_scene_boxes(plan, boxes, _read_native_root_nodes(scene), lookup)
+            # Keep the MFNode count unchanged while replacing its only child.
+            scene.nodes[0].fields['children'][0] = _Supervisor.solid(boxes[1])
+            with self.assertRaisesRegex(RuntimeError, 'unlisted native physical body'):
+                _verify_scene_boxes(plan, boxes, _read_native_root_nodes(scene), lookup)
 
     def test_builtin_absence_does_not_repeat_ipc_but_values_and_edges_stay_live(self):
         nodes = [Node('Pose', ['children'], children=[]) for _ in range(100)]
