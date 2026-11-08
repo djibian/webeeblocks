@@ -1,0 +1,146 @@
+diff --git a/include/wren/viewport.h b/include/wren/viewport.h
+index aba7c97b01c3239450f7ec551110805010938692..a6bd21cf85901b4c4a6f12f65524958c991b2afd 100644
+--- a/include/wren/viewport.h
++++ b/include/wren/viewport.h
+@@ -36,6 +36,8 @@ void wr_viewport_set_clear_color_rgba(WrViewport *viewport, const float *color);
+ void wr_viewport_set_polygon_mode(WrViewport *viewport, WrViewportPolygonMode mode);
+ void wr_viewport_set_visibility_mask(WrViewport *viewport, int mask);
+ void wr_viewport_set_size(WrViewport *viewport, int width, int height);
++/* Destination size for the main framebuffer's onscreen blit, before pixel ratio. */
++void wr_viewport_set_screen_size(WrViewport *viewport, int width, int height);
+ void wr_viewport_set_pixel_ratio(WrViewport *viewport, int ratio);
+ void wr_viewport_set_camera(WrViewport *viewport, WrCamera *camera);
+ void wr_viewport_set_frame_buffer(WrViewport *viewport, WrFrameBuffer *frame_buffer);
+diff --git a/src/webots/gui/WbWrenWindow.cpp b/src/webots/gui/WbWrenWindow.cpp
+index 909f8bc9c293d9150e2f6cf92435c1ca08ce6830..edffe6787329b294214ec605674d0e6b6a60f018 100644
+--- a/src/webots/gui/WbWrenWindow.cpp
++++ b/src/webots/gui/WbWrenWindow.cpp
+@@ -319,6 +319,12 @@ QImage WbWrenWindow::grabWindowBufferNow() {
+
+   const int destinationWidth = width();
+   const int destinationHeight = height();
++  if (mMainRenderWidth != destinationWidth || mMainRenderHeight != destinationHeight) {
++    QImage pixels(mMainRenderWidth, mMainRenderHeight, QImage::Format_RGB32);
++    readPixels(mMainRenderWidth, mMainRenderHeight, GL_BGRA, pixels.bits());
++    WbWrenOpenGlContext::doneWren();
++    return pixels.mirrored().scaled(destinationWidth, destinationHeight);
++  }
+   if (mSnapshotBuffer == NULL || destinationWidth != mSnapshotBufferWidth || destinationHeight != mSnapshotBufferHeight) {
+     delete[] mSnapshotBuffer;
+     mSnapshotBufferWidth = destinationWidth;
+@@ -337,6 +343,9 @@ QImage WbWrenWindow::grabWindowBufferNow() {
+ }
+
+ void WbWrenWindow::initVideoPBO() {
++  mNativeVideoCapture = true;
++  if (mMainRenderWidth != width() || mMainRenderHeight != height())
++    resizeWren(width(), height());
+   WbWrenOpenGlContext::makeWrenCurrent();
+
+   mVideoWidth = width();
+@@ -358,6 +367,7 @@ void WbWrenWindow::completeVideoPBOProcessing(bool canceled) {
+   wr_scene_terminate_frame_capture(wr_scene_get_instance());
+
+   WbWrenOpenGlContext::doneWren();
++  mNativeVideoCapture = false;
+ }
+
+ void WbWrenWindow::processVideoPBO() {
+@@ -393,8 +403,12 @@ void WbWrenWindow::updateFrameBuffer() {
+   if (mWrenDepthFrameBufferTexture)
+     wr_texture_delete(WR_TEXTURE(mWrenDepthFrameBufferTexture));
+
++  static const bool halfResolution = qEnvironmentVariableIntValue("WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE") == 50;
++  const int divisor = halfResolution && !mNativeVideoCapture ? 2 : 1;
++  mMainRenderWidth = qMax(1, width() / divisor);
++  mMainRenderHeight = qMax(1, height() / divisor);
+   mWrenMainFrameBuffer = wr_frame_buffer_new();
+-  wr_frame_buffer_set_size(mWrenMainFrameBuffer, width(), height());
++  wr_frame_buffer_set_size(mWrenMainFrameBuffer, mMainRenderWidth, mMainRenderHeight);
+
+   mWrenMainFrameBufferTexture = wr_texture_rtt_new();
+   wr_texture_set_internal_format(WR_TEXTURE(mWrenMainFrameBufferTexture), WR_TEXTURE_INTERNAL_FORMAT_RGB16F);
+@@ -413,7 +427,12 @@ void WbWrenWindow::updateFrameBuffer() {
+   wr_frame_buffer_setup(mWrenMainFrameBuffer);
+   wr_viewport_set_frame_buffer(wr_scene_get_viewport(wr_scene_get_instance()), mWrenMainFrameBuffer);
+
+-  wr_viewport_set_size(wr_scene_get_viewport(wr_scene_get_instance()), width(), height());
++  WrViewport *const viewport = wr_scene_get_viewport(wr_scene_get_instance());
++  wr_viewport_set_size(viewport, mMainRenderWidth, mMainRenderHeight);
++  wr_viewport_set_screen_size(viewport, width(), height());
++  if (qEnvironmentVariableIntValue("WEBOTS_RENDER_TRACE") == 1)
++    WbLog::info(QString("WEBOTS_MAIN_FRAMEBUFFER render=%1x%2 screen=%3x%4")
++                  .arg(mMainRenderWidth).arg(mMainRenderHeight).arg(width()).arg(height()));
+
+   WbWrenOpenGlContext::doneWren();
+ }
+diff --git a/src/webots/gui/WbWrenWindow.hpp b/src/webots/gui/WbWrenWindow.hpp
+index 64d7051788ab87134882f219fb56f537e3bf8740..dcf5e7736cfbee8e230499d320ce78dfcfb2ca5e 100644
+--- a/src/webots/gui/WbWrenWindow.hpp
++++ b/src/webots/gui/WbWrenWindow.hpp
+@@ -84,6 +84,9 @@ private:
+   int mVideoWidth;
+   int mVideoHeight;
+   int mVideoPBOIndex;
++  bool mNativeVideoCapture = false;
++  int mMainRenderWidth = 0;
++  int mMainRenderHeight = 0;
+
+   // proxy framebuffer for post-processing effects
+   WrFrameBuffer *mWrenMainFrameBuffer;
+diff --git a/src/wren/Scene.cpp b/src/wren/Scene.cpp
+index a33e69daa849dad6cae0bbd833fe4f4ec80fa8cb..c14db967422ac36e9fb325ce84c71e261b2048fd 100644
+--- a/src/wren/Scene.cpp
++++ b/src/wren/Scene.cpp
+@@ -284,8 +284,8 @@ namespace wren {
+         if (!offScreen && mCurrentViewport == mMainViewport && mCurrentViewport->frameBuffer()) {
+           glstate::bindDrawFrameBuffer(0);
+           mCurrentViewport->frameBuffer()->blit(0, true, false, false, 0, 0, 0, 0, 0, 0,
+-                                                mCurrentViewport->width() * mCurrentViewport->pixelRatio(),
+-                                                mCurrentViewport->height() * mCurrentViewport->pixelRatio());
++                                                mCurrentViewport->screenWidth() * mCurrentViewport->pixelRatio(),
++                                                mCurrentViewport->screenHeight() * mCurrentViewport->pixelRatio());
+         }
+       }
+
+diff --git a/src/wren/Viewport.cpp b/src/wren/Viewport.cpp
+index 0d564d192f0957366cf81693afcf075365b34f0a..ab375285a66009ebeffa7f02230c3d6dd6efc7f7 100644
+--- a/src/wren/Viewport.cpp
++++ b/src/wren/Viewport.cpp
+@@ -306,6 +306,10 @@ void wr_viewport_set_size(WrViewport *viewport, int width, int height) {
+   reinterpret_cast<wren::Viewport *>(viewport)->setSize(width, height);
+ }
+
++void wr_viewport_set_screen_size(WrViewport *viewport, int width, int height) {
++  reinterpret_cast<wren::Viewport *>(viewport)->setScreenSize(width, height);
++}
++
+ void wr_viewport_set_pixel_ratio(WrViewport *viewport, int ratio) {
+   reinterpret_cast<wren::Viewport *>(viewport)->setPixelRatio(ratio);
+ }
+diff --git a/src/wren/Viewport.hpp b/src/wren/Viewport.hpp
+index 079a7fbb6e6f88d988ee8a0b98971e98ed4eac00..c8b19dfe2afcdb95b98c9bbfb9b447aa9e5144d2 100644
+--- a/src/wren/Viewport.hpp
++++ b/src/wren/Viewport.hpp
+@@ -39,6 +39,12 @@ namespace wren {
+     void setPolygonMode(WrViewportPolygonMode polygonMode) { mPolygonMode = polygonMode; }
+     void setVisbilityMask(int mask) { mVisibilityMask = mask; }
+     void setSize(int width, int height);
++    void setScreenSize(int width, int height) {
++      mScreenWidth = width;
++      mScreenHeight = height;
++    }
++    int screenWidth() const { return mScreenWidth > 0 ? mScreenWidth : mWidth; }
++    int screenHeight() const { return mScreenHeight > 0 ? mScreenHeight : mHeight; }
+     void setPixelRatio(int ratio) { mPixelRatio = ratio; }
+     void setCamera(Camera *camera);
+     void setFrameBuffer(FrameBuffer *frameBuffer);
+@@ -91,6 +97,8 @@ namespace wren {
+     int mWidth;
+     int mHeight;
+     int mPixelRatio;
++    int mScreenWidth = 0;
++    int mScreenHeight = 0;
+
+     Camera *mCamera;
+     FrameBuffer *mFrameBuffer;

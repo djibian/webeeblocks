@@ -1,0 +1,245 @@
+diff --git a/src/webots/control/WbControlledWorld.cpp b/src/webots/control/WbControlledWorld.cpp
+index 7dd77bc8fe887667ffdcd8d989b109258b6b0c9b..b19c4ce8a5586e1f81d97c1a083af20dde41d1e3 100644
+--- a/src/webots/control/WbControlledWorld.cpp
++++ b/src/webots/control/WbControlledWorld.cpp
+@@ -14,6 +14,8 @@
+
+ #include "WbControlledWorld.hpp"
+
++#include "WbPerformanceLog.hpp"
++
+ #include "WbController.hpp"
+ #include "WbLog.hpp"
+ #include "WbMFNode.hpp"
+@@ -175,7 +177,11 @@ void WbControlledWorld::checkIfReadRequestCompleted() {
+     return;
+   if (!needToWait()) {
+     WbSimulationState *state = WbSimulationState::instance();
++    WbPerformanceLog *const log = WbPerformanceLog::instance();
++    const qint64 start = log ? log->traceStart() : 0;
+     emit state->controllerReadRequestsCompleted();
++    if (log)
++      log->traceStop("qt_controller_ready", start, state->time());
+     if (state->isPaused() || state->isStep()) {
+       // in order to avoid mixing immediate messages sent by Webots and the libController
+       // some Webots immediate messages could have been postponed
+@@ -282,6 +288,8 @@ void WbControlledWorld::step() {
+     WbSimulationWorld::step();
+   }
+
++  WbPerformanceLog *const log = WbPerformanceLog::instance();
++  mTraceBeforeReply = log ? log->traceStart() : 0;
+   waitForRobotWindowIfNeededAndCompleteStep();
+ }
+
+@@ -445,6 +453,10 @@ void WbControlledWorld::waitForRobotWindowIfNeededAndCompleteStep() {
+   }
+
+   const WbSimulationState *const simulationState = WbSimulationState::instance();
++  WbPerformanceLog *const log = WbPerformanceLog::instance();
++  if (log)
++    log->traceStop("robot_window_wait", mTraceBeforeReply, simulationState->time());
++  const qint64 replyStart = log ? log->traceStart() : 0;
+   for (int i = 0; i < controllersCount; ++i) {
+     WbController *controller = mControllers[i];
+     if (!controller->isRequestPending())
+@@ -462,8 +474,14 @@ void WbControlledWorld::waitForRobotWindowIfNeededAndCompleteStep() {
+     mWaitingControllers.append(mNewControllers);
+     mNewControllers.clear();
+   }
+-  if (!needToWait())
++  if (log)
++    log->traceStop("controller_reply", replyStart, simulationState->time());
++  if (!needToWait()) {
++    const qint64 start = log ? log->traceStart() : 0;
+     emit WbSimulationState::instance()->controllerReadRequestsCompleted();
++    if (log)
++      log->traceStop("qt_controller_ready", start, simulationState->time());
++  }
+
+   mIsExecutingStep = false;
+   processWaitingStep();
+diff --git a/src/webots/control/WbControlledWorld.hpp b/src/webots/control/WbControlledWorld.hpp
+index 15c914b285aea59cb8e52c97889aac0f32e651af..11de0bfba5c23ef00227dd3ab138021d994e9f41 100644
+--- a/src/webots/control/WbControlledWorld.hpp
++++ b/src/webots/control/WbControlledWorld.hpp
+@@ -78,7 +78,8 @@ private:
+   void processWaitingStep();
+
+   // avoid executing a new step before the current one is completed
+   bool mIsExecutingStep;  // flag indicating if a step is currently being processed
++  qint64 mTraceBeforeReply = 0;
+   bool mHasWaitingStep;   // flag indicating if a new step execution has been requested
+
+ private slots:
+diff --git a/src/webots/engine/WbSimulationWorld.cpp b/src/webots/engine/WbSimulationWorld.cpp
+index 319df02a665a35006a80a3493fd484fccec296af..86bde2e061391da0922ad9131a282dd9970bc06b 100644
+--- a/src/webots/engine/WbSimulationWorld.cpp
++++ b/src/webots/engine/WbSimulationWorld.cpp
+@@ -216,6 +216,7 @@ void WbSimulationWorld::step() {
+     mTimer->start(mSleepRealTime);
+   }
+
++  const qint64 physicsStart = log ? log->traceStart() : 0;
+   emit physicsStepStarted();
+
+   if (log)
+@@ -274,8 +275,10 @@ void WbSimulationWorld::step() {
+   WbSimulationState::instance()->increaseTime(timeStep);
+   viewpoint()->updateFollowUp();
+
+-  if (log)
++  if (log) {
+     log->stopMeasure(WbPerformanceLog::POST_PHYSICS_STEP);
++    log->traceStop("physics", physicsStart, WbSimulationState::instance()->time());
++  }
+
+   // update camera textures before main rendering
+   const QList<WbRobot *> robotList = robots();
+diff --git a/src/webots/gui/WbWrenWindow.cpp b/src/webots/gui/WbWrenWindow.cpp
+index e7cc23b5c475de49d0df54ba0e61b5bd807eb640..909f8bc9c293d9150e2f6cf92435c1ca08ce6830 100644
+--- a/src/webots/gui/WbWrenWindow.cpp
++++ b/src/webots/gui/WbWrenWindow.cpp
+@@ -21,6 +21,7 @@
+ #include "WbMessageBox.hpp"
+ #include "WbMultimediaStreamingServer.hpp"
+ #include "WbPerformanceLog.hpp"
++#include "WbSimulationState.hpp"
+ #include "WbPreferences.hpp"
+ #include "WbSysInfo.hpp"
+ #include "WbVideoRecorder.hpp"
+@@ -217,6 +218,8 @@ void WbWrenWindow::renderNow(bool culling, bool offScreen) {
+   if (log)
+     log->startMeasure(WbPerformanceLog::MAIN_RENDERING);
+
++  const double simTime = WbSimulationState::instance()->time();
++  const qint64 prepareStart = log ? log->traceStart() : 0;
+   WbViewpoint *viewpoint = WbWorld::instance() ? WbWorld::instance()->viewpoint() : NULL;
+   if (viewpoint) {
+     viewpoint->enableNodeVisibility(false);
+@@ -225,10 +228,19 @@ void WbWrenWindow::renderNow(bool culling, bool offScreen) {
+
+   WbWrenOpenGlContext::makeWrenCurrent();
+
++  if (log)
++    log->traceStop("wren_prepare", prepareStart, simTime);
++  const qint64 drawStart = log ? log->traceStart() : 0;
+   wr_scene_render(wr_scene_get_instance(), NULL, culling, offScreen);
++  if (log)
++    log->traceStop(offScreen ? "wren_offscreen" : "wren_draw", drawStart, simTime);
+
+-  if (!offScreen)
++  if (!offScreen) {
++    const qint64 swapStart = log ? log->traceStart() : 0;
+     WbWrenOpenGlContext::instance()->swapBuffers(this);
++    if (log)
++      log->traceStop("opengl_swap", swapStart, simTime);
++  }
+   WbWrenOpenGlContext::doneWren();
+
+   if (mVideoStreamingServer && mVideoStreamingServer->isNewFrameNeeded() && !first)
+diff --git a/src/webots/util/WbPerformanceLog.cpp b/src/webots/util/WbPerformanceLog.cpp
+index e3093fbbdfd7937d55e8dfb5e6f944d7d8bc9c0f..3f86ca140e35dd193b6760e91c53777bb357e6fd 100644
+--- a/src/webots/util/WbPerformanceLog.cpp
++++ b/src/webots/util/WbPerformanceLog.cpp
+@@ -21,6 +21,7 @@
+
+ #include <QtCore/QElapsedTimer>
+ #include <cassert>
++#include <chrono>
+
+ class Measurement {
+ public:
+@@ -107,13 +108,18 @@ WbPerformanceLog::WbPerformanceLog(const QString &fileName, int stepsCount) :
+   mTimers(INFO_COUNT),
+   mAverageFPS(0.0),
+   mTimeStep(0),
+-  mIsLogCompleted(false) {
++  mIsLogCompleted(false),
++  mRenderTraceEnabled(qEnvironmentVariableIntValue("WEBOTS_RENDER_TRACE") == 1) {
++  if (mRenderTraceEnabled)
++    mRenderTrace.reserve(131072);
+   mFile = new QFile(mFileName);
+   for (int i = 0; i < INFO_COUNT; ++i)
+     mTimers[i] = new QElapsedTimer();
+ }
+
+ WbPerformanceLog::~WbPerformanceLog() {
++  if (mRenderTraceEnabled)
++    writeRenderTrace();
+   for (int i = 0; i < INFO_COUNT; ++i) {
+     delete mTimers[i];
+     mTimers[i] = NULL;
+@@ -301,6 +307,33 @@ void WbPerformanceLog::stopMeasure(InfoType type, const QString &object) {
+   }
+ }
+
++qint64 WbPerformanceLog::traceStart() const {
++  if (!mRenderTraceEnabled || mRenderTraceFull)
++    return 0;
++  return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++
++void WbPerformanceLog::traceStop(const char *section, qint64 start, double simulationTime) {
++  if (start == 0 || mRenderTraceFull)
++    return;
++  if (mRenderTrace.size() == mRenderTrace.capacity()) {
++    mRenderTraceFull = true;
++    return;
++  }
++  mRenderTrace.append({section, simulationTime, start, traceStart()});
++}
++
++void WbPerformanceLog::writeRenderTrace() const {
++  QFile file(mFileName + ".render.csv");
++  if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly | QIODevice::Text))
++    return;
++  QTextStream out(&file);
++  out << "# webots-render-trace-v1 complete=" << (mRenderTraceFull ? 0 : 1) << '\n';
++  out << "section,sim_ms,start_ns,end_ns\n";
++  for (const RenderSpan &span : mRenderTrace)
++    out << span.section << ',' << span.simulationTime << ',' << span.start << ',' << span.end << '\n';
++}
++
+ void WbPerformanceLog::reportStepRenderingStats(int trianglesCount) {
+   mValues[MAIN_TRIANGLES_COUNT] += trianglesCount;
+   mValuesCount[MAIN_TRIANGLES_COUNT] += 1;
+diff --git a/src/webots/util/WbPerformanceLog.hpp b/src/webots/util/WbPerformanceLog.hpp
+index 628f1cc3078e01b6b24445331ec5f5bdab822baa..344a2f6b81c46fbf58ea41ad61c2afd3ad683ed4 100644
+--- a/src/webots/util/WbPerformanceLog.hpp
++++ b/src/webots/util/WbPerformanceLog.hpp
+@@ -67,6 +67,9 @@ public:
+
+   void reportStepRenderingStats(int trianglesCount);
+
++  qint64 traceStart() const;
++  void traceStop(const char *section, qint64 start, double simulationTime);
++
+ private:
+   static WbPerformanceLog *cInstance;
+   WbPerformanceLog(const QString &fileName, int stepsCount);
+@@ -77,6 +80,14 @@ private:
+   void closeFile();
+   void writeTotalValues();
+   static QString justifiedNumber(double value, int size);
++  void writeRenderTrace() const;
++
++  struct RenderSpan {
++    const char *section;
++    double simulationTime;
++    qint64 start;
++    qint64 end;
++  };
+
+   QString mFileName;
+   QFile *mFile;
+@@ -89,6 +100,9 @@ private:
+   double mAverageFPS;
+   double mTimeStep;
+   bool mIsLogCompleted;
++  const bool mRenderTraceEnabled;
++  bool mRenderTraceFull = false;
++  QVector<RenderSpan> mRenderTrace;
+
+   QHash<QString, Measurement *> mRenderingDevicesValues;
+   QHash<QString, Measurement *> mControllersValues;
