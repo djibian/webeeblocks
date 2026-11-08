@@ -63,6 +63,22 @@ class AnalyzePhaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'percentiles'):
             parse_windows([PREFIX + json.dumps(bad)])
 
+    def test_impossible_wall_duration_rejected(self):
+        # Valid 8-ms clocks and raw p99, but 1 ns cannot contain 125
+        # measured steps of 8 ms plus their evaluator ticks.
+        forged = window(0)
+        forged['last_end_wall_ns'] = forged['first_start_wall_ns'] + 1
+        forged['wall_ns'] = 1
+        with self.assertRaisesRegex(ValueError, 'impossible wall duration'):
+            parse_windows([PREFIX + json.dumps(forged)])
+
+    def test_negative_monotonic_wall_bound_refused(self):
+        forged = window(0)
+        forged['first_start_wall_ns'] = -forged['wall_ns']
+        forged['last_end_wall_ns'] = 0
+        with self.assertRaisesRegex(ValueError, 'impossible wall duration'):
+            parse_windows([PREFIX + json.dumps(forged)])
+
     def test_partial_window_rejected(self):
         data = [window(0)]
         data[0]['reason'] = 'clock-discontinuity'

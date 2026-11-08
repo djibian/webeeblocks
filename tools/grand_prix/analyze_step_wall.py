@@ -51,6 +51,12 @@ def parse_windows(lines):
                     row['wall_ns'] != row['last_end_wall_ns'] - row['first_start_wall_ns'] or
                     row['wall_ns'] <= 0):
                 raise ValueError('inconsistent window bounds')
+            # Each step and tick interval is monotone and non-overlapping by
+            # construction of StepWallProbe.record(). The enclosing wall span
+            # must never be shorter than their sum, even in a forged log.
+            if (row['first_start_wall_ns'] < 0 or row['last_end_wall_ns'] < 0 or
+                    sum(steps) + sum(ticks) > row['wall_ns']):
+                raise ValueError('impossible wall duration for raw steps/ticks')
             if (row.get('step_p99_ns') != percentile(steps, .99) or
                     row.get('step_max_ns') != max(steps) or
                     row.get('tick_p99_ns') != percentile(ticks, .99)):
