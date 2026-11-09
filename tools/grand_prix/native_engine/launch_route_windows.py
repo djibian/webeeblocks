@@ -131,7 +131,10 @@ def require_robot_window_archive_integrity():
             raise ValueError('Ressource Blockly absente du manifeste : ' + relative)
         try:
             with target.open('rb') as stream:
-                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+                digest = hashlib.sha256()
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+                actual = digest.hexdigest()
         except OSError as error:
             raise ValueError('Ressource Blockly inaccessible : ' + relative) from error
         if actual != expected[relative]:
