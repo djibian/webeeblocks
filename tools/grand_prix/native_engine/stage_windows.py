@@ -1,7 +1,9 @@
 """Stage a source-built R2025a engine in a private copy of the stock distribution."""
 import argparse
+import ctypes
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -34,13 +36,15 @@ def stage(reference, build, mingw, output):
         raise ValueError('Unexpected upstream engine commit')
     shutil.copytree(reference, output, ignore=shutil.ignore_patterns('unins*.exe', 'unins*.dat'))
 
-    for path in (BIN / 'webots-bin.exe', CONTROLLER, CONTROLLER.with_suffix('.lib'),
+    for path in (BIN / 'webots-bin.exe', CONTROLLER, CONTROLLER.with_name('libController.a'),
                  Path('include/controller/c/webots/supervisor.h')):
         checked_copy(build / path, output / path)
 
     # Deploy the Qt that supplied the build's headers and link libraries.
     # Remove old Qt DLLs and plugins first so no stale plugin can be loaded.
     bin_dir = output / BIN
+    ffmpeg = bin_dir / 'ffmpeg.exe'
+    checked_copy(mingw / 'bin/ffmpeg.exe', ffmpeg)
     for dll in bin_dir.glob('Qt6*.dll'):
         dll.unlink()
     plugin_dir = output / PLUGINS
@@ -57,7 +61,7 @@ def stage(reference, build, mingw, output):
     # Resolve dependencies from the build and its MinGW sysroot before falling
     # back to the verified stock distribution or Windows system DLLs.
     objdump = mingw / 'bin/objdump.exe'
-    pending = [bin_dir / 'webots-bin.exe', output / CONTROLLER, *plugin_dir.rglob('*.dll')]
+    pending = [bin_dir / 'webots-bin.exe', output / CONTROLLER, ffmpeg, *plugin_dir.rglob('*.dll')]
     seen = set()
     import_name = re.compile(r'^\s*DLL Name:\s*(\S+)\s*$', re.M | re.I)
     while pending:
@@ -84,7 +88,13 @@ def stage(reference, build, mingw, output):
     if not licenses.is_dir():
         raise ValueError('Missing MinGW runtime licenses')
     shutil.copytree(licenses, output / 'native-engine-mingw-licenses')
-    files = (BIN / 'webots-bin.exe', CONTROLLER, PLUGINS / 'platforms/qwindows.dll')
+    with os.add_dll_directory(str(bin_dir)):
+        controller = ctypes.CDLL(str(output / CONTROLLER))
+        for symbol in ('wb_supervisor_physics_frame_request', 'wb_supervisor_physics_frame_read_with_revision',
+                       'wb_supervisor_set_velocity_at_scene_revision'):
+            getattr(controller, symbol)
+    subprocess.run([str(ffmpeg), '-version'], check=True, stdout=subprocess.DEVNULL)
+    files = (BIN / 'webots-bin.exe', CONTROLLER, BIN / 'ffmpeg.exe', PLUGINS / 'platforms/qwindows.dll')
     manifest = {'upstream': UPSTREAM, 'patches': (HERE / 'patches.lock').read_text().splitlines(),
                 'assembly': subprocess.check_output(
                     ['git', '-C', str(HERE), 'rev-parse', 'HEAD'], text=True).strip(),

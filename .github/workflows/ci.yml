@@ -24,7 +24,6 @@ jobs:
       webots: ${{ steps.scope.outputs.webots }}
       full: ${{ steps.scope.outputs.full }}
       reason: ${{ steps.scope.outputs.reason }}
-      native_engine: ${{ steps.native-engine-scope.outputs.run }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -265,20 +264,6 @@ jobs:
           path: ci-artifacts/grand-prix-u/
           if-no-files-found: error
 
-      - name: Select Windows native engine assembly experiment
-        id: native-engine-scope
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          paths=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA...$HEAD_SHA" -- tools/grand_prix/native_engine)
-          if [ -n "$paths" ]; then
-            echo 'run=true' >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Select required suites
         id: scope
         run: >-
@@ -368,8 +353,9 @@ jobs:
 
   native-engine-windows:
     name: Experimental Grand Prix engine Windows build
-    needs: select
-    if: needs.select.outputs.native_engine == 'true'
+    # Run this build experiment only on same-repository Draft assembly branches.
+    # It supplies an artifact and has no role in the required CI decision.
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'work/914-native-engine-')
     runs-on: windows-2022
     timeout-minutes: 90
     env:
@@ -428,9 +414,10 @@ jobs:
         run: |
           $artifact = 'ci-artifacts/native-engine'
           $mingw = (Get-Content "$artifact/mingw-root.txt" -Raw).Trim()
+          $python = (Get-Command python).Source
           $env:PATH = (Join-Path $mingw 'bin') + ';' + $env:PATH
           $target = "$artifact/Webots-R2025a-experimental"
-          python tools/grand_prix/native_engine/stage_windows.py $env:WEBOTS_NATIVE_REFERENCE .native-webots $mingw $target
+          & $python tools/grand_prix/native_engine/stage_windows.py $env:WEBOTS_NATIVE_REFERENCE .native-webots $mingw $target
           if ($LASTEXITCODE -ne 0) { throw 'Native staging failed.' }
           $launcher = Join-Path $target 'msys64/mingw64/bin/webots.exe'
           $env:WEBOTS_HOME = (Resolve-Path $target).Path
