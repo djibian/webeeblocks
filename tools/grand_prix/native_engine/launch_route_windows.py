@@ -114,15 +114,15 @@ def require_robot_window_archive_integrity():
         expected[fields[1]] = fields[0]
     parser = _RobotWindowDependencies()
     parser.feed(document)
-    targets = [plugin]
+    targets = [(plugin, None)]
     root = ROOT.resolve()
     for reference in parser.references:
         url = urlsplit(reference)
         if (url.scheme or url.netloc or not url.path or url.path.startswith('/') or
                 '\\' in url.path or '%' in url.path or url.fragment):
             raise ValueError('Référence Blockly non locale.')
-        targets.append((plugin.parent / url.path).resolve())
-    for target in targets:
+        targets.append(((plugin.parent / url.path).resolve(), url.query))
+    for target, asset_query in targets:
         try:
             relative = target.relative_to(root).as_posix()
         except ValueError as error:
@@ -139,6 +139,9 @@ def require_robot_window_archive_integrity():
             raise ValueError('Ressource Blockly inaccessible : ' + relative) from error
         if actual != expected[relative]:
             raise ValueError('Ressource Blockly modifiée : ' + relative)
+        # Asset bytes may match the manifest while the browser URL is stale.
+        if asset_query is not None and asset_query != 'wb=' + actual[:16]:
+            raise ValueError('Empreinte URL Blockly incohérente : ' + relative)
 
 def require_project_code_archive_integrity():
     """Refuse altered packaged controller/evaluator/Blockly code before an A/B trace.

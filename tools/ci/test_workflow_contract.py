@@ -277,9 +277,11 @@ class WorkflowTests(unittest.TestCase):
             style = project / "plugins/robot_windows/blockly_v2/main.css"
             style.parent.mkdir(parents=True)
             style.write_text("/* preserved */\n", encoding="utf-8")
+            script_fingerprint = hashlib.sha256(script.read_bytes()).hexdigest()[:16]
+            style_fingerprint = hashlib.sha256(style.read_bytes()).hexdigest()[:16]
             html.write_text(
-                '<script src="../blockly/webeeblocks/activity_contract.js"></script>\n'
-                '<link rel="stylesheet" href="../blockly_v2/main.css">\n',
+                f'<script src="../blockly/webeeblocks/activity_contract.js?wb={script_fingerprint}"></script>\n'
+                f'<link rel="stylesheet" href="../blockly_v2/main.css?wb={style_fingerprint}">\n',
                 encoding="utf-8")
             assets = (html, script, style)
             manifest = project / "MANIFEST.sha256"
@@ -290,6 +292,19 @@ class WorkflowTests(unittest.TestCase):
             manifest.write_text("".join(rows), encoding="utf-8")
             with patch.object(launcher, "ROOT", project):
                 self.assertIsNone(launcher.require_robot_window_archive_integrity())
+                original_html = html.read_text(encoding="utf-8")
+                # A self-consistent manifest also must reject stale and absent
+                # version keys for otherwise identical JavaScript bytes.
+                for replacement in ("?wb=0000000000000000", ""):
+                    html.write_text(original_html.replace(
+                        "?wb=" + script_fingerprint, replacement), encoding="utf-8")
+                    changed_row = (hashlib.sha256(html.read_bytes()).hexdigest() +
+                                   "  " + html.relative_to(project).as_posix() + "\n")
+                    manifest.write_text(changed_row + "".join(rows[1:]), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "Empreinte URL Blockly incohérente"):
+                        launcher.require_robot_window_archive_integrity()
+                html.write_text(original_html, encoding="utf-8")
+                manifest.write_text("".join(rows), encoding="utf-8")
                 script.write_text("window.WebeeBlocksActivityContract = undefined;\n",
                                   encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Ressource Blockly modifiée"):
