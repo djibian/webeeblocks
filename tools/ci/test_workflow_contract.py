@@ -126,6 +126,45 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Missing or unsafe Robot Window asset"):
                 module.fingerprint_robot_window_assets(project)
 
+    def test_variable_windows_real_pages_fingerprint_all_packaged_assets(self):
+        # Unlike the small synthetic fixture above, this exercises the exact
+        # source HTML and all of its packaged script/style dependencies.
+        # A new missing asset must fail before any Windows ZIP is published.
+        import hashlib
+        import importlib.util
+        import shutil
+        from urllib.parse import urlsplit
+
+        source = ROOT / "tools/grand_prix/native_engine/package_route_windows.py"
+        spec = importlib.util.spec_from_file_location("gp_windows_real_pages", source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            windows = ROOT / "plugins/robot_windows"
+            plugins = project / "plugins/robot_windows"
+            for relative in ("blockly_v2", "blockly/webeeblocks",
+                             "grand_prix_route_v2"):
+                shutil.copytree(
+                    windows / relative, plugins / relative,
+                    ignore=shutil.ignore_patterns("node_modules", "package*.json"))
+            module.fingerprint_robot_window_assets(project)
+            for relative in ("blockly_v2/blockly_v2.html",
+                             "grand_prix_route_v2/grand_prix_route_v2.html"):
+                page = plugins / relative
+                html = page.read_text(encoding="utf-8")
+                refs = [match.group("url")
+                        for match in module._ASSET_REFERENCE.finditer(html)]
+                self.assertGreater(len(refs), 20, relative)
+                for ref in refs:
+                    parsed = urlsplit(ref)
+                    self.assertRegex(parsed.query, r"\Awb=[0-9a-f]{16}\Z")
+                    target = (page.parent / parsed.path).resolve()
+                    self.assertTrue(target.is_relative_to(plugins.resolve()))
+                    self.assertEqual(
+                        parsed.query.removeprefix("wb="),
+                        hashlib.sha256(target.read_bytes()).hexdigest()[:16])
+
     def test_variable_windows_launcher_fails_closed_without_robot_window(self):
         # Host-only packaging regression. It cannot qualify the real Windows GUI.
         import importlib.util
