@@ -67,20 +67,37 @@ void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
 }
+void reportRouteChallengeBlocked(unsigned bit,const char *reason) {
+  // A one-time, nonce-free native diagnostic; this never grants admission.
+  static unsigned reported=0;
+  if(reported & bit)return;
+  reported|=bit;
+  std::fprintf(stderr,"GP_ROUTE_CHALLENGE_BLOCKED reason=%s\n",reason);
+  std::fflush(stderr);
+}
 void challengeRoute() {
   unsigned long long current=0;std::string config;long long now=0;
   WbFieldRef f=channel();
   if(!f || !routeTime(wb_robot_get_time(),now) || !currentAttempt(current) ||
-     !currentConfig(config)) {clearRouteEpoch();return;}
+     !currentConfig(config)) {
+    reportRouteChallengeBlocked(1,"native-prerequisite-unavailable");
+    clearRouteEpoch();return;
+  }
   if(routeEpoch.empty() || current!=routeAttempt || config!=routeConfig) {
     clearRouteEpoch();
     try {
       std::random_device random;
-      if(random.entropy()<=0)return; // Unavailable process freshness is never READY.
+      if(random.entropy()<=0) {
+        reportRouteChallengeBlocked(2,"random-device-entropy-unavailable");
+        return; // Unavailable process freshness is never READY.
+      }
       char token[33];
       for(int i=0;i<4;++i)std::snprintf(token+i*8,9,"%08x",static_cast<unsigned>(random()));
       routeEpoch=token;routeConfig=config;routeAttempt=current;routeIssued=now;
-    } catch(...) {clearRouteEpoch();return;}
+    } catch(...) {
+      reportRouteChallengeBlocked(4,"random-device-exception");
+      clearRouteEpoch();return;
+    }
   }
   char request[320];
   std::snprintf(request,sizeof(request),"GP_ROUTE_CHALLENGE_V1 attempt=%llu config=%s epoch=%s",
