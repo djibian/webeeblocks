@@ -132,7 +132,7 @@ def compare(manifest_path):
              and all(type(value) is int and value in (25, 30, 60) for value in fps.values()),
              'two valid declared rendered FPS caps required')
     scales = doc.get('framebuffer_scale')
-    if scales is None:
+    if 'framebuffer_scale' not in doc:
         _require(fps['A'] != fps['B'], 'two different declared rendered FPS caps required')
         comparison_axis = 'render_fps'
     else:
