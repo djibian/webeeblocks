@@ -188,6 +188,22 @@ def require_project_code_archive_integrity():
                            'plugins/robot_windows/', 'runtime/python/'))
     }
     root = ROOT.resolve()
+    for key in sorted(selected):
+        if key not in expected:
+            raise ValueError('Composant Grand Prix absent du manifeste : ' + key)
+        path = (ROOT / key).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError('Composant Grand Prix hors du projet : ' + key)
+        try:
+            with path.open('rb') as stream:
+                digest = hashlib.sha256()
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+                actual = digest.hexdigest()
+        except OSError as error:
+            raise ValueError('Composant Grand Prix inaccessible : ' + key) from error
+        if actual != expected[key]:
+            raise ValueError('Composant Grand Prix modifié : ' + key)
     # Checking only manifest-listed files misses stale code dropped into an
     # existing extraction: a .pyd or .py can shadow an inventoried module.
     # The editable .wbb and Webots perspective files live outside these roots.
@@ -205,22 +221,6 @@ def require_project_code_archive_integrity():
                 raise ValueError('Entrée Grand Prix non sûre : ' + key)
             if candidate.is_file() and key not in expected:
                 raise ValueError('Composant Grand Prix non inventorié : ' + key)
-    for key in sorted(selected):
-        if key not in expected:
-            raise ValueError('Composant Grand Prix absent du manifeste : ' + key)
-        path = (ROOT / key).resolve()
-        if not path.is_relative_to(root):
-            raise ValueError('Composant Grand Prix hors du projet : ' + key)
-        try:
-            with path.open('rb') as stream:
-                digest = hashlib.sha256()
-                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-                    digest.update(chunk)
-                actual = digest.hexdigest()
-        except OSError as error:
-            raise ValueError('Composant Grand Prix inaccessible : ' + key) from error
-        if actual != expected[key]:
-            raise ValueError('Composant Grand Prix modifié : ' + key)
 
 
 def require_engine_archive_integrity(home, manifest):
