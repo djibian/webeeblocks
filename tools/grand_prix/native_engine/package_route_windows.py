@@ -29,7 +29,7 @@ def digest(path):
 # response does not prove the browser received the requested asset: on the
 # owner's Windows run activity_contract.js returned cached wwi_backend.js.
 # Fingerprint the *packaged* bytes, not a source-tree revision or a clock.
-_ASSET_REFERENCE = re.compile(r'(?P<prefix>\\b(?:src|href)=\")(?P<url>[^\"]+)(?P<suffix>\")')
+_ASSET_REFERENCE = re.compile(r'(?P<prefix>\b(?:src|href)=")(?P<url>[^"]+)(?P<suffix>")')
 
 
 def fingerprint_robot_window_assets(output):
@@ -46,7 +46,7 @@ def fingerprint_robot_window_assets(output):
             reference = match.group('url')
             parsed = urlsplit(reference)
             if (parsed.scheme or parsed.netloc or parsed.fragment or not parsed.path or
-                    parsed.path.startswith('/') or '\\\\' in parsed.path or
+                    parsed.path.startswith('/') or '\\' in parsed.path or
                     '%' in parsed.path):
                 raise ValueError('Unsafe Robot Window asset URL: ' + reference)
             asset = (page.parent / parsed.path).resolve()
