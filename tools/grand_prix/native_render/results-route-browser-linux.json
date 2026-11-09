@@ -1,0 +1,354 @@
+{
+  "project_sha": "d53701c702d0c0894376b7c6226f9d4a092d1f1f",
+  "course": "gp-route-v2-L2000-2500-3000-TGD-s105-H2",
+  "display": "Xvfb 1280x800 with software OpenGL, 736x479 viewport, 60 FPS cap",
+  "browser": "Chromium headless shell 150.0.7871.181 and real Blockly 13.2.1 Robot Window",
+  "browser_binary_sha256": "84ddd30b8259f1aa821bf624fc1a33ef9f5d071093bca4ed6d8930532b209488",
+  "transport": "lab TCP with exact evaluator controller identity alias for two external controllers",
+  "controller_sha256": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f",
+  "scale_pair": {
+    "phase_ms": [
+      3008,
+      5008
+    ],
+    "engine_sha256": "02fcb8185ca77a3f5f464f6341a280266737d1be81e7113a5df629110ea75383",
+    "trials": [
+      {
+        "pair": 1,
+        "outcome": "ERREUR",
+        "states": [
+          "EX\u00c9CUTION",
+          "ERREUR"
+        ],
+        "detail": "Une erreur technique a interrompu l\u2019ex\u00e9cution",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 100,
+        "speed_x": 0.0584792797811925,
+        "step_p99_ms": 364.592013,
+        "tick_p99_ms": 124.6044,
+        "step_plus_tick_p99_ms": 431.782097,
+        "swap_completions_per_second": 5.877167618009847,
+        "native_stage_p99_ms": {
+          "controller_reply": 4.161577,
+          "opengl_swap": 20.930712,
+          "physics": 3.853496,
+          "qt_controller_ready": 360.01671,
+          "robot_window_wait": 0.148961,
+          "wren_draw": 354.788896,
+          "wren_prepare": 1.297795
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "f4a725bcdc77ea0eb677625838a9a2de52db50d0c419e986568b4ca50ede3358",
+        "native_spans_sha256": "e25e12551a437795197f4a8578945c69188ad979ef1718a9a920804098950fb4",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "debug": "Runtime v2 request timeout id=24 command=TAKEOFF (browser capture)"
+      },
+      {
+        "pair": 1,
+        "outcome": "ERREUR",
+        "states": [
+          "EX\u00c9CUTION",
+          "ERREUR"
+        ],
+        "detail": "Une erreur technique a interrompu l\u2019ex\u00e9cution",
+        "debug": "Diagnostic : Runtime v2 request timeout id=33 command=TAKEOFF",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "speed_x": 0.12052925236731847,
+        "step_p99_ms": 120.076394,
+        "tick_p99_ms": 72.071991,
+        "step_plus_tick_p99_ms": 173.608118,
+        "swap_completions_per_second": 12.776100750935758,
+        "native_stage_p99_ms": {
+          "controller_reply": 1.708413,
+          "opengl_swap": 9.235758,
+          "physics": 3.728145,
+          "qt_controller_ready": 118.550261,
+          "robot_window_wait": 0.541751,
+          "wren_draw": 111.538047,
+          "wren_prepare": 0.533428
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "4b5075f49cfb02693bfc777c5095bd64a3ee578fec8ae8d3d65a025eace0a2cd",
+        "native_spans_sha256": "35ed462c4276edbad991e939493d67169711576775bd48b2474bda2e979e6230",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8"
+      }
+    ]
+  },
+  "duty_pairs": {
+    "phase_ms": [
+      4008,
+      8008
+    ],
+    "engine_sha256": "0b86ddfc258077fb00e2c407e5d2ae3be9122871cd6eeae1528c538fd1816d4e",
+    "trials": [
+      {
+        "pair": 1,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 0,
+        "speed_x": 0.1555915908688112,
+        "step_p99_ms": 128.745345,
+        "tick_p99_ms": 62.194708,
+        "step_plus_tick_p99_ms": 179.526024,
+        "swap_completions_per_second": 13.575366303303776,
+        "native_stage_p99_ms": {
+          "controller_reply": 1.506869,
+          "opengl_swap": 9.050662,
+          "physics": 1.58146,
+          "qt_controller_ready": 123.819999,
+          "robot_window_wait": 0.098566,
+          "wren_draw": 121.957858,
+          "wren_prepare": 0.450767
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "364f171b44ee4c3e8371a1b6323571f468c4ac8050db23bda89c19b04476852b",
+        "native_spans_sha256": "f5d572556365584db2d26d39e32d6b113bcda926183d2ab4834ce16d92630517",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      },
+      {
+        "pair": 1,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 35,
+        "speed_x": 0.3212752195060549,
+        "step_p99_ms": 57.766238,
+        "tick_p99_ms": 31.436318,
+        "step_plus_tick_p99_ms": 83.726201,
+        "swap_completions_per_second": 8.995706146169539,
+        "native_stage_p99_ms": {
+          "controller_reply": 0.400964,
+          "opengl_swap": 4.249571,
+          "physics": 1.936938,
+          "qt_controller_ready": 56.976102,
+          "robot_window_wait": 0.068041,
+          "wren_draw": 78.870686,
+          "wren_prepare": 0.276149
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "2cb235c3cedc318eb0deba2e183b51a8e679f0ab30310acca6c5057af194e148",
+        "native_spans_sha256": "688800c85a991e49d0cd268064f7cd0158d93be1d81533357134a6af861866b0",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      },
+      {
+        "pair": 2,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 35,
+        "speed_x": 0.32404736722273314,
+        "step_p99_ms": 53.832583,
+        "tick_p99_ms": 38.038078,
+        "step_plus_tick_p99_ms": 76.04151,
+        "swap_completions_per_second": 9.154338124042212,
+        "native_stage_p99_ms": {
+          "controller_reply": 0.478769,
+          "opengl_swap": 10.035625,
+          "physics": 1.894096,
+          "qt_controller_ready": 53.385992,
+          "robot_window_wait": 0.147198,
+          "wren_draw": 52.678606,
+          "wren_prepare": 0.315557
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "8fa1d4f8c2dee1d499004d6b99910be33c3359ac96b21dd8d4da868e5363d548",
+        "native_spans_sha256": "af3aaabb99330702a5c36d691d144c2e047c01915288b98780cac52522e320f9",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      },
+      {
+        "pair": 2,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 0,
+        "speed_x": 0.1592462340610844,
+        "step_p99_ms": 101.797836,
+        "tick_p99_ms": 71.144851,
+        "step_plus_tick_p99_ms": 158.937116,
+        "swap_completions_per_second": 14.371972624012866,
+        "native_stage_p99_ms": {
+          "controller_reply": 1.146138,
+          "opengl_swap": 9.136569,
+          "physics": 2.083152,
+          "qt_controller_ready": 100.94067,
+          "robot_window_wait": 0.311662,
+          "wren_draw": 102.218018,
+          "wren_prepare": 0.328497
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "8b6f117078796b18737a198400dfd6c1fcfb6e8982707232899ec3b60cb0ed74",
+        "native_spans_sha256": "51f0df739e46226d36ee319363d4f1957031cbda938f962a751a0ba1501deb87",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      },
+      {
+        "pair": 3,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 0,
+        "speed_x": 0.1670689486746462,
+        "step_p99_ms": 97.873222,
+        "tick_p99_ms": 57.430653,
+        "step_plus_tick_p99_ms": 158.9814,
+        "swap_completions_per_second": 14.785601957706188,
+        "native_stage_p99_ms": {
+          "controller_reply": 1.653201,
+          "opengl_swap": 7.511662,
+          "physics": 1.814439,
+          "qt_controller_ready": 93.440927,
+          "robot_window_wait": 0.123012,
+          "wren_draw": 90.80964,
+          "wren_prepare": 0.496356
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "a0029eab569f933264f8e629ab3af1d1b4868c8ce7f04267176cc937b3d2dc96",
+        "native_spans_sha256": "11d7c1d6656e44238ca5416355385ee9ceead7125b869f6fc95efb7395da3f58",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      },
+      {
+        "pair": 3,
+        "outcome": "MISSION \u00c9CHOU\u00c9E",
+        "states": [
+          "EX\u00c9CUTION",
+          "MISSION \u00c9CHOU\u00c9E"
+        ],
+        "detail": "Atterrissage de s\u00fbret\u00e9 impos\u00e9",
+        "debug": "Observation inactive",
+        "world_sha256": "2a2978d21343c77dde30c303b0d718e43e3046609614a69274069cd2d5de23ce",
+        "scale": 50,
+        "render_duty": 35,
+        "speed_x": 0.24698353429283929,
+        "step_p99_ms": 91.616086,
+        "tick_p99_ms": 80.140996,
+        "step_plus_tick_p99_ms": 137.509138,
+        "swap_completions_per_second": 6.668555425906661,
+        "native_stage_p99_ms": {
+          "controller_reply": 0.786506,
+          "opengl_swap": 17.992582,
+          "physics": 1.501946,
+          "qt_controller_ready": 89.839678,
+          "robot_window_wait": 0.111855,
+          "wren_draw": 122.764915,
+          "wren_prepare": 1.401898
+        },
+        "admission_ms": 3136,
+        "native_windows_sha256": "4d4aeeefe6596db799b8e0c798c194da11cc393497298777edce634f73c54b4b",
+        "native_spans_sha256": "40a27c9912792e90537f3a4e8c98e73271fe8a5a7ba2fdcb87fcf239b127fdf6",
+        "workspace_sha256": "d4a8a0953190c9bcbf712fc590437caedd2123b5aca846e9faafd4001735aab8",
+        "evaluator_closed": {
+          "time_ms": 8952,
+          "reason": "low-outside-zone"
+        },
+        "safety_land_ms": 8960
+      }
+    ]
+  },
+  "duty_gui": {
+    "engine": {
+      "webots-bin": "0b86ddfc258077fb00e2c407e5d2ae3be9122871cd6eeae1528c538fd1816d4e",
+      "libController.so": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f"
+    },
+    "trials": [
+      {
+        "scale": 100,
+        "capture_size": [
+          736,
+          479
+        ],
+        "framebuffer_size": [
+          736,
+          479
+        ],
+        "target_pixels": 16013,
+        "target_click": [
+          563,
+          391
+        ],
+        "picked_def": "PICK_TARGET"
+      },
+      {
+        "scale": 50,
+        "capture_size": [
+          736,
+          479
+        ],
+        "framebuffer_size": [
+          368,
+          239
+        ],
+        "target_pixels": 16028,
+        "target_click": [
+          562,
+          391
+        ],
+        "picked_def": "PICK_TARGET",
+        "recording": {
+          "width": 320,
+          "height": 240,
+          "nb_frames": "6"
+        },
+        "restored_after_recording": [
+          368,
+          239
+        ]
+      }
+    ]
+  }
+}

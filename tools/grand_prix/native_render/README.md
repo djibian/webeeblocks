@@ -171,3 +171,52 @@ fixture, cycle p99 went from 94.62–147.33 ms to 46.66–61.20 ms. Each pair
 has the same viewport and unchanged sampled trajectory and contacts.
 This run used a software-rendered X display. Windows DPI, cancellation and
 full Grand Prix acceptance remain separate.
+
+
+## Real route and Blockly on Linux
+
+The executable test uses the real Webots 3D viewport, route-5 pilot and
+evaluator, and the actual Blockly 13.2.1 Robot Window in Chromium headless
+shell. Prepare route 5 with `launch_linux.py --index 5 --preflight-only` on
+the project SHA recorded in [results-route-browser-linux.json](results-route-browser-linux.json).
+Run on an isolated X display with loopback TCP and the Python `websockets`
+package. The TCP-only lab adapter supplies the two original controller names
+to the evaluator because Webots externalizes them to `<extern>`. The other
+scene checks, READY, native time, pilot, evaluator and Blockly interpreter
+remain active. The technical three-block program is not a course solution.
+
+```sh
+python3 tools/grand_prix/native_render/check_route_browser_linux.py \
+  --project /path/to/prepared-webeeblocks \
+  --engine /path/to/composed-r2025a \
+  --browser /path/to/chromium-headless-shell \
+  --output /path/to/fresh-route-witness --trials 100:0 50:0
+```
+
+The one exploratory framebuffer pair timed out on TAKEOFF in both arms.
+Over the same 250 native evaluator samples from 3008 to 5000 ms,
+the cycle p99 was 431.78 versus 173.61 ms and the continuous simulated-to-wall
+rate was 0.0585× versus 0.1205×. These trials establish a route performance
+refutation under the declared software-rendering conditions.
+
+### Optional wall-clock render budget
+
+Apply `webots-r2025a-render-duty.patch` after the other renderer patches and
+rebuild the engine. `WEBOTS_EXPERIMENT_RENDER_DUTY=35` reserves wall time after
+an expensive automatic real-time 3D draw. The next ordinary draw waits for
+the larger of the existing FPS interval and a cooldown derived from the last
+draw's wall duration. Physics steps, sensor targets and controller requests
+retain their scheduling. Screenshot and video paths keep their upstream
+branches. The setting defaults to disabled. This is a wall-time trade-off,
+not a hard upper bound on any individual OpenGL draw.
+
+Repeat the route command with the same built engine and
+`--trials 50:0 50:35 50:35 50:0 50:0 50:35`. The three pairs use the same
+viewport, exact workspace and admission time. The fixed phase after
+admission holds 500 native steps per arm. On this host, wall speed went from
+0.156–0.167× to 0.247–0.324× and cycle p99 from 158.94–179.53 ms to
+76.04–137.51 ms. Webots completed fewer swaps per wall second
+(13.58–14.79 versus 6.67–9.15). Every arm took off, the evaluator closed
+the attempt for `low-outside-zone` at 8952 ms, and the pilot issued safety
+LAND at 8960 ms. The browser reported mission failure. Neither the
+software-rendered rates nor the swap counts establish Windows fluidity.

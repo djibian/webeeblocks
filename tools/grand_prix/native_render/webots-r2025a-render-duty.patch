@@ -1,0 +1,36 @@
+diff --git a/src/webots/gui/WbView3D.cpp b/src/webots/gui/WbView3D.cpp
+index bd10ab5..3892d15 100644
+--- a/src/webots/gui/WbView3D.cpp
++++ b/src/webots/gui/WbView3D.cpp
+@@ -346,7 +346,18 @@ void WbView3D::refresh() {
+   } else {
+     const qint64 lastRefreshDelta = mLastRefreshTimer.elapsed();
+     const double maxFrameDuration = 1000.0 / mWorld->worldInfo()->fps();  // ms
+-    if (lastRefreshDelta > maxFrameDuration)
++    static const int duty = qEnvironmentVariableIntValue("WEBOTS_EXPERIMENT_RENDER_DUTY");
++    if (sim->isRealTime() && duty > 0 && duty < 100) {
++      // Reserve wall-clock time for physics and controller work after a costly
++      // draw. Skip ordinary refreshes only. Captures have their own paths above.
++      const double cooldown = qMax(maxFrameDuration, mLastSimulationDrawMs * (100.0 / duty - 1.0));
++      if (lastRefreshDelta > cooldown) {
++        QElapsedTimer draw;
++        draw.start();
++        renderNow();
++        mLastSimulationDrawMs = draw.nsecsElapsed() / 1000000.0;
++      }
++    } else if (lastRefreshDelta > maxFrameDuration)
+       renderNow();
+   }
+   mPhysicsRefresh = false;
+diff --git a/src/webots/gui/WbView3D.hpp b/src/webots/gui/WbView3D.hpp
+index 90c5940..84a6658 100644
+--- a/src/webots/gui/WbView3D.hpp
++++ b/src/webots/gui/WbView3D.hpp
+@@ -125,6 +125,7 @@ signals:
+ private:
+   QWidget *mParentWidget;
+   QElapsedTimer mLastRefreshTimer;
++  double mLastSimulationDrawMs = 0.0;
+   static int cView3DNumber;
+   WrCameraProjectionMode mProjectionMode;
+   WrViewportPolygonMode mRenderingMode;
