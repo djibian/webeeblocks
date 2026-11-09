@@ -46,7 +46,10 @@ def require_project_world_integrity(world):
         raise ValueError('Monde choisi absent du manifeste SHA-256.')
     try:
         with world.open('rb') as stream:
-            actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(chunk)
+            actual = digest.hexdigest()
     except OSError as error:
         raise ValueError('Impossible de lire le monde sélectionné.') from error
     if actual != expected:
