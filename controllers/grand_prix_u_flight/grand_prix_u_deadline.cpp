@@ -249,6 +249,13 @@ extern "C" void gp_u_reset_complete(void) {
 extern "C" void gp_u_file_idle(int idle) {
   fileIdle=idle!=0;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // Report state edges only. Readiness evidence remains the native guard.
+  static int observed=-1;
+  if(observed != (fileIdle?1:0)) {
+    observed=fileIdle?1:0;
+    std::fprintf(stderr,"GP_ROUTE_FILE_IDLE idle=%d\n",observed);
+    std::fflush(stderr);
+  }
   if(begin<0) {if(fileIdle)challengeRoute();else clearRouteEpoch();}
 #endif
 }
