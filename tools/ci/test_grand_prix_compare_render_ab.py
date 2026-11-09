@@ -143,6 +143,14 @@ class RenderABTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'exactly 100% and 50%'):
                     compare(self.root / 'trial.json')
 
+    def test_explicit_null_scale_must_not_fall_back_to_fps_axis(self):
+        # Explicit malformed input is not equivalent to an omitted optional key.
+        self.manifest['render_fps'] = {'A': 60, 'B': 25}
+        self.manifest['framebuffer_scale'] = None
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'framebuffer scale A/B must declare'):
+            compare(self.root / 'trial.json')
+
     def test_non_alternating_or_incomplete_pairs_are_refused(self):
         self.manifest['trials'][2]['arm'] = 'A'
         self.write()
