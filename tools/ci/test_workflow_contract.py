@@ -101,6 +101,41 @@ class WorkflowTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Monde Grand Prix manquant"):
                     launcher.require_robot_window_project(world)
 
+    def test_native_windows_project_world_manifest_integrity(self):
+        # Benchmark input must remain byte-identical across arms. Editable .wbb is separate.
+        import hashlib
+        import importlib.util
+        script = ROOT / "tools/grand_prix/native_engine/launch_route_windows.py"
+        spec = importlib.util.spec_from_file_location("grand_prix_native_manifest_test", script)
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            world = project / "worlds/route-5-60.wbt"
+            world.parent.mkdir()
+            world.write_text("WorldInfo {}\\n", encoding="utf-8")
+            inventory = project / "MANIFEST.sha256"
+            digest = hashlib.sha256(world.read_bytes()).hexdigest()
+            row = f"{digest}  worlds/route-5-60.wbt\\n"
+            with patch.object(launcher, "ROOT", project):
+                with self.assertRaisesRegex(ValueError, "absent ou illisible"):
+                    launcher.require_project_world_integrity(world)
+                inventory.write_text(row, encoding="utf-8")
+                self.assertIsNone(launcher.require_project_world_integrity(world))
+                world.write_text("WorldInfo { basicTimeStep 16 }\\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Monde modifié"):
+                    launcher.require_project_world_integrity(world)
+                world.write_text("WorldInfo {}\\n", encoding="utf-8")
+                inventory.write_text(row + row, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "dupliquée"):
+                    launcher.require_project_world_integrity(world)
+                inventory.write_text("bad record\\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "malformé"):
+                    launcher.require_project_world_integrity(world)
+                inventory.write_text("0" * 64 + "  other-world.wbt\\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "absent du manifeste"):
+                    launcher.require_project_world_integrity(world)
+
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))

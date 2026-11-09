@@ -23,6 +23,35 @@ def require_robot_window_project(world):
         raise ValueError('Plugin de fenêtre Blockly du Grand Prix manquant.')
 
 
+
+def require_project_world_integrity(world):
+    """Verify the selected A/B world against the archive's immutable file inventory."""
+    try:
+        manifest = (ROOT / 'MANIFEST.sha256').read_text(encoding='utf-8')
+    except OSError as error:
+        raise ValueError('Manifeste SHA-256 du projet absent ou illisible.') from error
+    key = world.relative_to(ROOT).as_posix()
+    expected = None
+    for row in manifest.splitlines():
+        pieces = row.split('  ', 1)
+        if (len(pieces) != 2 or len(pieces[0]) != 64 or not pieces[1] or
+                any(c not in '0123456789abcdef' for c in pieces[0])):
+            raise ValueError('Manifeste SHA-256 du projet malformé.')
+        digest, path = pieces
+        if path == key:
+            if expected is not None:
+                raise ValueError('Entrée du monde dupliquée dans le manifeste.')
+            expected = digest
+    if expected is None:
+        raise ValueError('Monde choisi absent du manifeste SHA-256.')
+    try:
+        with world.open('rb') as stream:
+            actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+    except OSError as error:
+        raise ValueError('Impossible de lire le monde sélectionné.') from error
+    if actual != expected:
+        raise ValueError('Monde modifié depuis le conditionnement : re-extraire le ZIP.')
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
@@ -43,6 +72,7 @@ def main():
     world = ROOT / f'worlds/route-{args.course}-{args.fps}.wbt'
     try:
         require_robot_window_project(world)
+        require_project_world_integrity(world)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     trace = ROOT / 'traces' / f'{args.course}-{args.fps}-{args.arm}-{time.time_ns()}'
