@@ -228,7 +228,49 @@ class PassiveWindowsHostABTests(unittest.TestCase):
             w.writerows(rows)
         report = self.compare()
         self.assertEqual(report['arms']['reference']['trials'][0]['cpu_one_core_mean_percent'],
-                         round(15 * 1000 * 100 / (15 * 1000 + 15 * 1100), 4))
+                         round(14 * 1000 * 100 / (14 * 1000 + 15 * 1100), 4))
+
+    def test_first_cpu_percentage_unverifiable_and_excluded_from_aggregation(self):
+        # The collector retains no pre-capture CPU total, so the first %
+        # can change without contradicting any retained cumulative delta.
+        report = self.compare()
+        first = report['arms']['reference']['trials'][0]
+        self.assertEqual(first['cpu_verified_duration_ms'], 29000)
+        p = self.root / 'trial-0' / 'samples.csv'
+        with p.open(encoding='utf-8-sig', newline='') as f:
+            rows = list(csv.DictReader(f))
+        rows[0]['cpu_percent_one_core'] = '300'
+        with p.open('w', encoding='utf-8-sig', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+        changed = self.compare()['arms']['reference']['trials'][0]
+        self.assertEqual(changed['cpu_one_core_mean_percent'],
+                         first['cpu_one_core_mean_percent'])
+        self.assertEqual(changed['cpu_verified_duration_ms'],
+                         first['cpu_verified_duration_ms'])
+
+    def test_five_sparse_6s_periods_rejected_as_insufficient_cpu_evidence(self):
+        # Five rows span 30 seconds but only four CPU deltas (24s)
+        # are independently checkable. First 100% is not evidence.
+        p = self.root / 'trial-0'
+        meta = json.loads((p / 'metadata.json').read_text())
+        meta.update(sample_count=5, requested_period_ms=5000, actual_duration_s=30)
+        (p / 'metadata.json').write_text(json.dumps(meta))
+        with (p / 'samples.csv').open('w', encoding='utf-8-sig', newline='') as f:
+            columns = ['elapsed_ms', 'period_ms', 'cpu_percent_one_core',
+                       'process_cpu_total_s', 'working_set_bytes',
+                       'private_memory_bytes', 'thread_count']
+            w = csv.DictWriter(f, fieldnames=columns)
+            w.writeheader()
+            for i in range(5):
+                w.writerow(dict(elapsed_ms=6000 * (i + 1), period_ms=6000,
+                                cpu_percent_one_core=100 if i == 0 else 0,
+                                process_cpu_total_s=10,
+                                working_set_bytes=1000000,
+                                private_memory_bytes=500000, thread_count=5))
+        with self.assertRaisesRegex(ValueError, 'insufficient CPU-verified'):
+            self.compare()
 
     def test_distinct_source_shas_between_arms_are_allowed_and_preserved(self):
         for i in (1, 2, 5):
