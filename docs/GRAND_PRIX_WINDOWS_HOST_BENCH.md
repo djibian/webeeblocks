@@ -2,8 +2,8 @@
 
 Ce premier outil de métrologie **ne lance ni ne pilote Webots** : il relève
 les caractéristiques CPU/GPU/OS et mesure, à intervalle régulier,
-l'utilisation CPU, la mémoire et les threads du **seul processus Webots**
-sélectionné par PID. Il est destiné au **portable Windows personnel**,
+l'utilisation CPU, la mémoire et les threads du **moteur `webots-bin.exe`**
+sélectionné par PID (et non de son lanceur `webots.exe` / `webotsw.exe`). Il est destiné au **portable Windows personnel**,
 sans compte cloud, réseau scolaire ni droits administrateur après préparation.
 C'est une première brique de l'A/B, **pas encore un banc complet**.
 
@@ -25,7 +25,7 @@ Dans une console Windows PowerShell ouverte à la racine du checkout,
 identifier le **PID Webots qui affiche la scène** :
 
 ~~~powershell
-Get-Process | Where-Object { $_.ProcessName -match 'webots' } | Select-Object Id, ProcessName, CPU, WorkingSet64
+Get-Process -Name webots-bin -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, CPU, WorkingSet64
 ~~~
 
 Démarrer le parcours souhaité et stabiliser l'état observé.
@@ -40,11 +40,11 @@ L'option facultative `-BrowserExe 'C:\\Program Files\\Mozilla Firefox\\firefox.e
 La sortie doit être un dossier **nouveau pour chaque essai**, contenant
 metadata.json et samples.csv. Le script refuse de réutiliser un dossier,
 un PID non Webots, un processus portant le même nom mais exécuté depuis
-une autre installation, un remplacement de PID ou une version autre que
+une autre installation, un **lanceur au lieu du moteur**, un remplacement de PID ou une version autre que
 R2025a. Il n'écrit pas le nom de l'utilisateur, de la machine ni de série.
 
 **Variables enregistrées :** SHA WebeeBlocks, empreinte SHA-256 de
-l’exécutable Webots réellement sélectionné, route, variante, date UTC,
+du moteur Webots `webots-bin.exe` réellement sélectionné, route, variante, date UTC,
 version et PID Webots, OS/build, CPU, RAM, modèle et pilote des cartes graphiques,
 temps monotone, durée réellement échantillonnée, CPU cumulé et delta CPU
 (100 % = un cœur logique), mémoire résidente/privée et threads.
