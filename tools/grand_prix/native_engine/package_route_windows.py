@@ -2,6 +2,8 @@
 import argparse
 import hashlib
 import json
+import re
+from urllib.parse import urlsplit
 from pathlib import Path
 import shutil
 import subprocess
@@ -22,6 +24,44 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+
+# Webots R2025a reuses localhost Robot Window URLs between launches. A 200
+# response does not prove the browser received the requested asset: on the
+# owner's Windows run activity_contract.js returned cached wwi_backend.js.
+# Fingerprint the *packaged* bytes, not a source-tree revision or a clock.
+_ASSET_REFERENCE = re.compile(r'(?P<prefix>\\b(?:src|href)=\")(?P<url>[^\"]+)(?P<suffix>\")')
+
+
+def fingerprint_robot_window_assets(output):
+    plugins = output / 'plugins/robot_windows'
+    root = plugins.resolve()
+    for relative in ('blockly_v2/blockly_v2.html',
+                     'grand_prix_route_v2/grand_prix_route_v2.html'):
+        page = plugins / relative
+        original = page.read_text(encoding='utf-8')
+        count = 0
+
+        def version_reference(match):
+            nonlocal count
+            reference = match.group('url')
+            parsed = urlsplit(reference)
+            if (parsed.scheme or parsed.netloc or parsed.fragment or not parsed.path or
+                    parsed.path.startswith('/') or '\\\\' in parsed.path or
+                    '%' in parsed.path):
+                raise ValueError('Unsafe Robot Window asset URL: ' + reference)
+            asset = (page.parent / parsed.path).resolve()
+            if (not asset.is_relative_to(root) or not asset.is_file() or
+                    asset.suffix not in ('.js', '.css')):
+                raise ValueError('Missing or unsafe Robot Window asset: ' + reference)
+            count += 1
+            return (match.group('prefix') + parsed.path + '?wb=' +
+                    digest(asset)[:16] + match.group('suffix'))
+
+        fingerprinted = _ASSET_REFERENCE.sub(version_reference, original)
+        if count < 2 or 'activity_contract.js?wb=' not in fingerprinted:
+            raise ValueError('Robot Window asset graph is incomplete: ' + relative)
+        page.write_text(fingerprinted, encoding='utf-8')
+
 def package(engine, python_runtime, output):
     manifest = json.loads((engine / 'native-engine.json').read_text(encoding='utf-8'))
     sha = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
@@ -38,6 +78,7 @@ def package(engine, python_runtime, output):
     for directory in ('blockly_v2', 'blockly/webeeblocks', 'grand_prix_route_v2'):
         shutil.copytree(windows / directory, target / directory,
                         ignore=shutil.ignore_patterns('node_modules', 'package*.json'))
+    fingerprint_robot_window_assets(output)
 
     flight = output / 'controllers/grand_prix_route_flight'
     flight.mkdir(parents=True)
