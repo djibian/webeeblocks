@@ -167,6 +167,69 @@ class PassiveWindowsHostABTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'CPU percentage contradicts'):
             self.compare()
 
+    def test_sparse_capture_with_hidden_twenty_five_second_gap_refused(self):
+        # Two rows can cover nominal 30 s but not a declared 500 ms cadence.
+        p = self.root / 'trial-0'
+        meta = json.loads((p / 'metadata.json').read_text())
+        meta.update(sample_count=2, requested_period_ms=500, actual_duration_s=30)
+        (p / 'metadata.json').write_text(json.dumps(meta))
+        rows = [
+            dict(elapsed_ms=5000, period_ms=5000, cpu_percent_one_core=100,
+                 process_cpu_total_s=5),
+            dict(elapsed_ms=30000, period_ms=25000, cpu_percent_one_core=0,
+                 process_cpu_total_s=5)]
+        with (p / 'samples.csv').open('w', encoding='utf-8-sig', newline='') as f:
+            columns = ['elapsed_ms', 'period_ms', 'cpu_percent_one_core',
+                       'process_cpu_total_s', 'working_set_bytes',
+                       'private_memory_bytes', 'thread_count']
+            w = csv.DictWriter(f, fieldnames=columns)
+            w.writeheader()
+            for sample in rows:
+                sample.update(working_set_bytes=1000000,
+                              private_memory_bytes=500000, thread_count=5)
+                w.writerow(sample)
+        with self.assertRaisesRegex(ValueError, 'observed sampling interval'):
+            self.compare()
+
+    def test_first_sample_clock_must_match_its_observed_period(self):
+        p = self.root / 'trial-0' / 'samples.csv'
+        with p.open(encoding='utf-8-sig', newline='') as f:
+            rows = list(csv.DictReader(f))
+        rows[0]['elapsed_ms'] = '1500'
+        with p.open('w', encoding='utf-8-sig', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+        with self.assertRaisesRegex(ValueError, 'inconsistent host sampling interval'):
+            self.compare()
+
+    def test_unequal_valid_intervals_use_time_weighted_cpu_mean(self):
+        # 15 x 100% over 1000ms and 15 x 0% over 1100ms: the temporal
+        # mean is 47.619%, not the unweighted per-row mean of 50%.
+        p = self.root / 'trial-0'
+        meta = json.loads((p / 'metadata.json').read_text())
+        meta['actual_duration_s'] = 31.505
+        (p / 'metadata.json').write_text(json.dumps(meta))
+        elapsed_ms = 0
+        cumulative = 0.0
+        rows = []
+        for i in range(30):
+            dt = 1000 if i % 2 == 0 else 1100
+            pct = 100 if i % 2 == 0 else 0
+            elapsed_ms += dt
+            cumulative += dt * pct / 100000
+            rows.append(dict(elapsed_ms=elapsed_ms, period_ms=dt,
+                             cpu_percent_one_core=pct, process_cpu_total_s=cumulative,
+                             working_set_bytes=1000000, private_memory_bytes=500000,
+                             thread_count=5))
+        with (p / 'samples.csv').open('w', encoding='utf-8-sig', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+        report = self.compare()
+        self.assertEqual(report['arms']['reference']['trials'][0]['cpu_one_core_mean_percent'],
+                         round(15 * 1000 * 100 / (15 * 1000 + 15 * 1100), 4))
+
     def test_distinct_source_shas_between_arms_are_allowed_and_preserved(self):
         for i in (1, 2, 5):
             self.write_capture(i, 'candidate', source_sha='d' * 40)
