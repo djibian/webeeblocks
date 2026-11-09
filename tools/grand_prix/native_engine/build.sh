@@ -9,9 +9,14 @@ fi
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 source=$(cd "$1" && pwd)
 revision=c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
-if [[ $(git -C "$source" rev-parse HEAD) != "$revision" ]] ||
-   [[ -n $(git -C "$source" status --porcelain --untracked-files=no) ]]; then
-  echo "Start with a clean Webots checkout at $revision." >&2
+actual=$(git -C "$source" rev-parse HEAD)
+if [[ $actual != "$revision" ]]; then
+  echo "Expected Webots $revision, got $actual." >&2
+  exit 1
+fi
+dirty=$(git -C "$source" status --porcelain --untracked-files=no)
+if [[ -n $dirty ]]; then
+  printf 'Start with a clean Webots checkout. Modified tracked paths:\n%s\n' "$dirty" >&2
   exit 1
 fi
 
@@ -26,6 +31,7 @@ if [[ $2 == build ]]; then
   cd "$source"
   if [[ $(uname -s) == MINGW* ]]; then
     export WEBOTS_HOME=$(pwd -W)
+    bash scripts/install/msys64_installer.sh ''
   else
     export WEBOTS_HOME=$PWD
   fi
