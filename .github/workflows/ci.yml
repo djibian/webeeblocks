@@ -24,6 +24,7 @@ jobs:
       webots: ${{ steps.scope.outputs.webots }}
       full: ${{ steps.scope.outputs.full }}
       reason: ${{ steps.scope.outputs.reason }}
+      native_engine: ${{ steps.native-engine-scope.outputs.run }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -264,6 +265,20 @@ jobs:
           path: ci-artifacts/grand-prix-u/
           if-no-files-found: error
 
+      - name: Select Windows native engine assembly experiment
+        id: native-engine-scope
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          paths=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA...$HEAD_SHA" -- tools/grand_prix/native_engine)
+          if [ -n "$paths" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Select required suites
         id: scope
         run: >-
@@ -350,6 +365,79 @@ jobs:
     uses: ./.github/workflows/ci-webots.yml
     with:
       target_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  native-engine-windows:
+    name: Experimental Grand Prix engine Windows build
+    needs: select
+    if: needs.select.outputs.native_engine == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .native-webots
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: git make wget unzip mingw-w64-x86_64-openal
+      - name: Install build dependencies and compile engine
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          (cd .native-webots && bash scripts/install/msys64_installer.sh '')
+          bash tools/grand_prix/native_engine/build.sh .native-webots build
+          mkdir -p ci-artifacts/native-engine
+          pacman -Q > ci-artifacts/native-engine/toolchain.txt
+          cygpath -w /mingw64 > ci-artifacts/native-engine/mingw-root.txt
+      - name: Install verified R2025a stock distribution for staging
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          $expected = '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+            throw 'Official Webots installer digest mismatch.'
+          }
+          $reference = Join-Path $env:RUNNER_TEMP 'Webots-R2025a-stock'
+          $result = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', ('/DIR="' + $reference + '"')
+          )
+          if ($result.ExitCode -ne 0) { throw "Stock installer exit $($result.ExitCode)" }
+          "WEBOTS_NATIVE_REFERENCE=$reference" >> $env:GITHUB_ENV
+      - name: Stage and verify runnable engine and Controller DLL
+        shell: pwsh
+        run: |
+          $artifact = 'ci-artifacts/native-engine'
+          $mingw = (Get-Content "$artifact/mingw-root.txt" -Raw).Trim()
+          $env:PATH = (Join-Path $mingw 'bin') + ';' + $env:PATH
+          $target = "$artifact/Webots-R2025a-experimental"
+          python tools/grand_prix/native_engine/stage_windows.py $env:WEBOTS_NATIVE_REFERENCE .native-webots $mingw $target
+          if ($LASTEXITCODE -ne 0) { throw 'Native staging failed.' }
+          $launcher = Join-Path $target 'msys64/mingw64/bin/webots.exe'
+          $env:WEBOTS_HOME = (Resolve-Path $target).Path
+          $version = (& $launcher --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') { throw "Native engine startup failed: $version" }
+          Copy-Item "$artifact/toolchain.txt" "$target/native-engine-toolchain.txt"
+          Get-Content "$target/native-engine.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Webots-R2025a-experimental-Windows-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/native-engine/Webots-R2025a-experimental/
+          if-no-files-found: error
+          retention-days: 14
 
   gate:
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate' }}

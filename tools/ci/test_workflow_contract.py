@@ -16,7 +16,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
-    "ci.yml": {"select", "runtime", "webots", "gate"},
+    "ci.yml": {"select", "runtime", "webots", "native-engine-windows", "gate"},
     "ci-optimization.yml": {"analyze"},
     "ci-runtime.yml": {
         "grand-prix-prototype",

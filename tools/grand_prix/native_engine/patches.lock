@@ -1,0 +1,5 @@
+36c57ec07448e48897ea64ad7aa3dc40d2c33c5b tools/grand_prix/native_frame/webots-r2025a.patch
+af649e48318c986e3abdba4f7f8f4668a9223d89 tools/grand_prix/native_revision/webots-r2025a-revision.patch
+50d52b8adfac9dce8fb92ebe2dc585571b47b8be tools/grand_prix/native_render/webots-r2025a-render-trace.patch
+50d52b8adfac9dce8fb92ebe2dc585571b47b8be tools/grand_prix/native_render/webots-r2025a-main-render-scale.patch
+50d52b8adfac9dce8fb92ebe2dc585571b47b8be tools/grand_prix/native_render/webots-r2025a-picker-full-screen.patch
