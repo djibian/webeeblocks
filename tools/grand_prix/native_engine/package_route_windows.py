@@ -72,7 +72,7 @@ def unique_robot_window_plugin(output):
         if not asset.is_file():
             continue
         relative = asset.relative_to(plugins).as_posix()
-        fingerprint.update(relative.encode('utf-8') + b'\\0')
+        fingerprint.update(relative.encode('utf-8') + b'\0')
         fingerprint.update(bytes.fromhex(digest(asset)))
     name = 'grand_prix_route_v2_' + fingerprint.hexdigest()[:16]
     target = plugins / name
@@ -131,11 +131,11 @@ def package(engine, python_runtime, output):
     worlds.mkdir()
     for index in (0, 5, 11):
         scene = render_route(reference_course(index))
-        window_field = '  window "grand_prix_route_v2"\\n'
+        window_field = '  window "grand_prix_route_v2"\n'
         if scene.count(window_field) != 1:
             raise ValueError('Canonical Grand Prix Robot Window missing from world')
         scene = scene.replace(
-            window_field, '  window "' + robot_window + '"\\n')
+            window_field, '  window "' + robot_window + '"\n')
         for fps in (25, 30, 60):
             name = f'route-{index}-{fps}'
             (worlds / f'{name}.wbt').write_text(configure_render_fps(scene, fps), encoding='utf-8')
