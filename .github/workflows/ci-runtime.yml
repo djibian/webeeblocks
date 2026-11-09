@@ -1590,6 +1590,7 @@ jobs:
       - name: Falsify U behavioral boundaries and generic witness
         run: |
           python3 tools/ci/test_webots_startup_diagnostics.py
+          python3 -m unittest tools.ci.test_grand_prix_compare_render_ab
           python3 tools/ci/test_grand_prix_u_core_capture.py
           python3 tools/ci/test_grand_prix_evaluator_bootstrap.py
           python3 tools/ci/test_grand_prix_u_timeout_probe.py
