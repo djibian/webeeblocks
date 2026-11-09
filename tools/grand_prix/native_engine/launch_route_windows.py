@@ -10,6 +10,19 @@ import time
 ROOT = Path(__file__).resolve().parent
 
 
+def require_robot_window_project(world):
+    """Refuse partial/filtered extraction that would silently hide Blockly."""
+    if not world.is_file():
+        raise ValueError(f'Monde Grand Prix manquant : {world.name}')
+    perspective = world.with_name('.' + world.stem + '.wbproj')
+    if not perspective.is_file():
+        raise ValueError(f'Perspective Webots manquante : {perspective.name}. Re-extraire le ZIP complet.')
+    if 'robotWindow: Crazyflie WebeeBlocks' not in perspective.read_text(encoding='utf-8').splitlines():
+        raise ValueError(f'Fenêtre Blockly non configurée dans {perspective.name}.')
+    if not (ROOT / 'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html').is_file():
+        raise ValueError('Plugin de fenêtre Blockly du Grand Prix manquant.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
@@ -28,6 +41,10 @@ def main():
             if hashlib.file_digest(source, 'sha256').hexdigest() != expected:
                 parser.error(f'Empreinte du moteur différente pour {name}.')
     world = ROOT / f'worlds/route-{args.course}-{args.fps}.wbt'
+    try:
+        require_robot_window_project(world)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
     trace = ROOT / 'traces' / f'{args.course}-{args.fps}-{args.arm}-{time.time_ns()}'
     trace.mkdir(parents=True)
     env = {key.upper(): value for key, value in os.environ.items()}
