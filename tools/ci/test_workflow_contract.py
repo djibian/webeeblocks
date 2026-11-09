@@ -69,6 +69,63 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("run_contact(home, DEFAULT_INDICES)", runner)
         self.assertIn("run_h(home, (5,)", runner)
 
+    def test_variable_windows_cached_robot_assets_use_package_digests(self):
+        # A stale localhost cache served wwi_backend.js at activity_contract.js.
+        # Build-time URLs must change with the real asset, not with a clock.
+        import hashlib
+        import importlib.util
+        source = ROOT / "tools/grand_prix/native_engine/package_route_windows.py"
+        spec = importlib.util.spec_from_file_location("gp_windows_cache_package", source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            plugins = project / "plugins/robot_windows"
+            contracts = plugins / "blockly/webeeblocks"
+            contracts.mkdir(parents=True)
+            contract = contracts / "activity_contract.js"
+            contract.write_text("window.WebeeBlocksActivityContract = {};\n", encoding="utf-8")
+            css = plugins / "blockly_v2/main.css"
+            css.parent.mkdir(parents=True)
+            css.write_text("body {}\n", encoding="utf-8")
+            pages = []
+            for name in ("blockly_v2/blockly_v2.html",
+                         "grand_prix_route_v2/grand_prix_route_v2.html"):
+                page = plugins / name
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(
+                    '<script src="../blockly/webeeblocks/activity_contract.js"></script>\n'
+                    '<link rel="stylesheet" href="../blockly_v2/main.css?rev=old">\n',
+                    encoding="utf-8")
+                pages.append(page)
+            module.fingerprint_robot_window_assets(project)
+            expected_js = hashlib.sha256(contract.read_bytes()).hexdigest()[:16]
+            expected_css = hashlib.sha256(css.read_bytes()).hexdigest()[:16]
+            for page in pages:
+                html = page.read_text(encoding="utf-8")
+                self.assertIn("activity_contract.js?wb=" + expected_js, html)
+                self.assertIn("main.css?wb=" + expected_css, html)
+                self.assertNotIn("rev=old", html)
+            contract.write_text("window.WebeeBlocksActivityContract = {v: 2};\n",
+                                encoding="utf-8")
+            module.fingerprint_robot_window_assets(project)
+            changed_js = hashlib.sha256(contract.read_bytes()).hexdigest()[:16]
+            self.assertNotEqual(expected_js, changed_js)
+            for page in pages:
+                self.assertIn("activity_contract.js?wb=" + changed_js,
+                              page.read_text(encoding="utf-8"))
+            pages[0].write_text('<script src="https://example.invalid/a.js"></script>\n',
+                                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Unsafe Robot Window asset URL"):
+                module.fingerprint_robot_window_assets(project)
+            pages[0].write_text(
+                '<script src="../blockly/webeeblocks/activity_contract.js"></script>\n'
+                '<link rel="stylesheet" href="../blockly_v2/main.css">\n',
+                encoding="utf-8")
+            contract.unlink()
+            with self.assertRaisesRegex(ValueError, "Missing or unsafe Robot Window asset"):
+                module.fingerprint_robot_window_assets(project)
+
     def test_variable_windows_launcher_fails_closed_without_robot_window(self):
         # Host-only packaging regression. It cannot qualify the real Windows GUI.
         import importlib.util
