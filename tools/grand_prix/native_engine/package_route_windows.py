@@ -62,6 +62,27 @@ def fingerprint_robot_window_assets(output):
             raise ValueError('Robot Window asset graph is incomplete: ' + relative)
         page.write_text(fingerprinted, encoding='utf-8')
 
+
+def unique_robot_window_plugin(output):
+    """Give Webots a fresh top-level Robot Window path for the packaged bytes."""
+    plugins = output / 'plugins/robot_windows'
+    original = plugins / 'grand_prix_route_v2'
+    fingerprint = hashlib.sha256()
+    for asset in sorted(plugins.rglob('*')):
+        if not asset.is_file():
+            continue
+        relative = asset.relative_to(plugins).as_posix()
+        fingerprint.update(relative.encode('utf-8') + b'\\0')
+        fingerprint.update(bytes.fromhex(digest(asset)))
+    name = 'grand_prix_route_v2_' + fingerprint.hexdigest()[:16]
+    target = plugins / name
+    if target.exists():
+        raise ValueError('Versioned Robot Window plugin already exists')
+    shutil.copytree(original, target)
+    (target / 'grand_prix_route_v2.html').rename(target / (name + '.html'))
+    return name
+
+
 def package(engine, python_runtime, output):
     manifest = json.loads((engine / 'native-engine.json').read_text(encoding='utf-8'))
     sha = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
@@ -79,6 +100,7 @@ def package(engine, python_runtime, output):
         shutil.copytree(windows / directory, target / directory,
                         ignore=shutil.ignore_patterns('node_modules', 'package*.json'))
     fingerprint_robot_window_assets(output)
+    robot_window = unique_robot_window_plugin(output)
 
     flight = output / 'controllers/grand_prix_route_flight'
     flight.mkdir(parents=True)
@@ -109,6 +131,11 @@ def package(engine, python_runtime, output):
     worlds.mkdir()
     for index in (0, 5, 11):
         scene = render_route(reference_course(index))
+        window_field = '  window "grand_prix_route_v2"\\n'
+        if scene.count(window_field) != 1:
+            raise ValueError('Canonical Grand Prix Robot Window missing from world')
+        scene = scene.replace(
+            window_field, '  window "' + robot_window + '"\\n')
         for fps in (25, 30, 60):
             name = f'route-{index}-{fps}'
             (worlds / f'{name}.wbt').write_text(configure_render_fps(scene, fps), encoding='utf-8')
