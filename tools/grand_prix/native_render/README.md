@@ -220,3 +220,10 @@ admission holds 500 native steps per arm. On this host, wall speed went from
 the attempt for `low-outside-zone` at 8952 ms, and the pilot issued safety
 LAND at 8960 ms. The browser reported mission failure. Neither the
 software-rendered rates nor the swap counts establish Windows fluidity.
+
+
+The GUI probe also accepts `--wheel-revision` on the v2 engine. It lifts and
+restores a collider without advancing time and checks that the stale token
+cannot change a separate body's velocity. The old engine fails this test and
+writes the applied effect into `wheel.json`. The wheel hook and Linux results
+are in [#923](https://github.com/djibian/webeeblocks/pull/923).

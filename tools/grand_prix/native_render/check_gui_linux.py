@@ -1,5 +1,6 @@
 """Verify native screenshot and picking with Webots visible on a Linux X display."""
 import argparse
+import ctypes as c
 import json
 import os
 from pathlib import Path
@@ -70,10 +71,76 @@ def viewport(log, screen):
     if (width, height) != screen:
         return None
     tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
+    world = re.escape(str(log.parent / 'worlds/picking.wbt'))
+    hosts = re.findall(rf'^\s+(0x[\da-f]+) "{world} [^"]*":', tree, re.M | re.I)
+    if len(hosts) != 1:
+        return None
+    tree = subprocess.check_output(['xwininfo', '-id', hosts[0], '-tree'], text=True)
     windows = re.findall(
         rf'^\s+(0x[\da-f]+) "Webots": .* {width}x{height}[+-]\d+[+-]\d+\s+[+-]\d+[+-]\d+\s*$',
         tree, re.M | re.I)
     return (windows[0], (rw, rh)) if len(windows) == 1 else None
+
+
+def check_wheel_revision(robot, target, point, window, output):
+    from controller.wb import wb
+
+    class Token(c.Structure):
+        _fields_ = [('incarnation', c.c_ubyte * 16), ('revision', c.c_uint64)]
+
+    current = wb.wb_supervisor_get_scene_revision
+    current.argtypes = [c.POINTER(Token)]
+    current.restype = c.c_bool
+    effect = wb.wb_supervisor_set_velocity_at_scene_revision
+    effect.argtypes = [c.c_int32, c.POINTER(Token), c.POINTER(c.c_double)]
+    effect.restype = c.c_bool
+
+    def revision():
+        token = Token()
+        if not current(c.byref(token)):
+            raise RuntimeError('no native scene revision')
+        return token
+
+    def xdotool(*arguments):
+        subprocess.run(['xdotool', *map(str, arguments)], check=True)
+
+    origin = list(target.getPosition())
+    before = revision()
+    instant = robot.getTime()
+    xdotool('mousemove', '--window', window, *point, 'keydown', 'Shift_L', 'sleep', '.12')
+    try:
+        xdotool('click', 4)
+        wait_for(lambda: abs(target.getPosition()[2] - origin[2]) > .02, 3, 'GUI collider lift')
+        lifted_position = list(target.getPosition())
+        lifted = revision()
+        xdotool('click', 5)
+        wait_for(lambda: max(abs(p - q) for p, q in zip(target.getPosition(), origin)) < 1e-6,
+                 3, 'GUI collider restoration')
+        restored = revision()
+        if robot.getTime() != instant:
+            raise ValueError('physics advanced during GUI lift and restoration')
+
+        body = robot.getFromDef('AUTHORITY_TARGET')
+        velocity_before = list(body.getVelocity())
+        velocity = (c.c_double * 6)(.125, 0., 0., 0., 0., 0.)
+        applied = effect(body.getId(), c.byref(before), velocity)
+        velocity_after = list(body.getVelocity())
+    finally:
+        xdotool('keyup', 'Shift_L')
+    result = {
+        'time_ms': round(instant * 1000),
+        'positions': [origin, lifted_position, list(target.getPosition())],
+        'revisions': [before.revision, lifted.revision, restored.revision],
+        'velocity_before': velocity_before,
+        'velocity_after': velocity_after,
+        'stale_effect_applied': applied,
+    }
+    output.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
+    if (applied or velocity_after != velocity_before or
+            not before.revision < lifted.revision < restored.revision or
+            bytes(before.incarnation) != bytes(restored.incarnation)):
+        raise ValueError('GUI lift and restoration did not revoke the original token')
+    return result
 
 
 def probe():
@@ -107,6 +174,8 @@ def probe():
     wait_for(picked, 5, 'native selection at the capture coordinates')
     result = dict(scale=scale, capture_size=screen, framebuffer_size=draw, target_pixels=area,
                   target_click=point, picked_def=target.getDef())
+    if os.environ.get('WEEBEE_GUI_WHEEL_REVISION') == '1':
+        result['wheel_revision'] = check_wheel_revision(robot, target, point, window, directory / 'wheel.json')
     if scale == 50:
         movie = directory / 'recording.mp4'
         start_mark = len(SIZE.findall(log.read_text(encoding='utf-8', errors='replace')))
@@ -150,6 +219,7 @@ def main():
     parser.add_argument('--frame-tools', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--port', type=int, default=1356)
+    parser.add_argument('--wheel-revision', action='store_true', help='test GUI collision mutation with the v2 frame engine')
     args = parser.parse_args()
     sys.path.insert(0, str(args.frame_tools.resolve()))
     from bench import distribution, fingerprint, run_external
@@ -164,10 +234,25 @@ def main():
         directory = output / str(scale)
         world = directory / 'worlds/picking.wbt'
         world.parent.mkdir(parents=True)
-        world.write_text(WORLD, encoding='utf-8')
+        scene = WORLD
+        if args.wheel_revision:
+            scene = scene.replace('geometry Box { size 0.24 0.28 0.2 }',
+                                  'geometry DEF PICK_BOX Box { size 0.24 0.28 0.2 }')
+            scene = scene.replace('  ]\n}\nRobot {', '''  ]
+  boundingObject USE PICK_BOX
+}
+DEF AUTHORITY_TARGET Solid {
+  translation 50 0 10
+  boundingObject Box { size 0.2 0.2 0.2 }
+  physics Physics { }
+}
+Robot {''')
+        world.write_text(scene, encoding='utf-8')
         env = dict(os.environ, WEEBEE_GUI_FIXTURE=str(directory), WEBOTS_RENDER_TRACE='1',
                    WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE=str(scale),
                    WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
+        if args.wheel_revision:
+            env['WEEBEE_GUI_WHEEL_REVISION'] = '1'
         command = [str(executable), '--batch', '--stdout', '--stderr', '--mode=realtime', '--extern-urls',
                    f'--port={args.port}', str(world)]
         with (directory / 'webots.log').open('wb') as log:
