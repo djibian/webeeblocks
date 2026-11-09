@@ -4,12 +4,17 @@ import ctypes
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
+import sys
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
+sys.path.insert(0, str(ROOT))
+
+from tools.grand_prix.launch_linux import ensure_webots_assets
 BIN = Path('msys64/mingw64/bin')
 PLUGINS = Path('msys64/mingw64/share/qt6/plugins')
 CONTROLLER = Path('lib/controller/Controller.dll')
@@ -39,6 +44,16 @@ def stage(reference, build, mingw, output):
     for path in (BIN / 'webots-bin.exe', CONTROLLER, CONTROLLER.with_name('libController.a'),
                  Path('include/controller/c/webots/supervisor.h')):
         checked_copy(build / path, output / path)
+
+    # Keep the canonical variable route's entire offline PROTO closure.
+    assets_lock = ROOT / 'tools/ci/runtime_v2_outcome_assets.lock.json'
+    ensure_webots_assets(build, assets_lock)
+    for asset in json.loads(assets_lock.read_text(encoding='utf-8'))['assets']:
+        path = PurePosixPath(asset['path'])
+        target = output.joinpath(*path.parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        checked_copy(build.joinpath(*path.parts), target)
+    ensure_webots_assets(output, assets_lock)
 
     # Deploy the Qt that supplied the build's headers and link libraries.
     # Remove old Qt DLLs and plugins first so no stale plugin can be loaded.
