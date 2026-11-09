@@ -32,6 +32,26 @@ def checked_copy(source, dest):
     shutil.copy2(source, dest)
 
 
+def native_engine_inventory(output):
+    """Account for every staged native DLL, including Qt/MinGW and Qt plugins."""
+    fixed = {BIN / 'webots-bin.exe', CONTROLLER, BIN / 'ffmpeg.exe',
+             PLUGINS / 'platforms/qwindows.dll'}
+    bin_dir, plugin_dir = output / BIN, output / PLUGINS
+    if not bin_dir.is_dir() or not plugin_dir.is_dir():
+        raise ValueError('Incomplete Windows native engine directories')
+    files = set(fixed)
+    for path in (*bin_dir.iterdir(), *plugin_dir.rglob('*')):
+        if path.suffix.lower() != '.dll':
+            continue
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('Invalid staged native library')
+        files.add(path.relative_to(output))
+    if any((output / path).is_symlink() or
+           not (output / path).is_file() for path in fixed):
+        raise ValueError('Missing or redirected native engine component')
+    return tuple(sorted(files, key=lambda path: path.as_posix()))
+
+
 def stage(reference, build, mingw, output):
     if output.exists():
         raise ValueError('Use a new output directory')
@@ -109,7 +129,7 @@ def stage(reference, build, mingw, output):
                        'wb_supervisor_set_velocity_at_scene_revision'):
             getattr(controller, symbol)
     subprocess.run([str(ffmpeg), '-version'], check=True, stdout=subprocess.DEVNULL)
-    files = (BIN / 'webots-bin.exe', CONTROLLER, BIN / 'ffmpeg.exe', PLUGINS / 'platforms/qwindows.dll')
+    files = native_engine_inventory(output)
     manifest = {'upstream': UPSTREAM, 'patches': (HERE / 'patches.lock').read_text().splitlines(),
                 'assembly': subprocess.check_output(
                     ['git', '-C', str(HERE), 'rev-parse', 'HEAD'], text=True).strip(),

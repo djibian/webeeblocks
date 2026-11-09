@@ -206,6 +206,49 @@ def require_project_code_archive_integrity():
             raise ValueError('Composant Grand Prix modifié : ' + key)
 
 
+def require_engine_archive_integrity(home, manifest):
+    """Fail closed on changed or untracked native DLLs before a Windows A/B run.
+
+    The immutable engine manifest includes every staged bin DLL and Qt plugin
+    DLL, not only the four original startup files. It is paired byte-for-byte
+    with the project archive, and does not cover editable pupil projects.
+    """
+    files = manifest.get('files') if isinstance(manifest, dict) else None
+    if not isinstance(files, dict):
+        raise ValueError('Inventaire du moteur natif invalide.')
+    fixed = {
+        'msys64/mingw64/bin/webots-bin.exe',
+        'lib/controller/Controller.dll',
+        'msys64/mingw64/bin/ffmpeg.exe',
+        'msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll',
+    }
+    bin_dir = home / 'msys64/mingw64/bin'
+    plugins = home / 'msys64/mingw64/share/qt6/plugins'
+    if not bin_dir.is_dir() or not plugins.is_dir():
+        raise ValueError('Répertoires du moteur natif incomplets.')
+    observed = set(fixed)
+    for path in (*bin_dir.iterdir(), *plugins.rglob('*')):
+        if path.suffix.lower() != '.dll':
+            continue
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('Bibliothèque native invalide.')
+        observed.add(path.relative_to(home).as_posix())
+    if set(files) != observed:
+        raise ValueError('Inventaire du moteur natif incomplet ou inattendu.')
+    for name, expected in sorted(files.items()):
+        if (not isinstance(name, str) or not isinstance(expected, str) or
+                len(expected) != 64 or
+                any(ch not in '0123456789abcdef' for ch in expected)):
+            raise ValueError('Empreinte du moteur natif invalide.')
+        path = home / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('Composant du moteur natif manquant ou redirigé.')
+        with path.open('rb') as source:
+            actual = hashlib.file_digest(source, 'sha256').hexdigest()
+        if actual != expected:
+            raise ValueError('Empreinte du moteur natif différente : ' + name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
@@ -219,10 +262,11 @@ def main():
     manifest = (ROOT / 'native-engine.json').read_bytes()
     if manifest != (home / 'native-engine.json').read_bytes():
         parser.error('Le moteur et le projet doivent provenir de la même construction.')
-    for name, expected in json.loads(manifest)['files'].items():
-        with (home / name).open('rb') as source:
-            if hashlib.file_digest(source, 'sha256').hexdigest() != expected:
-                parser.error(f'Empreinte du moteur différente pour {name}.')
+    try:
+        engine_metadata = json.loads(manifest)
+        require_engine_archive_integrity(home, engine_metadata)
+    except (OSError, ValueError, TypeError) as error:
+        parser.error(str(error))
     world = ROOT / f'worlds/route-{args.course}-{args.fps}.wbt'
     try:
         require_robot_window_project(world)

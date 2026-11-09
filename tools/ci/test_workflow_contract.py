@@ -400,6 +400,65 @@ class WorkflowTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Chemin non sûr"):
                     launcher.require_project_code_archive_integrity()
 
+    def test_native_windows_engine_manifest_covers_all_deployed_libraries(self):
+        # No real Windows GUI claim: synthetic engine bytes falsify a changed
+        # Qt runtime DLL, a Qt plugin and an untracked post-extraction DLL.
+        import hashlib
+        import importlib.util
+        stage_path = ROOT / "tools/grand_prix/native_engine/stage_windows.py"
+        stage_spec = importlib.util.spec_from_file_location("gp_native_engine_stage", stage_path)
+        stage = importlib.util.module_from_spec(stage_spec)
+        stage_spec.loader.exec_module(stage)
+        launch_path = ROOT / "tools/grand_prix/native_engine/launch_route_windows.py"
+        launch_spec = importlib.util.spec_from_file_location("gp_native_engine_verify", launch_path)
+        launch = importlib.util.module_from_spec(launch_spec)
+        launch_spec.loader.exec_module(launch)
+        required = (
+            "msys64/mingw64/bin/webots-bin.exe",
+            "lib/controller/Controller.dll",
+            "msys64/mingw64/bin/ffmpeg.exe",
+            "msys64/mingw64/bin/Qt6Core.dll",
+            "msys64/mingw64/bin/libwinpthread-1.dll",
+            "msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll",
+            "msys64/mingw64/share/qt6/plugins/imageformats/qjpeg.dll",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            for name in required:
+                item = home / name
+                item.parent.mkdir(parents=True, exist_ok=True)
+                item.write_bytes(b"native-component-original\\n")
+            included = stage.native_engine_inventory(home)
+            self.assertEqual({p.as_posix() for p in included}, set(required))
+            files = {p.as_posix(): hashlib.sha256((home / p).read_bytes()).hexdigest()
+                     for p in included}
+            manifest = {"files": files}
+            self.assertIsNone(launch.require_engine_archive_integrity(home, manifest))
+            qt = home / "msys64/mingw64/bin/Qt6Core.dll"
+            qt.write_bytes(b"altered-dll")
+            with self.assertRaisesRegex(ValueError, "Empreinte"):
+                launch.require_engine_archive_integrity(home, manifest)
+            qt.write_bytes(b"native-component-original\\n")
+            plugin = home / "msys64/mingw64/share/qt6/plugins/imageformats/qjpeg.dll"
+            plugin.write_bytes(b"altered-plugin")
+            with self.assertRaisesRegex(ValueError, "Empreinte"):
+                launch.require_engine_archive_integrity(home, manifest)
+            plugin.write_bytes(b"native-component-original\\n")
+            injected = home / "msys64/mingw64/bin/Qt6Injected.dll"
+            injected.write_bytes(b"extra")
+            with self.assertRaisesRegex(ValueError, "incomplet ou inattendu"):
+                launch.require_engine_archive_integrity(home, manifest)
+            injected.unlink()
+            with self.assertRaisesRegex(ValueError, "incomplet ou inattendu"):
+                launch.require_engine_archive_integrity(home, {"files": {
+                    key: value for key, value in files.items() if not key.endswith("Qt6Core.dll")
+                }})
+            with self.assertRaisesRegex(ValueError, "Empreinte.*invalide"):
+                launch.require_engine_archive_integrity(home, {"files": {
+                    **files, "msys64/mingw64/bin/Qt6Core.dll": "bad"
+                }})
+            self.assertIsNone(launch.require_engine_archive_integrity(home, manifest))
+
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
