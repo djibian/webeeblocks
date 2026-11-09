@@ -148,6 +148,15 @@ class WorkflowTests(unittest.TestCase):
                 shutil.copytree(
                     windows / relative, plugins / relative,
                     ignore=shutil.ignore_patterns("node_modules", "package*.json"))
+            # Blockly's pinned vendor files are prepared by the Windows
+            # packaging job, not checked into Git. Provide deterministic
+            # stand-ins only for the known vendor URLs in this host-only test.
+            vendor = plugins / "blockly_v2/vendor"
+            for name in ("blockly_compressed.js", "blocks_compressed.js",
+                         "msg/fr.js"):
+                stub = vendor / name
+                stub.parent.mkdir(parents=True, exist_ok=True)
+                stub.write_bytes(b"vendor fixture only\n")
             module.fingerprint_robot_window_assets(project)
             for relative in ("blockly_v2/blockly_v2.html",
                              "grand_prix_route_v2/grand_prix_route_v2.html"):
