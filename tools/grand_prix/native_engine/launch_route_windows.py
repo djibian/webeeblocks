@@ -140,6 +140,67 @@ def require_robot_window_archive_integrity():
         if actual != expected[relative]:
             raise ValueError('Ressource Blockly modifiée : ' + relative)
 
+def require_project_code_archive_integrity():
+    """Refuse altered packaged controller/evaluator/Blockly code before an A/B trace.
+
+    The package manifest detects accidental post-extraction changes, not a
+    malicious rewrite of both a file and its manifest. Editable .wbb files and
+    Webots .wbproj user preferences are intentionally excluded.
+    """
+    try:
+        rows = (ROOT / 'MANIFEST.sha256').read_text(encoding='utf-8').splitlines()
+    except OSError as error:
+        raise ValueError('Manifeste SHA-256 du projet absent ou illisible.') from error
+    expected = {}
+    for row in rows:
+        fields = row.split('  ', 1)
+        if (len(fields) != 2 or len(fields[0]) != 64 or not fields[1] or
+                any(c not in '0123456789abcdef' for c in fields[0]) or
+                fields[1] in expected):
+            raise ValueError('Inventaire SHA-256 du projet malformé ou dupliqué.')
+        key = fields[1]
+        if ('\\' in key or key.startswith('/') or
+                any(component in ('', '.', '..') for component in key.split('/'))):
+            raise ValueError('Chemin non sûr dans le manifeste du projet.')
+        expected[key] = fields[0]
+
+    required = {
+        'controllers/grand_prix_route_flight/grand_prix_route_flight.exe',
+        'controllers/grand_prix_route_flight/runtime.ini',
+        'controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py',
+        'controllers/grand_prix_route_evaluator/evaluator_impl.py',
+        'controllers/grand_prix_route_evaluator/runtime.ini',
+        'runtime/python/webeeblocks-gp-python.exe',
+        'tools/grand_prix/route_courses_v2.py',
+        'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html',
+        'launch_route_windows.py',
+    }
+    # Include all code and assets actually shipped under these immutable roots,
+    # including indirectly loaded JS/CSS missed by an HTML-only dependency scan.
+    selected = required | {
+        key for key in expected
+        if key.startswith(('controllers/', 'tools/grand_prix/',
+                           'plugins/robot_windows/'))
+    }
+    root = ROOT.resolve()
+    for key in sorted(selected):
+        if key not in expected:
+            raise ValueError('Composant Grand Prix absent du manifeste : ' + key)
+        path = (ROOT / key).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError('Composant Grand Prix hors du projet : ' + key)
+        try:
+            with path.open('rb') as stream:
+                digest = hashlib.sha256()
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+                actual = digest.hexdigest()
+        except OSError as error:
+            raise ValueError('Composant Grand Prix inaccessible : ' + key) from error
+        if actual != expected[key]:
+            raise ValueError('Composant Grand Prix modifié : ' + key)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
@@ -162,6 +223,7 @@ def main():
         require_robot_window_project(world)
         require_project_world_integrity(world)
         require_robot_window_archive_integrity()
+        require_project_code_archive_integrity()
     except (OSError, ValueError) as error:
         parser.error(str(error))
     trace = ROOT / 'traces' / f'{args.course}-{args.fps}-{args.arm}-{time.time_ns()}'

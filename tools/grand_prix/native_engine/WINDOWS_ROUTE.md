@@ -18,8 +18,10 @@ Dans le dossier du projet, depuis PowerShell :
 A dessine à 100 %, B à 50 % de la largeur et hauteur de la cible 3D.
 `--arm budget` ajoute un budget de dessin expérimental à B, à mesurer
 séparément. `--fps` fixe le plafond d’affichage (25, 30 ou 60).
-La physique conserve 8 ms dans chaque bras. Le lanceur vérifie le manifeste
-du moteur et ses empreintes avant exécution. Les contrôleurs natifs du
+La physique conserve 8 ms dans chaque bras. Le lanceur vérifie le manifeste du moteur et ses empreintes, ainsi que les
+empreintes des mondes et composants de code immuables du ZIP projet avant
+exécution. Ce contrôle détecte les altérations après extraction ; il ne remplace
+pas la vérification indépendante du SHA-256 de l'archive ni un test GUI. Les contrôleurs natifs du
 parcours variable conservent l’autorité de READY, LAND et RESET.
 
 Pour isoler l’effet de l’échelle, effectuer trois paires en ordre A/B, B/A,

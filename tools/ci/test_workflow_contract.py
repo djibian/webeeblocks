@@ -211,6 +211,67 @@ class WorkflowTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "malformé ou dupliqué"):
                     launcher.require_robot_window_archive_integrity()
 
+    def test_native_windows_immutable_code_archive_integrity(self):
+        # Only immutable packaged code is hashed; .wbb and Webots preferences
+        # remain editable and are not attested by the package inventory.
+        import hashlib
+        import importlib.util
+        source = ROOT / "tools/grand_prix/native_engine/launch_route_windows.py"
+        spec = importlib.util.spec_from_file_location("gp_native_code_hashes", source)
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        required = (
+            "controllers/grand_prix_route_flight/grand_prix_route_flight.exe",
+            "controllers/grand_prix_route_flight/runtime.ini",
+            "controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py",
+            "controllers/grand_prix_route_evaluator/evaluator_impl.py",
+            "controllers/grand_prix_route_evaluator/runtime.ini",
+            "runtime/python/webeeblocks-gp-python.exe",
+            "tools/grand_prix/route_courses_v2.py",
+            "plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html",
+            "launch_route_windows.py",
+        )
+        extra = "plugins/robot_windows/blockly_v2/indirectly_loaded.js"
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            for rel in (*required, extra):
+                path = project / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"packaged-original\n")
+            manifest = project / "MANIFEST.sha256"
+            def rows():
+                return "".join(
+                    hashlib.sha256((project / rel).read_bytes()).hexdigest() +
+                    "  " + rel + "\n" for rel in (*required, extra)
+                )
+            manifest.write_text(rows(), encoding="utf-8")
+            with patch.object(launcher, "ROOT", project):
+                self.assertIsNone(launcher.require_project_code_archive_integrity())
+                altered = project / "controllers/grand_prix_route_evaluator/evaluator_impl.py"
+                altered.write_bytes(b"changed-evaluator\n")
+                with self.assertRaisesRegex(ValueError, "Composant Grand Prix modifié"):
+                    launcher.require_project_code_archive_integrity()
+                altered.write_bytes(b"packaged-original\n")
+                indirect = project / extra
+                indirect.write_bytes(b"changed-indirect-script\n")
+                with self.assertRaisesRegex(ValueError, "Composant Grand Prix modifié"):
+                    launcher.require_project_code_archive_integrity()
+                indirect.write_bytes(b"packaged-original\n")
+                manifest.write_text(
+                    "".join(line for line in rows().splitlines(keepends=True)
+                            if "controllers/grand_prix_route_flight/grand_prix_route_flight.exe"
+                            not in line), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "absent du manifeste"):
+                    launcher.require_project_code_archive_integrity()
+                manifest.write_text(rows() + rows().splitlines(keepends=True)[0],
+                                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "malformé ou dupliqué"):
+                    launcher.require_project_code_archive_integrity()
+                manifest.write_text(rows() + "0" * 64 + "  tools/grand_prix/../escape.py\n",
+                                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Chemin non sûr"):
+                    launcher.require_project_code_archive_integrity()
+
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
