@@ -188,6 +188,23 @@ def require_project_code_archive_integrity():
                            'plugins/robot_windows/', 'runtime/python/'))
     }
     root = ROOT.resolve()
+    # Checking only manifest-listed files misses stale code dropped into an
+    # existing extraction: a .pyd or .py can shadow an inventoried module.
+    # The editable .wbb and Webots perspective files live outside these roots.
+    immutable_roots = (
+        'controllers', 'tools/grand_prix',
+        'plugins/robot_windows', 'runtime/python',
+    )
+    for prefix in immutable_roots:
+        directory = ROOT / prefix
+        if not directory.is_dir() or directory.is_symlink():
+            raise ValueError('Répertoire Grand Prix absent ou redirigé : ' + prefix)
+        for candidate in directory.rglob('*'):
+            key = candidate.relative_to(ROOT).as_posix()
+            if candidate.is_symlink() or not (candidate.is_file() or candidate.is_dir()):
+                raise ValueError('Entrée Grand Prix non sûre : ' + key)
+            if candidate.is_file() and key not in expected:
+                raise ValueError('Composant Grand Prix non inventorié : ' + key)
     for key in sorted(selected):
         if key not in expected:
             raise ValueError('Composant Grand Prix absent du manifeste : ' + key)

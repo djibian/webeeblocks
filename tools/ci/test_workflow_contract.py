@@ -368,6 +368,30 @@ class WorkflowTests(unittest.TestCase):
             manifest.write_text(rows(), encoding="utf-8")
             with patch.object(launcher, "ROOT", project):
                 self.assertIsNone(launcher.require_project_code_archive_integrity())
+                # An extracted directory can retain code that was never in
+                # the ZIP. Python may load a same-name .pyd before its .py.
+                # Such leftovers must be rejected even if every listed hash
+                # still matches the manifest.
+                for unexpected in (
+                    "controllers/grand_prix_route_evaluator/evaluator_impl.pyd",
+                    "tools/grand_prix/route_courses_v2.pyd",
+                    "plugins/robot_windows/blockly_v2/extra.js",
+                    "runtime/python/DLLs/untracked.pyd",
+                ):
+                    untracked = project / unexpected
+                    untracked.parent.mkdir(parents=True, exist_ok=True)
+                    untracked.write_bytes(b"untracked post-extraction code\\n")
+                    with self.assertRaisesRegex(ValueError, "non inventorié"):
+                        launcher.require_project_code_archive_integrity()
+                    untracked.unlink()
+                # User edits outside immutable trees remain explicitly legal.
+                perspective = project / "worlds/.route-5-60.wbproj"
+                perspective.parent.mkdir(parents=True)
+                perspective.write_text("user viewport preferences\\n", encoding="utf-8")
+                editable = project / "projets/eleve.wbb"
+                editable.parent.mkdir()
+                editable.write_text("editable project\\n", encoding="utf-8")
+                self.assertIsNone(launcher.require_project_code_archive_integrity())
                 altered = project / "controllers/grand_prix_route_evaluator/evaluator_impl.py"
                 altered.write_bytes(b"changed-evaluator\n")
                 with self.assertRaisesRegex(ValueError, "Composant Grand Prix modifié"):
