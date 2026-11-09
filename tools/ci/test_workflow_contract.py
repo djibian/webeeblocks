@@ -80,22 +80,22 @@ class WorkflowTests(unittest.TestCase):
             project = Path(directory)
             world = project / "worlds/route-5-60.wbt"
             world.parent.mkdir()
-            world.write_text("WorldInfo {}\\n", encoding="utf-8")
+            world.write_text("WorldInfo {}\n", encoding="utf-8")
             perspective = world.with_name("." + world.stem + ".wbproj")
             plugin = project / "plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html"
             with patch.object(launcher, "ROOT", project):
                 with self.assertRaisesRegex(ValueError, "Perspective Webots manquante"):
                     launcher.require_robot_window_project(world)
-                perspective.write_text("Webots Project File version R2025a\\n", encoding="utf-8")
+                perspective.write_text("Webots Project File version R2025a\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Fenêtre Blockly non configurée"):
                     launcher.require_robot_window_project(world)
                 perspective.write_text(
-                    "Webots Project File version R2025a\\nrobotWindow: Crazyflie WebeeBlocks\\n",
+                    "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
                     encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Plugin de fenêtre Blockly"):
                     launcher.require_robot_window_project(world)
                 plugin.parent.mkdir(parents=True)
-                plugin.write_text("<html></html>\\n", encoding="utf-8")
+                plugin.write_text("<html></html>\n", encoding="utf-8")
                 self.assertIsNone(launcher.require_robot_window_project(world))
                 world.unlink()
                 with self.assertRaisesRegex(ValueError, "Monde Grand Prix manquant"):
