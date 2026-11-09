@@ -90,6 +90,53 @@ def require_project_world_integrity(world):
     if actual != expected:
         raise ValueError('Monde modifié depuis le conditionnement : re-extraire le ZIP.')
 
+
+def require_robot_window_archive_integrity():
+    """Attest static HTML/JS/CSS bytes used by the packaged Blockly window.
+
+    A present dependency is not sufficient for a comparable native A/B run:
+    after extraction it must still match the package's immutable inventory.
+    This cannot attest actual GUI loading or mutable pupil .wbb projects.
+    """
+    plugin = ROOT / 'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'
+    try:
+        inventory = (ROOT / 'MANIFEST.sha256').read_text(encoding='utf-8').splitlines()
+        document = plugin.read_text(encoding='utf-8')
+    except OSError as error:
+        raise ValueError('Manifeste ou fenêtre Blockly absent.') from error
+    expected = {}
+    for row in inventory:
+        fields = row.split('  ', 1)
+        if (len(fields) != 2 or len(fields[0]) != 64 or not fields[1] or
+                any(c not in '0123456789abcdef' for c in fields[0]) or
+                fields[1] in expected):
+            raise ValueError('Inventaire SHA-256 Blockly malformé ou dupliqué.')
+        expected[fields[1]] = fields[0]
+    parser = _RobotWindowDependencies()
+    parser.feed(document)
+    targets = [plugin]
+    root = ROOT.resolve()
+    for reference in parser.references:
+        url = urlsplit(reference)
+        if (url.scheme or url.netloc or not url.path or url.path.startswith('/') or
+                '\\' in url.path or '%' in url.path or url.fragment):
+            raise ValueError('Référence Blockly non locale.')
+        targets.append((plugin.parent / url.path).resolve())
+    for target in targets:
+        try:
+            relative = target.relative_to(root).as_posix()
+        except ValueError as error:
+            raise ValueError('Ressource Blockly hors du projet.') from error
+        if relative not in expected:
+            raise ValueError('Ressource Blockly absente du manifeste : ' + relative)
+        try:
+            with target.open('rb') as stream:
+                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+        except OSError as error:
+            raise ValueError('Ressource Blockly inaccessible : ' + relative) from error
+        if actual != expected[relative]:
+            raise ValueError('Ressource Blockly modifiée : ' + relative)
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
@@ -111,6 +158,7 @@ def main():
     try:
         require_robot_window_project(world)
         require_project_world_integrity(world)
+        require_robot_window_archive_integrity()
     except (OSError, ValueError) as error:
         parser.error(str(error))
     trace = ROOT / 'traces' / f'{args.course}-{args.fps}-{args.arm}-{time.time_ns()}'
