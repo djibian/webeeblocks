@@ -291,5 +291,19 @@ class PassiveWindowsHostABTests(unittest.TestCase):
             self.compare()
 
 
+    def test_replayed_raw_samples_with_distinct_metadata_are_refused(self):
+        # Changed PID/source epoch metadata must not make copied telemetry
+        # appear to be an independent Windows measurement.
+        original = self.root / 'trial-0' / 'samples.csv'
+        target = self.root / 'trial-4' / 'samples.csv'
+        self.assertNotEqual(original.read_bytes(), target.read_bytes())
+        self.assertNotEqual(
+            (self.root / 'trial-0' / 'metadata.json').read_bytes(),
+            (self.root / 'trial-4' / 'metadata.json').read_bytes())
+        target.write_bytes(original.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'duplicate raw host samples'):
+            self.compare()
+
+
 if __name__ == '__main__':
     unittest.main()

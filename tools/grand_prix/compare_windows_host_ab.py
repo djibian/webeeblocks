@@ -129,8 +129,10 @@ def load_capture(directory):
     require(verified_ms >= max(25000, 0.8 * duration * 1000),
             'insufficient CPU-verified host capture duration')
     digest = hashlib.sha256(metadata_bytes + b'\0' + samples_bytes).hexdigest()
+    raw_samples_sha256 = hashlib.sha256(samples_bytes).hexdigest()
     return {
         'metadata': meta, 'hardware': hardware, 'digest': digest,
+        'raw_samples_sha256': raw_samples_sha256,
         'duration_s': round(duration, 3),
         'cpu_one_core_mean_percent': round(
             sum(p * dt for p, dt in zip(cpu[1:], periods[1:])) / verified_ms, 4),
@@ -155,6 +157,7 @@ def compare(manifest_path):
             'at least three complete pairs required')
     seen_paths = set()
     seen_digests = set()
+    seen_raw_samples = set()
     per_arm = {'reference': [], 'candidate': []}
     first_arm = None
     baseline = None
@@ -175,6 +178,9 @@ def compare(manifest_path):
             capture = load_capture(directory)
             require(capture['digest'] not in seen_digests, 'duplicate host capture bytes')
             seen_digests.add(capture['digest'])
+            require(capture['raw_samples_sha256'] not in seen_raw_samples,
+                    'duplicate raw host samples across distinct trial directories')
+            seen_raw_samples.add(capture['raw_samples_sha256'])
             meta = capture['metadata']
             require(meta['variant'] == row['variant'], 'variant mismatch between manifest and capture')
             common = (capture['hardware'], meta['course_id'],
