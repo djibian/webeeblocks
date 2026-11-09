@@ -59,6 +59,10 @@ def package(engine, python_runtime, output):
     runtime_tools.mkdir(parents=True)
     for module in (ROOT / 'tools/grand_prix').glob('*.py'):
         shutil.copy2(module, runtime_tools)
+    # Preserve the existing read-only Windows A/B inventory and CPU/RAM
+    # instruments in the standalone ZIP; no repository checkout is needed.
+    for script in ('windows_host_inventory.ps1', 'capture_windows_host.ps1'):
+        shutil.copy2(ROOT / 'tools/grand_prix' / script, runtime_tools / script)
 
     worlds = output / 'worlds'
     worlds.mkdir()
@@ -79,6 +83,7 @@ def package(engine, python_runtime, output):
         b'"%~dp0runtime\\python\\webeeblocks-gp-python.exe" -I -B "%~dp0launch_route_windows.py" %*\r\n'
         b'if errorlevel 1 pause\r\n')
     (output / 'SOURCE_SHA').write_text(sha + '\n', encoding='utf-8')
+    (output / 'TARGET_SHA.txt').write_text(sha + '\n', encoding='utf-8')
     shutil.copy2(engine / 'native-engine.json', output)
     (output / 'MANIFEST.sha256').write_text(''.join(
         f'{digest(p)}  {p.relative_to(output).as_posix()}\n'

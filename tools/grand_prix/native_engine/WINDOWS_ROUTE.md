@@ -40,3 +40,34 @@ pas à prouver un FPS visible. Ce test compare deux réglages du même
 moteur. La comparaison officiel/candidat, qui exige deux moteurs
 distincts, utilise le protocole
 [GRAND_PRIX_WINDOWS_NATIVE_AB](https://github.com/djibian/webeeblocks/blob/main/docs/GRAND_PRIX_WINDOWS_NATIVE_AB.md).
+
+## Inventaire et collecte CPU/RAM (uniquement lors d’un test V5 autorisé)
+
+Les deux scripts PowerShell passifs sont inclus dans cette archive ; aucun
+checkout Git ou téléchargement complémentaire n’est nécessaire pour eux.
+Ils ne commandent pas le simulateur, ne valident pas la GUI ni les FPS visibles.
+Depuis le répertoire du projet dans PowerShell :
+
+```powershell
+$sha = (Get-Content '.\TARGET_SHA.txt' -Raw).Trim()
+$home = (Resolve-Path '..\Webots-R2025a-experimental').Path
+& .\tools\grand_prix\windows_host_inventory.ps1 `
+  -WebotsHome $home -SourceSha $sha -OutputPath '.\host-native.json'
+Get-Process -Name webots-bin -ErrorAction SilentlyContinue |
+  Select-Object Id, ProcessName, Path, StartTime
+# Après vérification visuelle du PID exact du moteur dans $home :
+$webotsPid = 12345  # à remplacer, ne jamais sélectionner arbitrairement
+& .\tools\grand_prix\capture_windows_host.ps1 `
+  -SourceSha $sha -CourseId 'route-5' -Variant candidate `
+  -WebotsProcessId $webotsPid -WebotsHome $home `
+  -OutputDirectory '.\cpu-A1' -DurationSeconds 90 -SamplePeriodMs 500
+```
+
+Créer un fichier d’inventaire et un dossier de capture nouveaux par essai.
+Le script refuse un PID provenant d’une autre installation et un écrasement
+silencieux. Le CPU/RAM d’un seul processus ne suffit pas pour conclure
+sur la vitesse simulée/murale, le rendu visible ou la sécurité : conserver
+aussi les traces natives et les observations de Blockly. Les fichiers de
+journaux sont à examiner avant tout partage (chemins locaux possibles).
+Aucune exécution humaine ni notification hors `TEST_REQUIRED` n’est autorisée
+par ce simple conditionnement.
