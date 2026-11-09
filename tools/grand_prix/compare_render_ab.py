@@ -129,8 +129,21 @@ def compare(manifest_path):
              and phase[1] > phase[0], 'invalid fixed 8-ms comparison phase')
     fps = doc.get('render_fps')
     _require(isinstance(fps, dict) and set(fps) == {'A', 'B'}
-             and all(type(value) is int and value in (25, 30, 60) for value in fps.values())
-             and fps['A'] != fps['B'], 'two different declared rendered FPS caps required')
+             and all(type(value) is int and value in (25, 30, 60) for value in fps.values()),
+             'two valid declared rendered FPS caps required')
+    scales = doc.get('framebuffer_scale')
+    if scales is None:
+        _require(fps['A'] != fps['B'], 'two different declared rendered FPS caps required')
+        comparison_axis = 'render_fps'
+    else:
+        # Source-built R2025a #912 experiment: compare 100% vs 50% main-view
+        # framebuffers at one unchanged FPS cap, never conflate two variables.
+        # These are manifest declarations, not observed framebuffer dimensions.
+        _require(isinstance(scales, dict) and scales == {'A': 100, 'B': 50}
+                 and all(type(value) is int for value in scales.values()),
+                 'framebuffer scale A/B must declare exactly 100% and 50%')
+        _require(fps['A'] == fps['B'], 'framebuffer scale A/B requires identical FPS caps')
+        comparison_axis = 'framebuffer_scale'
     trials = doc.get('trials')
     _require(isinstance(trials, list) and len(trials) >= 6 and len(trials) % 2 == 0,
              'at least three complete A/B pairs required')
@@ -168,6 +181,7 @@ def compare(manifest_path):
         p99_ms = [_percentile(r['step_ns'], 99) / 1e6 for r in results]
         summary[arm] = {
             'render_fps_declared': fps[arm],
+            'framebuffer_scale_percent_declared': scales[arm] if scales is not None else None,
             'median_speed_in_windows_x': round(statistics.median(speeds), 6),
             'median_speed_observed_envelope_x': round(statistics.median(envelope_speeds), 6),
             'median_step_p99_ms': round(statistics.median(p99_ms), 6),
@@ -182,6 +196,7 @@ def compare(manifest_path):
     return {
         'schema': 1, 'source_sha': doc['source_sha'], 'course': doc['course'],
         'declared_host': doc['host_id'], 'display_mode': doc['display_mode'],
+        'comparison_axis': comparison_axis,
         'phase_ms': phase, 'pair_count': len(trials) // 2,
         'observed_complete_window_phase_ms': [records['A'][0]['observed_start_ms'],
                                               records['A'][0]['observed_end_ms']],
