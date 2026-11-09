@@ -198,6 +198,10 @@ jobs:
         shell: pwsh
         run: ./tools/ci/test_grand_prix_windows_host_inventory.ps1
 
+      - name: Reject invalid Grand Prix passive Windows host A/B reports (#914)
+        shell: pwsh
+        run: python -m unittest tools.ci.test_grand_prix_windows_host_ab
+
       - name: Validate project-file core and AST round-trip on Windows
         shell: pwsh
         run: |
