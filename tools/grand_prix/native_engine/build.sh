@@ -43,4 +43,14 @@ if [[ $2 == build ]]; then
   fi
   make -j"${WEBOTS_BUILD_JOBS:-4}" webots_target WEBOTS_HOME="$WEBOTS_HOME" "${build_flags[@]}"
   make -j"${WEBOTS_BUILD_JOBS:-4}" -C src/controller/c release WEBOTS_HOME="$WEBOTS_HOME"
+  if [[ ${MSYSTEM:-} == MINGW64 ]]; then
+    # Native source/toolchain regression: test the actual Windows secure RNG,
+    # recording no generated random values or challenge tokens.
+    secure_probe_dir=$(mktemp -d)
+    trap 'rm -rf -- "$secure_probe_dir"' EXIT
+    g++ -std=c++17 -D_CRT_RAND_S \
+      "$root/tools/grand_prix/native_engine/test_windows_csprng.cpp" \
+      -o "$secure_probe_dir/test_windows_csprng.exe"
+    "$secure_probe_dir/test_windows_csprng.exe"
+  fi
 fi

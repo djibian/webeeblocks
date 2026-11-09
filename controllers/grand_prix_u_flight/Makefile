@@ -6,7 +6,7 @@ CFLAGS = -I../crazyflie_square -I../crazyflie_runtime_v2 -I. $(GP_EXTRA_CFLAGS)
 CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp build/file_broker_u.cpp $(GP_DEADLINE_SOURCE)
 USE_C_API = true
 ifeq ($(OS),Windows_NT)
- CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -include grand_prix_u_hook.h
+ CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -D_CRT_RAND_S -include grand_prix_u_hook.h
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
  DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets -lole32 -luuid
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
