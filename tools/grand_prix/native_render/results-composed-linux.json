@@ -1,0 +1,302 @@
+{
+  "assembly_sha": "5df0ed7e6f7ca67a35b22441250294df111fb6d6",
+  "display": "Xvfb 1280x800 software OpenGL, Debian 13",
+  "gui": {
+    "engine": {
+      "webots-bin": "02fcb8185ca77a3f5f464f6341a280266737d1be81e7113a5df629110ea75383",
+      "libController.so": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f"
+    },
+    "trials": [
+      {
+        "scale": 100,
+        "capture_size": [
+          736,
+          479
+        ],
+        "framebuffer_size": [
+          736,
+          479
+        ],
+        "target_pixels": 16013,
+        "target_click": [
+          563,
+          391
+        ],
+        "picked_def": "PICK_TARGET"
+      },
+      {
+        "scale": 50,
+        "capture_size": [
+          736,
+          479
+        ],
+        "framebuffer_size": [
+          368,
+          239
+        ],
+        "target_pixels": 16028,
+        "target_click": [
+          562,
+          391
+        ],
+        "picked_def": "PICK_TARGET",
+        "recording": {
+          "width": 320,
+          "height": 240,
+          "nb_frames": "6"
+        },
+        "restored_after_recording": [
+          368,
+          239
+        ]
+      }
+    ]
+  },
+  "resolution_ab": {
+    "engine": {
+      "webots-bin": "02fcb8185ca77a3f5f464f6341a280266737d1be81e7113a5df629110ea75383",
+      "libController.so": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f"
+    },
+    "comparison": {
+      "schema": 1,
+      "source_sha": "5df0ed7e6f7ca67a35b22441250294df111fb6d6",
+      "webots_executable_sha256": "02fcb8185ca77a3f5f464f6341a280266737d1be81e7113a5df629110ea75383",
+      "program_sha256": "5d568cee815197f84b47372324bfe30c5aa710049bcd31385616fb17ae33fe3a",
+      "course": "native-render-fixture",
+      "host_id": "debian13-xvfb-llvmpipe",
+      "display_mode": "xvfb-1280x800",
+      "render_fps": {
+        "A": 60,
+        "B": 60
+      },
+      "trials": [
+        {
+          "arm": "A",
+          "log": "1-A/step-wall.log"
+        },
+        {
+          "arm": "B",
+          "log": "1-B/step-wall.log"
+        },
+        {
+          "arm": "B",
+          "log": "2-B/step-wall.log"
+        },
+        {
+          "arm": "A",
+          "log": "2-A/step-wall.log"
+        },
+        {
+          "arm": "A",
+          "log": "3-A/step-wall.log"
+        },
+        {
+          "arm": "B",
+          "log": "3-B/step-wall.log"
+        }
+      ],
+      "framebuffer_scale": {
+        "A": 100,
+        "B": 50
+      },
+      "phase_ms": [
+        1008,
+        12008
+      ]
+    },
+    "native_spans": [
+      {
+        "pair": 1,
+        "arm": "A",
+        "cycles": 1374,
+        "cycle_p50_ms": 2.22595,
+        "cycle_p95_ms": 86.054841,
+        "cycle_p99_ms": 94.618346,
+        "cycle_max_ms": 123.671521,
+        "swap_completions_per_wall_second": 9.634840253664747,
+        "p99_ms_by_stage": {
+          "controller_reply": 0.535314,
+          "opengl_swap": 6.388626,
+          "physics": 0.210613,
+          "qt_controller_ready": 94.08791,
+          "robot_window_wait": 0.066489,
+          "wren_draw": 106.548454,
+          "wren_prepare": 0.188299
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.8273919067834601,
+        "render_size": [
+          736,
+          479
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 100,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      },
+      {
+        "pair": 1,
+        "arm": "B",
+        "cycles": 1374,
+        "cycle_p50_ms": 4.316139,
+        "cycle_p95_ms": 31.430009,
+        "cycle_p99_ms": 49.029277,
+        "cycle_max_ms": 94.604863,
+        "swap_completions_per_wall_second": 20.42328057794314,
+        "p99_ms_by_stage": {
+          "controller_reply": 0.84325,
+          "opengl_swap": 9.777019,
+          "physics": 0.414354,
+          "qt_controller_ready": 46.877345,
+          "robot_window_wait": 0.127138,
+          "wren_draw": 63.711516,
+          "wren_prepare": 1.203875
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.9512402547150465,
+        "render_size": [
+          368,
+          239
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 50,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      },
+      {
+        "pair": 2,
+        "arm": "B",
+        "cycles": 1374,
+        "cycle_p50_ms": 4.259936,
+        "cycle_p95_ms": 32.384683,
+        "cycle_p99_ms": 46.663697,
+        "cycle_max_ms": 165.627411,
+        "swap_completions_per_wall_second": 20.308393501863424,
+        "p99_ms_by_stage": {
+          "controller_reply": 1.082635,
+          "opengl_swap": 8.881807,
+          "physics": 0.719436,
+          "qt_controller_ready": 43.095481,
+          "robot_window_wait": 0.113228,
+          "wren_draw": 54.051735,
+          "wren_prepare": 0.992061
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.9499143037126927,
+        "render_size": [
+          368,
+          239
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 50,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      },
+      {
+        "pair": 2,
+        "arm": "A",
+        "cycles": 1374,
+        "cycle_p50_ms": 1.449845,
+        "cycle_p95_ms": 92.879542,
+        "cycle_p99_ms": 129.768512,
+        "cycle_max_ms": 323.310436,
+        "swap_completions_per_wall_second": 8.37319792486148,
+        "p99_ms_by_stage": {
+          "controller_reply": 1.149965,
+          "opengl_swap": 19.297574,
+          "physics": 0.390459,
+          "qt_controller_ready": 128.482165,
+          "robot_window_wait": 0.117504,
+          "wren_draw": 152.027949,
+          "wren_prepare": 1.690386
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.7304618380164872,
+        "render_size": [
+          736,
+          479
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 100,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      },
+      {
+        "pair": 3,
+        "arm": "A",
+        "cycles": 1374,
+        "cycle_p50_ms": 1.250544,
+        "cycle_p95_ms": 103.387708,
+        "cycle_p99_ms": 147.330164,
+        "cycle_max_ms": 200.084623,
+        "swap_completions_per_wall_second": 7.321772962664431,
+        "p99_ms_by_stage": {
+          "controller_reply": 1.134942,
+          "opengl_swap": 9.905826,
+          "physics": 0.522285,
+          "qt_controller_ready": 145.515221,
+          "robot_window_wait": 0.099918,
+          "wren_draw": 192.274889,
+          "wren_prepare": 0.573731
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.8383430042250773,
+        "render_size": [
+          736,
+          479
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 100,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      },
+      {
+        "pair": 3,
+        "arm": "B",
+        "cycles": 1374,
+        "cycle_p50_ms": 3.412261,
+        "cycle_p95_ms": 38.598525,
+        "cycle_p99_ms": 61.195185,
+        "cycle_max_ms": 158.827194,
+        "swap_completions_per_wall_second": 17.447797980458986,
+        "p99_ms_by_stage": {
+          "controller_reply": 1.831326,
+          "opengl_swap": 8.118574,
+          "physics": 0.674941,
+          "qt_controller_ready": 59.564982,
+          "robot_window_wait": 0.198174,
+          "wren_draw": 102.514362,
+          "wren_prepare": 1.855762
+        },
+        "draw_overlaps_majority_of_tail_cycles": 14,
+        "tail_cycles": 14,
+        "speed_x": 0.9355424165912447,
+        "render_size": [
+          368,
+          239
+        ],
+        "screen_size": [
+          736,
+          479
+        ],
+        "scale": 50,
+        "world_sha256": "c01419389907015a18d7ee754d9422ab938567e6c9eb7df85e47b0c024c5c997"
+      }
+    ]
+  }
+}

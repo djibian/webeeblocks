@@ -146,3 +146,28 @@ OpenGL renderer, course, program, power policy and cap fixed. Retain
 step-wall trace, host capture and actual presentation measurements. Check
 readability and the GUI workflow as well as ≥0.95× and p99 ≤25 ms on the
 full attempt phases. A diagnostic ODE run does not establish that result.
+
+
+## Composed Linux GUI regression
+
+The [composed source build](https://github.com/djibian/webeeblocks/pull/946)
+executes the screenshot, off-centre picking and movie-stop paths. Use an
+isolated X display with `xwininfo`, `xdotool`, Pillow and `ffprobe`.
+
+```sh
+python3 tools/grand_prix/native_render/check_gui_linux.py \
+  --patched /path/to/composed-r2025a \
+  --frame-tools /path/to/922/tools/grand_prix/native_frame \
+  --output /path/to/fresh-gui-witness
+```
+
+Both exported PNGs are 736×479 and both actual pointer clicks select
+`PICK_TARGET` outside the 368×239 reduced buffer extent. The movie is
+320×240 with six encoded frames. WREN renders at native video dimensions
+during capture and returns to 368×239 in the 736×479 viewport after stop.
+The [composed results](results-composed-linux.json) also retain three paired
+resolution trials with 1,374 measured physics cycles per arm. On this Linux
+fixture, cycle p99 went from 94.62–147.33 ms to 46.66–61.20 ms. Each pair
+has the same viewport and unchanged sampled trajectory and contacts.
+This run used a software-rendered X display. Windows DPI, cancellation and
+full Grand Prix acceptance remain separate.
