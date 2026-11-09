@@ -266,6 +266,40 @@ jobs:
           path: ci-artifacts/grand-prix-u/
           if-no-files-found: error
 
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/910-r2025a-physics-frame'
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .frame-webots
+          sparse-checkout: |
+            include
+            src/controller/c
+            src/stb
+            lib/controller
+            resources
+          persist-credentials: false
+      - name: Build the exact R2025a Controller with the experimental frame
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/910-r2025a-physics-frame'
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          git -C .frame-webots submodule update --init src/stb
+          git -C .frame-webots apply --include='include/*' --include='src/controller/*' \
+            "$PWD/tools/grand_prix/native_frame/webots-r2025a.patch"
+          make -j4 -C .frame-webots/src/controller/c release WEBOTS_HOME="$PWD/.frame-webots"
+      - name: Inject malformed suffixes via real IPC and TCP Controller connections
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/910-r2025a-physics-frame'
+        run: |
+          python3 tools/grand_prix/native_frame/check_wire_transports_linux.py \
+            --webots-source .frame-webots --output frame-transports.json
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/910-r2025a-physics-frame'
+        with:
+          name: grand-prix-frame-transports-${{ github.event.pull_request.head.sha }}
+          path: frame-transports.json
+          if-no-files-found: error
+
       - name: Select required suites
         id: scope
         run: >-

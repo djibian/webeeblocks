@@ -19,16 +19,29 @@ The experimental frame is appended **after** the normal step/device replies,
 as the last message of a well-framed reply packet. The reader requires exactly
 the declared payload size (including zero trailing payload for count −1). It
 rejects unknown versions, truncated or excess payload without swallowing
-ordinary replies that precede this optional suffix. This is source-level
-hardening on the later candidate; **native malformed-reply injection has not
-yet qualified it**. The recorded Linux timings and parities predate this change.
+ordinary replies that precede this optional suffix. The recorded Linux
+timings and physics parities predate this change.
 
-Required negative regression before Ready: append a bad-version frame, a
-truncated frame, an overlong frame and count −1 with extra bytes after
-ordinary time/device replies. Each case must reject the optional frame while
-preserving the normal simulated clock and device observations. Exercise the
-supported local and TCP transports. No product authority is attached to the
-frame or to these unrun tests.
+The native Controller socket probe places malformed frame 104 data after the
+ordinary clock and distance sensor replies. The same client requests every
+frame using the installed API. It checks the new sensor sample, exact 8-ms
+clock advance, refusal of the optional frame and successful recovery on valid
+neighbors. The runner tests an unknown version, a truncated header, a
+truncated body, an overlong body, count −1 with extra data, and an ordinary
+unavailable frame. This probe uses a fixture peer and the source-built
+Controller scheduler, rather than a modified simulator or mocked decoder.
+It does not test the ODE producer or malformed outer packet framing.
+
+```sh
+python3 tools/grand_prix/native_frame/check_wire_transports_linux.py \
+  --webots-source /path/to/patched-webots --output frame-transports.json
+```
+
+Use an already built, pinned R2025a Controller for frame v1 or v2. The default
+exercises Unix IPC and loopback TCP. The Draft transport job runs both on the
+exact v1 source. [Local TCP traces](results-wire-transport-linux.json) cover
+v1 and the combined v2 Controller from #923. No product authority is attached
+to the frame.
 
 The reply contains the format version, count, 16-byte observation incarnation,
 Supervisor and requested Solid IDs, simulated milliseconds, position, row-major

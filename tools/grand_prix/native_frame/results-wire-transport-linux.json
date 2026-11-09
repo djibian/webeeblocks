@@ -1,0 +1,193 @@
+{
+  "scope": "Source-built Linux Controller, protocol fixture peer, TCP loopback",
+  "frame_patch_commit": "36c57ec07448e48897ea64ad7aa3dc40d2c33c5b",
+  "revision_patch_commit_v2": "f1405094215a6580ae96a16e8ff6426ecbacde31",
+  "results": [
+    {
+      "upstream": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+      "controller_sha256": "8cdac3daef602079dff5c571edbb7b0206c981f156312c3c3a05d9d061e68d4b",
+      "frame_version": 1,
+      "transports": {
+        "tcp": [
+          {
+            "case": "valid",
+            "tick": 1,
+            "time_ms": 8,
+            "distance": 101.0,
+            "frame": true
+          },
+          {
+            "case": "bad_version",
+            "tick": 2,
+            "time_ms": 16,
+            "distance": 102.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 3,
+            "time_ms": 24,
+            "distance": 103.0,
+            "frame": true
+          },
+          {
+            "case": "truncated_header",
+            "tick": 4,
+            "time_ms": 32,
+            "distance": 104.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 5,
+            "time_ms": 40,
+            "distance": 105.0,
+            "frame": true
+          },
+          {
+            "case": "truncated_body",
+            "tick": 6,
+            "time_ms": 48,
+            "distance": 106.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 7,
+            "time_ms": 56,
+            "distance": 107.0,
+            "frame": true
+          },
+          {
+            "case": "overlong_body",
+            "tick": 8,
+            "time_ms": 64,
+            "distance": 108.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 9,
+            "time_ms": 72,
+            "distance": 109.0,
+            "frame": true
+          },
+          {
+            "case": "unavailable_with_data",
+            "tick": 10,
+            "time_ms": 80,
+            "distance": 110.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 11,
+            "time_ms": 88,
+            "distance": 111.0,
+            "frame": true
+          },
+          {
+            "case": "unavailable",
+            "tick": 12,
+            "time_ms": 96,
+            "distance": 112.0,
+            "frame": false
+          }
+        ]
+      }
+    },
+    {
+      "upstream": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+      "controller_sha256": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f",
+      "frame_version": 2,
+      "transports": {
+        "tcp": [
+          {
+            "case": "valid",
+            "tick": 1,
+            "time_ms": 8,
+            "distance": 101.0,
+            "frame": true
+          },
+          {
+            "case": "bad_version",
+            "tick": 2,
+            "time_ms": 16,
+            "distance": 102.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 3,
+            "time_ms": 24,
+            "distance": 103.0,
+            "frame": true
+          },
+          {
+            "case": "truncated_header",
+            "tick": 4,
+            "time_ms": 32,
+            "distance": 104.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 5,
+            "time_ms": 40,
+            "distance": 105.0,
+            "frame": true
+          },
+          {
+            "case": "truncated_body",
+            "tick": 6,
+            "time_ms": 48,
+            "distance": 106.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 7,
+            "time_ms": 56,
+            "distance": 107.0,
+            "frame": true
+          },
+          {
+            "case": "overlong_body",
+            "tick": 8,
+            "time_ms": 64,
+            "distance": 108.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 9,
+            "time_ms": 72,
+            "distance": 109.0,
+            "frame": true
+          },
+          {
+            "case": "unavailable_with_data",
+            "tick": 10,
+            "time_ms": 80,
+            "distance": 110.0,
+            "frame": false
+          },
+          {
+            "case": "valid",
+            "tick": 11,
+            "time_ms": 88,
+            "distance": 111.0,
+            "frame": true
+          },
+          {
+            "case": "unavailable",
+            "tick": 12,
+            "time_ms": 96,
+            "distance": 112.0,
+            "frame": false
+          }
+        ]
+      }
+    }
+  ]
+}
