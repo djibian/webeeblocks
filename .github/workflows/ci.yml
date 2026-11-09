@@ -230,6 +230,8 @@ jobs:
           python3 tools/ci/test_select_s3_build.py
           python3 tools/ci/test_ci_gate.py
           python3 -m unittest discover -s tools/ci -p test_ci_optimization_report.py
+          # Native C decoder negative fixtures for the optional Grand Prix frame 104.
+          python3 tools/grand_prix/native_frame/test_wire_suffix.py
           python3 tools/ci/test_workflow_contract.py
           python3 tools/ci/test_localize_webots_world.py
           python3 tools/ci/test_pinned_webots_sparse.py
