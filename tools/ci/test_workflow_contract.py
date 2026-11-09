@@ -113,26 +113,26 @@ class WorkflowTests(unittest.TestCase):
             project = Path(directory)
             world = project / "worlds/route-5-60.wbt"
             world.parent.mkdir()
-            world.write_text("WorldInfo {}\\n", encoding="utf-8")
+            world.write_text("WorldInfo {}\n", encoding="utf-8")
             inventory = project / "MANIFEST.sha256"
             digest = hashlib.sha256(world.read_bytes()).hexdigest()
-            row = f"{digest}  worlds/route-5-60.wbt\\n"
+            row = f"{digest}  worlds/route-5-60.wbt\n"
             with patch.object(launcher, "ROOT", project):
                 with self.assertRaisesRegex(ValueError, "absent ou illisible"):
                     launcher.require_project_world_integrity(world)
                 inventory.write_text(row, encoding="utf-8")
                 self.assertIsNone(launcher.require_project_world_integrity(world))
-                world.write_text("WorldInfo { basicTimeStep 16 }\\n", encoding="utf-8")
+                world.write_text("WorldInfo { basicTimeStep 16 }\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Monde modifié"):
                     launcher.require_project_world_integrity(world)
-                world.write_text("WorldInfo {}\\n", encoding="utf-8")
+                world.write_text("WorldInfo {}\n", encoding="utf-8")
                 inventory.write_text(row + row, encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "dupliquée"):
                     launcher.require_project_world_integrity(world)
-                inventory.write_text("bad record\\n", encoding="utf-8")
+                inventory.write_text("bad record\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "malformé"):
                     launcher.require_project_world_integrity(world)
-                inventory.write_text("0" * 64 + "  other-world.wbt\\n", encoding="utf-8")
+                inventory.write_text("0" * 64 + "  other-world.wbt\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "absent du manifeste"):
                     launcher.require_project_world_integrity(world)
 
