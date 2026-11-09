@@ -21,7 +21,10 @@ ENGINE_EXE = 'msys64/mingw64/bin/webots-bin.exe'
 
 def digest(path):
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        hasher = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            hasher.update(chunk)
+        return hasher.hexdigest()
 
 
 
