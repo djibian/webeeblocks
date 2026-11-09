@@ -178,6 +178,35 @@ def observe():
             list(target.getVelocity()) == velocity_before_restart_refusal,
             'stale controller-session token applied native velocity')
 
+    # An artificial HingeJoint move changes the pose of its collision Solid
+    # before the next ODE step. A restored endpoint cannot restore authority.
+    joint = robot.getFromDef('REVISION_JOINT')
+    endpoint = robot.getFromDef('JOINT_COLLIDER')
+    original_joint_position = .15
+    joint.setJointPosition(original_joint_position)
+    original_endpoint = list(endpoint.getPosition())
+    joint_instant = robot.getTime()
+    joint_before = token_now()
+    joint.setJointPosition(original_joint_position + .4)
+    joint_moved = token_now()
+    moved_endpoint = list(endpoint.getPosition())
+    require(sum((x - y) ** 2 for x, y in zip(original_endpoint, moved_endpoint)) > .01,
+            'Supervisor joint mutation did not move the collision endpoint')
+    joint.setJointPosition(original_joint_position)
+    joint_after = token_now()
+    restored_endpoint = list(endpoint.getPosition())
+    require(robot.getTime() == joint_instant and
+            max(abs(x - y) for x, y in zip(original_endpoint, restored_endpoint)) < 1e-9,
+            'Supervisor joint restoration did not restore the same-time endpoint pose')
+    require(bytes(joint_before.incarnation) == bytes(joint_after.incarnation) and
+            joint_moved.revision == joint_before.revision + 1 and
+            joint_after.revision == joint_moved.revision + 1,
+            'same-time joint mutation/restoration did not advance the revision twice')
+    before_joint_effect = list(target.getVelocity())
+    require(not effect(target_id, c.byref(joint_before), velocity) and
+            list(target.getVelocity()) == before_joint_effect,
+            'stale joint token allowed a native velocity effect')
+
     # Probe each genuine ODE mutator without relying on the upstream Python
     # addForceWithOffset/addTorque wrappers (they route to add_force in R2025a).
     cforce = (c.c_double * 3)(0.12, 0., 0.)
@@ -221,6 +250,12 @@ def observe():
         'before_and_after_child_count': count, 'stale_effect_refused': True, 'fresh_effect_applied_once': True,
         'controller_restart': {'before_revision': restart_before.revision,
                                'after_revision': restart_after.revision, 'stale_effect_refused': True},
+        'supervisor_joint': {
+            'time_ms': round(joint_instant * 1000),
+            'revisions': [joint_before.revision, joint_moved.revision, joint_after.revision],
+            'positions': [original_endpoint, moved_endpoint, restored_endpoint],
+            'stale_effect_refused': True,
+        },
         'supervisor_ode_effects': force_reports,
         'mf_collision_triangle': {
             'time_ms': frame.time_ms, 'revisions': [mf_captured.revision, mf_inserted.revision, mf_removed.revision],
@@ -259,6 +294,22 @@ DEF MESH_COLLIDER Solid {
     }
     coordIndex [ 0 1 2 -1 ]
   }
+}
+'''
+    source += '''
+Robot {
+  translation 15 0 1
+  controller "<none>"
+  children [
+    DEF REVISION_JOINT HingeJoint {
+      jointParameters HingeJointParameters { axis 0 0 1 }
+      endPoint DEF JOINT_COLLIDER Solid {
+        translation 1 0 0
+        boundingObject Box { size 0.25 0.25 0.25 }
+        physics Physics { }
+      }
+    }
+  ]
 }
 '''
     world = worlds / 'revision.wbt'

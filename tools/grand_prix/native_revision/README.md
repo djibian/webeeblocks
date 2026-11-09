@@ -24,13 +24,19 @@ setter is a concrete native test effect for the ordering property.
 | Primitive Supervisor MF insertion and removal | Typed insert and remove after request and index validation | Collision triangle changes and is restored at 24 ms, two increments |
 | Scene insertion and removal | `WbNodeOperations::initNewNode` and `deleteNode` at the parent field edit | Add and remove at 16 ms, original cardinality restored |
 | Native Supervisor velocity write | `WbSupervisorUtilities::handleMessage` before the Solid setters | Stale refusal, fresh application, replay refusal |
-| Supervisor joint position (collider movement) | `WbSupervisorUtilities::handleMessage`, immediately before `joint->setPosition()` | Source hook only; native change–restore/revocation witness pending |
+| Supervisor joint position (collider movement) | `WbSupervisorUtilities::handleMessage`, immediately before `joint->setPosition()` | At 32 ms, collider moved and restored with two increments and stale-effect refusal |
 | Supervisor node physics reset | `WbSupervisorUtilities::handleMessage` before `resetPhysics` | Zeroed velocity and invalidated token at 16 ms |
-| Supervisor ODE force/offset/torque | `WbSupervisorUtilities::handleMessage`, valid dynamic body before `dBodyAdd*` | Three native stale-token probes added; engine recompilation/run pending |
+| Supervisor ODE force/offset/torque | `WbSupervisorUtilities::handleMessage`, valid dynamic body before `dBodyAdd*` | Three real native effects each invalidated the previous token |
 | World reset | `WbWorld::reset` before reconstruction | Hook present, qualification pending |
-| Robot controller restart | `WbRobot::restartController` prior to session restart | Native stale-token refusal probe added; rebuilt-engine run pending |
+| Robot controller restart | `WbRobot::restartController` prior to session restart | Restart advanced revision 13 → 14 and rejected the old token |
 
-The controller-restart and ODE effect probes must be rerun on a rebuilt native engine; retained results do not qualify them. The separate global-reset probe described below is already included. The engine can still be changed through other paths. GUI pose and field
+[The composed Linux run](results-composed-linux.json) executes the joint,
+controller-restart, global physics-reset and ODE effect probes. At 32 ms the
+fixture establishes a deterministic joint position before capturing revision
+15. A 0.4-radian move then restoration changes revision 15 → 16 → 17 and
+restores the endpoint to its exact former position. The guarded velocity
+effect rejects revision 15. The engine can still be changed through other
+paths. GUI pose and field
 editing, unclassified native writes, direct topology edits, DEF/USE,
 full PROTO regeneration, save/load variants, world reload and
 disconnect/reconnect still need source coverage and native tests.
@@ -110,11 +116,11 @@ a Webots R2025a rebuilt-binary protocol injection test or a production
 attestation. Test valid and truncated 105/106 alongside ordinary time and
 device replies, then an optional frame, before declaring the repair qualified.
 
-## Draft joint-position revision hook (native proof pending)
+## Joint-position revision hook
 
-`C_SUPERVISOR_NODE_SET_JOINT_POSITION` can reposition a colliding endpoint at the same simulated time. The pinned upstream handler calls `joint->setPosition()` without passing through the already covered field or Solid-reset hooks. This source patch now advances the native revision immediately before invoking that setter after joint lookup and position clamping. Conservative invalidation is deliberate, even if an identical position is requested. The host source-order regression verifies this patch boundary only; it cannot prove the joint moved or that a stale velocity token was refused. Before claiming coverage, rebuild both native ends and test a collision-enabled joint through a **move → restore** pulse without advancing the simulation step, observe two distinct revisions, and require refusal of the old token at the guarded velocity effect. No production authority is conferred.
+`C_SUPERVISOR_NODE_SET_JOINT_POSITION` can reposition a colliding endpoint at the same simulated time. The pinned upstream handler calls `joint->setPosition()` without passing through the already covered field or Solid-reset hooks. This source patch now advances the native revision immediately before invoking that setter after joint lookup and position clamping. Conservative invalidation is deliberate, even if an identical position is requested. The host source-order regression verifies this patch boundary only; it cannot prove the joint moved or that a stale velocity token was refused. The composed Linux witness above executes the collision-enabled move and restoration without a physics step.
 
-## Draft global-RESET coverage repair (native proof pending)
+## Global physics-reset coverage
 
 The source review of the previous Draft HEAD identified a distinct uncounted
 `C_SUPERVISOR_SIMULATION_RESET_PHYSICS` path: it calls
@@ -123,10 +129,9 @@ per-node RESET_PHYSICS case. This patch increments the revision once at the
 global Supervisor effect boundary, before the call to clear ODE physics.
 `check.py` now tests a moving Solid's fresh token, global RESET without a
 simulation step, revision increment, zeroed velocity and native refusal of
-the older token. This is a **new, unexecuted witness** until both Webots
-binaries are rebuilt from the pinned sources and the output is recorded.
-The previous `results-linux.json` remains historical proof of the older
-scope and is not presented as qualification of this repair. Joint-position now has a conservative source hook immediately before the native setter; an actual collider move–return and stale-token rejection still require rebuilt Webots evidence. GUI and other mutation paths remain unqualified.
+the older token. The composed Linux witness observed a zero velocity and exactly one revision
+advance (12 → 13), followed by refusal of the older token. GUI and other
+mutation paths remain unqualified.
 
 ## Draft correction to reply 105 / terminal frame 104 collision
 

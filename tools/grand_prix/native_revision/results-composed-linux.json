@@ -1,0 +1,109 @@
+{
+  "time_ms": 16,
+  "original_collider_x": 0.0,
+  "moved_collider_x": 0.1,
+  "captured_revision": 3,
+  "moved_revision": 4,
+  "restored_revision": 5,
+  "applied_revision": 6,
+  "reset_revision": 7,
+  "added_revision": 8,
+  "removed_revision": 9,
+  "before_and_after_child_count": 7,
+  "stale_effect_refused": true,
+  "fresh_effect_applied_once": true,
+  "controller_restart": {
+    "before_revision": 13,
+    "after_revision": 14,
+    "stale_effect_refused": true
+  },
+  "supervisor_joint": {
+    "time_ms": 32,
+    "revisions": [
+      15,
+      16,
+      17
+    ],
+    "positions": [
+      [
+        15.988771077936043,
+        0.1494381324735992,
+        1.0
+      ],
+      [
+        15.852524522059506,
+        0.5226872289306591,
+        1.0
+      ],
+      [
+        15.988771077936043,
+        0.1494381324735992,
+        1.0
+      ]
+    ],
+    "stale_effect_refused": true
+  },
+  "supervisor_ode_effects": [
+    {
+      "effect": "add_force",
+      "before_revision": 17,
+      "after_revision": 18,
+      "stale_effect_refused": true
+    },
+    {
+      "effect": "add_force_with_offset",
+      "before_revision": 18,
+      "after_revision": 19,
+      "stale_effect_refused": true
+    },
+    {
+      "effect": "add_torque",
+      "before_revision": 19,
+      "after_revision": 20,
+      "stale_effect_refused": true
+    }
+  ],
+  "mf_collision_triangle": {
+    "time_ms": 24.0,
+    "revisions": [
+      9,
+      10,
+      11
+    ],
+    "restored_points": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "inserted_point": [
+      1.0,
+      1.0,
+      0.5
+    ],
+    "stale_effect_refused": true
+  },
+  "global_physics_reset": {
+    "captured_revision": 12,
+    "reset_revision": 13,
+    "same_simulated_instant": true,
+    "zero_velocity": true,
+    "stale_effect_refused": true
+  },
+  "engine_fingerprints": {
+    "webots-bin": "02fcb8185ca77a3f5f464f6341a280266737d1be81e7113a5df629110ea75383",
+    "libController.so": "b3b95347e2d9771be6e2621a31a2562e0628a2696c740c53fdf35660a5e0950f"
+  },
+  "assembly_sha": "5df0ed7e6f7ca67a35b22441250294df111fb6d6"
+}
