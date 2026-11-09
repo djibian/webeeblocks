@@ -94,6 +94,17 @@ def load_capture(directory):
                 'inconsistent host sampling interval')
         require(prev_cpu_total is None or total >= prev_cpu_total - 1e-5,
                 'non-monotonic process CPU total')
+        if prev_cpu_total is not None:
+            # The PowerShell collector rounds cumulative CPU to 6 decimals,
+            # interval milliseconds and one-core percentage to 3 decimals.
+            # Recompute from the consecutive raw counters; do not accept a
+            # fictional A/B gain with incompatible CPU totals and percentages.
+            cpu_delta = max(0.0, total - prev_cpu_total)
+            calculated_pct = 100.0 * cpu_delta / (interval / 1000.0)
+            rounding_tolerance = (0.002 + 100.0 * 0.000001 / (interval / 1000.0)
+                                  + calculated_pct * 0.0005 / interval)
+            require(abs(pct - calculated_pct) <= rounding_tolerance,
+                    'CPU percentage contradicts monotonic process CPU total')
         elapsed.append(t)
         cpu.append(pct)
         memory.append(ws)

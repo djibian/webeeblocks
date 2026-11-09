@@ -57,7 +57,7 @@ class PassiveWindowsHostABTests(unittest.TestCase):
                 w.writerow({'elapsed_ms': 1000 * (j + 1), 'utc': '2026-11-09T00:00:00Z',
                             'period_ms': 1000, 'cpu_percent_one_core':
                             50 if arm == 'reference' else 25,
-                            'process_cpu_total_s': j + 1,
+                            'process_cpu_total_s': (j + 1) * (0.5 if arm == 'reference' else 0.25),
                             'working_set_bytes': 1000000 + i,
                             'private_memory_bytes': 500000 + i,
                             'thread_count': 5})
@@ -138,6 +138,33 @@ class PassiveWindowsHostABTests(unittest.TestCase):
             w.writeheader()
             w.writerows(rows)
         with self.assertRaisesRegex(ValueError, 'finite nonnegative'):
+            self.compare()
+
+    def test_cpu_percentage_must_match_consecutive_cumulative_cpu(self):
+        # R2025a PowerShell computes the one-core % from CPU-total delta.
+        # A plausible 25% label on a true 50% sample must be rejected.
+        p = self.root / 'trial-0' / 'samples.csv'
+        with p.open(encoding='utf-8-sig', newline='') as f:
+            rows = list(csv.DictReader(f))
+        rows[10]['cpu_percent_one_core'] = '25'
+        with p.open('w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        with self.assertRaisesRegex(ValueError, 'CPU percentage contradicts'):
+            self.compare()
+
+    def test_cumulative_cpu_cannot_disagree_with_declared_percentage(self):
+        # Alter the CPU total while preserving monotonicity and the % label.
+        p = self.root / 'trial-0' / 'samples.csv'
+        with p.open(encoding='utf-8-sig', newline='') as f:
+            rows = list(csv.DictReader(f))
+        rows[10]['process_cpu_total_s'] = str(float(rows[10]['process_cpu_total_s']) + 0.2)
+        with p.open('w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        with self.assertRaisesRegex(ValueError, 'CPU percentage contradicts'):
             self.compare()
 
     def test_distinct_source_shas_between_arms_are_allowed_and_preserved(self):
