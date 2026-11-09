@@ -4,10 +4,43 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
 import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parent
+
+
+class _RobotWindowDependencies(HTMLParser):
+    """Collect static local JS/CSS references from the actual Robot Window."""
+    def __init__(self):
+        super().__init__()
+        self.references = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == 'script' and values.get('src'):
+            self.references.append(values['src'])
+        elif tag == 'link' and values.get('rel') == 'stylesheet' and values.get('href'):
+            self.references.append(values['href'])
+
+
+def require_blockly_assets(plugin):
+    """Refuse a partial ZIP before a seemingly valid GUI/runtime benchmark."""
+    parser = _RobotWindowDependencies()
+    parser.feed(plugin.read_text(encoding='utf-8'))
+    if not parser.references or not any(
+            urlsplit(ref).path == '../blockly/webeeblocks/activity_contract.js'
+            for ref in parser.references):
+        raise ValueError('Dépendance Blockly activity_contract.js absente de la fenêtre.')
+    for reference in parser.references:
+        url = urlsplit(reference)
+        if url.scheme or url.netloc or not url.path or url.path.startswith('/'):
+            raise ValueError(f'Ressource Blockly non locale : {reference}')
+        path = (plugin.parent / url.path).resolve()
+        if not path.is_relative_to(ROOT.resolve()) or not path.is_file():
+            raise ValueError(f'Ressource Blockly locale manquante : {reference}')
 
 
 def require_robot_window_project(world):
@@ -19,8 +52,10 @@ def require_robot_window_project(world):
         raise ValueError(f'Perspective Webots manquante : {perspective.name}. Re-extraire le ZIP complet.')
     if 'robotWindow: Crazyflie WebeeBlocks' not in perspective.read_text(encoding='utf-8').splitlines():
         raise ValueError(f'Fenêtre Blockly non configurée dans {perspective.name}.')
-    if not (ROOT / 'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html').is_file():
+    plugin = ROOT / 'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'
+    if not plugin.is_file():
         raise ValueError('Plugin de fenêtre Blockly du Grand Prix manquant.')
+    require_blockly_assets(plugin)
 
 
 

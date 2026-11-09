@@ -96,7 +96,32 @@ class WorkflowTests(unittest.TestCase):
                     launcher.require_robot_window_project(world)
                 plugin.parent.mkdir(parents=True)
                 plugin.write_text("<html></html>\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "activity_contract.js absente"):
+                    launcher.require_robot_window_project(world)
+                plugin.write_text(
+                    '<script src="../blockly/webeeblocks/activity_contract.js"></script>\n'
+                    '<link rel="stylesheet" href="../blockly_v2/main.css">\n',
+                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Ressource Blockly locale manquante"):
+                    launcher.require_robot_window_project(world)
+                contract = project / "plugins/robot_windows/blockly/webeeblocks/activity_contract.js"
+                contract.parent.mkdir(parents=True)
+                contract.write_text("window.WebeeBlocksActivityContract = {};\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Ressource Blockly locale manquante"):
+                    launcher.require_robot_window_project(world)
+                style = project / "plugins/robot_windows/blockly_v2/main.css"
+                style.parent.mkdir(parents=True)
+                style.write_text("/* present */\n", encoding="utf-8")
                 self.assertIsNone(launcher.require_robot_window_project(world))
+                contract.unlink()
+                with self.assertRaisesRegex(ValueError, "Ressource Blockly locale manquante"):
+                    launcher.require_robot_window_project(world)
+                contract.write_text("window.WebeeBlocksActivityContract = {};\n", encoding="utf-8")
+                plugin.write_text(
+                    '<script src="../blockly/webeeblocks/activity_contract.js"></script>\n'
+                    '<script src="../../../../escape.js"></script>\n', encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Ressource Blockly locale manquante"):
+                    launcher.require_robot_window_project(world)
                 world.unlink()
                 with self.assertRaisesRegex(ValueError, "Monde Grand Prix manquant"):
                     launcher.require_robot_window_project(world)
