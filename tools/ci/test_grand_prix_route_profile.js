@@ -15,6 +15,9 @@ function load(source, catalog) {
   const context = {
     WebeeBlocksActivities: {BLOCK_CATALOG: catalog, DOCUMENT: Activities.DOCUMENT},
     WebeeBlocksRuntimeOutcome: {classify: () => null},
+    WebeeBlocksActivityContract: {
+      execute() {}, preflightWorkspace() {}, applyFieldBounds() {}
+    },
     Blockly: {inject: (_element, options) => options},
     WebeeBlocksWwiBackend: function (_window, options) { this.options = options; }
   };
@@ -46,6 +49,19 @@ function run(loops) {
   assert.equal(JSON.stringify(profile.parameterBounds), JSON.stringify(u.profile.parameterBounds));
   assert.equal(JSON.stringify(profile.fieldOptions), JSON.stringify(u.profile.fieldOptions));
   assert.equal(new a.context.WebeeBlocksWwiBackend({}, {}).options.simulationScenes, false);
+  // The actual Windows GUI has served wwi_backend.js at the HTTP 200 URL for
+  // activity_contract.js. A backend READY is not proof of an executable AST.
+  const wrongAsset = load(variable, catalog);
+  wrongAsset.context.WebeeBlocksActivityContract = undefined;
+  assert.throws(() => new wrongAsset.context.WebeeBlocksWwiBackend({}, {}),
+    error => error.code === 'BLOCKLY_ASSET_MISMATCH' &&
+      /activity_contract\\.js/.test(error.message),
+    'wrong cached JS must refuse backend construction before READY');
+  const partialAsset = load(variable, catalog);
+  partialAsset.context.WebeeBlocksActivityContract = {execute() {}, applyFieldBounds() {}};
+  assert.throws(() => new partialAsset.context.WebeeBlocksWwiBackend({}, {}),
+    error => error.code === 'BLOCKLY_ASSET_MISMATCH',
+    'incomplete Blockly contract is not a valid loaded module');
   assert.equal(a.context.WebeeBlocksRuntimeOutcome.classify({code: 'TIME_LIMIT'}).state, 'MISSION ÉCHOUÉE');
   for (const forbidden of ['seed', 'lengths', 'turns', 'gates', 'course', 'route', 'identifier'])
     assert.equal(Object.hasOwn(profile, forbidden), false, 'host-only parameter: ' + forbidden);
