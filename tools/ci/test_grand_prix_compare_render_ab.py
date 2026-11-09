@@ -100,6 +100,49 @@ class RenderABTests(unittest.TestCase):
                         before['speed_observed_envelope_x'])
         self.assertEqual(after['speed_observed_envelope_x'], round(3 / 2.775, 6))
 
+    def test_equal_fps_framebuffer_scale_ab_compares_raw_windows(self):
+        # #912 changes only the main 3D draw resolution, not the FPS cap.
+        # This is still an offline diagnostic, not an observed GPU/GUI PASS.
+        self.manifest['render_fps'] = {'A': 60, 'B': 60}
+        self.manifest['framebuffer_scale'] = {'A': 100, 'B': 50}
+        self.write()
+        report = compare(self.root / 'trial.json')
+        self.assertEqual(report['comparison_axis'], 'framebuffer_scale')
+        self.assertEqual(report['pair_count'], 3)
+        self.assertEqual(report['arms']['A']['render_fps_declared'], 60)
+        self.assertEqual(report['arms']['B']['render_fps_declared'], 60)
+        self.assertEqual(report['arms']['A']['framebuffer_scale_percent_declared'], 100)
+        self.assertEqual(report['arms']['B']['framebuffer_scale_percent_declared'], 50)
+        self.assertEqual(report['arms']['A']['median_step_p99_ms'], 4)
+        self.assertEqual(report['arms']['B']['median_step_p99_ms'], 2)
+        self.assertIn('DIAGNOSTIC_ONLY', report['interpretation'])
+
+    def test_equal_fps_without_scale_is_refused(self):
+        self.manifest['render_fps'] = {'A': 60, 'B': 60}
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'two different declared rendered FPS'):
+            compare(self.root / 'trial.json')
+
+    def test_scale_comparison_cannot_confuse_fps_and_resolution(self):
+        self.manifest['framebuffer_scale'] = {'A': 100, 'B': 50}
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'identical FPS caps'):
+            compare(self.root / 'trial.json')
+
+    def test_scale_comparison_refuses_malformed_or_unsupported_scales(self):
+        self.manifest['render_fps'] = {'A': 60, 'B': 60}
+        for invalid in (
+            {'A': 100, 'B': 100}, {'A': 50, 'B': 100},
+            {'A': 100, 'B': 25}, {'A': 100, 'B': True},
+            {'A': 100}, {'A': 100, 'B': 50, 'C': 75},
+            [100, 50], '100/50',
+        ):
+            with self.subTest(invalid=invalid):
+                self.manifest['framebuffer_scale'] = invalid
+                self.write()
+                with self.assertRaisesRegex(ValueError, 'exactly 100% and 50%'):
+                    compare(self.root / 'trial.json')
+
     def test_non_alternating_or_incomplete_pairs_are_refused(self):
         self.manifest['trials'][2]['arm'] = 'A'
         self.write()
