@@ -587,3 +587,11 @@ index 4f1bbaa046901ef57ee654fc88696e89511a420f..62395bed660ad2453d82335f1d7f085b
    QString mFileName;
    bool mIsModified;
    bool mIsModifiedFromSceneTree;
+diff --git a/src/webots/gui/WbWheelEvent.cpp b/src/webots/gui/WbWheelEvent.cpp
+index 25570f343743c1f0397dbeb0285b4a372f9018ef..d31d9e28fbcbe8050cbdc4bdd9dd6be3ca7ab6ad 100644
+--- a/src/webots/gui/WbWheelEvent.cpp
++++ b/src/webots/gui/WbWheelEvent.cpp
+@@ -52,2 +52,3 @@ WbWheelLiftSolidEvent::~WbWheelLiftSolidEvent() {
+ void WbWheelLiftSolidEvent::apply(int delta) {
++  WbWorld::instance()->noteSceneEffect();
+   mSelectedSolid->setTranslation(SIGN(delta) * mScaleFactor * mUpWorldVector + mSelectedSolid->translation());

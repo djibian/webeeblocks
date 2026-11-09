@@ -154,3 +154,18 @@ R2025a decoder injection (including the 13+11 counterexample, all 1..23
 truncations, normal 105/106, unrelated ordinary replies) is **still
 required** before claiming the repair qualified. No production Grand
 Prix authority, PASS, Ready or flight qualification is implied.
+
+
+## GUI collision mutation at constant simulated time
+
+The [Linux wheel witness](results-wheel-linux.json) lifts a selected
+collision-enabled Solid from z=0.12 m to z=0.22 m and restores z=0.12 m at
+136 ms. The predecessor retains revision 1 and accepts a guarded velocity
+write on a separate dynamic body. The fix advances the revision before the GUI
+applies the translation and resets its physics. The rebuilt engine observes
+1 → 2 → 3 at both render scales. Both runs reject the old token without
+changing the dynamic body's velocity.
+
+Run the [GUI probe in #938](https://github.com/djibian/webeeblocks/pull/938)
+with `--wheel-revision` on the composed v2 engine. The exercise covers the
+Shift-wheel action. Other GUI editing actions remain to be covered.

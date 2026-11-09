@@ -1,0 +1,60 @@
+{
+  "scope": "Selected collision Solid lifted and lowered via Shift + wheel at fixed simulation time, Linux Xvfb software OpenGL",
+  "time_ms": 136,
+  "positions_z_m": [
+    0.12,
+    0.22,
+    0.12
+  ],
+  "before": {
+    "scale_percent": 100,
+    "webots_bin_sha256": "0b86ddfc258077fb00e2c407e5d2ae3be9122871cd6eeae1528c538fd1816d4e",
+    "revisions": [
+      1,
+      1,
+      1
+    ],
+    "stale_effect_applied": true,
+    "velocity_before": [
+      0,
+      0,
+      -1.3341600000000005,
+      0,
+      0,
+      0
+    ],
+    "velocity_after": [
+      0.125,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "fixed": {
+    "webots_bin_sha256": "39a2c647e5996ae3ea06e4d24259ff045cf95de2c1c904d7b133538136733730",
+    "trials": [
+      {
+        "scale_percent": 100,
+        "revisions": [
+          1,
+          2,
+          3
+        ],
+        "stale_effect_applied": false,
+        "velocity_unchanged": true
+      },
+      {
+        "scale_percent": 50,
+        "revisions": [
+          1,
+          2,
+          3
+        ],
+        "stale_effect_applied": false,
+        "velocity_unchanged": true
+      }
+    ]
+  }
+}
