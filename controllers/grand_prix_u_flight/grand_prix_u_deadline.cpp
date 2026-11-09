@@ -8,6 +8,9 @@
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
 #include <charconv>
 #include <random>
+#ifdef _WIN32
+#include <cstdlib> // rand_s, declared when _CRT_RAND_S is set before all headers
+#endif
 #include <string>
 #endif
 extern "C" const char *webeeblocks_file_broker_receive_text(void);
@@ -86,13 +89,28 @@ void challengeRoute() {
   if(routeEpoch.empty() || current!=routeAttempt || config!=routeConfig) {
     clearRouteEpoch();
     try {
+      static_assert(sizeof(unsigned int)==4, "route challenge requires 32-bit CSPRNG words");
+      unsigned int words[4]{};
+#ifdef _WIN32
+      // libstdc++ on MinGW reports entropy()==0 even for its rand_s source.
+      // rand_s is backed by Windows cryptographic RNG; failure MUST NOT
+      // publish a challenge or allow an incomplete epoch.
+      for(unsigned int &word : words) {
+        if(::rand_s(&word)!=0) {
+          reportRouteChallengeBlocked(2,"windows-secure-random-unavailable");
+          return;
+        }
+      }
+#else
       std::random_device random;
       if(random.entropy()<=0) {
         reportRouteChallengeBlocked(2,"random-device-entropy-unavailable");
         return; // Unavailable process freshness is never READY.
       }
+      for(unsigned int &word : words)word=static_cast<unsigned int>(random());
+#endif
       char token[33];
-      for(int i=0;i<4;++i)std::snprintf(token+i*8,9,"%08x",static_cast<unsigned>(random()));
+      for(int i=0;i<4;++i)std::snprintf(token+i*8,9,"%08x",words[i]);
       routeEpoch=token;routeConfig=config;routeAttempt=current;routeIssued=now;
     } catch(...) {
       reportRouteChallengeBlocked(4,"random-device-exception");
