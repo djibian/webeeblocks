@@ -80,6 +80,10 @@ def load_capture(directory):
     private = []
     threads = []
     prev_cpu_total = None
+    periods = []
+    cadence_ms = meta['requested_period_ms']
+    # Refuse a delayed/sparse run as a comparable stabilized capture.
+    max_observed_period_ms = max(cadence_ms * 1.5, cadence_ms + 150)
     for row in rows:
         t = number(row['elapsed_ms'], positive=True)
         interval = number(row['period_ms'], positive=True)
@@ -89,8 +93,11 @@ def load_capture(directory):
         pm = number(row['private_memory_bytes'], positive=True)
         th = number(row['thread_count'], positive=True)
         require(th.is_integer(), 'non-integer thread count')
-        require(not elapsed or t > elapsed[-1], 'non-monotonic sample clock')
-        require(not elapsed or abs((t - elapsed[-1]) - interval) <= 2.5,
+        require(interval <= max_observed_period_ms and interval >= cadence_ms / 2,
+                'observed sampling interval outside comparable cadence')
+        require(t > (elapsed[-1] if elapsed else 0), 'non-monotonic sample clock')
+        # The first elapsed time also starts at the capture clock's zero.
+        require(abs((t - (elapsed[-1] if elapsed else 0)) - interval) <= 2.5,
                 'inconsistent host sampling interval')
         require(prev_cpu_total is None or total >= prev_cpu_total - 1e-5,
                 'non-monotonic process CPU total')
@@ -106,6 +113,7 @@ def load_capture(directory):
             require(abs(pct - calculated_pct) <= rounding_tolerance,
                     'CPU percentage contradicts monotonic process CPU total')
         elapsed.append(t)
+        periods.append(interval)
         cpu.append(pct)
         memory.append(ws)
         private.append(pm)
@@ -118,7 +126,7 @@ def load_capture(directory):
     return {
         'metadata': meta, 'hardware': hardware, 'digest': digest,
         'duration_s': round(duration, 3),
-        'cpu_one_core_mean_percent': round(statistics.fmean(cpu), 4),
+        'cpu_one_core_mean_percent': round(sum(p * dt for p, dt in zip(cpu, periods)) / sum(periods), 4),
         'working_set_max_bytes': int(max(memory)),
         'private_memory_max_bytes': int(max(private)),
         'thread_count_max': int(max(threads)),
