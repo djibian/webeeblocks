@@ -80,6 +80,7 @@ class NativeRouteEvaluator:
         self._wire = EvaluatorHandshake(identifier)
         self._ground_since = None
         self._challenge_since = None
+        self._ground_pending_logged = False
         self._ready = False
         self._active = None
         self._start_ms = None
@@ -217,6 +218,7 @@ class NativeRouteEvaluator:
                 self.observation = None
                 self._ground_since = None
                 self._challenge_since = now
+                self._ground_pending_logged = False
                 self._ready = False
                 self._wire = EvaluatorHandshake(self.course.identifier)
                 self.phase = 'observing-reset'
@@ -246,7 +248,17 @@ class NativeRouteEvaluator:
             if type(event) is Challenge:
                 if self._active is not None or data != f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {context.attempt}':
                     raise RuntimeError('native reset marker mismatch')
-                if self._ground(observation):
+                ground = self._ground(observation)
+                if (not ground and not self._ground_pending_logged and
+                        now - self._challenge_since >= 1000):
+                    # Diagnostic only; never relax the 500-ms ground gate.
+                    LOGGER.warning(
+                        'GP_ROUTE_ADMISSION_GROUND_PENDING attempt=%d time_ms=%d '
+                        'native_ground=%d contacts=%d',
+                        context.attempt, now, int(observation.flight.ground_confirmed),
+                        len(observation.contacts.points))
+                    self._ground_pending_logged = True
+                if ground:
                     if self._ground_since is None:
                         self._ground_since = now
                 else:
