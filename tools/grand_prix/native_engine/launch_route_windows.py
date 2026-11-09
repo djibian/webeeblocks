@@ -244,7 +244,10 @@ def require_engine_archive_integrity(home, manifest):
         if path.is_symlink() or not path.is_file():
             raise ValueError('Composant du moteur natif manquant ou redirigé.')
         with path.open('rb') as source:
-            actual = hashlib.file_digest(source, 'sha256').hexdigest()
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                digest.update(chunk)
+            actual = digest.hexdigest()
         if actual != expected:
             raise ValueError('Empreinte du moteur natif différente : ' + name)
 
