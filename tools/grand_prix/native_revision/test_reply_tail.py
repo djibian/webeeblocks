@@ -64,6 +64,13 @@ class RevisionTrailerContract(unittest.TestCase):
         self.assertIn("request_set_position(r, request_get_size(r));", ack)
         self.assertIn("scene_revision_effect_applied = request_read_uchar(r) == 1;", ack)
 
+    def test_joint_position_source_hook_precedes_effect(self):
+        # Static source-order claim only; a colliding-joint move/restore native
+        # witness and stale-token refusal remain indispensable.
+        cpp = section(self.patch, "src/webots/nodes/utils/WbSupervisorUtilities.cpp")
+        self.assertIn("+        WbWorld::instance()->noteSceneEffect();\\n         joint->setPosition(position, index);".replace("\\n", "\n"), cpp)
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -306,12 +306,21 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
    invalidatePhysicsFrame();
    foreach (int labelId, mLabelIds)
      WbWrenLabelOverlay::removeLabel(labelId);
-@@ -665,3 +668,4 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -653,7 +656,8 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+         }
+ 
++        WbWorld::instance()->noteSceneEffect();
+         joint->setPosition(position, index);
+         if (!parameters)
+           // force updating the joint position (this slot is automatically triggered by WbJointParameters node)
+           joint->updatePosition();
+       }
+@@ -665,3 +669,4 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
      case C_SUPERVISOR_SIMULATION_RESET_PHYSICS:
 +      WbWorld::instance()->noteSceneEffect();
        WbApplication::instance()->resetPhysics();
        return;
-@@ -983,11 +987,25 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -983,11 +988,25 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
          mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
        return;
      }
@@ -337,7 +346,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
        stream >> l0;
        stream >> l1;
        stream >> l2;
-@@ -1000,8 +1018,20 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1000,8 +1019,20 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
        WbNode *const node = getProtoParameterNodeInstance(id, "wb_supervisor_node_set_velocity()");
        WbSolid *const solid = dynamic_cast<WbSolid *>(node);
        if (solid) {
@@ -358,7 +367,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
        } else
          mRobot->warn(tr("wb_supervisor_node_set_velocity() can exclusively be used with a Solid"));
        return;
-@@ -1014,6 +1044,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1014,6 +1045,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
        WbNode *const node = getProtoParameterNodeInstance(id, "wb_supervisor_simulation_reset_physics()");
        WbSolid *solidNode = dynamic_cast<WbSolid *>(node);
        if (solidNode) {
@@ -366,25 +375,25 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
          solidNode->resetPhysics(false);
          solidNode->pausePhysics(true);
        }
-@@ -1086,4 +1086,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1086,4 +1087,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            const WbVector3 position =
              solid->computedGlobalCenterOfMass() - solid->solidMerger()->solid()->computedGlobalCenterOfMass();
 +          WbWorld::instance()->noteSceneEffect();
            dBodyAddForceAtRelPos(body, force.x(), force.y(), force.z(), position.x(), position.y(), position.z());
            dBodyEnable(body);
-@@ -1119,4 +1119,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1119,4 +1120,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            if (relative == 1)
              force = solidMatrix.extracted3x3Matrix() * force;
            dBodyEnable(body);
 +          WbWorld::instance()->noteSceneEffect();
            dBodyAddForceAtPos(body, force.x(), force.y(), force.z(), offset.x(), offset.y(), offset.z());
-@@ -1145,4 +1145,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1145,4 +1146,5 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
          const dBodyID body = solid->bodyMerger();
          if (body) {
            dBodyEnable(body);
 +          WbWorld::instance()->noteSceneEffect();
            dBodyAddTorque(body, torque.x(), torque.y(), torque.z());
-@@ -1674,25 +1705,32 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1674,25 +1706,32 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
        const WbNode *const node = WbNode::findNode(nodeId);
        const WbField *field = node->field(fieldId);
 
@@ -420,7 +429,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            break;
          }
          case WB_MF_VEC2F: {
-@@ -1700,7 +1738,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1700,7 +1739,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            stream >> d0;
            stream >> d1;
            WbVector2 value(d0, d1);
@@ -429,7 +438,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            break;
          }
          case WB_MF_VEC3F: {
-@@ -1709,7 +1747,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1709,7 +1748,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            stream >> d1;
            stream >> d2;
            WbVector3 value(d0, d1, d2);
@@ -438,7 +447,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            break;
          }
          case WB_MF_ROTATION: {
-@@ -1719,7 +1757,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1719,7 +1758,7 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            stream >> d2;
            stream >> d3;
            WbRotation value(d0, d1, d2, d3);
@@ -447,7 +456,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            break;
          }
          case WB_MF_COLOR: {
-@@ -1728,12 +1766,12 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1728,12 +1767,12 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
            stream >> d1;
            stream >> d2;
            WbRgb value(d0, d1, d2);
@@ -462,7 +471,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            break;
          }
          case WB_MF_NODE:
-@@ -1802,7 +1840,9 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
+@@ -1802,7 +1841,9 @@ void WbSupervisorUtilities::handleMessage(QDataStream &stream) {
          case WB_MF_COLOR:
          case WB_MF_STRING: {
            WbMultipleValue *multipleValue = dynamic_cast<WbMultipleValue *>(field->value());
@@ -473,7 +482,7 @@ index 56825beb8fd505d5f74bacf99c125dcfbd95fda9..357a15df343ddf45cc4e4e490e2346af
            multipleValue->removeItem(index);
            modified = true;
            break;
-@@ -2069,9 +2109,38 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
+@@ -2069,9 +2110,38 @@ void WbSupervisorUtilities::writePhysicsFrame(WbDataStream &stream, double expec
      const WbVector3 &point = points.at(i);
      stream << point.x() << point.y() << point.z() << (qint32)solids.at(i)->uniqueId();
    }

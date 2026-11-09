@@ -24,6 +24,7 @@ setter is a concrete native test effect for the ordering property.
 | Primitive Supervisor MF insertion and removal | Typed insert and remove after request and index validation | Collision triangle changes and is restored at 24 ms, two increments |
 | Scene insertion and removal | `WbNodeOperations::initNewNode` and `deleteNode` at the parent field edit | Add and remove at 16 ms, original cardinality restored |
 | Native Supervisor velocity write | `WbSupervisorUtilities::handleMessage` before the Solid setters | Stale refusal, fresh application, replay refusal |
+| Supervisor joint position (collider movement) | `WbSupervisorUtilities::handleMessage`, immediately before `joint->setPosition()` | Source hook only; native change–restore/revocation witness pending |
 | Supervisor node physics reset | `WbSupervisorUtilities::handleMessage` before `resetPhysics` | Zeroed velocity and invalidated token at 16 ms |
 | Supervisor ODE force/offset/torque | `WbSupervisorUtilities::handleMessage`, valid dynamic body before `dBodyAdd*` | Three native stale-token probes added; engine recompilation/run pending |
 | World reset | `WbWorld::reset` before reconstruction | Hook present, qualification pending |
@@ -109,6 +110,10 @@ a Webots R2025a rebuilt-binary protocol injection test or a production
 attestation. Test valid and truncated 105/106 alongside ordinary time and
 device replies, then an optional frame, before declaring the repair qualified.
 
+## Draft joint-position revision hook (native proof pending)
+
+`C_SUPERVISOR_NODE_SET_JOINT_POSITION` can reposition a colliding endpoint at the same simulated time. The pinned upstream handler calls `joint->setPosition()` without passing through the already covered field or Solid-reset hooks. This source patch now advances the native revision immediately before invoking that setter after joint lookup and position clamping. Conservative invalidation is deliberate, even if an identical position is requested. The host source-order regression verifies this patch boundary only; it cannot prove the joint moved or that a stale velocity token was refused. Before claiming coverage, rebuild both native ends and test a collision-enabled joint through a **move → restore** pulse without advancing the simulation step, observe two distinct revisions, and require refusal of the old token at the guarded velocity effect. No production authority is conferred.
+
 ## Draft global-RESET coverage repair (native proof pending)
 
 The source review of the previous Draft HEAD identified a distinct uncounted
@@ -121,8 +126,7 @@ simulation step, revision increment, zeroed velocity and native refusal of
 the older token. This is a **new, unexecuted witness** until both Webots
 binaries are rebuilt from the pinned sources and the output is recorded.
 The previous `results-linux.json` remains historical proof of the older
-scope and is not presented as qualification of this repair. Joint-position,
-GUI and other mutation paths remain unqualified.
+scope and is not presented as qualification of this repair. Joint-position now has a conservative source hook immediately before the native setter; an actual collider move–return and stale-token rejection still require rebuilt Webots evidence. GUI and other mutation paths remain unqualified.
 
 ## Draft correction to reply 105 / terminal frame 104 collision
 
