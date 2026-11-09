@@ -122,11 +122,19 @@ def load_capture(directory):
     require(elapsed[-1] <= (duration * 1000 + 50) and
             abs(elapsed[-1] - duration * 1000) <= max(200, meta['requested_period_ms']),
             'capture duration contradicts host samples')
+    # Initial CPU time is not serialized by the Windows collector. The first
+    # reported CPU percentage therefore cannot be checked against retained
+    # cumulative CPU counters and must not enter aggregate measurements.
+    verified_ms = sum(periods[1:])
+    require(verified_ms >= max(25000, 0.8 * duration * 1000),
+            'insufficient CPU-verified host capture duration')
     digest = hashlib.sha256(metadata_bytes + b'\0' + samples_bytes).hexdigest()
     return {
         'metadata': meta, 'hardware': hardware, 'digest': digest,
         'duration_s': round(duration, 3),
-        'cpu_one_core_mean_percent': round(sum(p * dt for p, dt in zip(cpu, periods)) / sum(periods), 4),
+        'cpu_one_core_mean_percent': round(
+            sum(p * dt for p, dt in zip(cpu[1:], periods[1:])) / verified_ms, 4),
+        'cpu_verified_duration_ms': round(verified_ms, 3),
         'working_set_max_bytes': int(max(memory)),
         'private_memory_max_bytes': int(max(private)),
         'thread_count_max': int(max(threads)),
@@ -180,7 +188,7 @@ def compare(manifest_path):
                     'source/engine identity changed within one A/B arm')
             identity[arm] = (meta['source_sha'], engine)
             per_arm[arm].append({key: capture[key] for key in (
-                'duration_s', 'cpu_one_core_mean_percent', 'working_set_max_bytes',
+                'duration_s', 'cpu_one_core_mean_percent', 'cpu_verified_duration_ms', 'working_set_max_bytes',
                 'private_memory_max_bytes', 'thread_count_max', 'sample_count')})
     require(identity['reference'][1] != identity['candidate'][1],
             'reference/candidate use identical engine bytes')
