@@ -175,12 +175,14 @@ def require_project_code_archive_integrity():
         'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html',
         'launch_route_windows.py',
     }
-    # Include all code and assets actually shipped under these immutable roots,
-    # including indirectly loaded JS/CSS missed by an HTML-only dependency scan.
+    # Include all immutable code and assets actually shipped, including
+    # indirectly loaded JS/CSS and the embedded Python stdlib, DLLs and .pyd.
+    # A replaced runtime extension changes the engine of an A/B trial, even
+    # when the interpreter launcher retains its original SHA-256.
     selected = required | {
         key for key in expected
         if key.startswith(('controllers/', 'tools/grand_prix/',
-                           'plugins/robot_windows/'))
+                           'plugins/robot_windows/', 'runtime/python/'))
     }
     root = ROOT.resolve()
     for key in sorted(selected):

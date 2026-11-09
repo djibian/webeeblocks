@@ -328,9 +328,10 @@ class WorkflowTests(unittest.TestCase):
             "launch_route_windows.py",
         )
         extra = "plugins/robot_windows/blockly_v2/indirectly_loaded.js"
+        python_extension = "runtime/python/DLLs/_hashlib.pyd"
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp)
-            for rel in (*required, extra):
+            for rel in (*required, extra, python_extension):
                 path = project / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"packaged-original\n")
@@ -338,7 +339,7 @@ class WorkflowTests(unittest.TestCase):
             def rows():
                 return "".join(
                     hashlib.sha256((project / rel).read_bytes()).hexdigest() +
-                    "  " + rel + "\n" for rel in (*required, extra)
+                    "  " + rel + "\n" for rel in (*required, extra, python_extension)
                 )
             manifest.write_text(rows(), encoding="utf-8")
             with patch.object(launcher, "ROOT", project):
@@ -353,6 +354,13 @@ class WorkflowTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Composant Grand Prix modifié"):
                     launcher.require_project_code_archive_integrity()
                 indirect.write_bytes(b"packaged-original\n")
+                # Changing a bundled Python DLL/extension cannot retain an
+                # apparently identical A/B assembly.
+                extension = project / python_extension
+                extension.write_bytes(b"changed-python-extension\n")
+                with self.assertRaisesRegex(ValueError, "Composant Grand Prix modifié"):
+                    launcher.require_project_code_archive_integrity()
+                extension.write_bytes(b"packaged-original\n")
                 manifest.write_text(
                     "".join(line for line in rows().splitlines(keepends=True)
                             if "controllers/grand_prix_route_flight/grand_prix_route_flight.exe"
