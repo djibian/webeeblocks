@@ -19,6 +19,16 @@ const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
 const OriginalBackend=WebeeBlocksWwiBackend;
 window.WebeeBlocksWwiBackend=function(robotWindow,options){
+ // A stale localhost cache can serve another 200/JS asset in place of
+ // activity_contract.js. Runtime READY alone must not enable a pupil flight.
+ const contract=window.WebeeBlocksActivityContract;
+ if (!contract || typeof contract.execute!=='function' ||
+     typeof contract.preflightWorkspace!=='function' ||
+     typeof contract.applyFieldBounds!=='function') {
+  const error=new Error('Module Blockly activity_contract.js absent ou invalide : vérifier le cache et le paquet Grand Prix.');
+  error.code='BLOCKLY_ASSET_MISMATCH';
+  throw error;
+ }
  return new OriginalBackend(robotWindow,Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
 };
 const originalOutcome=window.WebeeBlocksRuntimeOutcome;

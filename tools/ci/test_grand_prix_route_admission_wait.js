@@ -176,7 +176,13 @@ async function run() {
   const context = {
     WebeeBlocksActivities: {BLOCK_CATALOG: {}}, Blockly: {inject() {}},
     WebeeBlocksWwiBackend: function(_transport, options) { this.options = options; },
-    WebeeBlocksRuntimeOutcome: {classify() {}}
+    WebeeBlocksRuntimeOutcome: {classify() {}},
+    // Real bundled HTML must provide a complete activity contract before
+    // the variable route backend is constructed; this harness models that
+    // valid script while keeping the native admission path under test.
+    WebeeBlocksActivityContract: {
+      execute() {}, preflightWorkspace() {}, applyFieldBounds() {}
+    }
   };
   context.window = context;
   vm.runInNewContext(setup, context);
