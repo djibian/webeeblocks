@@ -69,6 +69,38 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("run_contact(home, DEFAULT_INDICES)", runner)
         self.assertIn("run_h(home, (5,)", runner)
 
+    def test_variable_windows_launcher_fails_closed_without_robot_window(self):
+        # Host-only packaging regression. It cannot qualify the real Windows GUI.
+        import importlib.util
+        script = ROOT / "tools/grand_prix/native_engine/launch_route_windows.py"
+        spec = importlib.util.spec_from_file_location("grand_prix_native_windows_launcher", script)
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            world = project / "worlds/route-5-60.wbt"
+            world.parent.mkdir()
+            world.write_text("WorldInfo {}\\n", encoding="utf-8")
+            perspective = world.with_name("." + world.stem + ".wbproj")
+            plugin = project / "plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html"
+            with patch.object(launcher, "ROOT", project):
+                with self.assertRaisesRegex(ValueError, "Perspective Webots manquante"):
+                    launcher.require_robot_window_project(world)
+                perspective.write_text("Webots Project File version R2025a\\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Fenêtre Blockly non configurée"):
+                    launcher.require_robot_window_project(world)
+                perspective.write_text(
+                    "Webots Project File version R2025a\\nrobotWindow: Crazyflie WebeeBlocks\\n",
+                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Plugin de fenêtre Blockly"):
+                    launcher.require_robot_window_project(world)
+                plugin.parent.mkdir(parents=True)
+                plugin.write_text("<html></html>\\n", encoding="utf-8")
+                self.assertIsNone(launcher.require_robot_window_project(world))
+                world.unlink()
+                with self.assertRaisesRegex(ValueError, "Monde Grand Prix manquant"):
+                    launcher.require_robot_window_project(world)
+
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
