@@ -389,8 +389,10 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          export PATH="/c/Program Files/Git/bin:$PATH"
-          bash tools/grand_prix/native_engine/build.sh .native-webots build
+          export WEBOTS_GIT="/c/Program Files/Git/bin/git.exe"
+          test "$MSYSTEM" = MINGW64
+          command -v bash make
+          /usr/bin/bash tools/grand_prix/native_engine/build.sh .native-webots build
           mkdir -p ci-artifacts/native-engine
           pacman -Q > ci-artifacts/native-engine/toolchain.txt
           cygpath -w /mingw64 > ci-artifacts/native-engine/mingw-root.txt
