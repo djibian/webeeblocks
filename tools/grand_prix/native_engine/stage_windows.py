@@ -40,7 +40,7 @@ def native_engine_inventory(output):
     if not bin_dir.is_dir() or not plugin_dir.is_dir():
         raise ValueError('Incomplete Windows native engine directories')
     files = set(fixed)
-    for path in (*bin_dir.iterdir(), *plugin_dir.rglob('*')):
+    for path in (*bin_dir.rglob('*'), *plugin_dir.rglob('*')):
         if path.suffix.lower() != '.dll':
             continue
         if path.is_symlink() or not path.is_file():

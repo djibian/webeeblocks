@@ -227,7 +227,7 @@ def require_engine_archive_integrity(home, manifest):
     if not bin_dir.is_dir() or not plugins.is_dir():
         raise ValueError('Répertoires du moteur natif incomplets.')
     observed = set(fixed)
-    for path in (*bin_dir.iterdir(), *plugins.rglob('*')):
+    for path in (*bin_dir.rglob('*'), *plugins.rglob('*')):
         if path.suffix.lower() != '.dll':
             continue
         if path.is_symlink() or not path.is_file():

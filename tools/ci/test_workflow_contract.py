@@ -419,6 +419,7 @@ class WorkflowTests(unittest.TestCase):
             "msys64/mingw64/bin/ffmpeg.exe",
             "msys64/mingw64/bin/Qt6Core.dll",
             "msys64/mingw64/bin/libwinpthread-1.dll",
+            "msys64/mingw64/bin/cpp/Qt6Child.dll",
             "msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll",
             "msys64/mingw64/share/qt6/plugins/imageformats/qjpeg.dll",
         )
