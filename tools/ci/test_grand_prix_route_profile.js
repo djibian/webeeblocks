@@ -55,7 +55,7 @@ function run(loops) {
   wrongAsset.context.WebeeBlocksActivityContract = undefined;
   assert.throws(() => new wrongAsset.context.WebeeBlocksWwiBackend({}, {}),
     error => error.code === 'BLOCKLY_ASSET_MISMATCH' &&
-      /activity_contract\\.js/.test(error.message),
+      /activity_contract\.js/.test(error.message),
     'wrong cached JS must refuse backend construction before READY');
   const partialAsset = load(variable, catalog);
   partialAsset.context.WebeeBlocksActivityContract = {execute() {}, applyFieldBounds() {}};
