@@ -11,16 +11,6 @@ index aba7c97b01c3239450f7ec551110805010938692..a6bd21cf85901b4c4a6f12f65524958c
  void wr_viewport_set_pixel_ratio(WrViewport *viewport, int ratio);
  void wr_viewport_set_camera(WrViewport *viewport, WrCamera *camera);
  void wr_viewport_set_frame_buffer(WrViewport *viewport, WrFrameBuffer *frame_buffer);
-@@ -60,6 +62,9 @@
- int wr_viewport_get_width(WrViewport *viewport);
- int wr_viewport_get_height(WrViewport *viewport);
-+/* Full Qt/onscreen dimensions used by independent full-resolution pickers. */
-+int wr_viewport_get_screen_width(WrViewport *viewport);
-+int wr_viewport_get_screen_height(WrViewport *viewport);
- WrCamera *wr_viewport_get_camera(WrViewport *viewport);
- WrFrameBuffer *wr_viewport_get_frame_buffer(WrViewport *viewport);
- 
- #ifdef __cplusplus
 diff --git a/src/webots/gui/WbWrenWindow.cpp b/src/webots/gui/WbWrenWindow.cpp
 index 909f8bc9c293d9150e2f6cf92435c1ca08ce6830..edffe6787329b294214ec605674d0e6b6a60f018 100644
 --- a/src/webots/gui/WbWrenWindow.cpp
@@ -101,33 +91,6 @@ index 64d7051788ab87134882f219fb56f537e3bf8740..dcf5e7736cfbee8e230499d320ce78df
 
    // proxy framebuffer for post-processing effects
    WrFrameBuffer *mWrenMainFrameBuffer;
-diff --git a/src/webots/wren/WbWrenPicker.cpp b/src/webots/wren/WbWrenPicker.cpp
---- a/src/webots/wren/WbWrenPicker.cpp
-+++ b/src/webots/wren/WbWrenPicker.cpp
-@@ -73,8 +73,8 @@ void WbWrenPicker::setup() {
-   WbWrenOpenGlContext::makeWrenCurrent();
- 
-   WrViewport *viewport = wr_scene_get_viewport(wr_scene_get_instance());
--  mWidth = wr_viewport_get_width(viewport);
--  mHeight = wr_viewport_get_height(viewport);
-+  mWidth = wr_viewport_get_screen_width(viewport);
-+  mHeight = wr_viewport_get_screen_height(viewport);
-   wr_viewport_set_size(mViewport, mWidth, mHeight);
- 
-   mFrameBuffer = wr_frame_buffer_new();
-@@ -104,10 +104,10 @@ bool WbWrenPicker::hasSizeChanged() {
- bool WbWrenPicker::hasSizeChanged() {
-   WrViewport *viewport = wr_scene_get_viewport(wr_scene_get_instance());
--  const int width = wr_viewport_get_width(viewport);
--  const int height = wr_viewport_get_height(viewport);
-+  const int width = wr_viewport_get_screen_width(viewport);
-+  const int height = wr_viewport_get_screen_height(viewport);
- 
-   if (mWidth != width || mHeight != height) {
-     mWidth = width;
-     mHeight = height;
-     return true;
-   }
 diff --git a/src/wren/Scene.cpp b/src/wren/Scene.cpp
 index a33e69daa849dad6cae0bbd833fe4f4ec80fa8cb..c14db967422ac36e9fb325ce84c71e261b2048fd 100644
 --- a/src/wren/Scene.cpp
@@ -157,26 +120,6 @@ index 0d564d192f0957366cf81693afcf075365b34f0a..ab375285a66009ebeffa7f02230c3d6d
 +
  void wr_viewport_set_pixel_ratio(WrViewport *viewport, int ratio) {
    reinterpret_cast<wren::Viewport *>(viewport)->setPixelRatio(ratio);
- }
-@@ -369,11 +373,19 @@
- int wr_viewport_get_width(WrViewport *viewport) {
-   return reinterpret_cast<wren::Viewport *>(viewport)->width();
- }
- 
- int wr_viewport_get_height(WrViewport *viewport) {
-   return reinterpret_cast<wren::Viewport *>(viewport)->height();
- }
- 
-+int wr_viewport_get_screen_width(WrViewport *viewport) {
-+  return reinterpret_cast<wren::Viewport *>(viewport)->screenWidth();
-+}
-+
-+int wr_viewport_get_screen_height(WrViewport *viewport) {
-+  return reinterpret_cast<wren::Viewport *>(viewport)->screenHeight();
-+}
-+
- WrCamera *wr_viewport_get_camera(WrViewport *viewport) {
-   return reinterpret_cast<WrCamera *>(reinterpret_cast<wren::Viewport *>(viewport)->camera());
  }
 diff --git a/src/wren/Viewport.hpp b/src/wren/Viewport.hpp
 index 079a7fbb6e6f88d988ee8a0b98971e98ed4eac00..c8b19dfe2afcdb95b98c9bbfb9b447aa9e5144d2 100644
