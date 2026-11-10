@@ -188,12 +188,13 @@ def run_case(home: Path, index: int, height: float, output: Path,
     # Preserve the complete production course, robot, solids, evaluator and safety.
     world.write_text(source_world)
     (directory / "world.wbt").write_text(source_world)
+    world_hash = sha256(directory / "world.wbt")
     port = available_port()
     trace_path = directory / "webots.log"
     node_path = directory / "node.log"
     events_path = directory / "stimulus.jsonl"
     webots = node = None
-    status = {"height_m": height, "course": reference_course(COURSE_INDEX).identifier,
+    status = {"height_m": height, "world_sha256": world_hash, "course": reference_course(COURSE_INDEX).identifier,
               "source_sha": source_sha, "webots_version": "R2025a",
               "native_8ms_world": True, "native_32ms_pid": True,
               "pilot_and_evaluator": "production_unmodified",
@@ -265,8 +266,16 @@ def run_case(home: Path, index: int, height: float, output: Path,
         status["plots"] = plot_native_case(records[0]["samples"], directory, height)
         status["status"] = "TRACE_WITH_ACK" if (
             status["metrics"]["ack_observed"] and
-            "takeoff-ack" in status["stimulus_events"] and
-            "observed-window" in status["stimulus_events"] and
+            status["metrics"]["target_relative_m"] is not None and
+            abs(status["metrics"]["target_relative_m"] - height) < .000001 and
+            status["metrics"]["first_observed_ground_contact_loss_elapsed_s"] is not None and
+            status["metrics"]["first_vertical_stability_window_elapsed_s"] is not None and
+            status["metrics"]["maximum_observed_altitude_m"] <=
+                records[0]["begin"]["z0"] + 1.15 + .000001 and
+            status["stimulus_events"].count("takeoff-ack") == 1 and
+            status["stimulus_events"].count("observed-window") == 1 and
+            "native-refusal-or-error" not in status["stimulus_events"] and
+            status.get("error") is None and
             not status["first_oracle_closed"] and
             not status["safety_land_events"] and
             status.get("stimulus_exit_code") == 0 and
@@ -306,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
     (output / "build.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
     results = [run_case(home, index, height, output, evidence, source_sha)
                for index, height in enumerate(HEIGHTS, 1)]
+    if len({item["world_sha256"] for item in results}) != 1:
+        raise RuntimeError("three-height world bytes differ: no valid paired comparison")
     report = {"schema": 1, "scope": "native_webots_only_not_real_hardware",
               "source_sha": source_sha, "course": reference_course(COURSE_INDEX).identifier,
               "heights_m": HEIGHTS, "results": results,
