@@ -33,8 +33,8 @@ from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
 SCENARIOS = ("primitives", "ceiling", "stop", "deadline")
-SAMPLE = re.compile(r"\\bGP_SEQUENCE_SAMPLE\\b")
-PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\\s]+)")
+SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
+PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "z", "vz", "ref", "target", "u", "i",
           "m1", "m2", "m3", "m4")
 MODES = frozenset(("TAKEOFF", "IDLE", "MOVE", "VERTICAL", "TURN", "WAIT", "LAND"))
