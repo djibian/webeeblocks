@@ -380,6 +380,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.10'
+      - name: Falsify compact collider wire fixtures before native build
+        shell: pwsh
+        run: |
+          python -m py_compile tools/grand_prix/native_compact_colliders_v1.py tools/ci/test_native_compact_colliders_v1.py tools/grand_prix/native_engine/compare_compact_ab_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'Compact wire syntax invalid' }
+          python -m tools.ci.test_native_compact_colliders_v1
+          if ($LASTEXITCODE -ne 0) { throw 'Compact wire fixture refuted' }
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
