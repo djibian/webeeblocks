@@ -257,6 +257,30 @@ static double wrap_angle(double angle) {
             if result.count(old) != 1:
                 raise RuntimeError('route TAKEOFF composition anchor changed; revalidation required')
             result = result.replace(old, new, 1)
+        # Bounded read-only diagnostic: route-only, opt-in with an exact
+        # environment value at runtime. The shared and historical U code stay
+        # byte-for-byte untouched. No control, PID, timing or oracle edits.
+        diag_edits = [
+          ('#include "../gp_route_takeoff_profile.h"',
+           '#include "../gp_route_takeoff_profile.h"\\n'
+           '#include "../gp_route_takeoff_trace.h"'),
+          ('        gp_route_takeoff_begin(&gp_route_takeoff, z);',
+           '        gp_route_takeoff_begin(&gp_route_takeoff, z);\\n'
+           '        gp_route_takeoff_trace_begin(request.id, now, origin_z, target_z);'),
+          ('          trace_takeoff(active_value);',
+           '          gp_route_takeoff_trace_complete(now);\\n'
+           '          trace_takeoff(active_value);'),
+          ('      pid_velocity_fixed_height_controller(actual, &desired, gains, dt, &power);',
+           '      const double gp_route_prev_alt_error = pastAltitudeError;\\n'
+           '      pid_velocity_fixed_height_controller(actual, &desired, gains, dt, &power);\\n'
+           '      gp_route_takeoff_trace_sample(now, dt, z, vz, desired.altitude,\\n'
+           '        target_z, gp_route_prev_alt_error, gains, power,\\n'
+           '        command == CMD_TAKEOFF, command == CMD_IDLE);')
+        ]
+        for old, new in diag_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route diagnostic anchor changed; revalidation required')
+            result = result.replace(old, new, 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
