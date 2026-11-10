@@ -79,6 +79,7 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                    WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true',
                    WEBEEBLOCKS_GP_STEP_WALL_PROBE='1',
                    WEBEEBLOCKS_GP_EVALUATOR_PHASE_PROBE='1',
+                   WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW='1',
                    WEBOTS_RENDER_TRACE='0', WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100',
                    WEBOTS_EXPERIMENT_RENDER_DUTY='0')
         cmd = [str(executable), '--batch', '--mode=fast', '--no-rendering',
@@ -114,6 +115,29 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                     result = analyze(selected, course, minimum_sim_ms=30000)
                     if result['status'] != 'MEASURED_ONLY':
                         raise RuntimeError('native observation insufficient')
+                    shadow_prefix = 'GP_COLLIDER_SHADOW_V1 '
+                    shadow = [json.loads(line[len(shadow_prefix):])
+                              for line in complete.splitlines()
+                              if line.startswith(shadow_prefix)]
+                    observations = sum(row['samples'] for row in shadow)
+                    parity = sum(row['parity'] for row in shadow)
+                    batch_accept = sum(row['shadow_accepted'] for row in shadow)
+                    historical_accept = sum(row['historical_accepted'] for row in shadow)
+                    report['collider_batch_shadow'] = {
+                        'complete_windows': len(shadow), 'observations': observations,
+                        'parity': parity, 'batch_accepted': batch_accept,
+                        'historical_accepted': historical_accept,
+                        'export_bytes': sum(row['bytes_total'] for row in shadow),
+                        'failures': [row for row in shadow if row['failures']],
+                        'native_producer_ns': 'UNMEASURED',
+                        'native_transfer_ns': 'UNMEASURED',
+                        'note': ('exportString includes producer and transport; '
+                                 'collider_batch_python_consumption measured separately; '
+                                 'no authority switch and no product speed gain demonstrated'),
+                    }
+                    if observations < 3000 or parity != observations or (
+                            batch_accept != observations or historical_accept != observations):
+                        raise RuntimeError('native grouped-collider shadow parity is unproven')
                     report.update(status='MEASURED_ONLY', evaluator=result,
                                   native_complete_windows=30)
                     break
