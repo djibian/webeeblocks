@@ -94,9 +94,11 @@ class VariableLowZoneTests(unittest.TestCase):
         # variable Grand Prix matches the 0.62 m physical beam underside.
         from tools.grand_prix.oracle_low_v2 import LOW_THRESHOLD
         from tools.grand_prix.oracle_u import LOW_THRESHOLD as HISTORICAL
-        from tools.grand_prix.oracle_gate_progress_v2 import BEAM_BOTTOM
+        from tools.grand_prix.route_open_h_v2 import BEAM_BOTTOM
+        from tools.grand_prix.oracle_gate_progress_v2 import BEAM_BOTTOM as GATE_HEIGHT
         self.assertEqual(HISTORICAL, .60)
         self.assertEqual(LOW_THRESHOLD, BEAM_BOTTOM)
+        self.assertEqual(GATE_HEIGHT, BEAM_BOTTOM)
         self.assertEqual(LOW_THRESHOLD, .62)
         route = build_route(17, (2., 2.5, 3.), ('G','D'))
         leg = route.legs[0]
