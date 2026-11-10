@@ -7,3 +7,4 @@ b65056b6c68d0a7986412272b914a6cd48aa3988 tools/grand_prix/native_render/webots-r
 80040d213d87ab02118e7e3ab3c8cd6ed4dc8e39 tools/grand_prix/native_engine/compact-collider-inventory-r2025a.patch
 112e8108d582b38b9dab8c69303bb28c2cff0af5 tools/grand_prix/native_engine/compact-collider-coverage-r2025a.patch
 5301a4ea6eb8924bd1fe20fb2af927d9129f1ea4 tools/grand_prix/native_engine/compact-proto-ancestry-r2025a.patch
+65f2621020ba338047b78fac1ffd5628f762cc59 tools/grand_prix/native_engine/compact-pending-write-barrier-r2025a.patch
