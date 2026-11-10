@@ -90,6 +90,43 @@ _COLLECTIVE_COMPENSATION = """      /* Native R2025a route-only vertical trim sh
 """
 
 
+# Observational only, compiled into the very same candidate binary and
+# enabled only for the native R2025a qualification environment. It never
+# alters the flight state, calls the oracle, nor writes motor setpoints.
+_PRODUCT_TRACE = """    if (getenv("WBB_GP_PRODUCT_TRACE") &&
+        strcmp(getenv("WBB_GP_PRODUCT_TRACE"), "1") == 0) {
+      int gp_contact = -1;
+      WbNodeRef gp_vehicle = wb_supervisor_node_get_self();
+      if (gp_vehicle) {
+        int gp_n = -1;
+        const WbContactPoint *gp_points =
+          wb_supervisor_node_get_contact_points(gp_vehicle, true, &gp_n);
+        if (gp_n >= 0 && (gp_n == 0 || gp_points != NULL)) {
+          gp_contact = 0;
+          for (int k = 0; k < gp_n; ++k)
+            if (isfinite(gp_points[k].point[2]) &&
+                gp_points[k].point[2] <= origin_z) {
+              gp_contact = 1; break;
+            }
+        }
+      }
+      const char *gp_phase =
+          command == CMD_TAKEOFF ? "TAKEOFF" :
+          command == CMD_MOVE ? "MOVE" :
+          command == CMD_VERTICAL ? "VERTICAL" :
+          command == CMD_TURN ? "TURN" :
+          command == CMD_WAIT ? "WAIT" :
+          command == CMD_LAND ? "LAND" : "IDLE";
+      printf("GP_PRODUCT_SAMPLE t=%.6f cmd=%s x=%.9f y=%.9f "
+             "z=%.9f vz=%.9f yaw=%.9f ref=%.9f target=%.9f "
+             "contact=%d touchdown=%d airborne=%d\\n",
+             now, gp_phase, x, y, z, vz, yaw,
+             desired.altitude, target_z, gp_contact, land_touchdown, airborne);
+      fflush(stdout);
+    }
+"""
+
+
 def compose_route_vertical_product(source: str) -> str:
     """Apply only after #952 route TAKEOFF composition, never to shared U."""
     if ("GP_CEILING_PREFLIGHT_V1 command=" in source or
@@ -143,6 +180,18 @@ def compose_route_vertical_product(source: str) -> str:
     anchor = "      pid_velocity_fixed_height_controller(actual, &desired, gains, dt, &power);"
     source = _once(source, anchor, anchor + "\n" + _COLLECTIVE_COMPENSATION,
                    "common collective")
+    # Physical contact witness is emitted at the end of the actual control
+    # cycle, including unpowered settling after a transient contact.
+    phase_tail = (
+        "    } else {\\n"
+        "      stop_motors(m1, m2, m3, m4);\\n"
+        "    }\\n\\n"
+        "    previous_time = now;"
+    )
+    source = _once(source, phase_tail,
+                   phase_tail.replace("    previous_time = now;",
+                                      _PRODUCT_TRACE + "    previous_time = now;"),
+                   "native contact/velocity witness")
     for must in (
         "if (command == CMD_LAND && land_touchdown)",
         "stop_motors(m1, m2, m3, m4)",
