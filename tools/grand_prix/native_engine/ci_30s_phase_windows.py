@@ -40,7 +40,9 @@ def load_launcher(project):
     return module
 
 
-def run(engine, project, destination, *, max_wall_seconds, assembly, compact=False):
+def run(engine, project, destination, *, max_wall_seconds, assembly, compact=False, mutation_probe=False):
+    if mutation_probe and not compact:
+        raise ValueError('mutation witness requires compact native lane')
     if platform.system() != 'Windows' or os.environ.get('GITHUB_ACTIONS') != 'true':
         raise ValueError('automated native Windows GitHub runner required')
     engine = engine.resolve(strict=True)
@@ -52,6 +54,7 @@ def run(engine, project, destination, *, max_wall_seconds, assembly, compact=Fal
               'physical_timestep_ms': 8, 'required_simulated_ms': 30000,
               'scenario': 'route-5 normal pilot and evaluator, no Blockly submission',
               'compact_enabled': compact,
+              'mutation_probe_enabled': mutation_probe,
               'host': dict(platform=platform.platform(), machine=platform.machine(),
                            cpu=platform.processor(), cpu_count=os.cpu_count()),
               'assembly': assembly}
@@ -85,6 +88,7 @@ def run(engine, project, destination, *, max_wall_seconds, assembly, compact=Fal
                    WEBEEBLOCKS_GP_EVALUATOR_PHASE_PROBE='1',
                    WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW='1',
                    WEBEEBLOCKS_GP_COMPACT_COLLIDER_SHADOW='1' if compact else '0',
+                   WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE='1' if mutation_probe else '0',
                    WEBOTS_RENDER_TRACE='0', WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100',
                    WEBOTS_EXPERIMENT_RENDER_DUTY='0')
         cmd = [str(executable), '--batch', '--mode=fast', '--no-rendering',
@@ -150,6 +154,8 @@ def run(engine, project, destination, *, max_wall_seconds, assembly, compact=Fal
                         keys = ('samples', 'canonical_parity', 'canonical_accepted',
                                 'historical_accepted', 'unknown_coverage_samples',
                                 'root_structure_changes', 'decode_errors',
+                                 'native_refusals', 'floor_verified_samples',
+                                 'proto_internal_records', 'incarnation_changes', 'revision_changes',
                                 'payload_bytes', 'native_production_ns',
                                 'native_serialization_ns', 'native_rpc_total_ns',
                                 'python_consumption_ns',
@@ -158,9 +164,28 @@ def run(engine, project, destination, *, max_wall_seconds, assembly, compact=Fal
                                   for key in keys}
                         report['compact_colliders'] = dict(
                             complete_windows=len(native_rows), **totals,
-                            limitation=('Canonical parity is not whole-scene safety parity. '
-                                        'Transport residual includes scheduling and C decoding; '
-                                        'Floor, PROTO and non-Box need unchanged authority.'))
+                            first_incarnation=native_rows[0]['first_incarnation'] if native_rows else None,
+                            last_incarnation=native_rows[-1]['last_incarnation'] if native_rows else None,
+                            last_revision=native_rows[-1]['last_revision'] if native_rows else None,
+                            whole_scene_qualified=False,
+                            limitation=('PROTO internal geometry and revision coverage remain '
+                                        'unqualified; historical authority only.'))
+                        if mutation_probe:
+                            prefix = 'GP_COMPACT_MUTATION_V2 '
+                            witnesses = [json.loads(line[len(prefix):])
+                                         for line in complete.splitlines()
+                                         if line.startswith(prefix)]
+                            report['mutation_probe'] = witnesses
+                            expected_checks = {
+                                'canonical_move_restore_same_step_revision',
+                                'stale_native_effect_refused_after_restore',
+                                'floor_proto_plane_mutate_restore',
+                                'foreign_non_box_insert_remove_refused',
+                                'native_physics_reset_revision_invalidation',
+                            }
+                            if (len(witnesses) != 1 or witnesses[0].get('status') != 'PASS' or
+                                    set(witnesses[0].get('checks', ())) != expected_checks):
+                                raise RuntimeError('native mutation/RESET witness incomplete')
                         if (totals['samples'] < 3000 or totals['decode_errors'] or
                                 totals['canonical_parity'] != totals['samples'] or
                                 totals['canonical_accepted'] != totals['historical_accepted']):
@@ -201,12 +226,13 @@ def main():
     p.add_argument('--assembly', required=True)
     p.add_argument('--max-wall-seconds', type=int, default=360)
     p.add_argument('--compact', action='store_true', help='read-only native compact inventory lane')
+    p.add_argument('--mutation-probe', action='store_true', help='isolated native mutation/RESET witness')
     args = p.parse_args()
     if not 30 <= args.max_wall_seconds <= 600:
         p.error('unsupported diagnostic wall budget')
     return run(args.engine, args.project, args.destination,
                assembly=args.assembly, max_wall_seconds=args.max_wall_seconds,
-               compact=args.compact)
+               compact=args.compact, mutation_probe=args.mutation_probe)
 
 
 if __name__ == '__main__':
