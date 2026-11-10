@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'stop', 'deadline'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -84,6 +84,12 @@ async function caseStop() {
   await Promise.race([movePromise, sleep(1500)]);
   log('stop-move-settled', moveSettled);
 }
+async function caseReset() {
+  await step('takeoff-0.8', () => backend.takeoff(.8));
+  await step('strict-reset-from-airborne-idle', () => backend.resetSimulation());
+  await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
+  await step('stop-after-reset', () => backend.stopSimulation());
+}
 async function caseDeadline() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
   let elapsed = await backend.readElapsedTime();
@@ -122,6 +128,7 @@ socket.onopen = async () => {
     if (scenario === 'primitives') await casePrimitives();
     else if (scenario === 'ceiling') await caseCeiling();
     else if (scenario === 'stop') await caseStop();
+    else if (scenario === 'reset') await caseReset();
     else await caseDeadline();
     log('scenario-finished', scenario);
     settled=true;
