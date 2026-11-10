@@ -63,23 +63,27 @@ class DirectedGateProgressTests(unittest.TestCase):
                          pose(leg, gate.along+.36))
         self.assertEqual(fresh.count, 0)
 
-    def test_lateral_high_floor_and_swept_hidden_excursions_fail(self):
+    def test_approach_is_not_an_early_collision_or_height_veto(self):
+        # This component only proves directed H progression. The full-course
+        # swept physical Box oracle in oracle_attempt_v2 is the collision guard.
         course = plan_course(17, (2., 2.5, 3.), ('D', 'G'), 3)
         leg, gate = course.route.legs[0], course.gates[0]
-        fresh = start_directed_gates(course)
-        for kwargs in ({'lateral': .20}, {'lateral': -.20},
-                       {'z': .54}, {'z': .18}, {'z': .70}):
-            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(
-                    GateProgressError, 'gate-envelope'):
-                self.advance(fresh, leg,
-                             pose(leg, gate.along-.40, **kwargs),
-                             pose(leg, gate.along+.35, **kwargs))
-        # The endpoints are different heights; the frame sweep must reject
-        # a high altitude reached before the crossing plane.
-        with self.assertRaisesRegex(GateProgressError, 'gate-envelope'):
-            self.advance(fresh, leg,
-                         pose(leg, gate.along-.40, z=.70),
-                         pose(leg, gate.along+.35, z=.35))
+        for z in (.35, .53, .70, .80):
+            with self.subTest(height=z):
+                state = self.advance(
+                    start_directed_gates(course), leg,
+                    pose(leg, gate.along - .40, z=z),
+                    pose(leg, gate.along - .20, z=z))
+                self.assertTrue(state.armed)
+                self.assertEqual(state.count, 0)
+                self.assertFalse(state.crossed)
+        # A high approach must be possible even at the edge of the arming
+        # window; a crash with the actual beam is rejected by the outer oracle.
+        front = start_directed_gates(course)
+        state = self.advance(front, leg, pose(leg, gate.along-.34, z=.8),
+                             pose(leg, gate.along-.32, z=.8))
+        self.assertTrue(state.armed)
+        self.assertEqual(state.count, 0)
 
     def test_missing_gate_and_past_gate_reversal_fail(self):
         course = plan_course(17, (2., 2.5, 3.), ('G', 'D'), 3)
