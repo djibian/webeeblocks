@@ -194,11 +194,50 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                 writer = csv.DictWriter(stream, fieldnames=list(samples[0]))
                 writer.writeheader()
                 writer.writerows(samples)
-        status["status"] = (
-            "NATIVE_SAMPLES_COMPLETE_STIMULUS" if
-            samples and status.get("stimulus_exit") == 0 and
+        completed = (bool(samples) and status.get("stimulus_exit") == 0 and
             any(e.get("kind")=="scenario-finished" for e in events) and
-            not status.get("error") else "NATIVE_PARTIAL_OR_REFUSAL")
+            not status.get("error"))
+        # A transport ACK is insufficient: retain the independent native
+        # LAND witness and the exact expected refusal as separate obligations.
+        native_text = "\\n".join(lines)
+        if scenario in ("stop", "deadline"):
+            completed = completed and all(marker in native_text for marker in (
+                "GP_U_DEADLINE ", "GP_U_LAND_GROUND_READY ",
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1"))
+        if scenario == "primitives":
+            required_steps = (
+                "takeoff-0.5", "wait-0.1", "move-forward-0.04",
+                "vertical-up-0.10", "turn-5", "vertical-down-0.10",
+                "land-within-takeoff-exception", "strict-reset-after-land",
+                "takeoff-after-reset-0.5", "stop-after-reset-takeoff")
+            observed_steps = [e.get("value",{}).get("name")
+                for e in events if e.get("kind")=="step-ok"
+                and isinstance(e.get("value"),dict)]
+            completed = completed and observed_steps == list(required_steps) and all(
+                marker in native_text for marker in (
+                    "GP_U_LAND_GROUND_READY ", "WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ",
+                    "GP_U_ADMISSION attempt=2 "))
+        if scenario == "reset":
+            completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
+                and e.get("value")=="LANDING_UNCONFIRMED" for e in events)
+        expected_negative = (scenario == "ceiling" and
+            any("reason=altitude" in line for line in lines
+                if "GP_ROUTE_EVALUATOR_CLOSED" in line) and
+            any("GP_ROUTE_ALTITUDE_WITNESS " in line for line in lines) and
+            any("GP_ROUTE_SAFETY_LAND " in line for line in lines) and
+            any(e.get("kind")=="step-refused" and
+                isinstance(e.get("value"),dict) and
+                e["value"].get("name")=="vertical-near-ceiling-up-0.1" and
+                e["value"].get("code")=="TIME_LIMIT" for e in events) and
+            not any(e.get("kind")=="unexpected-ceiling-acceptance" for e in events))
+        status["expected_native_altitude_refusal"] = expected_negative
+        status["independent_native_land_confirmed"] = (
+            "GP_U_LAND_GROUND_READY " in native_text and
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in native_text)
+        status["status"] = (
+            "EXPECTED_NATIVE_ALTITUDE_REFUSAL" if expected_negative
+            else "NATIVE_SAMPLES_COMPLETE_STIMULUS" if completed
+            else "NATIVE_PARTIAL_OR_REFUSAL")
     except Exception as exc:
         status["status"] = "INVALID_OR_MISSING_NATIVE_TRACE"
         status["trace_error"] = str(exc)
@@ -243,7 +282,9 @@ def main() -> int:
         "builds":builds,
         "safety_relaxation":False,
         "full_mission_success_claim":False,
-        "all_scenarios_completed":all(x["status"]=="NATIVE_SAMPLES_COMPLETE_STIMULUS"
+        "all_scenarios_completed":all(
+             x["status"] in ("NATIVE_SAMPLES_COMPLETE_STIMULUS",
+                              "EXPECTED_NATIVE_ALTITUDE_REFUSAL")
              for x in results),
     }
     (output / "index.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
