@@ -51,10 +51,10 @@ async function casePrimitives() {
   // This is a controlled PRIMITIVE TRANSITION witness, not a mission shortcut.
   await step('takeoff-0.5', () => backend.takeoff(.5));
   await step('wait-0.1', () => backend.wait(.1));
-  await step('move-forward-0.04', () => backend.move('forward', .04));
-  await step('vertical-up-0.10', () => backend.vertical('up', .10));
-  await step('turn-5', () => backend.turn(5));
-  await step('vertical-down-0.10', () => backend.vertical('down', .10));
+  await step('move-forward-0.02', () => backend.move('forward', .02));
+  await step('vertical-up-0.05', () => backend.vertical('up', .05));
+  await step('turn-2', () => backend.turn(2));
+  await step('vertical-down-0.05', () => backend.vertical('down', .05));
   await step('land-within-takeoff-exception', () => backend.land());
   await step('strict-reset-after-land', () => backend.resetSimulation());
   await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
