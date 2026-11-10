@@ -122,8 +122,11 @@ async function caseRouteLH() {
   await step('leg2-approach-landing', () => backend.move('forward', 1.03));
   await step('terminal-left-offset-0.50', () => backend.move('left', .50));
   await step('terminal-low-landing-zone', () => backend.vertical('down', .30));
-  await step('oracle-complete', () => backend.completeActivityMission(evalProfile));
+  // The normal interpreter requests COMPLETE only AFTER LAND returns OK.
+  // Publishing completion while still descending starts the immutable
+  // terminal 1.5 s oracle window too soon (run 42874656881, wrong-landing).
   await step('route-land', () => backend.land());
+  await step('oracle-complete', () => backend.completeActivityMission(evalProfile));
   const outcome = await step('route-outcome', () => backend.readActivityOutcome(evalProfile));
   log('route-native-outcome', outcome);
   if (!outcome || outcome.status !== 'achieved')
