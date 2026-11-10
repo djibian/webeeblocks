@@ -238,7 +238,7 @@ class NativeCompactColliderShadow:
             }, separators=(',', ':'), sort_keys=True))
             self.parity = self.shadow_accepted = self.historical_accepted = 0
             self.unknown = self.structure_changes = self.errors = 0
-        self.floor_verified = self.proto_internal_total = self.refusals = 0
-        self.incarnation_changes = self.revision_changes = 0
+            self.floor_verified = self.proto_internal_total = self.refusals = 0
+            self.incarnation_changes = self.revision_changes = 0
             self.bytes_total = self.producer_ns = self.serialization_ns = 0
             self.rpc_ns = self.consumer_ns = 0
