@@ -4,6 +4,7 @@ ONLY enabled in isolated CI diagnostics. No pupil program, admission, flight
 or oracle uses this code. Each mutation is reversed before history runs.
 """
 import ctypes
+import json
 
 from tools.grand_prix.native_compact_colliders_v1 import (
     MAX_BYTES, parse_native_inventory, compare_native_canons,
@@ -81,8 +82,34 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     try:
         field.setSFVec3f([previous[0] + 0.02, previous[1], previous[2]])
         moved = frame()
-        if moved['revision'] <= before['revision'] or moved['incarnation'] != before['incarnation']:
-            raise RuntimeError('canonical translation did not advance native scene revision')
+        old_geometry = next((s for s in before['solids'] if s['name'] == expected[0].name), None)
+        new_geometry = next((s for s in moved['solids'] if s['name'] == expected[0].name), None)
+        if old_geometry is None or new_geometry is None:
+            raise RuntimeError('cannot witness canonical native position change')
+        edge = {
+            'schema': 2, 'phase': 'immediately_after_set_before_restore',
+            'sim_ms_before': before['clock_ms'],
+            'sim_ms_after': moved['clock_ms'],
+            'revision_before': before['revision'],
+            'revision_after': moved['revision'],
+            'position_before': old_geometry['position'],
+            'position_after': new_geometry['position'],
+            'expected_position_after': [previous[0] + .02, previous[1], previous[2]],
+            'same_incarnation': moved['incarnation'] == before['incarnation'],
+        }
+        print('GP_COMPACT_MUTATION_EDGE_V2 ' +
+              json.dumps(edge, sort_keys=True, separators=(',', ':')), flush=True)
+        if moved['incarnation'] != before['incarnation']:
+            raise RuntimeError('native mutation crossed scene incarnation')
+        if moved['clock_ms'] != before['clock_ms']:
+            raise RuntimeError('native mutation did not remain at same simulation time')
+        if moved['revision'] <= before['revision']:
+            if new_geometry['position'] != old_geometry['position']:
+                raise RuntimeError('COVERAGE_GAP: applied native translation without scene revision')
+            raise RuntimeError('PENDING_NOT_COMMITTED: translation remains unapplied at native read')
+        if (abs(new_geometry['position'][0] - (previous[0] + .02)) > 1e-9 or
+                any(abs(new_geometry['position'][i] - previous[i]) > 1e-9 for i in (1, 2))):
+            raise RuntimeError('native revision advanced but translation was not applied exactly')
         _refused(lambda: compare_native_canons(moved, expected, route_rectangles=rectangles),
                  'moved canonical Solid')
         _refused(historical, 'historical moved canonical Solid')
@@ -93,6 +120,13 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     if restored['revision'] <= moved['revision'] or restored['incarnation'] != before['incarnation']:
         raise RuntimeError('canonical restore did not advance native revision')
     result['checks'].append('canonical_move_restore_same_step_revision')
+    result['native_move_revision_before'] = before['revision']
+    result['native_move_revision_after'] = moved['revision']
+    result['native_restore_revision'] = restored['revision']
+    result['same_simulation_clock_move_restore'] = (
+        before['clock_ms'] == moved['clock_ms'] == restored['clock_ms'])
+    if not result['same_simulation_clock_move_restore']:
+        raise RuntimeError('native move/restore test crossed a physics step')
 
     # Engine-side check and actual setter must be atomic. The stale token
     # must not change the drone velocity even if geometry has been restored.
