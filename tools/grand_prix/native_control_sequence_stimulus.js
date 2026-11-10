@@ -83,6 +83,10 @@ async function caseStop() {
   await step('stop-during-or-after-move', () => backend.stopSimulation());
   await Promise.race([movePromise, sleep(1500)]);
   log('stop-move-settled', moveSettled);
+  // STOP only acknowledges cancellation, not physical touchdown. Keep the
+  // native world alive so the *independent* LAND reaches ground confirmation.
+  await sleep(10000);
+  log('stop-native-land-observation-window', {wall_ms:10000});
 }
 async function caseReset() {
   // Initial confirmed-ground RESET must complete and establish a NEW
