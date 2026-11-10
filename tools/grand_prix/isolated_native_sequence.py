@@ -56,10 +56,10 @@ SEQUENCE_OBSERVER = """
           }
         }
         printf("GP_SEQUENCE_SAMPLE t=%.6f dt=%.6f cmd=%s "
-               "z=%.9f vz=%.9f ref=%.9f target=%.9f "
+               "x=%.9f y=%.9f yaw=%.9f z=%.9f vz=%.9f ref=%.9f target=%.9f "
                "u=%.9f i=%.9f m1=%.9f m2=%.9f m3=%.9f m4=%.9f "
                "saturated=%d airborne=%d ground_contact=%d\\n",
-               now, dt, gp_phase, z, vz, desired.altitude, target_z,
+               now, dt, gp_phase, x, y, yaw, z, vz, desired.altitude, target_z,
                gp_collective, altitudeIntegrator,
                motor_power(power.m1), motor_power(power.m2),
                motor_power(power.m3), motor_power(power.m4),
