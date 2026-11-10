@@ -71,7 +71,7 @@ class NativeSceneSnapshot:
         self.compact_shadow = None
         if phase_probe is not None and os.environ.get('WEBEEBLOCKS_GP_COMPACT_COLLIDER_SHADOW') == '1':
             from tools.grand_prix.native_compact_colliders_v1 import NativeCompactColliderShadow
-            self.compact_shadow = NativeCompactColliderShadow(self.expected_boxes, phase_probe)
+            self.compact_shadow = NativeCompactColliderShadow(self.expected_boxes, phase_probe, route=course.route)
         if phase_probe is not None and os.environ.get('WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW') == '1':
             from tools.grand_prix.native_collider_batch_shadow_v1 import CanonicalColliderShadow
             self.batch_shadow = CanonicalColliderShadow(self.expected_boxes, phase_probe)
