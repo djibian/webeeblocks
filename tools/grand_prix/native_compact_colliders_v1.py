@@ -26,7 +26,7 @@ def parse_native_inventory(raw, *, time_ms, supervisor_id):
     if not isinstance(raw, bytes) or not HEADER.size + TAIL.size <= len(raw) <= MAX_BYTES:
         raise ValueError('compact native inventory length')
     version, count, root_count, proto_roots, source_id, clock, revision, incarnation, root_hash = HEADER.unpack_from(raw)
-    if version != 1 or count < 0 or count > MAX_RECORDS or len(raw) != HEADER.size + count * ENTRY.size + TAIL.size:
+    if version != 2 or count < 0 or count > MAX_RECORDS or len(raw) != HEADER.size + count * ENTRY.size + TAIL.size:
         raise ValueError('invalid native batch version/count/tail')
     if (source_id != supervisor_id or not math.isfinite(clock) or
             abs(clock - time_ms) > 0.001 or int(round(clock)) % 8 or
@@ -37,7 +37,7 @@ def parse_native_inventory(raw, *, time_ms, supervisor_id):
     ids = set()
     for index in range(count):
         id_, parent, bounding, flags, name, *values = ENTRY.unpack_from(raw, HEADER.size + index * ENTRY.size)
-        if id_ <= 0 or id_ in ids or not 0 <= flags < 128 or any(not math.isfinite(v) for v in values):
+        if id_ <= 0 or id_ in ids or not 0 <= flags < 65536 or any(not math.isfinite(v) for v in values):
             raise ValueError('invalid native physical record')
         ids.add(id_)
         if name.split(bytes((0,)), 1)[0].find(bytes((0,))) >= 0:
@@ -62,12 +62,13 @@ def parse_native_inventory(raw, *, time_ms, supervisor_id):
 
 
 def _equal_triplet(actual, expected):
-    return len(actual) == 3 and all(math.isclose(a, b, rel_tol=0, abs_tol=0.0000015)
-                                    for a, b in zip(actual, expected))
+    # Match the *historical* 6-decimal Webots serialization and 1e-9 tolerance.
+    return len(actual) == 3 and all(math.isclose(a, float(f'{e:.6f}'), rel_tol=0, abs_tol=1e-9)
+                                    for a, e in zip(actual, expected))
 
 
-def compare_native_canons(snapshot, expected):
-    """Compare only canonical Boxes; NEVER attest all physical geometry."""
+def compare_native_canons(snapshot, expected, *, route_rectangles=()):
+    """Strict Box and Floor comparison, not complete PROTO/scene attestation."""
     canonical = [s for s in snapshot['solids'] if s['name'].startswith(ROOT_PREFIX)]
     by_name = {s['name']: s for s in canonical}
     targets = {b.name: b for b in expected}
@@ -75,33 +76,74 @@ def compare_native_canons(snapshot, expected):
         raise ValueError('missing/extra/duplicate native canonical DEF')
     for name, box in targets.items():
         s = by_name[name]
-        if (s['flags'] & (1 | 2 | 16 | 32)) != (1 | 2 | 16 | 32) or (s['flags'] & 64):
-            raise ValueError('unsupported native canonical bounds/identity: ' + name)
+        required = 1 | 2 | 16 | 32 | 128 | 2048
+        prohibited = 4 | 8 | 64 | 256 | 512 | 1024 | 8192 | 16384 | 32768
+        if (s['flags'] & required) != required or (s['flags'] & prohibited):
+            raise ValueError('noncanonical direct Box, visible Shape or root identity: ' + name)
         if (not _equal_triplet(s['position'], box.position) or
                 not _equal_triplet(s['physical'], box.size) or
                 not _equal_triplet(s['visual'], box.size) or
                 abs(s['rotation'][3]) > 1e-6):
             raise ValueError('native canonical geometry mismatch: ' + name)
-    # Keep all other solids visible as evidence. A PROTO/Floor or arbitrary
-    # non-Box cannot be silently declared safe using canonical-only equality.
-    unknown = [s for s in snapshot['solids'] if s['name'] not in targets and
-               ((s['flags'] & (2 | 32)) != (2 | 32) or (s['flags'] & (4 | 8 | 64)))]
-    extra_roots = [s for s in snapshot['solids'] if s['name'] not in targets and
-                   (s['flags'] & 16) and not (s['flags'] & 8)]
-    return dict(canonical_count=len(targets), unknown_count=len(unknown),
-                extra_root_count=len(extra_roots), proto_roots=snapshot['proto_roots'])
+    # Physical Floor is a root PROTO Solid containing a direct Plane.
+    floors = [body for body in snapshot['solids'] if body['flags'] & 512]
+    if len(floors) != 1 or snapshot['proto_roots'] < 2:
+        raise ValueError('missing/duplicate native Floor PROTO')
+    floor = floors[0]
+    floor_required = 1 | 8 | 16 | 256 | 512
+    if ((floor['flags'] & floor_required) != floor_required or
+            (floor['flags'] & (64 | 128 | 16384))):
+        raise ValueError('Floor must be a locked root PROTO with direct Plane')
+    if (abs(floor['position'][2]) > 1e-9 or abs(floor['rotation'][3]) > 1e-9 or
+            min(floor['physical'][:2]) <= 0 or floor['physical'][2] != 0):
+        raise ValueError('invalid physical Floor/Plane position, dimensions or rotation')
+    if route_rectangles:
+        x, y = floor['position'][:2]
+        sx, sy = floor['physical'][:2]
+        for xmin, ymin, xmax, ymax in route_rectangles:
+            if not (x - sx / 2 <= xmin <= xmax <= x + sx / 2 and
+                    y - sy / 2 <= ymin <= ymax <= y + sy / 2):
+                raise ValueError('Floor Plane does not cover the route')
+    vehicles = [body for body in snapshot['solids'] if body['flags'] & 1024]
+    evaluators = [body for body in snapshot['solids'] if body['flags'] & 8192]
+    if (len(vehicles) != 1 or len(evaluators) != 1 or
+            evaluators[0]['name'] != 'GP_ROUTE_EVALUATOR'):
+        raise ValueError('missing/duplicate native root pilot or evaluator')
+    if ((vehicles[0]['flags'] & (8 | 16 | 1024)) != (8 | 16 | 1024) or
+            (evaluators[0]['flags'] & (16 | 8192)) != (16 | 8192)):
+        raise ValueError('invalid native root pilot/evaluator provenance')
+    accounted = {body['id'] for body in
+                 list(by_name.values()) + floors + vehicles + evaluators}
+    for body in snapshot['solids']:
+        if body['id'] in accounted:
+            continue
+        if (body['flags'] & 16) or not (body['flags'] & 32768):
+            raise ValueError('foreign/unexplained native physical Solid: ' + str(body['id']))
+    internal = [body for body in snapshot['solids'] if body['flags'] & 32768]
+    return dict(canonical_count=len(targets), floor_verified=True,
+                proto_internal_count=len(internal), unknown_count=len(internal),
+                extra_root_count=0, proto_roots=snapshot['proto_roots'],
+                full_coverage=False)
+
 
 
 class NativeCompactColliderShadow:
     """One 107 RPC before the historical checker, and no authority changes."""
 
-    def __init__(self, expected, probe, window=125):
+    def __init__(self, expected, probe, window=125, route=None):
         self.expected = expected
         self.probe = probe
+        if route is None:
+            self.route_rectangles = ()
+        else:
+            from tools.grand_prix.course_footprint_v2 import course_rectangles
+            self.route_rectangles = tuple(course_rectangles(route))
         self.window = window
         self.samples = 0
         self.parity = self.shadow_accepted = self.historical_accepted = 0
         self.unknown = self.structure_changes = self.errors = 0
+        self.floor_verified = self.proto_internal_total = self.refusals = 0
+        self.incarnation_changes = self.revision_changes = 0
         self.bytes_total = self.producer_ns = self.serialization_ns = 0
         self.rpc_ns = self.consumer_ns = 0
         self.last = None
@@ -129,25 +171,31 @@ class NativeCompactColliderShadow:
             frame = parse_native_inventory(buf.raw[:size.value],
                                            time_ms=supervisor.getTime() * 1000,
                                            supervisor_id=supervisor.getSelf().getId())
-            observation = compare_native_canons(frame, self.expected)
+            observation = compare_native_canons(frame, self.expected,
+                                                route_rectangles=self.route_rectangles)
             decode_ns = time.perf_counter_ns() - decoded_started
             root_hash = frame['roots_hash']
             structure_changed = self.last_root_hash is not None and self.last_root_hash != root_hash
             token = (frame['incarnation'], frame['revision'])
+            incarnation_changed = self.last_token is not None and token[0] != self.last_token[0]
+            revision_changed = self.last_token is not None and token[1] != self.last_token[1]
+            self.incarnation_changes += int(incarnation_changed)
+            self.revision_changes += int(revision_changed)
             self.last_root_hash = root_hash
             self.last_token = token
+            self.floor_verified += int(observation['floor_verified'])
+            self.proto_internal_total += observation['proto_internal_count']
             self.bytes_total += frame['payload_bytes']
             self.producer_ns += frame['native_producer_ns']
             self.serialization_ns += frame['native_serialization_ns']
             self.rpc_ns += native_ns
             self.consumer_ns += decode_ns
             self.structure_changes += int(structure_changed)
-            self.unknown += int(observation['unknown_count'] > 0 or
-                                observation['extra_root_count'] > 0 or
-                                observation['proto_roots'] > 0 or structure_changed)
-            self.last = (not structure_changed, None)
+            self.unknown += int(not observation['full_coverage'] or structure_changed)
+            self.last = (not structure_changed and not incarnation_changed, None)
         except Exception as exc:
             self.errors += 1
+            self.refusals += 1
             self.last = (False, str(type(exc).__name__) + ': ' + str(exc))
         finally:
             self.probe.record('compact_native_rpc_and_decode', time.perf_counter_ns() - begun)
@@ -170,6 +218,12 @@ class NativeCompactColliderShadow:
                 'unknown_coverage_samples': self.unknown,
                 'root_structure_changes': self.structure_changes,
                 'decode_errors': self.errors,
+                'native_refusals': self.refusals,
+                'floor_verified_samples': self.floor_verified,
+                'proto_internal_records': self.proto_internal_total,
+                'incarnation_changes': self.incarnation_changes,
+                'revision_changes': self.revision_changes,
+                'whole_scene_qualified': False,
                 'payload_bytes': self.bytes_total,
                 'native_production_ns': self.producer_ns,
                 'native_serialization_ns': self.serialization_ns,
@@ -179,9 +233,12 @@ class NativeCompactColliderShadow:
                     0, self.rpc_ns - self.producer_ns - self.serialization_ns),
                 'note': ('Residual is not pure transport: includes scheduling, '
                          'socket, Controller C decoding, request and Python FFI. '
-                         'Floor/PROTO/non-Box still require historical authority.'),
+                         'PROTO internals, non-Box and revision coverage require '
+                         'the historical authority. Direct Floor Plane is checked.'),
             }, separators=(',', ':'), sort_keys=True))
             self.parity = self.shadow_accepted = self.historical_accepted = 0
             self.unknown = self.structure_changes = self.errors = 0
+        self.floor_verified = self.proto_internal_total = self.refusals = 0
+        self.incarnation_changes = self.revision_changes = 0
             self.bytes_total = self.producer_ns = self.serialization_ns = 0
             self.rpc_ns = self.consumer_ns = 0
