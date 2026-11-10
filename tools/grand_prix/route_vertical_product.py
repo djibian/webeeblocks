@@ -121,6 +121,22 @@ def compose_route_vertical_product(source: str) -> str:
                  _TAKEOFF_PREFLIGHT + "        active_id = request.id;",
                  "TAKEOFF side-effect-free refusal")
     source = prefix + begin + body + after + suffix
+    # #956 H3: independent oracle observed native LAND ACK at t=87.744s
+    # before any actual contact (touchdown only at t=88.416s). Tighten only
+    # route-only LAND ACK: geometric ground stability cannot replace a
+    # real Supervisor contact latch. The existing safety LAND and reset
+    # policies remain unchanged; no oracle predicate is relaxed.
+    land_anchor = (
+        "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\\n"
+        "            gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW) {"
+    )
+    # Actual newline, not the escaped diagnostic string.
+    land_anchor = land_anchor.replace("\\\\n", "\\n")
+    land_guarded = land_anchor.replace(
+        "            gp_ground_since >= 0.0",
+        "            land_touchdown && gp_ground_since >= 0.0"
+    )
+    source = _once(source, land_anchor, land_guarded, "native contact-gated LAND")
     # VERTICAL target calculation precedes all command-state side effects.
     anchor = ('        const double next_target_z = z + '
               '(strcmp(request.direction, "up") == 0 ? request.value : -request.value);')
