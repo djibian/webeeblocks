@@ -49,12 +49,12 @@ async function casePrimitives() {
   // Stay inside the already-authorized 0.14 m initial takeoff zone; its
   // 15-second privilege is never prolonged/recreated by a return flight.
   // This is a controlled PRIMITIVE TRANSITION witness, not a mission shortcut.
-  await step('takeoff-0.5', () => backend.takeoff(.5));
+  await step('takeoff-0.3', () => backend.takeoff(.3));
   await step('wait-0.1', () => backend.wait(.1));
   await step('move-forward-0.02', () => backend.move('forward', .02));
-  await step('vertical-up-0.05', () => backend.vertical('up', .05));
+  await step('vertical-up-0.10', () => backend.vertical('up', .10));
   await step('turn-2', () => backend.turn(2));
-  await step('vertical-down-0.05', () => backend.vertical('down', .05));
+  await step('vertical-down-0.10', () => backend.vertical('down', .10));
   await step('land-within-takeoff-exception', () => backend.land());
   await step('strict-reset-after-land', () => backend.resetSimulation());
   await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
