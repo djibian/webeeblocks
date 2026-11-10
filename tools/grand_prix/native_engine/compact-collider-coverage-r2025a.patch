@@ -30,7 +30,7 @@ diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes
 +    }
 +    mix(static_cast<quint64>(node->uniqueId()));
 +    mix(static_cast<quint64>(node->parentNode() ? node->parentNode()->uniqueId() : 0));
-+    mix(static_cast<quint64>(node->nodeType()));
++    for (const char ch : node->nodeModelName().toUtf8()) mix(static_cast<quint8>(ch));
 +    mix(static_cast<quint64>(node->isProtoInstance()));
 +    for (const char ch : node->defName().toUtf8())
 +      mix(static_cast<quint8>(ch));
