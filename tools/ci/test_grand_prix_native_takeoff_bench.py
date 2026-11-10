@@ -123,9 +123,11 @@ class TestNativeRunnerIsolation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             output = root / "must-not-exist"
+            exact = subprocess.check_output(
+                ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
             proc = subprocess.run(
                 [sys.executable, str(ROOT / "tools/grand_prix/run_takeoff_native_r2025a.py"),
-                 "--expected-head", "0" * 40,
+                 "--expected-head", exact,
                  "--webots-home", str(root / "not-webots"),
                  "--output", str(output), "--preflight-only"],
                 cwd=ROOT, capture_output=True, text=True, timeout=15)
