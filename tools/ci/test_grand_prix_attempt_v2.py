@@ -168,6 +168,30 @@ class PureVariableAttemptTests(unittest.TestCase):
         self.assertEqual(outside.result.reason, 'low-outside-zone')
         self.assertIsNone(s.result)
 
+    def test_high_h_approach_safe_until_actual_beam_contact(self):
+        # Real geometry, not the earlier artificial +/-0.33 m H-height veto.
+        # The first H on the owner-tested Linux route 5 is 1 m from origin.
+        from dataclasses import replace
+        course = reference_course(5)
+        gate = next(g for g in course.gates if g.leg_index == 0)
+        leg = course.route.legs[0]
+        self.assertEqual(gate.along, 1.0)
+        state = start_pure_attempt(course, 10, .015, 0)
+        before = (*leg.at(gate.along-.30), .8)
+        approach = (*leg.at(gate.along-.20), .8)
+        beam_contact = (*leg.at(gate.along-.10), .8)
+        self.assertFalse(_hits_mission_body(before, approach, state.boxes))
+        self.assertTrue(_hits_mission_body(approach, beam_contact, state.boxes))
+        # The whole-course oracle still irreversibly rejects actual contact,
+        # even though the directed H progress cursor no longer invents it.
+        state = replace(state, progress=replace(
+            state.progress, pose=approach,
+            leg=replace(state.progress.leg, xy=approach[:2])),
+            last_ms=5000, airborne=True, takeoff_done=True)
+        ended = observe(state, 10, 5160, beam_contact, (0.625, 0., 0.))
+        self.assertEqual(ended.result.status, 'not-achieved')
+        self.assertEqual(ended.result.reason, 'envelope-contact')
+
     def test_canonical_physical_inventory_catches_gate_or_corner_body(self):
         course = reference_course(9)
         state = start_pure_attempt(course, 1, .015, 0)
