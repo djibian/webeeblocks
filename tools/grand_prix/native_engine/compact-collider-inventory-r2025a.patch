@@ -1,0 +1,345 @@
+diff --git a/include/controller/c/webots/supervisor.h b/include/controller/c/webots/supervisor.h
+--- a/include/controller/c/webots/supervisor.h
++++ b/include/controller/c/webots/supervisor.h
+@@ -59,7 +59,10 @@
+ 
+ // Experimental audit for covered source paths only. Never an attestation.
+ bool wb_supervisor_physics_frame_read_with_revision(WbSupervisorPhysicsFrame *frame, WbSupervisorSceneRevision *token);
+-bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token);
++bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token);
++#define WB_SUPERVISOR_COLLIDER_BATCH_MAX_BYTES 32768
++// Read-only experimental single-RPC observation; not an authority.
++bool wb_supervisor_collider_batch_read(unsigned char *out, int32_t capacity, int32_t *size);
+ bool wb_supervisor_set_velocity_at_scene_revision(int32_t solid_id, const WbSupervisorSceneRevision *token,
+                                                   const double velocity[6]);
+ 
+diff --git a/src/controller/c/Controller.def b/src/controller/c/Controller.def
+--- a/src/controller/c/Controller.def
++++ b/src/controller/c/Controller.def
+@@ -559,7 +559,8 @@
+ wb_supervisor_physics_frame_request
+ wb_supervisor_physics_frame_read
+ wb_supervisor_physics_frame_read_with_revision
+-wb_supervisor_get_scene_revision
++wb_supervisor_get_scene_revision
++wb_supervisor_collider_batch_read
+ wb_supervisor_set_velocity_at_scene_revision
+ wb_supervisor_node_is_proto
+ wb_supervisor_node_load_state
+diff --git a/src/controller/c/messages.h b/src/controller/c/messages.h
+--- a/src/controller/c/messages.h
++++ b/src/controller/c/messages.h
+@@ -127,7 +127,8 @@
+ #define C_SUPERVISOR_CONTACT_POINTS_CHANGE_TRACKING_STATE 103
+ #define C_SUPERVISOR_PHYSICS_FRAME 104
+ #define C_SUPERVISOR_GET_SCENE_REVISION 105
+-#define C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION 106
++#define C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION 106
++#define C_SUPERVISOR_COLLIDER_BATCH 107
+ 
+ // for the abstract camera device
+ // sim -> ctr
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -567,7 +567,11 @@
+ static int32_t physics_frame_sent_id = 0;
+ static bool physics_frame_ready = false;
+ static WbSupervisorPhysicsFrame physics_frame;
+-static bool scene_revision_request = false;
++static bool compact_collider_request = false;
++static bool compact_collider_ready = false;
++static int32_t compact_collider_bytes = 0;
++static unsigned char compact_collider_wire[WB_SUPERVISOR_COLLIDER_BATCH_MAX_BYTES];
++static bool scene_revision_request = false;
+ static bool scene_revision_received = false;
+ static WbSupervisorSceneRevision scene_revision_result;
+ static WbSupervisorSceneRevision scene_revision_at_capture;
+@@ -576,7 +580,27 @@
+ static int32_t scene_revision_solid_id = 0;
+ static bool scene_revision_effect_applied = false;
+ 
+-bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token) {
++// One native binary reply, never a VRML export or an authority decision.
++bool wb_supervisor_collider_batch_read(unsigned char *out, int32_t capacity, int32_t *size) {
++  if (!wb_robot_get_supervisor() || !out || !size || capacity <= 0 || wb_robot_get_basic_time_step() != 8.0)
++    return false;
++  robot_mutex_lock();
++  compact_collider_request = true;
++  compact_collider_ready = false;
++  compact_collider_bytes = 0;
++  wb_robot_flush_unlocked(__FUNCTION__);
++  compact_collider_request = false;
++  const bool valid = compact_collider_ready && compact_collider_bytes <= capacity;
++  if (valid) {
++    memcpy(out, compact_collider_wire, compact_collider_bytes);
++    *size = compact_collider_bytes;
++  }
++  compact_collider_ready = false;
++  robot_mutex_unlock();
++  return valid;
++}
++
++bool wb_supervisor_get_scene_revision(WbSupervisorSceneRevision *token) {
+   if (!wb_robot_get_supervisor() || !token)
+     return false;
+   robot_mutex_lock();
+@@ -643,7 +667,10 @@
+   return token && physics_frame_read_with_optional_revision(frame, token);
+ }
+ 
+-static void supervisor_cleanup(WbDevice *d) {
++static void supervisor_cleanup(WbDevice *d) {
++  compact_collider_request = false;
++  compact_collider_ready = false;
++  compact_collider_bytes = 0;
+   physics_frame_queued_id = 0;
+   physics_frame_sent_id = 0;
+   physics_frame_ready = false;
+@@ -704,8 +731,10 @@
+     physics_frame_queued_id = 0;
+   }
+ 
+-  if (scene_revision_request)
+-    request_write_uchar(r, C_SUPERVISOR_GET_SCENE_REVISION);
++  if (compact_collider_request)
++    request_write_uchar(r, C_SUPERVISOR_COLLIDER_BATCH);
++  if (scene_revision_request)
++    request_write_uchar(r, C_SUPERVISOR_GET_SCENE_REVISION);
+   if (scene_revision_expected) {
+     request_write_uchar(r, C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION);
+     request_write_int32(r, scene_revision_solid_id);
+@@ -1439,7 +1468,27 @@
+     case C_SUPERVISOR_NODE_GET_STATIC_BALANCE:
+       static_balance_node_ref->static_balance = request_read_uchar(r) == 1;
+       break;
+-    case C_SUPERVISOR_GET_SCENE_REVISION: {
++    case C_SUPERVISOR_COLLIDER_BATCH: {
++      const int remaining = request_get_size(r) - request_get_position(r);
++      compact_collider_ready = false;
++      if (!compact_collider_request || remaining < 76 ||
++          remaining > WB_SUPERVISOR_COLLIDER_BATCH_MAX_BYTES) {
++        request_set_position(r, request_get_size(r));
++        break;
++      }
++      const unsigned char *const wire = (const unsigned char *)request_read_data(r, remaining);
++      int32_t version = 0, count = 0;
++      memcpy(&version, wire, sizeof(version));
++      memcpy(&count, wire + sizeof(version), sizeof(count));
++      if (version == 1 && count >= -1 && count <= 128 &&
++          remaining == 76 + (count < 0 ? 0 : count * 168)) {
++        memcpy(compact_collider_wire, wire, remaining);
++        compact_collider_bytes = remaining;
++        compact_collider_ready = true;
++      }
++      break;
++    }
++    case C_SUPERVISOR_GET_SCENE_REVISION: {
+       const int end = request_get_size(r);
+       // A revision query is an exclusive terminal experimental reply.
+       // Refuse truncated or overlong data rather than borrowing another response.
+diff --git a/src/webots/control/WbController.cpp b/src/webots/control/WbController.cpp
+--- a/src/webots/control/WbController.cpp
++++ b/src/webots/control/WbController.cpp
+@@ -1058,8 +1058,11 @@
+   mRobot->dispatchAnswer(stream);
+   if (mRobot->hasImmediateAnswer())
+     mRobot->writeImmediateAnswer(stream);
+-  const bool revisionReplyConsumed = mRobot->supervisorUtilities() &&
+-                                     mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
++  const bool revisionReplyConsumed = mRobot->supervisorUtilities() &&
++                                     mRobot->supervisorUtilities()->writeSceneRevisionAnswer(stream);
++  // Exclusive terminal optional reply for a standalone immediate diagnostic RPC.
++  if (!revisionReplyConsumed && mRobot->supervisorUtilities())
++    mRobot->supervisorUtilities()->writeCompactColliderAnswer(stream);
+   // Keep the optional observation last: malformed frames cannot consume
+   // ordinary replies such as C_ROBOT_TIME or other device messages.
+   if (!immediateAnswer && mRequestPending && mRobot->supervisorUtilities()) {
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.hpp b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.hpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.hpp
+@@ -49,7 +49,8 @@
+ 
+   void handleMessage(QDataStream &stream);
+   void writeAnswer(WbDataStream &stream);
+-  bool writeSceneRevisionAnswer(WbDataStream &stream);
++  bool writeSceneRevisionAnswer(WbDataStream &stream);
++  bool writeCompactColliderAnswer(WbDataStream &stream);
+   void writePhysicsFrame(WbDataStream &stream, double expectedTime);
+   void invalidatePhysicsFrame();
+   void writeConfigure(WbDataStream &stream);
+@@ -80,7 +81,8 @@
+ 
+ private:
+   WbRobot *mRobot;
+-  bool mSendSceneRevision = false;
++  bool mSendSceneRevision = false;
++  bool mCompactColliderRequested = false;
+   int mRevisionEffectResult = -1;
+   int mPhysicsFrameTarget = 0;
+   QByteArray mPhysicsFrameIncarnation;
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -15,7 +15,9 @@
+ #include "WbSupervisorUtilities.hpp"
+ 
+ 
+-#include "WbAbstractCamera.hpp"
++#include "WbAbstractCamera.hpp"
++#include "WbBox.hpp"
++#include "WbShape.hpp"
+ #include "WbApplication.hpp"
+ #include "WbDataStream.hpp"
+ #include "WbDevice.hpp"
+@@ -67,7 +69,10 @@
+ #include <QtCore/QThread>
+ #include <QtCore/QUuid>
+ #include <algorithm>
+-#include <cassert>
++#include <cassert>
++#include <array>
++#include <chrono>
++#include <cstring>
+ #include <cmath>
+ 
+ static const int MAX_LABELS = 100;
+@@ -413,7 +418,8 @@
+   }
+ }
+ 
+-void WbSupervisorUtilities::reset() {
++void WbSupervisorUtilities::reset() {
++  mCompactColliderRequested = false;
+   mSendSceneRevision = false;
+   mRevisionEffectResult = -1;
+   invalidatePhysicsFrame();
+@@ -989,7 +995,10 @@
+         mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
+       return;
+     }
+-    case C_SUPERVISOR_GET_SCENE_REVISION:
++    case C_SUPERVISOR_COLLIDER_BATCH:
++      mCompactColliderRequested = true;
++      return;
++    case C_SUPERVISOR_GET_SCENE_REVISION:
+       mSendSceneRevision = true;
+       return;
+     case C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION:
+@@ -2120,7 +2129,115 @@
+   stream << world->sceneRevision();
+ }
+ 
+-bool WbSupervisorUtilities::writeSceneRevisionAnswer(WbDataStream &stream) {
++// Private read-only v1 binary inventory. Unsupported bounding geometry
++// remains explicitly marked; the historical evaluator is still authoritative.
++bool WbSupervisorUtilities::writeCompactColliderAnswer(WbDataStream &stream) {
++  if (!mCompactColliderRequested)
++    return false;
++  mCompactColliderRequested = false;
++  using Clock = std::chrono::steady_clock;
++  const auto begin = Clock::now();
++  const WbWorld *const world = WbWorld::instance();
++  const QList<WbSolid *> solids = world->findSolids(false);
++  const WbGroup *const root = world->root();
++  struct Entry {
++    qint32 id, parent, boundingType, flags;
++    std::array<char, 48> def;
++    double v[13];  // local translation / physical size / visual size / local axis-angle
++  };
++  QVector<Entry> entries;
++  quint64 rootsHash = 1469598103934665603ULL;
++  const auto mix = [&rootsHash](quint64 v) { rootsHash = (rootsHash ^ v) * 1099511628211ULL; };
++  int protoRoots = 0;
++  for (int i = 0; i < root->childCount(); ++i) {
++    const WbBaseNode *const child = root->child(i);
++    if (!child) {
++      mix(0);
++      continue;
++    }
++    mix(static_cast<quint64>(child->uniqueId()));
++    mix(static_cast<quint64>(child->nodeType()));
++    mix(static_cast<quint64>(child->isProtoInstance()));
++    for (const char c : child->defName().toUtf8())
++      mix(static_cast<quint8>(c));
++    protoRoots += child->isProtoInstance() ? 1 : 0;
++  }
++  const int count = solids.size() > 128 ? -1 : solids.size();
++  if (count >= 0) {
++    entries.reserve(count);
++    for (const WbSolid *const solid : solids) {
++      Entry entry{};
++      entry.id = solid->uniqueId();
++      const WbNode *const parent = solid->parentNode();
++      entry.parent = parent ? parent->uniqueId() : 0;
++      const WbBaseNode *const bounding = solid->boundingObject();
++      entry.boundingType = bounding ? bounding->nodeType() : 0;
++      entry.flags = (solid->isLocked() ? 1 : 0) | (solid->protoAncestor() ? 4 : 0) |
++                    (solid->isProtoInstance() ? 8 : 0) | (parent == root ? 16 : 0);
++      const QByteArray name = solid->defName().toUtf8();
++      if (name.size() >= static_cast<int>(entry.def.size()))
++        entry.flags |= 64;
++      else
++        std::memcpy(entry.def.data(), name.constData(), name.size());
++      const WbBox *physical = dynamic_cast<const WbBox *>(bounding);
++      if (!physical) {
++        const WbShape *const shape = dynamic_cast<const WbShape *>(bounding);
++        physical = shape ? dynamic_cast<const WbBox *>(shape->geometry()) : nullptr;
++      }
++      const WbBox *visible = nullptr;
++      int visibleCount = 0;
++      for (int i = 0; i < solid->childCount(); ++i) {
++        const WbShape *const shape = dynamic_cast<const WbShape *>(solid->child(i));
++        if (!shape)
++          continue;
++        const WbBox *const box = dynamic_cast<const WbBox *>(shape->geometry());
++        if (box) {
++          visible = box;
++          ++visibleCount;
++        }
++      }
++      if (physical)
++        entry.flags |= 2;
++      if (visibleCount == 1)
++        entry.flags |= 32;
++      const WbVector3 p = solid->translation();
++      entry.v[0] = p.x(); entry.v[1] = p.y(); entry.v[2] = p.z();
++      if (physical) {
++        const WbVector3 s = physical->size();
++        entry.v[3] = s.x(); entry.v[4] = s.y(); entry.v[5] = s.z();
++      }
++      if (visibleCount == 1) {
++        const WbVector3 s = visible->size();
++        entry.v[6] = s.x(); entry.v[7] = s.y(); entry.v[8] = s.z();
++      }
++      const WbRotation r = solid->rotation();
++      entry.v[9] = r.x(); entry.v[10] = r.y(); entry.v[11] = r.z(); entry.v[12] = r.angle();
++      entries.append(entry);
++    }
++  }
++  const auto produced = Clock::now();
++  stream << (quint16)0 << (quint8)C_SUPERVISOR_COLLIDER_BATCH
++         << (qint32)1 << (qint32)count << (qint32)root->childCount()
++         << (qint32)protoRoots << (qint32)mRobot->uniqueId()
++         << (double)WbSimulationState::instance()->time() << (quint64)world->sceneRevision();
++  const QByteArray incarnation = world->sceneIncarnation().toRfc4122();
++  stream.writeRawData(incarnation.constData(), 16);
++  stream << rootsHash;
++  for (const Entry &e : entries) {
++    stream << e.id << e.parent << e.boundingType << e.flags;
++    stream.writeRawData(e.def.data(), static_cast<int>(e.def.size()));
++    for (const double value : e.v)
++      stream << value;
++  }
++  const auto serialized = Clock::now();
++  const auto nanos = [](Clock::time_point a, Clock::time_point b) {
++    return (quint64)std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count();
++  };
++  stream << nanos(begin, produced) << nanos(produced, serialized);
++  return true;
++}
++
++bool WbSupervisorUtilities::writeSceneRevisionAnswer(WbDataStream &stream) {
+   if (!mSendSceneRevision && mRevisionEffectResult < 0)
+     return false;
+   // No combined 105/106 payload: both callers must treat absent replies
