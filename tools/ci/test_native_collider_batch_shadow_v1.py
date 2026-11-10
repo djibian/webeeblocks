@@ -69,10 +69,16 @@ class BatchShadowTests(unittest.TestCase):
             with self.subTest(raw=raw[-75:]), self.assertRaises(ValueError):
                 compare_grouped_to_canonical(raw, [ONE])
 
-    def test_unknown_extra_root_physical_name_rejected(self):
-        # Names outside the selected roots are intentionally still checked by
-        # the historical Supervisor, NOT trusted to the grouped view.
-        scene = fixture()
+    def test_unlisted_root_escapes_batch_and_requires_historical_authority(self):
+        # Deliberate negative counterexample: a foreign physical body is
+        # invisible to this *selected* batched export decoder. The historical
+        # recursive Supervisor graph check must remain authoritative.
+        extra = ('    DEF FOREIGN_PHYSICAL Solid {\\n'
+                 '      locked TRUE\\n'
+                 '      boundingObject Box { size 0.1 0.1 0.1 }\\n'
+                 '    }\\n').replace('\\n', '\n')
+        scene = fixture().replace('  ]\n}', extra + '  ]\n}')
+        self.assertIn('DEF FOREIGN_PHYSICAL', scene)
         self.assertEqual([NAME], list(grouped_boxes(scene)))
         self.assertEqual(1, compare_grouped_to_canonical(scene, [ONE]))
 
