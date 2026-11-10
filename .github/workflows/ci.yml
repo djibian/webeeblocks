@@ -470,6 +470,30 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+      # Non-authoritative experimental diagnostic. This job is deliberately
+      # excluded from the required CI Gate and cannot authorize native flight.
+      - name: Diagnose 30 simulated seconds of native evaluator (no rendering)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = 'ci-artifacts/native-engine/Webots-R2025a-experimental'
+          $project = 'ci-artifacts/native-engine/WebeeBlocks-Grand-Prix-Windows'
+          $output = 'ci-artifacts/native-engine/phase-probe-30s'
+          python tools/grand_prix/native_engine/ci_30s_phase_windows.py --engine $engine --project $project --destination $output --assembly "${{ github.event.pull_request.head.sha }}" --max-wall-seconds 360
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Native diagnostic UNPROVEN: retain raw logs; no benchmark PASS.'
+            exit $LASTEXITCODE
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-native-phase-diagnostic-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/native-engine/phase-probe-30s/
+          if-no-files-found: warn
+          retention-days: 14
+
 
   gate:
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate' }}
