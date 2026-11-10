@@ -138,6 +138,45 @@ def make_native_curves(samples: list[dict], directory: Path) -> None:
         writer.writerows(samples)
 
 
+def plot_native_case(samples: list[dict], directory: Path, height: float) -> str:
+    """Render ONLY actual logged samples; missing plots never imply a PASS."""
+    if not samples:
+        return "NO_SAMPLES"
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return "MISSING_MATPLOTLIB_CSV_PRESERVED"
+    t0 = samples[0]["t"]
+    times = [row["t"] - t0 for row in samples]
+    plots = [
+        (("z", "ref", "target"), "Altitude / cible (m)", "native-z-vs-reference.png"),
+        (("vz",), "Vitesse verticale mesurée (m/s)", "native-vz.png"),
+        (("p", "i", "d", "u"), "Contributions PID / commande collective", "native-pid.png"),
+        (("m1", "m2", "m3", "m4"), "Commandes rotor signées (rad/s)", "native-motors.png"),
+        (("ground_contact",), "Contact inférieur (1=observé, 0=absent, -1=inconnu)",
+         "native-contact.png"),
+    ]
+    for columns, label, filename in plots:
+        fig, ax = plt.subplots(figsize=(8.5, 4.5))
+        for field in columns:
+            values = [row[field] for row in samples]
+            if field == "ground_contact":
+                ax.step(times, values, where="post", label=field)
+            else:
+                ax.plot(times, values, label=field)
+        ax.set_title(f"Webots R2025a — trace brute TAKEOFF {height:.1f} m, non validée")
+        ax.set_xlabel("Temps depuis premier échantillon (s)")
+        ax.set_ylabel(label)
+        ax.grid(True, alpha=.3)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(directory / filename, dpi=150)
+        plt.close(fig)
+    return "OBSERVED_SAMPLES_RENDERED_NOT_VALIDATED"
+
+
 def run_case(home: Path, index: int, height: float, output: Path,
              evidence: dict, source_sha: str) -> dict:
     directory = output / f"{index:02d}-takeoff-{height:.1f}m"
@@ -223,6 +262,7 @@ def run_case(home: Path, index: int, height: float, output: Path,
             raise TraceError(f"exactly one diagnostic TAKEOFF required, observed {len(records)}")
         status["metrics"] = summarize(records[0])
         make_native_curves(records[0]["samples"], directory)
+        status["plots"] = plot_native_case(records[0]["samples"], directory, height)
         status["status"] = "TRACE_WITH_ACK" if (
             status["metrics"]["ack_observed"] and
             "takeoff-ack" in status["stimulus_events"] and
