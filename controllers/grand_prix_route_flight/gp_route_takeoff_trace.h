@@ -59,6 +59,12 @@ static void gp_route_takeoff_trace_complete(double now) {
  * come from the existing controller's error and integral, not a new PID.
  * 'u' is the exact unsaturated collective term recovered from the mixer.
  */
+static double gp_route_takeoff_diag_motor_clamp(double value) {
+  if (value < 0.0) return 0.0;
+  if (value > 600.0) return 600.0;
+  return value;
+}
+
 static void gp_route_takeoff_trace_sample(double now, double dt, double z,
                                            double vz, double reference_z,
                                            double target_z, double prev_error,
@@ -76,10 +82,10 @@ static void gp_route_takeoff_trace_sample(double now, double dt, double z,
   const double i = gains.ki_z * altitudeIntegrator;
   const double d = gains.kd_z * (error - prev_error) / dt;
   const double u = (power.m1 + power.m2 + power.m3 + power.m4) / 4.0;
-  const double motor1 = -motor_power(power.m1);
-  const double motor2 = motor_power(power.m2);
-  const double motor3 = -motor_power(power.m3);
-  const double motor4 = motor_power(power.m4);
+  const double motor1 = -gp_route_takeoff_diag_motor_clamp(power.m1);
+  const double motor2 = gp_route_takeoff_diag_motor_clamp(power.m2);
+  const double motor3 = -gp_route_takeoff_diag_motor_clamp(power.m3);
+  const double motor4 = gp_route_takeoff_diag_motor_clamp(power.m4);
   printf("GP_ROUTE_TAKEOFF_TRACE_SAMPLE id=%d t=%.6f dt=%.6f "
          "z0=%.9f z=%.9f vz=%.9f ref=%.9f target=%.9f "
          "error=%.9f p=%.9f i=%.9f d=%.9f u=%.9f "
