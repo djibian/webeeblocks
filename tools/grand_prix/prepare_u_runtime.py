@@ -257,6 +257,9 @@ static double wrap_angle(double angle) {
             if result.count(old) != 1:
                 raise RuntimeError('route TAKEOFF composition anchor changed; revalidation required')
             result = result.replace(old, new, 1)
+        # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
+        from tools.grand_prix.route_vertical_product import compose_route_vertical_product
+        result = compose_route_vertical_product(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
