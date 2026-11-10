@@ -87,5 +87,43 @@ class PhaseAnalysisTests(unittest.TestCase):
         self.assertIsNone(result['phases']['scene_without_exportString']['mean_ms'])
 
 
+    def test_nested_colliders_and_protocol_are_not_double_counted(self):
+        data = [window(0)]
+        for row in data[0]['rows']:
+            t = row['durations_ns']
+            t['scene_root_inventory'] = 1_000_000
+            t['scene_vehicle_identity'] = 1_000_000
+            t['scene_collider_traversal'] = 3_000_000
+            t['scene_collider_values'] = 2_000_000
+            t['protocol_request'] = 1_000_000
+            t['protocol_model'] = 1_000_000
+            t['protocol_channel'] = 1_000_000
+        result = analyze(parse_windows([PREFIX + json.dumps(data[0])]), 'route-5',
+                         minimum_sim_ms=8)
+        phases = result['phases']
+        self.assertEqual(phases['scene_collider_total']['mean_ms'], 5)
+        self.assertEqual(phases['scene_exclusive_residual']['mean_ms'], 3)
+        self.assertEqual(phases['protocol_total']['mean_ms'], 3)
+        self.assertEqual(phases['unattributed_tick']['mean_ms'], 2)
+        self.assertEqual(phases['scene_and_colliders']['slow_tick_tail_share_of_tick_pct'], 80)
+        self.assertEqual(phases['exportString']['slow_tick_tail_share_of_tick_pct'], 60)
+
+    def test_nested_sum_exceeding_scene_is_refused(self):
+        data = window(0)
+        t = data['rows'][0]['durations_ns']
+        t['scene_collider_traversal'] = 20_000_000
+        with self.assertRaisesRegex(ValueError, 'overlapping'):
+            parse_windows([PREFIX + json.dumps(data)])
+
+    def test_orphan_native_collider_phase_is_refused(self):
+        data = window(0)
+        t = data['rows'][0]['durations_ns']
+        del t['scene_and_colliders']
+        del t['exportString']
+        t['scene_collider_values'] = 1
+        with self.assertRaisesRegex(ValueError, 'orphan'):
+            parse_windows([PREFIX + json.dumps(data)])
+
+
 if __name__ == '__main__':
     unittest.main()
