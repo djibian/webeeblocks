@@ -204,8 +204,9 @@ class NativeRouteEvaluator:
             if (self._robot.getSelf().getId() != self._self_id or
                     source is None or source.getId() != self._vehicle_id):
                 raise RuntimeError('native source replaced')
-            raw = self._request.getSFString()
-            event = parse_flight_channel(raw, self.course.identifier)
+            with self._scope('protocol_request'):
+                raw = self._request.getSFString()
+                event = parse_flight_channel(raw, self.course.identifier)
             if event is None:
                 if self._context is not None:
                     self._close(now, 'native-context-revoked')
@@ -249,7 +250,8 @@ class NativeRouteEvaluator:
             # hook. An initial empty model may therefore last one pilot period;
             # this bootstrap wait never grants READY. Once data have been
             # observed, absence is terminal.
-            model = self._model.getSFString()
+            with self._scope('protocol_model'):
+                model = self._model.getSFString()
             if (self.observation is None and type(event) is Challenge and
                     model == '' and now - self._challenge_since <= 32):
                 return
@@ -272,7 +274,8 @@ class NativeRouteEvaluator:
             if (self._active is not None and previous is not None and
                     math.dist(previous.kinematics.position, observation.kinematics.position) > .06):
                 raise RuntimeError('discontinuous native pose')
-            data = self._channel.getSFString()
+            with self._scope('protocol_channel'):
+                data = self._channel.getSFString()
             if type(event) is Challenge:
                 if self._active is not None or data != f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {context.attempt}':
                     raise RuntimeError('native reset marker mismatch')
