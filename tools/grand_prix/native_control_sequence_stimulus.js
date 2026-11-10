@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_takeoff', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -62,16 +62,42 @@ async function casePrimitives() {
 }
 async function caseCeiling() {
   await step('takeoff-1.0', () => backend.takeoff(1.0));
-  await step('vertical-near-ceiling-up-0.1', () => backend.vertical('up', .1));
   try {
-    await step('vertical-exceed-ceiling-up-0.1', () => backend.vertical('up', .1));
-    log('unexpected-ceiling-acceptance', 'required ceiling refusal was absent');
-    throw new Error('native ceiling guard failed to refuse');
-  } catch (e) {
-    if (String(e).includes('native ceiling guard failed')) throw e;
-    log('ceiling-refusal-observed', {message:String(e), code:e.code||null});
+    await step('vertical-near-ceiling-up-0.1', () => backend.vertical('up', .1));
+    log('unexpected-vertical-acceptance', 'ceiling preflight did not refuse');
+    throw new Error('insufficient-headroom ascent was accepted');
+  } catch (error) {
+    if (error && error.code === 'VERTICAL_LIMIT') {
+      log('preventive-ceiling-refusal', error.code);
+      await step('stop-after-preventive-refusal', () => backend.stopSimulation());
+      await sleep(10000);
+      log('ceiling-post-stop-landing-window', {wall_ms:10000});
+      return;
+    }
+    // TIME_LIMIT means the oracle observed physical ceiling breach.
+    throw error;
   }
-  await step('stop-after-ceiling-refusal', () => backend.stopSimulation());
+}
+async function caseSafeAscent() {
+  await step('takeoff-0.8', () => backend.takeoff(.8));
+  await step('vertical-safe-up-0.10', () => backend.vertical('up', .10));
+  await step('stop-after-safe-ascent', () => backend.stopSimulation());
+  await sleep(10000);
+  log('safe-ascent-land-window', {wall_ms:10000});
+}
+async function caseTakeoffCeiling() {
+  let denied = false;
+  try { await step('takeoff-1.1-must-refuse', () => backend.takeoff(1.1)); }
+  catch (e) {
+    if (e && e.code === 'INVALID_TAKEOFF') {
+      log('preventive-takeoff-refusal', e.code); denied = true;
+    } else throw e;
+  }
+  if (!denied) throw Error('unsafe TAKEOFF was accepted');
+  await step('takeoff-1.0-after-refusal', () => backend.takeoff(1.0));
+  await step('stop-after-valid-takeoff', () => backend.stopSimulation());
+  await sleep(10000);
+  log('takeoff-preflight-land-window', {wall_ms:10000});
 }
 async function caseStop() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
@@ -143,6 +169,8 @@ socket.onopen = async () => {
     log('runtime-ready', scenario);
     if (scenario === 'primitives') await casePrimitives();
     else if (scenario === 'ceiling') await caseCeiling();
+    else if (scenario === 'ceiling_safe_ascent') await caseSafeAscent();
+    else if (scenario === 'ceiling_takeoff') await caseTakeoffCeiling();
     else if (scenario === 'stop') await caseStop();
     else if (scenario === 'reset') await caseReset();
     else await caseDeadline();
