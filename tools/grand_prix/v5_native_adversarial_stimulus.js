@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_large_ascent', 'ceiling_takeoff', 'route_lh', 'route_h1', 'route_h3', 'route_h3_contact', 'route_h3_low', 'stop', 'deadline', 'reset', 'env_02_allow', 'env_03_edge', 'env_04_edge', 'env_05_edge', 'env_05_refuse', 'env_04_refuse', 'env_05_vplus_allow', 'env_05_vplus_refuse', 'outcome_replay_h1'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_large_ascent', 'ceiling_takeoff', 'route_lh', 'route_h1', 'route_h3', 'route_h3_contact', 'route_h3_low', 'stop', 'deadline', 'reset', 'env_02_allow', 'env_03_edge', 'env_04_edge', 'env_05_edge', 'env_05_refuse', 'env_04_refuse', 'env_05_vplus_allow', 'env_05_vplus_refuse', 'env_vplus_small_rebound', 'env_vplus_large_rebound', 'outcome_replay_h1'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -268,7 +268,12 @@ const ENV = Object.freeze({
   env_05_refuse:      {takeoff:.50, distance:.50, expected:'refuse'},
   env_04_refuse:      {takeoff:.62, distance:.40, expected:'refuse'},
   env_05_vplus_allow: {takeoff:.50, distance:.50, beforeDown:.20, expected:'allow', requirePositiveVz:true},
-  env_05_vplus_refuse:{takeoff:.80, distance:.50, beforeDown:.20, expected:'refuse', requirePositiveVz:true}
+  env_05_vplus_refuse:{takeoff:.80, distance:.50, beforeDown:.20, expected:'refuse', requirePositiveVz:true},
+  // Independent non-identical positive initial vz: vary the preceding
+  // ordinary downward flight; outcomes may be allowed or VERTICAL_LIMIT
+  // but NEVER an altitude oracle failure.
+  env_vplus_small_rebound:{takeoff:.55, distance:.30, beforeDown:.10, expected:'either', requirePositiveVz:true},
+  env_vplus_large_rebound:{takeoff:.72, distance:.40, beforeDown:.30, expected:'either', requirePositiveVz:true}
 });
 async function caseEnvelope(which) {
   const spec=ENV[which];
@@ -289,7 +294,7 @@ async function caseEnvelope(which) {
     else throw error;
   }
   log('envelope-result',{verdict,amplitude_m:spec.distance,expected:spec.expected});
-  if((verdict==='allowed')!==(spec.expected==='allow'))
+  if(spec.expected!=='either' && (verdict==='allowed')!==(spec.expected==='allow'))
     throw Error('unexpected ceiling-preflight classification: '+verdict);
   await step('envelope-stop',()=>backend.stopSimulation());
   await sleep(9500);
