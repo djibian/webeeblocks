@@ -239,12 +239,14 @@ def analyze_native(log:str, events:list[dict], scenario:str):
             verdict["land_ack_not_before_true_touchdown"] and n_ready>=1 and
             not verdict["unexpected_wwi_transport_error"] and
             (not positive_required or verdict["positive_vz_witness"]))
-        if expected=="allow":
+        if decision.get("verdict")=="allowed":
             qualifies=qualifies and bool(upward) and not guard_lines
-        else:
+        elif decision.get("verdict")=="refused":
             qualifies=(qualifies and len(guard_lines)==1 and
                 verdict.get("preflight_formula_error_m",float("inf"))<1e-6 and
                 verdict.get("target_minus_admissible_m",-1)>0)
+        else:
+            qualifies=False
         verdict["qualified"]=bool(qualifies)
     elif scenario=="outcome_replay_h1":
         positive=[e for e in events if e.get("kind")=="old-positive-attested"
