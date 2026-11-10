@@ -219,6 +219,8 @@ def main() -> int:
     parser.add_argument("--expected-head",required=True)
     parser.add_argument("--webots-home",type=str)
     parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--scope", choices=SCOPES, default=None,
+                        help="run one isolated scope; compare with archived same-world control run")
     args = parser.parse_args()
     sha = require_source(args.expected_head)
     home = webots_home(args.webots_home)
@@ -227,7 +229,7 @@ def main() -> int:
     output.mkdir(parents=True,exist_ok=False)
     results = []
     builds = {}
-    for scope in SCOPES:
+    for scope in (SCOPES if args.scope is None else (args.scope,)):
         builds[scope] = build(home,scope)
         for scenario in SCENARIOS:
             results.append(one(home,scope,scenario,output,sha))
