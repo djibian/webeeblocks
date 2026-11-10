@@ -57,10 +57,13 @@ jobs:
           IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
           docker pull "$IMAGE"
           nodebin="$(command -v node)"
+          gitbin="$(command -v git)"
           test "$(node --version | cut -d. -f1)" = "v22"
           set +e
-          docker run --rm --init --entrypoint /bin/bash             -e WEBOTS_HOME=/usr/local/webots             -v "$GITHUB_WORKSPACE:/workspace"             -v "$assets/projects:/usr/local/webots/projects:ro"             -v "$nodebin:/usr/local/bin/node:ro"             -w /workspace "$IMAGE" -lc               'set -euo pipefail
+          docker run --rm --init --entrypoint /bin/bash             -e WEBOTS_HOME=/usr/local/webots             -v "$GITHUB_WORKSPACE:/workspace"             -v "$assets/projects:/usr/local/webots/projects:ro"             -v "$nodebin:/usr/local/bin/node:ro" -v "$gitbin:/usr/local/bin/git:ro"             -w /workspace "$IMAGE" -lc               'set -euo pipefail
                /usr/local/bin/node --version
+               git --version
+               git config --global --add safe.directory /workspace
                python3 -m unittest -v tools.ci.test_grand_prix_takeoff_trace tools.ci.test_grand_prix_native_takeoff_bench tools.ci.test_grand_prix_route_takeoff_profile
                timeout -k 10s 1900s python3 -u tools/grand_prix/run_takeoff_native_r2025a.py --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots --output ci-artifacts/gp-takeoff-r2025a-953/native'             2>&1 | tee ci-artifacts/gp-takeoff-r2025a-953/native-run.log
           status="${PIPESTATUS[0]}"
