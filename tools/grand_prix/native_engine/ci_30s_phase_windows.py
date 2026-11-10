@@ -14,6 +14,7 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -86,12 +87,22 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
         course = 'gp-route-v2-L2000-2500-3000-TGD-s105-H2'
         begin = time.monotonic()
         with log.open('wb') as stream:
-            child = subprocess.Popen(cmd, cwd=project, env=env, stdout=stream,
+            # R2025a on Windows requires actual stdout pipe handles for the
+            # controller log forwarding path; mirror launch_route_windows.py.
+            child = subprocess.Popen(cmd, cwd=project, env=env, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT)
+
+            def relay_stdout():
+                for chunk in iter(child.stdout.read1, b''):
+                    stream.write(chunk)
+                    stream.flush()
+
+            relay_thread = threading.Thread(target=relay_stdout, daemon=True)
+            relay_thread.start()
             try:
                 while time.monotonic() - begin < max_wall_seconds:
                     if child.poll() is not None:
-                        raise RuntimeError('Webots exited before the 30-second observation')
+                        raise RuntimeError('Webots exited before 30 s; exit code ' + str(child.returncode))
                     time.sleep(1.0)
                     observed = log.read_text(encoding='utf-8', errors='replace')
                     # Do not parse a partially written JSON line while Webots runs.
@@ -119,6 +130,8 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                 except subprocess.TimeoutExpired:
                     child.kill()
                     child.wait(timeout=10)
+                relay_thread.join(timeout=10)
+                report['native_exit_code'] = child.returncode
         report['log_sha256'] = sha256(log)
         report['limitations'] = ('Batch and rendering disabled, no Blockly submission: '
                                  'does not cover active mission oracle, OpenGL, GUI or target Lenovo.')
