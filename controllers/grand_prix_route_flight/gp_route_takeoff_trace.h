@@ -86,13 +86,34 @@ static void gp_route_takeoff_trace_sample(double now, double dt, double z,
   const double motor2 = gp_route_takeoff_diag_motor_clamp(power.m2);
   const double motor3 = -gp_route_takeoff_diag_motor_clamp(power.m3);
   const double motor4 = gp_route_takeoff_diag_motor_clamp(power.m4);
+  /* Webots supervisor contact witness, read only; -1 means unavailable.
+   * Contact with surface at/below initial floor z is a ground proxy, not
+   * a statement about thrust or every undercarriage point. */
+  int gp_ground_contact = -1;
+  WbNodeRef gp_self = wb_supervisor_node_get_self();
+  if (gp_self) {
+    int gp_contact_count = -1;
+    const WbContactPoint *gp_contacts =
+      wb_supervisor_node_get_contact_points(gp_self, true, &gp_contact_count);
+    if (gp_contact_count >= 0 &&
+        (gp_contact_count == 0 || gp_contacts != NULL)) {
+      gp_ground_contact = 0;
+      for (int k = 0; k < gp_contact_count; ++k) {
+        if (isfinite(gp_contacts[k].point[2]) &&
+            gp_contacts[k].point[2] <= gp_route_takeoff_diag.origin_z) {
+          gp_ground_contact = 1;
+          break;
+        }
+      }
+    }
+  }
   printf("GP_ROUTE_TAKEOFF_TRACE_SAMPLE id=%d t=%.6f dt=%.6f "
          "z0=%.9f z=%.9f vz=%.9f ref=%.9f target=%.9f "
          "error=%.9f p=%.9f i=%.9f d=%.9f u=%.9f "
-         "m1=%.9f m2=%.9f m3=%.9f m4=%.9f phase=%s\n",
+         "m1=%.9f m2=%.9f m3=%.9f m4=%.9f ground_contact=%d phase=%s\n",
          gp_route_takeoff_diag.request_id, now, dt,
          gp_route_takeoff_diag.origin_z, z, vz, reference_z, target_z,
-         error, p, i, d, u, motor1, motor2, motor3, motor4,
+         error, p, i, d, u, motor1, motor2, motor3, motor4, gp_ground_contact,
          ack >= 0.0 ? "post_ack" : "takeoff");
   fflush(stdout);
 }
