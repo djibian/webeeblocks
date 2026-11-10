@@ -87,7 +87,7 @@ class TestNativeRunnerIsolation(unittest.TestCase):
         self.assertIn("run_case(home, index, height", self.python)
         self.assertIn("WBB_GP_TAKEOFF_TRACE=\"1\"", self.python)
         self.assertIn('"--mode=fast"', self.python)
-        self.assertIn("compile_production(home)", self.python)
+        self.assertIn("compile_production(home, args.variant)", self.python)
         self.assertNotIn("gp_route_evaluator_probe.py", self.python)
         self.assertNotIn("grand_prix_route_publisher_probe", self.python)
 
