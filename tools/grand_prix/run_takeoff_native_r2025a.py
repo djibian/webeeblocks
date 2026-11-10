@@ -77,6 +77,10 @@ def compile_production(home: Path) -> dict:
     env["WEBOTS_HOME"] = str(home)
     subprocess.run([sys.executable, str(ROOT / "tools/grand_prix/prepare_route_runtime.py")],
                    cwd=ROOT, env=env, check=True, timeout=90)
+    # Fresh build avoids trusting a stale executable when only a generated
+    # diagnostic header has changed and make has no explicit header dep.
+    subprocess.run(["make", "-C", str(FLIGHT), "clean"],
+                   cwd=ROOT, env=env, check=True, timeout=90)
     subprocess.run(["make", "-C", str(FLIGHT), "release"],
                    cwd=ROOT, env=env, check=True, timeout=180)
     binary = FLIGHT / "grand_prix_route_flight"
