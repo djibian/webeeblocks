@@ -574,12 +574,38 @@ jobs:
           $out = 'ci-artifacts/native-engine/compact-ab.json'
           python tools/grand_prix/native_engine/compare_compact_ab_windows.py --baseline ci-artifacts/native-engine/phase-probe-30s/summary.json --compact ci-artifacts/native-engine/compact-probe-30s/summary.json --output $out
           if ($LASTEXITCODE -ne 0) { Write-Warning 'Compact A/B UNPROVEN; see exact-head raw evidence.' }
+      # Native adverse mutations are isolated from the A/B timing lanes.
+      # Real field writes, PROTO regeneration, foreign Cylinder, guarded stale
+      # velocity and physics RESET are executed using the same staged engine.
+      # No safety authority or future RESET claim follows from a passing test.
+      - name: Probe compact colliders under real native mutations and RESET
+        continue-on-error: true
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = 'ci-artifacts/native-engine/Webots-R2025a-experimental'
+          $project = 'ci-artifacts/native-engine/WebeeBlocks-Grand-Prix-Windows'
+          $output = 'ci-artifacts/native-engine/compact-mutation-30s'
+          python tools/grand_prix/native_engine/ci_30s_phase_windows.py --engine $engine --project $project --destination $output --assembly "${{ github.event.pull_request.head.sha }}" --max-wall-seconds 360 --compact --mutation-probe
+          if ($LASTEXITCODE -ne 0) { Write-Warning 'Native mutation/RESET UNPROVEN; preserve raw witness.'; exit $LASTEXITCODE }
+      - name: Check fresh incarnation on same engine across independent launches
+        continue-on-error: true
+        if: always()
+        shell: pwsh
+        run: |
+          python tools/grand_prix/native_engine/check_compact_incarnation_windows.py --previous ci-artifacts/native-engine/compact-probe-30s/summary.json --restarted ci-artifacts/native-engine/compact-mutation-30s/summary.json --output ci-artifacts/native-engine/compact-incarnation-witness.json
+          if ($LASTEXITCODE -ne 0) { Write-Warning 'Fresh incarnation UNPROVEN.' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: grand-prix-native-compact-ab-${{ github.event.pull_request.head.sha }}
           path: |
             ci-artifacts/native-engine/compact-probe-30s/
+            ci-artifacts/native-engine/compact-mutation-30s/
+            ci-artifacts/native-engine/compact-incarnation-witness.json
             ci-artifacts/native-engine/compact-ab.json
           if-no-files-found: warn
           retention-days: 14
