@@ -164,16 +164,16 @@ def compose_route_vertical_product(source: str) -> str:
     # or transient contact resets that window, but the existing touchdown
     # latch still keeps motors unpowered (irreversible safety).
     source = _once(source, "  double gp_ground_since = -1.0;",
-                   "  double gp_ground_since = -1.0;\\n"
+                   "  double gp_ground_since = -1.0;\n"
                    "  double gp_land_contact_since = -1.0;",
                    "separate native contact window")
     original_contact = (
         "if (!land_touchdown && land_has_ground_contact(z, origin_z)) {"
     )
     native_contact = (
-        "const int gp_contact_now = land_has_ground_contact(z, origin_z);\\n"
-        "      if (!gp_contact_now) gp_land_contact_since = -1.0;\\n"
-        "      else if (gp_land_contact_since < 0.0) gp_land_contact_since = now;\\n"
+        "const int gp_contact_now = land_has_ground_contact(z, origin_z);\n"
+        "      if (!gp_contact_now) gp_land_contact_since = -1.0;\n"
+        "      else if (gp_land_contact_since < 0.0) gp_land_contact_since = now;\n"
         "      if (!land_touchdown && gp_contact_now) {"
     )
     source = _once(source, original_contact, native_contact,
@@ -182,7 +182,7 @@ def compose_route_vertical_product(source: str) -> str:
     # separate landing cannot reuse an old contact observation window.
     idle_anchor = "    if (command == CMD_TAKEOFF) {"
     source = _once(source, idle_anchor,
-                   "    if (command != CMD_LAND) gp_land_contact_since = -1.0;\\n" +
+                   "    if (command != CMD_LAND) gp_land_contact_since = -1.0;\n" +
                    idle_anchor, "separate LAND window freshness")
     # #956 H3: independent oracle observed native LAND ACK at t=87.744s
     # before any actual contact (touchdown only at t=88.416s). Tighten only
