@@ -124,6 +124,21 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
         source = prefix + before + body + after + suffix
     if source.count("GP_SEQUENCE_SAMPLE") != 1:
         raise RuntimeError("mandatory native observer not injected exactly once")
+    if scope == "all_active_primitives_headroom":
+        # Native H3 counterexample: LAND ACK at 87.744 while contact only at
+        # 88.416; unconfirmed-native-landing at 88.384. Without changing the
+        # oracle, require the existing physical contact latch before ACK.
+        land_before = (
+            "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\\n"
+            "            gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW) {"
+        )
+        land_after = land_before.replace(
+            "            gp_ground_since >= 0.0",
+            "            land_touchdown && gp_ground_since >= 0.0"
+        )
+        if source.count(land_before) != 1:
+            raise RuntimeError("route-only LAND contact assertion anchor changed")
+        source = source.replace(land_before, land_after, 1)
     path.write_text(source, encoding="utf-8")
     if scope == "all_active_primitives_headroom":
         inject_generated_headroom(path, scope)
