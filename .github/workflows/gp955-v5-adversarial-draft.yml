@@ -50,7 +50,7 @@ jobs:
           case "${{ matrix.cohort }}" in
             amplitude-middle) scenarios='env_02_allow env_03_edge env_04_edge' ;;
             amplitude-near-boundary) scenarios='env_05_edge env_05_refuse env_04_refuse' ;;
-            positive-vz) scenarios='env_05_vplus_allow env_05_vplus_refuse' ;;
+            positive-vz) scenarios='env_vplus_small_rebound env_vplus_large_rebound' ;;
             attempt-replay) scenarios='outcome_replay_h1' ;;
             *) exit 2 ;;
           esac
