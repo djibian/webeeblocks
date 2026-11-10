@@ -4,6 +4,8 @@ This checks a Webots scene *only*. It does not observe another robot's
 DistanceSensors, certify contacts/RESET, return READY, or authorize flight.
 The native evaluator must separately establish all live admission evidence.
 """
+from contextlib import nullcontext
+
 from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, _read_native_root_nodes, _read_scene_boxes, _root_inventory,
     _verify_box_measurements, _verify_scene_boxes,
@@ -98,26 +100,36 @@ def _read_vehicle(root_nodes, identifier, fields):
     return vehicle
 
 
+def _timed(snapshot, name, function, *args, **kwargs):
+    probe = snapshot.phase_probe
+    with probe.phase(name) if probe else nullcontext():
+        return function(*args, **kwargs)
+
+
 def _check_snapshot(supervisor, fields, snapshot):
     course, boxes = snapshot.course, snapshot.expected_boxes
     root = supervisor.getRoot()
     signature = read_scene_signature(root, snapshot.phase_probe)
-    children, count = _root_inventory(root)
+    children, count = _timed(snapshot, 'scene_root_inventory', _root_inventory, root)
     if snapshot.matches(signature, count):
         # PROTO internals are not represented by the VRML export. Resolve
         # and reinspect each opaque root and the dynamic evaluator every tick.
         opaque = [children.getMFNode(index) for index, _ in snapshot.opaque_roots]
         if all(node is not None and node.getId() == node_id
                for node, (_, node_id) in zip(opaque, snapshot.opaque_roots)):
-            vehicle = _read_vehicle(opaque, course.identifier, fields)
-            _read_scene_boxes(opaque, set(), course.route, fields, verified_model_edges=True)
-            _verify_box_measurements(boxes, snapshot.boxes, fields)
+            vehicle = _timed(snapshot, 'scene_vehicle_identity', _read_vehicle,
+                             opaque, course.identifier, fields)
+            _timed(snapshot, 'scene_collider_traversal', _read_scene_boxes,
+                   opaque, set(), course.route, fields, verified_model_edges=True)
+            _timed(snapshot, 'scene_collider_values', _verify_box_measurements,
+                   boxes, snapshot.boxes, fields)
             return vehicle
 
     root_nodes = [children.getMFNode(index) for index in range(count)]
     if any(node is None for node in root_nodes):
         raise RuntimeError('unreadable native root node')
-    vehicle = _read_vehicle(root_nodes, course.identifier, fields)
+    vehicle = _timed(snapshot, 'scene_vehicle_identity', _read_vehicle,
+                     root_nodes, course.identifier, fields)
 
     nested_proto = False
 
@@ -126,7 +138,8 @@ def _check_snapshot(supervisor, fields, snapshot):
         if depth and node.isProto():
             nested_proto = True
 
-    live_boxes = _verify_scene_boxes(course, boxes, root_nodes, fields, inspect)
+    live_boxes = _verify_scene_boxes(course, boxes, root_nodes, fields, inspect,
+                                     phase_probe=snapshot.phase_probe)
     opaque = tuple((index, node.getId()) for index, node in enumerate(root_nodes)
                    if node.isProto() or node.getDef() == 'GP_ROUTE_EVALUATOR')
     if (signature is None or nested_proto or
