@@ -539,6 +539,44 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # Same exact built engine, same GitHub Windows runner, same canonical course.
+      # Both lanes retain every historical check. B measures added native RPC
+      # overhead only; this cannot prove a production speedup or mission safety.
+      - name: Diagnose native compact collider inventory on same Windows host
+        continue-on-error: true
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = 'ci-artifacts/native-engine/Webots-R2025a-experimental'
+          $project = 'ci-artifacts/native-engine/WebeeBlocks-Grand-Prix-Windows'
+          $output = 'ci-artifacts/native-engine/compact-probe-30s'
+          python tools/grand_prix/native_engine/ci_30s_phase_windows.py --engine $engine --project $project --destination $output --assembly "${{ github.event.pull_request.head.sha }}" --max-wall-seconds 360 --compact
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Compact inventory UNPROVEN: preserve native logs, no authority switch.'
+            exit $LASTEXITCODE
+          }
+      - name: Compare same-engine Windows collider observation lanes
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = 'ci-artifacts/native-engine/compact-ab.json'
+          python tools/grand_prix/native_engine/compare_compact_ab_windows.py --baseline ci-artifacts/native-engine/phase-probe-30s/summary.json --compact ci-artifacts/native-engine/compact-probe-30s/summary.json --output $out
+          if ($LASTEXITCODE -ne 0) { Write-Warning 'Compact A/B UNPROVEN; see exact-head raw evidence.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-native-compact-ab-${{ github.event.pull_request.head.sha }}
+          path: |
+            ci-artifacts/native-engine/compact-probe-30s/
+            ci-artifacts/native-engine/compact-ab.json
+          if-no-files-found: warn
+          retention-days: 14
+
 
   gate:
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate' }}
