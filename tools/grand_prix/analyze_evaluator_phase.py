@@ -17,14 +17,16 @@ STEP_MS = 8
 WINDOW_STEPS = 125
 SCENE_CHILDREN = ('exportString', 'scene_root_inventory',
                   'scene_vehicle_identity', 'scene_collider_traversal',
-                  'scene_collider_values', 'collider_batch_python_consumption')
+                  'scene_collider_values', 'collider_batch_python_consumption',
+                  'compact_native_rpc_and_decode')
 EXCLUSIVE = ('scene_and_colliders', 'kinematics', 'flight_observation',
              'contacts', 'liveness_wire', 'mission_oracle',
              'protocol_request', 'protocol_model', 'protocol_channel')
 PHASES = ('tick_total', 'exportString', 'scene_and_colliders',
           'scene_root_inventory', 'scene_vehicle_identity',
           'scene_collider_traversal', 'scene_collider_values',
-          'collider_batch_python_consumption', 'scene_collider_total', 'scene_without_exportString',
+          'collider_batch_python_consumption', 'compact_native_rpc_and_decode',
+          'scene_collider_total', 'scene_without_exportString',
           'scene_exclusive_residual', 'kinematics', 'flight_observation',
           'contacts', 'liveness_wire', 'mission_oracle',
           'protocol_request', 'protocol_model', 'protocol_channel',
