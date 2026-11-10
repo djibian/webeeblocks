@@ -176,10 +176,14 @@ async function caseRouteVariant(which) {
     if (gate !== null) {
       await boundedMove('leg'+leg+'-approach-h', gate-.30);
       forward=gate-.30;
-      await step('leg'+leg+'-descend-h', () => backend.vertical('down',.30));
+      // H3 middle beam swept-radius negative at z=.5366 on run 42894493205:
+      // 0.09 m craft envelope touched the 0.62 m beam despite body clearance.
+      // Descend lower INSIDE the existing yellow H band; no oracle relaxation.
+      const descent = plan.count === 3 ? .36 : .30;
+      await step('leg'+leg+'-descend-h', () => backend.vertical('down',descent));
       await boundedMove('leg'+leg+'-cross-h', .60);
       forward+=.60;
-      await step('leg'+leg+'-climb-h', () => backend.vertical('up',.30));
+      await step('leg'+leg+'-climb-h', () => backend.vertical('up',descent));
     }
     const terminal= leg === 2 ? length-.70 : length-.02;
     const remaining=terminal-forward;
