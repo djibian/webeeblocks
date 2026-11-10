@@ -1,0 +1,70 @@
+name: GP H1-H3 native witness (Draft only)
+on:
+  pull_request:
+    branches: [ci/953-native-takeoff-r2025a]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/grand_prix/native_control_sequence_stimulus.js'
+      - 'tools/grand_prix/isolated_native_sequence.py'
+      - 'tools/grand_prix/run_control_sequence_native_r2025a.py'
+      - '.github/workflows/gp-h1-h3-draft.yml'
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    name: Native R2025a H1/H3 (not CI Gate)
+    if: ${{ github.event.pull_request.draft && github.head_ref == 'experiment/954-r2025a-envelope-route-matrix' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact diagnostic source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          node --check tools/grand_prix/native_control_sequence_stimulus.js
+          python3 -m py_compile tools/grand_prix/isolated_native_sequence.py tools/grand_prix/run_control_sequence_native_r2025a.py
+      - name: Native pinned R2025a H3 with unchanged oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/gp-h1-h3
+          bash tools/prepare_runtime_v2.sh
+          assets="$GITHUB_WORKSPACE/.ci-grand-prix-u-webots"
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git "$assets"
+          git -C "$assets" sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C "$assets" rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+          IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker pull "$IMAGE"
+          nodebin="$(command -v node)"
+          gitbin="$(command -v git)"
+          set +e
+          docker run --rm --init --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$assets/projects:/usr/local/webots/projects:ro" \
+            -v "$nodebin:/usr/local/bin/node:ro" -v "$gitbin:/usr/local/bin/git:ro" \
+            -w /workspace "$IMAGE" -lc '
+             set -euo pipefail
+             git config --global --add safe.directory /workspace
+             python3 -u tools/grand_prix/run_control_sequence_native_r2025a.py \
+               --scope all_active_primitives_headroom --scenarios route_h3 \
+               --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots \
+               --output ci-artifacts/gp-h1-h3/native
+            ' 2>&1 | tee ci-artifacts/gp-h1-h3/run.log
+          result="${PIPESTATUS[0]}"
+          set -e
+          echo "$result" > ci-artifacts/gp-h1-h3/exit.txt
+          exit "$result"
+      - name: Preserve positive and negative native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-h1-h3-r2025a-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/gp-h1-h3/
+          if-no-files-found: warn
