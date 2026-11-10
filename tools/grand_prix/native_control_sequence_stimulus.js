@@ -89,18 +89,29 @@ async function caseDeadline() {
   let elapsed = await backend.readElapsedTime();
   log('deadline-start-elapsed', elapsed);
   const until = Date.now() + 570000;
+  let deadlineRefused = false;
   let count=0;
   while (Date.now()<until && elapsed < 214) {
     await sleep(200);
     try { elapsed = await backend.readElapsedTime(); }
     catch(e) {
       log('elapsed-refused-after-deadline', {message:String(e), code:e.code||null});
+      if (e.code !== 'TIME_LIMIT' || elapsed < 209)
+        throw e;
+      deadlineRefused = true;
       break;
     }
     if (++count % 40 === 0) log('deadline-progress-elapsed', elapsed);
   }
   log('deadline-final-elapsed', elapsed);
-  if (elapsed < 210) throw Error('independent 210s simulated deadline was not reached');
+  if (elapsed < 210 && !deadlineRefused)
+    throw Error('independent 210s simulated deadline was not reached');
+  if (deadlineRefused) {
+    // Give the independent watchdog a native descent/touchdown opportunity.
+    // The runner MUST separately verify GP_U_DEADLINE and LAND_TOUCHDOWN.
+    await sleep(8000);
+  }
+  log('deadline-observation-completed', {elapsed, deadlineRefused});
   // Deliberately NO explicit LAND: the independent native watchdog must own it.
 }
 socket.onopen = async () => {
