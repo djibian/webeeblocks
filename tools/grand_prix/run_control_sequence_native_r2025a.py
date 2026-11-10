@@ -51,7 +51,8 @@ def decode_samples(lines: list[str]) -> list[dict]:
         row["cmd"] = pairs["cmd"]
         row["saturated"] = int(pairs["saturated"])
         row["airborne"] = int(pairs["airborne"])
-        if row["cmd"] not in MODES or row["saturated"] not in (0, 1):
+        row["ground_contact"] = int(pairs["ground_contact"])
+        if row["cmd"] not in MODES or row["saturated"] not in (0, 1) or row["ground_contact"] not in (-1,0,1):
             raise ValueError("malformed native mode/saturation")
         if not all(__import__("math").isfinite(value) for key, value in row.items()
                    if isinstance(value, float)):
@@ -88,6 +89,8 @@ def metrics(samples: list[dict]) -> dict:
         "max_abs_motor_rad_s": max(abs(row[k]) for row in samples
                                  for k in ("m1", "m2", "m3", "m4")),
         "saturated_samples": sum(row["saturated"] for row in samples),
+        "observed_ground_contact_samples": sum(row["ground_contact"]==1 for row in samples),
+        "observed_contact_loss_samples": sum(row["ground_contact"]==0 for row in samples),
         "max_sampling_gap_s": round(max(
             [b["t"] - a["t"] for a, b in zip(samples, samples[1:])] or [0]), 6),
         "phase_transitions": transitions,
