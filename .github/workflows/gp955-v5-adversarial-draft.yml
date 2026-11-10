@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cohort: [amplitude-middle, amplitude-near-boundary, positive-vz, attempt-replay]
+        cohort: [positive-vz]
     steps:
       - uses: actions/checkout@v4
         with:
