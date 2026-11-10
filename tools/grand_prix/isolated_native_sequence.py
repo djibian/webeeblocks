@@ -129,7 +129,7 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
         # 88.416; unconfirmed-native-landing at 88.384. Without changing the
         # oracle, require the existing physical contact latch before ACK.
         land_before = (
-            "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\\n"
+            "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\n"
             "            gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW) {"
         )
         land_after = land_before.replace(
