@@ -40,7 +40,7 @@ def load_launcher(project):
     return module
 
 
-def run(engine, project, destination, *, max_wall_seconds, assembly):
+def run(engine, project, destination, *, max_wall_seconds, assembly, compact=False):
     if platform.system() != 'Windows' or os.environ.get('GITHUB_ACTIONS') != 'true':
         raise ValueError('automated native Windows GitHub runner required')
     engine = engine.resolve(strict=True)
@@ -51,6 +51,9 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
               'display': 'disabled', 'visual_acceptance': 'UNPROVEN',
               'physical_timestep_ms': 8, 'required_simulated_ms': 30000,
               'scenario': 'route-5 normal pilot and evaluator, no Blockly submission',
+              'compact_enabled': compact,
+              'host': dict(platform=platform.platform(), machine=platform.machine(),
+                           cpu=platform.processor(), cpu_count=os.cpu_count()),
               'assembly': assembly}
     try:
         launcher = load_launcher(project)
@@ -68,7 +71,8 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
         launcher.require_robot_window_archive_integrity()
         launcher.require_project_code_archive_integrity()
         executable = engine / 'msys64/mingw64/bin/webots-bin.exe'
-        report.update(engine_sha256=sha256(executable), world_sha256=sha256(world))
+        report.update(engine_sha256=sha256(executable), world_sha256=sha256(world),
+                      controller_dll_sha256=sha256(engine / 'lib/controller/Controller.dll'))
         system = Path(os.environ['SYSTEMROOT'])
         env = dict(os.environ)
         env['PATH'] = os.pathsep.join(str(p) for p in (
@@ -80,6 +84,7 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                    WEBEEBLOCKS_GP_STEP_WALL_PROBE='1',
                    WEBEEBLOCKS_GP_EVALUATOR_PHASE_PROBE='1',
                    WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW='1',
+                   WEBEEBLOCKS_GP_COMPACT_COLLIDER_SHADOW='1' if compact else '0',
                    WEBOTS_RENDER_TRACE='0', WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100',
                    WEBOTS_EXPERIMENT_RENDER_DUTY='0')
         cmd = [str(executable), '--batch', '--mode=fast', '--no-rendering',
@@ -138,6 +143,28 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                     if observations < 3000 or parity != observations or (
                             batch_accept != observations or historical_accept != observations):
                         raise RuntimeError('native grouped-collider shadow parity is unproven')
+                    if compact:
+                        native_rows = [json.loads(line[len('GP_COMPACT_COLLIDER_V1 '):])
+                                       for line in complete.splitlines()
+                                       if line.startswith('GP_COMPACT_COLLIDER_V1 ')]
+                        keys = ('samples', 'canonical_parity', 'canonical_accepted',
+                                'historical_accepted', 'unknown_coverage_samples',
+                                'root_structure_changes', 'decode_errors',
+                                'payload_bytes', 'native_production_ns',
+                                'native_serialization_ns', 'native_rpc_total_ns',
+                                'python_consumption_ns',
+                                'transfer_plus_controller_dispatch_ns')
+                        totals = {key: sum(row[key] for row in native_rows)
+                                  for key in keys}
+                        report['compact_colliders'] = dict(
+                            complete_windows=len(native_rows), **totals,
+                            limitation=('Canonical parity is not whole-scene safety parity. '
+                                        'Transport residual includes scheduling and C decoding; '
+                                        'Floor, PROTO and non-Box need unchanged authority.'))
+                        if (totals['samples'] < 3000 or totals['decode_errors'] or
+                                totals['canonical_parity'] != totals['samples'] or
+                                totals['canonical_accepted'] != totals['historical_accepted']):
+                            raise RuntimeError('compact native collider parity is unproven')
                     report.update(status='MEASURED_ONLY', evaluator=result,
                                   native_complete_windows=30)
                     break
@@ -173,11 +200,13 @@ def main():
         p.add_argument('--' + name, required=True, type=Path)
     p.add_argument('--assembly', required=True)
     p.add_argument('--max-wall-seconds', type=int, default=360)
+    p.add_argument('--compact', action='store_true', help='read-only native compact inventory lane')
     args = p.parse_args()
     if not 30 <= args.max_wall_seconds <= 600:
         p.error('unsupported diagnostic wall budget')
     return run(args.engine, args.project, args.destination,
-               assembly=args.assembly, max_wall_seconds=args.max_wall_seconds)
+               assembly=args.assembly, max_wall_seconds=args.max_wall_seconds,
+               compact=args.compact)
 
 
 if __name__ == '__main__':
