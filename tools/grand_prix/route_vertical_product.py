@@ -89,6 +89,10 @@ _COLLECTIVE_COMPENSATION = """      /* Native R2025a route-only vertical trim sh
 
 def compose_route_vertical_product(source: str) -> str:
     """Apply only after #952 route TAKEOFF composition, never to shared U."""
+    if ("GP_CEILING_PREFLIGHT_V1 command=" in source or
+            "gp_route_upward_headroom(" in source or
+            "const double corrected_u = 55.368085898" in source):
+        raise RuntimeError("duplicate route-only vertical control injection")
     required = (
         '#include "../gp_route_takeoff_profile.h"',
         "gp_route_takeoff_next(&gp_route_takeoff,",
