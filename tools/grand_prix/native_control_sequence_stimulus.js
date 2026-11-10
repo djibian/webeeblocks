@@ -49,14 +49,16 @@ async function casePrimitives() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
   await step('wait-0.5', () => backend.wait(.5));
   await step('move-forward-0.12', () => backend.move('forward', .12));
+  await step('move-backward-0.12', () => backend.move('back', .12));
   await step('vertical-up-0.10', () => backend.vertical('up', .10));
   await step('turn-15', () => backend.turn(15));
+  await step('turn-minus-15', () => backend.turn(-15));
   await step('vertical-down-0.10', () => backend.vertical('down', .10));
   await step('wait-0.5-after', () => backend.wait(.5));
-  // Non-terminal position is not the Grand Prix mission landing zone.
-  // A mission failure is recorded, never recast as a course success.
-  await step('land-away-from-goal', () => backend.land());
-  await step('strict-reset', () => backend.resetSimulation());
+  // Return to the canonical START landing exception. The mission's end-point
+  // remains distinct: a successful LAND is NOT an achieved Grand Prix.
+  await step('land-at-start', () => backend.land());
+  await step('strict-reset-after-land', () => backend.resetSimulation());
   await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
   await step('stop-after-reset-takeoff', () => backend.stopSimulation());
 }
