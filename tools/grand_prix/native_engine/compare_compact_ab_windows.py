@@ -75,6 +75,7 @@ def main():
         result = compare(a, b)
     except Exception as exc:
         result = {'schema': 1, 'status': 'UNPROVEN', 'error': type(exc).__name__ + ': ' + str(exc)}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
     return 0 if result['status'] == 'MEASURED_ONLY' else 2
 
