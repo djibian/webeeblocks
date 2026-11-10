@@ -1,6 +1,7 @@
 """Conservative R2025a bulk read of the live route scene graph."""
 import re
 import time
+import os
 
 from tools.grand_prix.native_collider_contract_v2 import canonical_native_boxes
 
@@ -18,7 +19,7 @@ _EVALUATOR_DYNAMIC = re.compile(
 _USE = re.compile(r'\bUSE\s+\S')
 
 
-def read_scene_signature(root, probe=None):
+def read_scene_signature(root, probe=None, observer=None):
     """Remove only the root robots' live pose, velocities and protocol strings.
 
     Other fields, root entries, node edges and names remain byte-for-byte.
@@ -34,6 +35,8 @@ def read_scene_signature(root, probe=None):
     finally:
         if start_ns is not None:
             probe.record('exportString', time.perf_counter_ns() - start_ns)
+    if observer is not None:
+        observer(scene)  # diagnostic only; the Supervisor authority remains unchanged
     if (type(scene) is not str or len(scene) > 256 * 1024 or
             not scene.startswith('Group {\n  children [\n') or
             not scene.endswith('\n  ]\n}') or scene.count(_VEHICLE) != 1 or
@@ -64,6 +67,10 @@ class NativeSceneSnapshot:
         self.course = course
         self.phase_probe = phase_probe
         self.expected_boxes = canonical_native_boxes(course)
+        self.batch_shadow = None
+        if phase_probe is not None and os.environ.get('WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW') == '1':
+            from tools.grand_prix.native_collider_batch_shadow_v1 import CanonicalColliderShadow
+            self.batch_shadow = CanonicalColliderShadow(self.expected_boxes, phase_probe)
         self.signature = None
         self.root_count = None
         self.boxes = None
