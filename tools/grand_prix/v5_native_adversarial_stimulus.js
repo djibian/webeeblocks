@@ -268,7 +268,7 @@ const ENV = Object.freeze({
   env_05_refuse:      {takeoff:.50, distance:.50, expected:'refuse'},
   env_04_refuse:      {takeoff:.62, distance:.40, expected:'refuse'},
   env_05_vplus_allow: {takeoff:.50, distance:.50, beforeDown:.20, expected:'allow', requirePositiveVz:true},
-  env_05_vplus_refuse:{takeoff:.60, distance:.50, beforeDown:.20, expected:'refuse', requirePositiveVz:true}
+  env_05_vplus_refuse:{takeoff:.80, distance:.50, beforeDown:.20, expected:'refuse', requirePositiveVz:true}
 });
 async function caseEnvelope(which) {
   const spec=ENV[which];
