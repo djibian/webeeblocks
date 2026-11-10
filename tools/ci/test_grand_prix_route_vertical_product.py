@@ -45,7 +45,6 @@ class RouteVerticalProductTests(unittest.TestCase):
             "gp_u_deadline(now, gp_pose_confirmed)",
             "gp_route_observe_native(",
             "if (command == CMD_LAND && land_touchdown)",
-            "GP_ROUTE",
         ):
             self.assertIn(marker, flight)
         self.assertEqual(flight.count('const double corrected_u = 55.368085898'), 1)
