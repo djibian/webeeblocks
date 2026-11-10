@@ -32,7 +32,7 @@ from tools.grand_prix.isolated_native_sequence import SCOPES, instrument_generat
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_large_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
+SCENARIOS = ("route_h1", "route_h3", "route_h3_contact", "route_h3_low", "primitives", "ceiling", "ceiling_safe_ascent", "ceiling_large_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "x", "y", "yaw", "z", "vz", "ref", "target", "u", "i",
@@ -120,7 +120,9 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
     out = root / scope / scenario
     out.mkdir(parents=True, exist_ok=False)
     world = ROOT / "worlds" / ("ci_gp_sequence_" + uuid.uuid4().hex[:12] + ".wbt")
-    scene = active_course_world(reference_course(COURSE_INDEX)).replace(
+    index = 1 if scenario == "route_h1" else 9 if scenario in ("route_h3", "route_h3_contact", "route_h3_low") else COURSE_INDEX
+    course = reference_course(index)
+    scene = active_course_world(course).replace(
         "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/", "webots://")
     world.write_text(scene)
     (out / "world.wbt").write_text(scene)
@@ -130,6 +132,7 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
     node_log = out / "node.log"
     events_log = out / "events.jsonl"
     status = {"scope":scope, "scenario":scenario, "source_sha":sha,
+              "course_index":index, "course_identifier":course.identifier,
               "world_sha256":sha256(out / "world.wbt"),
               "controller_source": "generated_only_route_flight",
               "oracle": "production_unmodified", "status":"INCOMPLETE"}
@@ -252,6 +255,34 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                     "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")) and (
                         not revocations or status["post_landing_observation_revocation"])
             status["course_lh_oracle_achieved"] = bool(completed)
+        if scenario in ("route_h1", "route_h3"):
+            achieved = any(e.get("kind")=="route-native-outcome" and
+                           isinstance(e.get("value"),dict) and
+                           e["value"].get("status")=="achieved" for e in events)
+            completed = completed and achieved and all(
+                marker in native_text for marker in (
+                "GP_U_LAND_GROUND_READY ",
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1"))
+            status["course_lh_oracle_achieved"] = bool(completed)
+            status["post_landing_revocation"] = [
+                line[-400:] for line in lines if "GP_ROUTE_EVALUATOR_CLOSED" in line]
+        if scenario in ("route_h3_contact", "route_h3_low"):
+            expected = "envelope-contact" if scenario == "route_h3_contact" else "low-outside-zone"
+            status["negative_expected_reason"] = expected
+            status["negative_actual_reasons"] = [line[-400:] for line in lines
+                if "GP_ROUTE_EVALUATOR_CLOSED" in line]
+            native_refusal = any(
+                "GP_ROUTE_EVALUATOR_CLOSED" in line and
+                "reason="+expected in line for line in lines)
+            forced_land = all(marker in native_text for marker in (
+                "GP_U_DEADLINE ", "GP_U_LAND_GROUND_READY ",
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1"))
+            client_refusal = any(e.get("kind")=="negative-native-refusal"
+                and isinstance(e.get("value"),dict)
+                and e["value"].get("code") in ("TIME_LIMIT", "UNSAFE_OR_TIMEOUT")
+                for e in events)
+            completed = completed and native_refusal and forced_land and client_refusal
+            status["oracle_negative_expected"] = bool(completed)
         if scenario == "reset":
             completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
                 and e.get("value")=="LANDING_UNCONFIRMED" for e in events)
