@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_takeoff', 'route_lh', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_large_ascent', 'ceiling_takeoff', 'route_lh', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -77,6 +77,20 @@ async function caseCeiling() {
     // TIME_LIMIT means the oracle observed physical ceiling breach.
     throw error;
   }
+}
+async function caseLargeAscent() {
+  await step('takeoff-0.8', () => backend.takeoff(.8));
+  let denied = false;
+  try { await step('vertical-up-0.30-must-refuse', () => backend.vertical('up',.30)); }
+  catch (e) {
+    if (e && e.code === 'VERTICAL_LIMIT') {
+      log('preventive-large-vertical-refusal',e.code); denied = true;
+    } else throw e;
+  }
+  if (!denied) throw Error('dangerous 0.30m ascent was accepted');
+  await step('stop-after-large-vertical-refusal', () => backend.stopSimulation());
+  await sleep(10000);
+  log('large-ascent-land-window',{wall_ms:10000});
 }
 async function caseSafeAscent() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
@@ -203,6 +217,7 @@ socket.onopen = async () => {
     if (scenario === 'primitives') await casePrimitives();
     else if (scenario === 'ceiling') await caseCeiling();
     else if (scenario === 'ceiling_safe_ascent') await caseSafeAscent();
+    else if (scenario === 'ceiling_large_ascent') await caseLargeAscent();
     else if (scenario === 'ceiling_takeoff') await caseTakeoffCeiling();
     else if (scenario === 'route_lh') await caseRouteLH();
     else if (scenario === 'stop') await caseStop();
