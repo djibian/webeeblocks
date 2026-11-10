@@ -94,9 +94,11 @@ def run(engine, project, destination, *, max_wall_seconds, assembly):
                         raise RuntimeError('Webots exited before the 30-second observation')
                     time.sleep(1.0)
                     observed = log.read_text(encoding='utf-8', errors='replace')
-                    if observed.count(PREFIX) < 30:
+                    # Do not parse a partially written JSON line while Webots runs.
+                    complete = observed.rsplit('\n', 1)[0] if '\n' in observed else ''
+                    if complete.count(PREFIX) < 30:
                         continue
-                    raw = parse_windows(observed.splitlines())
+                    raw = parse_windows(complete.splitlines())
                     selected = raw[:30]
                     result = analyze(selected, course, minimum_sim_ms=30000)
                     if result['status'] != 'MEASURED_ONLY':
