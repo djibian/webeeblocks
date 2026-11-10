@@ -232,15 +232,25 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                 "leg2-climb-after-h", "leg2-approach-landing",
                 "terminal-left-offset-0.50", "terminal-low-landing-zone",
                 "route-land", "oracle-complete", "route-outcome")
+            land_line = next((i for i,line in enumerate(lines)
+                if "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in line), -1)
+            revocations = [i for i,line in enumerate(lines)
+                if "GP_ROUTE_EVALUATOR_CLOSED" in line]
+            # A genuine STATE achieved response from the ordinary backend
+            # is the authoritative student-visible result. The evaluator may
+            # revoke observation after that positive result has been latched;
+            # retain it explicitly, never invent a log line that does not exist.
+            status["post_landing_observation_revocation"] = (
+                bool(revocations) and land_line >= 0 and all(
+                    i > land_line for i in revocations))
             completed = completed and tuple(reached)==required and any(
                 e.get("kind")=="route-native-outcome" and
                 isinstance(e.get("value"),dict) and
                 e["value"].get("status")=="achieved" for e in events) and all(
                 marker in native_text for marker in (
                     "GP_U_LAND_GROUND_READY ",
-                    "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND ",
-                    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1")) and not any(
-                "GP_ROUTE_EVALUATOR_CLOSED" in line for line in lines)
+                    "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")) and (
+                        not revocations or status["post_landing_observation_revocation"])
             status["course_lh_oracle_achieved"] = bool(completed)
         if scenario == "reset":
             completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
