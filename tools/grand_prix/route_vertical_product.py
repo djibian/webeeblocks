@@ -182,12 +182,17 @@ def compose_route_vertical_product(source: str) -> str:
                    "common collective")
     # Physical contact witness is emitted at the end of the actual control
     # cycle, including unpowered settling after a transient contact.
-    phase_tail = (
-        "    } else {\\n"
-        "      stop_motors(m1, m2, m3, m4);\\n"
-        "    }\\n\\n"
-        "    previous_time = now;"
-    )
+    phase_tail = """    } else {
+      stop_motors(m1, m2, m3, m4);
+    }
+
+    previous_time = now;
+    previous_x = x;
+    previous_y = y;
+    previous_z = z;
+  }
+
+  stop_motors(m1, m2, m3, m4);"""
     source = _once(source, phase_tail,
                    phase_tail.replace("    previous_time = now;",
                                       _PRODUCT_TRACE + "    previous_time = now;"),
