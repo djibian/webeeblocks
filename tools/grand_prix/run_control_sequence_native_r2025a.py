@@ -32,7 +32,7 @@ from tools.grand_prix.isolated_native_sequence import SCOPES, instrument_generat
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
+SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_large_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "x", "y", "yaw", "z", "vz", "ref", "target", "u", "i",
@@ -255,7 +255,7 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
         if scenario == "reset":
             completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
                 and e.get("value")=="LANDING_UNCONFIRMED" for e in events)
-        if scenario in ("ceiling", "ceiling_safe_ascent", "ceiling_takeoff"):
+        if scenario in ("ceiling", "ceiling_safe_ascent", "ceiling_large_ascent", "ceiling_takeoff"):
             ceiling = samples[0]["z"] + 1.15 if samples else 1.165
             # This exact world has the vehicle's physical origin near .015 m.
             # Read the native world witness and require an unviolated absolute
@@ -279,6 +279,12 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                     isinstance(e.get("value"),dict) and
                     e["value"].get("name") == "vertical-safe-up-0.10"
                     for e in events)
+            elif scenario == "ceiling_large_ascent":
+                completed = completed and any(
+                    e.get("kind") == "preventive-large-vertical-refusal" and
+                    e.get("value") == "VERTICAL_LIMIT" for e in events) and any(
+                    "GP_CEILING_PREFLIGHT_V1 command=VERTICAL" in line
+                    for line in lines)
             else:
                 completed = completed and any(
                     e.get("kind") == "preventive-takeoff-refusal" and
