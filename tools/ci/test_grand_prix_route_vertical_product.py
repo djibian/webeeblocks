@@ -37,8 +37,10 @@ class RouteVerticalProductTests(unittest.TestCase):
                          original_sha, "shared original C must not be changed")
         self.assertNotIn("GP_CEILING_PREFLIGHT_V1", unchanged)
         self.assertNotIn("gp_route_upward_headroom(", unchanged)
-        self.assertNotIn("land_touchdown && gp_ground_since", unchanged)
-        self.assertIn("land_touchdown && gp_ground_since", flight)
+        self.assertNotIn("gp_land_contact_since", unchanged)
+        self.assertIn("land_touchdown && gp_land_contact_since >= 0.0", flight)
+        self.assertIn("now - gp_land_contact_since >= STOP_WINDOW", flight)
+        self.assertIn("if (!gp_contact_now) gp_land_contact_since = -1.0", flight)
         for marker in (
             "GP_CEILING_PREFLIGHT_V1 command=TAKEOFF",
             "GP_CEILING_PREFLIGHT_V1 command=VERTICAL",
