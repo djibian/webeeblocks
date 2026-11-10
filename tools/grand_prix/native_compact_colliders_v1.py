@@ -149,6 +149,8 @@ class NativeCompactColliderShadow:
         self.last = None
         self.last_root_hash = None
         self.last_token = None
+        self.first_incarnation = None
+        self.mutation_done = False
         home = Path(os.environ['WEBOTS_HOME'])
         dll = home / ('lib/controller/Controller.dll' if os.name == 'nt' else 'lib/controller/libController.so')
         self.native = ctypes.CDLL(str(dll))
@@ -177,6 +179,25 @@ class NativeCompactColliderShadow:
             root_hash = frame['roots_hash']
             structure_changed = self.last_root_hash is not None and self.last_root_hash != root_hash
             token = (frame['incarnation'], frame['revision'])
+            if self.first_incarnation is None:
+                self.first_incarnation = token[0]
+            if (not self.mutation_done and
+                    os.environ.get('WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE') == '1' and
+                    frame['clock_ms'] >= 400):
+                self.mutation_done = True
+                try:
+                    from tools.grand_prix.native_compact_mutation_probe_v2 import run
+                    result = run(supervisor, self.native, self.expected,
+                                 self.route_rectangles)
+                    self.probe.sink('GP_COMPACT_MUTATION_V2 ' +
+                                    json.dumps(result, separators=(',', ':'), sort_keys=True))
+                except Exception as mutation_error:
+                    self.probe.sink('GP_COMPACT_MUTATION_V2 ' + json.dumps({
+                        'schema': 2, 'status': 'UNPROVEN',
+                        'reason': type(mutation_error).__name__ + ': ' + str(mutation_error),
+                        'clock_ms': frame['clock_ms'],
+                    }, separators=(',', ':'), sort_keys=True))
+                    raise
             incarnation_changed = self.last_token is not None and token[0] != self.last_token[0]
             revision_changed = self.last_token is not None and token[1] != self.last_token[1]
             self.incarnation_changes += int(incarnation_changed)
@@ -223,6 +244,9 @@ class NativeCompactColliderShadow:
                 'proto_internal_records': self.proto_internal_total,
                 'incarnation_changes': self.incarnation_changes,
                 'revision_changes': self.revision_changes,
+                'first_incarnation': self.first_incarnation,
+                'last_incarnation': self.last_token[0] if self.last_token else None,
+                'last_revision': self.last_token[1] if self.last_token else None,
                 'whole_scene_qualified': False,
                 'payload_bytes': self.bytes_total,
                 'native_production_ns': self.producer_ns,
