@@ -160,3 +160,127 @@ de livraison, de vol matériel, de merge ou de GO V5 n'en découle.
 les mondes, SHA binaires/sources/évaluateur, logs pilote/WWI,
 traces CSV à 32 ms, témoins contacts, évènements de refus et
 résumés, pour reconstruction indépendante des tableaux.
+
+
+## 6. Qualification native multi-primitives — 10 novembre 2026
+
+**État : preuves Webots R2025a réellement exécutées, pas de qualification produit
+ni de GO V5.** Toutes les valeurs suivantes sont extraites des traces de
+contrôleur/évaluateur de production, en physique 8 ms, commande 32 ms,
+world `reference_course(5)` à octets identiques. Les patchs affectent
+**uniquement le C de route généré à la compilation** dans la PR Draft
+diagnostique #954 ; jamais le PID partagé, le moteur, l'évaluateur,
+les oracles ou le backend physique.
+
+- Témoin compensation TAKEOFF/IDLE : CI
+  [42851205014](https://github.com/djibian/webeeblocks/actions/runs/42851205014),
+  SHA `7314f03c8fc8563f391177ae1040921ca17f68cf`,
+  [archives brutes](https://github.com/djibian/webeeblocks/actions/runs/42851205014/artifacts/13781162035).
+- Compensation identique étendue aux phases motorisées
+  TAKEOFF, IDLE en vol, WAIT, MOVE, VERTICAL, TURN, LAND :
+  CI [42853379059](https://github.com/djibian/webeeblocks/actions/runs/42853379059),
+  SHA `0ae80ef73645e9240b767601ffb83a936d8065e6`,
+  [archives brutes](https://github.com/djibian/webeeblocks/actions/runs/42853379059/artifacts/13782850286).
+- Extension avec, en plus, **gouverneur #952 réinitialisé sur VERTICAL
+  montant** : CI
+  [42856305849](https://github.com/djibian/webeeblocks/actions/runs/42856305849),
+  SHA `b3c28f83be0a8682660c60dc7b4b5f7545f45c7c`,
+  [archives brutes](https://github.com/djibian/webeeblocks/actions/runs/42856305849/artifacts/13783296641).
+
+### 6.1 Mesures A/B native : scénario de primitives
+
+Stimulus normal WWI : TAKEOFF(0,8) → WAIT(0,5) → MOVE(forward,0,12)
+→ VERTICAL(up,0,10) → TURN(15°) → VERTICAL(down,0,10)
+→ WAIT(0,5), puis LAND volontairement **hors de la zone terminale**.
+Le LAND est donc **censé être refusé par l'oracle de mission** ;
+son refus n'atteste pas une erreur du PID ni une fin de mission réussie.
+
+| Observé | TAKEOFF/IDLE seulement | Compensation toutes phases | Toutes phases + gouverneur VERTICAL montant |
+|---|---:|---:|---:|
+| Échantillons natifs à 32 ms | 548 | 484 | 502 |
+| Altitude minimale après TAKEOFF, m | 0,153 | 0,829 | voir CSV natif du run |
+| Vitesse verticale absolue max de la séquence, m/s | 0,717 | 0,530 | 0,523 |
+| Saut max collectif entre modes, hors LAND, unités | 15,941 | 1,458 | voir transitions natives |
+| Échantillons avec saturation moteurs brute | 1 | 0 | 0 |
+| Dernière primitive acquittée | MOVE | WAIT après TURN et VERTICAL descente | WAIT après TURN et VERTICAL descente |
+| Autorité finale | low-outside-zone | low-outside-zone au LAND hors cible | low-outside-zone au LAND hors cible |
+
+Le témoin **perd la sustentation dès IDLE→WAIT** (commande
+collective +15,94 unités et z jusqu'à 0,153 m, vz −0,717 m/s),
+puis passe sous le gabarit de vol bas hors zone et est révoqué.
+La compensation étendue stabilise la succession des primitives ;
+le témoin et le nouveau bras restent dans le **même monde et les
+mêmes protections**.
+
+### 6.2 Tests négatifs indépendants
+
+- Près du plafond natif `origin_z+1.15 = 1.165000 m`,
+  TAKEOFF(1,0) puis VERTICAL(up,0,10) :
+  *bras TAKEOFF/IDLE*, fermeture à t=16,176 s, z=1,166515 m,
+  vz=+0,234873 m/s ;
+  *bras toutes phases*, fermeture à t=9,800 s,
+  z=1,165090 m, vz=+0,188343 m/s ;
+  *bras toutes phases et gouverneur montant*, fermeture à t=10,032 s,
+  z=1,165627 m, vz=+0,165941 m/s.
+  Les trois refus `altitude` et le LAND de sécurité sont conservés ;
+  le dernier bras ne prouve donc **pas** qu'un gouverneur suffit.
+  Les altitudes max après refus sont respectivement 1,1954 / 1,2238 /
+  1,2141 m (mesures censurées par le contexte de reprise de contrôle).
+- STOP normal durant une opération MOVE : la requête STOP est
+  acquittée ; l'évaluateur révoque l'ancienne observation native et
+  le LAND autonome s'active, pas de faux succès de mission.
+  Le maximum de |vz| relevé est 1,203 m/s (témoin) contre
+  0,521 m/s (compensation étendue), sans saturation dans ces deux traces.
+- **LAND indépendant 210000 ms** : sans aucune requête LAND, le
+  contrôleur émet `GP_U_DEADLINE time_ms=213136 command=LAND`
+  lorsque la mission commencée à 3,136 s atteint précisément 210 s.
+  Le témoin montre `TRACE LAND_TOUCHDOWN time=215.824`.
+  Vitesse verticale max absolue : 1,306 m/s (témoin) contre
+  0,535 m/s (compensation étendue). Le cas est un **échec contrôlé
+  par garde**, jamais une mission achevée.
+- RESET alors que le drone est en vol stationnaire : la variante avec
+  gouverneur montant reçoit le refus natif `LANDING_UNCONFIRMED`
+  après TAKEOFF(0,8) ; aucun RESET fictif, aucune admission post-RESET
+  n'est fabriquée.
+- Contrat de plafond à clarifier avant toute intégration : le pilote
+  accepte aujourd'hui une **cible** VERTICAL jusqu'à
+  `origin_z+1.50`, alors que le Supervisor indépendant clôt tout
+  vol au-dessus de `origin_z+1.15`. Ne changer **ni** le plafond,
+  **ni** les oracles pour rendre la trajectoire acceptable.
+
+### 6.3 Directe vs « forme Bitcraze » : signaux distincts
+
+Sur les traces natives appariées à la même grille de temps et au même
+monde des essais initiaux, les deux références ont des **binaires
+différents**, des consignes différentes et des commandes moteur
+différentes. À 0,5/0,8/1,0 m, la différence maximale `z_ref`
+est respectivement **0,50/0,80/1,00 m** et celle de la commande
+collective **5,651/8,978/10,957 unités**. À 0,8 m,
+l'écart maximal `z` atteint 0,06290 m et celui de `vz`
+0,17143 m/s. Des temps d'ACK et refus semblables **ne prouvent
+aucune équivalence des lois de commande**.
+
+### 6.4 Décision pour revue V5
+
+**La correction exclusivement TAKEOFF/IDLE est écartée**
+comme solution polyvalente, malgré les trois décollages initiaux
+réussis : le changement de phase vers WAIT casse la sustentation.
+
+**L'extension de la correction collective à toutes les phases
+motorisées est le meilleur candidat minimal établi** par A/B natif.
+Ne pas ajouter d'emblée de nouvel ordonnanceur, d'API Blockly,
+de modèle EKF ou de moteur partagé. LAND au contact garde
+ses moteurs nuls : pas de maintien artificiel de la poussée au sol.
+
+**Aucun des candidats n'est intégrable aujourd'hui** : même avec
+gouverneur VERTICAL montant, le plafond est franchi. Une qualification
+ultérieure doit démontrer une admission/refus *anticipé et cohérent*
+des cibles VERTICAL proches de l'autorité d'altitude, et une
+continuité suffisante sur toutes les phases, sans dupliquer ni
+affaiblir l'oracle. Le LAND nominal **au but** et le RESET nominal
+**depuis un sol confirmé** restent à qualifier séparément.
+
+CI diagnostique globale rouge (échecs natifs conservés), aucune
+fusion de #952/#953/#954, aucun changement du moteur partagé ni du
+backend physique. Le feu vert produit et le GO V5 nécessitent une
+revue indépendante avec preuves exact-HEAD et les non-régressions.
