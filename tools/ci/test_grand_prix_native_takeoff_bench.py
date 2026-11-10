@@ -94,6 +94,7 @@ class TestNativeRunnerIsolation(unittest.TestCase):
     def test_backend_admission_not_bypassed(self):
         self.assertIn("await backend.waitUntilReady()", self.node)
         self.assertIn("await backend.takeoff(height)", self.node)
+        self.assertIn("simulationAdmission: true", self.node)
         self.assertNotIn("backend._request(['TAKEOFF'", self.node)
         self.assertNotIn("robot:Crazyflie WebeeBlocks:WEBEEBLOCKS_RUNTIME_V2 REQUEST", self.node)
         self.assertNotIn("completeActivityMission", self.node)
