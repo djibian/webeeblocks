@@ -95,9 +95,16 @@ def compile_production(home: Path, variant: str) -> dict:
     if not binary.is_file() or not source.is_file():
         raise RuntimeError("native production flight executable/source missing")
     text = source.read_text()
-    for marker in ("gp_route_takeoff_trace_sample(now", "gp_route_takeoff_trace_begin",
-                   "gp_u_deadline(now, gp_pose_confirmed)", "gp_u_reset_complete()",
-                   "gp_route_takeoff_next(&gp_route_takeoff"):
+    markers = ["gp_route_takeoff_trace_sample(now", "gp_route_takeoff_trace_begin",
+               "gp_u_deadline(now, gp_pose_confirmed)", "gp_u_reset_complete()"]
+    if variant in ("baseline", "governor_pid_fixed"):
+        markers.append("gp_route_takeoff_next(&gp_route_takeoff")
+    else:
+        # The original route governor is intentionally replaced in the
+        # generated experiment only; all independent safety anchors remain.
+        if "gp_route_takeoff_next(&gp_route_takeoff" in text:
+            raise RuntimeError("native reference variant still contains governor call")
+    for marker in markers:
         if text.count(marker) != 1:
             raise RuntimeError("native composition provenance unexpected: " + marker)
     return {"flight_binary_sha256": sha256(binary), "flight_c_sha256": sha256(source),
