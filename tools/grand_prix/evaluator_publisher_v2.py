@@ -6,8 +6,11 @@ The Linux launcher remains gated on the separate native/GUI qualifications.
 """
 import logging
 import math
+import os
+from contextlib import nullcontext
 
 from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservation
+from tools.grand_prix.evaluator_phase_probe import EvaluatorPhaseProbe
 from tools.grand_prix.evaluator_scene_identity_v2 import read_native_evaluator_scene
 from tools.grand_prix.evaluator_native_contacts_v2 import read_contacts
 from tools.grand_prix.evaluator_native_kinematics_v2 import _now_ms, read_kinematics
@@ -42,8 +45,10 @@ class NativeRouteEvaluator:
         if self._reply is None:
             raise RuntimeError('native evaluator description absent')
         self._reply.setSFString('')
+        self._phase_probe = (EvaluatorPhaseProbe(identifier, lambda line: print(line, flush=True))
+                             if os.environ.get('WEBEEBLOCKS_GP_EVALUATOR_PHASE_PROBE') == '1' else None)
         self._scene_fields = NativeFieldLookup()
-        self._scene_snapshot = NativeSceneSnapshot(self.course)
+        self._scene_snapshot = NativeSceneSnapshot(self.course, phase_probe=self._phase_probe)
         self._vehicle = read_native_evaluator_scene(
             robot, self.course, self._scene_fields, self._scene_snapshot)
         self._self_id = own.getId()
@@ -152,7 +157,25 @@ class NativeRouteEvaluator:
             abs(math.asin(max(-1., min(1., -m[6])))) < math.radians(2) and
             all(point.point[2] <= .012 for point in observation.contacts.points))
 
+    def _scope(self, name):
+        return self._phase_probe.phase(name) if self._phase_probe else nullcontext()
+
     def tick(self):
+        """Optional diagnostic wrapper: the original authority executes unchanged."""
+        if self._phase_probe is None:
+            return self._tick_once()
+        self._phase_probe.begin()
+        try:
+            return self._tick_once()
+        finally:
+            try:
+                self._phase_probe.end(self._last_ms)
+            except Exception:
+                # Instrumentation failure never changes the mission verdict.
+                self._phase_probe = None
+                self._scene_snapshot.phase_probe = None
+
+    def _tick_once(self):
         """Observe only live native APIs, after one real 8-ms Supervisor step."""
         if self._clock_failed:
             self._reply.setSFString('')
@@ -230,13 +253,18 @@ class NativeRouteEvaluator:
             if (self.observation is None and type(event) is Challenge and
                     model == '' and now - self._challenge_since <= 32):
                 return
-            vehicle = read_native_evaluator_scene(
-                self._robot, self.course, self._scene_fields, self._scene_snapshot)
-            if vehicle.getId() != self._vehicle_id:
-                raise RuntimeError('native observation vehicle replaced')
-            observation = NativeCourseObservation(
-                now, read_kinematics(vehicle, now),
-                parse_flight_observation(model, event, now), read_contacts(vehicle, now))
+            with self._scope('scene_and_colliders'):
+                vehicle = read_native_evaluator_scene(
+                    self._robot, self.course, self._scene_fields, self._scene_snapshot)
+                if vehicle.getId() != self._vehicle_id:
+                    raise RuntimeError('native observation vehicle replaced')
+            with self._scope('kinematics'):
+                kinematics = read_kinematics(vehicle, now)
+            with self._scope('flight_observation'):
+                flight = parse_flight_observation(model, event, now)
+            with self._scope('contacts'):
+                contacts = read_contacts(vehicle, now)
+            observation = NativeCourseObservation(now, kinematics, flight, contacts)
             if observation.flight.challenge != context or _now_ms(self._robot.getTime()) != now:
                 raise RuntimeError('native context/tick changed during observation')
             previous = self.observation
@@ -303,13 +331,15 @@ class NativeRouteEvaluator:
             if data not in (f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {context.attempt}',
                             self._outcome('achieved')) and not completed:
                 raise RuntimeError('native outcome/attempt marker mismatch')
-            reply = self._wire.observe(raw, now, native_validated=True)
+            with self._scope('liveness_wire'):
+                reply = self._wire.observe(raw, now, native_validated=True)
             if not reply:
                 raise RuntimeError('native liveness wire refused')
             if not self._positive_written:
-                self._active = observe_pure_attempt(self._active, context.attempt, now,
-                    observation.kinematics.position, observation.kinematics.velocity[:3],
-                    contacts=[point.point for point in observation.contacts.points], completed=completed)
+                with self._scope('mission_oracle'):
+                    self._active = observe_pure_attempt(self._active, context.attempt, now,
+                        observation.kinematics.position, observation.kinematics.velocity[:3],
+                        contacts=[point.point for point in observation.contacts.points], completed=completed)
                 result = self._active.result
                 if result is not None:
                     if result.status != 'achieved':

@@ -12,20 +12,29 @@ Dans le dossier du projet, depuis PowerShell :
 
 ```powershell
 .\Lancer-Grand-Prix.cmd --course 5 --fps 60 --arm A
-.\Lancer-Grand-Prix.cmd --course 5 --fps 60 --arm B
+.\Lancer-Grand-Prix.cmd --course 5 --fps 60 --arm B --phase-probe
 ```
 
-A dessine à 100 %, B à 50 % de la largeur et hauteur de la cible 3D.
-`--arm budget` ajoute un budget de dessin expérimental à B, à mesurer
-séparément. `--fps` fixe le plafond d’affichage (25, 30 ou 60).
+Les bras A et B affichent désormais **100 % de la résolution native**.
+Le rendu à 50 % et le budget de dessin sont supprimés du lanceur.
+Les bras A/B du même moteur sont de simples répétitions, pas une comparaison
+architecturale avant/après. `--fps` fixe le plafond (25, 30 ou 60).
+Avec `--phase-probe`, les journaux contiennent des fenêtres de 125 ticks
+`GP_EVALUATOR_PHASE_V1` : durées monotones brutes en nanosecondes par pas,
+pour `exportString`, validation de scène, cinématique, contacts, protocole
+et oracle. Une phase non exécutée est absente et non assimilée à 0.
+La sonde reste non-authoritaire ; mesurer également un essai sans sonde
+pour identifier son surcoût.
 La physique conserve 8 ms dans chaque bras. Le lanceur vérifie le manifeste du moteur et ses empreintes, ainsi que les
 empreintes des mondes et composants de code immuables du ZIP projet avant
 exécution. Ce contrôle détecte les altérations après extraction ; il ne remplace
 pas la vérification indépendante du SHA-256 de l'archive ni un test GUI. Les contrôleurs natifs du
 parcours variable conservent l’autorité de READY, LAND et RESET.
 
-Pour isoler l’effet de l’échelle, effectuer trois paires en ordre A/B, B/A,
-A/B sur le même PC et le même pilote graphique. Garder le même fichier
+Pour une comparaison architecturale A/B, utiliser deux exécutables moteurs
+distincts avec le protocole `docs/GRAND_PRIX_WINDOWS_NATIVE_AB.md`.
+Le même moteur en A/B ne peut établir un gain. Conserver le même PC, pilote,
+monde et affichage. Garder le même fichier
 `.wbb` (noter son SHA-256), parcours, plafond, taille de fenêtre et régime
 secteur, avec Webots et Blockly visibles. Remettre le parcours à zéro
 en fermant et relançant Webots entre les bras. Mesurer le même segment

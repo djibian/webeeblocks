@@ -1,5 +1,6 @@
 """Conservative R2025a bulk read of the live route scene graph."""
 import re
+import time
 
 from tools.grand_prix.native_collider_contract_v2 import canonical_native_boxes
 
@@ -17,7 +18,7 @@ _EVALUATOR_DYNAMIC = re.compile(
 _USE = re.compile(r'\bUSE\s+\S')
 
 
-def read_scene_signature(root):
+def read_scene_signature(root, probe=None):
     """Remove only the root robots' live pose, velocities and protocol strings.
 
     Other fields, root entries, node edges and names remain byte-for-byte.
@@ -27,7 +28,12 @@ def read_scene_signature(root):
     export = getattr(root, 'exportString', None)
     if not callable(export):
         return None
-    scene = export()
+    start_ns = time.perf_counter_ns() if probe is not None else None
+    try:
+        scene = export()
+    finally:
+        if start_ns is not None:
+            probe.record('exportString', time.perf_counter_ns() - start_ns)
     if (type(scene) is not str or len(scene) > 256 * 1024 or
             not scene.startswith('Group {\n  children [\n') or
             not scene.endswith('\n  ]\n}') or scene.count(_VEHICLE) != 1 or
@@ -54,8 +60,9 @@ def read_scene_signature(root):
 class NativeSceneSnapshot:
     """Keep topology from a full check while an exact live signature agrees."""
 
-    def __init__(self, course):
+    def __init__(self, course, phase_probe=None):
         self.course = course
+        self.phase_probe = phase_probe
         self.expected_boxes = canonical_native_boxes(course)
         self.signature = None
         self.root_count = None

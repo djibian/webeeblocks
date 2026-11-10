@@ -273,7 +273,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--course', type=int, choices=(0, 5, 11), default=5)
     parser.add_argument('--fps', type=int, choices=(25, 30, 60), default=60)
-    parser.add_argument('--arm', choices=('A', 'B', 'budget'), default='A')
+    parser.add_argument('--arm', choices=('A', 'B'), default='A')
+    parser.add_argument('--phase-probe', action='store_true', help='Chronométrer les sous-phases de l évaluateur')
     args = parser.parse_args()
     home = ROOT.parent / 'Webots-R2025a-experimental'
     engine = home / 'msys64/mingw64/bin/webots-bin.exe'
@@ -307,14 +308,16 @@ def main():
                WEBEEBLOCKS_GP_PYTHON_DIR=str(ROOT / 'runtime/python'),
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true',
                WEBEEBLOCKS_GP_STEP_WALL_PROBE='1', WEBOTS_RENDER_TRACE='1',
-               WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100' if args.arm == 'A' else '50',
-               WEBOTS_EXPERIMENT_RENDER_DUTY='35' if args.arm == 'budget' else '0')
+               WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100',
+               WEBOTS_EXPERIMENT_RENDER_DUTY='0',
+               WEBEEBLOCKS_GP_EVALUATOR_PHASE_PROBE='1' if args.phase_probe else '0')
     command = [str(engine), '--mode=realtime', '--stdout', '--stderr',
                f'--log-performance={trace / "native.log"},0', str(world)]
     print(f'Journaux dans {trace}', flush=True)
     (trace / 'trial.json').write_text(json.dumps({
         'assembly': json.loads(manifest)['assembly'], 'arm': args.arm, 'course': args.course,
-        'render_fps_cap': args.fps, 'command': command,
+        'render_fps_cap': args.fps, 'render_scale_percent': 100,
+        'phase_probe': args.phase_probe, 'command': command,
     }, indent=2) + '\n', encoding='utf-8')
     # Webots R2025a needs pipe handles for redirected controller logs on Windows.
     with (trace / 'webots.log').open('wb') as log, subprocess.Popen(

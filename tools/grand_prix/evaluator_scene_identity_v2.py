@@ -101,7 +101,7 @@ def _read_vehicle(root_nodes, identifier, fields):
 def _check_snapshot(supervisor, fields, snapshot):
     course, boxes = snapshot.course, snapshot.expected_boxes
     root = supervisor.getRoot()
-    signature = read_scene_signature(root)
+    signature = read_scene_signature(root, snapshot.phase_probe)
     children, count = _root_inventory(root)
     if snapshot.matches(signature, count):
         # PROTO internals are not represented by the VRML export. Resolve
@@ -131,7 +131,7 @@ def _check_snapshot(supervisor, fields, snapshot):
                    if node.isProto() or node.getDef() == 'GP_ROUTE_EVALUATOR')
     if (signature is None or nested_proto or
             any(type(node_id) is not int or node_id <= 0 for _, node_id in opaque) or
-            read_scene_signature(root) != signature):
+            read_scene_signature(root, snapshot.phase_probe) != signature):
         snapshot.record(None, None, None, ())
     else:
         snapshot.record(signature, count, live_boxes, opaque)
