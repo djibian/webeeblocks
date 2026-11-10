@@ -32,7 +32,7 @@ from tools.grand_prix.isolated_native_sequence import SCOPES, instrument_generat
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-SCENARIOS = ("primitives", "ceiling", "stop", "deadline", "reset")
+SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_takeoff", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "z", "vz", "ref", "target", "u", "i",
@@ -220,6 +220,41 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
         if scenario == "reset":
             completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
                 and e.get("value")=="LANDING_UNCONFIRMED" for e in events)
+        if scenario in ("ceiling", "ceiling_safe_ascent", "ceiling_takeoff"):
+            ceiling = samples[0]["z"] + 1.15 if samples else 1.165
+            # This exact world has the vehicle's physical origin near .015 m.
+            # Read the native world witness and require an unviolated absolute
+            # ceiling; never turn an oracle refusal into a positive flight.
+            ceiling = 1.165
+            completed = completed and bool(samples) and (
+                max(row["z"] for row in samples) <= ceiling) and all(
+                "reason=altitude" not in line for line in lines) and all(
+                marker in native_text for marker in (
+                    "GP_U_LAND_GROUND_READY ",
+                    "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1"))
+            if scenario == "ceiling":
+                completed = completed and any(
+                    e.get("kind") == "preventive-ceiling-refusal" and
+                    e.get("value") == "VERTICAL_LIMIT" for e in events)
+                completed = completed and any(
+                    "GP_CEILING_PREFLIGHT_V1 command=VERTICAL" in line for line in lines)
+            elif scenario == "ceiling_safe_ascent":
+                completed = completed and any(
+                    e.get("kind") == "step-ok" and
+                    isinstance(e.get("value"),dict) and
+                    e["value"].get("name") == "vertical-safe-up-0.10"
+                    for e in events)
+            else:
+                completed = completed and any(
+                    e.get("kind") == "preventive-takeoff-refusal" and
+                    e.get("value") == "INVALID_TAKEOFF" for e in events)
+                completed = completed and any(
+                    "GP_CEILING_PREFLIGHT_V1 command=TAKEOFF" in line for line in lines)
+        status["native_ceiling_m"] = 1.165
+        status["minimum_native_ceiling_clearance_m"] = (
+            1.165 - max(row["z"] for row in samples)) if samples else None
+        status["native_ceiling_violation_observed"] = (
+            any(row["z"]>1.165 for row in samples) if samples else None)
         expected_negative = (scenario == "ceiling" and
             any("reason=altitude" in line for line in lines
                 if "GP_ROUTE_EVALUATOR_CLOSED" in line) and
