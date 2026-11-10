@@ -85,10 +85,22 @@ async function caseStop() {
   log('stop-move-settled', moveSettled);
 }
 async function caseReset() {
-  await step('takeoff-0.8', () => backend.takeoff(.8));
-  await step('strict-reset-from-airborne-idle', () => backend.resetSimulation());
-  await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
-  await step('stop-after-reset', () => backend.stopSimulation());
+  // Initial confirmed-ground RESET must complete and establish a NEW
+  // native evaluator epoch before a normal admitted takeoff.
+  await step('strict-reset-from-ground', () => backend.resetSimulation());
+  await step('takeoff-after-ground-reset-0.8', () => backend.takeoff(.8));
+  let refusal = null;
+  try {
+    await step('airborne-reset-must-refuse', () => backend.resetSimulation());
+  } catch (error) {
+    if (error && error.code === 'LANDING_UNCONFIRMED')
+      refusal = error.code;
+    else throw error;
+  }
+  if (refusal !== 'LANDING_UNCONFIRMED')
+    throw Error('airborne RESET unexpectedly accepted');
+  log('strict-airborne-reset-refused', refusal);
+  // Do not fake a confirmed landing in order to reset a flying vehicle.
 }
 async function caseDeadline() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
