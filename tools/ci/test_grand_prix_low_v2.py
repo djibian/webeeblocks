@@ -86,8 +86,43 @@ class VariableLowZoneTests(unittest.TestCase):
         self.assertFalse(low_segment_allowed_v2(start, start, route, (),
                                                  takeoff_until=-1.))
         self.assertFalse(low_segment_allowed_v2(start, start, route, ()))
-        self.assertTrue(low_segment_allowed_v2(point(first, .7, 0, .6),
-                                                point(first, 1.4, 0, .6), route, ()))
+        self.assertTrue(low_segment_allowed_v2(point(first, .7, 0, .62),
+                                                point(first, 1.4, 0, .62), route, ()))
+
+    def test_variable_beam_height_and_unchanged_yellow_envelope(self):
+        # The historical gp-u-v1 low threshold remains 0.60 m. Only the
+        # variable Grand Prix matches the 0.62 m physical beam underside.
+        from tools.grand_prix.oracle_low_v2 import LOW_THRESHOLD
+        from tools.grand_prix.oracle_u import LOW_THRESHOLD as HISTORICAL
+        from tools.grand_prix.oracle_gate_progress_v2 import BEAM_BOTTOM
+        self.assertEqual(HISTORICAL, .60)
+        self.assertEqual(LOW_THRESHOLD, BEAM_BOTTOM)
+        self.assertEqual(LOW_THRESHOLD, .62)
+        route = build_route(17, (2., 2.5, 3.), ('G','D'))
+        leg = route.legs[0]
+        gate = Gate(0, 1.0, leg.direction)
+        for z in (.60, .61, .619999):
+            with self.subTest(height=z):
+                self.assertFalse(low_segment_allowed_v2(
+                    point(leg, .40, 0, z), point(leg, .40, 0, z), route, (gate,)))
+                self.assertTrue(low_segment_allowed_v2(
+                    point(leg, 1.0, 0, z), point(leg, 1.0, 0, z), route, (gate,)))
+        for z in (.62, .620001, .80):
+            self.assertTrue(low_segment_allowed_v2(
+                point(leg, .40, 0, z), point(leg, .40, 0, z), route, (gate,)))
+        # Lines remain at H +/- .55; the *whole* 9-cm-radius craft must
+        # be inside them. Moving the painted lines is not authorized.
+        self.assertFalse(low_segment_allowed_v2(
+            point(leg, .50, 0, .5), point(leg, .50, 0, .5), route, (gate,)))
+        self.assertTrue(low_segment_allowed_v2(
+            point(leg, .54, 0, .5), point(leg, .54, 0, .5), route, (gate,)))
+        self.assertFalse(low_segment_allowed_v2(
+            point(leg, 1.50, 0, .5), point(leg, 1.50, 0, .5), route, (gate,)))
+        self.assertTrue(low_segment_allowed_v2(
+            point(leg, 1.46, 0, .5), point(leg, 1.46, 0, .5), route, (gate,)))
+        self.assertFalse(low_segment_allowed_v2(
+            point(leg, 1.0, .211, .5), point(leg, 1.0, .211, .5),
+            route, (gate,)))
 
     def test_invalid_samples_or_frames_fail_closed(self):
         route = build_route(0, (2., 2.5, 3.), ('G','D'))
