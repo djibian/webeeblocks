@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_large_ascent', 'ceiling_takeoff', 'route_lh', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_large_ascent', 'ceiling_takeoff', 'route_lh', 'route_h1', 'route_h3', 'route_h3_contact', 'route_h3_low', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -146,6 +146,83 @@ async function caseRouteLH() {
   if (!outcome || outcome.status !== 'achieved')
     throw Error('route evaluator did not publish achieved after native LAND');
 }
+
+/* HOST-ONLY diagnostic trajectories for two canonical alternative worlds:
+ * route_h1: reference_course(1): 2/2/2m, GD, one H on leg 2 at 0.60m.
+ * route_h3: reference_course(9): 3/2.5/2m, GD, three Hs at 1.40/1.15/0.60m.
+ * The world is supplied by the native runner; no map/seed/gate is disclosed
+ * to pupil AST, interpreter, sensor, or real-flight backend. This only proves
+ * whether this deterministic witness can satisfy the SAME native oracles.
+ */
+async function boundedMove(name, meters) {
+  let remaining = meters, part = 0;
+  if (meters < .01) throw Error('invalid diagnostic leg length');
+  while (remaining > .001) {
+    const size = Math.min(1.50, remaining);
+    if (size < .01) throw Error('diagnostic residual below native minimum');
+    await step(name + '-' + part++, () => backend.move('forward', size));
+    remaining -= size;
+  }
+}
+async function caseRouteVariant(which) {
+  const evalProfile = {type:'mission-state-v1', oracle:'grand-prix-route-v2'};
+  const plan = which === 'route_h1'
+    ? {lengths:[2,2,2], gates:[null,null,.60],count:1}
+    : {lengths:[3,2.5,2],gates:[1.40,1.15,.60],count:3};
+  await step('route-takeoff-0.8', () => backend.takeoff(.8));
+  for (let leg=0;leg<3;leg++) {
+    const length=plan.lengths[leg],gate=plan.gates[leg];
+    let forward=0;
+    if (gate !== null) {
+      await boundedMove('leg'+leg+'-approach-h', gate-.30);
+      forward=gate-.30;
+      await step('leg'+leg+'-descend-h', () => backend.vertical('down',.30));
+      await boundedMove('leg'+leg+'-cross-h', .60);
+      forward+=.60;
+      await step('leg'+leg+'-climb-h', () => backend.vertical('up',.30));
+    }
+    const terminal= leg === 2 ? length-.70 : length-.02;
+    const remaining=terminal-forward;
+    if (remaining >= .01)await boundedMove('leg'+leg+'-remaining',remaining);
+    if (leg===0)await step('corner0-left90',()=>backend.turn(90));
+    if (leg===1)await step('corner1-right90',()=>backend.turn(-90));
+  }
+  if (plan.count===3)await step('terminal-right-.50',()=>backend.move('right',.50));
+  await step('terminal-descend',()=>backend.vertical('down',.30));
+  await step('route-land',()=>backend.land());
+  await step('oracle-complete',()=>backend.completeActivityMission(evalProfile));
+  const outcome=await step('route-outcome',()=>backend.readActivityOutcome(evalProfile));
+  log('route-native-outcome',outcome);
+  if (!outcome || outcome.status!=='achieved')
+    throw Error('native route oracle did not publish achieved');
+}
+async function caseRouteNegative(which) {
+  if (which!=='route_h3_contact' && which!=='route_h3_low')
+    throw Error('unknown negative route case');
+  await step('negative-route-takeoff',()=>backend.takeoff(.8));
+  if (which==='route_h3_low')
+    await step('negative-move-before-H',()=>backend.move('forward',.30));
+  let denied=false;
+  try {
+    if (which==='route_h3_low')
+      await step('negative-unsafe-low-outside-band',
+        ()=>backend.vertical('down',.30));
+    else
+      await step('negative-unsafe-H-high-crossing',
+        ()=>backend.move('forward',1.70));
+  } catch(error) {
+    if (error && (error.code==='TIME_LIMIT' || error.code==='UNSAFE_OR_TIMEOUT')) {
+      denied=true;
+      log('negative-native-refusal', {code:error.code,kind:which});
+    } else throw error;
+  }
+  if (!denied) throw Error('unsafe route unexpectedly acknowledged');
+  // No reset or mission-success fabrication. Keep native physical world alive
+  // to observe irreversible independent LAND after oracle closure.
+  await sleep(11000);
+  log('negative-native-land-observation-window',{wall_ms:11000});
+}
+
 async function caseStop() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
   let moveSettled = false;
@@ -220,6 +297,10 @@ socket.onopen = async () => {
     else if (scenario === 'ceiling_large_ascent') await caseLargeAscent();
     else if (scenario === 'ceiling_takeoff') await caseTakeoffCeiling();
     else if (scenario === 'route_lh') await caseRouteLH();
+    else if (scenario === 'route_h1' || scenario === 'route_h3')
+      await caseRouteVariant(scenario);
+    else if (scenario === 'route_h3_contact' || scenario === 'route_h3_low')
+      await caseRouteNegative(scenario);
     else if (scenario === 'stop') await caseStop();
     else if (scenario === 'reset') await caseReset();
     else await caseDeadline();
