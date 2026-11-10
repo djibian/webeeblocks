@@ -27,6 +27,9 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.grand_prix.analyze_takeoff_trace import parse_lines, summarize, TraceError
+from tools.grand_prix.isolated_native_takeoff_candidates import (
+    VARIANTS, apply_generated_route_variant, expected_compensated_collective,
+)
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.launch_linux import ensure_webots_assets, ensure_blockly_assets, webots_home
 from tools.grand_prix.route_courses_v2 import reference_course
@@ -72,7 +75,7 @@ def prerequisites(home: Path) -> None:
     ensure_blockly_assets()
 
 
-def compile_production(home: Path) -> dict:
+def compile_production(home: Path, variant: str) -> dict:
     env = os.environ.copy()
     env["WEBOTS_HOME"] = str(home)
     subprocess.run([sys.executable, str(ROOT / "tools/grand_prix/prepare_route_runtime.py")],
@@ -81,6 +84,10 @@ def compile_production(home: Path) -> dict:
     # diagnostic header has changed and make has no explicit header dep.
     subprocess.run(["make", "-C", str(FLIGHT), "clean"],
                    cwd=ROOT, env=env, check=True, timeout=90)
+    if variant != "baseline":
+        subprocess.run([sys.executable, str(ROOT / "tools/grand_prix/prepare_route_runtime.py")],
+                       cwd=ROOT, env=env, check=True, timeout=90)
+        apply_generated_route_variant(FLIGHT / "build/runtime_u.c", variant)
     subprocess.run(["make", "-C", str(FLIGHT), "release"],
                    cwd=ROOT, env=env, check=True, timeout=180)
     binary = FLIGHT / "grand_prix_route_flight"
@@ -178,7 +185,7 @@ def plot_native_case(samples: list[dict], directory: Path, height: float) -> str
 
 
 def run_case(home: Path, index: int, height: float, output: Path,
-             evidence: dict, source_sha: str) -> dict:
+             evidence: dict, source_sha: str, *, variant: str = "baseline") -> dict:
     directory = output / f"{index:02d}-takeoff-{height:.1f}m"
     directory.mkdir(exist_ok=False)
     token = uuid.uuid4().hex[:12]
@@ -194,7 +201,7 @@ def run_case(home: Path, index: int, height: float, output: Path,
     node_path = directory / "node.log"
     events_path = directory / "stimulus.jsonl"
     webots = node = None
-    status = {"height_m": height, "world_sha256": world_hash, "course": reference_course(COURSE_INDEX).identifier,
+    status = {"height_m": height, "variant": variant, "world_sha256": world_hash, "course": reference_course(COURSE_INDEX).identifier,
               "source_sha": source_sha, "webots_version": "R2025a",
               "native_8ms_world": True, "native_32ms_pid": True,
               "pilot_and_evaluator": "production_unmodified",
@@ -262,6 +269,10 @@ def run_case(home: Path, index: int, height: float, output: Path,
         if len(records) != 1:
             raise TraceError(f"exactly one diagnostic TAKEOFF required, observed {len(records)}")
         status["metrics"] = summarize(records[0])
+        if variant != "baseline" and records[0]["samples"]:
+            status["pid_corrected_reconstruction_residual"] = round(
+                max(abs(row["u"] - expected_compensated_collective(row))
+                    for row in records[0]["samples"] if row["phase"] == "takeoff"), 7)
         make_native_curves(records[0]["samples"], directory)
         status["plots"] = plot_native_case(records[0]["samples"], directory, height)
         status["status"] = "TRACE_WITH_ACK" if (
@@ -280,7 +291,9 @@ def run_case(home: Path, index: int, height: float, output: Path,
             not status["safety_land_events"] and
             status.get("stimulus_exit_code") == 0 and
             not status["metrics"]["sampling_gaps_over_40ms_s"] and
-            status["metrics"]["max_pid_reconstruction_residual"] < .0001
+            (status["metrics"]["max_pid_reconstruction_residual"] < .0001
+             if variant == "baseline" else
+             status.get("pid_corrected_reconstruction_residual", 1.0) < .0001)
         ) else "TRACE_PARTIAL_OR_SAFETY_REFUSAL"
     except (TraceError, ValueError) as exc:
         status["status"] = "MISSING_OR_INVALID_TRACE"
@@ -297,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-head", required=True, help="exact experiment commit SHA")
     parser.add_argument("--webots-home", help="installed R2025a home")
     parser.add_argument("--output", required=True, type=Path, help="new, non-existing evidence directory")
+    parser.add_argument("--variant", choices=VARIANTS, default="baseline",
+                        help="draft-only route control candidate; never shipped")
     parser.add_argument("--preflight-only", action="store_true",
                         help="validate native dependencies; no simulation or flight")
     args = parser.parse_args(argv)
@@ -308,17 +323,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    evidence = compile_production(home)
-    evidence.update(source_sha=source_sha, course=reference_course(COURSE_INDEX).identifier,
+    evidence = compile_production(home, args.variant)
+    evidence.update(source_sha=source_sha, variant=args.variant, course=reference_course(COURSE_INDEX).identifier,
                     trace_environment="WBB_GP_TAKEOFF_TRACE=1",
                     qualification="native_source_and_logs_only")
     (output / "build.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
-    results = [run_case(home, index, height, output, evidence, source_sha)
+    results = [run_case(home, index, height, output, evidence, source_sha, variant=args.variant)
                for index, height in enumerate(HEIGHTS, 1)]
     if len({item["world_sha256"] for item in results}) != 1:
         raise RuntimeError("three-height world bytes differ: no valid paired comparison")
     report = {"schema": 1, "scope": "native_webots_only_not_real_hardware",
-              "source_sha": source_sha, "course": reference_course(COURSE_INDEX).identifier,
+              "source_sha": source_sha, "variant": args.variant, "course": reference_course(COURSE_INDEX).identifier,
               "heights_m": HEIGHTS, "results": results,
               "status": "THREE_NATIVE_TRACES" if all(
                   x["status"] == "TRACE_WITH_ACK" for x in results)
