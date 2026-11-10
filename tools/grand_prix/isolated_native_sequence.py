@@ -10,8 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.grand_prix.isolated_native_takeoff_candidates import PID_COMPENSATION
+from tools.grand_prix.isolated_native_ceiling_headroom import inject_generated_headroom
 
-SCOPES = ("takeoff_idle_only", "all_active_primitives", "all_active_vertical_up_governed")
+SCOPES = ("takeoff_idle_only", "all_active_primitives", "all_active_vertical_up_governed", "all_active_primitives_headroom")
 OLD_CONDITION = "if (command == CMD_TAKEOFF || (airborne && command == CMD_IDLE))"
 NEW_CONDITION = (
     "if (command == CMD_TAKEOFF || "
@@ -81,7 +82,7 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
     # Inject BEFORE changing the original condition; otherwise the exact
     # PID_COMPENSATION anchor disappears and str.replace does nothing.
     source = source.replace(PID_COMPENSATION, PID_COMPENSATION + SEQUENCE_OBSERVER, 1)
-    if scope in ("all_active_primitives", "all_active_vertical_up_governed"):
+    if scope in ("all_active_primitives", "all_active_vertical_up_governed", "all_active_primitives_headroom"):
         source = source.replace(OLD_CONDITION, NEW_CONDITION, 1)
     if scope == "all_active_vertical_up_governed":
         # Reuse the already source-locked TAKEOFF governor only for upward
@@ -124,3 +125,5 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
     if source.count("GP_SEQUENCE_SAMPLE") != 1:
         raise RuntimeError("mandatory native observer not injected exactly once")
     path.write_text(source, encoding="utf-8")
+    if scope == "all_active_primitives_headroom":
+        inject_generated_headroom(path, scope)
