@@ -99,3 +99,61 @@ Cette séparation est une **frontière d'interface proposée**, pas une demande 
 ## Conditions de décision
 
 Cette note n'établit **aucun résultat natif nouvellement observé**. Sans courbe/capture R2025a appariée, le verdict strict sur **l'architecture de contrôle optimale** demeure **PROVISIONNEL / INSUFFICIENT_EVIDENCE**. La voie « gouverneur de trajectoire + PID de simulation corrigé + sécurité indépendante » est la meilleure **hypothèse minimale** au regard du code et des symptômes, non une garantie démontrée.
+
+
+## 8. Poursuite expérimentale : trois décollages natifs et comparaison
+
+**État de preuve :** Webots R2025a et Docker sont absents de l'environnement de cette intervention, et aucun nouveau relevé natif n'a été obtenu. PR #953 toujours Draft, sans résultat CI décisionnel ni GO. Les graphiques Bitcraze ci-dessous sont des références calculées, jamais des observations de Webots ou du matériel.
+
+### Banc natif retrouvé et étendu
+
+- Le banc préexistant tools/ci/run_grand_prix_route_evaluator_native.py exerce des séquences native READY, LAND et RESET, mais sa variante flight-reset emploie un contrôleur de probe : elle ne prouve **pas** la dynamique de la production. Le banc historique tools/ci/run_grand_prix_u_prototype.py fournit la voie Webots native/Xvfb/Node, mais sur un monde U différent.
+- Le nouveau tools/grand_prix/run_takeoff_native_r2025a.py combine ces surfaces sans les détourner : monde et évaluateur Grand Prix route **de production**, contrôleur de production, classe standard RuntimeV2WwiBackend.takeoff(), admission normale, physique 8 ms et commande 32 ms. Aucune liaison radio.
+- Trois sessions distinctes, index de route 5 et monde à octets identiques, démarrent à l'état initial natif, pour 0,5, 0,8 et 1,0 m. Le pilote compilé est forcé à un build propre pour exclure les binaires obsolètes.
+- Les sorties par cas comprennent le monde, les journaux bruts pilote/évaluateur/WWI, l'identité des fichiers et du binaire, un résumé, les échantillons CSV et, si Matplotlib est présent, les courbes z/consigne, vz, P/I/D/commande collective, quatre moteurs et contacts. Une mesure absente est **censurée**, jamais complétée à partir d'une hypothèse.
+- L'ACK, le premier contact initial puis sa perte observée, la stabilisation, le plafond inchangé et l'absence de refus doivent être attestés avant de classer une **trace** comme complète. Une trace complète n'est ni un succès de mission ni un PASS physique.
+
+### Procédure R2025a sans nouvel essai humain
+
+Dans un checkout natif exact de la PR #953 (Node >=22, Xvfb, R2025a installé) :
+
+~~~bash
+python3 -m unittest -v tools.ci.test_grand_prix_takeoff_trace \
+    tools.ci.test_grand_prix_native_takeoff_bench \
+    tools.ci.test_grand_prix_route_takeoff_profile
+python3 tools/grand_prix/run_takeoff_native_r2025a.py \
+    --expected-head "$(git rev-parse HEAD)" \
+    --webots-home /usr/local/webots \
+    --output ci-artifacts/gp-takeoff-native-953 \
+    --preflight-only
+python3 tools/grand_prix/run_takeoff_native_r2025a.py \
+    --expected-head "$(git rev-parse HEAD)" \
+    --webots-home /usr/local/webots \
+    --output "ci-artifacts/gp-takeoff-$(git rev-parse --short=12 HEAD)"
+~~~
+
+Le banc refuse tout mauvais SHA, worktree suivi modifié, Webots non R2025a, ressources manquantes, Node trop ancien ou Xvfb absent. Il laisse l'évaluateur native intact : les échecs d'altitude, de vol bas ou d'autorité et le LAND de sûreté restent actifs. Il ne lance pas de LAND manuel destiné à provoquer un échec artificiel ; au terme de la fenêtre post-ACK il arrête seulement le processus de mesure isolé, sans qualifier une mission Grand Prix.
+
+### Comparaison nominale Bitcraze épinglée
+
+Source firmware 2026.08 : 54f31e243a0b28b67efef5ba20dbb6d9890a5478, commande 9 TAKEOFF_WITH_VELOCITY, altitude **absolue** dans le repère EKF embarqué, vitesse **moyenne** demandée 0.5 m/s. Quand le planificateur est IDLE et le départ stationnaire, sa trajectoire 7e ordre suit S(u)=35u^4−84u^5+70u^6−20u^7 pour u=t/T borné à [0,1], T=(h−z_est_initial)/0.5 ; vitesse de référence maximale = 35/16 * 0.5 = **1.09375 m/s**. Si, et seulement si, z_est_initial vaut zéro, les durées nominales sont 1.0, 1.6 et 2.0 secondes. Ces durées et vitesses **ne sont pas** des performances réelles.
+
+L'outil tools/grand_prix/bitcraze_takeoff_nominal.py produit les CSV, les métadonnées du domaine supposé et deux PNG nominales séparées :
+
+~~~bash
+python3 tools/grand_prix/bitcraze_takeoff_nominal.py \
+    --output ci-artifacts/bitcraze-reference-953 \
+    --initial-estimated-z 0.0
+~~~
+
+Comparer un signal relatif Webots (origine native du PROTO) au signal relatif Bitcraze (origine estimée embarquée) en gardant la différence de repère explicite. Le pic théorique Bitcraze de 1.094 m/s n'autorise pas une accélération de la simulation ni un relâchement des plafonds.
+
+### Condition de décision PID seul vs générateur de trajectoires
+
+Le programme automatisé ajouté ici **établit le bras témoin inchangé**, pas un A/B déjà exécuté. Une fois ses trois vraies traces disponibles, comparer sur le même monde/état :
+1. Gouverneur #952 et PID actuels (témoin).
+2. Même gouverneur et PID limité à une correction locale de sustentation, anti-windup et dérivée sur vitesse, si les données prouvent une commande initiale insuffisante.
+3. PID corrigé avec référence directe, pour tester si le PID **seul** évite aussi dépassement et instabilité.
+4. Uniquement si utile, PID corrigé avec trajectoire lisse compatible Bitcraze ; ne pas importer tout le firmware.
+
+Critères primaires : perte de contact réellement échantillonnée, délai depuis START, z_max et plafond natif, vz au pic, stabilisation/ACK, sortie et saturation des rotors, refus des oracles, durée et erreur de trajectoire. Aucune variante ne vaut PASS si elle masque un refus, change une règle ou extrapole sans télémétrie réelle. **Verdict architectural définitif : UNPROVEN tant que les A/B natifs n'ont pas été obtenus.**
