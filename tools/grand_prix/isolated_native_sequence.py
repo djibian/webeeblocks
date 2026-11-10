@@ -78,7 +78,11 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
         raise RuntimeError("original scope anchor changed")
     if source.count("gp_u_deadline(now, gp_pose_confirmed)") != 1:
         raise RuntimeError("independent deadline guard changed")
+    # Inject BEFORE changing the original condition; otherwise the exact
+    # PID_COMPENSATION anchor disappears and str.replace does nothing.
+    source = source.replace(PID_COMPENSATION, PID_COMPENSATION + SEQUENCE_OBSERVER, 1)
     if scope == "all_active_primitives":
         source = source.replace(OLD_CONDITION, NEW_CONDITION, 1)
-    source = source.replace(PID_COMPENSATION, PID_COMPENSATION + SEQUENCE_OBSERVER, 1)
+    if source.count("GP_SEQUENCE_SAMPLE") != 1:
+        raise RuntimeError("mandatory native observer not injected exactly once")
     path.write_text(source, encoding="utf-8")
