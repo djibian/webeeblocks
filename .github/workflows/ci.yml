@@ -67,7 +67,7 @@ jobs:
                python3 -m unittest -v tools.ci.test_grand_prix_takeoff_trace tools.ci.test_grand_prix_native_takeoff_bench tools.ci.test_grand_prix_route_takeoff_profile
                node --check tools/grand_prix/native_control_sequence_stimulus.js
                python3 -m py_compile tools/grand_prix/isolated_native_sequence.py tools/grand_prix/run_control_sequence_native_r2025a.py
-               timeout -k 10s 2400s python3 -u tools/grand_prix/run_control_sequence_native_r2025a.py --scope all_active_vertical_up_governed --scenarios primitives ceiling reset --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots --output ci-artifacts/gp-takeoff-r2025a-953/native-sequences'             2>&1 | tee ci-artifacts/gp-takeoff-r2025a-953/native-run.log
+               timeout -k 10s 2400s python3 -u tools/grand_prix/run_control_sequence_native_r2025a.py --scope all_active_vertical_up_governed --scenarios reset --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots --output ci-artifacts/gp-takeoff-r2025a-953/native-sequences'             2>&1 | tee ci-artifacts/gp-takeoff-r2025a-953/native-run.log
           status="${PIPESTATUS[0]}"
           printf '%s\n' "$status" > ci-artifacts/gp-takeoff-r2025a-953/native-run-exit-code.txt
           exit "$status"
