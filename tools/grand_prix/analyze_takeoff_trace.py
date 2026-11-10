@@ -20,7 +20,7 @@ SAMPLE_KEYS = ("t", "dt", "z0", "z", "vz", "ref", "target", "error",
                "p", "i", "d", "u", "m1", "m2", "m3", "m4")
 MIN_LIFT_M = 0.020  # observed elevation proxy, NOT a physical contact sensor
 MIN_ASCENT_M_S = 0.030
-POSITION_TOL_M = 0.030  # vertical part only of native command ACK predicate
+POSITION_TOL_M = 0.050  # native ALT_TOL, vertical-only part of ACK predicate
 VERTICAL_SPEED_TOL_M_S = 0.150
 STABLE_WINDOW_S = 0.5
 SAMPLE_GAP_S = 0.040
