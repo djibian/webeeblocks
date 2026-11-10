@@ -77,7 +77,15 @@ def read_native_evaluator_scene(supervisor, course, fields, snapshot=None):
         return vehicle
     if snapshot.course is not course:
         raise RuntimeError('native scene snapshot course changed')
-    return _check_snapshot(supervisor, fields, snapshot)
+    try:
+        result = _check_snapshot(supervisor, fields, snapshot)
+    except Exception as exc:
+        if snapshot.batch_shadow is not None:
+            snapshot.batch_shadow.historical(False, exc)
+        raise
+    if snapshot.batch_shadow is not None:
+        snapshot.batch_shadow.historical(True)
+    return result
 
 
 def _read_vehicle(root_nodes, identifier, fields):
@@ -109,7 +117,8 @@ def _timed(snapshot, name, function, *args, **kwargs):
 def _check_snapshot(supervisor, fields, snapshot):
     course, boxes = snapshot.course, snapshot.expected_boxes
     root = supervisor.getRoot()
-    signature = read_scene_signature(root, snapshot.phase_probe)
+    signature = read_scene_signature(root, snapshot.phase_probe,
+        observer=snapshot.batch_shadow.observe if snapshot.batch_shadow is not None else None)
     children, count = _timed(snapshot, 'scene_root_inventory', _root_inventory, root)
     if snapshot.matches(signature, count):
         # PROTO internals are not represented by the VRML export. Resolve
