@@ -117,8 +117,12 @@ class CoupledCourseProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(GateProgressError, 'reverse-crossing'):
             self.observe(crossed, pose(leg, gate.along + .05))
         armed = self.observe(state, pose(leg, gate.along - .40))
-        with self.assertRaisesRegex(GateProgressError, 'gate-envelope'):
-            self.observe(armed, pose(leg, gate.along + .12, z=.8))
+        # A high approach in front of the physical beam is not a mission
+        # collision. This pure gate cursor is never the collision authority.
+        approach = self.observe(armed, pose(leg, gate.along - .20, z=.8))
+        self.assertEqual(approach.count, 0)
+        self.assertTrue(approach.gates.armed)
+        self.assertFalse(approach.gates.crossed)
 
     def test_concave_shortcut_and_bogus_samples_fail_closed(self):
         course = plan_course(11, (2., 2.5, 3.), ('G', 'D'), 1)
