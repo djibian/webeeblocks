@@ -72,7 +72,7 @@ def compile_native(home:Path):
     compiled=source.read_text()
     for marker in (
         "GP_PRODUCT_SAMPLE",
-        "land_touchdown && gp_ground_since",
+        "land_touchdown && gp_land_contact_since",
         "GP_CEILING_PREFLIGHT_V1 command=VERTICAL",
         "GP_CEILING_PREFLIGHT_V1 command=TAKEOFF",
         "gp_route_takeoff_next(&gp_route_takeoff,",
