@@ -77,14 +77,22 @@ def read_native_evaluator_scene(supervisor, course, fields, snapshot=None):
         return vehicle
     if snapshot.course is not course:
         raise RuntimeError('native scene snapshot course changed')
+    # Diagnostic binary inventory is sampled before the unchanged authoritative
+    # Supervisor traversal, never used to choose acceptance or flight effects.
+    if snapshot.compact_shadow is not None:
+        snapshot.compact_shadow.observe(supervisor)
     try:
         result = _check_snapshot(supervisor, fields, snapshot)
     except Exception as exc:
         if snapshot.batch_shadow is not None:
             snapshot.batch_shadow.historical(False, exc)
+        if snapshot.compact_shadow is not None:
+            snapshot.compact_shadow.historical(False, exc)
         raise
     if snapshot.batch_shadow is not None:
         snapshot.batch_shadow.historical(True)
+    if snapshot.compact_shadow is not None:
+        snapshot.compact_shadow.historical(True)
     return result
 
 
