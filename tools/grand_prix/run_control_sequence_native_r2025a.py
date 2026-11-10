@@ -230,7 +230,7 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                 "leg2-descend-for-h", "leg2-cross-open-h",
                 "leg2-climb-after-h", "leg2-approach-landing",
                 "terminal-left-offset-0.50", "terminal-low-landing-zone",
-                "oracle-complete", "route-land", "route-outcome")
+                "route-land", "oracle-complete", "route-outcome")
             completed = completed and tuple(reached)==required and any(
                 e.get("kind")=="route-native-outcome" and
                 isinstance(e.get("value"),dict) and
