@@ -21,6 +21,9 @@ import tempfile
 import time
 import uuid
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
 from tools.grand_prix.run_takeoff_native_r2025a import (
     ROOT, FLIGHT, COURSE_INDEX, sha256, require_source, prerequisites, webots_home,
     compile_production, available_port, stop_owned_process,
