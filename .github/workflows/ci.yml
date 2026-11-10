@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Experiment 953 native Webots R2025a TAKEOFF 0.5 0.8 1.0
+      - name: Experiment 953 native Webots R2025a multi-primitive flight sequences
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ci/953-native-takeoff-r2025a' }}
         shell: bash
         run: |
@@ -65,23 +65,14 @@ jobs:
                git --version
                git config --global --add safe.directory /workspace
                python3 -m unittest -v tools.ci.test_grand_prix_takeoff_trace tools.ci.test_grand_prix_native_takeoff_bench tools.ci.test_grand_prix_route_takeoff_profile
-               mkdir -p ci-artifacts/gp-takeoff-r2025a-953/variants
-               failures=0
-               for variant in governor_pid_fixed direct_pid_fixed bitcraze_pid_fixed; do
-                 echo "GP_953_VARIANT=$variant"
-                 if timeout -k 10s 1900s python3 -u tools/grand_prix/run_takeoff_native_r2025a.py --variant "$variant" --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots --output "ci-artifacts/gp-takeoff-r2025a-953/variants/$variant"; then
-                   echo "GP_953_VARIANT_PASS=$variant"
-                 else
-                   echo "GP_953_VARIANT_UNQUALIFIED=$variant"
-                   failures=1
-                 fi
-               done
-               exit "$failures"'             2>&1 | tee ci-artifacts/gp-takeoff-r2025a-953/native-run.log
+               node --check tools/grand_prix/native_control_sequence_stimulus.js
+               python3 -m py_compile tools/grand_prix/isolated_native_sequence.py tools/grand_prix/run_control_sequence_native_r2025a.py
+               timeout -k 10s 2400s python3 -u tools/grand_prix/run_control_sequence_native_r2025a.py --expected-head "$(git rev-parse HEAD)" --webots-home /usr/local/webots --output ci-artifacts/gp-takeoff-r2025a-953/native-sequences'             2>&1 | tee ci-artifacts/gp-takeoff-r2025a-953/native-run.log
           status="${PIPESTATUS[0]}"
           printf '%s\n' "$status" > ci-artifacts/gp-takeoff-r2025a-953/native-run-exit-code.txt
           exit "$status"
 
-      - name: Upload experiment 953 native takeoff raw traces even on refusal
+      - name: Upload experiment 953 native sequences even on refusal
         if: ${{ always() && github.event_name == 'pull_request' && github.head_ref == 'ci/953-native-takeoff-r2025a' }}
         uses: actions/upload-artifact@v4
         with:
