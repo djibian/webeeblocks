@@ -1,0 +1,23 @@
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -2238,11 +2238,16 @@
+       if (visibleCount == 1)
+         entry.flags |= 32;
+       if (visibleCount == 1 && solid->childCount() == 1)
+         entry.flags |= 2048;  // exactly one immediate Shape child
+-      if (solid->protoAncestor() && (solid->protoAncestor()->modelName() == "Crazyflie" ||
+-                                      solid->protoAncestor()->modelName() == "Floor"))
+-        entry.flags |= 32768;  // inside a pinned PROTO, not independently attested
++      // protoAncestor() returns the nearest PROTO (often Propeller), NOT the
++      // pinned top-level Crazyflie. Walk the actual instantiated parent chain.
++      const WbNode *top = solid;
++      while (top && top->parentNode() && top->parentNode() != root)
++        top = top->parentNode();
++      if (top && top != solid && top->parentNode() == root && top->isProtoInstance() &&
++          (top->modelName() == "Crazyflie" || top->modelName() == "Floor"))
++        entry.flags |= 32768;  // observed pinned-PROTO descendant, not attested
+       const WbVector3 p = solid->translation();
+       entry.v[0] = p.x(); entry.v[1] = p.y(); entry.v[2] = p.z();
+       if (physical) {
+         const WbVector3 s = physical->size();
