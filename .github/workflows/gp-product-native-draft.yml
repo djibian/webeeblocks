@@ -1,0 +1,88 @@
+name: GP product native landing qualification (Draft only)
+on:
+  pull_request:
+    branches: [fix/951-grand-prix-linux-pedagogical-guards]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/grand_prix/route_vertical_product.py'
+      - 'tools/grand_prix/prepare_u_runtime.py'
+      - 'tools/grand_prix/run_product_vertical_native.py'
+      - 'tools/grand_prix/product_native_stimulus.js'
+      - '.github/workflows/gp-product-native-draft.yml'
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Exact product native R2025a (Draft only) - ${{ matrix.group }}
+    if: ${{ github.event.pull_request.draft && github.head_ref == 'experiment/954-vertical-safety-product-minimal' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [landing-core, routes-h1-h2-h3, negative-guards]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source-locked compile prerequisites
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m py_compile tools/grand_prix/run_product_vertical_native.py
+          node --check tools/grand_prix/product_native_stimulus.js
+          python3 -m unittest -v tools.ci.test_grand_prix_route_vertical_product
+      - name: Native product evidence, unchanged evaluator and physics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/product-native
+          bash tools/prepare_runtime_v2.sh
+          assets="$GITHUB_WORKSPACE/.ci-grand-prix-u-webots"
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a \
+            https://github.com/cyberbotics/webots.git "$assets"
+          git -C "$assets" sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C "$assets" rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+          IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker pull "$IMAGE"
+          nodebin="$(command -v node)"
+          gitbin="$(command -v git)"
+          group="${{ matrix.group }}"
+          case "$group" in
+            landing-core) scenarios='primitives stop reset deadline' ;;
+            routes-h1-h2-h3) scenarios='route_h1 route_lh route_h3' ;;
+            negative-guards) scenarios='ceiling ceiling_large_ascent ceiling_takeoff ceiling_safe_ascent route_h3_contact route_h3_low' ;;
+            *) exit 2 ;;
+          esac
+          set +e
+          docker run --rm --init --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -e GP_PRODUCT_SCENARIOS="$scenarios" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$assets/projects:/usr/local/webots/projects:ro" \
+            -v "$nodebin:/usr/local/bin/node:ro" \
+            -v "$gitbin:/usr/local/bin/git:ro" \
+            -w /workspace "$IMAGE" -lc '
+              set -euo pipefail
+              git config --global --add safe.directory /workspace
+              timeout -k 10s 2400s python3 -u tools/grand_prix/run_product_vertical_native.py \
+                --expected-head "$(git rev-parse HEAD)" \
+                --webots-home /usr/local/webots \
+                --output ci-artifacts/product-native/native \
+                --scenarios $GP_PRODUCT_SCENARIOS
+            ' 2>&1 | tee ci-artifacts/product-native/run.log
+          code="${PIPESTATUS[0]}"
+          set -e
+          printf '%s\n' "$code" > ci-artifacts/product-native/exit-code.txt
+          exit "$code"
+      - name: Preserve incomplete, negative and passing native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-product-native-${{ matrix.group }}-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/product-native/
+          if-no-files-found: warn
