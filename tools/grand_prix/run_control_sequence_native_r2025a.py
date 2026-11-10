@@ -32,7 +32,7 @@ from tools.grand_prix.isolated_native_sequence import SCOPES, instrument_generat
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_takeoff", "stop", "deadline", "reset")
+SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "z", "vz", "ref", "target", "u", "i",
@@ -217,6 +217,30 @@ def one(home: Path, scope: str, scenario: str, root: Path, sha: str) -> dict:
                 marker in native_text for marker in (
                     "GP_U_LAND_GROUND_READY ", "WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ",
                     "GP_U_ADMISSION attempt=2 "))
+        if scenario == "route_lh":
+            reached = [e.get("value",{}).get("name") for e in events
+                if e.get("kind")=="step-ok" and isinstance(e.get("value"),dict)]
+            required = (
+                "route-takeoff-0.8",
+                "leg0-approach-h", "leg0-descend-for-h",
+                "leg0-cross-open-h", "leg0-climb-after-h",
+                "leg0-to-l-corner", "corner0-left-90",
+                "leg1-forward-1.9", "leg1-forward-0.58",
+                "corner1-right-90", "leg2-approach-h",
+                "leg2-descend-for-h", "leg2-cross-open-h",
+                "leg2-climb-after-h", "leg2-approach-landing",
+                "terminal-left-offset-0.50", "terminal-low-landing-zone",
+                "oracle-complete", "route-land", "route-outcome")
+            completed = completed and tuple(reached)==required and any(
+                e.get("kind")=="route-native-outcome" and
+                isinstance(e.get("value"),dict) and
+                e["value"].get("status")=="achieved" for e in events) and all(
+                marker in native_text for marker in (
+                    "GP_U_LAND_GROUND_READY ",
+                    "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND ",
+                    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1")) and not any(
+                "GP_ROUTE_EVALUATOR_CLOSED" in line for line in lines)
+            status["course_lh_oracle_achieved"] = bool(completed)
         if scenario == "reset":
             completed = completed and any(e.get("kind")=="strict-airborne-reset-refused"
                 and e.get("value")=="LANDING_UNCONFIRMED" for e in events)
