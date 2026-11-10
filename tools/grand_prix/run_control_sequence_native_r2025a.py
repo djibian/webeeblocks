@@ -32,7 +32,7 @@ from tools.grand_prix.isolated_native_sequence import SCOPES, instrument_generat
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-SCENARIOS = ("primitives", "ceiling", "stop", "deadline")
+SCENARIOS = ("primitives", "ceiling", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FIELDS = ("t", "dt", "z", "vz", "ref", "target", "u", "i",
@@ -219,6 +219,8 @@ def main() -> int:
     parser.add_argument("--expected-head",required=True)
     parser.add_argument("--webots-home",type=str)
     parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--scenarios", nargs="+", choices=SCENARIOS, default=None,
+                        help="run isolated bounded scenarios only")
     parser.add_argument("--scope", choices=SCOPES, default=None,
                         help="run one isolated scope; compare with archived same-world control run")
     args = parser.parse_args()
@@ -231,7 +233,7 @@ def main() -> int:
     builds = {}
     for scope in (SCOPES if args.scope is None else (args.scope,)):
         builds[scope] = build(home,scope)
-        for scenario in SCENARIOS:
+        for scenario in (SCENARIOS if args.scenarios is None else args.scenarios):
             results.append(one(home,scope,scenario,output,sha))
     report = {
         "status":"RAW_NATIVE_SEQUENCE_COMPARISON_NOT_ACCEPTANCE",
