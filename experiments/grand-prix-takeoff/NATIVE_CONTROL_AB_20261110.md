@@ -113,6 +113,18 @@ sont avancés de 7,872 s (0,5 m), 7,648 s (0,8 m) et
 observable et doit figurer comme exigence de qualification future,
 pas être effacé des résultats.
 
+**Précision de lecture des canaux PID :** l'instrumentation native
+`p/i/d` de la PR #953 décrit les termes du **PID partagé d'origine**,
+exécuté avant la compensation, et non la décomposition de la nouvelle
+commande corrigée. Pour les trois candidats, la contribution dérivée
+**effectivement utilisée** par le correcteur expérimental vaut
+`-5 × vz`, sa composante P vaut `p`, sa composante I vaut
+`i` après écrêtage de l'intégrateur. Le collectif effectivement
+envoyé est `u` (mélange moyen enregistré). La reconstruction
+indépendante `u - (55.368085898+p+i-5*vz)` est nulle dans les
+résumés natifs, à la précision de la télémétrie. Ne pas présenter
+le champ `d` brut comme le D corrigé.
+
 Les références directe et septième ordre **dépassent** les
 altitudes de consigne malgré ce PID corrigé et violent le plafond
 à 1,0 m ; elles sont moins stables et plus lentes à ACK pour les
