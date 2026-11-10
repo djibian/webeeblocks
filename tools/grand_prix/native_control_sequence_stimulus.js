@@ -6,7 +6,7 @@ const path = require('path');
 const Backend = require(path.resolve(__dirname, '../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const port = Number(process.argv[2]), scenario = process.argv[3], output = process.argv[4];
 if (!Number.isInteger(port) || port < 1024 || port > 65535 ||
-    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_takeoff', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
+    !['primitives', 'ceiling', 'ceiling_safe_ascent', 'ceiling_takeoff', 'route_lh', 'stop', 'deadline', 'reset'].includes(scenario) || !output)
   throw new Error('Native R2025a sequence requires a valid port, scenario and event path');
 
 let settled = false;
@@ -99,6 +99,36 @@ async function caseTakeoffCeiling() {
   await sleep(10000);
   log('takeoff-preflight-land-window', {wall_ms:10000});
 }
+// DIAGNOSTIC ONLY: one specific reference course with real native L corners,
+// TWO real open H gates (leg 0 at 1.0 m, leg 2 at 0.85 m), terminal H/collision,
+// native route oracle and normal WWI; never an AST or classroom certification.
+// Course gp-route-v2-L2000-2500-3000-TGD-s105-H2, fixed native-world hash.
+async function caseRouteLH() {
+  const evalProfile = {type:'mission-state-v1', oracle:'grand-prix-route-v2'};
+  await step('route-takeoff-0.8', () => backend.takeoff(.8));
+  await step('leg0-approach-h', () => backend.move('forward', .68));
+  await step('leg0-descend-for-h', () => backend.vertical('down', .30));
+  await step('leg0-cross-open-h', () => backend.move('forward', .72));
+  await step('leg0-climb-after-h', () => backend.vertical('up', .30));
+  await step('leg0-to-l-corner', () => backend.move('forward', .58));
+  await step('corner0-left-90', () => backend.turn(90));
+  await step('leg1-forward-1.9', () => backend.move('forward', 1.9));
+  await step('leg1-forward-0.58', () => backend.move('forward', .58));
+  await step('corner1-right-90', () => backend.turn(-90));
+  await step('leg2-approach-h', () => backend.move('forward', .55));
+  await step('leg2-descend-for-h', () => backend.vertical('down', .30));
+  await step('leg2-cross-open-h', () => backend.move('forward', .72));
+  await step('leg2-climb-after-h', () => backend.vertical('up', .30));
+  await step('leg2-approach-landing', () => backend.move('forward', 1.03));
+  await step('terminal-left-offset-0.50', () => backend.move('left', .50));
+  await step('terminal-low-landing-zone', () => backend.vertical('down', .30));
+  await step('oracle-complete', () => backend.completeActivityMission(evalProfile));
+  await step('route-land', () => backend.land());
+  const outcome = await step('route-outcome', () => backend.readActivityOutcome(evalProfile));
+  log('route-native-outcome', outcome);
+  if (!outcome || outcome.status !== 'achieved')
+    throw Error('route evaluator did not publish achieved after native LAND');
+}
 async function caseStop() {
   await step('takeoff-0.8', () => backend.takeoff(.8));
   let moveSettled = false;
@@ -171,6 +201,7 @@ socket.onopen = async () => {
     else if (scenario === 'ceiling') await caseCeiling();
     else if (scenario === 'ceiling_safe_ascent') await caseSafeAscent();
     else if (scenario === 'ceiling_takeoff') await caseTakeoffCeiling();
+    else if (scenario === 'route_lh') await caseRouteLH();
     else if (scenario === 'stop') await caseStop();
     else if (scenario === 'reset') await caseReset();
     else await caseDeadline();
