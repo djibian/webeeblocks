@@ -179,9 +179,9 @@ def analyze_native(log:str, events:list[dict], scenario:str):
     elif scenario in ("route_h3_contact","route_h3_low"):
         expected = "envelope-contact" if scenario.endswith("contact") else "low-outside-zone"
         verdict["expected_negative_reason"]=expected
-        verdict["qualified"]=verdict["scenario_completed"] and any(
+        verdict["qualified"]=(verdict["scenario_completed"] and any(
             "reason="+expected in x for x in neg) and
-            verdict["land_ack_not_before_true_touchdown"]
+            verdict["land_ack_not_before_true_touchdown"])
     elif scenario in ("stop","deadline"):
         verdict["qualified"]=(verdict["scenario_completed"] and
             verdict["land_ack_not_before_true_touchdown"] and n_ready>=1)
