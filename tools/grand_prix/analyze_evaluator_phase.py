@@ -15,11 +15,20 @@ import sys
 PREFIX = 'GP_EVALUATOR_PHASE_V1 '
 STEP_MS = 8
 WINDOW_STEPS = 125
+SCENE_CHILDREN = ('exportString', 'scene_root_inventory',
+                  'scene_vehicle_identity', 'scene_collider_traversal',
+                  'scene_collider_values')
 EXCLUSIVE = ('scene_and_colliders', 'kinematics', 'flight_observation',
-             'contacts', 'liveness_wire', 'mission_oracle')
+             'contacts', 'liveness_wire', 'mission_oracle',
+             'protocol_request', 'protocol_model', 'protocol_channel')
 PHASES = ('tick_total', 'exportString', 'scene_and_colliders',
-          'scene_without_exportString', 'kinematics', 'flight_observation',
-          'contacts', 'liveness_wire', 'mission_oracle', 'unattributed_tick')
+          'scene_root_inventory', 'scene_vehicle_identity',
+          'scene_collider_traversal', 'scene_collider_values',
+          'scene_collider_total', 'scene_without_exportString',
+          'scene_exclusive_residual', 'kinematics', 'flight_observation',
+          'contacts', 'liveness_wire', 'mission_oracle',
+          'protocol_request', 'protocol_model', 'protocol_channel',
+          'protocol_total', 'unattributed_tick')
 
 
 def _percentile(values, fraction):
@@ -60,10 +69,11 @@ def parse_windows(lines):
                     raise ValueError('missing tick_total')
                 if any(k not in PHASES for k in times):
                     raise ValueError('unknown phase (version mismatch)')
-                if 'exportString' in times and 'scene_and_colliders' not in times:
-                    raise ValueError('orphan nested exportString')
-                if (times.get('exportString', 0) > times.get('scene_and_colliders', 0)
-                        or sum(times.get(k, 0) for k in EXCLUSIVE) > times['tick_total']):
+                if any(k in times for k in SCENE_CHILDREN) and 'scene_and_colliders' not in times:
+                    raise ValueError('orphan nested scene phase')
+                if (sum(times.get(k, 0) for k in SCENE_CHILDREN) >
+                        times.get('scene_and_colliders', 0) or
+                        sum(times.get(k, 0) for k in EXCLUSIVE) > times['tick_total']):
                     raise ValueError('impossible overlapping durations')
             windows.append(raw)
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
@@ -77,7 +87,7 @@ def analyze(windows, course, start_ms=0, end_ms=None, minimum_sim_ms=30000):
     """Analyze only complete, contiguous, 125-step windows for one run.
 
     Conditional paths remain missing. 'unattributed_tick' includes timing
-    overhead, uninstrumented protocol reads, channel I/O and publication:
+    overhead, uninstrumented channel I/O and publication:
     it MUST NOT be relabeled as any individual cause without a new probe.
     """
     if (not isinstance(course, str) or not course or
@@ -105,8 +115,17 @@ def analyze(windows, course, start_ms=0, end_ms=None, minimum_sim_ms=30000):
     for row in rows:
         t = row['durations_ns']
         values = dict(t)
-        if 'scene_and_colliders' in t and 'exportString' in t:
-            values['scene_without_exportString'] = (t['scene_and_colliders'] - t['exportString'])
+        if 'scene_and_colliders' in t:
+            if 'exportString' in t:
+                values['scene_without_exportString'] = (t['scene_and_colliders'] - t['exportString'])
+            values['scene_exclusive_residual'] = (t['scene_and_colliders'] -
+                                                  sum(t.get(k, 0) for k in SCENE_CHILDREN))
+            if ('scene_collider_traversal' in t and 'scene_collider_values' in t):
+                values['scene_collider_total'] = (t['scene_collider_traversal'] +
+                                                  t['scene_collider_values'])
+        if any(k in t for k in ('protocol_request', 'protocol_model', 'protocol_channel')):
+            values['protocol_total'] = sum(t.get(k, 0) for k in
+                                          ('protocol_request', 'protocol_model', 'protocol_channel'))
         values['unattributed_tick'] = t['tick_total'] - sum(t.get(k, 0) for k in EXCLUSIVE)
         per_sample.append(values)
     worst_n = max(1, math.ceil(len(rows) * .01))
@@ -125,6 +144,9 @@ def analyze(windows, course, start_ms=0, end_ms=None, minimum_sim_ms=30000):
             'max_ms': round(max(samples) / 1e6, 6) if samples else None,
             'slow_tick_tail_observed': len(tail),
             'slow_tick_tail_mean_ms': round(sum(tail) / len(tail) / 1e6, 6) if tail else None,
+            'slow_tick_tail_share_of_tick_pct': (
+                round(100 * sum(tail) / sum(per_sample[i]['tick_total'] for i in tail_indices), 4)
+                if tail else None),
         }
     simulated_ms = len(rows) * STEP_MS
     return {
@@ -140,6 +162,8 @@ def analyze(windows, course, start_ms=0, end_ms=None, minimum_sim_ms=30000):
         'speed_x': None, 'visible_fps': None, 'overall_product_acceptance': 'UNPROVEN',
         'limitations': ('Measurements are in-process and conditional; no direct A/B causal '
                         'effect, native mutation coverage, complete cycle speed, or GUI/FPS proof. '
+                        'Nested scene and derived totals must not be added to parent stages. '
+                        'Tail percentages are per-stage intersections, not an additive profile. '
                         'Unattributed time includes unprobed calls and timer overhead.'),
     }
 
