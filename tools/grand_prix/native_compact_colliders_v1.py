@@ -40,13 +40,13 @@ def parse_native_inventory(raw, *, time_ms, supervisor_id):
         if id_ <= 0 or id_ in ids or not 0 <= flags < 128 or any(not math.isfinite(v) for v in values):
             raise ValueError('invalid native physical record')
         ids.add(id_)
-        if name.split(b'\\0', 1)[0].find(b'\\0') >= 0:
+        if name.split(bytes((0,)), 1)[0].find(bytes((0,))) >= 0:
             raise ValueError('invalid native fixed name')
         try:
-            def_name = name.split(b'\\0', 1)[0].decode('ascii')
+            def_name = name.split(bytes((0,)), 1)[0].decode('ascii')
         except UnicodeDecodeError as exc:
             raise ValueError('nonascii collider DEF') from exc
-        if b'\\0' in name and any(name[len(def_name) + 1:]):
+        if bytes((0,)) in name and any(name[len(def_name) + 1:]):
             raise ValueError('nonzero native name padding')
         solids.append(dict(id=id_, parent=parent, bounding_type=bounding, flags=flags,
                            name=def_name, position=values[:3], physical=values[3:6],
