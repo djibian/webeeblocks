@@ -23,13 +23,20 @@ def _refused(fn, label):
     raise RuntimeError('native adversarial observation accepted ' + label)
 
 
-def run(supervisor, native, expected, rectangles):
+def run(supervisor, native, expected, rectangles, course_identifier):
     """Read, mutate, read/refuse, restore, read, RESET physics, with true RPCs.
 
     The saved stale revision is tested at the native guarded velocity setter.
     We do not validate real-flight action, Webots GUI edits or a full world
     reload. A try/finally restores each field before the official checker.
     """
+    if not isinstance(course_identifier, str) or not course_identifier:
+        raise ValueError('canonical course identifier required for historical negatives')
+    from tools.grand_prix.evaluator_scene_identity_v2 import check_native_evaluator_scene
+
+    def historical():
+        check_native_evaluator_scene(supervisor, course_identifier)
+
     read = native.wb_supervisor_collider_batch_read
     clock = round(supervisor.getTime() * 1000)
     ident = supervisor.getSelf().getId()
@@ -48,6 +55,7 @@ def run(supervisor, native, expected, rectangles):
         return value
 
     before = matched()
+    historical()  # Initial same-step independent historical acceptance.
     result = {'schema': 2, 'status': 'UNPROVEN', 'clock_ms': clock,
               'incarnation': before['incarnation'], 'checks': []}
     get_revision = native.wb_supervisor_get_scene_revision
@@ -77,9 +85,11 @@ def run(supervisor, native, expected, rectangles):
             raise RuntimeError('canonical translation did not advance native scene revision')
         _refused(lambda: compare_native_canons(moved, expected, route_rectangles=rectangles),
                  'moved canonical Solid')
+        _refused(historical, 'historical moved canonical Solid')
     finally:
         field.setSFVec3f(list(previous))
     restored = matched()
+    historical()  # Both readers accept the fully restored same-tick scene.
     if restored['revision'] <= moved['revision'] or restored['incarnation'] != before['incarnation']:
         raise RuntimeError('canonical restore did not advance native revision')
     result['checks'].append('canonical_move_restore_same_step_revision')
@@ -94,6 +104,8 @@ def run(supervisor, native, expected, rectangles):
     zero = (ctypes.c_double * 6)(0, 0, 0, 0, 0, 0)
     if guard(pilot[0].getId(), ctypes.byref(old_token), zero):
         raise RuntimeError('stale native guarded effect was applied')
+    if frame()['revision'] != restored['revision']:
+        raise RuntimeError('refused stale native effect mutated the scene revision')
     result['checks'].append('stale_native_effect_refused_after_restore')
 
     # Modify a real pinned Floor PROTO field and read the actual Plane in the
@@ -112,9 +124,11 @@ def run(supervisor, native, expected, rectangles):
             raise RuntimeError('Floor PROTO change did not advance native revision')
         _refused(lambda: compare_native_canons(floor_changed, expected, route_rectangles=rectangles),
                  'Floor Plane shrink')
+        _refused(historical, 'historical Floor Plane shrink')
     finally:
         plane_field.setSFVec2f(list(old_size))
     floor_restored = matched()
+    historical()
     if floor_restored['revision'] <= floor_changed['revision']:
         raise RuntimeError('Floor restore did not advance native scene revision')
     result['checks'].append('floor_proto_plane_mutate_restore')
@@ -136,10 +150,12 @@ def run(supervisor, native, expected, rectangles):
             raise RuntimeError('foreign body insertion failed to advance scene revision')
         _refused(lambda: compare_native_canons(native_foreign, expected, route_rectangles=rectangles),
                  'foreign Cylinder Solid')
+        _refused(historical, 'historical foreign Cylinder Solid')
     finally:
         if inserted:
             root_children.removeMF(before_count)
     clean = matched()
+    historical()
     if root_children.getCount() != before_count or clean['revision'] <= native_foreign['revision']:
         raise RuntimeError('foreign body removal did not restore native scene/revision')
     result['checks'].append('foreign_non_box_insert_remove_refused')
@@ -147,9 +163,12 @@ def run(supervisor, native, expected, rectangles):
     before_reset = clean
     supervisor.simulationResetPhysics()
     after_reset = matched()
+    historical()
     if after_reset['revision'] <= before_reset['revision']:
         raise RuntimeError('native simulationResetPhysics failed to invalidate scene revision')
     result['checks'].append('native_physics_reset_revision_invalidation')
     result['final_revision'] = after_reset['revision']
+    result['same_step_historical_negative_cases'] = 3
+    result['same_step_historical_positive_restorations'] = 3
     result['status'] = 'PASS'
     return result
