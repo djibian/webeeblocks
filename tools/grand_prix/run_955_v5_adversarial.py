@@ -41,6 +41,7 @@ SCENARIOS = (
     "route_h3_contact", "route_h3_low", "stop", "reset", "deadline",
     "env_02_allow","env_03_edge","env_04_edge","env_05_edge",
     "env_05_refuse","env_04_refuse","env_05_vplus_allow","env_05_vplus_refuse",
+    "env_vplus_small_rebound","env_vplus_large_rebound",
     "outcome_replay_h1")
 FIELD = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
 FLOATS = ("t","x","y","z","vz","yaw","ref","target")
@@ -231,7 +232,7 @@ def analyze_native(log:str, events:list[dict], scenario:str):
             isinstance(native_vz,(int,float)) and native_vz>.020)
         qualifies=(verdict["scenario_completed"] and
             isinstance(amount,(int,float)) and .10<=amount<=.50 and
-            decision.get("verdict")==("allowed" if expected=="allow" else "refused") and
+            (expected=="either" or decision.get("verdict")==("allowed" if expected=="allow" else "refused")) and
             verdict["min_ceiling_clearance_m"]>=0 and
             not any("reason=altitude" in line and "GP_ROUTE_EVALUATOR_CLOSED" in line
                 for line in lines) and
