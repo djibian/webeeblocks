@@ -17,7 +17,7 @@ a = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(a)
 
 
-def sample(t, z, vz, *, target=.815, reference=.815, phase="takeoff"):
+def sample(t, z, vz, *, target=.815, reference=.815, phase="takeoff", ground_contact=1):
     err = reference - z
     p = 10 * err
     i = 4.0
@@ -27,14 +27,14 @@ def sample(t, z, vz, *, target=.815, reference=.815, phase="takeoff"):
             f"z0=.015000000 z={z:.9f} vz={vz:.9f} ref={reference:.9f} "
             f"target={target:.9f} error={err:.9f} p={p:.9f} i={i:.9f} "
             f"d={d:.9f} u={u:.9f} m1={-u:.9f} m2={u:.9f} "
-            f"m3={-u:.9f} m4={u:.9f} phase={phase}")
+            f"m3={-u:.9f} m4={u:.9f} ground_contact={ground_contact} phase={phase}")
 
 
 class TestReadOnlyTelemetry(unittest.TestCase):
     def test_observed_overshoot_is_measured_not_assumed(self):
         lines = ["GP_ROUTE_TAKEOFF_TRACE_BEGIN id=2 t=1.000000 z0=.015 target=.815"]
         lines += [sample(1 + .032 * k, .015 + .0005 * k, .02) for k in range(20)]
-        lines += [sample(1.640, .900, .502),  # exceeding request and still ascending
+        lines += [sample(1.640, .900, .502, ground_contact=0),  # exceeding request and still ascending
                   "GP_ROUTE_TAKEOFF_TRACE_ACK id=2 t=1.672000"]
         result = a.summarize(a.parse_lines(lines)[0])
         self.assertEqual(result["status"], "TRACE_WITH_ACK")
@@ -54,9 +54,10 @@ class TestReadOnlyTelemetry(unittest.TestCase):
     def test_first_lift_is_only_an_elevation_proxy(self):
         lines = ["GP_ROUTE_TAKEOFF_TRACE_BEGIN id=2 t=0 z0=.015 target=.815",
                  sample(.032, .015, 0),
-                 sample(.064, .036, .065)]
+                 sample(.064, .036, .065, ground_contact=0)]
         result = a.summarize(a.parse_lines(lines)[0])
         self.assertEqual(result["first_lift_2cm_proxy_elapsed_s"], .064)
+        self.assertEqual(result["first_observed_ground_contact_loss_elapsed_s"], .064)
         self.assertIsNone(result["first_vertical_stability_window_elapsed_s"])
 
     def test_invalid_native_samples_fail_closed(self):
@@ -89,6 +90,11 @@ class TestReadOnlyTelemetry(unittest.TestCase):
         cc = "cc"
         source = r'''
 #include <stddef.h>
+#include <stdbool.h>
+typedef void* WbNodeRef;
+typedef struct {double point[3]; int node_id;} WbContactPoint;
+static WbNodeRef wb_supervisor_node_get_self(void){return (void*)1;}
+static WbContactPoint *wb_supervisor_node_get_contact_points(WbNodeRef n,bool child,int* count){(void)n;(void)child;*count=0;return NULL;}
 typedef struct {double kp_z, ki_z, kd_z;} gains_pid_t;
 typedef struct {double m1, m2, m3, m4;} motor_power_t;
 #include "controllers/grand_prix_route_flight/gp_route_takeoff_trace.h"
