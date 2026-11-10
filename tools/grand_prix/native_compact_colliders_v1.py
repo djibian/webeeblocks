@@ -130,9 +130,10 @@ def compare_native_canons(snapshot, expected, *, route_rectangles=()):
 class NativeCompactColliderShadow:
     """One 107 RPC before the historical checker, and no authority changes."""
 
-    def __init__(self, expected, probe, window=125, route=None):
+    def __init__(self, expected, probe, window=125, route=None, course_identifier=None):
         self.expected = expected
         self.probe = probe
+        self.course_identifier = course_identifier
         if route is None:
             self.route_rectangles = ()
         else:
@@ -188,7 +189,7 @@ class NativeCompactColliderShadow:
                 try:
                     from tools.grand_prix.native_compact_mutation_probe_v2 import run
                     result = run(supervisor, self.native, self.expected,
-                                 self.route_rectangles)
+                                 self.route_rectangles, self.course_identifier)
                     self.probe.sink('GP_COMPACT_MUTATION_V2 ' +
                                     json.dumps(result, separators=(',', ':'), sort_keys=True))
                 except Exception as mutation_error:
