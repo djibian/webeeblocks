@@ -256,7 +256,7 @@ def analyze_native(log:str, events:list[dict], scenario:str):
             and isinstance(e.get("value"),dict) and
             isinstance(e["value"].get("returned"),dict) and
             e["value"]["returned"].get("status")=="achieved"]
-        admissions=[re.search(r"GP_U_ADMISSION attempt=(\\d+) start_ms=(\\d+)",line)
+        admissions=[re.search(r"GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)",line)
             for line in lines if "GP_U_ADMISSION" in line]
         admissions=[(int(m.group(1)),int(m.group(2))) for m in admissions if m]
         first_epoch_revoked=any(
