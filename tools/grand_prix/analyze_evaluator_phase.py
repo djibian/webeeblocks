@@ -67,7 +67,7 @@ def parse_windows(lines):
                     raise ValueError('malformed durations')
                 if 'tick_total' not in times:
                     raise ValueError('missing tick_total')
-                if any(k not in PHASES for k in times):
+                if any(k not in EXCLUSIVE + SCENE_CHILDREN + ('tick_total',) for k in times):
                     raise ValueError('unknown phase (version mismatch)')
                 if any(k in times for k in SCENE_CHILDREN) and 'scene_and_colliders' not in times:
                     raise ValueError('orphan nested scene phase')
