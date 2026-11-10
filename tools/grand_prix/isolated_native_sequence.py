@@ -37,15 +37,32 @@ SEQUENCE_OBSERVER = """
           power.m3 > 600.0 || power.m4 > 600.0 ||
           power.m1 < 0.0 || power.m2 < 0.0 ||
           power.m3 < 0.0 || power.m4 < 0.0;
+        int gp_contact = -1;
+        WbNodeRef gp_vehicle = wb_supervisor_node_get_self();
+        if (gp_vehicle) {
+          int gp_count = -1;
+          const WbContactPoint *gp_points =
+            wb_supervisor_node_get_contact_points(gp_vehicle, true, &gp_count);
+          if (gp_count >= 0 && (gp_count == 0 || gp_points != NULL)) {
+            gp_contact = 0;
+            for (int k = 0; k < gp_count; ++k) {
+              if (isfinite(gp_points[k].point[2]) &&
+                  gp_points[k].point[2] <= origin_z) {
+                gp_contact = 1;
+                break;
+              }
+            }
+          }
+        }
         printf("GP_SEQUENCE_SAMPLE t=%.6f dt=%.6f cmd=%s "
                "z=%.9f vz=%.9f ref=%.9f target=%.9f "
                "u=%.9f i=%.9f m1=%.9f m2=%.9f m3=%.9f m4=%.9f "
-               "saturated=%d airborne=%d\\n",
+               "saturated=%d airborne=%d ground_contact=%d\\n",
                now, dt, gp_phase, z, vz, desired.altitude, target_z,
                gp_collective, altitudeIntegrator,
                motor_power(power.m1), motor_power(power.m2),
                motor_power(power.m3), motor_power(power.m4),
-               gp_saturation, airborne);
+               gp_saturation, airborne, gp_contact);
         fflush(stdout);
       }
 """
