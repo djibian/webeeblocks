@@ -2,7 +2,7 @@ name: CI Gate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, ci/953-native-takeoff-r2025a]
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '17 3 * * *'
@@ -33,13 +33,13 @@ jobs:
       # STRICTLY ISOLATED CI-ONLY diagnostic on the derivative Draft PR.
       # Never part of the normal product Gate or a release acceptance.
       - name: Setup Node 22 for isolated 953 native bench
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ci/953-native-takeoff-r2025a' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'experiment/954-r2025a-envelope-route-matrix' }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Experiment 953 native Webots R2025a multi-primitive flight sequences
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'ci/953-native-takeoff-r2025a' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'experiment/954-r2025a-envelope-route-matrix' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -73,7 +73,7 @@ jobs:
           exit "$status"
 
       - name: Upload experiment 953 native sequences even on refusal
-        if: ${{ always() && github.event_name == 'pull_request' && github.head_ref == 'ci/953-native-takeoff-r2025a' }}
+        if: ${{ always() && github.event_name == 'pull_request' && github.head_ref == 'experiment/954-r2025a-envelope-route-matrix' }}
         uses: actions/upload-artifact@v4
         with:
           name: experiment-953-native-takeoff-r2025a-${{ github.event.pull_request.head.sha }}
