@@ -6,6 +6,7 @@ expected numeric geometry as the world, verify it here, and only then establish
 its separately attempt-bound readiness with the native flight controller.
 """
 from dataclasses import dataclass
+from contextlib import nullcontext
 from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 import math
 from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
@@ -276,7 +277,7 @@ def verify_native_boxes(supervisor, course, boxes):
     _verify_scene_boxes(course, canonical, _read_native_root_nodes(supervisor), NativeFieldLookup())
 
 
-def _verify_scene_boxes(course, boxes, root_nodes, fields, inspect=None):
+def _verify_scene_boxes(course, boxes, root_nodes, fields, inspect=None, *, phase_probe=None):
     expected_names = {box.name for box in boxes}
     # Reject unexpected course Solids too: a hidden collidable object is not
     # made safe by verifying all the expected objects are present.
@@ -297,10 +298,12 @@ def _verify_scene_boxes(course, boxes, root_nodes, fields, inspect=None):
                 # could otherwise conceal an unprefixed Solid below it.
                 raise RuntimeError('unexpected reserved course node: ' + name)
             # White/red course guides are non-colliding Pose nodes.
-    live_boxes = _read_scene_boxes(root_nodes, expected_names, course.route, fields, inspect)
+    with phase_probe.phase('scene_collider_traversal') if phase_probe else nullcontext():
+        live_boxes = _read_scene_boxes(root_nodes, expected_names, course.route, fields, inspect)
     if len(scene_names) != len(set(scene_names)) or set(scene_names) != expected_names:
         raise RuntimeError('native scene has missing/extra/duplicate mission Solids')
-    _verify_box_measurements(boxes, live_boxes, fields)
+    with phase_probe.phase('scene_collider_values') if phase_probe else nullcontext():
+        _verify_box_measurements(boxes, live_boxes, fields)
     return live_boxes
 
 
