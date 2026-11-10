@@ -68,9 +68,10 @@ def _equal_triplet(actual, expected):
 
 def compare_native_canons(snapshot, expected):
     """Compare only canonical Boxes; NEVER attest all physical geometry."""
-    by_name = {s['name']: s for s in snapshot['solids'] if s['name'].startswith(ROOT_PREFIX)}
+    canonical = [s for s in snapshot['solids'] if s['name'].startswith(ROOT_PREFIX)]
+    by_name = {s['name']: s for s in canonical}
     targets = {b.name: b for b in expected}
-    if len(by_name) != len(targets) or set(by_name) != set(targets):
+    if len(canonical) != len(targets) or len(by_name) != len(targets) or set(by_name) != set(targets):
         raise ValueError('missing/extra/duplicate native canonical DEF')
     for name, box in targets.items():
         s = by_name[name]
