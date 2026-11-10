@@ -127,11 +127,9 @@ def compose_route_vertical_product(source: str) -> str:
     # real Supervisor contact latch. The existing safety LAND and reset
     # policies remain unchanged; no oracle predicate is relaxed.
     land_anchor = (
-        "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\\n"
+        "if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\n"
         "            gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW) {"
     )
-    # Actual newline, not the escaped diagnostic string.
-    land_anchor = land_anchor.replace("\\\\n", "\\n")
     land_guarded = land_anchor.replace(
         "            gp_ground_since >= 0.0",
         "            land_touchdown && gp_ground_since >= 0.0"
