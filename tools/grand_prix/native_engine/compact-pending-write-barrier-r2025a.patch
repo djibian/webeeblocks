@@ -1,0 +1,59 @@
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -66,9 +66,10 @@
+ #include <QtCore/QCoreApplication>
+ #include <QtCore/QDataStream>
+ #include <QtCore/QDir>
+ #include <QtCore/QFile>
+-#include <QtCore/QThread>
++#include <QtCore/QThread>
++#include <QtCore/QDebug>
+ #include <QtCore/QUuid>
+ #include <algorithm>
+ #include <cassert>
+ #include <array>
+@@ -2132,12 +2133,26 @@
+ 
+ // Private read-only v1 binary inventory. Unsupported bounding geometry
+ // remains explicitly marked; the historical evaluator is still authoritative.
+ bool WbSupervisorUtilities::writeCompactColliderAnswer(WbDataStream &stream) {
+-  if (!mCompactColliderRequested)
+-    return false;
+-  mCompactColliderRequested = false;
+-  using Clock = std::chrono::steady_clock;
++  if (!mCompactColliderRequested)
++    return false;
++  mCompactColliderRequested = false;
++  // A Supervisor SET remains queued until the engine applies the field
++  // request. Observation 107 must not attest the pre-commit geometry.
++  const int pendingFieldWrites = mFieldSetRequests.size();
++  if (pendingFieldWrites && qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1") {
++    // CI-only explicit same-simulation-time commit: same method invoked
++    // at the beginning of the normal physics step; no artificial sleep
++    // and no extra physics step. Production reads NEVER commit writes.
++    const quint64 before = WbWorld::instance()->sceneRevision();
++    processImmediateMessages();
++    const quint64 after = WbWorld::instance()->sceneRevision();
++    qInfo("GP_COMPACT_FIELD_APPLY_V2 queued=%d before=%llu after=%llu sim_ms=%.0f",
++          pendingFieldWrites, static_cast<unsigned long long>(before),
++          static_cast<unsigned long long>(after), WbSimulationState::instance()->time());
++  }
++  using Clock = std::chrono::steady_clock;
+   const auto begin = Clock::now();
+   const WbWorld *const world = WbWorld::instance();
+   const QList<WbSolid *> solids = world->findSolids(false);
+   const WbGroup *const root = world->root();
+@@ -2181,9 +2196,11 @@
+     for (const char c : child->defName().toUtf8())
+       mix(static_cast<quint8>(c));
+     protoRoots += child->isProtoInstance() ? 1 : 0;
+   }
+-  const int count = solids.size() > 128 ? -1 : solids.size();
++  // Without the CI-only commit, a queued write invalidates this snapshot.
++  // Count -1 is a hard, non-authoritative refusal in the binary reader.
++  const int count = (solids.size() > 128 || !mFieldSetRequests.isEmpty()) ? -1 : solids.size();
+   if (count >= 0) {
+     entries.reserve(count);
+     for (const WbSolid *const solid : solids) {
+       Entry entry{};
