@@ -35,7 +35,7 @@ from tools.grand_prix.route_courses_v2 import reference_course
 SCENARIOS = ("primitives", "ceiling", "ceiling_safe_ascent", "ceiling_takeoff", "route_lh", "stop", "deadline", "reset")
 SAMPLE = re.compile(r"\bGP_SEQUENCE_SAMPLE\b")
 PAIR = re.compile(r"([a-z][a-z0-9_]*)=([^\s]+)")
-FIELDS = ("t", "dt", "z", "vz", "ref", "target", "u", "i",
+FIELDS = ("t", "dt", "x", "y", "yaw", "z", "vz", "ref", "target", "u", "i",
           "m1", "m2", "m3", "m4")
 MODES = frozenset(("TAKEOFF", "IDLE", "MOVE", "VERTICAL", "TURN", "WAIT", "LAND"))
 
@@ -82,6 +82,7 @@ def metrics(samples: list[dict]) -> dict:
         "duration_s": round(samples[-1]["t"] - samples[0]["t"], 6),
         "modes": list(dict.fromkeys(row["cmd"] for row in samples)),
         "max_altitude_m": max(row["z"] for row in samples),
+        "final_pose_native": {key: samples[-1][key] for key in ("x","y","z","yaw")},
         "min_altitude_m": min(row["z"] for row in samples),
         "max_abs_vz_m_s": max(abs(row["vz"]) for row in samples),
         "max_collective": max(row["u"] for row in samples),
