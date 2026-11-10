@@ -13,9 +13,12 @@ Calibration:
 - Native 32 ms PID and 8 ms oracle, observed LAND transition 24 ms;
 - Representative LAND deceleration approx 0.401 m/s^2; use conservative
   0.25 m/s^2, plus explicit 64 ms observation/control reaction budget;
-- 0.125 m base allowance > measured 0.101265 m command overshoot
-  + 0.023735 m. This is an empirical bounded simulator candidate, not a
-  proof of invariant safety for every initial condition.
+- A 0.30 m upward VERTICAL on the actual L/H route overshot the commanded
+  target by 0.157174 m. Bound VERTICAL on observed amplitudes by
+  (0.095 + 0.30 * requested_up_m) metres: at 0.10m -> 0.125m,
+  at 0.30m -> 0.185m (both >= observed overshoot + 0.023m).
+  TAKEOFF keeps 0.080m because its measured governor overshoot <= 0.04443m.
+  Beyond the measured native cases, no universal physical invariant is claimed.
 The constraint is a positive margin BELOW the unchanged 1.15 m above
 origin; it never moves the oracle ceiling.
 """
@@ -27,25 +30,26 @@ SCOPES = ("all_active_primitives_headroom",)
 _VEL_REF = """        const double next_target_z = z + (strcmp(request.direction, "up") == 0 ? request.value : -request.value);"""
 _TAKEOFF_REF = """        target_z = origin_z + request.value;"""
 
-_BRAKING_MARGIN = """gp_ceiling_headroom(vz)"""
+_BRAKING_MARGIN = """gp_ceiling_headroom(vz, requested_up)"""
 _GUARD_FUNCTION = """
 /* Route-only native candidate: conservative pre-command headroom.
  * Deceleration is a bounded SIMULATION hypothesis to verify in R2025a,
  * not an assertion of a real Crazyflie braking guarantee. */
-static double gp_ceiling_headroom(double speed_z) {
-  if (!isfinite(speed_z)) return NAN;
+static double gp_ceiling_headroom(double speed_z, double requested_up) {
+  if (!isfinite(speed_z) || !isfinite(requested_up)) return NAN;
   const double ascent = fmax(0.0, speed_z);
   const double reaction_time_s = 0.064;
   const double minimum_deceleration_m_s2 = 0.25;
-  const double measured_vertical_overshoot_plus_margin_m = 0.125;
-  return measured_vertical_overshoot_plus_margin_m + reaction_time_s * ascent +
+  const double measured_amplitude_allowance_m = requested_up > 0.0 ?
+    0.095 + 0.30 * requested_up : 0.080;
+  return measured_amplitude_allowance_m + reaction_time_s * ascent +
     ascent * ascent / (2.0 * minimum_deceleration_m_s2);
 }
 """
 
 _VERTICAL_GUARD = """
         if (strcmp(request.direction, "up") == 0) {
-          const double gp_headroom = gp_ceiling_headroom(vz);
+          const double gp_headroom = gp_ceiling_headroom(vz, request.value);
           const double gp_safe_top = origin_z + 1.15 - gp_headroom;
           if (!isfinite(gp_safe_top) || next_target_z > gp_safe_top) {
             fprintf(stderr,
@@ -63,15 +67,15 @@ _VERTICAL_GUARD = """
 _TAKEOFF_GUARD = """
         /* Preserve strict TAKEOFF 1.0 m qualification, refuse new targets
          * insufficiently clear of the unchanged native ceiling. */
-        if (!isfinite(gp_ceiling_headroom(vz)) ||
+        if (!isfinite(gp_ceiling_headroom(vz, 0.0)) ||
             origin_z + request.value >
-              origin_z + 1.15 - gp_ceiling_headroom(vz)) {
+              origin_z + 1.15 - gp_ceiling_headroom(vz, 0.0)) {
           fprintf(stderr,
              "GP_CEILING_PREFLIGHT_V1 command=TAKEOFF z=%.9f vz=%.9f "
              "target=%.9f headroom=%.9f ceiling=%.9f "
              "code=INVALID_TAKEOFF\\n",
              z, vz, origin_z + request.value,
-             gp_ceiling_headroom(vz), origin_z + 1.15);
+             gp_ceiling_headroom(vz, 0.0), origin_z + 1.15);
           response_error(request.id, "INVALID_TAKEOFF");
           continue;
         }
