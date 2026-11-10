@@ -91,7 +91,7 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
         if source.count(begin) != 1:
             raise RuntimeError("native VERTICAL command anchor changed")
         source = source.replace(
-            begin, "        gp_route_takeoff_begin(&gp_route_takeoff, z);\\n" + begin, 1)
+            begin, "        gp_route_takeoff_begin(&gp_route_takeoff, z);\n" + begin, 1)
         before = "    } else if (command == CMD_VERTICAL) {"
         after = "    } else if (command == CMD_TURN) {"
         if source.count(before) != 1 or source.count(after) != 1:
