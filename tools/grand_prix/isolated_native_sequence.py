@@ -11,7 +11,7 @@ from pathlib import Path
 
 from tools.grand_prix.isolated_native_takeoff_candidates import PID_COMPENSATION
 
-SCOPES = ("takeoff_idle_only", "all_active_primitives")
+SCOPES = ("takeoff_idle_only", "all_active_primitives", "all_active_vertical_up_governed")
 OLD_CONDITION = "if (command == CMD_TAKEOFF || (airborne && command == CMD_IDLE))"
 NEW_CONDITION = (
     "if (command == CMD_TAKEOFF || "
@@ -81,8 +81,46 @@ def instrument_generated_controller(path: Path, scope: str) -> None:
     # Inject BEFORE changing the original condition; otherwise the exact
     # PID_COMPENSATION anchor disappears and str.replace does nothing.
     source = source.replace(PID_COMPENSATION, PID_COMPENSATION + SEQUENCE_OBSERVER, 1)
-    if scope == "all_active_primitives":
+    if scope in ("all_active_primitives", "all_active_vertical_up_governed"):
         source = source.replace(OLD_CONDITION, NEW_CONDITION, 1)
+    if scope == "all_active_vertical_up_governed":
+        # Reuse the already source-locked TAKEOFF governor only for upward
+        # VERTICAL, with a fresh native position reference at request accept.
+        # Descending VERTICAL retains its production reference exactly.
+        begin = "        command = CMD_VERTICAL;"
+        if source.count(begin) != 1:
+            raise RuntimeError("native VERTICAL command anchor changed")
+        source = source.replace(
+            begin, "        gp_route_takeoff_begin(&gp_route_takeoff, z);\\n" + begin, 1)
+        before = "    } else if (command == CMD_VERTICAL) {"
+        after = "    } else if (command == CMD_TURN) {"
+        if source.count(before) != 1 or source.count(after) != 1:
+            raise RuntimeError("unique VERTICAL control branch required")
+        prefix, tail = source.split(before, 1)
+        body, suffix = tail.split(after, 1)
+        altitude = "      desired.altitude = target_z;"
+        if body.count(altitude) != 1:
+            raise RuntimeError("VERTICAL altitude source anchor changed")
+        governed = """
+      if (strcmp(active_direction, "up") == 0) {
+        desired.altitude = gp_route_takeoff_next(
+          &gp_route_takeoff, target_z, z, vz, dt);
+        if (!isfinite(desired.altitude)) {
+          response_error(active_id, "UNSAFE_OR_TIMEOUT");
+          stop_motors(m1, m2, m3, m4);
+          airborne = 0;
+          simulation_clock_revoke(&program_clock);
+          failsafe_latched = 1;
+          command = CMD_IDLE;
+          active_id = -1;
+          stable_since = -1.0;
+          previous_time = now; previous_x = x; previous_y = y; previous_z = z;
+          continue;
+        }
+      }
+"""
+        body = body.replace(altitude, altitude + governed, 1)
+        source = prefix + before + body + after + suffix
     if source.count("GP_SEQUENCE_SAMPLE") != 1:
         raise RuntimeError("mandatory native observer not injected exactly once")
     path.write_text(source, encoding="utf-8")
