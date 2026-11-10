@@ -14,7 +14,10 @@ def _once(source: str, anchor: str, replacement: str, name: str) -> str:
     return source.replace(anchor, replacement, 1)
 
 
-_CEILING_FUNCTION = """/* Route simulation only: empirical request-admission clearance, not an oracle.
+_CEILING_FUNCTION = """/* The existing PID owns this integral (declared by the #953 diagnostic
+ * header in the native prototype); link to it without modifying the PID. */
+extern double altitudeIntegrator;
+/* Route simulation only: empirical request-admission clearance, not an oracle.
  * Reference: #954 R2025a native run 42878862498 (artifact 13795080041).
  * 32ms controller; 8ms physics; 64ms response budget; assumed >=0.25m/s^2
  * deceleration. The oracle's origin+1.15m ceiling remains unchanged.
