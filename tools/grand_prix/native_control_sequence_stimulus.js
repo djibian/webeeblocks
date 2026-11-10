@@ -46,18 +46,16 @@ async function step(name, action) {
   }
 }
 async function casePrimitives() {
-  await step('takeoff-0.8', () => backend.takeoff(.8));
-  await step('wait-0.5', () => backend.wait(.5));
-  await step('move-forward-0.12', () => backend.move('forward', .12));
-  await step('move-backward-0.12', () => backend.move('back', .12));
+  // Stay inside the already-authorized 0.14 m initial takeoff zone; its
+  // 15-second privilege is never prolonged/recreated by a return flight.
+  // This is a controlled PRIMITIVE TRANSITION witness, not a mission shortcut.
+  await step('takeoff-0.5', () => backend.takeoff(.5));
+  await step('wait-0.1', () => backend.wait(.1));
+  await step('move-forward-0.04', () => backend.move('forward', .04));
   await step('vertical-up-0.10', () => backend.vertical('up', .10));
-  await step('turn-15', () => backend.turn(15));
-  await step('turn-minus-15', () => backend.turn(-15));
+  await step('turn-5', () => backend.turn(5));
   await step('vertical-down-0.10', () => backend.vertical('down', .10));
-  await step('wait-0.5-after', () => backend.wait(.5));
-  // Return to the canonical START landing exception. The mission's end-point
-  // remains distinct: a successful LAND is NOT an achieved Grand Prix.
-  await step('land-at-start', () => backend.land());
+  await step('land-within-takeoff-exception', () => backend.land());
   await step('strict-reset-after-land', () => backend.resetSimulation());
   await step('takeoff-after-reset-0.5', () => backend.takeoff(.5));
   await step('stop-after-reset-takeoff', () => backend.stopSimulation());
