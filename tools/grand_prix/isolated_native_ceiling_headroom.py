@@ -7,11 +7,15 @@ fabricated mission PASS. This is a measured-context candidate, not an
 absolute proof for arbitrary hardware/dynamics.
 
 Calibration:
-- Actual post-oracle climb in #954 ceiling failure: 0.058826 m;
+- Actual post-oracle climb in #954 ceiling failure: 0.058736 m;
+- Native safe VERTICAL (0.8 + 0.1) at run 42874656881 overshot its
+  requested target by 0.101265 m despite no ceiling violation;
 - Native 32 ms PID and 8 ms oracle, observed LAND transition 24 ms;
 - Representative LAND deceleration approx 0.401 m/s^2; use conservative
   0.25 m/s^2, plus explicit 64 ms observation/control reaction budget;
-- 0.080 m base allowance > measured 0.058826 m tail + 0.021174 m.
+- 0.125 m base allowance > measured 0.101265 m command overshoot
+  + 0.023735 m. This is an empirical bounded simulator candidate, not a
+  proof of invariant safety for every initial condition.
 The constraint is a positive margin BELOW the unchanged 1.15 m above
 origin; it never moves the oracle ceiling.
 """
@@ -33,8 +37,8 @@ static double gp_ceiling_headroom(double speed_z) {
   const double ascent = fmax(0.0, speed_z);
   const double reaction_time_s = 0.064;
   const double minimum_deceleration_m_s2 = 0.25;
-  const double measured_tail_plus_margin_m = 0.080;
-  return measured_tail_plus_margin_m + reaction_time_s * ascent +
+  const double measured_vertical_overshoot_plus_margin_m = 0.125;
+  return measured_vertical_overshoot_plus_margin_m + reaction_time_s * ascent +
     ascent * ascent / (2.0 * minimum_deceleration_m_s2);
 }
 """
