@@ -86,6 +86,12 @@ def parse_lines(lines: list[str]) -> list[dict]:
                     if not math.isfinite(val):
                         raise TraceError(f"line {lineno}: non-finite {key}")
                     parsed[key] = val
+                try:
+                    parsed["ground_contact"] = int(data["ground_contact"])
+                except (KeyError, ValueError) as exc:
+                    raise TraceError(f"line {lineno}: invalid ground_contact") from exc
+                if parsed["ground_contact"] not in (-1, 0, 1):
+                    raise TraceError(f"line {lineno}: out-of-domain ground_contact")
                 parsed["phase"] = data.get("phase", "")
                 if parsed["phase"] not in ("takeoff", "post_ack"):
                     raise TraceError(f"line {lineno}: invalid phase")
@@ -137,6 +143,17 @@ def summarize(run: dict) -> dict:
     lift = next((row["t"] for row in samples if
                  row["z"] - origin >= MIN_LIFT_M
                  and row["vz"] > MIN_ASCENT_M_S), None)
+    # A witnessed contact-to-no-contact transition is the first sampled
+    # loss of ground contact, bracketed by the 32-ms observation period.
+    # If contact was never seen, loss of contact is NOT established.
+    seen_contact = False
+    contact_loss = None
+    for row in samples:
+        if row["ground_contact"] == 1:
+            seen_contact = True
+        elif seen_contact and row["ground_contact"] == 0:
+            contact_loss = row["t"]
+            break
     rotor = next((row["t"] for row in samples if
                   sum(abs(row[k]) for k in ("m1", "m2", "m3", "m4")) / 4
                   >= MODEL_HOVER_OMEGA), None)
@@ -158,6 +175,12 @@ def summarize(run: dict) -> dict:
         "ack_observed": ack is not None,
         "takeoff_ack_elapsed_s": None if ack is None else round(ack - t0, 6),
         "first_lift_2cm_proxy_elapsed_s": None if lift is None else round(lift - t0, 6),
+        "first_observed_ground_contact_loss_elapsed_s":
+            None if contact_loss is None else round(contact_loss - t0, 6),
+        "contact_witness_status":
+            ("CONTACT_LOSS_OBSERVED" if contact_loss is not None
+             else "GROUND_CONTACT_OBSERVED_NO_LOSS" if seen_contact
+             else "CONTACT_LOSS_UNPROVEN"),
         "first_model_hover_omega_proxy_elapsed_s": None if rotor is None else round(rotor - t0, 6),
         "model_hover_omega_not_measured_rad_s": round(MODEL_HOVER_OMEGA, 6),
         "maximum_observed_altitude_m": round(z_max, 8),
