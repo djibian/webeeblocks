@@ -384,7 +384,12 @@ def main() -> int:
     report = {
         "status":"RAW_NATIVE_SEQUENCE_COMPARISON_NOT_ACCEPTANCE",
         "exact_source_sha":sha,
-        "world_equal":len({r["world_sha256"] for r in results})==1,
+        # The same geometry must be byte-identical within each canonical
+        # course, but distinct H1/H3 courses MUST have distinct world hashes.
+        "world_equal":all(len({x["world_sha256"] for x in results
+                             if x["course_index"]==course_index})==1
+                          for course_index in {x["course_index"] for x in results}),
+        "distinct_worlds":len({x["world_sha256"] for x in results}),
         "results":results,
         "builds":builds,
         "safety_relaxation":False,
