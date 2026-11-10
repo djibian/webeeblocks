@@ -1,0 +1,121 @@
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -17,7 +17,8 @@
+ 
+ #include "WbAbstractCamera.hpp"
+ #include "WbBox.hpp"
+-#include "WbShape.hpp"
++#include "WbShape.hpp"
++#include "WbPlane.hpp"
+ #include "WbApplication.hpp"
+ #include "WbDataStream.hpp"
+ #include "WbDevice.hpp"
+@@ -2148,8 +2149,27 @@
+   QVector<Entry> entries;
+   quint64 rootsHash = 1469598103934665603ULL;
+   const auto mix = [&rootsHash](quint64 v) { rootsHash = (rootsHash ^ v) * 1099511628211ULL; };
+-  int protoRoots = 0;
+-  for (int i = 0; i < root->childCount(); ++i) {
++  int protoRoots = 0;
++  // Observe the instantiated node graph as well as root children. This
++  // detects hidden PROTO/DEF/USE topology changes that a root-only hash misses.
++  // It is NOT a replacement for a complete #923 mutation provenance proof.
++  const QList<WbNode *> graph = root->subNodes(true, true, false);
++  mix(static_cast<quint64>(graph.size()));
++  for (const WbNode *const node : graph) {
++    if (!node) {
++      mix(0);
++      continue;
++    }
++    mix(static_cast<quint64>(node->uniqueId()));
++    mix(static_cast<quint64>(node->parentNode() ? node->parentNode()->uniqueId() : 0));
++    mix(static_cast<quint64>(node->nodeType()));
++    mix(static_cast<quint64>(node->isProtoInstance()));
++    for (const char ch : node->defName().toUtf8())
++      mix(static_cast<quint8>(ch));
++    for (const char ch : node->modelName().toUtf8())
++      mix(static_cast<quint8>(ch));
++  }
++  for (int i = 0; i < root->childCount(); ++i) {
+     const WbBaseNode *const child = root->child(i);
+     if (!child) {
+       mix(0);
+@@ -2172,8 +2192,25 @@
+       entry.parent = parent ? parent->uniqueId() : 0;
+       const WbBaseNode *const bounding = solid->boundingObject();
+       entry.boundingType = bounding ? bounding->nodeType() : 0;
+-      entry.flags = (solid->isLocked() ? 1 : 0) | (solid->protoAncestor() ? 4 : 0) |
+-                    (solid->isProtoInstance() ? 8 : 0) | (parent == root ? 16 : 0);
++      entry.flags = (solid->isLocked() ? 1 : 0) | (solid->protoAncestor() ? 4 : 0) |
++                    (solid->isProtoInstance() ? 8 : 0) | (parent == root ? 16 : 0);
++      // Flags 128+: provenance and exact root/Box/Plane structure. A wrapped
++      // Box or multiple visible Shapes must never masquerade as canonical.
++      if (dynamic_cast<const WbBox *>(bounding))
++        entry.flags |= 128;  // direct physical Box
++      const WbPlane *const plane = dynamic_cast<const WbPlane *>(bounding);
++      if (plane)
++        entry.flags |= 256;  // direct physical Plane (Floor)
++      const QString &modelName = solid->modelName();
++      if (parent == root && solid->isProtoInstance() && modelName == "Floor")
++        entry.flags |= 512;
++      if (parent == root && solid->isProtoInstance() && modelName == "Crazyflie")
++        entry.flags |= 1024;
++      if (parent == root && !solid->isProtoInstance() && solid->defName() == "GP_ROUTE_EVALUATOR" &&
++          modelName == "Robot")
++        entry.flags |= 8192;
++      if (bounding && !dynamic_cast<const WbBox *>(bounding) && !plane)
++        entry.flags |= 16384;  // unsupported complex physical shape
+       const QByteArray name = solid->defName().toUtf8();
+       if (name.size() >= static_cast<int>(entry.def.size()))
+         entry.flags |= 64;
+@@ -2198,14 +2235,22 @@
+       }
+       if (physical)
+         entry.flags |= 2;
+-      if (visibleCount == 1)
+-        entry.flags |= 32;
++      if (visibleCount == 1)
++        entry.flags |= 32;
++      if (visibleCount == 1 && solid->childCount() == 1)
++        entry.flags |= 2048;  // exactly one immediate Shape child
++      if (solid->protoAncestor() && (solid->protoAncestor()->modelName() == "Crazyflie" ||
++                                      solid->protoAncestor()->modelName() == "Floor"))
++        entry.flags |= 32768;  // inside a pinned PROTO, not independently attested
+       const WbVector3 p = solid->translation();
+       entry.v[0] = p.x(); entry.v[1] = p.y(); entry.v[2] = p.z();
+-      if (physical) {
+-        const WbVector3 s = physical->size();
+-        entry.v[3] = s.x(); entry.v[4] = s.y(); entry.v[5] = s.z();
+-      }
++      if (physical) {
++        const WbVector3 s = physical->size();
++        entry.v[3] = s.x(); entry.v[4] = s.y(); entry.v[5] = s.z();
++      } else if (plane) {
++        const WbVector2 s = plane->size();
++        entry.v[3] = s.x(); entry.v[4] = s.y(); entry.v[5] = 0.0;
++      }
+       if (visibleCount == 1) {
+         const WbVector3 s = visible->size();
+         entry.v[6] = s.x(); entry.v[7] = s.y(); entry.v[8] = s.z();
+@@ -2217,7 +2262,7 @@
+   }
+   const auto produced = Clock::now();
+   stream << (quint16)0 << (quint8)C_SUPERVISOR_COLLIDER_BATCH
+-         << (qint32)1 << (qint32)count << (qint32)root->childCount()
++         << (qint32)2 << (qint32)count << (qint32)root->childCount()
+          << (qint32)protoRoots << (qint32)mRobot->uniqueId()
+          << (double)WbSimulationState::instance()->time() << (quint64)world->sceneRevision();
+   const QByteArray incarnation = world->sceneIncarnation().toRfc4122();
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -1480,7 +1480,7 @@
+       int32_t version = 0, count = 0;
+       memcpy(&version, wire, sizeof(version));
+       memcpy(&count, wire + sizeof(version), sizeof(count));
+-      if (version == 1 && count >= -1 && count <= 128 &&
++      if (version == 2 && count >= -1 && count <= 128 &&
+           remaining == 76 + (count < 0 ? 0 : count * 168)) {
+         memcpy(compact_collider_wire, wire, remaining);
+         compact_collider_bytes = remaining;
