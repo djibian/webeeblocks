@@ -9,7 +9,7 @@ import math
 from .oracle_u import (
     LOW_AFTER, LOW_BEFORE, RADIUS, clipped_interval,
 )
-from .oracle_gate_progress_v2 import BEAM_BOTTOM as LOW_THRESHOLD
+from .route_open_h_v2 import BEAM_BOTTOM as LOW_THRESHOLD
 
 
 def _local_exact(leg, point):
