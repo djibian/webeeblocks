@@ -27,7 +27,7 @@ const backend = new Backend({
     record('request', message);
     socket.send('robot:Crazyflie WebeeBlocks:' + message);
   }
-}, {simulationReset: true, simulationStop: true, timeoutMs: 300000});
+}, {simulationReset: true, simulationStop: true, simulationAdmission: true, timeoutMs: 300000});
 socket.onmessage = event => {
   for (const line of String(event.data).split(/\r?\n/)) {
     if (!line.startsWith('robot:')) continue;
