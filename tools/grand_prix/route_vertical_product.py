@@ -158,6 +158,32 @@ def compose_route_vertical_product(source: str) -> str:
                  _TAKEOFF_PREFLIGHT + "        active_id = request.id;",
                  "TAKEOFF side-effect-free refusal")
     source = prefix + begin + body + after + suffix
+    # Native H3 retest 42907396704 proved first touchdown and LAND_READY
+    # could coincide (t=88.352): pre-contact pose stability had already
+    # aged 1.120s. Require a FRESH continuous real-contact window. A bounced
+    # or transient contact resets that window, but the existing touchdown
+    # latch still keeps motors unpowered (irreversible safety).
+    source = _once(source, "  double gp_ground_since = -1.0;",
+                   "  double gp_ground_since = -1.0;\\n"
+                   "  double gp_land_contact_since = -1.0;",
+                   "separate native contact window")
+    original_contact = (
+        "if (!land_touchdown && land_has_ground_contact(z, origin_z)) {"
+    )
+    native_contact = (
+        "const int gp_contact_now = land_has_ground_contact(z, origin_z);\\n"
+        "      if (!gp_contact_now) gp_land_contact_since = -1.0;\\n"
+        "      else if (gp_land_contact_since < 0.0) gp_land_contact_since = now;\\n"
+        "      if (!land_touchdown && gp_contact_now) {"
+    )
+    source = _once(source, original_contact, native_contact,
+                   "native contact sample refresh on every LAND cycle")
+    # Reset the timer whenever the flight controller is not in LAND, so a
+    # separate landing cannot reuse an old contact observation window.
+    idle_anchor = "    if (command == CMD_TAKEOFF) {"
+    source = _once(source, idle_anchor,
+                   "    if (command != CMD_LAND) gp_land_contact_since = -1.0;\\n" +
+                   idle_anchor, "separate LAND window freshness")
     # #956 H3: independent oracle observed native LAND ACK at t=87.744s
     # before any actual contact (touchdown only at t=88.416s). Tighten only
     # route-only LAND ACK: geometric ground stability cannot replace a
@@ -169,7 +195,8 @@ def compose_route_vertical_product(source: str) -> str:
     )
     land_guarded = land_anchor.replace(
         "            gp_ground_since >= 0.0",
-        "            land_touchdown && gp_ground_since >= 0.0"
+        "            land_touchdown && gp_land_contact_since >= 0.0 && "
+        "now - gp_land_contact_since >= STOP_WINDOW && gp_ground_since >= 0.0"
     )
     source = _once(source, land_anchor, land_guarded, "native contact-gated LAND")
     # VERTICAL target calculation precedes all command-state side effects.
