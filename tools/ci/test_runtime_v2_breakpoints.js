@@ -169,12 +169,89 @@ async function singleStepDoesNotDoublePause() {
   assert.equal(pauses.length,1);
   assert.equal(b.trace.at(-1),'land');
 }
+
+function graphSnapshot(workspace) {
+  return JSON.stringify(workspace.getAllBlocks().map(block=>({
+    id:block.id,type:block.type,next:block.next&&block.next.id,
+    inputs:Object.keys(block.inputs||{}).sort().map(name=>[name,block.inputs[name]&&block.inputs[name].id])
+  })));
+}
+async function breakOnLoopAndCall() {
+  const {workspace}=fixture(),b=backend(),pauses=[],obs=Observer.create(workspace,{
+    onPause:d=>pauses.push(d)
+  });
+  obs.toggleBreakpoint('repeat');
+  obs.toggleBreakpoint('call');
+  const before=graphSnapshot(workspace);
+  const run=Interpreter.run(program(2),b,{maxSteps:1000,hooks:obs.begin(true)});
+  await until(()=>pauses.length===1,'start');
+  obs.continueRun();
+  await until(()=>pauses.length===2,'repeat onNode');
+  assert.equal(pauses[1].blockId,'repeat');
+  assert.equal(pauses[1].reason,'breakpoint');
+  assert.deepEqual(b.trace,['takeoff']);
+  obs.continueRun();
+  await until(()=>pauses.length===3,'first call');
+  assert.equal(pauses[2].blockId,'call');
+  assert.deepEqual(b.trace,['takeoff']);
+  obs.continueRun();
+  await until(()=>pauses.length===4,'second repeat iteration');
+  assert.equal(pauses[3].blockId,'repeat');
+  assert.equal(pauses[3].iteration,1);
+  assert.deepEqual(b.trace,['takeoff','sensor:front','sensor:right','move:right']);
+  obs.continueRun();
+  await until(()=>pauses.length===5,'second procedure call');
+  assert.equal(pauses[4].blockId,'call');
+  obs.continueRun();await run;obs.finish();
+  assert.equal(pauses.length,5,'no duplicate pause on loop/call beforeStep');
+  assert.equal(b.trace[b.trace.length-1],'land');
+  assert.equal(graphSnapshot(workspace),before,'breakpoint marker mutated serialized Blockly graph');
+}
+async function conditionalWhileReentry() {
+  const start=fakeBlock('while-start','webeeblocks_v2_takeoff');
+  const loop=fakeBlock('while-loop','controls_whileUntil');
+  const range=fakeBlock('while-range','webeeblocks_v2_range');
+  const move=fakeBlock('while-move','webeeblocks_v2_move');
+  const land=fakeBlock('while-land','webeeblocks_v2_land');
+  start.next=loop;loop.next=land;loop.inputs={BOOL:range,DO:move};
+  const blocks=[start,loop,range,move,land],lookup=Object.fromEntries(blocks.map(x=>[x.id,x]));
+  const w={getTopBlocks(){return[start];},getAllBlocks(){return blocks;},
+    getBlockById(id){return lookup[id]||null;},highlightBlock(){}};
+  blocks.forEach(x=>x.workspace=w);
+  const ast={version:1,semantics:'webeeblocks-ast-v1',program:[
+    {kind:'takeoff',height_m:0.5},
+    {kind:'while',mode:'WHILE',max_iterations:3,
+      condition:{kind:'range',direction:'front',unit:'m'},
+      body:[{kind:'move',direction:'forward',distance_m:0.2}]},
+    {kind:'land'}]};
+  const values=[1,1,0],b=backend(),pauses=[],obs=Observer.create(w,{onPause:d=>pauses.push(d)});
+  b.readRange=async ()=>{const value=values.shift();b.trace.push('while-range:'+value);return value;};
+  obs.toggleBreakpoint('while-loop');
+  const run=Interpreter.run(ast,b,{maxSteps:1000,hooks:obs.begin(true)});
+  await until(()=>pauses.length===1,'while takeoff');
+  obs.continueRun();
+  await until(()=>pauses.length===2,'while first entry');
+  assert.equal(pauses[1].blockId,'while-loop');
+  assert.deepEqual(b.trace,['takeoff'],'loop breakpoint must pause before initial condition');
+  obs.continueRun();
+  await until(()=>pauses.length===3,'while next iteration');
+  assert.equal(pauses[2].blockId,'while-loop');
+  assert.equal(pauses[2].iteration,1);
+  assert.deepEqual(b.trace,['takeoff','while-range:1','move:forward','while-range:1']);
+  obs.continueRun();await run;obs.finish();
+  assert.equal(pauses.length,3,'while re-entry skipped/duplicated a breakpoint');
+  assert.deepEqual(b.trace,['takeoff','while-range:1','move:forward',
+    'while-range:1','move:forward','while-range:0','land']);
+}
+
 async function test() {
+  await breakOnLoopAndCall();
+  await conditionalWhileReentry();
   await repeatedCallAndElseIf();
   await changeWhilePausedAndResume();
   await breakOnExpressionAndStop();
   await singleStepDoesNotDoublePause();
-  console.log('PASS: transient breakpoints across repeated procedures/loops/else-if, reentry, before-effect, pause edits, STOP and Continue');
+  console.log('PASS: transient breakpoints across repeat/while loops, repeated procedures, AST else-if, graph invariance, pause edits, STOP and Continue');
 }
 module.exports=test;
 if(require.main===module)test().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
