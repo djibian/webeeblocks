@@ -92,6 +92,10 @@
     this.continuous = true;
     this.waiter = null;
     this.credit = 0;
+    // UI-only state: block IDs are never stored in the AST or a .wbb.
+    this.breakpoints = new Set();
+    this.skipBeforeStep = Object.create(null);
+    this.cancelled = false;
     this.sensorValues = Object.create(null);
     this.lightColor = 'off';
     var self = this;
@@ -115,6 +119,72 @@
     return detail;
   };
 
+  Controller.prototype._markBreakpoint = function(id, marked) {
+    var block = this.workspace && this.workspace.getBlockById && this.workspace.getBlockById(id);
+    var svg = block && typeof block.getSvgRoot === 'function' && block.getSvgRoot();
+    if (svg && svg.classList) svg.classList.toggle('webeeblocks-breakpoint', marked);
+  };
+
+  Controller.prototype.hasBreakpoint = function(id) {
+    return this.breakpoints.has(String(id));
+  };
+
+  Controller.prototype.toggleBreakpoint = function(id) {
+    id = String(id);
+    var block = this.workspace && this.workspace.getBlockById && this.workspace.getBlockById(id);
+    if (!block || block.type === 'procedures_defnoreturn' || block.workspace !== this.workspace)
+      return false;
+    if (this.breakpoints.has(id)) this.breakpoints.delete(id);
+    else this.breakpoints.add(id);
+    this._markBreakpoint(id, this.breakpoints.has(id));
+    return true;
+  };
+
+  Controller.prototype.clearBreakpoints = function() {
+    var self = this;
+    this.breakpoints.forEach(function(id) { self._markBreakpoint(id, false); });
+    this.breakpoints.clear();
+  };
+
+  Controller.prototype.pruneBreakpoints = function() {
+    var self = this;
+    this.breakpoints.forEach(function(id) {
+      if (!self.workspace || !self.workspace.getBlockById(id)) self.breakpoints.delete(id);
+    });
+  };
+
+  // An else-if arm lowered by AST v1 is a new AST "if" but the SAME Blockly block.
+  // Do not stop twice inside a single visible conditional on Continue.
+  Controller.prototype._syntheticElseIf = function(context) {
+    var path = context && context.path;
+    return !!(context && context.node && context.node.kind === 'if' &&
+      Array.isArray(path) && path.length >= 2 &&
+      path[path.length - 2] === 'else' && path[path.length - 1] === 0 &&
+      this._blockId(path) === this._blockId(path.slice(0, -2)));
+  };
+
+  Controller.prototype._pause = async function(detail, reason) {
+    var self = this, waiter;
+    var pending = new Promise(function(resolve, reject) {
+      waiter = {resolve: resolve, reject: reject, context: detail};
+    });
+    this.waiter = waiter;
+    try {
+      if (typeof this.callbacks.onPause === 'function')
+        this.callbacks.onPause(Object.assign({}, detail, {reason: reason}));
+      await pending;
+      if (this.cancelled) {
+        var error = new Error('Step debugger cancelled by STOP');
+        error.code = 'USER_STOPPED';
+        throw error;
+      }
+      if (typeof this.callbacks.onResume === 'function')
+        this.callbacks.onResume(detail);
+    } finally {
+      if (this.waiter === waiter) this.waiter = null;
+    }
+  };
+
   Controller.prototype.begin = function(enabled) {
     this.finish();
     this.sourceMap = Object.create(null);
@@ -122,6 +192,9 @@
     this.enabled = enabled === true;
     this.continuous = !this.enabled;
     this.credit = 0;
+    this.skipBeforeStep = Object.create(null);
+    this.cancelled = false;
+    this.pruneBreakpoints();
     this.sensorValues = Object.create(null);
     this.lightColor = 'off';
     if (typeof this.callbacks.onBegin === 'function')
@@ -138,11 +211,28 @@
     var detail = this._detail(context);
     if (typeof this.callbacks.onActive === 'function')
       this.callbacks.onActive(detail);
+    if (this.continuous && detail.blockId && this.breakpoints.has(detail.blockId) &&
+        !this._syntheticElseIf(context)) {
+      this.continuous = false;
+      await this._pause(detail, 'breakpoint');
+      // The block may later also fire beforeStep (after evaluating operands).
+      // Consume precisely that one hook, not the next loop iteration/call.
+      this.skipBeforeStep[key(context.path)] = true;
+    }
   };
 
   Controller.prototype._beforeStep = async function(context) {
-    if (!this.enabled || this.continuous) return;
+    if (!this.enabled) return;
+    var path = key(context.path);
+    if (this.skipBeforeStep[path]) {
+      delete this.skipBeforeStep[path];
+      return;
+    }
     var detail = this._detail(context);
+    if (this.continuous &&
+        (!detail.blockId || !this.breakpoints.has(detail.blockId) ||
+         this._syntheticElseIf(context))) return;
+    if (this.continuous) this.continuous = false;
     if (typeof this.callbacks.onActive === 'function')
       this.callbacks.onActive(detail);
     if (this.credit > 0) {
@@ -151,15 +241,7 @@
         this.callbacks.onResume(detail);
       return;
     }
-    var self = this;
-    if (typeof this.callbacks.onPause === 'function')
-      this.callbacks.onPause(detail);
-    await new Promise(function(resolve) {
-      self.waiter = {resolve: resolve, context: detail};
-    });
-    self.waiter = null;
-    if (typeof this.callbacks.onResume === 'function')
-      this.callbacks.onResume(detail);
+    await this._pause(detail, this.breakpoints.has(detail.blockId) ? 'breakpoint' : 'step');
   };
 
   Controller.prototype._onSensor = async function(context) {
@@ -208,10 +290,24 @@
     return true;
   };
 
+  Controller.prototype.cancel = function() {
+    if (!this.enabled) return false;
+    this.cancelled = true;
+    this.continuous = true;
+    this.credit = 0;
+    if (this.waiter) {
+      var error = new Error('Step debugger interrupted by STOP');
+      error.code = 'USER_STOPPED';
+      this.waiter.reject(error);
+    }
+    return true;
+  };
+
   Controller.prototype.finish = function() {
     if (this.waiter) this.waiter.resolve();
     this.waiter = null;
     this.credit = 0;
+    this.skipBeforeStep = Object.create(null);
     this.continuous = true;
     if (this.enabled && this.workspace && typeof this.workspace.highlightBlock === 'function')
       this.workspace.highlightBlock(null);
