@@ -1,0 +1,225 @@
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -386,8 +386,18 @@
+   }
+ }
+ 
+-void WbSupervisorUtilities::processImmediateMessages(bool blockRegeneration) {
+-  const int n = mFieldSetRequests.size();
++static quint64 sGPCompactForensicSequence = 0;
++static bool gpCompactForensic2088() {
++  return qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1" &&
++         WbSimulationState::instance()->time() == 2088.0;
++}
++
++void WbSupervisorUtilities::processImmediateMessages(bool blockRegeneration) {
++  const int n = mFieldSetRequests.size();
++  const bool trace = gpCompactForensic2088();
++  if (trace)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=APPLY_ENTER queued=%d block=%d",
++          static_cast<unsigned long long>(sGPCompactForensicSequence), n, blockRegeneration);
+   if (n == 0)
+     return;
+   WbTemplateManager::instance()->blockRegeneration(true);
+@@ -393,11 +403,21 @@
+   WbTemplateManager::instance()->blockRegeneration(true);
+   for (int i = 0; i < n; ++i) {
+     const WbFieldSetRequest *r = mFieldSetRequests.at(i);
+-    WbWrenOpenGlContext::makeWrenCurrent();
+-    WbWorld::instance()->noteSceneEffect();
+-    r->apply();
+-    WbWrenOpenGlContext::doneWren();
+-    delete r;
++    WbWrenOpenGlContext::makeWrenCurrent();
++    if (trace)
++      qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=EFFECT_BEFORE index=%d revision=%llu",
++            static_cast<unsigned long long>(sGPCompactForensicSequence), i,
++            static_cast<unsigned long long>(WbWorld::instance()->sceneRevision()));
++    WbWorld::instance()->noteSceneEffect();
++    if (trace)
++      qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=FIELD_APPLY_BEFORE index=%d",
++            static_cast<unsigned long long>(sGPCompactForensicSequence), i);
++    r->apply();
++    if (trace)
++      qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=FIELD_APPLY_AFTER index=%d",
++            static_cast<unsigned long long>(sGPCompactForensicSequence), i);
++    WbWrenOpenGlContext::doneWren();
++    delete r;
+   }
+   mFieldSetRequests.clear();
+   if (blockRegeneration)
+@@ -399,9 +419,13 @@
+     WbWrenOpenGlContext::doneWren();
+     delete r;
+   }
+-  mFieldSetRequests.clear();
+-  if (blockRegeneration)
+-    return;
++  mFieldSetRequests.clear();
++  if (trace)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=APPLY_CLEARED revision=%llu",
++          static_cast<unsigned long long>(sGPCompactForensicSequence),
++          static_cast<unsigned long long>(WbWorld::instance()->sceneRevision()));
++  if (blockRegeneration)
++    return;
+ 
+   WbTemplateManager::instance()->blockRegeneration(false);
+   // only emit if robot still exists (FieldSetRequest could have regenerated it)
+@@ -997,8 +1021,11 @@
+         mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
+       return;
+     }
+-    case C_SUPERVISOR_COLLIDER_BATCH:
+-      if (qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1" && !mFieldSetRequests.isEmpty()) {
++    case C_SUPERVISOR_COLLIDER_BATCH:
++      if (gpCompactForensic2088())
++        qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=BATCH_DISPATCH queued=%d",
++              static_cast<unsigned long long>(sGPCompactForensicSequence), mFieldSetRequests.size());
++      if (qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1" && !mFieldSetRequests.isEmpty()) {
+         // The host already blocked PROTO regeneration while dispatching this
+         // immediate request. Apply queued SETs here, BEFORE constructing any
+         // response. Existing Supervisor MF-insert handlers use the same
+@@ -1715,13 +1742,21 @@
+         case WB_SF_STRING:
+         case WB_MF_STRING: {
+           const QString s = readString(stream);
+-          mFieldSetRequests << new WbStringFieldSetRequest(field, index, s);
+-          break;
+-        }
+-      }
+-      return;
+-    }
+-    case C_SUPERVISOR_FIELD_INSERT_VALUE: {
++          mFieldSetRequests << new WbStringFieldSetRequest(field, index, s);
++          break;
++        }
++      }
++      if (gpCompactForensic2088()) {
++        ++sGPCompactForensicSequence;
++        const QByteArray nodeName = node ? node->defName().toUtf8() : QByteArray("-");
++        const QByteArray fieldName = field ? field->name().toUtf8() : QByteArray("-");
++        qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=SET_QUEUED node_id=%u node=%s field_id=%u field=%s type=%u index=%d d0=%.9g d1=%.9g d2=%.9g queued=%d",
++              static_cast<unsigned long long>(sGPCompactForensicSequence), uniqueId, nodeName.constData(),
++              fieldId, fieldName.constData(), fieldType, index, d0, d1, d2, mFieldSetRequests.size());
++      }
++      return;
++    }
++    case C_SUPERVISOR_FIELD_INSERT_VALUE: {
+       unsigned int nodeId, fieldId, index;
+ 
+       stream >> nodeId;
+@@ -2149,8 +2184,12 @@
+ bool WbSupervisorUtilities::writeCompactColliderAnswer(WbDataStream &stream) {
+   if (!mCompactColliderRequested)
+     return false;
+-  mCompactColliderRequested = false;
+-  // Read path must be side-effect-free: all diagnostic writes are committed
++  mCompactColliderRequested = false;
++  const bool forensic = gpCompactForensic2088();
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=COMPACT_WRITE_ENTER pending=%d",
++          static_cast<unsigned long long>(sGPCompactForensicSequence), mFieldSetRequests.size());
++  // Read path must be side-effect-free: all diagnostic writes are committed
+   // during request dispatch, not reentrantly from writeAnswer/serialization.
+   using Clock = std::chrono::steady_clock;
+   const auto begin = Clock::now();
+@@ -2155,8 +2194,11 @@
+   using Clock = std::chrono::steady_clock;
+   const auto begin = Clock::now();
+   const WbWorld *const world = WbWorld::instance();
+-  const QList<WbSolid *> solids = world->findSolids(false);
+-  const WbGroup *const root = world->root();
++  const QList<WbSolid *> solids = world->findSolids(false);
++  const WbGroup *const root = world->root();
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=SOLIDS_ENUMERATED count=%d root=%p",
++          static_cast<unsigned long long>(sGPCompactForensicSequence), solids.size(), static_cast<const void *>(root));
+   struct Entry {
+     qint32 id, parent, boundingType, flags;
+     std::array<char, 48> def;
+@@ -2169,9 +2211,18 @@
+   // Observe the instantiated node graph as well as root children. This
+   // detects hidden PROTO/DEF/USE topology changes that a root-only hash misses.
+   // It is NOT a replacement for a complete #923 mutation provenance proof.
+-  const QList<WbNode *> graph = root->subNodes(true, true, false);
+-  mix(static_cast<quint64>(graph.size()));
+-  for (const WbNode *const node : graph) {
++  const QList<WbNode *> graph = root->subNodes(true, true, false);
++  mix(static_cast<quint64>(graph.size()));
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=GRAPH_ENUMERATED count=%d",
++          static_cast<unsigned long long>(sGPCompactForensicSequence), graph.size());
++  int gpGraphIndex = 0;
++  for (const WbNode *const node : graph) {
++    if (forensic)
++      qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=GRAPH_VISIT index=%d ptr=%p",
++            static_cast<unsigned long long>(sGPCompactForensicSequence), gpGraphIndex,
++            static_cast<const void *>(node));
++    ++gpGraphIndex;
+     if (!node) {
+       mix(0);
+       continue;
+@@ -2185,7 +2236,10 @@
+     for (const char ch : node->modelName().toUtf8())
+       mix(static_cast<quint8>(ch));
+   }
+-  for (int i = 0; i < root->childCount(); ++i) {
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=GRAPH_HASH_DONE",
++          static_cast<unsigned long long>(sGPCompactForensicSequence));
++  for (int i = 0; i < root->childCount(); ++i) {
+     const WbBaseNode *const child = root->child(i);
+     if (!child) {
+       mix(0);
+@@ -2202,9 +2256,15 @@
+   // Count -1 is a hard, non-authoritative refusal in the binary reader.
+   const int count = (solids.size() > 128 || !mFieldSetRequests.isEmpty()) ? -1 : solids.size();
+   if (count >= 0) {
+-    entries.reserve(count);
+-    for (const WbSolid *const solid : solids) {
+-      Entry entry{};
++    entries.reserve(count);
++    int gpSolidIndex = 0;
++    for (const WbSolid *const solid : solids) {
++      if (forensic)
++        qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=SOLID_VISIT index=%d ptr=%p",
++              static_cast<unsigned long long>(sGPCompactForensicSequence), gpSolidIndex,
++              static_cast<const void *>(solid));
++      ++gpSolidIndex;
++      Entry entry{};
+       entry.id = solid->uniqueId();
+       const WbNode *const parent = solid->parentNode();
+       entry.parent = parent ? parent->uniqueId() : 0;
+@@ -2280,10 +2340,13 @@
+       }
+       const WbRotation r = solid->rotation();
+       entry.v[9] = r.x(); entry.v[10] = r.y(); entry.v[11] = r.z(); entry.v[12] = r.angle();
+-      entries.append(entry);
+-    }
+-  }
+-  const auto produced = Clock::now();
++      entries.append(entry);
++    }
++  }
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=ENTRIES_DONE count=%d",
++          static_cast<unsigned long long>(sGPCompactForensicSequence), entries.size());
++  const auto produced = Clock::now();
+   stream << (quint16)0 << (quint8)C_SUPERVISOR_COLLIDER_BATCH
+          << (qint32)2 << (qint32)count << (qint32)root->childCount()
+          << (qint32)protoRoots << (qint32)mRobot->uniqueId()
+@@ -2301,8 +2364,11 @@
+   const auto nanos = [](Clock::time_point a, Clock::time_point b) {
+     return (quint64)std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count();
+   };
+-  stream << nanos(begin, produced) << nanos(produced, serialized);
+-  return true;
++  stream << nanos(begin, produced) << nanos(produced, serialized);
++  if (forensic)
++    qInfo("GP_NATIVE_FORENSIC_V1 seq=%llu op=REPLY_SERIALIZED",
++          static_cast<unsigned long long>(sGPCompactForensicSequence));
++  return true;
+ }
+ 
+ bool WbSupervisorUtilities::writeSceneRevisionAnswer(WbDataStream &stream) {
