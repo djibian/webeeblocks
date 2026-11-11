@@ -214,12 +214,12 @@ int main() {
   assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 19 STATE not-achieved reason=wrong-landing");
 
   for (const char *bad : {
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=altitude",
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=achieved reason=altitude",
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=other-oracle status=not-achieved reason=altitude",
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=not-achieved reason=unknown",
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=not-achieved reason=altitude extra",
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+2 oracle=grand-prix-route-v2 status=not-achieved reason=altitude"
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=0 oracle=grand-prix-route-v2 status=not-achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=other-oracle status=not-achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=unknown",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=altitude extra",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=grand-prix-route-v2 status=not-achieved reason=altitude"
   }) {
     reset_harness();
     custom_data = bad;
