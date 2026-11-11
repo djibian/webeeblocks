@@ -157,6 +157,28 @@ async function breakOnExpressionAndStop() {
   await (async()=>{resetTrace.push('RESET');})();
   assert.deepEqual(resetTrace,['RESET'],'reset can follow native STOP, never bypass it');
 }
+// STOP after Continue, with a backend command in flight: the next interpreter
+// hook must reject USER_STOPPED rather than issuing another student command.
+async function stopDuringContinuousExecution() {
+  const {workspace}=fixture(), pauses=[], b=backend();
+  const obs=Observer.create(workspace,{onPause:d=>pauses.push(d)});
+  let finishMove;
+  const inFlight=new Promise(resolve=>{finishMove=resolve;});
+  b.move=async(dir)=>{b.trace.push('move:'+dir);await inFlight;};
+  const run=Interpreter.run(program(2),b,{maxSteps:1000,hooks:obs.begin(true)});
+  await until(()=>pauses.length===1,'initial pause before Continue');
+  obs.continueRun();
+  await until(()=>b.trace.includes('move:right'),'in-flight command before STOP');
+  assert.equal(obs.cancel(),true,'STOP must also cancel an unpaused Continue');
+  finishMove();
+  let error;
+  try {await run;} catch(e) {error=e;}
+  obs.finish();
+  assert(error && error.code==='USER_STOPPED','late interpreter hook must reject after STOP');
+  assert.deepEqual(b.trace,['takeoff','sensor:front','sensor:right','move:right'],
+    'no later sensor or student command may be issued after STOP');
+}
+
 async function singleStepDoesNotDoublePause() {
   const {workspace}=fixture(),pauses=[],b=backend(),obs=Observer.create(workspace,{
     onPause:d=>pauses.push(d)
@@ -252,6 +274,7 @@ async function test() {
   await repeatedCallAndElseIf();
   await changeWhilePausedAndResume();
   await breakOnExpressionAndStop();
+  await stopDuringContinuousExecution();
   await singleStepDoesNotDoublePause();
   console.log('PASS: transient breakpoints across repeat/while loops, repeated procedures, AST else-if, graph invariance, pause edits, STOP and Continue');
 }
