@@ -215,6 +215,10 @@ def main():
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
+    # Protect the production historical scene fast path in the existing native
+    # route job; pure fake tests are mandatory but never substitute Webots proof.
+    subprocess.run([sys.executable, '-m', 'unittest',
+                    'tools.ci.test_grand_prix_historical_visual_reuse_v2'], check=True)
     if args.evaluator_only and args.full_matrix_only:
         raise ValueError('native matrix and evaluator modes are exclusive')
     if args.tcp and (not args.native or args.evaluator_only or args.full_matrix_only):
