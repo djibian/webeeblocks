@@ -9,6 +9,12 @@
   function fail(message) { throw new Error('execution observer: ' + message); }
   function key(path) { return (path || []).map(String).join('/'); }
 
+  function rejectCancelledExecution() {
+    var error = new Error('Step debugger cancelled by STOP');
+    error.code = 'USER_STOPPED';
+    throw error;
+  }
+
   function buildSourceMap(workspace) {
     if (!workspace || typeof workspace.getTopBlocks !== 'function')
       fail('invalid Blockly workspace');
@@ -211,6 +217,8 @@
   };
 
   Controller.prototype._onNode = async function(context) {
+    // Check before enabled: a late interpreter hook must fail closed after STOP.
+    if (this.cancelled) rejectCancelledExecution();
     if (!this.enabled) return;
     // Re-entering this AST site after a loop/call invalidates any prior
     // unconsumed beforeStep credit (e.g. a loop with no body iteration).
@@ -233,6 +241,7 @@
   };
 
   Controller.prototype._beforeStep = async function(context) {
+    if (this.cancelled) rejectCancelledExecution();
     if (!this.enabled) return;
     var path = key(context.path);
     if (this.skipBeforeStep[path]) {
