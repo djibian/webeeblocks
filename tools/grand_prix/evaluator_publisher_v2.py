@@ -105,13 +105,22 @@ class NativeRouteEvaluator:
             # The broker may have acknowledged RESET before the next
             # challenge is visible. Never replace its newer attempt marker
             # with a failure from this evaluator's previous attempt.
-            if self._active.attempt == attempt and self._channel.getSFString() in (
-                    f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {attempt}',
-                    f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={attempt} oracle={ORACLE}',
-                    f'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt={attempt} oracle={ORACLE}',
-                    self._outcome('achieved')):
-                self._channel.setSFString(
-                    self._outcome('not-achieved', self._active.result.reason))
+            observed = self._channel.getSFString()
+            causal = self._outcome('not-achieved', self._active.result.reason)
+            generic = self._outcome('not-achieved')
+            # Revoking ALIVE above may let the independent pilot publish a
+            # generic failure first. Enrich *only* that exact-attempt/oracle
+            # generic marker with an independently attested public cause.
+            # A pre-existing cause (especially pilot-attested time-limit),
+            # a newer RESET marker and any other oracle remain immutable.
+            may_enrich = observed == generic and causal != generic
+            if self._active.attempt == attempt and (
+                    observed in (
+                        f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {attempt}',
+                        f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={attempt} oracle={ORACLE}',
+                        f'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt={attempt} oracle={ORACLE}',
+                        self._outcome('achieved')) or may_enrich):
+                self._channel.setSFString(causal)
         if self._context is not None:
             LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
                            self._context.attempt, now, reason, self.last_error)
