@@ -50,7 +50,10 @@ def run(supervisor, native, expected, rectangles, course_identifier):
             return
         # Independent, bounded forensic record: survives a native engine
         # access violation that cuts Webots' forwarded controller stdout.
-        datum = {'event': event, 'stage': stage, 'sim_ms': round(supervisor.getTime() * 1000)}
+        # The mutation probe must remain in one 8-ms simulation instant.
+        # Logging itself must NOT invoke another Supervisor RPC, which could
+        # trigger deferred PROTO work before the bracket has been persisted.
+        datum = {'event': event, 'stage': stage, 'sim_ms': clock}
         datum.update(details)
         fd = os.open(trace_file, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
         try:
