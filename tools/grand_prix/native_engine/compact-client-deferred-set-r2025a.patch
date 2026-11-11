@@ -36,7 +36,7 @@ diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
 +    return false;
 +  }
 +  if (field_requests_list_head)
-+    fprintf(stderr, "GP_COMPACT_CLIENT_QUEUE_V2 before_immediate_flush=1\\n");
++    fprintf(stderr, "GP_COMPACT_CLIENT_QUEUE_V2 before_immediate_flush=1\n");
 +  compact_collider_request = true;
    compact_collider_ready = false;
    compact_collider_bytes = 0;
