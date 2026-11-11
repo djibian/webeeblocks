@@ -96,15 +96,38 @@
         frame.src = activityPage;
       });
       await until(function() { return frame.contentWindow && frame.contentWindow.workspace && frame.contentWindow.runtimeProfile; });
-      var gpWin = frame.contentWindow, gpDoc = gpWin.document;
-      var gpGoal = element(gpDoc, 'activityGoal');
-      assert(gpGoal.textContent === (gpWin.runtimeProfile.brief.mission || gpWin.runtimeProfile.brief.goal || ''), 'Grand Prix mission changed on ' + activityPage);
-      assert(!!element(gpDoc, 'observationInspector') && !!element(gpDoc, 'observationToggle'), 'Grand Prix inspector missing on ' + activityPage);
-      element(gpDoc, 'activityInstructionsToggle').click();
-      assert(!element(gpDoc, 'activityInstructions').hidden, 'Grand Prix instructions did not open on ' + activityPage);
-      element(gpDoc, 'activityInstructionsClose').click();
-      gpWin.renderSensorValues({front: 0.42, left: 0.9});
-      assert(element(gpDoc, 'debugSensors').querySelectorAll('.observationItem').length === 2, 'Grand Prix reading lines missing on ' + activityPage);
+      // Each Grand Prix entry point must pass at both classroom screen sizes,
+      // rather than inheriting only the preceding 640px iframe width.
+      for (var pageSize of [[1280, 720], [640, 480]]) {
+        frame.style.width = pageSize[0] + 'px';
+        frame.style.height = pageSize[1] + 'px';
+        await paint();
+        var gpWin = frame.contentWindow, gpDoc = gpWin.document;
+        var gpGoal = element(gpDoc, 'activityGoal');
+        assert(gpGoal.textContent === (gpWin.runtimeProfile.brief.mission || gpWin.runtimeProfile.brief.goal || ''), 'Grand Prix mission changed on ' + activityPage);
+        var gpToggle = element(gpDoc, 'activityInstructionsToggle');
+        gpToggle.click();
+        var gpInstruction = element(gpDoc, 'activityInstructions');
+        assert(!gpInstruction.hidden && gpGoal.textContent === (gpWin.runtimeProfile.brief.mission || gpWin.runtimeProfile.brief.goal || ''), 'Grand Prix instructions incomplete on ' + activityPage);
+        gpDoc.dispatchEvent(new gpWin.KeyboardEvent('keydown', {key:'Escape',bubbles:true}));
+        assert(gpInstruction.hidden && gpDoc.activeElement === gpToggle, 'Grand Prix instructions Escape/focus failed on ' + activityPage);
+        gpWin.renderSensorValues({front: 0.42, left: 0.9});
+        var pageVariables = {};
+        for (var v = 0; v < 40; v++) pageVariables['variable_longue_' + v + '_nom_complet'] = v + 0.25;
+        gpWin.renderVariables(pageVariables);
+        var gpObservationToggle = element(gpDoc, 'observationToggle');
+        gpObservationToggle.click();
+        var gpInspector = element(gpDoc, 'observationInspector');
+        assert(!gpInspector.hidden && gpInspector.querySelectorAll('.observationItem').length === 42, 'Grand Prix readings truncated on ' + activityPage);
+        var gpBounds = gpInspector.getBoundingClientRect();
+        assert(gpBounds.left >= -1 && gpBounds.right <= pageSize[0] + 1 && gpBounds.top >= -1 && gpBounds.bottom <= pageSize[1] + 1,
+          'Grand Prix inspector outside viewport on ' + activityPage + ' at ' + pageSize[0]);
+        gpInspector.scrollTop = gpInspector.scrollHeight;
+        assert(gpInspector.scrollTop > 0, 'Grand Prix last variable unreachable on ' + activityPage);
+        element(gpDoc, 'observationClose').click();
+        assert(gpInspector.hidden && gpDoc.activeElement === gpObservationToggle,
+          'Grand Prix observation close/focus failed on ' + activityPage);
+      }
     }
     result.textContent = 'PASS compact instructions and punctual observations on two browser viewport sizes';
     result.setAttribute('data-status', 'PASS');
