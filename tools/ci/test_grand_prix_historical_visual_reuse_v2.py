@@ -88,20 +88,20 @@ class HistoricalVisualReuseTests(unittest.TestCase):
         root = object()
         supervisor = SimpleNamespace(getRoot=lambda: root)
         snapshot = SimpleNamespace(
-            course=course, expected_boxes=('canonical',),
+            course=course, expected_boxes=('canonical',), boxes={'cached': 'visual'},
             opaque_roots=((0, 42),), matches=lambda signature, count: True,
         )
-        with patch.object(identity, 'read_scene_signature', return_value=('equal',)), \\
-                patch.object(identity, '_root_inventory', return_value=(children, 1)), \\
-                patch.object(identity, '_read_vehicle', return_value='vehicle'), \\
-                patch.object(identity, '_read_scene_boxes') as traversal, \\
+        fields = object()
+        with patch.object(identity, 'read_scene_signature', return_value=('equal',)), \
+                patch.object(identity, '_root_inventory', return_value=(children, 1)), \
+                patch.object(identity, '_read_vehicle', return_value='vehicle'), \
+                patch.object(identity, '_read_scene_boxes') as traversal, \
                 patch.object(identity, '_verify_box_measurements') as check:
-            self.assertEqual(identity._check_snapshot(supervisor, object(), snapshot), 'vehicle')
+            self.assertEqual(identity._check_snapshot(supervisor, fields, snapshot), 'vehicle')
             traversal.assert_called_once()
             self.assertTrue(traversal.call_args.kwargs['verified_model_edges'])
             check.assert_called_once_with(
-                ('canonical',), snapshot.boxes if hasattr(snapshot, 'boxes') else None,
-                unittest.mock.ANY, verify_visual=False)
+                ('canonical',), snapshot.boxes, fields, verify_visual=False)
 
 
 if __name__ == '__main__':
