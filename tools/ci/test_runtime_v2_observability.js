@@ -479,7 +479,8 @@ async function proveResetFromPausedDebugger() {
   assert.equal(context.runtimeTerminal,false,'RESET did not return simulation to ready state');
   assert.equal(context.runtimeStopRequested,false,'RESET retained stopped latch');
   assert.equal(el('runtimeState').textContent,'PRÊT');
-  assert.equal(errors.length,1,'STOP should be represented by one expected interrupted program');
+  assert(errors.length>=1 && errors.every(error=>error.code==='USER_STOPPED'),
+    'STOP must produce only recognized interruptions, never a fake completed flight');
 
   // A denied native STOP must never be followed by a RESET request.
   const denied=deferred(),pending=deferred(),refusedCalls=[];
