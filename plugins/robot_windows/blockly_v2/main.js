@@ -208,6 +208,14 @@ function studentDirectionLabel(direction) {
   return labels[direction];
 }
 function renderObservationRows(target, keys, label, value) {
+  // Structural rows in browsers; preserve the minimal text-only DOM used by
+  // existing runtime/reset contract tests and any non-HTML consumers.
+  if (typeof target.replaceChildren !== 'function' || typeof target.appendChild !== 'function') {
+    target.textContent = keys.length ? keys.map(function(key) {
+      return label(key) + ' = ' + value(key);
+    }).join(' · ') : '—';
+    return;
+  }
   target.replaceChildren();
   if (!keys.length) {
     var empty = document.createElement('div');
