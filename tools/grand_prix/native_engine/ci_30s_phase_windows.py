@@ -89,6 +89,8 @@ def run(engine, project, destination, *, max_wall_seconds, assembly, compact=Fal
                    WEBEEBLOCKS_GP_COLLIDER_BATCH_SHADOW='1',
                    WEBEEBLOCKS_GP_COMPACT_COLLIDER_SHADOW='1' if compact else '0',
                    WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE='1' if mutation_probe else '0',
+                   WEBEEBLOCKS_GP_MUTATION_TRACE_FILE=(
+                       str((destination / 'mutation-trace.jsonl').resolve()) if mutation_probe else ''),
                    WEBOTS_RENDER_TRACE='0', WEBOTS_EXPERIMENT_MAIN_RENDER_SCALE='100',
                    WEBOTS_EXPERIMENT_RENDER_DUTY='0')
         cmd = [str(executable), '--batch', '--mode=fast', '--no-rendering',
