@@ -6,6 +6,7 @@ or oracle uses this code. Each mutation is reversed before history runs.
 import ctypes
 import json
 import os
+import sys
 
 from tools.grand_prix.native_compact_colliders_v1 import (
     MAX_BYTES, parse_native_inventory, compare_native_canons,
@@ -205,7 +206,53 @@ def run(supervisor, native, expected, rectangles, course_identifier):
                  'Floor Plane shrink')
         trace('floor_compact_compare_exit')
         trace('floor_historical_check_enter')
-        _refused(historical, 'historical Floor Plane shrink')
+        # CI mutation probe only: Python's tracing hook observes existing
+        # function/line boundaries, without calling any additional Supervisor
+        # API. The last durable line record identifies a candidate native call
+        # whose return has not been observed; it is not a native crash stack.
+        def historical_line_trace(frame, event, arg):
+            if event not in ('call', 'line', 'return', 'exception'):
+                return historical_line_trace
+            filename = frame.f_code.co_filename.replace('\\', '/')
+            module = filename.rsplit('/', 1)[-1]
+            function = frame.f_code.co_name
+            selected = {
+                'evaluator_scene_identity_v2.py': {
+                    'check_native_evaluator_scene', 'read_native_evaluator_scene',
+                    '_read_vehicle', '_supervisor', '_one_arg', '_field_text',
+                },
+                'native_collider_contract_v2.py': {
+                    '_read_native_root_nodes', '_root_inventory',
+                    '_verify_scene_boxes', '_read_scene_boxes',
+                    '_verify_floor', '_verify_box_measurements',
+                },
+                'native_field_lookup_v2.py': {'get'},
+            }
+            if function not in selected.get(module, ()):
+                return historical_line_trace
+            # The general node graph may have hundreds of entries. Record its
+            # first native node calls and every line once Floor is selected.
+            if module == 'native_collider_contract_v2.py' and function == '_read_scene_boxes' and event == 'line':
+                if frame.f_lineno not in (149, 150, 151) and frame.f_locals.get('kind') != 'Floor':
+                    return historical_line_trace
+            if module == 'native_field_lookup_v2.py' and function == 'get':
+                if frame.f_locals.get('name') not in ('rotation', 'size', 'locked', 'boundingObject'):
+                    return historical_line_trace
+            data = {'source': module, 'function': function, 'line': frame.f_lineno,
+                    'python_event': event}
+            if event == 'exception':
+                data['exception_type'] = arg[0].__name__
+            if module == 'native_field_lookup_v2.py' and function == 'get':
+                data['field_name'] = frame.f_locals.get('name')
+            trace('floor_historical_python_boundary', **data)
+            return historical_line_trace
+
+        previous_trace = sys.gettrace()
+        try:
+            sys.settrace(historical_line_trace)
+            _refused(historical, 'historical Floor Plane shrink')
+        finally:
+            sys.settrace(previous_trace)
         trace('floor_historical_check_exit')
     finally:
         stage = 'floor_restore'
