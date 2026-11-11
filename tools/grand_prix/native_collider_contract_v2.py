@@ -304,7 +304,14 @@ def _verify_scene_boxes(course, boxes, root_nodes, fields, inspect=None):
     return live_boxes
 
 
-def _verify_box_measurements(boxes, live_boxes, fields):
+def _verify_box_measurements(boxes, live_boxes, fields, *, verify_visual=True):
+    """Always read physics; optionally reuse an unchanged, verified visual tree.
+
+    verify_visual=False is legal only on the NativeSceneSnapshot fast path:
+    the exact live root export still matches a prior FULL visual check, with
+    every visual field included in the signature. It is never a scene admission
+    shortcut and never caches a physical collider value.
+    """
     for box in boxes:
         node, collider, display = live_boxes[box.name]
         locked = fields.get(node, 'locked')
@@ -326,6 +333,11 @@ def _verify_box_measurements(boxes, live_boxes, fields):
         size_field = fields.get(collider, 'size')
         if size_field is None or not _equal(size_field.getSFVec3f(), box.size):
             raise RuntimeError('physical Box dimensions mismatch: ' + box.name)
+        if not verify_visual:
+            # Visual topology/size was validated in the full read that stored
+            # this snapshot, and is covered by today's unchanged full export.
+            # This branch MUST NOT skip locked/pose/rotation/physical Box reads.
+            continue
         if display is None or len(display) != 1:
             raise RuntimeError('missing/extra native child under ' + box.name)
         child = display[0]
