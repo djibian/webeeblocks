@@ -10,3 +10,4 @@ b65056b6c68d0a7986412272b914a6cd48aa3988 tools/grand_prix/native_render/webots-r
 65f2621020ba338047b78fac1ffd5628f762cc59 tools/grand_prix/native_engine/compact-pending-write-barrier-r2025a.patch
 a49474535fa559ad7d6e9edd8768d7ef48dae8db tools/grand_prix/native_engine/compact-client-deferred-set-r2025a.patch
 d2266f75ca7ca78915019fc47b633853d20e4008 tools/grand_prix/native_engine/compact-request-dispatch-barrier-r2025a.patch
+f48f5fac392fc7d3075260dc092a4ab2c9650fbe tools/grand_prix/native_engine/compact-client-pending-refusal-trace-r2025a.patch
