@@ -236,16 +236,20 @@ class NativePublisherTests(unittest.TestCase):
 
     def test_cause_enrichment_preserves_prior_cause_timeout_and_other_identity(self):
         self.admitted()
-        generic = f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle={ORACLE} status=not-achieved'
-        samples = (
-            generic + ' reason=envelope-contact',
-            generic + ' reason=time-limit',  # pilot's real 210000 ms boundary
-            generic.replace('attempt=1 ', 'attempt=2 '),
-            generic.replace(f'oracle={ORACLE}', 'oracle=other-oracle'),
-            generic.replace('status=not-achieved', 'status=interrupted'),
-        )
-        for current in samples:
-            with self.subTest(current=current):
+        for case in ('first-cause', 'native-deadline', 'stale-attempt',
+                     'other-oracle', 'interrupted'):
+            generic = (f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={self.attempt} '
+                       f'oracle={ORACLE} status=not-achieved')
+            current = {
+                'first-cause': generic + ' reason=envelope-contact',
+                'native-deadline': generic + ' reason=time-limit',
+                'stale-attempt': generic.replace(
+                    f'attempt={self.attempt} ', f'attempt={self.attempt + 1} '),
+                'other-oracle': generic.replace(
+                    f'oracle={ORACLE}', 'oracle=other-oracle'),
+                'interrupted': generic.replace('status=not-achieved', 'status=interrupted'),
+            }[case]
+            with self.subTest(case=case, current=current):
                 self.native.vehicle.fields['customData'] = current
                 self.evaluator._close(self.ms + 8, 'low-outside-zone')
                 self.assertEqual(self.native.vehicle.fields['customData'], current)
