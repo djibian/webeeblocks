@@ -301,7 +301,7 @@ function proveReadonlyStepNavigation() {
   assert.equal(el('blocklyDiv').inert,false,'execution must leave native scrollbars interactive');
   assert.equal(el('projectSaveAs').disabled,true,'project writes remain locked');
   const callbacks=context.runtimeDebug.callbacks;
-  callbacks.onBegin({enabled:true});
+  context.runtimeDebug.begin(true); // Real onBegin enables stepping before the pointer event.
   callbacks.onActive({blockId:'main',path:['program',0],node:{kind:'takeoff'}});
   callbacks.onPause({blockId:'main'});
   assert.deepEqual(centered,[['main',true]],'first offscreen block must become visible');
