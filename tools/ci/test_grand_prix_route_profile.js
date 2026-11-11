@@ -276,7 +276,7 @@ async function proveRouteLiveClock() {
   let nextInterval = 1, backend = null, reads = 0;
   const span = {id: null, textContent: '', style: {},
     setAttribute(key, value) { this[key] = value; }};
-  const panel = {children: [], appendChild(el) {this.children.push(el);}};
+  const panel = {children: [], style: {}, appendChild(el) {this.children.push(el);}};
   const context = {
     WebeeBlocksActivities: {BLOCK_CATALOG: Activities.BLOCK_CATALOG, DOCUMENT: Activities.DOCUMENT},
     WebeeBlocksRuntimeOutcome: {classify() {return null;}},
@@ -298,6 +298,7 @@ async function proveRouteLiveClock() {
   events.get('webeeblocks-ui-ready')();
   assert.equal(span.textContent, 'Temps simulé : — / 03:30');
   assert.equal(span['aria-live'], 'off');
+  assert.equal(panel.style.flexWrap, 'wrap', 'small Robot Windows must not clip the clock');
   change('EXÉCUTION');
   assert.equal(timers.size, 1);
   await flush();

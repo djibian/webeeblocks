@@ -74,6 +74,8 @@ if (typeof window.addEventListener === 'function') {
         element.setAttribute('aria-live', 'off');
         element.style.fontVariantNumeric = 'tabular-nums';
         element.style.whiteSpace = 'nowrap';
+        // Keep the clock visible on narrow classroom Robot Windows.
+        if (panel.style) panel.style.flexWrap = 'wrap';
         panel.appendChild(element);
       }
     }
