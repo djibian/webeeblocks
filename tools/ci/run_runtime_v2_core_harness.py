@@ -211,5 +211,22 @@ def main():
     if not timed_out and process.returncode:
         print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
     if timed_out: print('WARN: headless browser required forced shutdown after emitting the exact Runtime v2 PASS DOM marker.',file=sys.stderr)
-    print(marker); return 0
+    # Exercise the actual Blockly UI and CSS in Chromium at desktop and classroom sizes.
+    compact_url_path='tools/ci/blockly_compact_ui_harness.html'
+    with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
+        port=server.server_address[1]
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        url=f'http://127.0.0.1:{port}/{compact_url_path}'
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=12000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try: compact_stdout,compact_stderr=proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill(); compact_stdout,compact_stderr=proc.communicate()
+        server.shutdown()
+    expected_compact='PASS compact instructions and punctual observations on two browser viewport sizes'
+    compact_match=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',compact_stdout)
+    if not compact_match or html.unescape(compact_match.group(1)).strip()!=expected_compact:
+        print('FAIL compact Blockly UI browser regression',file=sys.stderr)
+        print(compact_stderr[-2000:],file=sys.stderr);print(compact_stdout[-6000:],file=sys.stderr)
+        return 1
+    print(marker); print(expected_compact); return 0
 if __name__=='__main__': raise SystemExit(main())

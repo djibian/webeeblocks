@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Compact Blockly UI browser regression</title></head>
+<body>
+<iframe id="editor" title="WebeeBlocks UI" src="../../plugins/robot_windows/blockly_v2/blockly_v2.html" style="width:1280px;height:720px;border:0"></iframe>
+<pre id="result">RUNNING</pre>
+<script>
+(async function() {
+  var result = document.getElementById('result');
+  function assert(ok, message) { if (!ok) throw new Error(message); }
+  function element(doc, id) { var item = doc.getElementById(id); assert(!!item, 'missing ' + id); return item; }
+  function paint() { return new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); }); }
+  async function until(test) {
+    for (var i = 0; i < 150; i++) { if (test()) return; await new Promise(function(resolve) { setTimeout(resolve, 50); }); }
+    throw new Error('Blockly workspace did not initialize');
+  }
+  try {
+    var frame = element(document, 'editor');
+    await until(function() { return frame.contentWindow && frame.contentWindow.workspace && frame.contentWindow.runtimeProfile; });
+    var win = frame.contentWindow;
+    var doc = win.document;
+    var blockly = element(doc, 'blocklyDiv');
+    var goal = element(doc, 'activityGoal');
+    var toggle = element(doc, 'activityInstructionsToggle');
+    var instruction = element(doc, 'activityInstructions');
+    var expected = win.runtimeProfile.brief.mission || win.runtimeProfile.brief.goal || '';
+    assert(goal.textContent === expected, 'mission brief text changed');
+    assert(instruction.hidden && toggle.getAttribute('aria-expanded') === 'false', 'instruction not initially collapsed');
+    toggle.click();
+    assert(!instruction.hidden && toggle.getAttribute('aria-expanded') === 'true', 'instruction button did not open');
+    assert(goal.textContent === expected, 'instruction body differs from profile');
+    assert(doc.activeElement.id === 'activityInstructionsClose', 'instruction close has no keyboard focus');
+    doc.dispatchEvent(new win.KeyboardEvent('keydown', {key:'Escape',bubbles:true}));
+    assert(instruction.hidden && doc.activeElement === toggle, 'Escape did not return focus');
+
+    element(doc, 'debugPanel').hidden = false; // simulate negotiated simulationDebug=true
+    var readings = {front:0.35, back:1.25, left:0.48, right:0.8, up:0.6};
+    win.renderSensorValues(readings);
+    var variables = {};
+    for (var i = 0; i < 32; i++) variables['compteur_' + i + '_nom_variable_tres_long'] = i + 0.25;
+    win.renderVariables(variables);
+    assert(element(doc, 'debugSensors').querySelectorAll('.observationItem').length === 5, 'missing directional sensor lines');
+    assert(element(doc, 'debugSensors').textContent.indexOf('devant') !== -1 && element(doc, 'debugSensors').textContent.indexOf(' m') !== -1, 'sensor label or unit missing');
+    assert(element(doc, 'debugVariables').querySelectorAll('.observationItem').length === 32, 'variables truncated');
+    assert(element(doc, 'observationNote').textContent.indexOf('Pas de télémétrie continue') !== -1, 'stale telemetry warning missing');
+
+    // Real Blockly rendering, including a long workspace and a procedure.
+    for (var j = 0; j < 24; j++) {
+      var b = win.workspace.newBlock('webeeblocks_v2_land');
+      b.initSvg(); b.render(); b.moveBy(260, j * 55);
+    }
+    var procedure = win.workspace.newBlock('procedures_defnoreturn');
+    procedure.initSvg(); procedure.render(); procedure.moveBy(600, 0);
+    assert(win.workspace.getAllBlocks(false).length >= 25, 'long workspace not constructed');
+
+    for (var width of [1280, 640]) {
+      frame.style.width = width + 'px';
+      frame.style.height = width === 640 ? '480px' : '720px';
+      await paint();
+      var h = blockly.getBoundingClientRect().height;
+      var w = blockly.getBoundingClientRect().width;
+      var observationToggle = element(doc, 'observationToggle');
+      observationToggle.click();
+      var inspector = element(doc, 'observationInspector');
+      assert(!inspector.hidden, 'inspector did not open');
+      var bounds = inspector.getBoundingClientRect();
+      assert(bounds.left >= -1 && bounds.right <= width + 1, 'inspector outside narrow screen');
+      assert(bounds.bottom <= win.innerHeight + 1 && bounds.top >= -1, 'inspector outside editor height');
+      assert(inspector.scrollHeight > inspector.clientHeight, 'many variables have no scroll');
+      inspector.scrollTop = inspector.scrollHeight;
+      assert(inspector.scrollTop > 0, 'last variable cannot be reached');
+      assert(Math.abs(blockly.getBoundingClientRect().height - h) < 1 && Math.abs(blockly.getBoundingClientRect().width - w) < 1, 'inspector resized Blockly');
+      win.setRuntimeStatus('PRÊT', 'Simulation connectée');
+      win.setRuntimeStatus('EXÉCUTION', 'Programme en cours');
+      win.runtimeDebug.callbacks.onPause({});
+      assert(element(doc, 'debugState').textContent === 'En pause', 'pause label missing');
+      win.runtimeDebug.callbacks.onResume({});
+      win.setRuntimeStatus('ERREUR', 'Essai interrompu');
+      assert(inspector.querySelectorAll('.observationItem').length === 37, 'state change removed last punctual readings');
+      assert(element(doc, 'observationNote').textContent.includes('précédente'), 'retained readings not marked old');
+      element(doc, 'observationClose').click();
+      assert(inspector.hidden && observationToggle.getAttribute('aria-expanded') === 'false', 'inspector did not close');
+    }
+    win.renderSensorValues({});
+    win.renderVariables(null);
+    assert(element(doc, 'debugSensors').querySelectorAll('.observationItem').length === 0 && element(doc, 'debugVariablesRow').hidden, 'reset retains stale readings');
+    assert(!!element(doc, 'debugLight') && !!element(doc, 'debugLightSwatch'), 'LED observability lost');
+    result.textContent = 'PASS compact instructions and punctual observations on two browser viewport sizes';
+    result.setAttribute('data-status', 'PASS');
+  } catch (error) {
+    result.textContent = 'FAIL compact UI: ' + (error && error.stack || error);
+    result.setAttribute('data-status', 'FAIL');
+  }
+})();
+</script></body></html>
