@@ -112,5 +112,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gp-pose-native-ipc-${{ github.event.pull_request.head.sha }}
-          path: ci-artifacts/grand-prix-pose-native-ab/
+          # The shared mmap slot is deliberately private (0600). Exclude
+          # those ephemeral buffers; the 12 immutable native traces, sensor
+          # comparisons, summaries and controller logs remain archived.
+          path: |
+            ci-artifacts/grand-prix-pose-native-ab/
+            !ci-artifacts/grand-prix-pose-native-ab/*/latest-pose.bin
           if-no-files-found: warn
