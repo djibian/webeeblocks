@@ -330,7 +330,7 @@ function proveReadonlyStepNavigation() {
   assert.equal(el('blocklyDiv').inert,false,'execution must leave native scrollbars interactive');
   assert.equal(el('projectSaveAs').disabled,true,'project writes remain locked');
   const callbacks=context.runtimeDebug.callbacks;
-  callbacks.onBegin({enabled:true});
+  context.runtimeDebug.begin(true); // Real observer state enables manual-navigation and paused context-menu guards.
   callbacks.onActive({blockId:'main',path:['program',0],node:{kind:'takeoff'}});
   callbacks.onPause({blockId:'main'});
   assert.deepEqual(centered,[['main',true]],'first offscreen block must become visible');
@@ -489,7 +489,6 @@ async function proveResetFromPausedDebugger() {
     cancel(){this.waiter=null;const error=new Error('STOP');error.code='USER_STOPPED';pending.reject(error);},
     finish(){this.waiter=null;}
   };
-  const context2=Object.assign({},context);
   // The fresh context must not reuse global lexical bindings or the first runtime.
   const contextFresh={
     ...context,
