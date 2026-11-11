@@ -38,7 +38,7 @@ assert.match(controllerSource, /target_x = x;[\s\S]*target_y = y;[\s\S]*target_z
 assert.doesNotMatch(controllerSource, /command == CMD_IDLE \|\| command == CMD_RESET/);
 assert.match(controllerSource, /if \(active_id >= 1\)[\s\S]*response_error\(active_id, "USER_STOPPED"\)/);
 assert.match(mainSource, /runtimeStopRequested = true;/);
-assert.match(mainSource, /runtimeDebug\.continueRun\(\)/);
+assert.match(mainSource, /runtimeDebug\.cancel\(\)/);
 assert.match(mainSource, /if \(runtimeStopRequested\) throw userStoppedError\(\);/);
 
 function block(id,type,inputs){return{id,type,_next:null,_inputs:inputs||{},getNextBlock(){return this._next;},getInputTargetBlock(name){return this._inputs[name]||null;}};}
@@ -279,9 +279,10 @@ function proveReadonlyStepNavigation() {
   const context = {
     console:{log(){},error(){}},
     Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
-      Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create',VIEWPORT_CHANGE:'viewport_change'},Blocks:{}},
-    document:{currentScript:null, getElementById:el, body:{dataset:{}},
-      createElement(){return {setAttribute(){},appendChild(){}};},
+      Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create',BLOCK_DELETE:'delete',VIEWPORT_CHANGE:'viewport_change'},Blocks:{},
+      ContextMenuRegistry:{ScopeType:{BLOCK:'block'},registry:{register(){}}}},
+    document:{currentScript:null, getElementById:el, body:{dataset:{},appendChild(){}},
+      createElement(){return {setAttribute(){},appendChild(){},addEventListener(){},focus(){},dataset:{},style:{}};},
       addEventListener(type,fn){documentListeners[type]=fn;}},
     window:{addEventListener(type,fn){events[type]=fn;},dispatchEvent(){}},
     CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
@@ -342,6 +343,7 @@ function proveReadonlyStepNavigation() {
 }
 
 (async()=>{
+  await require('./test_runtime_v2_breakpoints.js')();
   proveReadonlyStepNavigation();
   await proveProgramInvalidRetryWithoutReset();
   await proveOutcomePendingBlocksResetAndLateVerdicts();
