@@ -212,6 +212,9 @@
 
   Controller.prototype._onNode = async function(context) {
     if (!this.enabled) return;
+    // Re-entering this AST site after a loop/call invalidates any prior
+    // unconsumed beforeStep credit (e.g. a loop with no body iteration).
+    delete this.skipBeforeStep[key(context.path)];
     if (!this.sourceMapReady) {
       this.sourceMap = buildSourceMap(this.workspace);
       this.sourceMapReady = true;
