@@ -191,11 +191,19 @@ def run(supervisor, native, expected, rectangles, course_identifier):
         trace('set_return')
         floor_changed = frame()
         trace('floor_captured', revision=floor_changed['revision'])
+        trace('floor_revision_check_enter')
         if floor_changed['revision'] <= restored['revision']:
             raise RuntimeError('Floor PROTO change did not advance native revision')
+        trace('floor_revision_check_exit')
+        # Keep both negative checks unchanged. Brackets distinguish a
+        # pure-Python comparison from native Supervisor traversal.
+        trace('floor_compact_compare_enter')
         _refused(lambda: compare_native_canons(floor_changed, expected, route_rectangles=rectangles),
                  'Floor Plane shrink')
+        trace('floor_compact_compare_exit')
+        trace('floor_historical_check_enter')
         _refused(historical, 'historical Floor Plane shrink')
+        trace('floor_historical_check_exit')
     finally:
         stage = 'floor_restore'
         trace('set_begin', node='Floor', field='size', original=old_size)
