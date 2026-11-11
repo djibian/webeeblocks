@@ -1,0 +1,32 @@
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -747,10 +747,8 @@
+     }
+     physics_frame_queued_id = 0;
+   }
+ 
+-  if (compact_collider_request)
+-    request_write_uchar(r, C_SUPERVISOR_COLLIDER_BATCH);
+   if (scene_revision_request)
+     request_write_uchar(r, C_SUPERVISOR_GET_SCENE_REVISION);
+   if (scene_revision_expected) {
+     request_write_uchar(r, C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION);
+@@ -963,10 +961,15 @@
+         assert(request->next == NULL);
+         request = request->next;
+       }
+     }
+-  }
+-  while (supervisor_label) {
++  }
++  // Observation is terminal: pending SETs must be dispatched before request 107.
++  // Keep this out of the regular safety authority; ordinary pending writes
++  // still fail-closed in wb_supervisor_collider_batch_read().
++  if (compact_collider_request)
++    request_write_uchar(r, C_SUPERVISOR_COLLIDER_BATCH);
++  while (supervisor_label) {
+     request_write_uchar(r, C_SUPERVISOR_SET_LABEL);
+     request_write_uint16(r, supervisor_label->id);
+     request_write_double(r, supervisor_label->x);
+     request_write_double(r, supervisor_label->y);
