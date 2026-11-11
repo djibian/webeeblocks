@@ -59,10 +59,18 @@
         } else if (block.type === 'controls_repeat_ext') {
           sequence(block.getInputTargetBlock('DO'), path.concat('body'), calls);
         } else if (block.type === 'controls_if') {
-          expression(block.getInputTargetBlock('IF0'), path.concat('condition'));
-          sequence(block.getInputTargetBlock('DO0'), path.concat('then'), calls);
+          var armPath = path;
+          for (var arm = 0; arm <= (block.elseifCount_ || 0); arm++) {
+            // AST v1 lowers IF1/DO1 to if inside else[0], same visible Blockly ID.
+            if (arm) {
+              armPath = armPath.concat('else', 0);
+              remember(block, armPath);
+            }
+            expression(block.getInputTargetBlock('IF' + arm), armPath.concat('condition'));
+            sequence(block.getInputTargetBlock('DO' + arm), armPath.concat('then'), calls);
+          }
           if (block.getInputTargetBlock('ELSE'))
-            sequence(block.getInputTargetBlock('ELSE'), path.concat('else'), calls);
+            sequence(block.getInputTargetBlock('ELSE'), armPath.concat('else'), calls);
         } else if (block.type === 'webeeblocks_v2_takeoff') {
           expression(block.getInputTargetBlock('HEIGHT'),path.concat('height_m'));
         } else if (block.type === 'webeeblocks_v2_move'||block.type === 'webeeblocks_v2_vertical') {
