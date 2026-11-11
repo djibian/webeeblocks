@@ -124,6 +124,8 @@ assert.equal(set.getInputTargetBlock('VALUE'), get, 'variable must replace liter
 assert.equal(setShadow.getParent(), null, 'replaced shadow must not stay connected');
 get.outputConnection.disconnect();
 assert.equal(set.getInputTargetBlock('VALUE')?.type, 'math_number', 'disconnect must restore shadow');
+get.dispose(); // Detached value is not part of the program's single main sequence.
+assert.equal(ws.getBlocksByType('variables_get', false).length, 0, 'detached variable must be removed');
 set.getInput('VALUE').connection.connect(arithmetic.outputConnection);
 compare.getInput('A').connection.connect(range.outputConnection);
 decision.getInput('IF0').connection.connect(compare.outputConnection);
