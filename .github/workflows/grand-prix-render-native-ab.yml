@@ -70,3 +70,47 @@ jobs:
           name: gp-render-native-${{ matrix.mode }}-${{ github.event.pull_request.head.sha }}
           path: ci-artifacts/grand-prix-render-native-ab/
           if-no-files-found: warn
+
+  native-pose-ipc:
+    if: ${{ github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'experiment/grand-prix-render-native-ab-') }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Test bounded publisher and exact Webots source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m py_compile tools/ci/experiments/pose_mailbox_v1.py tools/ci/experiments/gp_pose_probe_controller.py tools/ci/experiments/gp_pose_consumer.py tools/ci/experiments/gp_pose_channel_native_ab.py
+          python3 -m unittest -v tools.ci.experiments.test_pose_mailbox_v1
+          git clone --depth 1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-gp-pose-upstream
+          git -C .ci-gp-pose-upstream sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-gp-pose-upstream rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+      - name: Twelve native publisher/consumer stress trials
+        timeout-minutes: 65
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker pull "$IMAGE"
+          mkdir -p ci-artifacts/grand-prix-pose-native-ab
+          docker run --rm --init \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e LP_NUM_THREADS=2 \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-gp-pose-upstream/projects:/usr/local/webots/projects:ro" \
+            -w /workspace --entrypoint /bin/bash "$IMAGE" -lc \
+            'set -euo pipefail; xvfb-run -a -s "-screen 0 1280x800x24" python3 -u -m tools.ci.experiments.gp_pose_channel_native_ab' \
+            2>&1 | tee ci-artifacts/grand-prix-pose-native-ab/docker.log
+      - name: Upload exact IPC trial traces even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-pose-native-ipc-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/grand-prix-pose-native-ab/
+          if-no-files-found: warn
