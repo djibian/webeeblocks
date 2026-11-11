@@ -1,7 +1,7 @@
 diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
 --- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
 +++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
-@@ -386,8 +386,18 @@
+@@ -386,22 +386,46 @@
    }
  }
  
@@ -21,8 +21,6 @@ diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes
 +          static_cast<unsigned long long>(sGPCompactForensicSequence), n, blockRegeneration);
    if (n == 0)
      return;
-   WbTemplateManager::instance()->blockRegeneration(true);
-@@ -393,11 +403,21 @@
    WbTemplateManager::instance()->blockRegeneration(true);
    for (int i = 0; i < n; ++i) {
      const WbFieldSetRequest *r = mFieldSetRequests.at(i);
@@ -46,12 +44,6 @@ diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes
 +            static_cast<unsigned long long>(sGPCompactForensicSequence), i);
 +    WbWrenOpenGlContext::doneWren();
 +    delete r;
-   }
-   mFieldSetRequests.clear();
-   if (blockRegeneration)
-@@ -399,9 +419,13 @@
-     WbWrenOpenGlContext::doneWren();
-     delete r;
    }
 -  mFieldSetRequests.clear();
 -  if (blockRegeneration)
@@ -109,7 +101,7 @@ diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes
        unsigned int nodeId, fieldId, index;
  
        stream >> nodeId;
-@@ -2149,8 +2184,12 @@
+@@ -2149,14 +2184,21 @@
  bool WbSupervisorUtilities::writeCompactColliderAnswer(WbDataStream &stream) {
    if (!mCompactColliderRequested)
      return false;
@@ -122,9 +114,6 @@ diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes
 +          static_cast<unsigned long long>(sGPCompactForensicSequence), mFieldSetRequests.size());
 +  // Read path must be side-effect-free: all diagnostic writes are committed
    // during request dispatch, not reentrantly from writeAnswer/serialization.
-   using Clock = std::chrono::steady_clock;
-   const auto begin = Clock::now();
-@@ -2155,8 +2194,11 @@
    using Clock = std::chrono::steady_clock;
    const auto begin = Clock::now();
    const WbWorld *const world = WbWorld::instance();
