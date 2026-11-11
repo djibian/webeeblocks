@@ -13,10 +13,12 @@ from __future__ import annotations
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import textwrap
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 BROKER = ROOT / "controllers" / "crazyflie_runtime_v2" / "file_broker_runtime.cpp"
 CONTROLLER_DIR = BROKER.parent
 
