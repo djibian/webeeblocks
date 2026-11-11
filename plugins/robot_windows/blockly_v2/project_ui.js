@@ -36,7 +36,12 @@
     var saveAs = document.getElementById('projectSaveAs');
     var locked = busy || !supported || runtimeLocked;
     var blocklyDiv = document.getElementById('blocklyDiv');
-    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked;
+    // Blockly 13's native read-only mode blocks editing while keeping its scrollbars live.
+    // Project transactions still require a fully inert editor.
+    if (workspace && typeof workspace.setIsReadOnly === 'function' && typeof workspace.isReadOnly === 'function') {
+      if (workspace.isReadOnly() !== runtimeLocked) workspace.setIsReadOnly(runtimeLocked);
+      if (blocklyDiv) blocklyDiv.inert = busy;
+    } else if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked; // Fail closed.
     if (activity) activity.disabled = locked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
@@ -45,8 +50,6 @@
 
   function setRuntimeLocked(locked) {
     runtimeLocked = locked === true;
-    var blocklyDiv = document.getElementById('blocklyDiv');
-    if (blocklyDiv) blocklyDiv.inert = runtimeLocked;
     renderButtons();
   }
 
