@@ -107,6 +107,8 @@ async function check(elseifs,hasElse,initial,procedure,front,left,expected,expec
         f.decision.getInputTargetBlock('IF'+i).id);
       branchPath+='/else/0';
     }
+    assert.strictEqual(mapping[branchPath],hasElse?f.fallback.id:undefined,
+      'final ELSE must map to its real Blockly statement without a phantom if');
     const encoded=Files.encodeProject(profile,f.w,options);
     const loaded=Files.validateProjectText(encoded,profile,options);
     assert.deepStrictEqual(loaded.ast,ast);
