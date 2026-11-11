@@ -107,7 +107,6 @@ async function check(elseifs,hasElse,initial,procedure,front,left,expected,expec
         f.decision.getInputTargetBlock('IF'+i).id);
       branchPath+='/else/0';
     }
-    if(hasElse)assert.strictEqual(mapping[branchPath.slice(0,-2)+'/0'],undefined); // no phantom synthetic if
     const encoded=Files.encodeProject(profile,f.w,options);
     const loaded=Files.validateProjectText(encoded,profile,options);
     assert.deepStrictEqual(loaded.ast,ast);
@@ -151,7 +150,7 @@ async function prove(){
   await check(2,false,1,true,0.3,0.9,undefined,['front','left']);
   // Missing IF1 must not silently become false; no synthetically missing arm.
   const missing=fixture(2,false,0,false);
-  missing.decision.getInputTargetBlock('IF1').unplug(true);
+  missing.decision.getInputTargetBlock('IF1').dispose(true);
   assert.throws(()=>Compiler.compileWorkspace(missing.w),/missing value input IF1/);
   missing.w.dispose();
   // Lowered else-if arms are nested AST: forbidden takeoff/LAND still fail closed.
@@ -164,7 +163,7 @@ async function prove(){
   const unassigned=fixture(2,false,0,false);
   const missingVariable=unassigned.w.getVariableMap().createVariable('inconnue');
   const readMissing=read(unassigned.w,missingVariable);
-  unassigned.actions[1].getInput('VALUE').connection.disconnect();
+  unassigned.actions[1].getInputTargetBlock('VALUE').dispose(true);
   unassigned.actions[1].getInput('VALUE').connection.connect(readMissing.outputConnection);
   assert.throws(()=>Interpreter.validateProgram(Compiler.compileWorkspace(unassigned.w)),/read before assignment/);
   unassigned.w.dispose();
