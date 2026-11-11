@@ -5,6 +5,7 @@ or oracle uses this code. Each mutation is reversed before history runs.
 """
 import ctypes
 import json
+import os
 
 from tools.grand_prix.native_compact_colliders_v1 import (
     MAX_BYTES, parse_native_inventory, compare_native_canons,
@@ -41,22 +42,46 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     read = native.wb_supervisor_collider_batch_read
     clock = round(supervisor.getTime() * 1000)
     ident = supervisor.getSelf().getId()
+    trace_file = os.environ.get('WEBEEBLOCKS_GP_MUTATION_TRACE_FILE')
+    stage = 'initial'
+
+    def trace(event, **details):
+        if not trace_file:
+            return
+        # Independent, bounded forensic record: survives a native engine
+        # access violation that cuts Webots' forwarded controller stdout.
+        datum = {'event': event, 'stage': stage, 'sim_ms': round(supervisor.getTime() * 1000)}
+        datum.update(details)
+        fd = os.open(trace_file, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            os.write(fd, (json.dumps(datum, sort_keys=True) + '\n').encode('utf-8'))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
     def frame():
+        trace('frame_begin')
         buffer = ctypes.create_string_buffer(MAX_BYTES)
         size = ctypes.c_int32(0)
         if not read(buffer, MAX_BYTES, ctypes.byref(size)):
+            trace('frame_refused_by_controller', size=size.value)
             raise RuntimeError('native compact read unavailable during mutation test')
-        return parse_native_inventory(buffer.raw[:size.value],
-                                      time_ms=clock, supervisor_id=ident)
+        trace('frame_wire_received', size=size.value)
+        value = parse_native_inventory(buffer.raw[:size.value],
+                                       time_ms=clock, supervisor_id=ident)
+        trace('frame_parsed', revision=value['revision'], count=value['count'])
+        return value
 
     def matched():
         value = frame()
         compare_native_canons(value, expected, route_rectangles=rectangles)
         return value
 
+    trace('probe_begin')
     before = matched()
+    trace('initial_matched', revision=before['revision'])
     historical()  # Initial same-step independent historical acceptance.
+    trace('initial_historical_accepted')
     result = {'schema': 2, 'status': 'UNPROVEN', 'clock_ms': clock,
               'incarnation': before['incarnation'], 'checks': []}
     get_revision = native.wb_supervisor_get_scene_revision
@@ -80,8 +105,12 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     previous = tuple(field.getSFVec3f())
     moved = None
     try:
+        stage = 'move'
+        trace('set_begin', node=expected[0].name, field='translation', original=previous)
         field.setSFVec3f([previous[0] + 0.02, previous[1], previous[2]])
+        trace('set_return')
         moved = frame()
+        trace('move_captured', revision=moved['revision'])
         old_geometry = next((s for s in before['solids'] if s['name'] == expected[0].name), None)
         new_geometry = next((s for s in moved['solids'] if s['name'] == expected[0].name), None)
         if old_geometry is None or new_geometry is None:
@@ -114,8 +143,12 @@ def run(supervisor, native, expected, rectangles, course_identifier):
                  'moved canonical Solid')
         _refused(historical, 'historical moved canonical Solid')
     finally:
+        stage = 'restore'
+        trace('set_begin', node=expected[0].name, field='translation', original=previous)
         field.setSFVec3f(list(previous))
+        trace('set_return')
     restored = matched()
+    trace('restored_matched', revision=restored['revision'])
     historical()  # Both readers accept the fully restored same-tick scene.
     if restored['revision'] <= moved['revision'] or restored['incarnation'] != before['incarnation']:
         raise RuntimeError('canonical restore did not advance native revision')
@@ -152,16 +185,24 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     old_size = tuple(plane_field.getSFVec2f())
     floor_changed = None
     try:
+        stage = 'floor_mutation'
+        trace('set_begin', node='Floor', field='size', original=old_size)
         plane_field.setSFVec2f([max(.1, old_size[0] / 8), max(.1, old_size[1] / 8)])
+        trace('set_return')
         floor_changed = frame()
+        trace('floor_captured', revision=floor_changed['revision'])
         if floor_changed['revision'] <= restored['revision']:
             raise RuntimeError('Floor PROTO change did not advance native revision')
         _refused(lambda: compare_native_canons(floor_changed, expected, route_rectangles=rectangles),
                  'Floor Plane shrink')
         _refused(historical, 'historical Floor Plane shrink')
     finally:
+        stage = 'floor_restore'
+        trace('set_begin', node='Floor', field='size', original=old_size)
         plane_field.setSFVec2f(list(old_size))
+        trace('set_return')
     floor_restored = matched()
+    trace('floor_restored', revision=floor_restored['revision'])
     historical()
     if floor_restored['revision'] <= floor_changed['revision']:
         raise RuntimeError('Floor restore did not advance native scene revision')
@@ -175,7 +216,10 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     inserted = False
     native_foreign = None
     try:
+        stage = 'foreign_insert'
+        trace('import_begin')
         root_children.importMFNodeFromString(-1, foreign)
+        trace('import_return')
         inserted = root_children.getCount() == before_count + 1
         if not inserted:
             raise RuntimeError('native physical foreign Solid insertion failed')
@@ -187,7 +231,10 @@ def run(supervisor, native, expected, rectangles, course_identifier):
         _refused(historical, 'historical foreign Cylinder Solid')
     finally:
         if inserted:
+            stage = 'foreign_remove'
+            trace('remove_begin')
             root_children.removeMF(before_count)
+            trace('remove_return')
     clean = matched()
     historical()
     if root_children.getCount() != before_count or clean['revision'] <= native_foreign['revision']:
@@ -195,7 +242,10 @@ def run(supervisor, native, expected, rectangles, course_identifier):
     result['checks'].append('foreign_non_box_insert_remove_refused')
 
     before_reset = clean
+    stage = 'physics_reset'
+    trace('reset_begin')
     supervisor.simulationResetPhysics()
+    trace('reset_return')
     after_reset = matched()
     historical()
     if after_reset['revision'] <= before_reset['revision']:
