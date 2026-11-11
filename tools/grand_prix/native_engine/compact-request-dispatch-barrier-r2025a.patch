@@ -1,0 +1,56 @@
+diff --git a/src/webots/nodes/utils/WbSupervisorUtilities.cpp b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+--- a/src/webots/nodes/utils/WbSupervisorUtilities.cpp
++++ b/src/webots/nodes/utils/WbSupervisorUtilities.cpp
+@@ -996,11 +996,24 @@
+       else
+         mRobot->warn(tr("wb_supervisor_node_get_velocity() can exclusively be used with a Solid"));
+       return;
+     }
+-    case C_SUPERVISOR_COLLIDER_BATCH:
+-      mCompactColliderRequested = true;
+-      return;
++    case C_SUPERVISOR_COLLIDER_BATCH:
++      if (qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1" && !mFieldSetRequests.isEmpty()) {
++        // The host already blocked PROTO regeneration while dispatching this
++        // immediate request. Apply queued SETs here, BEFORE constructing any
++        // response. Existing Supervisor MF-insert handlers use the same
++        // processImmediateMessages(true) commit path.
++        const int queued = mFieldSetRequests.size();
++        const quint64 before = WbWorld::instance()->sceneRevision();
++        processImmediateMessages(true);
++        const quint64 after = WbWorld::instance()->sceneRevision();
++        qInfo("GP_COMPACT_FIELD_APPLY_V3 queued=%d before=%llu after=%llu sim_ms=%.0f",
++              queued, static_cast<unsigned long long>(before),
++              static_cast<unsigned long long>(after), WbSimulationState::instance()->time());
++      }
++      mCompactColliderRequested = true;
++      return;
+     case C_SUPERVISOR_GET_SCENE_REVISION:
+       mSendSceneRevision = true;
+       return;
+     case C_SUPERVISOR_SET_VELOCITY_AT_SCENE_REVISION:
+@@ -2136,22 +2149,10 @@
+ bool WbSupervisorUtilities::writeCompactColliderAnswer(WbDataStream &stream) {
+   if (!mCompactColliderRequested)
+     return false;
+   mCompactColliderRequested = false;
+-  // A Supervisor SET remains queued until the engine applies the field
+-  // request. Observation 107 must not attest the pre-commit geometry.
+-  const int pendingFieldWrites = mFieldSetRequests.size();
+-  if (pendingFieldWrites && qgetenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE") == "1") {
+-    // CI-only explicit same-simulation-time commit: same method invoked
+-    // at the beginning of the normal physics step; no artificial sleep
+-    // and no extra physics step. Production reads NEVER commit writes.
+-    const quint64 before = WbWorld::instance()->sceneRevision();
+-    processImmediateMessages();
+-    const quint64 after = WbWorld::instance()->sceneRevision();
+-    qInfo("GP_COMPACT_FIELD_APPLY_V2 queued=%d before=%llu after=%llu sim_ms=%.0f",
+-          pendingFieldWrites, static_cast<unsigned long long>(before),
+-          static_cast<unsigned long long>(after), WbSimulationState::instance()->time());
+-  }
++  // Read path must be side-effect-free: all diagnostic writes are committed
++  // during request dispatch, not reentrantly from writeAnswer/serialization.
+   using Clock = std::chrono::steady_clock;
+   const auto begin = Clock::now();
+   const WbWorld *const world = WbWorld::instance();
+   const QList<WbSolid *> solids = world->findSolids(false);
