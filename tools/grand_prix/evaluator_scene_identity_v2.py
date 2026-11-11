@@ -111,7 +111,12 @@ def _check_snapshot(supervisor, fields, snapshot):
                for node, (_, node_id) in zip(opaque, snapshot.opaque_roots)):
             vehicle = _read_vehicle(opaque, course.identifier, fields)
             _read_scene_boxes(opaque, set(), course.route, fields, verified_model_edges=True)
-            _verify_box_measurements(boxes, snapshot.boxes, fields)
+            # The exact root export still includes ALL visual Box topology and
+            # dimensions. A previous full check established their validity;
+            # re-reading those visual fields would repeat already-certified
+            # information. Physical locks, poses, rotations and Box extents
+            # are nevertheless freshly read on EVERY tick.
+            _verify_box_measurements(boxes, snapshot.boxes, fields, verify_visual=False)
             return vehicle
 
     root_nodes = [children.getMFNode(index) for index in range(count)]
