@@ -13,6 +13,7 @@ var runtimeStopRequested = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
 var runtimeDebug = null;
+var runtimeExecutionSettled = null;
 var debugCurrentBlockId = null;
 var debugFollowExecution = true;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
@@ -72,7 +73,12 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
+    var pausedDebugStop = runtimeRunning && runtimeDebug && runtimeDebug.waiter &&
+      stopSupported && !runtimeStopRequested;
+    reset.disabled = !resetSupported || !ready || (runtimeRunning && !pausedDebugStop) ||
+      runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      runtimeScenePending || runtimeProjectPending || (!runtimeTerminal && !pausedDebugStop);
+    reset.textContent = pausedDebugStop ? 'Arrêter puis réinitialiser' : 'Réinitialiser';
   }
 }
 
@@ -267,11 +273,11 @@ function wireDebugControls() {
     onPause: function(detail) {
       debugCurrentBlockId = detail.blockId || null;
       if (debugFollowExecution) showDebugCurrentBlock(false);
-      document.getElementById('debugState').textContent = detail.reason === 'breakpoint' ? 'Point d’arrêt' : 'En pause'; setDebugControls(true);
+      document.getElementById('debugState').textContent = detail.reason === 'breakpoint' ? 'Point d’arrêt' : 'En pause'; setDebugControls(true); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-paused', {detail: detail}));
     },
     onResume: function(detail) {
-      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false);
+      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-resumed', {detail: detail}));
     },
     onSensor: function(detail) {
@@ -370,9 +376,9 @@ function serializedWorkspace() {
 
 async function stopSimulation() {
   if (!runtimeRunning || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready)
-    return;
+    return false;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
-    return;
+    return false;
   runtimeStopPending = true;
   runtimeStopRequested = true;
   updateRuntimeActions();
@@ -382,9 +388,11 @@ async function stopSimulation() {
     await runtimeBackend.stopSimulation();
     runtimeTerminal = true;
     setRuntimeFailure(userStoppedError());
+    return true;
   } catch (error) {
     runtimeTerminal = true;
     setRuntimeFailure(error);
+    return false;
   } finally {
     runtimeStopPending = false;
     updateRuntimeActions();
@@ -392,7 +400,15 @@ async function stopSimulation() {
 }
 
 async function resetSimulation() {
-  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+  // RESET during a debugger wait must first obtain the ordinary native STOP ACK.
+  // No direct native RESET while an attempt is running or its outcome is pending.
+  if (runtimeRunning && runtimeDebug && runtimeDebug.waiter && !runtimeStopPending) {
+    var executionSettled = runtimeExecutionSettled;
+    if (await stopSimulation() !== true) return;
+    if (executionSettled) await executionSettled;
+  }
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
     setRuntimeFailure(new Error('Simulation reset unavailable'));
@@ -439,6 +455,8 @@ async function runProgram() {
     return;
   }
   submit.disabled = true;
+  var settleExecution;
+  runtimeExecutionSettled = new Promise(function(resolve) { settleExecution = resolve; });
   runtimeTerminal = false;
   runtimeStopRequested = false;
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
@@ -474,6 +492,8 @@ async function runProgram() {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
     updateRuntimeActions();
+    settleExecution();
+    runtimeExecutionSettled = null;
   }
 }
 
