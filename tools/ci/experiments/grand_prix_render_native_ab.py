@@ -90,6 +90,8 @@ def run_trial(home, env, arm, repetition, mode):
     def launch(command, *args, **kwargs):
         if not isinstance(command, list) or Path(command[0]) != home / "webots":
             raise RuntimeError("unexpected native launch, refusing intervention")
+        command = [("--mode=realtime" if arg == "--mode=fast" and mode == "realtime" else arg)
+                   for arg in command]
         if command.count("--mode=fast" if mode == "fast" else "--mode=realtime") != 1:
             raise RuntimeError("incorrect Webots speed mode")
         if "--no-rendering" in command:
@@ -200,18 +202,7 @@ def main():
     reports,traces=[],[]
     for arm,repetition in TRIALS:
         print("GP_RENDER_AB_START",args.mode,repetition,arm,flush=True)
-        # Use the source's original --mode=fast if possible. For realtime,
-        # patch only the command mode, not the pilot or evaluator.
-        if args.mode == "realtime":
-            original = subprocess.Popen
-            def realtime(command,*argv,**kw):
-                if "--mode=fast" in command:
-                    command=[("--mode=realtime" if x=="--mode=fast" else x) for x in command]
-                return original(command,*argv,**kw)
-            with patch.object(native.subprocess,"Popen",side_effect=realtime):
-                report,trace=run_trial(home,env,arm,repetition,args.mode)
-        else:
-            report,trace=run_trial(home,env,arm,repetition,args.mode)
+        report,trace=run_trial(home,env,arm,repetition,args.mode)
         reports.append(report)
         traces.append(trace)
     if len({x["world_sha256"] for x in reports})!=1:
