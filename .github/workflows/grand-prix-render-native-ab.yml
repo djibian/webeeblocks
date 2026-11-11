@@ -1,0 +1,68 @@
+name: Grand Prix native render A-B diagnostic
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/grand-prix-render-native-ab.yml
+      - tools/ci/experiments/grand_prix_render_native_ab.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gp-render-ab-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  native-render-ab:
+    if: ${{ github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'experiment/grand-prix-render-native-ab-') }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout immutable experiment HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify isolated experiment and upstream pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m py_compile tools/ci/experiments/grand_prix_render_native_ab.py
+          git clone --depth 1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-gp-render-upstream
+          git -C .ci-gp-render-upstream sparse-checkout set \
+            projects/robots/bitcraze/crazyflie \
+            projects/objects/backgrounds \
+            projects/objects/floors \
+            projects/appearances \
+            projects/default
+          test "$(git -C .ci-gp-render-upstream rev-parse HEAD)" = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+
+      - name: Execute six paired native historical evaluator and pilot witnesses
+        shell: bash
+        timeout-minutes: 65
+        run: |
+          set -euo pipefail
+          IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker pull "$IMAGE"
+          mkdir -p ci-artifacts/grand-prix-render-native-ab
+          docker run --rm --init \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e LP_NUM_THREADS=2 \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-gp-render-upstream/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            --entrypoint /bin/bash "$IMAGE" -lc \
+            'set -euo pipefail; xvfb-run -a -s "-screen 0 1280x800x24" python3 -u -m tools.ci.experiments.grand_prix_render_native_ab --mode fast' \
+            2>&1 | tee ci-artifacts/grand-prix-render-native-ab/docker.log
+
+      - name: Upload native traces and diagnostics even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-render-native-ab-${{ github.event.pull_request.head.sha }}
+          path: ci-artifacts/grand-prix-render-native-ab/
+          if-no-files-found: warn
