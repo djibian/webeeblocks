@@ -211,5 +211,33 @@ def main():
     if not timed_out and process.returncode:
         print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
     if timed_out: print('WARN: headless browser required forced shutdown after emitting the exact Runtime v2 PASS DOM marker.',file=sys.stderr)
-    print(marker); return 0
+    print(marker)
+    # Real product HTML entry points, including the three Grand Prix windows.
+    # Synthetic READY follows the existing RobotWindow/WWI receipt path; it
+    # does not claim a native Webots simulation or trusted physical UI gesture.
+    with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
+        port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start()
+        url=f'http://127.0.0.1:{port}/tools/ci/blockly_step_navigation_harness.html'
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox',
+            '--disable-dev-shm-usage','--disable-background-networking',
+            '--virtual-time-budget=22000','--dump-dom',url],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        smoke_timed_out=False
+        try: smoke_stdout,smoke_stderr=proc.communicate(timeout=90)
+        except subprocess.TimeoutExpired:
+            smoke_timed_out=True; proc.kill(); smoke_stdout,smoke_stderr=proc.communicate()
+        server.shutdown()
+    smoke_marker='PASS step navigation across four real HTML entry points'
+    observed=re.search(r'<pre id="result"([^>]*)>([^<]*)</pre>',smoke_stdout)
+    if not observed or 'data-status="PASS"' not in observed.group(1) or html.unescape(observed.group(2)).strip()!=smoke_marker:
+        print('FAIL browser step navigation on actual product HTML entry points',file=sys.stderr)
+        print('browser exit:',proc.returncode,'html chars:',len(smoke_stdout),file=sys.stderr)
+        print('result DOM:',(observed.group(1)+' '+html.unescape(observed.group(2))) if observed else 'MISSING',file=sys.stderr)
+        print(smoke_stderr[-2500:],file=sys.stderr);print(smoke_stdout[-4000:],file=sys.stderr)
+        return 1
+    if not smoke_timed_out and proc.returncode:
+        print('FAIL product HTML browser exit:',proc.returncode,file=sys.stderr)
+        print(smoke_stderr[-2500:],file=sys.stderr);return 1
+    if smoke_timed_out: print('WARN: headless product HTML browser required forced shutdown after PASS marker.',file=sys.stderr)
+    print(smoke_marker); return 0
 if __name__=='__main__': raise SystemExit(main())
