@@ -135,12 +135,18 @@
       }
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO',procedures)};
       case 'controls_if':{
-        if(block.elseifCount_&&block.elseifCount_!==0)
-          fail('else-if branches are not part of AST v1');
         var result={kind:'if',condition:valueChild(block,'IF0'),
           then:statementChildren(block,'DO0',procedures)};
+        var tail=result;
+        // Lower Blockly's ordered IF1/DO1... mutator arms to ordinary AST v1 if/else.
+        for(var arm=1;arm<=(block.elseifCount_||0);arm++){
+          var next={kind:'if',condition:valueChild(block,'IF'+arm),
+            then:statementChildren(block,'DO'+arm,procedures)};
+          tail.else=[next];
+          tail=next;
+        }
         if(block.getInputTargetBlock('ELSE'))
-          result.else=statementChildren(block,'ELSE',procedures);
+          tail.else=statementChildren(block,'ELSE',procedures);
         return result;
       }
       default:fail('unsupported statement block: '+block.type);
