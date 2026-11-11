@@ -1,0 +1,61 @@
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -566,9 +566,13 @@
+ static int32_t physics_frame_queued_id = 0;
+ static int32_t physics_frame_sent_id = 0;
+ static bool physics_frame_ready = false;
+ static WbSupervisorPhysicsFrame physics_frame;
+-static bool compact_collider_request = false;
++static bool compact_collider_request = false;
++static bool compact_mutation_probe_enabled(void) {
++  const char *const value = getenv("WEBEEBLOCKS_GP_COMPACT_MUTATION_PROBE");
++  return value && strcmp(value, "1") == 0;
++}
+ static bool compact_collider_ready = false;
+ static int32_t compact_collider_bytes = 0;
+ static unsigned char compact_collider_wire[WB_SUPERVISOR_COLLIDER_BATCH_MAX_BYTES];
+ static bool scene_revision_request = false;
+@@ -581,12 +585,21 @@
+ static bool scene_revision_effect_applied = false;
+ 
+ // One native binary reply, never a VRML export or an authority decision.
+ bool wb_supervisor_collider_batch_read(unsigned char *out, int32_t capacity, int32_t *size) {
+-  if (!wb_robot_get_supervisor() || !out || !size || capacity <= 0 || wb_robot_get_basic_time_step() != 8.0)
+-    return false;
+-  robot_mutex_lock();
+-  compact_collider_request = true;
++  if (!wb_robot_get_supervisor() || !out || !size || capacity <= 0 || wb_robot_get_basic_time_step() != 8.0)
++    return false;
++  robot_mutex_lock();
++  // Deferred Supervisor SETs live in libController, not in the Webots engine,
++  // until a non-immediate request. Ordinary compact observations must refuse
++  // stale geometry instead of silently reporting the pre-commit scene.
++  if (field_requests_list_head && !compact_mutation_probe_enabled()) {
++    robot_mutex_unlock();
++    return false;
++  }
++  if (field_requests_list_head)
++    fprintf(stderr, "GP_COMPACT_CLIENT_QUEUE_V2 before_immediate_flush=1\\n");
++  compact_collider_request = true;
+   compact_collider_ready = false;
+   compact_collider_bytes = 0;
+   wb_robot_flush_unlocked(__FUNCTION__);
+   compact_collider_request = false;
+@@ -813,10 +826,14 @@
+     request_write_uchar(r, field_change_tracking.field->is_proto_internal_field ? 1 : 0);
+     request_write_uchar(r, field_change_tracking.enable);
+     if (field_change_tracking.enable)
+       request_write_int32(r, field_change_tracking.sampling_period);
+-  } else if (!robot_is_immediate_message() || is_field_immediate_message) {
+-    is_field_immediate_message = false;
++  } else if (!robot_is_immediate_message() || is_field_immediate_message ||
++             (compact_collider_request && compact_mutation_probe_enabled())) {
++    // Diagnostic-only: flush pending SETs in the same ordered immediate
++    // datagram as collider read 107. Engine side commits them using the
++    // stock processImmediateMessages() before snapshot, at unchanged time.
++    is_field_immediate_message = false;
+     WbFieldRequest *request;
+     if (sent_field_get_request)
+       request = sent_field_get_request;
+     else {
