@@ -226,6 +226,10 @@ def main():
     compact_match=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',compact_stdout)
     if not compact_match or html.unescape(compact_match.group(1)).strip()!=expected_compact:
         print('FAIL compact Blockly UI browser regression',file=sys.stderr)
+        # Preserve the actual error marker even if Chromium's full dump is huge.
+        observed=re.search(r'<pre id="result"([^>]*)>([^<]*)</pre>',compact_stdout)
+        print('browser exit:',proc.returncode,'html chars:',len(compact_stdout),file=sys.stderr)
+        print('result DOM:',(observed.group(1)+' '+html.unescape(observed.group(2))) if observed else 'MISSING',file=sys.stderr)
         print(compact_stderr[-2000:],file=sys.stderr);print(compact_stdout[-6000:],file=sys.stderr)
         return 1
     print(marker); print(expected_compact); return 0
