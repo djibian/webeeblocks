@@ -12,3 +12,4 @@ a49474535fa559ad7d6e9edd8768d7ef48dae8db tools/grand_prix/native_engine/compact-
 d2266f75ca7ca78915019fc47b633853d20e4008 tools/grand_prix/native_engine/compact-request-dispatch-barrier-r2025a.patch
 f48f5fac392fc7d3075260dc092a4ab2c9650fbe tools/grand_prix/native_engine/compact-client-pending-refusal-trace-r2025a.patch
 9452dcf67d638a509bf9745b92b5fd41ebecc85e tools/grand_prix/native_engine/compact-request-after-sets-r2025a.patch
+ac833fdffbbefae760bb7d51f1c847ac35204400 tools/grand_prix/native_engine/compact-forensic-r2025a.patch
