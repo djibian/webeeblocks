@@ -88,6 +88,7 @@ void admit(){fresh();ready();assert(gp_u_start(now)==1);}
 void alive(long long ms){now=ms/1000.0;evidence=response("ALIVE",std::to_string(ms));}
 const std::string failed="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved";
 const std::string achieved="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=achieved";
+const std::string timed=failed+" reason=time-limit";
 void oneLand(){
  assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
  vehicle=achieved;assert(gp_u_deadline(now+0.032,1)==0);assert(vehicle==failed);
@@ -171,6 +172,13 @@ int main(){
  admit();now=2.111;oneLand();
  // Failure remains terminal, files stay fenced, RESET waits for actual landing.
  admit();alive(2144);evidence.clear();oneLand();
+ // Evaluator's first factual cause must survive the subsequent independent
+ // LAND; neither a generic TIME_LIMIT nor LAND can overwrite it.
+ admit();alive(2144);vehicle=failed+" reason=altitude";evidence.clear();
+ now=2.176;assert(gp_u_deadline(now,0)==1);
+ assert(vehicle==failed+" reason=altitude");
+ assert(gp_u_deadline(now+0.032,1)==0);
+ assert(vehicle==failed+" reason=altitude");
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==1); // oneLand observed landed=1
  gp_u_deadline(now+0.064,0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==0);
@@ -183,18 +191,18 @@ int main(){
   admit();alive(2112+elapsed);vehicle=achieved;
   assert(gp_u_deadline(now,1)==(elapsed>=210000));
   if(elapsed<210000){now=212.112;assert(gp_u_deadline(now,1)==0);}
-  else {assert(vehicle==failed);assert(request.find("state=deadline")!=std::string::npos);}
+  else {assert(vehicle==timed);assert(request.find("state=deadline")!=std::string::npos);}
  }
  // At the off-grid origin the native step is shortened to the exact 8 ms grid cap.
  admit();alive(212096);assert(gp_u_deadline(now,0)==0);assert(gp_u_next_step(32)==16);
- alive(212112);vehicle=achieved;assert(gp_u_deadline(now,1)==1);assert(vehicle==failed);
+ alive(212112);vehicle=achieved;assert(gp_u_deadline(now,1)==1);assert(vehicle==timed);
  // Airborne success cannot disarm; a later stale success cannot rescue failure.
  admit();alive(212111);vehicle=achieved;assert(gp_u_deadline(now,0)==0);
- alive(212112);assert(gp_u_deadline(now,1)==1);assert(vehicle==failed);
+ alive(212112);assert(gp_u_deadline(now,1)==1);assert(vehicle==timed);
  // A healthy evaluator can sustain the entire native pilot interval to the cap.
  admit();
  for(long long t=2144;t<212112;t+=32){alive(t);assert(gp_u_deadline(now,0)==0);}
- alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
+ alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
  gp_u_deadline(now+0.032,1);gp_u_reset_complete();
  assert(request.empty());assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";gp_u_file_idle(1);
