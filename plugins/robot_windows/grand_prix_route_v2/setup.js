@@ -56,4 +56,97 @@ if (typeof window.addEventListener === 'function') {
   });
  });
 }
+
+// Read-only Grand Prix route clock. The native ELAPSED command observes Webots
+// time since admitted TAKEOFF; it is never an outcome, oracle or deadline source.
+(function installRouteClock() {
+  if (typeof window.addEventListener !== 'function') return;
+  var element = null, interval = null, generation = 0;
+  var running = false, pending = false, last = null;
+  function mount() {
+    if (!element && typeof document !== 'undefined' && document &&
+        typeof document.getElementById === 'function' &&
+        typeof document.createElement === 'function') {
+      var panel = document.getElementById('statusPanel');
+      if (panel) {
+        element = document.createElement('span');
+        element.id = 'grandPrixElapsedClock';
+        element.setAttribute('aria-live', 'off');
+        element.style.fontVariantNumeric = 'tabular-nums';
+        element.style.whiteSpace = 'nowrap';
+        panel.appendChild(element);
+      }
+    }
+    return !!element;
+  }
+  function format(seconds) {
+    var tenths = Math.floor(seconds * 10 + 1e-8);
+    var minutes = Math.floor(tenths / 600);
+    var remainder = (tenths % 600) / 10;
+    return String(minutes).padStart(2, '0') + ':' + remainder.toFixed(1).padStart(4, '0');
+  }
+  function show(text) {
+    if (mount()) element.textContent = text;
+  }
+  function empty() { show('Temps simulé : — / 03:30'); }
+  function clear() {
+    generation += 1;
+    running = false;
+    pending = false;
+    if (interval !== null) window.clearInterval(interval);
+    interval = null;
+  }
+  function reset() {
+    clear();
+    last = null;
+    empty();
+  }
+  function finish() {
+    clear();
+    show(last === null ? 'Temps simulé : — / 03:30' :
+      'Dernière mesure : ' + format(last) + ' / 03:30');
+  }
+  function sample() {
+    if (!running || pending) return;
+    var backend = window.runtimeBackend;
+    if (!backend || !backend.ready || typeof backend.readElapsedTime !== 'function') {
+      if (last !== null) show('Dernière mesure : ' + format(last) + ' / 03:30');
+      return;
+    }
+    var bound = generation;
+    pending = true;
+    Promise.resolve().then(function() { return backend.readElapsedTime(); }).then(function(seconds) {
+      if (bound !== generation || !running) return;
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 ||
+          (last !== null && seconds < last)) {
+        show('Temps simulé : indisponible');
+        return;
+      }
+      last = seconds;
+      show('Temps simulé : ' + format(seconds) + ' / 03:30');
+    }, function() {
+      if (bound !== generation || !running) return;
+      // TIME_UNAVAILABLE is expected before TAKEOFF completes and after LAND.
+      show(last === null ? 'Temps simulé : — / 03:30' :
+        'Dernière mesure : ' + format(last) + ' / 03:30');
+    }).finally(function() {
+      if (bound === generation) pending = false;
+    });
+  }
+  function start() {
+    if (running) return;
+    reset();
+    running = true;
+    sample();
+    interval = window.setInterval(sample, 1000); // <= 1 request/s; never overlap.
+  }
+  window.addEventListener('webeeblocks-ui-ready', empty);
+  window.addEventListener('webeeblocks-runtime-v2', function(event) {
+    var state = event && event.detail && event.detail.state;
+    if (state === 'EXÉCUTION') start();
+    else if (state === 'PRÊT' || state === 'INITIALISATION' || state === 'RÉINITIALISATION') reset();
+    else if (state) finish();
+  });
+})();
+
 })();
