@@ -142,6 +142,7 @@ class NativeCompactColliderShadow:
         self.window = window
         self.samples = 0
         self.parity = self.shadow_accepted = self.historical_accepted = 0
+        self.false_refusals = self.unsafe_acceptances = 0
         self.unknown = self.structure_changes = self.errors = 0
         self.floor_verified = self.proto_internal_total = self.refusals = 0
         self.incarnation_changes = self.revision_changes = 0
@@ -218,7 +219,12 @@ class NativeCompactColliderShadow:
         except Exception as exc:
             self.errors += 1
             self.refusals += 1
-            self.last = (False, str(type(exc).__name__) + ': ' + str(exc))
+            reason = str(type(exc).__name__) + ': ' + str(exc)
+            self.probe.sink('GP_COMPACT_REFUSAL_V2 ' + json.dumps({
+                'schema': 2, 'sim_ms': round(supervisor.getTime() * 1000),
+                'reason': reason, 'historical_authority_only': True,
+            }, separators=(',', ':'), sort_keys=True))
+            self.last = (False, reason)
         finally:
             self.probe.record('compact_native_rpc_and_decode', time.perf_counter_ns() - begun)
 
@@ -229,6 +235,8 @@ class NativeCompactColliderShadow:
         self.last = None
         self.samples += 1
         self.parity += int(observed == accepted)
+        self.false_refusals += int(not observed and accepted)
+        self.unsafe_acceptances += int(observed and not accepted)
         self.shadow_accepted += int(observed)
         self.historical_accepted += int(accepted)
         if self.samples % self.window == 0:
@@ -237,6 +245,9 @@ class NativeCompactColliderShadow:
                 'samples': self.window, 'canonical_parity': self.parity,
                 'canonical_accepted': self.shadow_accepted,
                 'historical_accepted': self.historical_accepted,
+                'compact_extra_refusals': self.false_refusals,
+                'compact_unsafe_acceptances': self.unsafe_acceptances,
+                'historical_refusals': self.window - self.historical_accepted,
                 'unknown_coverage_samples': self.unknown,
                 'root_structure_changes': self.structure_changes,
                 'decode_errors': self.errors,
@@ -262,6 +273,7 @@ class NativeCompactColliderShadow:
                          'the historical authority. Direct Floor Plane is checked.'),
             }, separators=(',', ':'), sort_keys=True))
             self.parity = self.shadow_accepted = self.historical_accepted = 0
+            self.false_refusals = self.unsafe_acceptances = 0
             self.unknown = self.structure_changes = self.errors = 0
             self.floor_verified = self.proto_internal_total = self.refusals = 0
             self.incarnation_changes = self.revision_changes = 0
