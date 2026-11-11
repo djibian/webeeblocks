@@ -97,22 +97,40 @@ void publishActivityFailureProbe(const char *oracle) {
   wb_supervisor_field_set_sf_string(gActivityCustomData, marker);
 }
 
+bool parseActivityOutcome(const char *data, unsigned long long &attempt,
+                          std::string &oracle, std::string &status, std::string &reason) {
+  if (!data || std::strlen(data) > 255) return false;
+  char name[64] = {0}, state[32] = {0}, cause[48] = {0}, extra[2] = {0};
+  const int fields = std::sscanf(data,
+      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s reason=%47s %1s",
+      &attempt, name, state, cause, extra);
+  if (fields != 3 && fields != 4) return false;
+  oracle = name; status = state; reason = fields == 4 ? cause : "";
+  if (!isSafeOracle(oracle.c_str()) ||
+      (status != "achieved" && status != "not-achieved" && status != "interrupted"))
+    return false;
+  if (!reason.empty()) {
+    if (oracle != "grand-prix-route-v2" || status != "not-achieved" ||
+        (reason != "envelope-contact" && reason != "course-boundary" &&
+         reason != "altitude" && reason != "low-outside-zone" &&
+         reason != "wrong-landing" && reason != "time-limit"))
+      return false;
+  }
+  // Reject trailing bytes, malformed suffixes and noncanonical attempt tokens.
+  std::string canonical = "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=" +
+      std::to_string(attempt) + " oracle=" + oracle + " status=" + status;
+  if (!reason.empty()) canonical += " reason=" + reason;
+  return canonical == data;
+}
+
 bool hasCurrentActivityOutcome(const char *oracle) {
   if (!gActivityCustomData || !isSafeOracle(oracle))
     return false;
   const char *data = wb_supervisor_field_get_sf_string(gActivityCustomData);
   unsigned long long attempt = 0;
-  char publishedOracle[64] = {0};
-  char status[32] = {0};
-  char trailing[2] = {0};
-  if (!data || std::sscanf(data,
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",
-      &attempt, publishedOracle, status, trailing) != 3)
-    return false;
-  if (attempt != gActivityAttempt || std::strcmp(publishedOracle, oracle) != 0)
-    return false;
-  return std::strcmp(status, "achieved") == 0 || std::strcmp(status, "not-achieved") == 0 ||
-         std::strcmp(status, "interrupted") == 0;
+  std::string publishedOracle, status, reason;
+  return parseActivityOutcome(data, attempt, publishedOracle, status, reason) &&
+         attempt == gActivityAttempt && publishedOracle == oracle;
 }
 
 bool ensureActivityChannel(void) {
@@ -223,12 +241,8 @@ bool handleOutcomeRequest(const char *message) {
 
   const char *data = wb_supervisor_field_get_sf_string(gActivityCustomData);
   unsigned long long attempt = 0;
-  char publishedOracle[64] = {0};
-  char status[32] = {0};
-  char trailing[2] = {0};
-  if (!data || std::sscanf(data,
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",
-      &attempt, publishedOracle, status, trailing) != 3) {
+  std::string publishedOracle, status, reason;
+  if (!parseActivityOutcome(data, attempt, publishedOracle, status, reason)) {
     sendRuntimeError(id, "OUTCOME_UNAVAILABLE");
     return true;
   }
@@ -236,16 +250,19 @@ bool handleOutcomeRequest(const char *message) {
     sendRuntimeError(id, "STALE_OUTCOME");
     return true;
   }
-  if (std::strcmp(publishedOracle, oracle) != 0) {
+  if (publishedOracle != oracle) {
     sendRuntimeError(id, "OUTCOME_MISMATCH");
     return true;
   }
-  if (std::strcmp(status, "achieved") != 0 && std::strcmp(status, "not-achieved") != 0 &&
-      std::strcmp(status, "interrupted") != 0) {
-    sendRuntimeError(id, "INVALID_OUTCOME");
-    return true;
+  if (reason.empty()) {
+    sendRuntimeState(id, status.c_str());
+  } else {
+    char response[256];
+    std::snprintf(response, sizeof(response),
+                  "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d STATE %s reason=%s",
+                  id, status.c_str(), reason.c_str());
+    wb_robot_wwi_send_text(response);
   }
-  sendRuntimeState(id, status);
   return true;
 }
 

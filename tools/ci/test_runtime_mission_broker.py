@@ -188,6 +188,45 @@ int main() {
     assert(sent_text[1] == std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 11 STATE ") + status);
   }
 
+  // Approved first-cause evidence survives COMPLETE and is transmitted only
+  // for the current Grand Prix attempt/oracle, including across RESETs.
+  reset_harness();
+  const std::string causal =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=altitude";
+  custom_data = causal;
+  process({
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 14 COMPLETE grand-prix-route-v2",
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 15 OUTCOME grand-prix-route-v2"
+  });
+  assert(custom_data == causal);
+  assert(sent_text[1] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 15 STATE not-achieved reason=altitude");
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 16 OUTCOME other-oracle"});
+  assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 16 ERR OUTCOME_MISMATCH");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET");
+  assert(webeeblocks_file_broker_receive_text() != nullptr);
+  const std::string reset_reply = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK";
+  webeeblocks_file_broker_send(reset_reply.c_str(), static_cast<int>(reset_reply.size()+1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 18 OUTCOME grand-prix-route-v2"});
+  assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 18 ERR OUTCOME_UNAVAILABLE");
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=not-achieved reason=wrong-landing";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 OUTCOME grand-prix-route-v2"});
+  assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 19 STATE not-achieved reason=wrong-landing");
+
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=other-oracle status=not-achieved reason=altitude",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=not-achieved reason=unknown",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=grand-prix-route-v2 status=not-achieved reason=altitude extra",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+2 oracle=grand-prix-route-v2 status=not-achieved reason=altitude"
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 40 OUTCOME grand-prix-route-v2"});
+    assert(sent_text.back() != "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 40 STATE not-achieved reason=altitude");
+  }
+
   expect_unavailable_after_complete(
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=0 oracle=progression-precise-movement-v1 status=not-achieved");
   expect_unavailable_after_complete(

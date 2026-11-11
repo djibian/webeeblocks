@@ -119,11 +119,33 @@ void publish(const char *state) {
   WbFieldRef field=channel();
   if(field)wb_supervisor_field_set_sf_string(field,data);
 }
-void failed_outcome() {
+void failed_outcome(const char *cause=nullptr) {
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+  if(!field)return;
   char result[192];
   std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=not-achieved",attempt,oracleName);
-  if(field)wb_supervisor_field_set_sf_string(field,result);
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // A native evaluator's first exact-attempt failure must survive the later
+  // independent safety LAND. Never overwrite it with a generic flight error.
+  const char *current=wb_supervisor_field_get_sf_string(field);
+  if(current) {
+    const std::string existing(current), prefix(result);
+    if(existing==prefix)return;
+    if(existing.compare(0,prefix.size()+8,prefix+" reason=")==0) {
+      const std::string reason=existing.substr(prefix.size()+8);
+      if(reason=="envelope-contact" || reason=="course-boundary" ||
+         reason=="altitude" || reason=="low-outside-zone" ||
+         reason=="wrong-landing" || reason=="time-limit")return;
+    }
+  }
+  // Only this independent time comparison may attest 210 s; TIME_LIMIT
+  // transport errors and early evaluator revocation never imply expiry.
+  if(cause && std::strcmp(cause,"time-limit")==0)
+    std::strncat(result," reason=time-limit",sizeof(result)-std::strlen(result)-1);
+#else
+  (void)cause;
+#endif
+  wb_supervisor_field_set_sf_string(field,result);
 }
 }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -198,7 +220,7 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
   // first observations at/after expiry fail closed even if delivered late.
   if(std::llround(now*1000)-begin>=210000) {
     expired=true;publish("deadline");
-    failed_outcome();
+    failed_outcome("time-limit");
     return 1;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE

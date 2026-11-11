@@ -110,7 +110,8 @@ class NativeRouteEvaluator:
                     f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={attempt} oracle={ORACLE}',
                     f'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt={attempt} oracle={ORACLE}',
                     self._outcome('achieved')):
-                self._channel.setSFString(self._outcome('not-achieved'))
+                self._channel.setSFString(
+                    self._outcome('not-achieved', self._active.result.reason))
         if self._context is not None:
             LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
                            self._context.attempt, now, reason, self.last_error)
@@ -129,9 +130,16 @@ class NativeRouteEvaluator:
         # the pilot already latched. The pilot independently fails if it had
         # not consumed valid success+landed before loss of ALIVE/the deadline.
 
-    def _outcome(self, status):
-        return (f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={self._context.attempt} '
-                f'oracle={ORACLE} status={status}')
+    def _outcome(self, status, reason=None):
+        marker = (f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={self._context.attempt} '
+                  f'oracle={ORACLE} status={status}')
+        # Publish only approved factual categories, never the native exception
+        # detail, hidden route data, internal state or a guessed diagnosis.
+        if status == 'not-achieved' and reason in (
+                'envelope-contact', 'course-boundary', 'altitude',
+                'low-outside-zone', 'wrong-landing', 'time-limit'):
+            marker += f' reason={reason}'
+        return marker
 
     def _ground(self, observation):
         p = observation.kinematics.position

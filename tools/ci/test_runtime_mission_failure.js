@@ -192,11 +192,33 @@ async function proveMissionFailure() {
   const routeLatched = harness({route:true, code:'TIME_LIMIT'});
   await routeLatched.context.runProgram();
   assert.strictEqual(routeLatched.element('runtimeState').textContent, 'MISSION NON RÉUSSIE');
-  assert.strictEqual(routeLatched.element('runtimeDetail').textContent, 'Mission non accomplie');
+  assert.strictEqual(routeLatched.element('runtimeDetail').textContent,
+    'Mission non accomplie | Sécurité : atterrissage imposé');
   assert.strictEqual(routeLatched.sent.length, 1);
   assert.match(routeLatched.sent[0], / OUTCOME grand-prix-route-v2$/);
   assert.strictEqual(routeLatched.events.find(e => e.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
     'TIME_LIMIT');
+
+  for (const [reason, label] of [
+    ['envelope-contact', 'Collision avec un obstacle'],
+    ['course-boundary', 'Sortie de piste'],
+    ['altitude', 'Altitude interdite'],
+    ['low-outside-zone', 'Vol bas hors des zones autorisées'],
+    ['wrong-landing', 'Mauvaise zone d’arrivée'],
+    ['time-limit', 'Durée maximale de 210 secondes dépassée']
+  ]) {
+    const causal = harness({route:true, code:'TIME_LIMIT',
+      response:'STATE not-achieved reason=' + reason});
+    await causal.context.runProgram();
+    assert.strictEqual(causal.element('runtimeState').textContent, 'MISSION NON RÉUSSIE');
+    assert.strictEqual(causal.element('runtimeDetail').textContent,
+      'Mission non accomplie — ' + label + ' | Sécurité : atterrissage imposé');
+  }
+  const ambiguous = harness({route:true, code:'TIME_LIMIT',
+    response:'STATE not-achieved reason=invalid-route-observation'});
+  await ambiguous.context.runProgram();
+  assert.strictEqual(ambiguous.element('runtimeDetail').textContent,
+    'Mission non accomplie | Sécurité : atterrissage imposé');
 
   const routeUnproven = harness({route:true, code:'TIME_LIMIT',
     response:'ERR OUTCOME_UNAVAILABLE'});

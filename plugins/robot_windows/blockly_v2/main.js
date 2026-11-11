@@ -93,7 +93,12 @@ function setRuntimeFailure(error, missionOutcome) {
       technicalMessage: error && error.message ? error.message : String(error)
     }
   }));
-  setRuntimeStatus(presentation.state, presentation.detail);
+  var detail = presentation.detail;
+  if (missionOutcome && runtimeProfile && runtimeProfile.evaluation &&
+      runtimeProfile.evaluation.oracle === 'grand-prix-route-v2' &&
+      error && error.code === 'TIME_LIMIT')
+    detail += ' | Sécurité : atterrissage imposé';
+  setRuntimeStatus(presentation.state, detail);
 }
 
 function categoryLabel(category) {

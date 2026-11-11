@@ -163,7 +163,13 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
         terminal = advance_terminal_dwell(
             state.terminal, state.attempt, now_ms, progress, speed,
             airborne=airborne, completed=completed)
-    except (CourseProgressError, GateProgressError, LegCursorError,
+    except LegCursorError as error:
+        # Only the precise swept-boundary witness proves an off-course flight.
+        # Other cursor/progression exceptions remain non-diagnostic.
+        return _end(state, now_ms, 'course-boundary'
+                    if str(error) == 'swept-course-boundary'
+                    else 'invalid-route-observation')
+    except (CourseProgressError, GateProgressError,
             TerminalDwellError, ValueError, TypeError):
         return _end(state, now_ms, 'invalid-route-observation')
     start = state.course.route.legs[0].start

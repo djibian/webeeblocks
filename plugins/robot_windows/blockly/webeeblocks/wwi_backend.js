@@ -191,7 +191,7 @@
       }
       return true;
     }
-    var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)|ERR ([A-Z0-9_]+))$/);
+    var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)(?: reason=([a-z][a-z-]{0,31}))?|ERR ([A-Z0-9_]+))$/);
     if (!match)
       return true;
     var id = Number(match[1]);
@@ -211,12 +211,13 @@
       else
         pending.resolve(value);
     } else if (match[4] !== undefined) {
-      if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, match[4]))
+      if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, match[4]) ||
+          (match[5] && match[4] !== 'not-achieved'))
         pending.reject(new Error('Runtime v2 invalid activity outcome state id=' + id));
       else
-        pending.resolve(match[4]);
+        pending.resolve(match[5] ? {status:match[4], reason:match[5]} : match[4]);
     } else {
-      pending.reject(new RuntimeV2BackendError(match[5]));
+      pending.reject(new RuntimeV2BackendError(match[6]));
     }
     return true;
   };
@@ -365,10 +366,11 @@
     if (stopped) return stopped;
     var self = this;
     function requestOnce() {
-      return self._request(['OUTCOME', oracle]).then(function(status) {
+      return self._request(['OUTCOME', oracle]).then(function(raw) {
+        var status = typeof raw === 'string' ? raw : raw && raw.status;
         if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, status))
           throw new Error('Runtime v2 invalid activity outcome state');
-        return {status: status};
+        return raw && raw.reason ? {status:status, reason:raw.reason} : {status:status};
       });
     }
     if (this.completedMissionOracle !== oracle && this.failureProbeMissionOracle !== oracle)
