@@ -237,7 +237,9 @@ async function conditionalWhileReentry() {
   await until(()=>pauses.length===3,'while next iteration');
   assert.equal(pauses[2].blockId,'while-loop');
   assert.equal(pauses[2].iteration,1);
-  assert.deepEqual(b.trace,['takeoff','while-range:1','move:forward','while-range:1']);
+  assert.equal(pauses[2].reason,'breakpoint');
+  assert.deepEqual(b.trace,['takeoff','while-range:1','move:forward'],
+    'loop re-entry breakpoint must stop BEFORE the next sensor condition');
   obs.continueRun();await run;obs.finish();
   assert.equal(pauses.length,3,'while re-entry skipped/duplicated a breakpoint');
   assert.deepEqual(b.trace,['takeoff','while-range:1','move:forward',
