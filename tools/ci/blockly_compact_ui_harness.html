@@ -84,6 +84,28 @@
     win.renderVariables(null);
     assert(element(doc, 'debugSensors').querySelectorAll('.observationItem').length === 0 && element(doc, 'debugVariablesRow').hidden, 'reset retains stale readings');
     assert(!!element(doc, 'debugLight') && !!element(doc, 'debugLightSwatch'), 'LED observability lost');
+    // The three Grand Prix entry points load the same main.js but have distinct HTML.
+    // Re-test each real document, not only the generic Blockly editor.
+    for (var activityPage of [
+      '../../plugins/robot_windows/grand_prix/grand_prix.html',
+      '../../plugins/robot_windows/grand_prix_u/grand_prix_u.html',
+      '../../plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'
+    ]) {
+      await new Promise(function(resolve) {
+        frame.addEventListener('load', resolve, {once:true});
+        frame.src = activityPage;
+      });
+      await until(function() { return frame.contentWindow && frame.contentWindow.workspace && frame.contentWindow.runtimeProfile; });
+      var gpWin = frame.contentWindow, gpDoc = gpWin.document;
+      var gpGoal = element(gpDoc, 'activityGoal');
+      assert(gpGoal.textContent === (gpWin.runtimeProfile.brief.mission || gpWin.runtimeProfile.brief.goal || ''), 'Grand Prix mission changed on ' + activityPage);
+      assert(!!element(gpDoc, 'observationInspector') && !!element(gpDoc, 'observationToggle'), 'Grand Prix inspector missing on ' + activityPage);
+      element(gpDoc, 'activityInstructionsToggle').click();
+      assert(!element(gpDoc, 'activityInstructions').hidden, 'Grand Prix instructions did not open on ' + activityPage);
+      element(gpDoc, 'activityInstructionsClose').click();
+      gpWin.renderSensorValues({front: 0.42, left: 0.9});
+      assert(element(gpDoc, 'debugSensors').querySelectorAll('.observationItem').length === 2, 'Grand Prix reading lines missing on ' + activityPage);
+    }
     result.textContent = 'PASS compact instructions and punctual observations on two browser viewport sizes';
     result.setAttribute('data-status', 'PASS');
   } catch (error) {

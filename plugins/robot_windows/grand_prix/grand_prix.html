@@ -34,7 +34,7 @@
   <header>
     <div id="activityCopy">
       <h1 id="activityTitle">WebeeBlocks</h1>
-      <p id="activityGoal"></p>
+      <button id="activityInstructionsToggle" type="button" aria-controls="activityInstructions" aria-expanded="false">Consigne</button>
     </div>
     <div id="primaryActions" aria-label="Projet et exécution">
       <button id="projectActivity" type="button">Démarrer une activité</button>
@@ -55,12 +55,33 @@
     <button id="stepNext" type="button" disabled>Pas suivant</button>
     <button id="stepContinue" type="button" disabled>Continuer</button>
     <span id="debugState">Observation inactive</span>
-    <span id="debugSensorsRow"><strong>Capteurs :</strong> <span id="debugSensors">—</span></span>
-    <span id="debugVariablesRow" hidden><strong>Variables :</strong> <span id="debugVariables"></span></span>
-    <span id="debugLightRow"><strong>LED :</strong> <span id="debugLight">éteinte</span> <span id="debugLightSwatch" aria-hidden="true"></span></span>
+    <button id="observationToggle" type="button" aria-controls="observationInspector" aria-expanded="false">Observations</button>
   </section>
   <main id="workspaceShell">
     <div id="blocklyDiv" aria-label="Programme Blockly"></div>
+    <section id="activityInstructions" class="floatingPanel" aria-labelledby="activityInstructionsTitle" hidden>
+      <div class="floatingPanelHeader">
+        <h2 id="activityInstructionsTitle">Consigne</h2>
+        <button id="activityInstructionsClose" type="button">Fermer</button>
+      </div>
+      <p id="activityGoal"></p>
+    </section>
+    <aside id="observationInspector" class="floatingPanel" aria-labelledby="observationInspectorTitle" hidden>
+      <div class="floatingPanelHeader">
+        <h2 id="observationInspectorTitle">Observations</h2>
+        <button id="observationClose" type="button">Masquer</button>
+      </div>
+      <p id="observationNote">Derniers relevés ponctuels du pas à pas : ils peuvent dater d’une étape précédente. Pas de télémétrie continue.</p>
+      <section id="debugSensorsRow" class="observationSection" aria-label="Dernières lectures des capteurs">
+        <h3>Capteurs</h3>
+        <dl id="debugSensors" class="observationList"><div class="observationEmpty">—</div></dl>
+      </section>
+      <section id="debugVariablesRow" class="observationSection" aria-label="Dernières valeurs des variables" hidden>
+        <h3>Variables</h3>
+        <dl id="debugVariables" class="observationList"></dl>
+      </section>
+      <div id="debugLightRow" class="observationSection"><strong>LED :</strong> <span id="debugLight">éteinte</span> <span id="debugLightSwatch" aria-hidden="true"></span></div>
+    </aside>
     <nav id="workspaceToolbar" aria-label="Zoom et affichage du programme">
       <button id="zoomOut" type="button" title="Réduire le zoom" aria-label="Réduire le zoom"><span class="zoomSymbol" aria-hidden="true">−</span></button>
       <button id="zoomIn" type="button" title="Augmenter le zoom" aria-label="Augmenter le zoom"><span class="zoomSymbol" aria-hidden="true">+</span></button>
