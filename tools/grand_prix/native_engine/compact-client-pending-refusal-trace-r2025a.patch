@@ -1,0 +1,24 @@
+diff --git a/src/controller/c/supervisor.c b/src/controller/c/supervisor.c
+--- a/src/controller/c/supervisor.c
++++ b/src/controller/c/supervisor.c
+@@ -591,12 +591,16 @@
+   robot_mutex_lock();
+   // Deferred Supervisor SETs live in libController, not in the Webots engine,
+   // until a non-immediate request. Ordinary compact observations must refuse
+   // stale geometry instead of silently reporting the pre-commit scene.
+-  if (field_requests_list_head && !compact_mutation_probe_enabled()) {
+-    robot_mutex_unlock();
+-    return false;
+-  }
++  if (field_requests_list_head && !compact_mutation_probe_enabled()) {
++    // A legitimate fail-closed decision: the controller has not yet sent its
++    // pending field writes to the engine. Log the precise nominal occurrence.
++    fprintf(stderr, "GP_COMPACT_CLIENT_PENDING_REFUSAL_V2 sim_ms=%.0f\n",
++            1000.0 * wb_robot_get_time());
++    robot_mutex_unlock();
++    return false;
++  }
+   if (field_requests_list_head)
+     fprintf(stderr, "GP_COMPACT_CLIENT_QUEUE_V2 before_immediate_flush=1\n");
+   compact_collider_request = true;
+   compact_collider_ready = false;
