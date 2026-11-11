@@ -62,7 +62,9 @@ function run(loops) {
   assert.throws(() => new partialAsset.context.WebeeBlocksWwiBackend({}, {}),
     error => error.code === 'BLOCKLY_ASSET_MISMATCH',
     'incomplete Blockly contract is not a valid loaded module');
-  assert.equal(a.context.WebeeBlocksRuntimeOutcome.classify({code: 'TIME_LIMIT'}).state, 'MISSION ÉCHOUÉE');
+  assert.equal(a.context.WebeeBlocksRuntimeOutcome.classify({code: 'TIME_LIMIT'}).state, 'ARRÊTÉ');
+  assert.equal(a.context.WebeeBlocksRuntimeOutcome.classify({code: 'TIME_LIMIT'}).detail,
+    'Vol interrompu — résultat de mission non confirmé');
   for (const forbidden of ['seed', 'lengths', 'turns', 'gates', 'course', 'route', 'identifier'])
     assert.equal(Object.hasOwn(profile, forbidden), false, 'host-only parameter: ' + forbidden);
   assert.equal(profile.brief.visible, true);

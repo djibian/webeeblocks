@@ -75,7 +75,14 @@
 
   async function readMissionFailure(profile, backend, error) {
     var evaluation = profile && profile.evaluation;
-    if (!error || error.code !== 'UNSAFE_OR_TIMEOUT' || !supportsMissionEvaluation(evaluation) ||
+    // Only the Grand Prix route pilot reports independent safety LAND as
+    // TIME_LIMIT even when the 210-s deadline has not expired. Recover an
+    // existing *exact-attempt* not-achieved verdict, never infer one from the
+    // transport error or broaden this exception to other activities.
+    var routeSafetyLand = !!(error && error.code === 'TIME_LIMIT' &&
+      evaluation && evaluation.oracle === 'grand-prix-route-v2');
+    if (!error || (error.code !== 'UNSAFE_OR_TIMEOUT' && !routeSafetyLand) ||
+        !supportsMissionEvaluation(evaluation) ||
         !backend || !backend.capabilities || backend.capabilities.simulationReset !== true ||
         typeof backend.readActivityOutcome !== 'function')
       return null;

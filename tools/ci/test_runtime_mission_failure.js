@@ -13,6 +13,7 @@ function harness(options = {}) {
   const events = [];
   const sent = [];
   let response = options.response || 'STATE not-achieved';
+  const oracle = options.route ? 'grand-prix-route-v2' : 'progression-precise-movement-v1';
   const element = id => elements[id] || (elements[id] = {
     disabled:false, hidden:false, checked:false, textContent:'',
     setAttribute(){}, addEventListener(){}
@@ -25,14 +26,14 @@ function harness(options = {}) {
     const command = match[2];
     let payload;
     if (command === 'OUTCOME') {
-      assert.strictEqual(match[3], 'progression-precise-movement-v1');
+      assert.strictEqual(match[3], oracle);
       payload = response;
     } else if (command === 'FAILURE') {
-      assert.strictEqual(match[3], 'progression-precise-movement-v1');
+      assert.strictEqual(match[3], oracle);
       response = options.failureResult || 'ERR OUTCOME_UNAVAILABLE';
       payload = 'OK';
     } else if (command === 'COMPLETE') {
-      assert.strictEqual(match[3], 'progression-precise-movement-v1');
+      assert.strictEqual(match[3], oracle);
       if (options.completeResult)
         response = options.completeResult;
       payload = 'OK';
@@ -69,7 +70,7 @@ function harness(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
-  context.runtimeProfile = {runtime:{}, evaluation:{type:options.legacy ? 'training-objective' : 'mission-state-v1', oracle:'progression-precise-movement-v1'}};
+  context.runtimeProfile = {runtime:{}, evaluation:{type:options.legacy ? 'training-objective' : 'mission-state-v1', oracle}};
   context.workspace = {};
   context.runtimeBackend = backend;
   context.updateRuntimeActions();
@@ -185,6 +186,30 @@ async function proveMissionFailure() {
     assert.strictEqual(unproven.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
       'UNSAFE_OR_TIMEOUT', 'preserve the original error rather than replace it with an evidence-read error');
   }
+
+  // Only Grand Prix route may reclassify its early native TIME_LIMIT into
+  // a mission failure, and only with exact-attempt/exact-oracle evidence.
+  const routeLatched = harness({route:true, code:'TIME_LIMIT'});
+  await routeLatched.context.runProgram();
+  assert.strictEqual(routeLatched.element('runtimeState').textContent, 'MISSION NON RÉUSSIE');
+  assert.strictEqual(routeLatched.element('runtimeDetail').textContent, 'Mission non accomplie');
+  assert.strictEqual(routeLatched.sent.length, 1);
+  assert.match(routeLatched.sent[0], / OUTCOME grand-prix-route-v2$/);
+  assert.strictEqual(routeLatched.events.find(e => e.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
+    'TIME_LIMIT');
+
+  const routeUnproven = harness({route:true, code:'TIME_LIMIT',
+    response:'ERR OUTCOME_UNAVAILABLE'});
+  await routeUnproven.context.runProgram();
+  assert.strictEqual(routeUnproven.element('runtimeState').textContent, 'ERREUR');
+  assert.strictEqual(routeUnproven.sent.length, 3);
+  assert.match(routeUnproven.sent[1], / FAILURE grand-prix-route-v2$/);
+  assert.ok(!routeUnproven.sent.some(m => / COMPLETE grand-prix-route-v2$/.test(m)));
+
+  const unrelatedTimeout = harness({code:'TIME_LIMIT'});
+  await unrelatedTimeout.context.runProgram();
+  assert.strictEqual(unrelatedTimeout.sent.length, 0);
+  assert.strictEqual(unrelatedTimeout.element('runtimeState').textContent, 'ERREUR');
 
   for (const options of [
     {legacy:true}, {physical:true}, {code:'USER_STOPPED'},

@@ -62,31 +62,12 @@ def _relative(gate, leg, point):
     return dx * fx + dy * fy, -dx * fy + dy * fx
 
 
-def _check_frame_sweep(gate, leg, before, after, start, end):
-    """Check every point of the observed *frame-overlapping* linear sweep.
-
-    Values vary affinely: testing the clipped interval endpoints covers the
-    lateral craft envelope and vertical envelope, not just sampled endpoints.
-    Geometry, solid contacts and speed remain mandatory separate checks.
-    """
-    if start == end:
-        if abs(start) > FRAME_CLEAR:
-            return
-        low, high = 0., 1.
-    else:
-        t0 = (-FRAME_CLEAR - start) / (end - start)
-        t1 = (FRAME_CLEAR - start) / (end - start)
-        low, high = max(0., min(t0, t1)), min(1., max(t0, t1))
-        if low > high:
-            return
-    for fraction in (low, high):
-        point = tuple(a + (b - a) * fraction for a, b in zip(before, after))
-        _, lateral = _relative(gate, leg, point)
-        z = point[2]
-        if (abs(lateral) + CRAFT_RADIUS > HALF_OPENING or
-                z + CRAFT_RADIUS > BEAM_BOTTOM or
-                z - CRAFT_RADIUS < FLOOR_CLEARANCE):
-            raise GateProgressError('gate-envelope')
+# This cursor proves only directed traversal (arming, crossing, clearing).
+# The independent full-course collision oracle must check the swept physical
+# H solids before invoking this cursor. The old +-FRAME_CLEAR approach window
+# incorrectly applied the below-beam height limit 33 cm before the H centre:
+# a pupil hovering high in front of the H has not yet hit any physical obstacle.
+# Do not reinstate this premature height veto as a substitute for collisions.
 
 
 def advance_directed_gates(progress, leg_index, before, after):
@@ -127,7 +108,7 @@ def advance_directed_gates(progress, leg_index, before, after):
     end = _relative(gate, leg, after)[0]
     if start >= CROSSING_PLANE and end < CROSSING_PLANE:
         raise GateProgressError('reverse-crossing')
-    _check_frame_sweep(gate, leg, before, after, start, end)
+    # Actual impacts are rejected by the caller's swept physical Box oracle.
     armed = progress.armed or start <= -FRAME_CLEAR or end <= -FRAME_CLEAR
     crossed = progress.crossed
     if crossed and end < CROSSING_PLANE:

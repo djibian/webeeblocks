@@ -33,7 +33,7 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
 };
 const originalOutcome=window.WebeeBlocksRuntimeOutcome;
 window.WebeeBlocksRuntimeOutcome=Object.assign({},originalOutcome,{
- classify(error){return error&&error.code==='TIME_LIMIT'?{state:'MISSION ÉCHOUÉE',detail:'Atterrissage de sûreté imposé',machineCode:'TIME_LIMIT'}:originalOutcome.classify(error);}
+ classify(error){return error&&error.code==='TIME_LIMIT'?{state:'ARRÊTÉ',detail:'Vol interrompu — résultat de mission non confirmé',machineCode:'TIME_LIMIT'}:originalOutcome.classify(error);}
 });
 // This isolated profile makes a real unexpected GUI error observable on the
 // existing debug row. Runtime/mission verdicts and the generic pupil status

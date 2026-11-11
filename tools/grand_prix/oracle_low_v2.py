@@ -7,8 +7,9 @@ sequence, clock and LAND) remain mandatory. The historical U oracle is intact.
 import math
 
 from .oracle_u import (
-    LOW_AFTER, LOW_BEFORE, LOW_THRESHOLD, RADIUS, clipped_interval,
+    LOW_AFTER, LOW_BEFORE, RADIUS, clipped_interval,
 )
+from .route_open_h_v2 import BEAM_BOTTOM as LOW_THRESHOLD
 
 
 def _local_exact(leg, point):
@@ -34,7 +35,9 @@ def low_segment_allowed_v2(a, b, route, gates, *, final=False, takeoff_until=Non
 
     Retains gp-u-v1's 0.09 m craft radius, 0.55 m gate bands, final-region
     proportions and 0.14 m start radius, only rotating/translating by the
-    current leg frame. The track/collider/clock oracles are separate.
+    current leg frame. Unlike historical gp-u-v1, the variable course uses
+    the exact physical beam underside (0.62 m) as its low-flight threshold.
+    The yellow lines and full-craft-radius erosion remain unchanged. The track/collider/clock oracles are separate.
     """
     if (len(a) != 3 or len(b) != 3 or type(final) is not bool or
             any(type(v) not in (int, float) or not math.isfinite(v)

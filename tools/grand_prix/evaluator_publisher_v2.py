@@ -114,6 +114,16 @@ class NativeRouteEvaluator:
         if self._context is not None:
             LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
                            self._context.attempt, now, reason, self.last_error)
+            # Actual post-PID position, not the requested Blockly takeoff
+            # height. Observation only: no changes to admission or limits.
+            if reason == 'altitude' and self.observation is not None:
+                position = self.observation.kinematics.position
+                velocity = self.observation.kinematics.velocity
+                LOGGER.warning(
+                    'GP_ROUTE_ALTITUDE_WITNESS attempt=%d time_ms=%d '
+                    'actual_z=%.6f vz=%.6f origin_z=%.6f lower_z=%.6f ceiling_z=%.6f',
+                    self._context.attempt, now, position[2], velocity[2],
+                    self._origin_z, self._origin_z-.02, self._origin_z+1.15)
         # A positive result is written only once. After publication, invalid
         # observations still revoke ALIVE, but may not overwrite a success that
         # the pilot already latched. The pilot independently fails if it had

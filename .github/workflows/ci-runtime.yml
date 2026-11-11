@@ -1597,6 +1597,9 @@ jobs:
           python3 tools/ci/test_grand_prix_u_timeout_probe.py
           node tools/ci/test_grand_prix_u_timeout_probe.js
           python3 tools/ci/test_grand_prix_simulation_time.py
+          # Canonical Runtime owner: route-only composition, guarded preflights,
+          # LAND contact settling, and historical U non-interference.
+          python3 -m unittest -v tools.ci.test_grand_prix_route_vertical_product
           node tools/ci/test_grand_prix_u_profile.js
           node tools/ci/test_grand_prix_u_witness.js
       - name: Prove current U candidate in real Webots R2025a

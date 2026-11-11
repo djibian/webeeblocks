@@ -36,5 +36,6 @@ from test_grand_prix_compare_native_ab import NativeEngineABTests
 from test_grand_prix_u_deadline import DeadlineTests
 from test_grand_prix_u_pose import PoseTests
 from test_grand_prix_u_oracle import Tests as UOracleTests
+from test_grand_prix_route_takeoff_profile import TestRouteTakeoffProfile
 
 if __name__=='__main__':unittest.main()

@@ -224,6 +224,42 @@ static double wrap_angle(double angle) {
     gp_route_observe_native(now, gp_control_sample && gp_route_periods_valid,
                             gp_pose_confirmed, gp_route_ranges);
 ''' + anchor, 1)
+    if route_observations:
+        # A continuous native-feedback reference for every valid TAKEOFF
+        # altitude. Critically, the legacy U and shared PID sources are intact.
+        # Changing these exact anchors must fail closed on composition.
+        route_edits = [
+          ('#include "pid_controller.h"',
+           '#include "pid_controller.h"\n#include "../gp_route_takeoff_profile.h"'),
+          ('  double target_z = origin_z;',
+           '  double target_z = origin_z;\n'
+           '  gp_route_takeoff_profile_t gp_route_takeoff = {origin_z, 0.0};'),
+          ('        target_z = origin_z + request.value;\n'
+           '        simulation_clock_begin(&program_clock, now);',
+           '        target_z = origin_z + request.value;\n'
+           '        gp_route_takeoff_begin(&gp_route_takeoff, z);\n'
+           '        simulation_clock_begin(&program_clock, now);'),
+          ('    if (command == CMD_TAKEOFF) {\n      desired.altitude = target_z;',
+           '    if (command == CMD_TAKEOFF) {\n'
+           '      desired.altitude = gp_route_takeoff_next(&gp_route_takeoff,\n'
+           '        target_z, z, vz, dt);\n'
+           '      if (!isfinite(desired.altitude)) {\n'
+           '        response_error(active_id, "UNSAFE_OR_TIMEOUT");\n'
+           '        stop_motors(m1, m2, m3, m4);\n'
+           '        airborne = 0; simulation_clock_revoke(&program_clock);\n'
+           '        failsafe_latched = 1; command = CMD_IDLE; active_id = -1;\n'
+           '        stable_since = -1.0;\n'
+           '        previous_time = now; previous_x = x; previous_y = y; previous_z = z;\n'
+           '        continue;\n'
+           '      }'),
+        ]
+        for old, new in route_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route TAKEOFF composition anchor changed; revalidation required')
+            result = result.replace(old, new, 1)
+        # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
+        from tools.grand_prix.route_vertical_product import compose_route_vertical_product
+        result = compose_route_vertical_product(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
