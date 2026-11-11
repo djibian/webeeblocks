@@ -236,7 +236,7 @@ def run(supervisor, native, expected, rectangles, course_identifier):
                 if frame.f_lineno not in (149, 150, 151) and frame.f_locals.get('kind') != 'Floor':
                     return historical_line_trace
             if module == 'native_field_lookup_v2.py' and function == 'get':
-                if frame.f_locals.get('name') not in ('rotation', 'size', 'locked', 'boundingObject'):
+                if frame.f_locals.get('name') not in ('supervisor', 'rotation', 'size', 'locked', 'boundingObject'):
                     return historical_line_trace
             data = {'source': module, 'function': function, 'line': frame.f_lineno,
                     'python_event': event}
