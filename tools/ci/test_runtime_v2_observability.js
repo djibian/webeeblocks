@@ -250,6 +250,8 @@ function proveReadonlyStepNavigation() {
   const documentListeners = {};
   const events = {};
   const controls = {};
+  const registeredMenus = [];
+  let breakpointMenu = null;
   function el(id) {
     if (!controls[id]) controls[id] = {
       disabled:false, inert:false, textContent:'', hidden:false, checked:false,
@@ -258,16 +260,26 @@ function proveReadonlyStepNavigation() {
     return controls[id];
   }
   const centered = [], commands = [];
-  const visible = {};
+  const visible = {}, blockModels = {};
   const view = {left:100, top:100, right:800, bottom:600};
   const wk = {
     readOnly:false,
     isReadOnly() { return this.readOnly; },
     setIsReadOnly(value) { this.readOnly = value; },
-    getBlockById(id) { return {type:'procedures_callnoreturn', getSvgRoot() { return {
-      getBoundingClientRect() { return visible[id] ? {left:200,top:200,right:300,bottom:230,width:100,height:30} :
-        {left:900,top:900,right:1000,bottom:930,width:100,height:30}; }
-    }; }}; },
+    getBlockById(id) {
+      if (!blockModels[id]) {
+        const marked = new Set();
+        const svg = {
+          contains(target) {return target === id;},
+          classList:{toggle(name, flag){if(flag)marked.add(name);else marked.delete(name);}},
+          getBoundingClientRect() { return visible[id] ? {left:200,top:200,right:300,bottom:230,width:100,height:30} :
+            {left:900,top:900,right:1000,bottom:930,width:100,height:30}; }
+        };
+        blockModels[id] = {id,type:'procedures_callnoreturn',workspace:wk,marked,getSvgRoot(){return svg;}};
+      }
+      return blockModels[id];
+    },
+    getAllBlocks() { return Object.values(blockModels); },
     getParentSvg() { return {querySelector() { return {getBoundingClientRect() { return view; }}; }}; },
     centerOnBlock(id, blockOnly) { centered.push([id,blockOnly]); visible[id] = true; },
     zoomCenter(value) { commands.push(['zoom',value]); },
@@ -280,9 +292,14 @@ function proveReadonlyStepNavigation() {
     console:{log(){},error(){}},
     Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
       Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create',BLOCK_DELETE:'delete',VIEWPORT_CHANGE:'viewport_change'},Blocks:{},
-      ContextMenuRegistry:{ScopeType:{BLOCK:'block'},registry:{register(){}}}},
+      ContextMenuRegistry:{ScopeType:{BLOCK:'block'},registry:{register(item){registeredMenus.push(item);}}}},
     document:{currentScript:null, getElementById:el, body:{dataset:{},appendChild(){}},
-      createElement(){return {setAttribute(){},appendChild(){},addEventListener(){},focus(){},dataset:{},style:{}};},
+      createElement(tag){
+        const node={hidden:true,dataset:{},style:{},listeners:{},setAttribute(){},
+          appendChild(){},addEventListener(type,fn){this.listeners[type]=fn;},focus(){}};
+        if(tag==='button') breakpointMenu=node;
+        return node;
+      },
       addEventListener(type,fn){documentListeners[type]=fn;}},
     window:{addEventListener(type,fn){events[type]=fn;},dispatchEvent(){}},
     CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
@@ -296,6 +313,17 @@ function proveReadonlyStepNavigation() {
   vm.runInContext(projectUi, context, {filename:'blockly_v2/project_ui.js'});
   context.wireDebugControls();
   context.wireWorkspaceControls();
+  assert.equal(registeredMenus.length,1,'exactly one native Blockly breakpoint item');
+  const nativeBlock = wk.getBlockById('main');
+  const menuOption = registeredMenus[0];
+  assert.equal(menuOption.preconditionFn({block:nativeBlock}),'enabled');
+  assert.match(menuOption.displayText({block:nativeBlock}),/Ajouter/);
+  menuOption.callback({block:nativeBlock});
+  assert(context.runtimeDebug.hasBreakpoint('main'),'native menu must add in-memory breakpoint');
+  assert(nativeBlock.marked.has('webeeblocks-breakpoint'),'native menu must mark block SVG');
+  assert.match(menuOption.displayText({block:nativeBlock}),/Retirer/);
+  menuOption.callback({block:nativeBlock});
+  assert.equal(context.runtimeDebug.hasBreakpoint('main'),false);
   context.runtimeRunning = true;
   events['webeeblocks-runtime-v2']({detail:{state:'EXÉCUTION'}});
   assert.equal(wk.isReadOnly(),true,'execution must lock Blockly edits');
@@ -313,6 +341,31 @@ function proveReadonlyStepNavigation() {
   callbacks.onActive({blockId:'procedure-a',path:['program',1,'body',0],node:{kind:'move'}});
   callbacks.onPause({blockId:'procedure-a'});
   assert.equal(centered.length,1,'manual scrollbar/pan must suppress automatic recenter');
+  const duringPause = wk.getBlockById('procedure-a');
+  assert.equal(menuOption.preconditionFn({block:duringPause}),'hidden',
+    'native edit menu must remain hidden in flight');
+  context.runtimeDebug.waiter = {resolve(){}};
+  let stoppedContextEvent = false;
+  el('blocklyDiv').listeners.contextmenu({
+    target:'procedure-a',clientX:150,clientY:230,
+    preventDefault(){stoppedContextEvent=true;},stopPropagation(){}
+  });
+  assert(stoppedContextEvent,'read-only paused Blockly must intercept right-click');
+  assert.equal(breakpointMenu.hidden,false);
+  assert.match(breakpointMenu.textContent,/Ajouter/);
+  breakpointMenu.listeners.click.call(breakpointMenu);
+  assert(context.runtimeDebug.hasBreakpoint('procedure-a'),
+    'paused read-only context action must add breakpoint without editing');
+  assert(duringPause.marked.has('webeeblocks-breakpoint'));
+  assert.equal(wk.isReadOnly(),true,'breakpoint context action unlocked Blockly editing');
+  el('blocklyDiv').listeners.contextmenu({
+    target:'procedure-a',clientX:150,clientY:230,
+    preventDefault(){},stopPropagation(){}
+  });
+  assert.match(breakpointMenu.textContent,/Retirer/);
+  breakpointMenu.listeners.click.call(breakpointMenu);
+  assert.equal(context.runtimeDebug.hasBreakpoint('procedure-a'),false);
+  context.runtimeDebug.waiter = null;
   el('debugShowCurrent').listeners.click.call(el('debugShowCurrent'));
   assert.deepEqual(centered[1],['procedure-a',true],'explicit return must center only current block');
   callbacks.onPause({blockId:'procedure-a'});
@@ -342,8 +395,127 @@ function proveReadonlyStepNavigation() {
   assert.equal(el('stepContinue').disabled,true);
 }
 
+
+async function proveResetFromPausedDebugger() {
+  // STOP must be acknowledged by the native backend before RESET may be sent.
+  // A JS-only debugger promise release is not sufficient native authority.
+  const controls={};
+  function el(id) {
+    if (!controls[id]) controls[id]={id,disabled:false,hidden:false,checked:false,textContent:'',
+      addEventListener(){},setAttribute(){}};
+    return controls[id];
+  }
+  function deferred() {
+    let resolve,reject;
+    const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    return {promise,resolve,reject};
+  }
+  const nativeStop=deferred(),nativeReset=deferred(),interpreterWait=deferred();
+  const calls=[],errors=[];
+  const mockDebug={
+    enabled:true,waiter:{},begin(){this.enabled=true;this.waiter={};return {};},
+    cancel() {calls.push('cancel-debugger');this.waiter=null;
+      const error=new Error('interrupted');error.code='USER_STOPPED';
+      interpreterWait.reject(error);
+    },
+    finish() {this.enabled=false;this.waiter=null;}
+  };
+  const context={
+    console:{log(){},error(e){errors.push(e);}},
+    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui',BLOCK_MOVE:'move'},Blocks:{},
+      serialization:{workspaces:{save(){return {blocks:['unchanged']};}}}},
+    document:{currentScript:null,getElementById:el,body:{dataset:{}},createElement(){return{};}},
+    window:{dispatchEvent(){},addEventListener(){}},
+    CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
+    WebeeBlocksRuntimeOutcome:{
+      classify(e){return {state:'ARRÊTÉ',detail:String(e&&e.code||''),machineCode:e&&e.code};},
+      isRetryable(){return false;},
+      async readMissionFailure(){throw Error('STOP must not request a mission outcome');},
+      async evaluateMission(){throw Error('cancelled program must not evaluate mission');}
+    },
+    WebeeBlocksActivityContract:{
+      async execute(profile,workspace,compiler,interpreter,runtime,options) {
+        options.onAst({version:1,program:[]});
+        await interpreterWait.promise;
+      }
+    },
+    WebeeBlocksSemanticAst:{},WebeeBlocksInterpreter:{},WebeeBlocksActivities:{BLOCK_CATALOG:{}},
+    WebeeBlocksActivityProfiles:{},WebeeBlocksWwiBackend:function(){},
+    setTimeout,clearTimeout,Promise
+  };
+  vm.createContext(context);
+  vm.runInContext(mainSource,context,{filename:'blockly_v2/main.js'});
+  context.runtimeProfile={runtime:{maxSteps:100}};
+  context.workspace={};
+  context.runtimeDebug=mockDebug;
+  context.runtimeBackend={
+    ready:true,capabilities:{simulationDebug:true,simulationStop:true,simulationReset:true},
+    async stopSimulation(){calls.push('native-STOP');await nativeStop.promise;},
+    async resetSimulation(){calls.push('native-RESET');await nativeReset.promise;}
+  };
+  el('stepMode').checked=true;
+  const execution=context.runProgram();
+  assert.equal(context.runtimeRunning,true,'runtime did not enter active program');
+  context.updateRuntimeActions();
+  assert.equal(el('resetSimulation').disabled,false,
+    'RESET-with-STOP control must be available during a debugger pause');
+  assert.equal(el('resetSimulation').textContent,'Arrêter puis réinitialiser');
+
+  const reset=context.resetSimulation();
+  assert.deepEqual(calls,['cancel-debugger','native-STOP']);
+  await Promise.resolve();await Promise.resolve();
+  assert(!calls.includes('native-RESET'),
+    'RESET executed before acknowledgement of independent native STOP');
+  nativeStop.resolve();
+  for(let turn=0;turn<100 && !calls.includes('native-RESET');turn++)
+    await new Promise(resolve=>setTimeout(resolve,0));
+  assert(calls.includes('native-RESET'),
+    'native STOP ACK + settled interpreter must permit RESET');
+  assert.equal(context.runtimeRunning,false);
+  nativeReset.resolve();
+  await reset;
+  await execution;
+  assert.deepEqual(calls,['cancel-debugger','native-STOP','native-RESET']);
+  assert.equal(context.runtimeTerminal,false,'RESET did not return simulation to ready state');
+  assert.equal(context.runtimeStopRequested,false,'RESET retained stopped latch');
+  assert.equal(el('runtimeState').textContent,'PRÊT');
+  assert.equal(errors.length,1,'STOP should be represented by one expected interrupted program');
+
+  // A denied native STOP must never be followed by a RESET request.
+  const denied=deferred(),pending=deferred(),refusedCalls=[];
+  const secondObserver={enabled:true,waiter:{},
+    begin(){this.waiter={};return {};},
+    cancel(){this.waiter=null;const error=new Error('STOP');error.code='USER_STOPPED';pending.reject(error);},
+    finish(){this.waiter=null;}
+  };
+  const context2=Object.assign({},context);
+  // The fresh context must not reuse global lexical bindings or the first runtime.
+  const contextFresh={
+    ...context,
+    document:{currentScript:null,getElementById:el,body:{dataset:{}},createElement(){return {};}},
+    window:{dispatchEvent(){},addEventListener(){}},
+    WebeeBlocksActivityContract:{async execute(p,w,c,i,b,options){options.onAst({});await pending.promise;}}
+  };
+  vm.createContext(contextFresh);
+  vm.runInContext(mainSource,contextFresh,{filename:'blockly_v2/main.js second scenario'});
+  contextFresh.runtimeProfile={runtime:{maxSteps:100}};
+  contextFresh.workspace={};
+  contextFresh.runtimeDebug=secondObserver;
+  contextFresh.runtimeBackend={
+    ready:true,capabilities:{simulationDebug:true,simulationStop:true,simulationReset:true},
+    async stopSimulation(){refusedCalls.push('STOP');await denied.promise;},
+    async resetSimulation(){refusedCalls.push('RESET');}
+  };
+  const execute2=contextFresh.runProgram();
+  const reset2=contextFresh.resetSimulation();
+  denied.reject(new Error('native STOP refused'));
+  await reset2;await execute2;
+  assert.deepEqual(refusedCalls,['STOP'],'rejected STOP must block native RESET');
+}
+
 (async()=>{
   await require('./test_runtime_v2_breakpoints.js')();
+  await proveResetFromPausedDebugger();
   proveReadonlyStepNavigation();
   await proveProgramInvalidRetryWithoutReset();
   await proveOutcomePendingBlocksResetAndLateVerdicts();
