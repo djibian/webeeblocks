@@ -42,7 +42,11 @@ class OrientationSceneStaticTest(unittest.TestCase):
 
     def test_standalone_visual_scene_has_no_hidden_physics_or_authority(self):
         self.assertTrue(self.text.startswith("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {"))
-        self.assertIsNone(re.search(r"\b(?:Solid|Robot)\s*\{", self.text))
+        self.assertIsNone(re.search(r"\bSolid\s*\{", self.text))
+        self.assertEqual(len(re.findall(r"\bRobot\s*\{", self.text)), 1)
+        self.assertRegex(self.text, r'Robot \{\s*name "Progression orientation 3D evaluator"'
+                                      r'\s*controller "progression_orientation_3d"'
+                                      r'\s*supervisor TRUE\s*synchronization TRUE\s*\}')
         self.assertNotIn("boundingObject", self.text)
         self.assertNotIn("controllerArgs", self.text)
         self.assertNotIn("TouchSensor", self.text)
