@@ -139,6 +139,7 @@ def witness():
             raise RuntimeError('session benchmark startup attestation count invalid')
         durations = {'step_wall_ns': [], 'tick_wall_ns': [], 'cycle_wall_ns': []}
         ready_at = first = last = None
+        first_wall_ns = last_wall_ns = None
         observed_scene_reads = 0
         for _ in range(900):
             step_started = time.perf_counter_ns()
@@ -172,7 +173,9 @@ def witness():
             observed_scene_reads += checks_this_tick
             if first is None:
                 first = now
+                first_wall_ns = step_started
             last = now
+            last_wall_ns = tick_ended
             durations['step_wall_ns'].append(step_ended - step_started)
             durations['tick_wall_ns'].append(tick_ended - step_ended)
             durations['cycle_wall_ns'].append(tick_ended - step_started)
@@ -186,6 +189,7 @@ def witness():
             timestep_ms=8, phase='idle-ready', mode='batch-fast-minimized',
             policy=selected, samples=96, ready_sim_ms=ready_at,
             first_sim_ms=first, last_sim_ms=last,
+            simulated_ms=96 * 8, measured_window_wall_ns=last_wall_ns - first_wall_ns,
             scene_reads_measured=observed_scene_reads,
             scene_checks_total=scene_checks[0], durations_ns=durations)
         encoded = json.dumps(record, allow_nan=False, sort_keys=True)
