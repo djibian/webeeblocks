@@ -32,9 +32,9 @@ function harness(poseFetch) {
   const globals = {document:doc,window:{},fetch,
     setInterval:()=>{},requestAnimationFrame:()=>{},
     performance:{now:()=>0},devicePixelRatio:1};
-  runInNewContext(match[1] + '\\nglobalThis.testHooks={poll,metrics};',
+  runInNewContext(match[1] + '\\nglobalThis.testHooks={poll,metrics,frame};',
     globals, {timeout:5000});
-  return {poll:globals.testHooks.poll, metrics:globals.testHooks.metrics,
+  return {poll:globals.testHooks.poll, frame:globals.testHooks.frame, metrics:globals.testHooks.metrics,
     requests:()=>poseRequests};
 }
 function sample(inc,seq,valid=true) {
@@ -76,4 +76,20 @@ release({ok:true,json:async()=>sample(a,1)});
 await first;
 assert.equal(stalled.metrics.poseSeq,1);
 assert.equal(stalled.metrics.received,1);
-console.log('pass: latest pose, new incarnation, no overlap, drops bounded');
+// Invoke the actual HTML frame() under reproducible synthetic rAF clocks.
+// The old elapsed-time throttle aliases 60 Hz to ~20 draws/s and 75 Hz to ~25.
+for (const hz of [60,75,120,144]) {
+  const paced=responses();
+  for(let i=0;i<=hz*10;i++)paced.frame(i*1000/hz);
+  assert.ok(paced.metrics.frames>=299 && paced.metrics.frames<=302,
+    `expected ~300 draw submissions/10 s at ${hz} Hz; got ${paced.metrics.frames}`);
+  assert.deepEqual(Array.from(paced.metrics.resolution),[960,563],
+    'native pixel dimensions must be preserved');
+  const prior=paced.metrics.frames;
+  paced.frame(12000); // a long stall can draw once, never catch up in a burst
+  assert.equal(paced.metrics.frames,prior+1);
+  paced.frame(12001);
+  assert.equal(paced.metrics.frames,prior+1);
+}
+
+console.log('pass: pose, incarnation, no overlap, 30 Hz pacing, no catch-up');
