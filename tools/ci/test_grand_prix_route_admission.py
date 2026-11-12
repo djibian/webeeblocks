@@ -220,7 +220,9 @@ int main(){
  // valid earlier witness was not consumed before the exact deadline.
  admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
  now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
- assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==1); // oneLand observed landed=1
+ // A real native landing must be reported before the existing RESET assertion.
+ assert(gp_u_deadline(now+0.032,1)==0);assert(vehicle==timed);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==1);
  gp_u_deadline(now+0.064,0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);

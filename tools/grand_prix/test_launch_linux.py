@@ -8,7 +8,16 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical, reference_configurations, ensure_webots_assets
+from tools.grand_prix.launch_linux import main, render_legacy_u, webots_home, launch_graphical, reference_configurations, ensure_webots_assets, classroom_perspective
+
+
+CLASSROOM_TEMPLATE = Path(__file__).resolve().parents[2] / "worlds/.crazyflie_runtime_v2.wbproj"
+
+
+def fixture_classroom_perspective(root):
+    target = root / "worlds/.crazyflie_runtime_v2.wbproj"
+    target.write_bytes(CLASSROOM_TEMPLATE.read_bytes())
+    return target.read_text(encoding="utf-8")
 
 
 class LinuxGrandPrixLauncherTests(unittest.TestCase):
@@ -379,6 +388,7 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             (base / "worlds").mkdir()
+            expected_perspective = fixture_classroom_perspective(base)
             fixed = base / "worlds/user_existing.wbt"
             fixed.write_text("existing user world", encoding="utf-8")
             seen = {}
@@ -387,8 +397,7 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
                 seen["scene"] = world.read_text(encoding="utf-8")
                 self.assertEqual(
                     world.with_name("." + world.stem + ".wbproj").read_text(encoding="utf-8"),
-                    "Webots Project File version R2025a\n"
-                    "robotWindow: Crazyflie WebeeBlocks\n")
+                    expected_perspective)
                 return mock.Mock(returncode=0)
             with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
                  mock.patch.object(sandbox, "ROOT", base), \
@@ -418,6 +427,7 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             root = Path(directory)
             (root / "worlds").mkdir()
             world = root / "worlds/editor.wbt"
+            fixture_classroom_perspective(root)
             project = root / "worlds/.editor.wbproj"
             project.write_text("existing teacher perspective", encoding="utf-8")
             with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
@@ -520,6 +530,7 @@ class ControlledRenderFpsABTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "worlds").mkdir()
+            fixture_classroom_perspective(root)
             scenes = []
             def gui(_home, world, _env):
                 scenes.append(world.read_text(encoding="utf-8"))
@@ -612,6 +623,8 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                 with self.subTest(selection=selection, failure=failure), tempfile.TemporaryDirectory() as temp:
                     root = Path(temp)
                     (root / 'worlds').mkdir()
+                    template = root / 'worlds/.crazyflie_runtime_v2.wbproj'
+                    expected_perspective = fixture_classroom_perspective(root)
                     unrelated = root / 'worlds/.keep.wbproj'
                     unrelated.write_text('keep')
                     observed = []
@@ -620,8 +633,7 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                         self.assertIn('window "grand_prix_route_v2"', world.read_text())
                         perspective = world.with_name('.' + world.stem + '.wbproj')
                         self.assertEqual(perspective.read_text(encoding='utf-8'),
-                                         'Webots Project File version R2025a\n'
-                                         'robotWindow: Crazyflie WebeeBlocks\n')
+                                         expected_perspective)
                         observed.append(world)
                         if failure:
                             raise OSError('native launch failed')
@@ -637,7 +649,8 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                     prepare.assert_called_once()
                     self.assertEqual(len(observed), 1)
                     self.assertFalse(observed[0].exists())
-                    self.assertEqual(list((root / 'worlds').iterdir()), [unrelated])
+                    self.assertEqual(set((root / 'worlds').iterdir()), {unrelated, template})
+                    self.assertEqual(template.read_text(encoding='utf-8'), expected_perspective)
 
     def test_route_preserves_a_preexisting_perspective(self):
         from tools.grand_prix import launch_linux as launcher
@@ -645,6 +658,7 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
             root = Path(temp)
             worlds = root / 'worlds'
             worlds.mkdir()
+            fixture_classroom_perspective(root)
             world = worlds / 'route.wbt'
             project = worlds / '.route.wbproj'
             project.write_text('existing', encoding='utf-8')
@@ -659,6 +673,43 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
             launch.assert_not_called()
             self.assertFalse(world.exists())
             self.assertEqual(project.read_text(encoding='utf-8'), 'existing')
+
+    def test_classroom_perspective_validation_and_missing_template_fail_closed(self):
+        from tools.grand_prix import launch_linux as launcher
+        from tools.grand_prix import launch_variable_editor_linux as editor
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'worlds').mkdir()
+            with self.assertRaises(FileNotFoundError):
+                classroom_perspective(root)
+            template = root / 'worlds/.crazyflie_runtime_v2.wbproj'
+            template.write_text('Webots Project File version R2025a\n'
+                                'robotWindow: Crazyflie WebeeBlocks\n',
+                                encoding='utf-8')
+            with self.assertRaisesRegex(RuntimeError, 'Perspective scolaire'):
+                classroom_perspective(root)
+            expected = fixture_classroom_perspective(root)
+            self.assertEqual(classroom_perspective(root), expected)
+            self.assertIn('renderingDevicePerspectives: Crazyflie WebeeBlocks:camera;0;1;0;0', expected)
+            self.assertIn('perspectives:', expected)
+            self.assertIn('simulationViewPerspectives:', expected)
+            template.unlink()
+            with (mock.patch.dict(os.environ, {'DISPLAY': ':99', 'WAYLAND_DISPLAY': ''}),
+                  mock.patch.object(launcher, 'ROOT', root),
+                  mock.patch.object(launcher, 'webots_home', return_value=Path('/mock/webots')),
+                  mock.patch.object(launcher, 'prepare_route_native') as prepare,
+                  mock.patch.object(launcher, 'launch_graphical') as gui):
+                self.assertEqual(launcher.main(['--index', '5']), 1)
+                prepare.assert_not_called()
+                gui.assert_not_called()
+            with (mock.patch.dict(os.environ, {'DISPLAY': ':99', 'WAYLAND_DISPLAY': ''}),
+                  mock.patch.object(editor, 'ROOT', root),
+                  mock.patch.object(editor, 'webots_home', return_value=Path('/mock/webots')),
+                  mock.patch.object(editor, 'prepare_editor') as prepare,
+                  mock.patch.object(editor, 'launch_graphical') as gui):
+                self.assertEqual(editor.main(['--index', '5', '--editor-sandbox']), 1)
+                prepare.assert_not_called()
+                gui.assert_not_called()
 
     def test_route_preflight_can_run_headless_without_claiming_gui(self):
         from tools.grand_prix import launch_linux as launcher

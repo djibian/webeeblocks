@@ -147,8 +147,13 @@ class FlightObservationTests(unittest.TestCase):
             self.assertIn('gp_pose_confirmed, gp_route_ranges', native)
             self.assertLess(route.index('while (wb_robot_step(gp_u_next_step(step))'), begin)
             self.assertLess(end, route.index('if (!gp_u_start(now))'))
-            self.assertEqual((root / 'u/file_broker_u.cpp').read_bytes(),
-                             (root / 'route/file_broker_u.cpp').read_bytes())
+            # The legacy U broker stays unchanged; the route broker includes
+            # exactly the pinned, route-only failure-reason transport.
+            from tools.grand_prix.route_broker_outcome_v2 import compose_route_outcome_broker
+            original_broker = (root / 'u/file_broker_u.cpp').read_text()
+            route_broker = (root / 'route/file_broker_u.cpp').read_text()
+            self.assertNotEqual(route_broker, original_broker)
+            self.assertEqual(route_broker, compose_route_outcome_broker(original_broker))
 
 
 if __name__ == '__main__':
