@@ -86,7 +86,8 @@ def check_native(data):
 
 def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
-                    'paired-benchmark', 'session-benchmark', 'flight-window'):
+                    'paired-benchmark', 'session-benchmark', 'flight-window',
+                    'classroom-switch'):
         raise RuntimeError('unknown native evaluator probe mode')
     if mode in ('session-benchmark', 'flight-window'):
         if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
@@ -137,6 +138,17 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         world = project / 'worlds/route.wbt'
         world.write_text(scene)
         (case / 'world.wbt').write_text(scene)
+        if mode == 'classroom-switch':
+            # Different canonical course, *same running simulator process*.
+            # Webots worldLoad() restarts the evaluator and the real C pilot.
+            other = active_course_world(reference_course(0)).replace(
+                'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/',
+                'webots://')
+            if index != 5 or other == scene:
+                raise RuntimeError('native world switch must change exact course 5 to 0')
+            switched_world = project / 'worlds/route-switched.wbt'
+            switched_world.write_text(other)
+            (case / 'switched-world.wbt').write_text(other)
         record = case / 'native.json'
         log = case / 'native.log'
         environment = dict(env, WEBOTS_HOME=str(home),
@@ -147,6 +159,9 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             GP_ROUTE_EVALUATOR_INDEX=str(index))
         if mode in ('session-benchmark', 'flight-window'):
             environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
+        if mode == 'classroom-switch':
+            environment['GP_ROUTE_SWITCH_WORLD'] = str(switched_world)
+            environment['GP_ROUTE_SWITCH_INDEX'] = '0'
         process = None
         try:
             with log.open('w') as stream:
@@ -175,7 +190,9 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-route-evaluator-real-airborne-window-v1'
+        expected_claim = ('native-classroom-world-switch-attestation-v1'
+                          if mode == 'classroom-switch' else
+                          'native-route-evaluator-real-airborne-window-v1'
                           if mode == 'flight-window' else
                           'native-route-evaluator-independent-session-cycles-v1'
                           if mode == 'session-benchmark' else
@@ -303,6 +320,35 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             if (type(ratio) not in (int, float) or not math.isfinite(ratio) or
                     abs(ratio - round(sum(series[names[0]]) / sum(series[names[1]]), 6)) > 1e-6):
                 raise RuntimeError('paired native tick ratio invalid')
+        elif mode == 'classroom-switch':
+            first, second = data.get('first'), data.get('second')
+            if (data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
+                    data.get('new_world_loaded') is not True or
+                    data.get('fresh_controller') is not True or
+                    type(first) is not dict or type(second) is not dict):
+                raise RuntimeError('native two-world switch evidence absent')
+            for phase, expected_id in ((first, course.identifier),
+                                       (second, reference_course(0).identifier)):
+                if (phase.get('configuration') != expected_id or
+                        phase.get('scene_checks') != 1 or
+                        type(phase.get('native_evaluator_id')) is not int or
+                        phase['native_evaluator_id'] <= 0 or
+                        type(phase.get('controller_pid')) is not int or
+                        phase['controller_pid'] <= 0 or
+                        phase.get('time_ms') != phase.get('ready', {}).get('time_ms')):
+                    raise RuntimeError('native restarted evaluator provenance invalid')
+                _check_ready(phase.get('ready'))
+            if first['controller_pid'] == second['controller_pid']:
+                raise RuntimeError('native world switch kept old controller process')
+            # The initiating controller prints its signed source record before
+            # worldLoad, and the new controller prints the final two-world result.
+            prior = 'GP_ROUTE_SWITCH_BEFORE ' + json.dumps(first, allow_nan=False, sort_keys=True)
+            if ([line for line in text.splitlines()
+                 if line.startswith('GP_ROUTE_SWITCH_BEFORE ')] != [prior]):
+                raise RuntimeError('native first-world stdout mirror missing')
+            if (not (case / 'switch-stage.json').is_file() or
+                    json.loads((case / 'switch-stage.json').read_text()) != first):
+                raise RuntimeError('native two-world durable handoff disagrees')
         elif classroom:
             if (data.get('configuration') != course.identifier or
                     data.get('webots') != 'R2025a' or
@@ -384,6 +430,10 @@ def run_native(home, env):
     # IDs prove fresh attestation, not merely reuse of a prior READY token.
     for index in (5, 0, 11):
         run_case(home, env, 'classroom-startup', index)
+    # Unlike independent startup probes, this *same Webots process* invokes
+    # native Supervisor.worldLoad() to switch 5 -> 0. Actual GUI interactions
+    # and student workspace transition remain outside this native contract.
+    run_case(home, env, 'classroom-switch', 5)
     # Corrupt the .wbt *before* Webots loads it; reject before first READY.
     run_case(home, env, 'classroom-invalid', 5)
     # Real same-process native idle READY cost; no rendered FPS claim.
