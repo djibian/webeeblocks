@@ -150,12 +150,20 @@ def _browser_child(args):
                         with urllib.request.urlopen(args.url.rstrip('/') + '/pose',
                                                     timeout=2) as response:
                             publisher = json.load(response)
-                        stopped_at_ms = _require_live_stop_pose(displayed, publisher)
+                        checked_before_close_ms = _require_live_stop_pose(displayed, publisher)
+                        page.close()
+                        # A long page.close() must not shift actual closure
+                        # beyond the measured first flight. Re-read the
+                        # current independent publisher AFTER the close returns.
+                        with urllib.request.urlopen(args.url.rstrip('/') + '/pose',
+                                                    timeout=2) as response:
+                            after_close = json.load(response)
+                        stopped_at_ms = _require_live_stop_pose(displayed, after_close)
+                        report['viewer_close_precheck_pose_ms'] = checked_before_close_ms
                         report['viewer_closed_display_pose_ms'] = displayed['poseTimeMs']
                         report['viewer_closed_native_pose_ms'] = stopped_at_ms
-                        report['viewer_closed_native_sequence'] = publisher['sequence']
-                        report['viewer_closed_wall_s'] = elapsed
-                        page.close()
+                        report['viewer_closed_native_sequence'] = after_close['sequence']
+                        report['viewer_closed_wall_s'] = time.monotonic() - first
                         page_stopped = True
                 if not page_stopped:
                     page.wait_for_timeout(250)
