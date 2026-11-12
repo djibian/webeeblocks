@@ -39,15 +39,7 @@ This deliberately narrows the simulation **threat model**, not the pedagogical
 difficulty or physical-flight safety. Preserve the historical strict geometry
 checker as an engineering reference until the new mode is natively qualified.
 
-**Current engineering path (12 November 2026):** [#970](https://github.com/djibian/webeeblocks/pull/970)
-implements the startup-attestation policy (Draft pending native/independent
-qualification), while [#967](https://github.com/djibian/webeeblocks/pull/967)
-investigates independent, non-blocking physical pose publication and passive
-100%-resolution 3D display. [#914](https://github.com/djibian/webeeblocks/issues/914)
-is the sole performance-delivery entry point, with [#912](https://github.com/djibian/webeeblocks/issues/912)
-for graphics. Compact mutation/frame (#910/#911/#913, #922/#923/#946),
-visual-read caching (#966), and WREN render scaling (#938) are retained
-**historical experiments**, not active prerequisites or product architecture.
+**Active performance path (owner decision 2026-11-12, [#914](https://github.com/djibian/webeeblocks/issues/914)):** [#970](https://github.com/djibian/webeeblocks/pull/970) remains Draft until exact-head native qualification and independent V5 review. Keep **Webots R2025a's native 3D view** at 100% resolution; the sole graphical experiment is the native `WorldInfo.FPS` cap (60/30/25) in Run/Real-time, with measured visible FPS, simulation speed, step latency and Blockly responsiveness on the target Windows laptop. The separate WebGL viewer, pose IPC and complex physics/render decoupling in [#967](https://github.com/djibian/webeeblocks/pull/967) / [#912](https://github.com/djibian/webeeblocks/issues/912) were **explicitly abandoned and closed without product integration**. Compact mutation/frame (#910/#911/#913, #922/#923/#946), visual-read caching (#966) and WREN render scaling (#938) remain historical experiments, not active product prerequisites. No evidence from a headless Linux run establishes Windows graphical acceptance.
 
 ## Owner decision, 2026-11-03 — Linux Grand Prix with variable sensed corners
 
@@ -195,15 +187,34 @@ Do **not** add permanent automatic saving, attempt history, success/failure hist
 
 ## Pedagogical progression
 
+**Latest owner decision (2026-11-12, #587, comment 6826109034):** the
+[revised Activities 1–7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md),
+exclusively for agricultural collège 4e/3e pupils already familiar with 2D
+block coding, is approved for **parallel implementation in small independent
+PRs**. Activities 1–3 develop 3D spatial understanding, Activity 4 introduces
+first single-sample sensor decisions across observable variants, Activity 5
+adds repeated observation then a first state variable, Activity 6 consolidates
+counting and destination selection, and Activity 7 is a simplified autonomous
+Mini Grand Prix across variants. The Grand Prix's ergonomics and native
+simulation pause remain separately qualified. The activity 8 approval is
+**in principle and conditional**, not a final personal pedagogical PASS.
+This dated decision supersedes previous start gates below; it does not alter
+native oracles, V5 gates, the 210 s limit or the separate real-flight boundary.
+
+
 The official progression contains **eight substantial activities**:
 
-1. **Activity 1 — first Blockly discovery:** a very simple sequence, blue
-   start, non-colliding checkered arrival on the floor, uncluttered scene,
-   accessible camera and immediately legible mission outcome.
-2. **Activities 2–7 — cumulative acquisition:** six new, concrete problem
-   situations, each reusing the relevant previous concepts. Their precise
-   concept order and scenarios will be co-designed after both endpoints
-   receive explicit owner acceptance.
+1. **Activity 1 — transfer of 2D block sequencing to a simple 3D flight:**
+   blue start, non-colliding offset checkered arrival, free but bounded
+   parameters on two horizontal axes and simple takeoff height, uncluttered
+   scene and accessible camera. Keep this a short entry with no loops or
+   conditions. The historical Activity 1 #619 PASS is not a PASS for its redesign.
+2. **Activities 2–7 — approved revised cumulative sequence:** vertical
+   clearance without sensing (2), turning and bounded patterns (3), one
+   sensor-driven decision across variants (4), reactive loops and first
+   state variable (5), counting 1–3 observed gates for destination choice (6),
+   and a simpler multi-variant final challenge (7). Each distinct scene
+   still requires native tests and personal pedagogical acceptance.
 3. **Activity 8 — autonomous Grand Prix (#587):** the **sole official final
    synthesis** combining earlier notions with a same-program autonomous
    strategy across different unknown gate configurations. The previously
@@ -300,17 +311,18 @@ independent immediate LAND command at exactly 210 s. The complete pupil
 start/simulate/observe/debug/Save/Open workflow must be exercised. A green
 CI or an independent GO is **not** an owner's pedagogical PASS.
 
-**Phase 2 — mandatory rebuild of Activities 2–7 after both acceptances.**
-The currently integrated intermediate scenarios are **technical prototypes
-not personally accepted pedagogically**. Their common visually cluttered
-environment has already been judged inadequate by the owner. First agree a
-single six-activity cumulative concept/world/mission/prerequisite/outcome
-matrix with the owner. Then redesign their six distinct pedagogical
-environments and cumulative missions, in separately reviewable changes.
-Validate each pedagogically and technically, then obtain the owner's explicit
-acceptance of the complete eight-activity progression. This is an actual
-product dependency, not merely a roadmap preference. It does not block
-independent technical repair or qualification of endpoints.
+**Phase 2 — approved redesign of Activities 1–7, decision 2026-11-12.**
+The owner approved the [revised matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
+and explicitly authorized Activities 1–7 to be implemented **in parallel**,
+when independently reviewable, without assuming a strict development order.
+The historically accepted simple Activity 1 is a baseline to preserve in
+spirit, **not** a transferable PASS for its new 3D incarnation. Activity 2 must
+introduce a real *vertical relative movement* challenge distinct from Activity 1.
+The existing intermediate scenes are technical baselines, not personal
+pedagogical PASS results; rebuild the distinct worlds, real missions,
+profiles and observable outcomes in separately reviewable changes. The entire
+progression and the finished Grand Prix still require final personal acceptance.
+The former condition prohibiting starting before that PASS is superseded.
 
 **Possible physical finale:** the Grand Prix may culminate **if possible** in
 a real teacher-authorized flight, but only if the exact mission and

@@ -33,20 +33,14 @@ oracles, the 12 routes, and reproducible paired native/Windows performance.
 The historical continuous checker remains an engineering comparison path.
 No Ready/merge without independent V5 review and observed evidence.
 
-**Current operational performance path — [#914](https://github.com/djibian/webeeblocks/issues/914) is the single entry point:**
-1. Qualify [#970](https://github.com/djibian/webeeblocks/pull/970) in Draft with native pre-READY attestation/refusal, 12 routes and dynamic negatives, normal RESET, new evaluator on activity reload, 210-s terminal behavior and independent V5 review. Draft CI alone is not proof.
-2. Compare startup-static vs historical continuous checking on **one identical engine, host, route and phase**; isolate evaluator savings from rendering.
-3. Qualify [#967](https://github.com/djibian/webeeblocks/pull/967) and [#912](https://github.com/djibian/webeeblocks/issues/912): non-blocking publication of physical poses, slow-consumer isolation, local passive view at 100% resolution. Linux software-OpenGL measurements do not prove Windows results.
-4. Build and qualify the **complete Blockly Windows** candidate, target >=0.95x simulated/wall, physics 8 ms, 100% viewport, visible 25–30 FPS, unchanged native dynamic guarantees and existing V5 human checkpoint.
+**Active performance path — [#914](https://github.com/djibian/webeeblocks/issues/914) is authoritative (owner update 2026-11-12):**
 
-**Retired research, evidence preserved:** #910/#922 (compact native frame),
-#911/#923 (native mutation revisions), #913 (compact authority switch), #966
-(visual fast path/refutation), #938 (WREN instrumentation and render scaling),
-#946 (experimental native engine, Windows packaging and native crash forensics),
-and #968 (anti-mutation confinement infeasibility). Their runs, source branches,
-patches, counterexamples and Windows traces remain **historical references**,
-not dependencies on the 2026-11-12 classroom model; do not reopen anti-cheat
-requirements or fuse experimental engines to reach a speed number.
+1. Qualify the [#970](https://github.com/djibian/webeeblocks/pull/970) Draft on the **exact integrated HEAD**: canonical/malformed world attestation before READY, new evaluator and re-attestation after `worldLoad()`, intact real native pilot, 8-ms physics, negative dynamic oracles, 12 routes, RESET, independent LAND/deadline, full safety and independent V5 review. Native geometry-only teleport witnesses are **not** successful pupil missions.
+2. Compare the initial-only classroom policy with the historical continuous checker under the same Webots engine, host, course and flight phase. Preserve raw `step(8)`, `tick()`, complete wall-cycle quantiles and physical trajectories. A headless speed result is not Windows GUI acceptance.
+3. **Only native Webots 3D rendering at 100% resolution:** measure its supported `WorldInfo.FPS` caps **60 / 30 / 25** in Run/Real-time using matched viewport, camera, machine, course and ordinary Blockly program. Record actual on-screen FPS, sim/wall throughput, p99/max native step latency and editor controls; do not claim FPS from the requested cap alone. The separate WebGL view, pose IPC and asynchronous render separation from [#967](https://github.com/djibian/webeeblocks/pull/967) / [#912](https://github.com/djibian/webeeblocks/issues/912) are **closed/abandoned by explicit owner decision**, without merge.
+4. Qualify a complete portable **Windows** Grand Prix with the ordinary Blockly UI on the owner's old personal laptop (never the school network), target ≥0.95× stabilized sim/wall, unchanged physical 8 ms, 100% native 3D view, 25–30 FPS visibly measured and p99 step/cycle ≤25 ms (max target ≤80 ms). Preserve STOP/RESET/LAND, file Open/Save, native negative oracles and the existing V5 human checkpoint. These are goals, not presumptive PASS values.
+
+**Retired research (evidence preserved, not product dependencies):** compact native frame/mutation branches #910/#911/#913/#922/#923/#946, cached visual reads #966, WREN framebuffer scaling #938, anti-mutation confinement #968 and separate passive graphics #967/#912. Never restore the abandoned anti-cheat or separate-render requirements to obtain a green throughput figure.
 
 ## Owner priority update — 2026-11-03: Grand Prix Linux for teacher-led Blockly design
 
@@ -137,8 +131,11 @@ témoin technique natif)** ; ne pas comparer leurs résultats Webots comme si
 les mondes ou les capacités étaient identiques. Une réfutation précise d'une
 approche plus simple ou d'un faux repère sensoriel est un résultat utile.
 Document de protocole : `docs/GRAND_PRIX_PEDAGOGICAL_BLOCKS.md`.
-Aucune refonte officielle des activités 2–7 avant les acceptations humaines
-exigées par la Phase 1.
+**Décision du 12 novembre 2026 :** la matrice 1–8 est approuvée et la refonte
+1–7 est autorisée dès maintenant. Voir
+[la progression validée](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
+Les anciennes conditions d'attente de PASS ne sont plus un préalable
+au *développement*, mais le PASS pédagogique final reste obligatoire.
 
 
 1. **#587 — pupil-usable simulation progression and Grand Prix (pedagogical delivery).**
@@ -182,7 +179,21 @@ extra speculative infrastructure; expand movements, sensors and LED capabilities
 one evidence-backed slice at a time after the first bounded physical acceptance.
 Keep #72 separately gated and #70 optional on uniform ground.
 
-**Owner pedagogical decision, 2026-10-15 (#587):** eight activities
+**Latest owner pedagogical decision, 2026-11-12 (#587, comment 6826109034):**
+the [revised Activities 1–7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
+is the implementation contract for 4e/3e agricultural education.
+All seven activities may be developed **in parallel** in independently
+reviewable PRs: Activity 1 adds simple two-axis 3D parameters, Activity 2 adds
+vertical relative movement over an obstacle, 3 turning/repetition, 4 observable
+single-sample sensing across variants, 5 reactive loops/first state variable,
+6 counting 1–3 gates/landing choice, 7 a simpler multi-variant Mini Grand Prix.
+The historical #619 PASS does not transfer to the redesigned Activity 1.
+Development of 1–7 is independent of final Grand Prix PASS; the provisional
+pedagogical approval of Activity 8 remains conditional on native pauses and UI
+corrections. This supersedes earlier Phase 2 *start* restrictions below,
+not native safety, exact V5 requirements or personal final acceptance.
+
+**Historical owner pedagogical decision, 2026-10-15 (#587):** eight activities
 remain the target, but the integrated #487/B1/B2 progression is a
 **technical baseline only**, not an owner-validated teaching sequence.
 The owner has identified new contradictory evidence: the common cluttered
@@ -253,12 +264,18 @@ course and detectable drift-correction landmarks are **feasibility questions**,
 not approved geometry changes. The checkpoint #635 is closed FAIL, not a pending
 or reusable PASS; #619 remains independently accepted and Phase 2 stays gated.
 
-**Phase 2 — mandatory six-activity redesign after both acceptances:**
-co-design and get the owner's agreement on a cumulative matrix for 2–7,
-`new concept -> world property -> pupil mission -> prior concepts -> observable
-success`, then rebuild six distinct pupil environments and missions with
-applicable tests, independent reviews and personal acceptances. Obtain
-explicit owner acceptance of the *whole* eight-activity progression.
+**Phase 2 — approved revised redesign of Activities 1–7, 2026-11-12:**
+Build and qualify the [cumulative approved matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md):
+`new concept -> world property -> pupil mission -> prerequisite skills ->
+observable outcome`. Develop scenes in **parallel** where code and native
+validation can remain safely independent, with no artificial stage-by-stage
+development gate. Preserve the historical Activity 1 PASS as scoped evidence,
+not as acceptance of its changed parameters and geometry. Independently qualify
+new scene selection/ACK/RESET, positive and negative native oracles, and
+non-interference with Activity 8; then validate the complete pupil progression
+personally. The Grand Prix
+final PASS is necessary before declaring the progression accepted,
+**not** before beginning these changes.
 
 **Optional physical finality:** the Grand Prix may eventually be flown
 on a real Crazyflie *only if* #157/#72 independently qualify its exact
@@ -271,7 +288,7 @@ reconstruct GitHub, select bounded useful endpoints or independent review
 work, use isolated branches, stable Ready candidates, canonical exact-HEAD
 CI and independent review; no Controller authors its own GO or uses
 agent ownership/locks/queues. After the personal endpoint gates, the
-owner-approved six-activity matrix constrains the bounded PR work,
+owner-approved eight-activity matrix constrains the bounded PR work,
 without a Controller allocation plan or parallel status database.
 Preserve #487/#587 decisions, prior grand-prix variants and existing
 oracles/tests/evidence as appropriately scoped history.
@@ -606,9 +623,9 @@ non-blocking for #72 on uniform floor. See
 - student feedback remains deliberately small: achieved / not achieved /
   interrupted, without automatic diagnosis, hints, strategy suggestions or
   persistent attempt/progress history
-- consequence of new owner evidence (2026-10-15): the common world is
-  pedagogically inadequate and **redesign 2–7 is mandatory AFTER** both
-  endpoints receive explicit personal acceptance. Preserve the non-goals:
+- updated by owner decision (2026-11-12): the common world is
+  pedagogically inadequate and **redesign 1–7 is authorized now** under the
+  approved eight-activity matrix; final personal acceptance remains required. Preserve the non-goals:
   no accounts, automatic unlocks, mastery database, grading, leaderboard,
   intelligent tutor, solution-shape oracle or gratuitous world proliferation.
 
