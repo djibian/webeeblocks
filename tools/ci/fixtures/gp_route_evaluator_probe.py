@@ -20,7 +20,8 @@ def witness():
     output = Path(os.environ['GP_ROUTE_EVALUATOR_OUT'])
     trace = output.with_suffix('.trace')
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
-    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid'):
+    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
+                    'paired-benchmark'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -50,6 +51,79 @@ def witness():
     publisher.read_native_evaluator_scene = traced_read_scene
     policy = (SCENE_POLICY_CONTINUOUS if mode == 'idle'
               else SCENE_POLICY_CLASSROOM_STATIC)
+    if mode == 'paired-benchmark':
+        # SAME R2025a process, real 8-ms physics steps, actual native sensor
+        # readings, idle pilot and identical timestamps. Alternate execution
+        # order to control first-reader bias. This is only a per-tick CPU/wall
+        # experiment, NOT a rendered FPS or whole-flight qualification.
+        historical = NativeRouteEvaluator(robot, course.identifier,
+                                          scene_policy=SCENE_POLICY_CONTINUOUS)
+        classroom = NativeRouteEvaluator(robot, course.identifier,
+                                         scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        if historical._scene_snapshot is None or classroom._scene_snapshot is not None:
+            raise RuntimeError('paired native scene policies differ from expectation')
+        names = ('historical-continuous-v1', 'classroom-static-v1')
+        series = {name: [] for name in names}
+        reads = {name: 0 for name in names}
+        ready_at = first = last = None
+        for index in range(800):
+            if robot.step(8) == -1:
+                raise RuntimeError('paired native Webots steps interrupted')
+            now = round(robot.getTime() * 1000)
+            order = ((names[0], historical), (names[1], classroom))
+            if index % 2:
+                order = order[::-1]
+            durations = {}
+            scene_deltas = {}
+            for name, evaluator in order:
+                old_checks = scene_checks[0]
+                begin = time.perf_counter_ns()
+                evaluator.tick()
+                durations[name] = time.perf_counter_ns() - begin
+                scene_deltas[name] = scene_checks[0] - old_checks
+                if durations[name] <= 0:
+                    raise RuntimeError('paired monotonic timing invalid')
+            if historical.phase == 'failed' or classroom.phase == 'failed':
+                raise RuntimeError('paired evaluator failed before READY witness')
+            if ready_at is None:
+                if historical.phase == classroom.phase == 'ready':
+                    ready_at = now
+                continue
+            if (historical.phase != 'ready' or classroom.phase != 'ready' or
+                    historical._context != classroom._context or
+                    historical.observation is None or classroom.observation is None or
+                    historical.observation != classroom.observation):
+                raise RuntimeError('paired native observations diverged')
+            if now - ready_at < 128:
+                continue
+            if scene_deltas != {names[0]: 1, names[1]: 0}:
+                raise RuntimeError('paired native full-scene check counts diverged')
+            if first is None:
+                first = now
+            last = now
+            for name in names:
+                series[name].append(durations[name])
+                reads[name] += scene_deltas[name]
+            if len(series[names[0]]) == 96:
+                break
+        if any(len(series[name]) != 96 for name in names):
+            raise RuntimeError('paired native READY interval not established')
+        evidence = dict(
+            claim='native-route-evaluator-paired-ticks-v1',
+            configuration=course.identifier, webots='R2025a',
+            timestep_ms=8, phase='idle-ready', paired_same_step=True,
+            order='alternating-AB-BA', samples=96,
+            first_sim_ms=first, last_sim_ms=last,
+            tick_wall_ns=series, scene_reads_measured=reads,
+            wall_tick_ratio_historical_over_classroom=round(
+                sum(series[names[0]]) / sum(series[names[1]]), 6))
+        encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
+        output.write_text(encoded + '\n')
+        print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+        if robot.step(8) == -1:
+            raise RuntimeError('paired native stdout grace step interrupted')
+        robot.simulationQuit(0)
+        return
     if mode in ('classroom-startup', 'classroom-invalid'):
         # Exercise the *actual* production serve_native() loop, not an
         # isolated constructor/tick emulation. This observer wraps only the
