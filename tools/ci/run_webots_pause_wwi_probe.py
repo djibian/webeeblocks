@@ -57,21 +57,48 @@ def run():
         # *inside* the first positive step. This hypothesis does not imply PASS;
         # the real GUI, 45 s hard timeout and native postconditions stay strict.
         command = [
-            'xvfb-run', '-a', '-s', '-screen 0 1280x900x24',
+            'xvfb-run', '-a', '-e', str(OUT / 'xvfb.log'),
+            '-s', '-screen 0 1280x900x24',
             str(home / 'webots'), '--stdout', '--stderr',
             '--mode=realtime', str(world),
         ]
         proc = None
+        timed_out = False
+        native_pass_observed = False
+        wall_started = time.monotonic()
         with (OUT / 'webots.log').open('w', encoding='utf-8') as output:
             try:
                 proc = subprocess.Popen(
                     command, cwd=ROOT, env=env, stdout=output,
                     stderr=subprocess.STDOUT, start_new_session=True,
                 )
-                try:
-                    code = proc.wait(timeout=45)
-                except subprocess.TimeoutExpired:
-                    raise RuntimeError('PAUSE/WWI native process deadline exceeded')
+                deadline = wall_started + 45.0
+                while proc.poll() is None:
+                    # A non-batch GUI can remain open after the controller has
+                    # produced its native terminal PASS. Do not wait for GUI
+                    # shutdown as a substitute for the verified native proof.
+                    try:
+                        observed = (OUT / 'webots.log').read_text(
+                            encoding='utf-8', errors='replace')
+                    except OSError:
+                        observed = ''
+                    if 'GP_PAUSE_WWI_PASS {' in observed:
+                        native_pass_observed = True
+                        break
+                    if time.monotonic() >= deadline:
+                        timed_out = True
+                        # Capture live process names before Xvfb is stopped.
+                        try:
+                            snapshot = subprocess.run(
+                                ['ps', '-eo', 'pid,ppid,pgid,stat,comm'],
+                                check=False, capture_output=True, text=True,
+                                timeout=2)
+                            (OUT / 'processes-at-deadline.txt').write_text(
+                                snapshot.stdout, encoding='utf-8')
+                        except (OSError, subprocess.TimeoutExpired):
+                            pass
+                        break
+                    time.sleep(0.2)
             finally:
                 if proc and proc.poll() is None:
                     os.killpg(proc.pid, signal.SIGTERM)
@@ -80,29 +107,46 @@ def run():
                     except subprocess.TimeoutExpired:
                         os.killpg(proc.pid, signal.SIGKILL)
                         proc.wait()
+        code = proc.returncode if proc else None
+        wall_seconds = round(time.monotonic() - wall_started, 3)
     transcript = (OUT / 'webots.log').read_text(encoding='utf-8', errors='replace')
     browser_path = OUT / 'browser-launch.log'
     browser_text = browser_path.read_text(encoding='utf-8', errors='replace') if browser_path.exists() else ''
     stages = ('CONTROLLER_START', 'READY_SENT', 'BEGIN_RECEIVED',
-              'PAUSE_REQUESTED', 'PAUSE_ATTESTED', 'RESUME_RECEIVED', 'PASS')
+              'PAUSE_REQUESTED', 'PAUSE_ATTESTED', 'RESUME_RECEIVED',
+              'STALE_RESUME_REJECTED', 'CLOCK_PRE_RESUME',
+              'MODE_REALTIME_REQUESTED', 'MODE_REALTIME_CALL_RETURNED',
+              'STEP_ZERO_AFTER_RESUME_REQUESTED', 'STEP_ZERO_AFTER_RESUME_RETURNED',
+              'MODE_REALTIME_ATTESTED', 'STEP_32_AFTER_RESUME_REQUESTED',
+              'STEP_32_AFTER_RESUME_RETURNED', 'CLOCK_RESUMED_DELTA_MS', 'PASS')
     markers = {stage: 'GP_PAUSE_WWI_' + stage in transcript for stage in stages}
     # Diagnostic artefact is never evidence for a PASS; only native PASS
     # together with the real Robot Window launch and exact mode/time checks is.
     diagnostics = {'schema': 'webeeblocks-webots-pause-diagnostic-v1',
                    'webots_exit_code': code, 'browser_launched': bool(browser_text),
-                   'browser_invocation': browser_text[:2000], 'stages': markers}
+                   'browser_invocation': browser_text[:2000], 'stages': markers,
+                   'timed_out': timed_out, 'wall_seconds': wall_seconds,
+                   'native_pass_marker_observed': native_pass_observed,
+                   'gui_terminated_after_native_pass': native_pass_observed and code != 0}
     (OUT / 'diagnostic.json').write_text(json.dumps(diagnostics, sort_keys=True, indent=2) + '\n',
                                          encoding='utf-8')
+    if timed_out:
+        raise RuntimeError('PAUSE/WWI native process deadline exceeded; inspect '
+                           'diagnostic.json, xvfb.log and processes-at-deadline.txt')
     if not browser_text:
         raise RuntimeError('Robot Window browser not launched; inspect diagnostic.json and webots.log')
-    if code != 0:
+    if code != 0 and not native_pass_observed:
         raise RuntimeError('Webots nonzero exit ' + str(code) + '; inspect diagnostic.json')
 
     if 'Segmentation fault' in transcript or 'Traceback (most recent call last)' in transcript:
         raise RuntimeError('native crash/traceback')
     matches = re.findall(r'^GP_PAUSE_WWI_PASS (\{[^\n]+\})$', transcript, re.M)
-    if len(matches) != 1:
-        raise RuntimeError('missing/ambiguous native proof; consult webots.log and diagnostic.json')
+    if len(matches) != 1 or not native_pass_observed:
+        # On clean GUI exit we may read PASS only after the process has already
+        # ended. Treat exactly one such native PASS as valid, without admitting
+        # any other form of success.
+        if len(matches) != 1 or (not native_pass_observed and code != 0):
+            raise RuntimeError('missing/ambiguous native proof; consult webots.log and diagnostic.json')
     proof = json.loads(matches[0])
     if not (
         proof.get('schema') == 'webeeblocks-webots-pause-wwi-v1'
