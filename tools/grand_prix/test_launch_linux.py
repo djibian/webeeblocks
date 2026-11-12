@@ -140,6 +140,20 @@ class LinuxGrandPrixLauncherTests(unittest.TestCase):
             )
             self.assertFalse(run.call_args.kwargs["check"])
 
+    def test_graphical_start_can_run_route_without_clicking_webots_triangle(self):
+        with mock.patch("tools.grand_prix.launch_linux.subprocess.run") as run:
+            run.return_value.returncode = 0
+            home = Path("/mock/webots")
+            world = Path("/mock/worlds/pupil_route.wbt")
+            self.assertEqual(launch_graphical(home, world, {}, mode="realtime").returncode, 0)
+            self.assertEqual(
+                run.call_args.args[0],
+                [str(home / "webots"), "--mode=realtime", "--stdout", "--stderr", str(world)],
+            )
+            with self.assertRaises(ValueError):
+                launch_graphical(home, world, {}, mode="fast")
+            self.assertEqual(run.call_count, 1, "unsupported mode must fail before spawning Webots")
+
     def test_reference_catalog_is_canonical_and_discovery_never_launches(self):
         """Host-only listing must not imply qualification or touch Webots."""
         from io import StringIO
@@ -532,7 +546,8 @@ class ControlledRenderFpsABTests(unittest.TestCase):
             (root / "worlds").mkdir()
             fixture_classroom_perspective(root)
             scenes = []
-            def gui(_home, world, _env):
+            def gui(_home, world, _env, *, mode="pause"):
+                self.assertEqual(mode, "realtime")
                 scenes.append(world.read_text(encoding="utf-8"))
                 return mock.Mock(returncode=0)
             with mock.patch.dict(os.environ, {"DISPLAY": ":99", "WAYLAND_DISPLAY": ""}), \
@@ -628,7 +643,8 @@ class ActiveVariableLinuxLauncherTests(unittest.TestCase):
                     unrelated = root / 'worlds/.keep.wbproj'
                     unrelated.write_text('keep')
                     observed = []
-                    def gui(home, world, env):
+                    def gui(home, world, env, *, mode="pause"):
+                        self.assertEqual(mode, "realtime")
                         self.assertIn('controller "grand_prix_route_evaluator"', world.read_text())
                         self.assertIn('window "grand_prix_route_v2"', world.read_text())
                         perspective = world.with_name('.' + world.stem + '.wbproj')
