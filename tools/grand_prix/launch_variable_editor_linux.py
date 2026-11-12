@@ -23,7 +23,8 @@ from tools.grand_prix.route_courses_v2 import (
     course_from_identifier, reference_course,
 )
 from tools.grand_prix.launch_linux import (
-    ensure_webots_assets, ensure_blockly_assets, launch_graphical, webots_home,
+    classroom_perspective, ensure_webots_assets, ensure_blockly_assets,
+    launch_graphical, webots_home,
 )
 
 FLIGHT = ROOT / "controllers/grand_prix_route_flight"
@@ -87,6 +88,8 @@ def main(argv=None):
         if not args.preflight_only and not (
                 os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             raise RuntimeError("session graphique Linux absente")
+        if not args.preflight_only:
+            perspective_text = classroom_perspective(ROOT)
         home = webots_home(args.webots_home)
         env = prepare_editor(home)
         if args.preflight_only:
@@ -100,12 +103,11 @@ def main(argv=None):
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as output:
                 output.write(scene)
-            # Restore the Blockly Robot Window on R2025a, like the route launcher.
+            # Restore the accepted classroom docks and Camera overlay state.
             # An unrelated perspective must never be overwritten or removed.
             with project.open("x", encoding="utf-8") as output:
                 owns_project = True
-                output.write("Webots Project File version R2025a\n"
-                             "robotWindow: Crazyflie WebeeBlocks\n")
+                output.write(perspective_text)
             print("SANDBOX Blockly Grand Prix variable : " + course.identifier, flush=True)
             print("AUCUN VOL : évaluateur volontairement désactivé ; Save/Open GUI NON QUALIFIÉ.",
                   flush=True)
