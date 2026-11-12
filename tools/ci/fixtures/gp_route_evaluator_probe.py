@@ -21,7 +21,7 @@ def witness():
     trace = output.with_suffix('.trace')
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
-                    'paired-benchmark', 'session-benchmark'):
+                    'paired-benchmark', 'session-benchmark', 'flight-window'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -49,7 +49,9 @@ def witness():
         scene_checks[0] += 1
         return real_read_scene(*args, **kwargs)
     publisher.read_native_evaluator_scene = traced_read_scene
-    policy = (SCENE_POLICY_CONTINUOUS if mode == 'idle'
+    policy = (SCENE_POLICY_CONTINUOUS if mode == 'idle' or
+              (mode == 'flight-window' and
+               os.environ.get('GP_ROUTE_PROFILE_POLICY') == SCENE_POLICY_CONTINUOUS)
               else SCENE_POLICY_CLASSROOM_STATIC)
     if mode == 'paired-benchmark':
         # SAME R2025a process, real 8-ms physics steps, actual native sensor
@@ -278,6 +280,8 @@ def witness():
                           if mode == 'flight-reset' else
                           'native-classroom-startup-attestation-v1'),
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
+    if mode == 'flight-window':
+        evidence['claim'] = 'native-route-evaluator-real-airborne-window-v1'
     phase = 'waiting'
     wall_started = time.monotonic()
     restored_ticks = 0
@@ -313,6 +317,96 @@ def witness():
         pending = target.with_suffix(target.suffix + '.pending')
         pending.write_text(marker, encoding='utf-8')
         pending.replace(target)
+
+    if mode == 'flight-window':
+        # Two separate R2025a processes share the same flight probe binary.
+        # Retain the authentic pilot C++ PID, native sensors, 8-ms physics,
+        # mission oracle and TAKEOFF/ALIVE authority, without pupil AST.
+        requested = os.environ.get('GP_ROUTE_PROFILE_POLICY')
+        if requested not in (SCENE_POLICY_CONTINUOUS, SCENE_POLICY_CLASSROOM_STATIC):
+            raise RuntimeError('airborne native comparison needs explicit policy')
+        if policy != requested:
+            raise RuntimeError('airborne evaluator policy mismatch')
+        streams = {'step_wall_ns': [], 'tick_wall_ns': [], 'cycle_wall_ns': [],
+                   'sim_time_ms': [], 'altitude_m': []}
+        stage = 'await-ready'
+        first_wall_ns = last_wall_ns = None
+        measured_reads = 0
+        for _ in range(2400):
+            before = time.perf_counter_ns()
+            if robot.step(8) == -1:
+                raise RuntimeError('airborne native step interrupted')
+            after_step = time.perf_counter_ns()
+            before_reads = scene_checks[0]
+            evaluator.tick()
+            after_tick = time.perf_counter_ns()
+            now = round(robot.getTime() * 1000)
+            description = robot.getSelf().getField('description').getSFString()
+            if evaluator.phase in ('failed', 'authority-revoked'):
+                raise RuntimeError('airborne native evaluator revoked unexpectedly: ' +
+                                   str(evaluator.last_error))
+            if stage == 'await-ready':
+                if evaluator.phase == 'ready':
+                    evidence['ready'] = ready_record(now)
+                    if evaluator._context is None or evaluator._context.attempt != 1:
+                        raise RuntimeError('airborne first attempt not fresh')
+                    cue_takeoff(1, now)
+                    stage = 'await-airborne'
+                continue
+            if stage == 'await-airborne':
+                acks = json.loads(ack_path.read_text()) if ack_path.exists() else {}
+                if acks.get('takeoff_ack_ms', -1) < 0 or evaluator.phase != 'active':
+                    continue
+                z = evaluator.observation.kinematics.position[2]
+                if z < .20:
+                    continue
+                if (not description.startswith('GP_ROUTE_ALIVE_V1 attempt=1 ') or
+                        evaluator._start_ms is None or
+                        acks['takeoff_ack_ms'] < evaluator._start_ms or
+                        now < acks['takeoff_ack_ms'] or z > 1.165):
+                    raise RuntimeError('native TAKEOFF/ALIVE/airborne ordering invalid')
+                stage = 'measure'
+                evidence['start_ms'] = evaluator._start_ms
+                evidence['takeoff_ack_ms'] = acks['takeoff_ack_ms']
+                evidence['first_airborne_ms'] = now
+                evidence['first_airborne_z'] = z
+                continue
+            if stage != 'measure':
+                raise RuntimeError('unexpected airborne phase')
+            observation = evaluator.observation
+            if (evaluator.phase != 'active' or evaluator._context.attempt != 1 or
+                    observation is None or observation.time_ms != now or
+                    not description.startswith('GP_ROUTE_ALIVE_V1 attempt=1 ') or
+                    not 0 <= now - observation.flight.time_ms <= 32 or
+                    observation.flight.sensor_period_ms != 32):
+                raise RuntimeError('native airborne live observation or ALIVE lost')
+            z = observation.kinematics.position[2]
+            if not .20 <= z <= 1.165:
+                raise RuntimeError('airborne altitude left bounded window')
+            required_reads = 1 if policy == SCENE_POLICY_CONTINUOUS else 0
+            if scene_checks[0] - before_reads != required_reads:
+                raise RuntimeError('airborne native scene policy changed')
+            measured_reads += required_reads
+            if first_wall_ns is None:
+                first_wall_ns = before
+            last_wall_ns = after_tick
+            streams['step_wall_ns'].append(after_step - before)
+            streams['tick_wall_ns'].append(after_tick - after_step)
+            streams['cycle_wall_ns'].append(after_tick - before)
+            streams['sim_time_ms'].append(now)
+            streams['altitude_m'].append(z)
+            if len(streams['sim_time_ms']) == 96:
+                evidence.update(
+                    policy=policy, phase='active-airborne',
+                    native_pilot=True, no_pupil_program=True,
+                    samples=96, first_sim_ms=streams['sim_time_ms'][0],
+                    last_sim_ms=now, simulated_ms=96 * 8,
+                    measured_window_wall_ns=last_wall_ns - first_wall_ns,
+                    scene_reads_measured=measured_reads,
+                    scene_checks_total=scene_checks[0], streams=streams)
+                finish()
+                return
+        raise RuntimeError('real native airborne measurement incomplete')
 
     while True:
         step_started = time.monotonic()
