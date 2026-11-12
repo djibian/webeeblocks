@@ -12,18 +12,18 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENE = ROOT / "worlds/scenes/orientation-v1.wbo"
-FLOAT = r"(-?\\d+(?:\\.\\d+)?)"
+FLOAT = r"(-?\d+(?:\.\d+)?)"
 
 CHECKPOINT = re.compile(
-    r"# CHECKPOINT ([ABC]):[^\\n]*\\n\\s*Pose \\{ translation "
+    r"# CHECKPOINT ([ABC]):[^\n]*\n\s*Pose \{ translation "
     + FLOAT + " " + FLOAT + " " + FLOAT,
 )
 DIRECTION = re.compile(
-    r"# DIRECTION ([ABC]):[^\\n]*\\n\\s*Pose \\{ translation "
+    r"# DIRECTION ([ABC]):[^\n]*\n\s*Pose \{ translation "
     + FLOAT + " " + FLOAT + " " + FLOAT
     + r" rotation 0 0 1 " + FLOAT,
 )
-ARRIVAL = re.compile(r"# ARRIVAL:[^\\n]*\\n\\s*Pose \\{ translation " + FLOAT + " " + FLOAT + " " + FLOAT)
+ARRIVAL = re.compile(r"# ARRIVAL:[^\n]*\n\s*Pose \{ translation " + FLOAT + " " + FLOAT + " " + FLOAT)
 
 
 class OrientationSceneStaticTest(unittest.TestCase):
@@ -42,7 +42,7 @@ class OrientationSceneStaticTest(unittest.TestCase):
 
     def test_standalone_visual_scene_has_no_hidden_physics_or_authority(self):
         self.assertTrue(self.text.startswith("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {"))
-        self.assertIsNone(re.search(r"\\b(?:Solid|Robot)\\s*\\{", self.text))
+        self.assertIsNone(re.search(r"\b(?:Solid|Robot)\s*\{", self.text))
         self.assertNotIn("boundingObject", self.text)
         self.assertNotIn("controllerArgs", self.text)
         self.assertNotIn("TouchSensor", self.text)
@@ -70,8 +70,8 @@ class OrientationSceneStaticTest(unittest.TestCase):
             self.assertTrue(isclose(angle, heading, abs_tol=1e-6))
 
     def test_all_targets_are_visible_noncolliding_marks(self):
-        self.assertRegex(self.text, r"Pose \\{ translation 0 0 0\\.002 children")
-        self.assertEqual(len(re.findall(r"0\\.0042 children", self.text)), 16)
+        self.assertRegex(self.text, r"Pose \{ translation 0 0 0\.002 children")
+        self.assertEqual(len(re.findall(r"0\.0042 children", self.text)), 16)
         self.assertIn("geometry Box { size 0.32 0.32 0.004 }", self.text)
         # Each elevated checkpoint has a visible 18 cm target and heading glyph.
         self.assertEqual(self.text.count("geometry Box { size 0.18 0.18 0.008 }"), 3)
