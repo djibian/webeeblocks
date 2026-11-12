@@ -100,8 +100,11 @@ témoin technique natif)** ; ne pas comparer leurs résultats Webots comme si
 les mondes ou les capacités étaient identiques. Une réfutation précise d'une
 approche plus simple ou d'un faux repère sensoriel est un résultat utile.
 Document de protocole : `docs/GRAND_PRIX_PEDAGOGICAL_BLOCKS.md`.
-Aucune refonte officielle des activités 2–7 avant les acceptations humaines
-exigées par la Phase 1.
+**Décision du 12 novembre 2026 :** la matrice 1–8 est approuvée et la refonte
+1–7 est autorisée dès maintenant. Voir
+[la progression validée](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
+Les anciennes conditions d'attente de PASS ne sont plus un préalable
+au *développement*, mais le PASS pédagogique final reste obligatoire.
 
 
 1. **#587 — pupil-usable simulation progression and Grand Prix (pedagogical delivery).**
@@ -145,7 +148,21 @@ extra speculative infrastructure; expand movements, sensors and LED capabilities
 one evidence-backed slice at a time after the first bounded physical acceptance.
 Keep #72 separately gated and #70 optional on uniform ground.
 
-**Owner pedagogical decision, 2026-10-15 (#587):** eight activities
+**Latest owner pedagogical decision, 2026-11-12 (#587, comment 6826109034):**
+the [revised Activities 1–7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
+is the implementation contract for 4e/3e agricultural education.
+All seven activities may be developed **in parallel** in independently
+reviewable PRs: Activity 1 adds simple two-axis 3D parameters, Activity 2 adds
+vertical relative movement over an obstacle, 3 turning/repetition, 4 observable
+single-sample sensing across variants, 5 reactive loops/first state variable,
+6 counting 1–3 gates/landing choice, 7 a simpler multi-variant Mini Grand Prix.
+The historical #619 PASS does not transfer to the redesigned Activity 1.
+Development of 1–7 is independent of final Grand Prix PASS; the provisional
+pedagogical approval of Activity 8 remains conditional on native pauses and UI
+corrections. This supersedes earlier Phase 2 *start* restrictions below,
+not native safety, exact V5 requirements or personal final acceptance.
+
+**Historical owner pedagogical decision, 2026-10-15 (#587):** eight activities
 remain the target, but the integrated #487/B1/B2 progression is a
 **technical baseline only**, not an owner-validated teaching sequence.
 The owner has identified new contradictory evidence: the common cluttered
@@ -216,12 +233,18 @@ course and detectable drift-correction landmarks are **feasibility questions**,
 not approved geometry changes. The checkpoint #635 is closed FAIL, not a pending
 or reusable PASS; #619 remains independently accepted and Phase 2 stays gated.
 
-**Phase 2 — mandatory six-activity redesign after both acceptances:**
-co-design and get the owner's agreement on a cumulative matrix for 2–7,
-`new concept -> world property -> pupil mission -> prior concepts -> observable
-success`, then rebuild six distinct pupil environments and missions with
-applicable tests, independent reviews and personal acceptances. Obtain
-explicit owner acceptance of the *whole* eight-activity progression.
+**Phase 2 — approved revised redesign of Activities 1–7, 2026-11-12:**
+Build and qualify the [cumulative approved matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md):
+`new concept -> world property -> pupil mission -> prerequisite skills ->
+observable outcome`. Develop scenes in **parallel** where code and native
+validation can remain safely independent, with no artificial stage-by-stage
+development gate. Preserve the historical Activity 1 PASS as scoped evidence,
+not as acceptance of its changed parameters and geometry. Independently qualify
+new scene selection/ACK/RESET, positive and negative native oracles, and
+non-interference with Activity 8; then validate the complete pupil progression
+personally. The Grand Prix
+final PASS is necessary before declaring the progression accepted,
+**not** before beginning these changes.
 
 **Optional physical finality:** the Grand Prix may eventually be flown
 on a real Crazyflie *only if* #157/#72 independently qualify its exact
@@ -234,7 +257,7 @@ reconstruct GitHub, select bounded useful endpoints or independent review
 work, use isolated branches, stable Ready candidates, canonical exact-HEAD
 CI and independent review; no Controller authors its own GO or uses
 agent ownership/locks/queues. After the personal endpoint gates, the
-owner-approved six-activity matrix constrains the bounded PR work,
+owner-approved eight-activity matrix constrains the bounded PR work,
 without a Controller allocation plan or parallel status database.
 Preserve #487/#587 decisions, prior grand-prix variants and existing
 oracles/tests/evidence as appropriately scoped history.
@@ -569,9 +592,9 @@ non-blocking for #72 on uniform floor. See
 - student feedback remains deliberately small: achieved / not achieved /
   interrupted, without automatic diagnosis, hints, strategy suggestions or
   persistent attempt/progress history
-- consequence of new owner evidence (2026-10-15): the common world is
-  pedagogically inadequate and **redesign 2–7 is mandatory AFTER** both
-  endpoints receive explicit personal acceptance. Preserve the non-goals:
+- updated by owner decision (2026-11-12): the common world is
+  pedagogically inadequate and **redesign 1–7 is authorized now** under the
+  approved eight-activity matrix; final personal acceptance remains required. Preserve the non-goals:
   no accounts, automatic unlocks, mastery database, grading, leaderboard,
   intelligent tutor, solution-shape oracle or gratuitous world proliferation.
 
