@@ -147,7 +147,9 @@ if (typeof window.addEventListener === 'function') {
     var bound = generation;
     pending = true;
     Promise.resolve().then(function() { return backend.readElapsedTime(); }).then(function(seconds) {
-      if (bound !== generation || !running) return;
+      // An ELAPSED fallback launched before the native ACK may resolve late.
+      // Once bound, only the native simulated-second stream owns the display.
+      if (bound !== generation || !running || clockAttempt!==null) return;
       if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 ||
           (last !== null && seconds < last)) {
         show(face(last));
@@ -156,7 +158,7 @@ if (typeof window.addEventListener === 'function') {
       last = seconds;
       show(face(seconds));
     }, function() {
-      if (bound !== generation || !running) return;
+      if (bound !== generation || !running || clockAttempt!==null) return;
       // TIME_UNAVAILABLE is expected before TAKEOFF completes and after LAND.
       show(face(last));
     }).finally(function() {

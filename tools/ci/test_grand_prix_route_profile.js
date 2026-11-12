@@ -384,7 +384,27 @@ async function proveRouteLiveClock() {
   assert.equal(span.textContent, '00min 00s / 03min 30s',
     'old native ACK/TICK contaminated the new attempt');
   change('ARRÊTÉ');
-  console.log('PASS native route clock: simulated-second pushes, 59→60, nonce/attempt binding, STOP/RESET, no wall extrapolation');
+  // Adversarial race: a fallback ELAPSED request starts before the native ACK.
+  // Its late (but valid) time must not overwrite the authoritative TICK once
+  // the native stream has taken over the display for the same run.
+  let releaseFallback = null;
+  backend = {ready:true, robotWindow:{send(message) {sent.push(message);}},
+    readElapsedTime() {return new Promise(resolve => {releaseFallback = resolve;});}};
+  change('PRÊT');
+  change('EXÉCUTION');await flush();
+  assert.equal(typeof releaseFallback, 'function', 'missing in-flight ELAPSED request');
+  const lastSubscribe = sent[sent.length - 1];
+  assert(/^GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce=[0-9a-f]{32}$/.test(lastSubscribe));
+  const lastNonce = lastSubscribe.slice(-32);
+  notify('GP_ROUTE_CLOCK_V1 ACK nonce=' + lastNonce + ' attempt=9');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + lastNonce + ' attempt=9 seconds=10');
+  assert.equal(span.textContent, '00min 10s / 03min 30s',
+    'bound native simulated-second TICK was not displayed');
+  releaseFallback(120.75);await flush();
+  assert.equal(span.textContent, '00min 10s / 03min 30s',
+    'in-flight wall-polled fallback overwrote an already bound native tick');
+  change('ARRÊTÉ');
+  console.log('PASS native route clock: simulated-second pushes, 59→60, nonce/attempt binding, STOP/RESET, late fallback exclusion, no wall extrapolation');
 }
 
 run(false);
