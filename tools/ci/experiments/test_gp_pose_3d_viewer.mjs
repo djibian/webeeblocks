@@ -32,7 +32,7 @@ function harness(poseFetch) {
   const globals = {document:doc,window:{},fetch,
     setInterval:()=>{},requestAnimationFrame:()=>{},
     performance:{now:()=>0},devicePixelRatio:1};
-  runInNewContext(match[1] + '\\nglobalThis.testHooks={poll,metrics,frame};',
+  runInNewContext(match[1] + '\nglobalThis.testHooks={poll,metrics,frame};',
     globals, {timeout:5000});
   return {poll:globals.testHooks.poll, frame:globals.testHooks.frame, metrics:globals.testHooks.metrics,
     requests:()=>poseRequests};
