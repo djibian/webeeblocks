@@ -265,6 +265,12 @@ WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw6
 QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins
 '@
 Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
+# Activity 1 uses a scene-local supervisor: Webots must find its actual
+# controller script in the exact autonomous release, not only the scene asset.
+Copy-RequiredFile `
+  (Join-Path $repoRoot 'controllers\progression_sequence_3d\progression_sequence_3d.py') `
+  (Join-Path $packageDir 'controllers\progression_sequence_3d\progression_sequence_3d.py')
+
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
 $protoSource = Join-Path $crazyflieRoot 'Crazyflie.proto'
