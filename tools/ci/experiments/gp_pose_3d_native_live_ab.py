@@ -28,7 +28,8 @@ def _cpu_total():
         p = psutil.Process()
         children = [p] + p.children(recursive=True)
         return sum(c.cpu_times().user + c.cpu_times().system for c in children if c.is_running())
-    except (ImportError, OSError):
+    except Exception:
+        # CPU telemetry is optional and must not break the native safety witness.
         return None
 
 
@@ -93,6 +94,8 @@ def _browser_child(args):
                 else:
                     time.sleep(.250)
             report['duration_s'] = round(time.monotonic() - first, 3)
+            if not stop.exists():
+                raise RuntimeError('viewer exceeded 120s before native witness ended')
             end_cpu = _cpu_total()
             report['browser_cpu_seconds'] = (round(end_cpu - start_cpu, 4)
                 if end_cpu is not None and start_cpu is not None else None)
