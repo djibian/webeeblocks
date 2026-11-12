@@ -68,8 +68,6 @@ def run():
                     code = proc.wait(timeout=45)
                 except subprocess.TimeoutExpired:
                     raise RuntimeError('PAUSE/WWI native process deadline exceeded')
-                if code != 0:
-                    raise RuntimeError('Webots nonzero exit ' + str(code))
             finally:
                 if proc and proc.poll() is None:
                     os.killpg(proc.pid, signal.SIGTERM)
@@ -79,11 +77,28 @@ def run():
                         os.killpg(proc.pid, signal.SIGKILL)
                         proc.wait()
     transcript = (OUT / 'webots.log').read_text(encoding='utf-8', errors='replace')
+    browser_path = OUT / 'browser-launch.log'
+    browser_text = browser_path.read_text(encoding='utf-8', errors='replace') if browser_path.exists() else ''
+    stages = ('CONTROLLER_START', 'READY_SENT', 'BEGIN_RECEIVED',
+              'PAUSE_REQUESTED', 'PAUSE_ATTESTED', 'RESUME_RECEIVED', 'PASS')
+    markers = {stage: 'GP_PAUSE_WWI_' + stage in transcript for stage in stages}
+    # Diagnostic artefact is never evidence for a PASS; only native PASS
+    # together with the real Robot Window launch and exact mode/time checks is.
+    diagnostics = {'schema': 'webeeblocks-webots-pause-diagnostic-v1',
+                   'webots_exit_code': code, 'browser_launched': bool(browser_text),
+                   'browser_invocation': browser_text[:2000], 'stages': markers}
+    (OUT / 'diagnostic.json').write_text(json.dumps(diagnostics, sort_keys=True, indent=2) + '\n',
+                                         encoding='utf-8')
+    if not browser_text:
+        raise RuntimeError('Robot Window browser not launched; inspect diagnostic.json and webots.log')
+    if code != 0:
+        raise RuntimeError('Webots nonzero exit ' + str(code) + '; inspect diagnostic.json')
+
     if 'Segmentation fault' in transcript or 'Traceback (most recent call last)' in transcript:
         raise RuntimeError('native crash/traceback')
     matches = re.findall(r'^GP_PAUSE_WWI_PASS (\{[^\n]+\})$', transcript, re.M)
     if len(matches) != 1:
-        raise RuntimeError('missing/ambiguous native proof; consult webots.log')
+        raise RuntimeError('missing/ambiguous native proof; consult webots.log and diagnostic.json')
     proof = json.loads(matches[0])
     if not (
         proof.get('schema') == 'webeeblocks-webots-pause-wwi-v1'

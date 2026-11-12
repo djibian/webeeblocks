@@ -4,8 +4,10 @@
 <h1>R2025a WWI pause experiment — not a student interface</h1>
 <script type="module">
   // Official R2025a RobotWindow API used by the upstream sample.
-  import RobotWindow from 'https://cyberbotics.com/wwi/R2025a/RobotWindow.js';
+  // Offline, exact-R2025a vendor used by the other classroom CI worlds.
+  import RobotWindow from '../blockly_v2/webots/RobotWindow.js';
   const robotWindow = new RobotWindow();
+  console.log('GP_PAUSE_WWI_BROWSER_INIT');
   const token = 'wb-pause-native-r2025a-974';
   const prefix = 'GP_PAUSE_WWI_';
   let paused = false;

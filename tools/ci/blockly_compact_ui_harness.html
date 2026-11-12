@@ -33,12 +33,18 @@
     var expected = win.runtimeProfile.brief.mission || win.runtimeProfile.brief.goal || '';
     assert(goal.textContent === expected, 'mission brief text changed');
     assert(instruction.hidden && toggle.getAttribute('aria-expanded') === 'false', 'instruction not initially collapsed');
+    assert(!element(doc, 'observationInspector').hidden &&
+      element(doc, 'observationToggle').getAttribute('aria-expanded') === 'true',
+      'observations must open automatically without keyboard focus theft');
     toggle.click();
     assert(!instruction.hidden && toggle.getAttribute('aria-expanded') === 'true', 'instruction button did not open');
     assert(goal.textContent === expected, 'instruction body differs from profile');
+    assert(!element(doc, 'observationInspector').hidden, 'opening instructions closed observations');
+    assert(Number(win.getComputedStyle(instruction).zIndex) >= 5000, 'instructions below Blockly toolbox');
     assert(doc.activeElement.id === 'activityInstructionsClose', 'instruction close has no keyboard focus');
     doc.dispatchEvent(new win.KeyboardEvent('keydown', {key:'Escape',bubbles:true}));
     assert(instruction.hidden && doc.activeElement === toggle, 'Escape did not return focus');
+    assert(!element(doc, 'observationInspector').hidden, 'closing instructions also closed observations');
 
     element(doc, 'debugPanel').hidden = false; // simulate negotiated simulationDebug=true
     var readings = {front:0.35, back:1.25, left:0.48, right:0.8, up:0.6};
@@ -49,7 +55,9 @@
     assert(element(doc, 'debugSensors').querySelectorAll('.observationItem').length === 5, 'missing directional sensor lines');
     assert(element(doc, 'debugSensors').textContent.indexOf('devant') !== -1 && element(doc, 'debugSensors').textContent.indexOf(' m') !== -1, 'sensor label or unit missing');
     assert(element(doc, 'debugVariables').querySelectorAll('.observationItem').length === 32, 'variables truncated');
-    assert(element(doc, 'observationNote').textContent.indexOf('Pas de télémétrie continue') !== -1, 'stale telemetry warning missing');
+    assert(!doc.getElementById('observationNote'), 'obsolete observation explanation still visible');
+    assert(element(doc, 'debugLightRow').parentElement === element(doc, 'observationReadouts'),
+      'LED not pinned at inspector top');
 
     // Real Blockly rendering, including a long workspace and a procedure.
     for (var j = 0; j < 24; j++) {
@@ -67,15 +75,32 @@
       var h = blockly.getBoundingClientRect().height;
       var w = blockly.getBoundingClientRect().width;
       var observationToggle = element(doc, 'observationToggle');
-      observationToggle.click();
       var inspector = element(doc, 'observationInspector');
+      if (inspector.hidden) observationToggle.click();
       assert(!inspector.hidden, 'inspector did not open');
       var bounds = inspector.getBoundingClientRect();
       assert(bounds.left >= -1 && bounds.right <= width + 1, 'inspector outside narrow screen');
       assert(bounds.bottom <= win.innerHeight + 1 && bounds.top >= -1, 'inspector outside editor height');
-      assert(inspector.scrollHeight > inspector.clientHeight, 'many variables have no scroll');
-      inspector.scrollTop = inspector.scrollHeight;
-      assert(inspector.scrollTop > 0, 'last variable cannot be reached');
+      var scroller = element(doc, 'observationScroll');
+      assert(scroller.scrollHeight > scroller.clientHeight, 'many variables have no separate scroll');
+      scroller.scrollTop = scroller.scrollHeight;
+      assert(scroller.scrollTop > 0, 'last variable cannot be reached');
+      assert(element(doc, 'debugLightRow').getBoundingClientRect().bottom <=
+        scroller.getBoundingClientRect().top + 2, 'LED scrolled out of pinned header');
+      if (width === 1280) {
+        var handle = inspector.querySelector('.floatingPanelHeader');
+        var first = inspector.getBoundingClientRect();
+        function pointer(type, deltaX, deltaY) {
+          handle.dispatchEvent(new win.PointerEvent(type, {bubbles:true, pointerId:17, button:0,
+            clientX:first.left + 20 + deltaX, clientY:first.top + 18 + deltaY}));
+        }
+        pointer('pointerdown', 0, 0); pointer('pointermove', -100, -70); pointer('pointerup', -100, -70);
+        var moved = inspector.getBoundingClientRect();
+        assert(moved.left < first.left - 50 && moved.top < first.top - 30, 'observations not draggable');
+        assert(moved.left >= 0 && moved.top >= 0 && moved.right <= width + 1, 'drag escaped workspace');
+        inspector.style.left = ''; inspector.style.top = '';
+        inspector.style.right = ''; inspector.style.bottom = '';
+      }
       assert(Math.abs(blockly.getBoundingClientRect().height - h) < 1 && Math.abs(blockly.getBoundingClientRect().width - w) < 1, 'inspector resized Blockly');
       win.setRuntimeStatus('PRÊT', 'Simulation connectée');
       win.setRuntimeStatus('EXÉCUTION', 'Programme en cours');
@@ -84,7 +109,9 @@
       win.runtimeDebug.callbacks.onResume({});
       win.setRuntimeStatus('ERREUR', 'Essai interrompu');
       assert(inspector.querySelectorAll('.observationItem').length === 37, 'state change removed last punctual readings');
-      assert(element(doc, 'observationNote').textContent.includes('précédente'), 'retained readings not marked old');
+      assert(!doc.getElementById('observationNote'), 'explanatory observation text not removed');
+      assert(element(doc, 'debugLightRow').getBoundingClientRect().top <
+        element(doc, 'observationScroll').getBoundingClientRect().top, 'LED not pinned after state change');
       element(doc, 'observationClose').click();
       assert(inspector.hidden && observationToggle.getAttribute('aria-expanded') === 'false', 'inspector did not close');
     }
@@ -128,14 +155,41 @@
         gpWin.renderVariables(pageVariables);
         element(gpDoc, 'debugPanel').hidden = false; // Restore the real step-by-step observation precondition.
         var gpObservationToggle = element(gpDoc, 'observationToggle');
-        gpObservationToggle.click();
         var gpInspector = element(gpDoc, 'observationInspector');
+        if (pageSize[0] === 640) {
+          // The 1280px pass deliberately clicked Close. A viewport resize is
+          // not a new page load: reopen explicitly, then verify the same UI.
+          assert(gpInspector.hidden, 'inspector unexpectedly reopened on resize');
+          gpObservationToggle.click();
+        }
+        assert(!gpInspector.hidden && gpObservationToggle.getAttribute('aria-expanded') === 'true',
+          'Grand Prix observations not opened on ' + activityPage + ' at ' + pageSize[0]);
         assert(!gpInspector.hidden && gpInspector.querySelectorAll('.observationItem').length === 42, 'Grand Prix readings truncated on ' + activityPage);
         var gpBounds = gpInspector.getBoundingClientRect();
         assert(gpBounds.left >= -1 && gpBounds.right <= pageSize[0] + 1 && gpBounds.top >= -1 && gpBounds.bottom <= pageSize[1] + 1,
           'Grand Prix inspector outside viewport on ' + activityPage + ' at ' + pageSize[0]);
-        gpInspector.scrollTop = gpInspector.scrollHeight;
-        assert(gpInspector.scrollTop > 0, 'Grand Prix last variable unreachable on ' + activityPage);
+        var gpScroller = element(gpDoc, 'observationScroll');
+        gpScroller.scrollTop = gpScroller.scrollHeight;
+        assert(gpScroller.scrollTop > 0, 'Grand Prix last variable unreachable on ' + activityPage);
+        assert(element(gpDoc, 'debugLightRow').getBoundingClientRect().bottom <=
+          gpScroller.getBoundingClientRect().top + 2, 'Grand Prix LED lost under scrolling');
+        if (activityPage.indexOf('grand_prix_route_v2/') !== -1 && pageSize[0] === 1280) {
+          await until(function() { return !!gpDoc.getElementById('grandPrixElapsedClock'); });
+          var clock = element(gpDoc, 'grandPrixElapsedClock');
+          assert(clock.parentElement === element(gpDoc, 'observationReadouts'),
+            'Grand Prix clock not pinned with LED');
+          assert(clock.textContent === '00min 00s / 03min 30s',
+            'Grand Prix clock has wrong initial display');
+          var realBackend = gpWin.runtimeBackend;
+          gpWin.runtimeBackend = {ready:true, readElapsedTime:function() { return Promise.resolve(62.9); }};
+          gpWin.dispatchEvent(new gpWin.CustomEvent('webeeblocks-runtime-v2', {detail:{state:'EXÉCUTION'}}));
+          await until(function() { return clock.textContent === '01min 02s / 03min 30s'; });
+          assert(clock.textContent === '01min 02s / 03min 30s',
+            'Grand Prix clock extrapolated instead of reading simulated seconds');
+          gpWin.dispatchEvent(new gpWin.CustomEvent('webeeblocks-runtime-v2', {detail:{state:'PRÊT'}}));
+          gpWin.runtimeBackend = realBackend;
+          assert(clock.textContent === '00min 00s / 03min 30s', 'RESET did not clear clock');
+        }
         element(gpDoc, 'observationClose').click();
         assert(gpInspector.hidden && gpDoc.activeElement === gpObservationToggle,
           'Grand Prix observation close/focus failed on ' + activityPage);

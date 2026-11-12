@@ -11,6 +11,7 @@ from controller import Supervisor
 TOKEN = 'wb-pause-native-r2025a-974'
 PFX = 'GP_PAUSE_WWI_'
 controller = Supervisor()
+print(PFX + "CONTROLLER_START", flush=True)
 
 
 def receive():
@@ -37,10 +38,14 @@ def abort(reason):
 # initiate this test through the real WWI transport.
 init_deadline = time.monotonic() + 20.0
 begun = False
+first_ready = False
 while time.monotonic() < init_deadline:
     if controller.step(32) == -1:
         abort('terminated-before-wwi-begin')
     controller.wwiSendText(PFX + 'READY ' + TOKEN)
+    if not first_ready:
+        print(PFX + 'READY_SENT', flush=True)
+        first_ready = True
     for message in receive():
         if message == PFX + 'BEGIN ' + TOKEN:
             begun = True
@@ -49,10 +54,12 @@ while time.monotonic() < init_deadline:
         break
 if not begun:
     abort('robot-window-begin-missing')
+print(PFX + 'BEGIN_RECEIVED', flush=True)
 
 frozen = controller.getTime()
 controller.simulationSetMode(Supervisor.SIMULATION_MODE_PAUSE)
 pause_started = time.monotonic()
+print(PFX + 'PAUSE_REQUESTED', flush=True)
 rejected_token = 0
 resumed_by_wwi = False
 paused_sent = False
@@ -67,6 +74,7 @@ while time.monotonic() - pause_started < 8.0:
     if not paused_sent:
         paused_sent = True
         controller.wwiSendText(PFX + 'PAUSED ' + TOKEN)
+        print(PFX + 'PAUSE_ATTESTED', flush=True)
     for message in receive():
         if message.startswith(PFX + 'RESUME '):
             if message != PFX + 'RESUME ' + TOKEN:
@@ -79,6 +87,8 @@ while time.monotonic() - pause_started < 8.0:
     if resumed_by_wwi:
         break
     time.sleep(0.01)
+if resumed_by_wwi:
+    print(PFX + "RESUME_RECEIVED", flush=True)
 if not resumed_by_wwi:
     abort('robot-window-resume-unavailable-during-pause')
 if rejected_token < 1:

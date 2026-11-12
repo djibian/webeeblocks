@@ -211,7 +211,8 @@ int main(){
    now=2.176;assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
  }
  admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
- evidence.replace(evidence.find("epoch=")+6,1,"f");
+ auto epochPosition=evidence.find("epoch=")+6;
+ evidence.replace(epochPosition,1,evidence[epochPosition]=='f'?"e":"f");
  now=2.176;assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
  admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
  evidence.replace(evidence.find("attempt=1"),9,"attempt=2");

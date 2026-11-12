@@ -67,30 +67,28 @@ if (typeof window.addEventListener === 'function') {
     if (!element && typeof document !== 'undefined' && document &&
         typeof document.getElementById === 'function' &&
         typeof document.createElement === 'function') {
-      var panel = document.getElementById('statusPanel');
+      var panel = document.getElementById('observationReadouts');
       if (panel) {
-        element = document.createElement('span');
+        element = document.createElement('div');
         element.id = 'grandPrixElapsedClock';
         element.setAttribute('aria-live', 'off');
         element.style.fontVariantNumeric = 'tabular-nums';
         element.style.whiteSpace = 'nowrap';
-        // Keep the clock visible on narrow classroom Robot Windows.
-        if (panel.style) panel.style.flexWrap = 'wrap';
         panel.appendChild(element);
       }
     }
     return !!element;
   }
   function format(seconds) {
-    var tenths = Math.floor(seconds * 10 + 1e-8);
-    var minutes = Math.floor(tenths / 600);
-    var remainder = (tenths % 600) / 10;
-    return String(minutes).padStart(2, '0') + ':' + remainder.toFixed(1).padStart(4, '0');
+    var whole = Math.floor(seconds + 1e-9); // Native Webots elapsed; never extrapolate from wall time.
+    return String(Math.floor(whole / 60)).padStart(2, '0') + 'min ' +
+      String(whole % 60).padStart(2, '0') + 's';
   }
+  function face(value) { return format(value === null ? 0 : value) + ' / 03min 30s'; }
   function show(text) {
     if (mount()) element.textContent = text;
   }
-  function empty() { show('Temps simulé : — / 03:30'); }
+  function empty() { show(face(null)); }
   function clear() {
     generation += 1;
     running = false;
@@ -105,14 +103,13 @@ if (typeof window.addEventListener === 'function') {
   }
   function finish() {
     clear();
-    show(last === null ? 'Temps simulé : — / 03:30' :
-      'Dernière mesure : ' + format(last) + ' / 03:30');
+    show(face(last));
   }
   function sample() {
     if (!running || pending) return;
     var backend = window.runtimeBackend;
     if (!backend || !backend.ready || typeof backend.readElapsedTime !== 'function') {
-      if (last !== null) show('Dernière mesure : ' + format(last) + ' / 03:30');
+      if (last !== null) show(face(last));
       return;
     }
     var bound = generation;
@@ -121,16 +118,15 @@ if (typeof window.addEventListener === 'function') {
       if (bound !== generation || !running) return;
       if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 ||
           (last !== null && seconds < last)) {
-        show('Temps simulé : indisponible');
+        show(face(last));
         return;
       }
       last = seconds;
-      show('Temps simulé : ' + format(seconds) + ' / 03:30');
+      show(face(seconds));
     }, function() {
       if (bound !== generation || !running) return;
       // TIME_UNAVAILABLE is expected before TAKEOFF completes and after LAND.
-      show(last === null ? 'Temps simulé : — / 03:30' :
-        'Dernière mesure : ' + format(last) + ' / 03:30');
+      show(face(last));
     }).finally(function() {
       if (bound === generation) pending = false;
     });

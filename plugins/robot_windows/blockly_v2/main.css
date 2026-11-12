@@ -112,10 +112,11 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
   overscroll-behavior: contain;
 }
 .floatingPanel[hidden] { display: none; }
-.floatingPanelHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.floatingPanelHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; cursor: move; user-select: none; touch-action: none; }
+.floatingPanelHeader button { cursor: pointer; }
 .floatingPanelHeader h2 { font-size: 17px; margin: 0; }
 .floatingPanelHeader button { min-height: 31px; padding: 4px 10px; font-size: 13px; }
-#activityInstructions { top: 12px; left: 12px; }
+#activityInstructions { top: 12px; left: 12px; z-index: 5000; }
 #activityGoal { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wb-ink); }
 #blocklyDiv { position: absolute; inset: 0; }
 
