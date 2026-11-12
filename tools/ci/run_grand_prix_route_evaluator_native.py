@@ -87,7 +87,7 @@ def check_native(data):
 def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
-                    'classroom-switch'):
+                    'classroom-switch', 'classroom-switch-invalid'):
         raise RuntimeError('unknown native evaluator probe mode')
     if mode in ('session-benchmark', 'flight-window'):
         if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
@@ -138,7 +138,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         world = project / 'worlds/route.wbt'
         world.write_text(scene)
         (case / 'world.wbt').write_text(scene)
-        if mode == 'classroom-switch':
+        if mode in ('classroom-switch', 'classroom-switch-invalid'):
             # Different canonical course, *same running simulator process*.
             # Webots worldLoad() restarts the evaluator and the real C pilot.
             other = active_course_world(reference_course(0)).replace(
@@ -146,6 +146,18 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                 'webots://')
             if index != 5 or other == scene:
                 raise RuntimeError('native world switch must change exact course 5 to 0')
+            if mode == 'classroom-switch-invalid':
+                # Mutate exactly one collider in the *new* world before
+                # worldLoad, not during flight. Fresh attestation must fail.
+                from tools.grand_prix.route_solid_v2 import corner_boxes
+                second_box = corner_boxes(reference_course(0).route)[0]
+                canonical = second_box.vrml()
+                displaced = canonical.replace(
+                    f'translation {second_box.x:.6f} ',
+                    f'translation {second_box.x + .10:.6f} ', 1)
+                if canonical == displaced or other.count(canonical) != 1:
+                    raise RuntimeError('failed to corrupt exactly one reloaded L collider')
+                other = other.replace(canonical, displaced, 1)
             switched_world = project / 'worlds/route-switched.wbt'
             switched_world.write_text(other)
             (case / 'switched-world.wbt').write_text(other)
@@ -159,7 +171,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             GP_ROUTE_EVALUATOR_INDEX=str(index))
         if mode in ('session-benchmark', 'flight-window'):
             environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
-        if mode == 'classroom-switch':
+        if mode in ('classroom-switch', 'classroom-switch-invalid'):
             environment['GP_ROUTE_SWITCH_WORLD'] = str(switched_world)
             environment['GP_ROUTE_SWITCH_INDEX'] = '0'
         process = None
@@ -190,7 +202,9 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-classroom-world-switch-attestation-v1'
+        expected_claim = ('native-classroom-world-switch-invalid-rejection-v1'
+                          if mode == 'classroom-switch-invalid' else
+                          'native-classroom-world-switch-attestation-v1'
                           if mode == 'classroom-switch' else
                           'native-route-evaluator-real-airborne-window-v1'
                           if mode == 'flight-window' else
@@ -320,28 +334,44 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             if (type(ratio) not in (int, float) or not math.isfinite(ratio) or
                     abs(ratio - round(sum(series[names[0]]) / sum(series[names[1]]), 6)) > 1e-6):
                 raise RuntimeError('paired native tick ratio invalid')
-        elif mode == 'classroom-switch':
+        elif mode in ('classroom-switch', 'classroom-switch-invalid'):
             first, second = data.get('first'), data.get('second')
             if (data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
                     data.get('new_world_loaded') is not True or
                     data.get('fresh_controller') is not True or
                     type(first) is not dict or type(second) is not dict):
                 raise RuntimeError('native two-world switch evidence absent')
-            for phase, expected_id in ((first, course.identifier),
-                                       (second, reference_course(0).identifier)):
-                if (phase.get('configuration') != expected_id or
-                        phase.get('scene_checks') != 1 or
-                        type(phase.get('native_evaluator_id')) is not int or
-                        phase['native_evaluator_id'] <= 0 or
-                        type(phase.get('controller_pid')) is not int or
-                        phase['controller_pid'] <= 0 or
-                        phase.get('time_ms') != phase.get('ready', {}).get('time_ms')):
-                    raise RuntimeError('native restarted evaluator provenance invalid')
-                _check_ready(phase.get('ready'))
-            if first['controller_pid'] == second['controller_pid']:
-                raise RuntimeError('native world switch kept old controller process')
-            # The initiating controller prints its signed source record before
-            # worldLoad, and the new controller prints the final two-world result.
+            if (first.get('configuration') != course.identifier or
+                    first.get('scene_checks') != 1 or
+                    type(first.get('native_evaluator_id')) is not int or
+                    first['native_evaluator_id'] <= 0 or
+                    type(first.get('controller_pid')) is not int or
+                    first['controller_pid'] <= 0 or
+                    first.get('time_ms') != first.get('ready', {}).get('time_ms')):
+                raise RuntimeError('native first evaluator READY provenance invalid')
+            _check_ready(first.get('ready'))
+            if (second.get('configuration') != reference_course(0).identifier or
+                    second.get('scene_checks') != 1 or
+                    type(second.get('native_evaluator_id')) is not int or
+                    second['native_evaluator_id'] <= 0 or
+                    type(second.get('controller_pid')) is not int or
+                    second['controller_pid'] <= 0 or
+                    first['controller_pid'] == second['controller_pid']):
+                raise RuntimeError('native restarted evaluator identity invalid')
+            if mode == 'classroom-switch':
+                if second.get('time_ms') != second.get('ready', {}).get('time_ms'):
+                    raise RuntimeError('native reloaded world READY timestamp invalid')
+                _check_ready(second.get('ready'))
+            else:
+                stamp = second.get('time_ms')
+                if (second.get('rejected_before_ready') is not True or
+                        'ready' in second or
+                        type(stamp) is not int or stamp < 0 or stamp % 8 or
+                        not second.get('error', '').startswith(
+                            'native collider world pose mismatch: GP_V2_L_')):
+                    raise RuntimeError('noncanonical reloaded world not refused before READY')
+            # The first controller printed its source record before worldLoad,
+            # and the new controller printed the two-world result (or refusal).
             prior = 'GP_ROUTE_SWITCH_BEFORE ' + json.dumps(first, allow_nan=False, sort_keys=True)
             if ([line for line in text.splitlines()
                  if line.startswith('GP_ROUTE_SWITCH_BEFORE ')] != [prior]):
@@ -434,6 +464,8 @@ def run_native(home, env):
     # native Supervisor.worldLoad() to switch 5 -> 0. Actual GUI interactions
     # and student workspace transition remain outside this native contract.
     run_case(home, env, 'classroom-switch', 5)
+    # New evaluator must also reject a *corrupted* second world before READY.
+    run_case(home, env, 'classroom-switch-invalid', 5)
     # Corrupt the .wbt *before* Webots loads it; reject before first READY.
     run_case(home, env, 'classroom-invalid', 5)
     # Real same-process native idle READY cost; no rendered FPS claim.

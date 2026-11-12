@@ -19,7 +19,7 @@ def witness():
     # A real Webots worldLoad() terminates and restarts every controller.
     # Test-only on-disk stage distinguishes the new process from a RESET.
     stage_file = Path(os.environ['GP_ROUTE_EVALUATOR_OUT']).with_name('switch-stage.json')
-    switched = (os.environ.get('GP_ROUTE_EVALUATOR_MODE') == 'classroom-switch' and
+    switched = (os.environ.get('GP_ROUTE_EVALUATOR_MODE') in ('classroom-switch', 'classroom-switch-invalid') and
                 stage_file.is_file())
     index = int(os.environ['GP_ROUTE_SWITCH_INDEX'] if switched else
                 os.environ.get('GP_ROUTE_EVALUATOR_INDEX', '5'))
@@ -29,7 +29,7 @@ def witness():
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
-                    'classroom-switch'):
+                    'classroom-switch', 'classroom-switch-invalid'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -209,7 +209,8 @@ def witness():
             raise RuntimeError('session benchmark stdout grace step interrupted')
         robot.simulationQuit(0)
         return
-    if mode in ('classroom-startup', 'classroom-invalid', 'classroom-switch'):
+    if mode in ('classroom-startup', 'classroom-invalid', 'classroom-switch',
+                'classroom-switch-invalid'):
         # Exercise the *actual* production serve_native() loop, not an
         # isolated constructor/tick emulation. This observer wraps only the
         # evaluator's methods and terminates after genuine native READY.
@@ -245,7 +246,7 @@ def witness():
                                 timestep_ms=8, ready=ready, scene_checks=scene_checks[0],
                                 new_evaluator_native_id=robot.getSelf().getId(),
                                 ready_before_mission=True)
-                if mode == 'classroom-switch':
+                if mode in ('classroom-switch', 'classroom-switch-invalid'):
                     # The first READY is in course 5. worldLoad() replaces the
                     # world with course 0 and restarts both C pilot and evaluator.
                     # Neither scene nor authority from the first incarnation
@@ -316,8 +317,46 @@ def witness():
                 robot.simulationQuit(0)
                 return
             raise RuntimeError('noncanonical initial native world was admitted')
+        if mode == 'classroom-switch-invalid' and switched:
+            # The same Webots process has loaded a *different* world, whose
+            # native L collider is malformed before the new evaluator starts.
+            # serve_native() must reject construction before any READY.
+            try:
+                publisher.serve_native(robot, course.identifier)
+            except RuntimeError as error:
+                if (not str(error).startswith('native collider world pose mismatch: GP_V2_L_') or
+                        scene_checks[0] != 1):
+                    raise
+                if robot.getSelf().getField('description').getSFString():
+                    raise RuntimeError('noncanonical reloaded world published READY')
+                first = json.loads(stage_file.read_text())
+                if (first['configuration'] == course.identifier or
+                        first['controller_pid'] == os.getpid() or
+                        first['scene_checks'] != 1):
+                    raise RuntimeError('noncanonical reload reused old evaluator identity')
+                second = dict(
+                    configuration=course.identifier, controller_pid=os.getpid(),
+                    native_evaluator_id=robot.getSelf().getId(),
+                    time_ms=round(robot.getTime() * 1000),
+                    scene_checks=scene_checks[0],
+                    rejected_before_ready=True, error=str(error))
+                evidence = dict(
+                    claim='native-classroom-world-switch-invalid-rejection-v1',
+                    webots='R2025a', timestep_ms=8,
+                    first=first, second=second,
+                    new_world_loaded=True, fresh_controller=True)
+                encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
+                output.write_text(encoded + '\n')
+                print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+                if robot.step(8) == -1:
+                    raise RuntimeError('invalid reloaded world stdout grace interrupted')
+                if robot.getSelf().getField('description').getSFString():
+                    raise RuntimeError('invalid reloaded world published READY during grace')
+                robot.simulationQuit(0)
+                return
+            raise RuntimeError('malformed reloaded world admitted by serve_native')
         publisher.serve_native(robot, course.identifier)
-        if mode == 'classroom-switch' and not switched:
+        if mode in ('classroom-switch', 'classroom-switch-invalid') and not switched:
             # worldLoad has taken ownership of termination. The second
             # incarnation alone publishes native.json; missing it fails CI.
             return
