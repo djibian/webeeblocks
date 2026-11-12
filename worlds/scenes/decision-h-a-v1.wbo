@@ -1,0 +1,47 @@
+# Activity 4 A: no student-facing clue about configuration identity.
+# At x=0.350, z=0.750, the forward ray meets the H bar near x=0.900.
+# Low flight is intended only inside x=[0.700, 1.100],
+# but the future native evaluator must enforce this observation independently.
+DEF WEBEEBLOCKS_DECISION_A_SCENE Group {
+ children [
+  Pose { translation 0 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } } ] } # start
+  Pose { translation 0.35 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.15 0.18 0.004 } } ] } # decision point
+  Pose { translation 1.70 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.34 0.34 0.004 } } ] } # target
+  Pose { translation 0.900 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # marked low-flight band
+  Pose { translation 1.587500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.587500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.587500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.587500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.662500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.662500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.662500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.662500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.737500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.737500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.737500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.737500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.812500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.812500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.812500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.812500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+# Side posts bound a genuinely open H; upper bar lower face z=0.620 m.
+  DEF ACTIVITY4_A_H_LEFT Solid {
+    translation 0.900 0.300 0.50
+    name "ACTIVITY4_A_H_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY4_A_H_RIGHT Solid {
+    translation 0.900 -0.300 0.50
+    name "ACTIVITY4_A_H_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY4_A_H_BAR Solid {
+    translation 0.900 0 0.74
+    name "ACTIVITY4_A_H_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.57 0.24 } } ]
+    boundingObject Box { size 0.07 0.57 0.24 }
+  }
+ ]
+}
