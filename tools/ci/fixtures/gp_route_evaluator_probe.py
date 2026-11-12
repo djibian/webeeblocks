@@ -50,25 +50,70 @@ def witness():
     publisher.read_native_evaluator_scene = traced_read_scene
     policy = (SCENE_POLICY_CONTINUOUS if mode == 'idle'
               else SCENE_POLICY_CLASSROOM_STATIC)
-    if mode == 'classroom-invalid':
-        try:
-            NativeRouteEvaluator(robot, course.identifier, scene_policy=policy)
-        except RuntimeError as error:
-            if not str(error).startswith('native collider world pose mismatch: GP_V2_L_'):
-                raise
-            if robot.getSelf().getField('description').getSFString():
-                raise RuntimeError('invalid native initial scene published READY')
-            evidence = dict(claim='native-classroom-startup-attestation-v1',
-                            configuration=course.identifier, webots='R2025a',
-                            timestep_ms=8, rejected_before_ready=True,
-                            scene_checks=scene_checks[0],
-                            error=str(error))
-            encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
-            output.write_text(encoded + '\n')
-            print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
-            robot.simulationQuit(0)
-            return
-        raise RuntimeError('noncanonical initial native world was admitted')
+    if mode in ('classroom-startup', 'classroom-invalid'):
+        # Exercise the *actual* production serve_native() loop, not an
+        # isolated constructor/tick emulation. This observer wraps only the
+        # evaluator's methods and terminates after genuine native READY.
+        class ObserveRealEvaluator:
+            def __init__(self, native_robot, identifier, *, scene_policy):
+                if scene_policy != SCENE_POLICY_CLASSROOM_STATIC:
+                    raise RuntimeError('product entrypoint selected non-classroom policy')
+                self.real = NativeRouteEvaluator(native_robot, identifier,
+                                                 scene_policy=scene_policy)
+
+            def tick(self):
+                self.real.tick()
+                if self.real.phase != 'ready':
+                    return
+                observation = self.real.observation
+                now = round(robot.getTime() * 1000)
+                if (scene_checks[0] != 1 or self.real._scene_snapshot is not None or
+                        observation is None or observation.time_ms != now or
+                        not observation.flight.ground_confirmed or
+                        observation.flight.sensor_period_ms != 32 or
+                        not 0 <= now - observation.flight.time_ms <= 32 or
+                        self.real._ground_since is None or
+                        now - self.real._ground_since < 500):
+                    raise RuntimeError('real serve_native READY lacked startup attestation')
+                ready = dict(time_ms=now, stable_since_ms=self.real._ground_since,
+                             sample_time_ms=observation.flight.time_ms,
+                             ranges_m=observation.flight.ranges_m,
+                             position=observation.kinematics.position,
+                             velocity=observation.kinematics.velocity,
+                             contact_count=len(observation.contacts.points))
+                evidence = dict(claim='native-classroom-startup-attestation-v1',
+                                configuration=course.identifier, webots='R2025a',
+                                timestep_ms=8, ready=ready, scene_checks=scene_checks[0],
+                                new_evaluator_native_id=robot.getSelf().getId(),
+                                ready_before_mission=True)
+                encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
+                output.write_text(encoded + '\n')
+                print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+                robot.simulationQuit(0)
+
+        publisher.NativeRouteEvaluator = ObserveRealEvaluator
+        if mode == 'classroom-invalid':
+            try:
+                publisher.serve_native(robot, course.identifier)
+            except RuntimeError as error:
+                if not str(error).startswith('native collider world pose mismatch: GP_V2_L_'):
+                    raise
+                if robot.getSelf().getField('description').getSFString():
+                    raise RuntimeError('invalid native initial scene published READY')
+                evidence = dict(claim='native-classroom-startup-attestation-v1',
+                                configuration=course.identifier, webots='R2025a',
+                                timestep_ms=8, rejected_before_ready=True,
+                                scene_checks=scene_checks[0], error=str(error))
+                encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
+                output.write_text(encoded + '\n')
+                print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+                robot.simulationQuit(0)
+                return
+            raise RuntimeError('noncanonical initial native world was admitted')
+        publisher.serve_native(robot, course.identifier)
+        if not output.is_file():
+            raise RuntimeError('production serve_native did not publish real READY')
+        return
     evaluator = NativeRouteEvaluator(robot, course.identifier, scene_policy=policy)
     evidence = dict(claim=('native-route-evaluator-ready-and-scene-revocation-no-flight'
                           if mode == 'idle' else
@@ -146,14 +191,6 @@ def witness():
             raise RuntimeError('native READY/refusal witness incomplete: ' + evaluator.phase)
         if phase == 'waiting' and evaluator.phase == 'ready':
             evidence['ready'] = ready_record(now)
-            if mode == 'classroom-startup':
-                if scene_checks[0] != 1 or evaluator._scene_snapshot is not None:
-                    raise RuntimeError('classroom startup revalidated geometry')
-                evidence['scene_checks'] = scene_checks[0]
-                evidence['new_evaluator_native_id'] = robot.getSelf().getId()
-                evidence['ready_before_mission'] = True
-                finish()
-                return
             first_context = evaluator._context
             if first_context.attempt != 1:
                 raise RuntimeError('native first attempt is not fresh')
