@@ -107,6 +107,14 @@ def witness():
                 encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
                 output.write_text(encoded + '\n')
                 print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+                # Webots forwards controller stdout on a native step. Without
+                # this grace step the JSON is durable, but the stdout mirror
+                # can be lost when the rejected world exits immediately.
+                # Do not resume serve_native() or publish READY.
+                if robot.step(8) == -1:
+                    raise RuntimeError('native invalid startup stdout grace step interrupted')
+                if robot.getSelf().getField('description').getSFString():
+                    raise RuntimeError('invalid native initial scene published READY during grace step')
                 robot.simulationQuit(0)
                 return
             raise RuntimeError('noncanonical initial native world was admitted')
