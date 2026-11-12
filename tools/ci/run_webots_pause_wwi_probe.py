@@ -52,9 +52,13 @@ def run():
         xdg_conf.parent.mkdir(parents=True, exist_ok=True)
         xdg_conf.write_text(conf.read_text(encoding='utf-8'), encoding='utf-8')
         world = ROOT / 'worlds/ci_webots_pause_wwi.wbt'
+        # Controlled A/B against R2025a --batch: the exact prior native trace
+        # reached REAL_TIME, returned from step(0), and Webots exited cleanly
+        # *inside* the first positive step. This hypothesis does not imply PASS;
+        # the real GUI, 45 s hard timeout and native postconditions stay strict.
         command = [
             'xvfb-run', '-a', '-s', '-screen 0 1280x900x24',
-            str(home / 'webots'), '--stdout', '--stderr', '--batch',
+            str(home / 'webots'), '--stdout', '--stderr',
             '--mode=realtime', str(world),
         ]
         proc = None
