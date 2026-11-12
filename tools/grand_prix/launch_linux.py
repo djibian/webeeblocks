@@ -227,10 +227,12 @@ def classroom_perspective(root):
     return text
 
 
-def launch_graphical(home, world, env):
-    """Start in a deterministic paused state before pupil program creation."""
+def launch_graphical(home, world, env, *, mode="pause"):
+    """Select Webots mode explicitly. Preview/editor/legacy keep their paused default."""
+    if mode not in ("pause", "realtime"):
+        raise ValueError(f"unsupported Webots launch mode: {mode}")
     return subprocess.run(
-        [str(home / "webots"), "--mode=pause", "--stdout", "--stderr", str(world)],
+        [str(home / "webots"), f"--mode={mode}", "--stdout", "--stderr", str(world)],
         cwd=ROOT, env=env, check=False,
     )
 
@@ -312,7 +314,10 @@ def main(argv=None):
                 stream.write(perspective_text)
             print(f"Simulation Grand Prix {label}, monde={world}", flush=True)
             print("La réussite de cette ouverture n'atteste pas encore le cycle GUI/Save/Open.", flush=True)
-            result = launch_graphical(home, world, env)
+            # The pupil's route starts READY without clicking the Webots triangle.
+            # No TAKEOFF is issued until the pupil starts their Blockly program.
+            mode = "pause" if args.legacy_u else "realtime"
+            result = launch_graphical(home, world, env, mode=mode)
             return result.returncode
         finally:
             world.unlink(missing_ok=True)
