@@ -33,10 +33,16 @@ def _cpu_total():
         return None
 
 
-def _require_reader_proof(arm, closed, delayed_gets):
+def _require_reader_proof(arm, closed, delayed_gets, stopped_at_ms=None):
     """A browser draw alone cannot prove slow/stopped-reader interference."""
-    if arm == 'viewer_stopped' and not closed:
-        raise RuntimeError('viewer_stopped did not actually close after an active native pose')
+    if arm == 'viewer_stopped':
+        if not closed:
+            raise RuntimeError('viewer_stopped did not actually close after an active native pose')
+        # If it closes after the measured active intervals, unchanged traces
+        # do not show that Webots progressed without the graphical consumer.
+        if (type(stopped_at_ms) is not int or
+                not 4008 <= stopped_at_ms <= 7000 or stopped_at_ms % 8):
+            raise RuntimeError('viewer_stopped lacks a first-active-flight close timestamp')
     if arm == 'viewer_slow' and delayed_gets < 5:
         raise RuntimeError('viewer_slow did not exercise five delayed real pose GETs')
 
@@ -86,11 +92,14 @@ def _browser_child(args):
                 renderer=report['renderer'], box_count=21)) + '\n')
             os.replace(ready_tmp, ready)
             page_stopped = False
+            stopped_at_ms = None
             while not stop.exists() and time.monotonic() - first < 120:
                 elapsed = time.monotonic() - first
                 if (args.arm == 'viewer_stopped' and elapsed >= 5 and not page_stopped
                         and page.evaluate('viewerMetrics.poseTimeMs >= 4008')):
                     # Stop only after a truly observed active native flight pose.
+                    stopped_at_ms = page.evaluate('viewerMetrics.poseTimeMs')
+                    report['viewer_closed_native_pose_ms'] = stopped_at_ms
                     report['viewer_closed_wall_s'] = elapsed
                     page.close()
                     page_stopped = True
@@ -111,7 +120,7 @@ def _browser_child(args):
                     time.sleep(.250)
             report['duration_s'] = round(time.monotonic() - first, 3)
             report['delayed_gets'] = delayed_gets
-            _require_reader_proof(args.arm, page_stopped, delayed_gets)
+            _require_reader_proof(args.arm, page_stopped, delayed_gets, stopped_at_ms)
             if not stop.exists():
                 raise RuntimeError('viewer exceeded 120s before native witness ended')
             end_cpu = _cpu_total()
