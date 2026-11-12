@@ -8,7 +8,8 @@
   var result = document.getElementById('result');
   function assert(ok, message) { if (!ok) throw new Error(message); }
   // Preserve the last completed phase if Chromium exhausts its bounded virtual time.
-  function phase(label) { result.textContent = 'RUNNING: ' + label; }
+  var lastPhase = 'not-started';
+  function phase(label) { lastPhase = label; result.textContent = 'RUNNING: ' + label; }
   function element(doc, id) { var item = doc.getElementById(id); assert(!!item, 'missing ' + id); return item; }
   // Headless Chromium can throttle a second RAF after iframe/viewport transitions.
   // Always run the same geometry assertions after a bounded event-loop turn.
@@ -199,7 +200,24 @@
     result.textContent = 'PASS compact instructions and punctual observations on two browser viewport sizes';
     result.setAttribute('data-status', 'PASS');
   } catch (error) {
-    result.textContent = 'FAIL compact UI: ' + (error && error.stack || error);
+    // Preserve evidence from the real iframe rather than masking an
+    // initialization failure as an unexplained generic timeout. These fields
+    // are observational only; no test gate, deadline or assertion changes.
+    var failedFrame = document.getElementById('editor');
+    var failedWindow = failedFrame && failedFrame.contentWindow;
+    var failedDocument = failedWindow && failedWindow.document;
+    var startupEvidence = {
+      phase: lastPhase,
+      url: failedWindow && failedWindow.location && failedWindow.location.href,
+      readyState: failedDocument && failedDocument.readyState,
+      title: failedDocument && failedDocument.title,
+      blocklyLoaded: !!(failedWindow && failedWindow.Blockly),
+      observerLoaded: !!(failedWindow && failedWindow.WebeeBlocksExecutionObserver),
+      workspace: !!(failedWindow && failedWindow.workspace),
+      runtimeProfile: !!(failedWindow && failedWindow.runtimeProfile)
+    };
+    result.textContent = 'FAIL compact UI: ' + (error && error.stack || error) +
+      '\nSTARTUP_EVIDENCE ' + JSON.stringify(startupEvidence);
     result.setAttribute('data-status', 'FAIL');
   }
 })();
