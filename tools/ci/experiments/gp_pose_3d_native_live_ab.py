@@ -48,6 +48,22 @@ def _require_reader_proof(arm, closed, delayed_gets, stopped_at_ms=None):
         raise RuntimeError('viewer_slow did not exercise five delayed real pose GETs')
 
 
+def _finish_browser_report(report, screenshot, close):
+    """Only publish success after every browser evidence operation succeeds."""
+    if screenshot is not None:
+        screenshot()
+    close()
+    report['status'] = 'WEBGL_DRAW_MEASURED_ONLY'
+
+
+def _require_browser_result(report):
+    """Reject success labels contradicted by a late screenshot/close failure."""
+    if (type(report) is not dict or
+            report.get('status') != 'WEBGL_DRAW_MEASURED_ONLY' or
+            report.get('error')):
+        raise RuntimeError('browser did not produce valid real WebGL evidence')
+
+
 def _browser_child(args):
     """Separate process avoids interfering with native.subprocess.Popen patch."""
     report = dict(kind=args.arm, status='UNPROVEN', samples=[])
@@ -145,17 +161,18 @@ def _browser_child(args):
                 span = b['wall_s'] - a['wall_s']
                 report['draw_submissions_per_s'] = ((b['frames']-a['frames'])/span
                     if span > 0 else None)
-            report['status'] = 'WEBGL_DRAW_MEASURED_ONLY'
-            if not page_stopped:
-                page.screenshot(path=str(output.with_suffix('.png')))
-            browser.close()
+            _finish_browser_report(
+                report,
+                (lambda: page.screenshot(path=str(output.with_suffix('.png'))))
+                if not page_stopped else None,
+                browser.close)
     except Exception as exc:
+        report['status'] = 'WEBGL_FAILURE'
         report['error'] = type(exc).__name__ + ': ' + str(exc)
     finally:
         report['wall_total_s'] = round(time.monotonic() - start, 3)
         output.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-    if report['status'] != 'WEBGL_DRAW_MEASURED_ONLY':
-        raise RuntimeError(report.get('error', 'browser failed'))
+    _require_browser_result(report)
 
 
 def _wait_ready(child, marker, seconds=25):
@@ -293,10 +310,17 @@ def _compare(trials):
             raise RuntimeError('native worlds differ across arms')
         mismatches = []
         for phase, (begin, end) in ipc.PHASES.items():
-            reference = {r['time_ms']: r for r in anchor if begin <= r['time_ms'] <= end}
-            observed = {r['time_ms']: r for r in rows if begin <= r['time_ms'] <= end}
-            if reference.keys() != observed.keys() or len(reference) != 375:
-                raise RuntimeError('native phase windows not aligned')
+            reference_rows = [r for r in anchor if begin <= r['time_ms'] <= end]
+            observed_rows = [r for r in rows if begin <= r['time_ms'] <= end]
+            # A dict alone conceals repeated timestamps and can yield false
+            # evidence equivalence when two sensor observations share a tick.
+            if len(reference_rows) != 375 or len(observed_rows) != 375:
+                raise RuntimeError('native phase windows not aligned (duplicate/missing tick)')
+            reference = {r['time_ms']: r for r in reference_rows}
+            observed = {r['time_ms']: r for r in observed_rows}
+            if (len(reference) != 375 or len(observed) != 375 or
+                    reference.keys() != observed.keys()):
+                raise RuntimeError('native phase windows not aligned (duplicate/missing tick)')
             for ms, old in reference.items():
                 new = observed[ms]
                 for k in ('attempt', 'phase', 'error', 'contact_count',
@@ -361,8 +385,7 @@ def main():
             if not path.is_file():
                 raise RuntimeError('native viewer metrics missing: ' + str(path))
             browser[arm] = json.loads(path.read_text())
-            if browser[arm]['status'] != 'WEBGL_DRAW_MEASURED_ONLY':
-                raise RuntimeError('browser did not produce real WebGL evidence')
+            _require_browser_result(browser[arm])
     summary = dict(schema='gp967-live-3d-native-ab-v1', status='MEASURED_ONLY',
         source='historical native R2025a flight-reset, passive WebGL presentation',
         webots_sha256=ipc.digest(home/'bin/webots-bin'),
