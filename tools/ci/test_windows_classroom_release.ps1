@@ -91,6 +91,7 @@ $required = @(
   'WINDOWS-ACCEPTANCE.md',
   'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe',
   'controllers\crazyflie_runtime_v2\runtime.ini',
+  'controllers\progression_sequence_3d\progression_sequence_3d.py',
   "${robotWindowRelative}\${robotWindowName}.html",
   "${robotWindowRelative}\vendor\VERSION",
   "${robotWindowRelative}\vendor\blockly_compressed.js",
@@ -121,6 +122,12 @@ Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $ver
 $worldPath = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
 $worldText = Get-Content -LiteralPath $worldPath -Raw
 $releaseRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$observerRelative = 'controllers\progression_sequence_3d\progression_sequence_3d.py'
+$observerSource = Join-Path $releaseRepo $observerRelative
+$observerPackaged = Join-Path $testRoot $observerRelative
+Assert-Release ((Get-FileHash -LiteralPath $observerSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $observerPackaged -Algorithm SHA256).Hash) 'Packaged Activity 1 supervisor differs from its source controller.'
+$sceneText = Get-Content -LiteralPath $scenePackaged -Raw
+Assert-Release ($sceneText -match 'controller "progression_sequence_3d"\s+supervisor TRUE') 'Packaged scene does not bind its isolated observer.'
 Assert-Release ($worldText.Contains('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {')) 'Release must open the typed neutral classroom world.'
 Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_SCENE')) 'Legacy scenario was preloaded before activity selection.'
 Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_EVALUATORS')) 'Legacy evaluators were preloaded before activity selection.'
