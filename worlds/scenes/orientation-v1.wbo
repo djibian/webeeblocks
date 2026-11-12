@@ -1,12 +1,20 @@
 DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {
   children [
     # Activity 3 teaching scene: objects below are visual only.
-    # An independent native evaluator must verify actual 3D passage and drone
-    # heading. These visible arrows do not expose an oracle or execute flight.
+    # A scene-local supervisor must observe actual passage and drone heading.
+    # These visible arrows themselves do not execute flight.
     # START: blue origin.
     Pose { translation 0 0 0.002 children [
       Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.9 }
         geometry Box { size 0.18 0.30 0.004 } }
+      # This Robot has no collider or motor command path: it only observes
+      # the simulated craft and publishes a result for its exact attempt.
+      Robot {
+        name "Progression orientation 3D evaluator"
+        controller "progression_orientation_3d"
+        supervisor TRUE
+        synchronization TRUE
+      }
     ] }
     # CHECKPOINT A: 3D position, with an orientation task.
     Pose { translation 0.450000 0.000000 0.630000 children [
