@@ -308,6 +308,61 @@
     assert(trace.length === 0, 'AST bound rejection executed backend action');
     assert(rangeReadCount === 0, 'AST bound rejection read a sensor');
 
+    // Actual Blockly 13 SVG/scrollbar exercise in Chromium (not a mocked workspace).
+    // The stack far exceeds the 240px viewport; two procedures sit offscreen.
+    var navigationDiv = document.createElement('div');
+    navigationDiv.style.cssText = 'height:240px;width:720px;position:relative';
+    document.body.insertBefore(navigationDiv, result);
+    var navigationWorkspace = Blockly.inject(navigationDiv, {
+      toolbox: document.getElementById('toolbox'), renderer:'zelos',
+      scrollbars:true, move:{scrollbars:true,drag:true,wheel:true}, sounds:false
+    });
+    var navFirst = navigationWorkspace.newBlock('webeeblocks_v2_takeoff');
+    navFirst.initSvg(); navFirst.render();
+    var navLast = navFirst;
+    for (var navIndex = 0; navIndex < 30; navIndex++) {
+      var navMove = navigationWorkspace.newBlock('webeeblocks_v2_move');
+      navMove.initSvg(); navMove.render();
+      var navNumber = navigationWorkspace.newBlock('math_number');
+      navNumber.setFieldValue('0.2', 'NUM');
+      navNumber.initSvg(); navNumber.render();
+      navMove.getInput('DISTANCE').connection.connect(navNumber.outputConnection);
+      navLast.nextConnection.connect(navMove.previousConnection);
+      navLast = navMove;
+    }
+    navFirst.moveBy(25, 25);
+    var navProcedures = [];
+    for (var navI = 0; navI < 2; navI++) {
+      var navProcedure = navigationWorkspace.newBlock('procedures_defnoreturn');
+      navProcedure.initSvg(); navProcedure.render();
+      navProcedure.moveBy(850, 350 + navI * 600);
+      navProcedures.push(navProcedure);
+    }
+    Blockly.svgResize(navigationWorkspace);
+    assert(navigationWorkspace.scrollbar, 'native Blockly scrollbars missing');
+    assert(navLast.getSvgRoot().getBoundingClientRect().bottom >
+      navigationDiv.getBoundingClientRect().bottom, 'long program did not overflow its viewport');
+    var navSnapshot = JSON.stringify(Blockly.serialization.workspaces.save(navigationWorkspace));
+    var unchangedAst = JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace));
+    navigationWorkspace.setIsReadOnly(true);
+    assert(navigationWorkspace.isReadOnly(), 'native Blockly readonly mode did not activate');
+    assert(!navigationDiv.inert, 'native scrollbar container unexpectedly inert');
+    navigationWorkspace.centerOnBlock(navProcedures[1].id, true);
+    var centered = navProcedures[1].getSvgRoot().getBoundingClientRect();
+    var viewport = navigationWorkspace.getParentSvg().querySelector('.blocklyMainBackground').getBoundingClientRect();
+    assert(centered.left < viewport.right && centered.right > viewport.left &&
+      centered.top < viewport.bottom && centered.bottom > viewport.top,
+      'native centerOnBlock did not reveal offscreen procedure');
+    navigationWorkspace.zoomCenter(1);
+    navigationWorkspace.centerOnBlock(navFirst.id, true);
+    assert(JSON.stringify(Blockly.serialization.workspaces.save(navigationWorkspace)) === navSnapshot,
+      'read-only navigation or zoom changed saved Blockly workspace');
+    assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)) === unchangedAst,
+      'read-only navigation affected an independent compiled program');
+    navigationWorkspace.setIsReadOnly(false);
+    assert(!navigationWorkspace.isReadOnly(), 'native Blockly editing did not restore');
+    navigationWorkspace.dispose();
+
     var xml = Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace));
     var roundTrip = new Blockly.Workspace();
     Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), roundTrip);

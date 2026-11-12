@@ -133,6 +133,7 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   arithmeticWorkspace.dispose();
   await require('./test_runtime_v2_while.js')();
   await require('./test_runtime_v2_procedures.js')();
+  await require('./test_runtime_v2_else_if.js')();
   await require('./test_runtime_v2_elapsed_time.js')();
   require('child_process').execFileSync('python3',[require('path').join(__dirname,'test_simulation_clock.py')],{stdio:'inherit'});
   // Classroom starter: real product Blockly + incomplete WBB + logical Save/Open.
