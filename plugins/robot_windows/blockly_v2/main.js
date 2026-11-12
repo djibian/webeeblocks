@@ -13,6 +13,8 @@ var runtimeStopRequested = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
 var runtimeDebug = null;
+var debugCurrentBlockId = null;
+var debugFollowExecution = true;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -42,7 +44,7 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   componentStyles: {
     workspaceBackgroundColour: '#f7f9fc', toolboxBackgroundColour: '#ffffff', toolboxForegroundColour: '#263342',
     flyoutBackgroundColour: '#eef2f7', flyoutForegroundColour: '#263342', flyoutOpacity: 1,
-    scrollbarColour: '#9aa7b5', scrollbarOpacity: 0.55, insertionMarkerColour: '#167f91', insertionMarkerOpacity: 0.35,
+    scrollbarColour: '#64778c', scrollbarOpacity: 0.95, insertionMarkerColour: '#167f91', insertionMarkerOpacity: 0.35,
     cursorColour: '#167f91', selectedGlowColour: '#167f91', selectedGlowOpacity: 0.18,
     replacementGlowColour: '#167f91', replacementGlowOpacity: 0.18
   },
@@ -222,7 +224,34 @@ function receiveMessage(value) {
 function setDebugControls(paused) {
   document.getElementById('stepNext').disabled = !paused;
   document.getElementById('stepContinue').disabled = !paused;
+  document.getElementById('debugShowCurrent').disabled = !paused || !debugCurrentBlockId;
   document.getElementById('stepMode').disabled = runtimeRunning || runtimeResetPending;
+}
+
+function markManualDebugNavigation() {
+  if (runtimeRunning && runtimeDebug && runtimeDebug.enabled) debugFollowExecution = false;
+}
+
+// Blockly's native view movement is not a Blockly program change.
+function showDebugCurrentBlock(force) {
+  if (!workspace || !debugCurrentBlockId || typeof workspace.centerOnBlock !== 'function') return false;
+  var block = workspace.getBlockById(debugCurrentBlockId);
+  if (!block) return false;
+  if (!force && typeof block.getSvgRoot === 'function' && typeof workspace.getParentSvg === 'function') {
+    var svg = block.getSvgRoot();
+    var background = workspace.getParentSvg().querySelector('.blocklyMainBackground');
+    if (svg && background) {
+      var bounds = svg.getBoundingClientRect();
+      var view = background.getBoundingClientRect();
+      var margin = 16;
+      if (bounds.width > 0 && bounds.height > 0 &&
+          bounds.left >= view.left + margin && bounds.right <= view.right - margin &&
+          bounds.top >= view.top + margin && bounds.bottom <= view.bottom - margin)
+        return true; // Do not jump when the block is already visible.
+    }
+  }
+  workspace.centerOnBlock(debugCurrentBlockId, true);
+  return true;
 }
 function studentDirectionLabel(direction) {
   var labels = {front: 'devant', back: 'derrière', left: 'à gauche', right: 'à droite', up: 'au-dessus'};
@@ -245,16 +274,21 @@ function renderVariables(values) {
 function wireDebugControls() {
   runtimeDebug = WebeeBlocksExecutionObserver.create(workspace, {
     onBegin: function(detail) {
+      debugCurrentBlockId = null;
+      debugFollowExecution = true;
       document.getElementById('debugState').textContent = detail.enabled ? 'Pas à pas actif' : 'Observation inactive';
       renderSensorValues({}); renderVariables(null); setDebugControls(false);
     },
     onActive: function(detail) {
+      debugCurrentBlockId = detail.blockId || null;
       var block = detail.blockId ? workspace.getBlockById(detail.blockId) : null;
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-active', { detail: {
         path: detail.path, kind: detail.node && detail.node.kind, blockId: detail.blockId, blockType: block ? block.type : null
       }}));
     },
     onPause: function(detail) {
+      debugCurrentBlockId = detail.blockId || null;
+      if (debugFollowExecution) showDebugCurrentBlock(false);
       document.getElementById('debugState').textContent = 'En pause'; setDebugControls(true);
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-paused', {detail: detail}));
     },
@@ -269,10 +303,22 @@ function wireDebugControls() {
       }}));
     },
     onVariables: function(detail) { renderVariables(detail.values); },
-    onFinish: function() { document.getElementById('debugState').textContent = 'Observation terminée'; setDebugControls(false); }
+    onFinish: function() {
+      debugCurrentBlockId = null;
+      document.getElementById('debugState').textContent = 'Observation terminée'; setDebugControls(false);
+    }
   });
   document.getElementById('stepNext').addEventListener('click', function() { runtimeDebug.next(); });
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
+  document.getElementById('debugShowCurrent').addEventListener('click', function() {
+    if (this.disabled) return;
+    debugFollowExecution = true;
+    showDebugCurrentBlock(true);
+  });
+  // Capture genuine student navigation, not viewport events generated by centerOnBlock().
+  var view = document.getElementById('blocklyDiv');
+  view.addEventListener('pointerdown', markManualDebugNavigation, true);
+  view.addEventListener('wheel', markManualDebugNavigation, {capture: true, passive: true});
 }
 
 function userStoppedError() {
@@ -405,7 +451,8 @@ function isPureVisualWorkspaceMove(event) {
     event.oldParentId == null && event.newParentId == null);
 }
 function onWorkspaceChange(event) {
-  if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
+  if (!event || event.isUiEvent === true || event.type === Blockly.Events.UI ||
+      event.type === Blockly.Events.VIEWPORT_CHANGE || isPureVisualWorkspaceMove(event)) return;
   try {
     if (event.type === Blockly.Events.BLOCK_CREATE)
       profileFieldOptions.applyWorkspace(workspace);
@@ -415,10 +462,11 @@ function onWorkspaceChange(event) {
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
 }
 function wireWorkspaceControls() {
-  document.getElementById('zoomIn').addEventListener('click', function() { workspace.zoomCenter(1); });
-  document.getElementById('zoomOut').addEventListener('click', function() { workspace.zoomCenter(-1); });
-  document.getElementById('zoomFit').addEventListener('click', function() { workspace.zoomToFit(); });
+  document.getElementById('zoomIn').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomCenter(1); });
+  document.getElementById('zoomOut').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomCenter(-1); });
+  document.getElementById('zoomFit').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomToFit(); });
   document.getElementById('zoomReset').addEventListener('click', function() {
+    markManualDebugNavigation();
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
   document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
