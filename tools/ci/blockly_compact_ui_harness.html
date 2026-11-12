@@ -156,8 +156,14 @@
         element(gpDoc, 'debugPanel').hidden = false; // Restore the real step-by-step observation precondition.
         var gpObservationToggle = element(gpDoc, 'observationToggle');
         var gpInspector = element(gpDoc, 'observationInspector');
+        if (pageSize[0] === 640) {
+          // The 1280px pass deliberately clicked Close. A viewport resize is
+          // not a new page load: reopen explicitly, then verify the same UI.
+          assert(gpInspector.hidden, 'inspector unexpectedly reopened on resize');
+          gpObservationToggle.click();
+        }
         assert(!gpInspector.hidden && gpObservationToggle.getAttribute('aria-expanded') === 'true',
-          'Grand Prix observations did not open automatically on ' + activityPage);
+          'Grand Prix observations not opened on ' + activityPage + ' at ' + pageSize[0]);
         assert(!gpInspector.hidden && gpInspector.querySelectorAll('.observationItem').length === 42, 'Grand Prix readings truncated on ' + activityPage);
         var gpBounds = gpInspector.getBoundingClientRect();
         assert(gpBounds.left >= -1 && gpBounds.right <= pageSize[0] + 1 && gpBounds.top >= -1 && gpBounds.bottom <= pageSize[1] + 1,
