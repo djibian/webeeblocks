@@ -50,7 +50,7 @@ class LiveExperimentLogic(unittest.TestCase):
     def test_bounded_browser_ready_marker(self):
         with TemporaryDirectory() as directory:
             p=Path(directory)/'ready.json'
-            p.write_text(json.dumps({'status':'REAL_WEBGL_READY'}))
+            p.write_text(json.dumps({'status':'REAL_WEBGL_READY', 'box_count':21, 'renderer':'SwiftShader'}))
             class Running:
                 def poll(self):return None
             self.assertEqual(live._wait_ready(Running(),p,seconds=.1)['status'],
@@ -60,6 +60,31 @@ class LiveExperimentLogic(unittest.TestCase):
                 def poll(self):return 1
             with self.assertRaisesRegex(RuntimeError, 'exited'):
                 live._wait_ready(Failed(),p,seconds=.1)
+
+    def test_false_stopped_arm_is_refused(self):
+        with self.assertRaisesRegex(RuntimeError, 'did not actually close'):
+            live._require_reader_proof('viewer_stopped', False, 0)
+        live._require_reader_proof('viewer_stopped', True, 0)
+        live._require_reader_proof('viewer_fast', False, 0)
+
+    def test_slow_arm_must_intercept_five_real_requests(self):
+        for count in (0, 1, 4):
+            with self.assertRaisesRegex(RuntimeError, 'five delayed real pose GETs'):
+                live._require_reader_proof('viewer_slow', False, count)
+        live._require_reader_proof('viewer_slow', False, 5)
+
+    def test_untrusted_webgl_ready_markers_fail_closed(self):
+        with TemporaryDirectory() as directory:
+            marker = Path(directory) / 'browser-ready.json'
+            class Running:
+                def poll(self): return None
+            for proof in ({}, {'status':'REAL_WEBGL_READY'},
+                          {'status':'UNPROVEN','box_count':21,'renderer':'SwiftShader'},
+                          {'status':'REAL_WEBGL_READY','box_count':0,'renderer':'SwiftShader'},
+                          {'status':'REAL_WEBGL_READY','box_count':21,'renderer':''}):
+                marker.write_text(json.dumps(proof))
+                with self.assertRaisesRegex(RuntimeError, 'invalid real WebGL readiness'):
+                    live._wait_ready(Running(), marker, seconds=.1)
 
 
 if __name__ == '__main__':
