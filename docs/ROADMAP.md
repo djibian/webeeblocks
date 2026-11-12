@@ -33,6 +33,21 @@ oracles, the 12 routes, and reproducible paired native/Windows performance.
 The historical continuous checker remains an engineering comparison path.
 No Ready/merge without independent V5 review and observed evidence.
 
+**Current operational performance path — [#914](https://github.com/djibian/webeeblocks/issues/914) is the single entry point:**
+1. Qualify [#970](https://github.com/djibian/webeeblocks/pull/970) in Draft with native pre-READY attestation/refusal, 12 routes and dynamic negatives, normal RESET, new evaluator on activity reload, 210-s terminal behavior and independent V5 review. Draft CI alone is not proof.
+2. Compare startup-static vs historical continuous checking on **one identical engine, host, route and phase**; isolate evaluator savings from rendering.
+3. Qualify [#967](https://github.com/djibian/webeeblocks/pull/967) and [#912](https://github.com/djibian/webeeblocks/issues/912): non-blocking publication of physical poses, slow-consumer isolation, local passive view at 100% resolution. Linux software-OpenGL measurements do not prove Windows results.
+4. Build and qualify the **complete Blockly Windows** candidate, target >=0.95x simulated/wall, physics 8 ms, 100% viewport, visible 25–30 FPS, unchanged native dynamic guarantees and existing V5 human checkpoint.
+
+**Retired research, evidence preserved:** #910/#922 (compact native frame),
+#911/#923 (native mutation revisions), #913 (compact authority switch), #966
+(visual fast path/refutation), #938 (WREN instrumentation and render scaling),
+#946 (experimental native engine, Windows packaging and native crash forensics),
+and #968 (anti-mutation confinement infeasibility). Their runs, source branches,
+patches, counterexamples and Windows traces remain **historical references**,
+not dependencies on the 2026-11-12 classroom model; do not reopen anti-cheat
+requirements or fuse experimental engines to reach a speed number.
+
 ## Owner priority update — 2026-11-03: Grand Prix Linux for teacher-led Blockly design
 
 The [owner's explicit decision on #587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569) **supersedes the fixed-size U/always-left-turn assumptions** below.
