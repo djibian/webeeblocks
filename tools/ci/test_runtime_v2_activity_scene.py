@@ -185,11 +185,26 @@ def main():
     assert (ROOT/'worlds/crazyflie_classroom_start.wbt').read_text()==expected
     scene=(ROOT/'worlds/scenes/sequence-v1.wbo').read_text()
     assert not re.search(r'\b(?:Solid|boundingObject|Physics)\b',scene)
-    patches=re.findall(r'Pose \{ translation ([\d. -]+) children \[ Shape \{ appearance PBRAppearance \{ baseColor ([\d. ]+) roughness [\d.]+ \} geometry Box \{ size ([\d. ]+) \}',scene)
+    # Keep all 18 *visual* markers, while accepting line breaks and the
+    # isolated supervisor nested inside the blue departure marker.
+    patches=re.findall(
+        r'Pose\s*\{\s*translation ([\d. -]+)\s+children\s*\[\s*'
+        r'Shape\s*\{\s*appearance PBRAppearance\s*\{\s*'
+        r'baseColor ([\d. ]+) roughness [\d.]+\s*\}\s*'
+        r'geometry Box\s*\{\s*size ([\d. ]+)\s*\}',
+        scene,
+    )
     assert len(patches)==18, 'complete two-marker scene, including sixteen tiles'
+    assert len(re.findall(r'\bRobot\s*\{', scene)) == 1, 'exactly one scene-only supervisor'
+    assert re.search(
+        r'\bRobot\s*\{\s*name "Progression sequence 3D evaluator"\s*'
+        r'controller "progression_sequence_3d"\s*supervisor TRUE\s*'
+        r'synchronization TRUE\s*\}',
+        scene,
+    ), 'scene-only supervisor must be named, isolated and active'
     patches=[tuple(tuple(map(float,part.split())) for part in patch) for patch in patches]
     (center,green,outer)=patches[1]
-    assert center==(0.25,0,0.002) and outer==(0.28,0.34,0.004)
+    assert center==(0.35,0.28,0.002) and outer==(0.28,0.34,0.004)
     assert green==(0.10,0.72,0.28)
     tiles=patches[2:]
     xs=sorted({p[0][0] for p in tiles});ys=sorted({p[0][1] for p in tiles})
