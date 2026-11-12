@@ -255,6 +255,7 @@ def main() -> int:
         ["python3", "-m", "py_compile", "tools/ci/run_land_contact_regression.py"],
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
+        ["python3", "tools/ci/test_progression_sequence_3d_oracle.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
@@ -417,6 +418,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "SEQUENCE_REPEAT_RESET_FRESH",
             "SEQUENCE_NOT_ACHIEVED",
             "SEQUENCE_SECOND_RESET_FRESH",
+            "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED",
+            "SEQUENCE_THIRD_RESET_FRESH",
             "SEQUENCE_ALTERNATIVE_ACHIEVED",
             "SEQUENCE_MISSION_TEST_COMPLETE",
             "ELAPSED_TIME_WEBOTS",
@@ -456,7 +459,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
                      "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
             if details[name] != {"status": "achieved"}:
                 return fail(f"unexpected achieved event {name}: {details[name]}")
-        for name in ("SEQUENCE_NOT_ACHIEVED", "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
+        for name in ("SEQUENCE_NOT_ACHIEVED", "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED",
+                     "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
                      "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
             if details[name] != {"status": "not-achieved"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
@@ -465,12 +469,14 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         }:
             return fail(f"unexpected collision event: {details['PRECISE_COLLISION_NOT_ACHIEVED']}")
         for name in ("SEQUENCE_RESET_FRESH", "SEQUENCE_REPEAT_RESET_FRESH", "SEQUENCE_SECOND_RESET_FRESH",
+                     "SEQUENCE_THIRD_RESET_FRESH",
                      "PRECISE_INITIAL_RESET_FRESH", "PRECISE_RESET_FRESH", "PRECISE_UNDERSHOOT_RESET_FRESH",
                      "PRECISE_OVERSHOOT_RESET_FRESH", "PRECISE_LATERAL_RESET_FRESH", "PRECISE_COLLISION_RESET_FRESH"):
             if details[name] != {"code": "OUTCOME_UNAVAILABLE"}:
                 return fail(f"outcome survived reset at {name}: {details[name]}")
         if details["SEQUENCE_MISSION_TEST_COMPLETE"] != {
-            "canonical": "achieved", "repeat": "achieved", "negative": "not-achieved", "alternative": "achieved"
+            "canonical": "achieved", "repeat": "achieved", "negative": "not-achieved",
+            "forwardOnly": "not-achieved", "alternative": "achieved"
         }:
             return fail(f"unexpected sequence mission summary: {details['SEQUENCE_MISSION_TEST_COMPLETE']}")
         if details["PRECISE_MISSION_TEST_COMPLETE"] != {
@@ -480,17 +486,19 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             return fail(f"unexpected precise mission summary: {details['PRECISE_MISSION_TEST_COMPLETE']}")
 
         for marker in (
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=4 status=achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=5 status=achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_READY target_x=0.350 target_y=0.280",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=1 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=2 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=3 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=4 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=5 status=achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=7 status=not-achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=8 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_COLLISION attempt=9",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=9 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=achieved",
+            "WEBEEBLOCKS_PRECISE_COLLISION attempt=10",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=11 status=achieved",
         ):
             if marker not in webots_log:
                 return fail(f"missing Webots progression marker: {marker}", webots_log[-14000:])
