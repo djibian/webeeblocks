@@ -347,8 +347,10 @@ class NativeRouteEvaluator:
 def serve_native(robot, identifier):
     # Trusted, teacher-managed Grand Prix simulation only. This does NOT
     # establish anti-tamper security or authorize any physical Crazyflie flight.
+    # Keep this entrypoint self-contained for native timing fallbacks that
+    # execute its function body in isolation during CI.
     evaluator = NativeRouteEvaluator(robot, identifier,
-                                     scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+                                     scene_policy='classroom-static-v1')
     # The ordinary mission path remains completely unchanged.
     import os
     if os.environ.get('WEBEEBLOCKS_GP_STEP_WALL_PROBE') != '1':

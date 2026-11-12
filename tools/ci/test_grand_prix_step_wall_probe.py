@@ -77,8 +77,9 @@ class ServeNativeSafetyTests(unittest.TestCase):
             return .008 * self.calls
 
     class Evaluator:
-        def __init__(self, robot, course):
+        def __init__(self, robot, course, *, scene_policy):
             assert course == 'course'
+            assert scene_policy == 'classroom-static-v1'
             self.robot = robot
 
         def tick(self):
