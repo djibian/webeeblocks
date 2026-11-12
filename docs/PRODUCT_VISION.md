@@ -39,6 +39,16 @@ This deliberately narrows the simulation **threat model**, not the pedagogical
 difficulty or physical-flight safety. Preserve the historical strict geometry
 checker as an engineering reference until the new mode is natively qualified.
 
+**Current engineering path (12 November 2026):** [#970](https://github.com/djibian/webeeblocks/pull/970)
+implements the startup-attestation policy (Draft pending native/independent
+qualification), while [#967](https://github.com/djibian/webeeblocks/pull/967)
+investigates independent, non-blocking physical pose publication and passive
+100%-resolution 3D display. [#914](https://github.com/djibian/webeeblocks/issues/914)
+is the sole performance-delivery entry point, with [#912](https://github.com/djibian/webeeblocks/issues/912)
+for graphics. Compact mutation/frame (#910/#911/#913, #922/#923/#946),
+visual-read caching (#966), and WREN render scaling (#938) are retained
+**historical experiments**, not active prerequisites or product architecture.
+
 ## Owner decision, 2026-11-03 — Linux Grand Prix with variable sensed corners
 
 The owner will **personally design the pupil's one Blockly program first** using
