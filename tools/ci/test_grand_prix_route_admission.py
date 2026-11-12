@@ -170,6 +170,32 @@ int main(){
  admit();alive(2144);evidence.insert(evidence.find("epoch=")+6,"0");oneLand();
  admit();now=std::numeric_limits<double>::quiet_NaN();assert(gp_u_next_step(32)==32);oneLand();
  admit();now=2.111;oneLand();
+ // Only the variable Grand Prix native pilot may publish read-only simulated
+ // seconds. A canonical browser nonce must be bound to the current challenge,
+ // and neither malformed requests nor a stale post-RESET nonce authorize ticks.
+ const std::string clockNonce="0123456789abcdef0123456789abcdef";
+ fresh();ready();
+ assert(gp_u_filter_raw("GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce=invalid")==0);
+ assert(reply.empty());
+ const std::string subscribe="GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce="+clockNonce;
+ assert(gp_u_filter_raw(subscribe.c_str())==0);
+ assert(reply=="GP_ROUTE_CLOCK_V1 ACK nonce="+clockNonce+" attempt=1");
+ assert(gp_u_start(now)==1);alive(2144);
+ assert(gp_u_deadline(now,0)==0);
+ assert(reply=="GP_ROUTE_CLOCK_V1 TICK nonce="+clockNonce+" attempt=1 seconds=0");
+ const std::string firstClock=reply;
+ alive(2176);assert(gp_u_deadline(now,0)==0);assert(reply==firstClock);
+ alive(3120);assert(gp_u_deadline(now,0)==0);
+ assert(reply=="GP_ROUTE_CLOCK_V1 TICK nonce="+clockNonce+" attempt=1 seconds=1");
+ gp_u_reset_complete();reply.clear();
+ assert(gp_u_filter_raw(subscribe.c_str())==0);
+ assert(reply.empty()); // Old subscription cannot bind without a fresh challenge.
+ // Flight STOP also retires the non-authoritative clock stream.
+ admit();assert(gp_u_filter_raw(subscribe.c_str())==0);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 77 STOP")==1);
+ const std::string stoppedClock=reply;
+ alive(2144);assert(gp_u_deadline(now,0)==0);
+ assert(reply==stoppedClock);
  // Failure remains terminal, files stay fenced, RESET waits for actual landing.
  admit();alive(2144);evidence.clear();oneLand();
  // Evaluator's first factual cause must survive the subsequent independent
