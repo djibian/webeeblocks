@@ -493,7 +493,9 @@ int main(){
             with patch.object(runner, 'OUT', out), patch.object(runner.subprocess, 'Popen') as spawned:
                 spawned.return_value.wait.return_value = 0
                 spawned.return_value.poll.return_value = 0
-                with self.assertRaisesRegex(RuntimeError, 'identity mismatch'):
+                # No native.json means missing mode/claim evidence; the
+                # process exit code alone is never an identity/READY proof.
+                with self.assertRaisesRegex(RuntimeError, 'native evaluator probe mode/claim mismatch'):
                     runner.run_case(home, {}, 'idle')
                 self.assertTrue(spawned.call_args.kwargs['start_new_session'])
             self.assertEqual(len(list(out.glob('*-invocation-*/native.log'))), 1)
