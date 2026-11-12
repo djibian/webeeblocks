@@ -146,7 +146,10 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertEqual(scene.count(" Solid {"), 3)
         self.assertNotIn("Py_Initialize", src)
         self.assertNotIn("python.exe", src)
-        self.assertNotIn("Blockly", src)
+        # Do not reject the explanatory comment "No ... Blockly inspection";
+        # prohibit Blockly coupling in the compiled implementation itself.
+        implementation = src.split("*/", 1)[-1]
+        self.assertNotIn("Blockly", implementation)
         self.assertNotIn("wb_robot_set_mode", src)
         self.assertTrue(CORE.is_file())
 
