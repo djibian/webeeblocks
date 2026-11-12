@@ -19,6 +19,12 @@ explicit change in scope, **not** permission to weaken flight dynamics, sensors,
 collisions, mission oracles, native identity/clock/liveness, STOP/RESET/LAND,
 or any independent real-Crazyflie authorization or hardware safety gate.
 Document and test the distinction; a Draft is not qualified for release.
+For this specific performance effort, the active references are #970 (startup
+attestation), #967/#912 (independent rendering), and #914 (Windows delivery).
+Historic compact-frame/revision work #910/#911/#913 and PRs #922/#923/#946,
+visual caching #966, and WREN render-scale changes #938 are experimental
+evidence, **not active safety or architecture dependencies**. Do not remove
+dynamic oracle checks or infer a Windows product PASS from Linux benchmarks.
 
 ## 1 — Stateless Controllers
 
