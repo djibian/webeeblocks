@@ -33,6 +33,14 @@ def _cpu_total():
         return None
 
 
+def _require_reader_proof(arm, closed, delayed_gets):
+    """A browser draw alone cannot prove slow/stopped-reader interference."""
+    if arm == 'viewer_stopped' and not closed:
+        raise RuntimeError('viewer_stopped did not actually close after an active native pose')
+    if arm == 'viewer_slow' and delayed_gets < 5:
+        raise RuntimeError('viewer_slow did not exercise five delayed real pose GETs')
+
+
 def _browser_child(args):
     """Separate process avoids interfering with native.subprocess.Popen patch."""
     report = dict(kind=args.arm, status='UNPROVEN', samples=[])
@@ -49,9 +57,12 @@ def _browser_child(args):
             browser = playwright.chromium.launch(**launch)
             page = browser.new_page(viewport=dict(width=960, height=620),
                                     device_scale_factor=1)
+            delayed_gets = 0
             if args.arm == 'viewer_slow':
                 # Delay the *real* localhost GET before forwarding, no fake poses.
                 def slow_pose(route):
+                    nonlocal delayed_gets
+                    delayed_gets += 1
                     time.sleep(.750)
                     route.continue_()
                 page.route('**/pose', slow_pose)
@@ -69,8 +80,11 @@ def _browser_child(args):
                 raise RuntimeError('not the expected native 21-Box witness')
             start_cpu = _cpu_total()
             first = time.monotonic()
-            ready.write_text(json.dumps(dict(status='REAL_WEBGL_READY',
+            # Atomic marker: the parent must never read a partial JSON file.
+            ready_tmp = ready.with_name(ready.name + '.tmp')
+            ready_tmp.write_text(json.dumps(dict(status='REAL_WEBGL_READY',
                 renderer=report['renderer'], box_count=21)) + '\n')
+            os.replace(ready_tmp, ready)
             page_stopped = False
             while not stop.exists() and time.monotonic() - first < 120:
                 elapsed = time.monotonic() - first
@@ -96,6 +110,8 @@ def _browser_child(args):
                 else:
                     time.sleep(.250)
             report['duration_s'] = round(time.monotonic() - first, 3)
+            report['delayed_gets'] = delayed_gets
+            _require_reader_proof(args.arm, page_stopped, delayed_gets)
             if not stop.exists():
                 raise RuntimeError('viewer exceeded 120s before native witness ended')
             end_cpu = _cpu_total()
@@ -136,7 +152,13 @@ def _wait_ready(child, marker, seconds=25):
     until = time.monotonic() + seconds
     while time.monotonic() < until:
         if marker.is_file():
-            return json.loads(marker.read_text())
+            proof = json.loads(marker.read_text())
+            if (type(proof) is not dict or proof.get('status') != 'REAL_WEBGL_READY'
+                    or proof.get('box_count') != 21
+                    or not isinstance(proof.get('renderer'), str)
+                    or not proof['renderer']):
+                raise RuntimeError('invalid real WebGL readiness evidence')
+            return proof
         if child.poll() is not None:
             raise RuntimeError('3D browser preflight exited before WebGL readiness')
         time.sleep(.1)
