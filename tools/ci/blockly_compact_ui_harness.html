@@ -115,6 +115,7 @@
         var pageVariables = {};
         for (var v = 0; v < 40; v++) pageVariables['variable_longue_' + v + '_nom_complet'] = v + 0.25;
         gpWin.renderVariables(pageVariables);
+        element(gpDoc, 'debugPanel').hidden = false; // Restore the real step-by-step observation precondition.
         var gpObservationToggle = element(gpDoc, 'observationToggle');
         gpObservationToggle.click();
         var gpInspector = element(gpDoc, 'observationInspector');

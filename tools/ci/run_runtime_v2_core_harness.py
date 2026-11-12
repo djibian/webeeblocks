@@ -53,6 +53,13 @@ def main():
         if project.get('activity',{}).get('id') != activity_id:
             print(f'FAIL progression starter mapping {filename}', file=sys.stderr); return 1
     print('PASS ordered progression starter files map one-to-one to activity profiles')
+    toolbox_defaults_test=subprocess.run(['node','plugins/robot_windows/blockly_v2/test_toolbox_defaults.js'],text=True,capture_output=True)
+    if toolbox_defaults_test.returncode:
+        print('FAIL Runtime v2 Blockly toolbox defaults',file=sys.stderr)
+        print(toolbox_defaults_test.stdout,file=sys.stderr)
+        print(toolbox_defaults_test.stderr,file=sys.stderr)
+        return toolbox_defaults_test.returncode
+    print(toolbox_defaults_test.stdout.strip())
     variable_test=subprocess.run(['node','tools/ci/test_runtime_v2_variables.js'],text=True,capture_output=True)
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
