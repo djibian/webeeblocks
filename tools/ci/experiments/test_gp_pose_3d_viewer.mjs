@@ -7,7 +7,7 @@ import { runInNewContext } from 'node:vm';
 
 const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)),
   'gp_pose_3d_viewer.html'), 'utf8');
-const match = html.match(/<script>([\\s\\S]*?)<\\/script>/);
+const match = html.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(match, 'inline renderer script exists');
 
 function harness(poseFetch) {
