@@ -86,9 +86,9 @@ def check_native(data):
 
 def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
-                    'paired-benchmark', 'session-benchmark'):
+                    'paired-benchmark', 'session-benchmark', 'flight-window'):
         raise RuntimeError('unknown native evaluator probe mode')
-    if mode == 'session-benchmark':
+    if mode in ('session-benchmark', 'flight-window'):
         if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
             raise RuntimeError('session benchmark policy required')
     elif profile_policy is not None:
@@ -108,7 +108,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         (project / 'worlds').mkdir()
         controllers = project / 'controllers'
         controllers.mkdir()
-        if mode != 'flight-reset':
+        if mode not in ('flight-reset', 'flight-window'):
             (controllers / 'grand_prix_route_flight').symlink_to(ROOT / 'controllers/grand_prix_route_flight', target_is_directory=True)
         else:
             flight = controllers / 'grand_prix_route_flight'
@@ -145,7 +145,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             GP_ROUTE_PILOT_NATIVE_READY_OUT=str(case / 'pilot-native-ready.txt'),
             GP_ROUTE_PILOT_COURSE_ID=course.identifier,
             GP_ROUTE_EVALUATOR_INDEX=str(index))
-        if mode == 'session-benchmark':
+        if mode in ('session-benchmark', 'flight-window'):
             environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
         process = None
         try:
@@ -160,7 +160,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                 # Bound the flight/LAND/RESET wall budget using this actual
                 # R2025a pace; retain idle's 120 s, all native assertions,
                 # 8-ms sampling and the 210000-ms mission deadline.
-                status = process.wait(timeout=120 if mode != 'flight-reset' else 420)
+                status = process.wait(timeout=420 if mode in ('flight-reset', 'flight-window') else 120)
                 if status != 0:
                     raise RuntimeError('native evaluator Webots failed: ' + str(log))
         finally:
@@ -175,14 +175,74 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-route-evaluator-independent-session-cycles-v1'
+        expected_claim = ('native-route-evaluator-real-airborne-window-v1'
+                          if mode == 'flight-window' else
+                          'native-route-evaluator-independent-session-cycles-v1'
                           if mode == 'session-benchmark' else
                           'native-route-evaluator-paired-ticks-v1' if mode == 'paired-benchmark'
                           else 'native-classroom-startup-attestation-v1' if classroom
                           else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
         if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
-        if mode == 'session-benchmark':
+        if mode == 'flight-window':
+            _check_ready(data.get('ready'))
+            streams = data.get('streams')
+            required = ('step_wall_ns', 'tick_wall_ns', 'cycle_wall_ns',
+                        'sim_time_ms', 'altitude_m')
+            start = data.get('start_ms')
+            ack = data.get('takeoff_ack_ms')
+            airborne = data.get('first_airborne_ms')
+            first = data.get('first_sim_ms')
+            last = data.get('last_sim_ms')
+            window = data.get('measured_window_wall_ns')
+            expected_reads = 96 if profile_policy == 'historical-continuous-v1' else 0
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
+                    data.get('phase') != 'active-airborne' or
+                    data.get('native_pilot') is not True or
+                    data.get('no_pupil_program') is not True or
+                    data.get('policy') != profile_policy or
+                    data.get('samples') != 96 or data.get('simulated_ms') != 768 or
+                    type(start) is not int or type(ack) is not int or
+                    type(airborne) is not int or type(first) is not int or
+                    type(last) is not int or any(v % 8 for v in
+                         (start, ack, airborne, first, last)) or
+                    not data['ready']['time_ms'] <= start <= ack <= airborne < first or
+                    last - first != 760 or
+                    type(window) is not int or window <= 0 or
+                    data.get('scene_reads_measured') != expected_reads or
+                    (profile_policy == 'classroom-static-v1' and
+                     data.get('scene_checks_total') != 1) or
+                    (profile_policy == 'historical-continuous-v1' and
+                     (type(data.get('scene_checks_total')) is not int or
+                      data['scene_checks_total'] < 97)) or
+                    type(streams) is not dict or set(streams) != set(required)):
+                raise RuntimeError('native airborne A/B provenance invalid')
+            for key in required:
+                values = streams[key]
+                if type(values) is not list or len(values) != 96:
+                    raise RuntimeError('native airborne observation series absent')
+            for key in required[:3]:
+                if any(type(v) is not int or v <= 0 for v in streams[key]):
+                    raise RuntimeError('native airborne cycle series invalid')
+            if streams['sim_time_ms'] != list(range(first, last + 8, 8)):
+                raise RuntimeError('native airborne sample clock not contiguous')
+            if (any(type(z) not in (int, float) or not math.isfinite(z) or
+                    not .20 <= z <= 1.165 for z in streams['altitude_m']) or
+                    type(data.get('first_airborne_z')) not in (int, float) or
+                    not .20 <= data['first_airborne_z'] <= 1.165):
+                raise RuntimeError('native airborne physics outside sample bounds')
+            if any(step + tick != cycle for step, tick, cycle in zip(
+                    streams['step_wall_ns'], streams['tick_wall_ns'],
+                    streams['cycle_wall_ns'])):
+                raise RuntimeError('native airborne step/tick/cycle mismatch')
+            if window < sum(streams['cycle_wall_ns']):
+                raise RuntimeError('native airborne wall window undercounts cycles')
+            if (text.splitlines().count('GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF') != 1 or
+                    text.splitlines().count(f'GP_ROUTE_PILOT_ACK id=1 time_ms={ack}') != 1 or
+                    text.splitlines().count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1):
+                raise RuntimeError('native airborne TAKEOFF broker evidence absent')
+        elif mode == 'session-benchmark':
             expected_metrics = ('step_wall_ns', 'tick_wall_ns', 'cycle_wall_ns')
             series = data.get('durations_ns')
             first, last = data.get('first_sim_ms'), data.get('last_sim_ms')
@@ -380,4 +440,45 @@ def run_native(home, env):
     (OUT / 'session-benchmark-summary.json').write_text(
         json.dumps(summary, sort_keys=True, indent=2) + '\n')
     print('PASS 3 matched native R2025a A/B session pairs; no GUI/FPS/Windows claim',
+          flush=True)
+
+    # One bounded real native airborne A/B pair, with identical C pilot
+    # stimulus and without changing policy, PID, or mission oracles.
+    flight = []
+    for policy in policies:
+        data, case = run_case(home, env, 'flight-window', 5,
+                              profile_policy=policy)
+        durations = data['streams']
+        flight.append(dict(
+            policy=policy, case_directory=case.name,
+            world_sha256=hashlib.sha256(
+                (case / 'world.wbt').read_bytes()).hexdigest(),
+            native_json_sha256=hashlib.sha256(
+                (case / 'native.json').read_bytes()).hexdigest(),
+            samples=96, first_sim_ms=data['first_sim_ms'],
+            last_sim_ms=data['last_sim_ms'], start_ms=data['start_ms'],
+            takeoff_ack_ms=data['takeoff_ack_ms'],
+            first_airborne_z=data['first_airborne_z'],
+            first_sample_z=durations['altitude_m'][0],
+            last_sample_z=durations['altitude_m'][-1],
+            measured_window_wall_ns=data['measured_window_wall_ns'],
+            step_total_ns=sum(durations['step_wall_ns']),
+            tick_total_ns=sum(durations['tick_wall_ns']),
+            cycle_total_ns=sum(durations['cycle_wall_ns']),
+            scene_reads_measured=data['scene_reads_measured']))
+    if len(flight) != 2 or flight[0]['world_sha256'] != flight[1]['world_sha256']:
+        raise RuntimeError('native airborne A/B does not compare one world')
+    summary = dict(
+        claim='native-route-evaluator-airborne-ab-no-pupil-program-v1',
+        course=reference_course(5).identifier, webots='R2025a',
+        webots_image=env.get('WEBEEBLOCKS_GP_WEBOTS_IMAGE'),
+        host=__import__('platform').node(), mode='batch-fast-minimized',
+        order='AB', policies=policies, samples_per_policy=96, sessions=flight,
+        ratios_historical_over_classroom={
+            field: round(flight[0][field] / flight[1][field], 6)
+            for field in ('step_total_ns', 'tick_total_ns', 'cycle_total_ns',
+                          'measured_window_wall_ns')})
+    (OUT / 'flight-window-summary.json').write_text(
+        json.dumps(summary, sort_keys=True, indent=2) + '\n')
+    print('PASS bounded real R2025a TAKEOFF/ALIVE A/B flight window; no GUI/FPS/full mission claim',
           flush=True)
