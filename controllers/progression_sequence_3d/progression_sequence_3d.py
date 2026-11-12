@@ -3,7 +3,7 @@
 
 The controller is spawned *inside* scene sequence-v1 and disappears on scene
 switch. It reads only the real Supervisor pose/velocity and runtime customData,
-never Blockly or the pupil AST. It cannot command flight.
+never the pupil's program representation. It cannot command flight.
 """
 import math
 import re
