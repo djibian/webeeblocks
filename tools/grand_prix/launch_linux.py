@@ -206,10 +206,33 @@ def prepare_native(home):
     return env
 
 
-def launch_graphical(home, world, env):
-    """Start in a deterministic paused state before pupil program creation."""
+def classroom_perspective(root):
+    """Use the accepted R2025a classroom presentation for temporary worlds.
+
+    The perspective hides the Camera overlay and development docks while
+    keeping the native Camera device and Robot Window unchanged.
+    """
+    text = (root / "worlds/.crazyflie_runtime_v2.wbproj").read_text(encoding="utf-8")
+    required = (
+        "Webots Project File version R2025a\n",
+        "\nperspectives: ",
+        "\nsimulationViewPerspectives: ",
+        "\nrenderingDevicePerspectives: Crazyflie WebeeBlocks:camera;0;1;0;0\n",
+        "\nrobotWindow: Crazyflie WebeeBlocks\n",
+    )
+    if (not text.startswith(required[0]) or
+            any(marker not in text for marker in required[1:]) or
+            text.count("robotWindow:") != 1):
+        raise RuntimeError("Perspective scolaire Webots R2025a invalide")
+    return text
+
+
+def launch_graphical(home, world, env, *, mode="pause"):
+    """Select Webots mode explicitly. Preview/editor/legacy keep their paused default."""
+    if mode not in ("pause", "realtime"):
+        raise ValueError(f"unsupported Webots launch mode: {mode}")
     return subprocess.run(
-        [str(home / "webots"), "--mode=pause", "--stdout", "--stderr", str(world)],
+        [str(home / "webots"), f"--mode={mode}", "--stdout", "--stderr", str(world)],
         cwd=ROOT, env=env, check=False,
     )
 
@@ -271,6 +294,8 @@ def main(argv=None):
         if not args.preflight_only and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             raise RuntimeError("Session graphique absente : ouvrir une session Linux avec affichage")
         home = webots_home(args.webots_home)
+        if not args.preflight_only:
+            perspective_text = classroom_perspective(ROOT)
         env = prepare_native(home) if args.legacy_u else prepare_route_native(home)
         if args.preflight_only:
             print("Préflight technique terminé ; aucun test GUI ni vol simulé n'a été exécuté.")
@@ -279,19 +304,20 @@ def main(argv=None):
                                     suffix=".wbt", dir=ROOT / "worlds")
         world = Path(name)
         project = world.with_name("." + world.stem + ".wbproj")
-        owns_project = args.legacy_u  # R2025a may create the legacy perspective.
+        owns_project = False
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 stream.write(scene)
-            if not args.legacy_u:
-                # R2025a restores the robot window from the world perspective.
-                with project.open("x", encoding="utf-8") as stream:
-                    owns_project = True
-                    stream.write("Webots Project File version R2025a\n"
-                                 "robotWindow: Crazyflie WebeeBlocks\n")
+            # One fresh per-world perspective; never overwrite a teacher file.
+            with project.open("x", encoding="utf-8") as stream:
+                owns_project = True
+                stream.write(perspective_text)
             print(f"Simulation Grand Prix {label}, monde={world}", flush=True)
             print("La réussite de cette ouverture n'atteste pas encore le cycle GUI/Save/Open.", flush=True)
-            result = launch_graphical(home, world, env)
+            # The pupil's route starts READY without clicking the Webots triangle.
+            # No TAKEOFF is issued until the pupil starts their Blockly program.
+            mode = "pause" if args.legacy_u else "realtime"
+            result = launch_graphical(home, world, env, mode=mode)
             return result.returncode
         finally:
             world.unlink(missing_ok=True)

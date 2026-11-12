@@ -56,4 +56,95 @@ if (typeof window.addEventListener === 'function') {
   });
  });
 }
+
+// Read-only Grand Prix route clock. The native ELAPSED command observes Webots
+// time since admitted TAKEOFF; it is never an outcome, oracle or deadline source.
+(function installRouteClock() {
+  if (typeof window.addEventListener !== 'function') return;
+  var element = null, interval = null, generation = 0;
+  var running = false, pending = false, last = null;
+  function mount() {
+    if (!element && typeof document !== 'undefined' && document &&
+        typeof document.getElementById === 'function' &&
+        typeof document.createElement === 'function') {
+      var panel = document.getElementById('observationReadouts');
+      if (panel) {
+        element = document.createElement('div');
+        element.id = 'grandPrixElapsedClock';
+        element.setAttribute('aria-live', 'off');
+        element.style.fontVariantNumeric = 'tabular-nums';
+        element.style.whiteSpace = 'nowrap';
+        panel.appendChild(element);
+      }
+    }
+    return !!element;
+  }
+  function format(seconds) {
+    var whole = Math.floor(seconds + 1e-9); // Native Webots elapsed; never extrapolate from wall time.
+    return String(Math.floor(whole / 60)).padStart(2, '0') + 'min ' +
+      String(whole % 60).padStart(2, '0') + 's';
+  }
+  function face(value) { return format(value === null ? 0 : value) + ' / 03min 30s'; }
+  function show(text) {
+    if (mount()) element.textContent = text;
+  }
+  function empty() { show(face(null)); }
+  function clear() {
+    generation += 1;
+    running = false;
+    pending = false;
+    if (interval !== null) window.clearInterval(interval);
+    interval = null;
+  }
+  function reset() {
+    clear();
+    last = null;
+    empty();
+  }
+  function finish() {
+    clear();
+    show(face(last));
+  }
+  function sample() {
+    if (!running || pending) return;
+    var backend = window.runtimeBackend;
+    if (!backend || !backend.ready || typeof backend.readElapsedTime !== 'function') {
+      if (last !== null) show(face(last));
+      return;
+    }
+    var bound = generation;
+    pending = true;
+    Promise.resolve().then(function() { return backend.readElapsedTime(); }).then(function(seconds) {
+      if (bound !== generation || !running) return;
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 ||
+          (last !== null && seconds < last)) {
+        show(face(last));
+        return;
+      }
+      last = seconds;
+      show(face(seconds));
+    }, function() {
+      if (bound !== generation || !running) return;
+      // TIME_UNAVAILABLE is expected before TAKEOFF completes and after LAND.
+      show(face(last));
+    }).finally(function() {
+      if (bound === generation) pending = false;
+    });
+  }
+  function start() {
+    if (running) return;
+    reset();
+    running = true;
+    sample();
+    interval = window.setInterval(sample, 1000); // <= 1 request/s; never overlap.
+  }
+  window.addEventListener('webeeblocks-ui-ready', empty);
+  window.addEventListener('webeeblocks-runtime-v2', function(event) {
+    var state = event && event.detail && event.detail.state;
+    if (state === 'EXÉCUTION') start();
+    else if (state === 'PRÊT' || state === 'INITIALISATION' || state === 'RÉINITIALISATION') reset();
+    else if (state) finish();
+  });
+})();
+
 })();

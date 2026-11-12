@@ -106,6 +106,22 @@ class PureVariableAttemptTests(unittest.TestCase):
                 low.assert_called_once()
                 self.assertIs(low.call_args.kwargs['final'], allowed)
 
+    def test_only_swept_course_boundary_gets_a_public_reason(self):
+        from unittest.mock import patch
+        from tools.grand_prix.oracle_leg_cursor_v2 import LegCursorError
+        course = reference_course(5)
+        for diagnostic, expected in (
+            ('swept-course-boundary', 'course-boundary'),
+            ('skipped or reversed segment', 'invalid-route-observation'),
+        ):
+            with self.subTest(diagnostic=diagnostic):
+                fresh = start_pure_attempt(course, 2, .015, 0)
+                with patch('tools.grand_prix.oracle_attempt_v2.advance_course_progress',
+                           side_effect=LegCursorError(diagnostic)):
+                    ended = observe(fresh, 2, 8, fresh.progress.pose, (0.,0.,0.))
+                self.assertEqual(ended.result.status, 'not-achieved')
+                self.assertEqual(ended.result.reason, expected)
+
     def test_irreversible_timeout_and_identity(self):
         course = reference_course(1)
         original = start_pure_attempt(course, 1, .015, 0)

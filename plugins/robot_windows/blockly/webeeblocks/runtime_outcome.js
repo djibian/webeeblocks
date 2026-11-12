@@ -51,12 +51,29 @@
     return !!(evaluation && evaluation.type === MISSION_EVALUATION_TYPE);
   }
 
-  function classifyMission(raw) {
+  var GRAND_PRIX_PUBLIC_REASONS = Object.freeze({
+    'envelope-contact': 'Collision avec un obstacle',
+    'course-boundary': 'Sortie de piste',
+    'altitude': 'Altitude interdite',
+    'low-outside-zone': 'Vol bas hors des zones autorisées',
+    'wrong-landing': 'Mauvaise zone d’arrivée',
+    'time-limit': 'Durée maximale de 210 secondes dépassée'
+  });
+
+  function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
     var presentation = MISSION_STATES[status];
     if (!presentation)
       throw new Error('runtime outcome: invalid mission state: ' + String(status));
-    return {status: status, state: presentation.state, detail: presentation.detail};
+    var detail = presentation.detail;
+    // A reason is displayable only on the authorized Grand Prix oracle's
+    // negative result, not on generic statuses or transport TIME_LIMIT.
+    var reason = raw && typeof raw === 'object' && raw.reason;
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'grand-prix-route-v2' &&
+        Object.prototype.hasOwnProperty.call(GRAND_PRIX_PUBLIC_REASONS, reason))
+      detail += ' — ' + GRAND_PRIX_PUBLIC_REASONS[reason];
+    return {status: status, state: presentation.state, detail: detail};
   }
 
   async function evaluateMission(profile, backend) {
@@ -70,7 +87,7 @@
     // Generic/mock backends that already return a terminal result remain valid.
     if (typeof backend.completeActivityMission === 'function')
       await backend.completeActivityMission(evaluation);
-    return classifyMission(await backend.readActivityOutcome(evaluation));
+    return classifyMission(await backend.readActivityOutcome(evaluation), evaluation);
   }
 
   async function readMissionFailure(profile, backend, error) {
@@ -91,7 +108,7 @@
     // evaluators that publish an irreversible failure before Runtime fail-safe can
     // therefore be consumed without inventing any later completion boundary.
     try {
-      var latched = classifyMission(await backend.readActivityOutcome(evaluation));
+      var latched = classifyMission(await backend.readActivityOutcome(evaluation), evaluation);
       return latched.status === 'not-achieved' ? latched : null;
     } catch (outcomeError) {
       // Missing or another oracle's terminal marker is not itself mission-failure
@@ -109,7 +126,7 @@
       // irreversible failure it had already observed; otherwise OUTCOME remains
       // unavailable and the original UNSAFE_OR_TIMEOUT classification is kept.
       await backend.probeActivityMissionFailure(evaluation);
-      var probed = classifyMission(await backend.readActivityOutcome(evaluation));
+      var probed = classifyMission(await backend.readActivityOutcome(evaluation), evaluation);
       return probed.status === 'not-achieved' ? probed : null;
     } catch (probeError) {
       return null;

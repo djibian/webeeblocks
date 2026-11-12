@@ -33,8 +33,9 @@ header {
   z-index: 5;
 }
 
-#activityCopy { min-width: 0; max-width: 860px; }
-h1 { margin: 0 0 5px; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; }
+#activityCopy { display: flex; align-items: center; gap: 12px; min-width: 0; max-width: 860px; }
+h1 { margin: 0; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; overflow-wrap: anywhere; }
+#activityInstructionsToggle { flex: none; min-height: 34px; padding: 5px 11px; }
 p { margin: 0; color: var(--wb-muted); font-size: 14px; line-height: 1.4; }
 
 button {
@@ -95,6 +96,28 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
 #runtimeDetail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 #workspaceShell { position: relative; flex: 1; min-height: 0; background: var(--wb-workspace); }
+
+/* Overlays do not change Blockly's available workspace dimensions. */
+.floatingPanel {
+  position: absolute;
+  z-index: 25;
+  width: min(520px, calc(100% - 24px));
+  max-height: min(65vh, calc(100% - 24px));
+  overflow: auto;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #c8d2dd;
+  border-radius: 12px;
+  box-shadow: 0 6px 25px rgba(38, 51, 66, .20);
+  overscroll-behavior: contain;
+}
+.floatingPanel[hidden] { display: none; }
+.floatingPanelHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; cursor: move; user-select: none; touch-action: none; }
+.floatingPanelHeader button { cursor: pointer; }
+.floatingPanelHeader h2 { font-size: 17px; margin: 0; }
+.floatingPanelHeader button { min-height: 31px; padding: 4px 10px; font-size: 13px; }
+#activityInstructions { top: 12px; left: 12px; z-index: 5000; }
+#activityGoal { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wb-ink); }
 #blocklyDiv { position: absolute; inset: 0; }
 
 #workspaceToolbar {
@@ -162,12 +185,24 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
 
 .blocklyFieldRect { stroke-width: 1.25px; }
 .blocklyMainBackground { stroke: none; }
-.blocklyScrollbarHandle { rx: 5px; ry: 5px; }
+.blocklyScrollbarHandle { rx: 5px; ry: 5px; stroke: #43566b; stroke-width: 2px; }
 
 @media (max-width: 850px) {
   header { gap: 12px; padding: 10px 12px; }
   h1 { font-size: 18px; }
-  #activityGoal { max-width: 560px; }
+  header { flex-wrap: wrap; }
+  #activityCopy { max-width: 100%; }
+  #primaryActions { width: 100%; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; }
+  #primaryActions button { flex: none; }
   #workspaceToolbar { top: 8px; right: 9px; }
   #zoomFit .toolbarText { display: none; }
+}
+
+@media (max-width: 600px) {
+  header { padding: 7px 10px; gap: 6px; }
+  h1 { font-size: 16px; }
+  #activityCopy { gap: 8px; }
+  #activityInstructionsToggle { min-height: 31px; }
+  .floatingPanel { max-height: calc(100% - 16px); padding: 11px; }
+  #activityInstructions { top: 8px; left: 8px; }
 }

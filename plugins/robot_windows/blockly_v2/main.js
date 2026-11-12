@@ -13,6 +13,9 @@ var runtimeStopRequested = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
 var runtimeDebug = null;
+var runtimeExecutionSettled = null;
+var debugCurrentBlockId = null;
+var debugFollowExecution = true;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -42,7 +45,7 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   componentStyles: {
     workspaceBackgroundColour: '#f7f9fc', toolboxBackgroundColour: '#ffffff', toolboxForegroundColour: '#263342',
     flyoutBackgroundColour: '#eef2f7', flyoutForegroundColour: '#263342', flyoutOpacity: 1,
-    scrollbarColour: '#9aa7b5', scrollbarOpacity: 0.55, insertionMarkerColour: '#167f91', insertionMarkerOpacity: 0.35,
+    scrollbarColour: '#64778c', scrollbarOpacity: 0.95, insertionMarkerColour: '#167f91', insertionMarkerOpacity: 0.35,
     cursorColour: '#167f91', selectedGlowColour: '#167f91', selectedGlowOpacity: 0.18,
     replacementGlowColour: '#167f91', replacementGlowOpacity: 0.18
   },
@@ -70,7 +73,12 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
+    var pausedDebugStop = runtimeRunning && runtimeDebug && runtimeDebug.waiter &&
+      stopSupported && !runtimeStopRequested;
+    reset.disabled = !resetSupported || !ready || (runtimeRunning && !pausedDebugStop) ||
+      runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      runtimeScenePending || runtimeProjectPending || (!runtimeTerminal && !pausedDebugStop);
+    reset.textContent = pausedDebugStop ? 'Arrêter puis réinitialiser' : 'Réinitialiser';
   }
 }
 
@@ -93,7 +101,12 @@ function setRuntimeFailure(error, missionOutcome) {
       technicalMessage: error && error.message ? error.message : String(error)
     }
   }));
-  setRuntimeStatus(presentation.state, presentation.detail);
+  var detail = presentation.detail;
+  if (missionOutcome && runtimeProfile && runtimeProfile.evaluation &&
+      runtimeProfile.evaluation.oracle === 'grand-prix-route-v2' &&
+      error && error.code === 'TIME_LIMIT')
+    detail += ' | Sécurité : atterrissage imposé';
+  setRuntimeStatus(presentation.state, detail);
 }
 
 function categoryLabel(category) {
@@ -130,6 +143,28 @@ function applySemanticBuiltinStyles() {
   overrideBuiltinBlockStyle('variables_get', 'variable_blocks');
 }
 
+// Toolbox shadows are explicit editable Blockly numbers, not runtime fallbacks.
+function appendNumericShadow(block, socket, number) {
+  var value = document.createElement('value');
+  value.setAttribute('name', socket);
+  var shadow = document.createElement('shadow');
+  shadow.setAttribute('type', 'math_number');
+  var field = document.createElement('field');
+  field.setAttribute('name', 'NUM');
+  field.textContent = String(number);
+  shadow.appendChild(field);
+  value.appendChild(shadow);
+  block.appendChild(value);
+}
+
+function profileNumberDefault(profile, preferred) {
+  var limits = profile.parameterBounds && profile.parameterBounds.math_number &&
+    profile.parameterBounds.math_number.NUM || {};
+  var min = Number.isFinite(limits.min) ? limits.min : preferred;
+  var max = Number.isFinite(limits.max) ? limits.max : preferred;
+  return Math.max(min, Math.min(preferred, max));
+}
+
 function buildToolbox(profile) {
   var toolbox = document.createElement('xml');
   var groups = {flight: [], control: [], sensor: [], operator: [], variable: [], procedure: []};
@@ -137,7 +172,9 @@ function buildToolbox(profile) {
     var definition = WebeeBlocksActivities.BLOCK_CATALOG[type];
     var category = (definition && definition.category) || 'control';
     if (!Object.prototype.hasOwnProperty.call(groups, category)) throw new Error('unsupported toolbox category for ' + type + ': ' + category);
-    groups[category].push(type);
+    // A number remains an allowed block in the profile and in saved projects.
+    // Numeric expression sockets now already offer one without a separate flyout item.
+    if (type !== 'math_number') groups[category].push(type);
   });
   ['flight', 'control', 'sensor', 'operator', 'variable', 'procedure'].forEach(function(category) {
     if (!groups[category].length) return;
@@ -159,12 +196,6 @@ function buildToolbox(profile) {
       var block = document.createElement('block'); block.setAttribute('type', type);
       if (type === 'webeeblocks_v2_takeoff' || type === 'webeeblocks_v2_move' ||
           type === 'webeeblocks_v2_vertical') {
-        var arg = document.createElement('value');
-        arg.setAttribute('name', type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE');
-        var shadowArg = document.createElement('shadow');
-        shadowArg.setAttribute('type', 'math_number');
-        var fieldArg = document.createElement('field');
-        fieldArg.setAttribute('name', 'NUM');
         var bounds = profile.runtime && profile.runtime.astBounds || {};
         var name = type === 'webeeblocks_v2_takeoff' ? 'takeoff.height_m' :
           type === 'webeeblocks_v2_vertical' ? 'vertical.distance_m' : 'move.distance_m';
@@ -173,15 +204,19 @@ function buildToolbox(profile) {
           type === 'webeeblocks_v2_vertical' ? 0.2 : 0.3;
         var minimum = Number.isFinite(limits.min) ? limits.min : preferred;
         var maximum = Number.isFinite(limits.max) ? limits.max : preferred;
-        fieldArg.textContent = String(Math.max(minimum, Math.min(preferred, maximum)));
-        shadowArg.appendChild(fieldArg); arg.appendChild(shadowArg); block.appendChild(arg);
+        appendNumericShadow(block, type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE',
+          Math.max(minimum, Math.min(preferred, maximum)));
       }
-      if (type === 'controls_repeat_ext') {
-        var value = document.createElement('value'); value.setAttribute('name', 'TIMES');
-        var shadow = document.createElement('shadow'); shadow.setAttribute('type', 'math_number');
-        var field = document.createElement('field'); field.setAttribute('name', 'NUM'); field.textContent = '3';
-        shadow.appendChild(field); value.appendChild(shadow); block.appendChild(value);
-      }
+      var defaults = {
+        controls_repeat_ext: [['TIMES', 3]],
+        variables_set: [['VALUE', 0]],
+        math_change: [['DELTA', 1]],
+        logic_compare: [['A', 0], ['B', 1]],
+        math_arithmetic: [['A', 1], ['B', 1]]
+      }[type] || [];
+      defaults.forEach(function(entry) {
+        appendNumericShadow(block, entry[0], profileNumberDefault(profile, entry[1]));
+      });
       categoryNode.appendChild(block);
     });
     toolbox.appendChild(categoryNode);
@@ -200,44 +235,175 @@ function receiveMessage(value) {
 function setDebugControls(paused) {
   document.getElementById('stepNext').disabled = !paused;
   document.getElementById('stepContinue').disabled = !paused;
+  document.getElementById('debugShowCurrent').disabled = !paused || !debugCurrentBlockId;
   document.getElementById('stepMode').disabled = runtimeRunning || runtimeResetPending;
+}
+
+function markManualDebugNavigation() {
+  if (runtimeRunning && runtimeDebug && runtimeDebug.enabled) debugFollowExecution = false;
+}
+
+// Blockly's native view movement is not a Blockly program change.
+function showDebugCurrentBlock(force) {
+  if (!workspace || !debugCurrentBlockId || typeof workspace.centerOnBlock !== 'function') return false;
+  var block = workspace.getBlockById(debugCurrentBlockId);
+  if (!block) return false;
+  if (!force && typeof block.getSvgRoot === 'function' && typeof workspace.getParentSvg === 'function') {
+    var svg = block.getSvgRoot();
+    var background = workspace.getParentSvg().querySelector('.blocklyMainBackground');
+    if (svg && background) {
+      var bounds = svg.getBoundingClientRect();
+      var view = background.getBoundingClientRect();
+      var margin = 16;
+      if (bounds.width > 0 && bounds.height > 0 &&
+          bounds.left >= view.left + margin && bounds.right <= view.right - margin &&
+          bounds.top >= view.top + margin && bounds.bottom <= view.bottom - margin)
+        return true; // Do not jump when the block is already visible.
+    }
+  }
+  workspace.centerOnBlock(debugCurrentBlockId, true);
+  return true;
 }
 function studentDirectionLabel(direction) {
   var labels = {front: 'devant', back: 'derrière', left: 'à gauche', right: 'à droite', up: 'au-dessus'};
   if (!Object.prototype.hasOwnProperty.call(labels, direction)) throw new Error('unsupported student direction: ' + direction);
   return labels[direction];
 }
+function renderObservationRows(target, keys, label, value) {
+  // Structural rows in browsers; preserve the minimal text-only DOM used by
+  // existing runtime/reset contract tests and any non-HTML consumers.
+  if (typeof target.replaceChildren !== 'function' || typeof target.appendChild !== 'function') {
+    target.textContent = keys.length ? keys.map(function(key) {
+      return label(key) + ' = ' + value(key);
+    }).join(' · ') : '—';
+    return;
+  }
+  target.replaceChildren();
+  if (!keys.length) {
+    var empty = document.createElement('div');
+    empty.className = 'observationEmpty';
+    empty.textContent = '—';
+    target.appendChild(empty);
+  }
+  keys.forEach(function(key) {
+    var item = document.createElement('div');
+    item.className = 'observationItem';
+    var name = document.createElement('dt');
+    name.textContent = label(key);
+    var reading = document.createElement('dd');
+    reading.textContent = value(key);
+    item.appendChild(name);
+    item.appendChild(reading);
+    target.appendChild(item);
+  });
+}
 function renderSensorValues(values) {
-  var keys = Object.keys(values || {});
-  document.getElementById('debugSensors').textContent = keys.length ? keys.map(function(direction) {
-    return studentDirectionLabel(direction) + ' = ' + String(values[direction]) + ' m';
-  }).join(' · ') : '—';
+  var readings = values || {};
+  renderObservationRows(document.getElementById('debugSensors'), Object.keys(readings),
+    studentDirectionLabel, function(direction) { return String(readings[direction]) + ' m'; });
 }
 function renderVariables(values) {
   var row = document.getElementById('debugVariablesRow');
-  var target = document.getElementById('debugVariables');
-  var keys = values ? Object.keys(values) : [];
+  var readings = values || {};
+  var keys = Object.keys(readings);
   row.hidden = keys.length === 0;
-  target.textContent = keys.map(function(name) { return name + ' = ' + String(values[name]); }).join(' · ');
+  renderObservationRows(document.getElementById('debugVariables'), keys,
+    function(name) { return name; }, function(name) { return String(readings[name]); });
+}
+function wireFloatingPanels() {
+  var controls = [
+    {button: 'activityInstructionsToggle', panel: 'activityInstructions', close: 'activityInstructionsClose'},
+    {button: 'observationToggle', panel: 'observationInspector', close: 'observationClose'}
+  ].map(function(spec) {
+    return {button: document.getElementById(spec.button),
+      panel: document.getElementById(spec.panel), close: document.getElementById(spec.close)};
+  });
+  var shell = document.getElementById('workspaceShell');
+  var layer = 5000;
+  function bringForward(control) { if (control.panel.style) control.panel.style.zIndex = String(++layer); }
+  function setOpen(control, opened, focus) {
+    control.panel.hidden = !opened;
+    control.button.setAttribute('aria-expanded', opened ? 'true' : 'false');
+    if (opened) { bringForward(control); if (focus) control.close.focus(); }
+    else if (focus) control.button.focus();
+  }
+  controls.forEach(function(control) {
+    control.button.addEventListener('click', function() {
+      setOpen(control, control.panel.hidden, true);
+    });
+    control.close.addEventListener('click', function() { setOpen(control, false, true); });
+    var header = control.panel.querySelector && control.panel.querySelector('.floatingPanelHeader');
+    if (!header || typeof header.addEventListener !== 'function') return;
+    var drag = null;
+    function finishDrag(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag = null;
+      if (header.hasPointerCapture && header.hasPointerCapture(event.pointerId))
+        header.releasePointerCapture(event.pointerId);
+    }
+    header.addEventListener('pointerdown', function(event) {
+      if (control.panel.hidden || event.button !== 0 ||
+          (event.target.closest && event.target.closest('button'))) return;
+      var parent = shell.getBoundingClientRect();
+      var bounds = control.panel.getBoundingClientRect();
+      drag = {id: event.pointerId, x: event.clientX, y: event.clientY,
+        left: bounds.left - parent.left, top: bounds.top - parent.top};
+      bringForward(control);
+      if (header.setPointerCapture) {
+        try { header.setPointerCapture(event.pointerId); } catch (error) { /* synthetic events have no active pointer */ }
+      }
+      event.preventDefault();
+    });
+    header.addEventListener('pointermove', function(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      var width = shell.clientWidth, height = shell.clientHeight;
+      var left = Math.max(0, Math.min(drag.left + event.clientX - drag.x,
+        Math.max(0, width - control.panel.offsetWidth)));
+      var top = Math.max(0, Math.min(drag.top + event.clientY - drag.y,
+        Math.max(0, height - control.panel.offsetHeight)));
+      control.panel.style.left = left + 'px';
+      control.panel.style.top = top + 'px';
+      control.panel.style.right = 'auto';
+      control.panel.style.bottom = 'auto';
+    });
+    header.addEventListener('pointerup', finishDrag);
+    header.addEventListener('pointercancel', finishDrag);
+    header.addEventListener('lostpointercapture', finishDrag);
+  });
+  document.addEventListener('keydown', function(event) {
+    if (event.key !== 'Escape') return;
+    var active = controls.filter(function(control) { return !control.panel.hidden; })
+      .sort(function(a, b) { return Number(b.panel.style && b.panel.style.zIndex || 0) -
+        Number(a.panel.style && a.panel.style.zIndex || 0); })[0];
+    if (active) { event.preventDefault(); setOpen(active, false, true); }
+  });
+  // Always show the student measurements without stealing keyboard focus.
+  // Instructions may open and close independently of this inspector.
+  setOpen(controls[1], true, false);
 }
 function wireDebugControls() {
   runtimeDebug = WebeeBlocksExecutionObserver.create(workspace, {
     onBegin: function(detail) {
+      debugCurrentBlockId = null;
+      debugFollowExecution = true;
       document.getElementById('debugState').textContent = detail.enabled ? 'Pas à pas actif' : 'Observation inactive';
       renderSensorValues({}); renderVariables(null); setDebugControls(false);
     },
     onActive: function(detail) {
+      debugCurrentBlockId = detail.blockId || null;
       var block = detail.blockId ? workspace.getBlockById(detail.blockId) : null;
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-active', { detail: {
         path: detail.path, kind: detail.node && detail.node.kind, blockId: detail.blockId, blockType: block ? block.type : null
       }}));
     },
     onPause: function(detail) {
-      document.getElementById('debugState').textContent = 'En pause'; setDebugControls(true);
+      debugCurrentBlockId = detail.blockId || null;
+      if (debugFollowExecution) showDebugCurrentBlock(false);
+      document.getElementById('debugState').textContent = detail.reason === 'breakpoint' ? 'Point d’arrêt' : 'En pause'; setDebugControls(true); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-paused', {detail: detail}));
     },
     onResume: function(detail) {
-      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false);
+      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-resumed', {detail: detail}));
     },
     onSensor: function(detail) {
@@ -247,10 +413,79 @@ function wireDebugControls() {
       }}));
     },
     onVariables: function(detail) { renderVariables(detail.values); },
-    onFinish: function() { document.getElementById('debugState').textContent = 'Observation terminée'; setDebugControls(false); }
+    onFinish: function() {
+      debugCurrentBlockId = null;
+      document.getElementById('debugState').textContent = 'Observation terminée'; setDebugControls(false);
+    }
   });
   document.getElementById('stepNext').addEventListener('click', function() { runtimeDebug.next(); });
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
+
+  // Native Blockly menu before execution; registry preserves built-in and
+  // procedure-specific menu entries. No block field or .wbb metadata is changed.
+  Blockly.ContextMenuRegistry.registry.register({
+    id: 'webeeblocks-toggle-breakpoint',
+    scopeType: Blockly.ContextMenuRegistry.ScopeType.BLOCK,
+    weight: 25,
+    preconditionFn: function(scope) {
+      var block = scope.block;
+      return block && block.workspace === workspace && block.type !== 'procedures_defnoreturn' &&
+        runtimeDebug && !runtimeRunning ? 'enabled' : 'hidden';
+    },
+    displayText: function(scope) {
+      return runtimeDebug.hasBreakpoint(scope.block.id) ? 'Retirer le point d’arrêt' : 'Ajouter un point d’arrêt';
+    },
+    callback: function(scope) { runtimeDebug.toggleBreakpoint(scope.block.id); }
+  });
+
+  // Blockly 13 deliberately suppresses its own menu on a read-only workspace.
+  // During a debugger pause, offer the same single action on right-click;
+  // never make the Blockly program editable while a flight is in progress.
+  var breakpointMenu = document.createElement('button');
+  breakpointMenu.id = 'debugBreakpointMenu';
+  breakpointMenu.type = 'button';
+  breakpointMenu.hidden = true;
+  breakpointMenu.className = 'webee-debug-breakpoint-menu';
+  document.body.appendChild(breakpointMenu);
+  function closeBreakpointMenu() { breakpointMenu.hidden = true; }
+  breakpointMenu.addEventListener('click', function() {
+    if (!breakpointMenu.hidden && runtimeDebug && runtimeDebug.waiter)
+      runtimeDebug.toggleBreakpoint(breakpointMenu.dataset.blockId);
+    closeBreakpointMenu();
+  });
+  window.addEventListener('click', closeBreakpointMenu);
+  window.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeBreakpointMenu(); });
+  var blocklyView = document.getElementById('blocklyDiv');
+  blocklyView.addEventListener('contextmenu', function(event) {
+    if (!runtimeDebug || !runtimeDebug.enabled || !runtimeDebug.waiter ||
+        !workspace || !workspace.isReadOnly || !workspace.isReadOnly()) return;
+    // Resolve the innermost real block (expressions are nested SVG groups).
+    var clicked = null;
+    workspace.getAllBlocks(false).forEach(function(block) {
+      var svg = block && block.getSvgRoot && block.getSvgRoot();
+      if (svg && svg.contains(event.target) && (!clicked ||
+          clicked.getSvgRoot().contains(svg))) clicked = block;
+    });
+    if (!clicked || clicked.type === 'procedures_defnoreturn') return;
+    event.preventDefault();
+    event.stopPropagation();
+    breakpointMenu.dataset.blockId = clicked.id;
+    breakpointMenu.textContent = runtimeDebug.hasBreakpoint(clicked.id) ?
+      'Retirer le point d’arrêt' : 'Ajouter un point d’arrêt';
+    breakpointMenu.style.left = Math.max(4, Math.min(event.clientX, window.innerWidth - 230)) + 'px';
+    breakpointMenu.style.top = Math.max(4, Math.min(event.clientY, window.innerHeight - 46)) + 'px';
+    breakpointMenu.hidden = false;
+    breakpointMenu.focus();
+  }, true);
+  document.getElementById('debugShowCurrent').addEventListener('click', function() {
+    if (this.disabled) return;
+    debugFollowExecution = true;
+    showDebugCurrentBlock(true);
+  });
+  // Capture genuine student navigation, not viewport events generated by centerOnBlock().
+  var view = document.getElementById('blocklyDiv');
+  view.addEventListener('pointerdown', markManualDebugNavigation, true);
+  view.addEventListener('wheel', markManualDebugNavigation, {capture: true, passive: true});
 }
 
 function userStoppedError() {
@@ -267,21 +502,23 @@ function serializedWorkspace() {
 
 async function stopSimulation() {
   if (!runtimeRunning || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready)
-    return;
+    return false;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
-    return;
+    return false;
   runtimeStopPending = true;
   runtimeStopRequested = true;
   updateRuntimeActions();
   setDebugControls(false);
-  if (runtimeDebug) runtimeDebug.continueRun();
+  if (runtimeDebug) runtimeDebug.cancel();
   try {
     await runtimeBackend.stopSimulation();
     runtimeTerminal = true;
     setRuntimeFailure(userStoppedError());
+    return true;
   } catch (error) {
     runtimeTerminal = true;
     setRuntimeFailure(error);
+    return false;
   } finally {
     runtimeStopPending = false;
     updateRuntimeActions();
@@ -289,7 +526,15 @@ async function stopSimulation() {
 }
 
 async function resetSimulation() {
-  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+  // RESET during a debugger wait must first obtain the ordinary native STOP ACK.
+  // No direct native RESET while an attempt is running or its outcome is pending.
+  if (runtimeRunning && runtimeDebug && runtimeDebug.waiter && !runtimeStopPending) {
+    var executionSettled = runtimeExecutionSettled;
+    if (await stopSimulation() !== true) return;
+    if (executionSettled) await executionSettled;
+  }
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
     setRuntimeFailure(new Error('Simulation reset unavailable'));
@@ -336,6 +581,8 @@ async function runProgram() {
     return;
   }
   submit.disabled = true;
+  var settleExecution;
+  runtimeExecutionSettled = new Promise(function(resolve) { settleExecution = resolve; });
   runtimeTerminal = false;
   runtimeStopRequested = false;
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
@@ -371,6 +618,8 @@ async function runProgram() {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
     updateRuntimeActions();
+    settleExecution();
+    runtimeExecutionSettled = null;
   }
 }
 
@@ -383,7 +632,10 @@ function isPureVisualWorkspaceMove(event) {
     event.oldParentId == null && event.newParentId == null);
 }
 function onWorkspaceChange(event) {
-  if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
+  if (event && event.type === Blockly.Events.BLOCK_DELETE && runtimeDebug)
+    runtimeDebug.pruneBreakpoints();
+  if (!event || event.isUiEvent === true || event.type === Blockly.Events.UI ||
+      event.type === Blockly.Events.VIEWPORT_CHANGE || isPureVisualWorkspaceMove(event)) return;
   try {
     if (event.type === Blockly.Events.BLOCK_CREATE)
       profileFieldOptions.applyWorkspace(workspace);
@@ -393,10 +645,11 @@ function onWorkspaceChange(event) {
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
 }
 function wireWorkspaceControls() {
-  document.getElementById('zoomIn').addEventListener('click', function() { workspace.zoomCenter(1); });
-  document.getElementById('zoomOut').addEventListener('click', function() { workspace.zoomCenter(-1); });
-  document.getElementById('zoomFit').addEventListener('click', function() { workspace.zoomToFit(); });
+  document.getElementById('zoomIn').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomCenter(1); });
+  document.getElementById('zoomOut').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomCenter(-1); });
+  document.getElementById('zoomFit').addEventListener('click', function() { markManualDebugNavigation(); workspace.zoomToFit(); });
   document.getElementById('zoomReset').addEventListener('click', function() {
+    markManualDebugNavigation();
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
   document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
@@ -429,7 +682,7 @@ window.onload = async function() {
     });
   });
   profileFieldOptions.applyWorkspace(workspace);
-  wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
+  wireWorkspaceControls(); wireDebugControls(); wireFloatingPanels(); workspace.addChangeListener(onWorkspaceChange);
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {

@@ -161,13 +161,16 @@ async function proveWwiOutcomeTransport() {
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 STATE achieved');
   assert.deepStrictEqual(await achieved, {status:'achieved'});
 
+  const negativeReason = backend.readActivityOutcome(evaluation);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 STATE not-achieved reason=low-outside-zone');
+  assert.deepStrictEqual(await negativeReason, {status:'not-achieved', reason:'low-outside-zone'});
   const stale = backend.readActivityOutcome(evaluation);
-  assert.strictEqual(sent[1], 'WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 OUTCOME world-observation-v1');
-  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR STALE_OUTCOME');
+  assert.strictEqual(sent[2], 'WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 OUTCOME world-observation-v1');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR STALE_OUTCOME');
   await assert.rejects(stale, error => error && error.code === 'STALE_OUTCOME');
 
   const invalidState = backend.readActivityOutcome(evaluation);
-  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 STATE mystery');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 STATE mystery');
   await assert.rejects(invalidState, /invalid activity outcome state/,
     'unknown live-world terminal states must fail closed at the transport boundary');
 

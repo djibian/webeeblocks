@@ -255,6 +255,11 @@
         case 'while':{
           var iteration=0;
           for(;;){
+            // Each loop re-entry is a fresh Blockly visit. Emit the optional
+            // observation hook BEFORE evaluating the next sensor condition,
+            // not only after it has already caused effects.
+            if(iteration>0)
+              await hook(options,'onNode',context(statement,path,'statement',env,{iteration:iteration}));
             var loopCondition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));
             if(statement.mode==='UNTIL'?loopCondition:!loopCondition)break;
             if(iteration>=statement.max_iterations)fail('conditional loop iteration limit exceeded');

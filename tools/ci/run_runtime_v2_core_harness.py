@@ -53,6 +53,13 @@ def main():
         if project.get('activity',{}).get('id') != activity_id:
             print(f'FAIL progression starter mapping {filename}', file=sys.stderr); return 1
     print('PASS ordered progression starter files map one-to-one to activity profiles')
+    toolbox_defaults_test=subprocess.run(['node','plugins/robot_windows/blockly_v2/test_toolbox_defaults.js'],text=True,capture_output=True)
+    if toolbox_defaults_test.returncode:
+        print('FAIL Runtime v2 Blockly toolbox defaults',file=sys.stderr)
+        print(toolbox_defaults_test.stdout,file=sys.stderr)
+        print(toolbox_defaults_test.stderr,file=sys.stderr)
+        return toolbox_defaults_test.returncode
+    print(toolbox_defaults_test.stdout.strip())
     variable_test=subprocess.run(['node','tools/ci/test_runtime_v2_variables.js'],text=True,capture_output=True)
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
@@ -211,5 +218,55 @@ def main():
     if not timed_out and process.returncode:
         print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
     if timed_out: print('WARN: headless browser required forced shutdown after emitting the exact Runtime v2 PASS DOM marker.',file=sys.stderr)
-    print(marker); return 0
+    print(marker)
+    # Real product HTML entry points, including the three Grand Prix windows.
+    # Synthetic READY follows the existing RobotWindow/WWI receipt path; it
+    # does not claim a native Webots simulation or trusted physical UI gesture.
+    with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
+        port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start()
+        url=f'http://127.0.0.1:{port}/tools/ci/blockly_step_navigation_harness.html'
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox',
+            '--disable-dev-shm-usage','--disable-background-networking',
+            '--virtual-time-budget=22000','--dump-dom',url],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        smoke_timed_out=False
+        try: smoke_stdout,smoke_stderr=proc.communicate(timeout=90)
+        except subprocess.TimeoutExpired:
+            smoke_timed_out=True; proc.kill(); smoke_stdout,smoke_stderr=proc.communicate()
+        server.shutdown()
+    smoke_marker='PASS step navigation across four real HTML entry points'
+    observed=re.search(r'<pre id="result"([^>]*)>([^<]*)</pre>',smoke_stdout)
+    if not observed or 'data-status="PASS"' not in observed.group(1) or html.unescape(observed.group(2)).strip()!=smoke_marker:
+        print('FAIL browser step navigation on actual product HTML entry points',file=sys.stderr)
+        print('browser exit:',proc.returncode,'html chars:',len(smoke_stdout),file=sys.stderr)
+        print('result DOM:',(observed.group(1)+' '+html.unescape(observed.group(2))) if observed else 'MISSING',file=sys.stderr)
+        print(smoke_stderr[-2500:],file=sys.stderr);print(smoke_stdout[-4000:],file=sys.stderr)
+        return 1
+    if not smoke_timed_out and proc.returncode:
+        print('FAIL product HTML browser exit:',proc.returncode,file=sys.stderr)
+        print(smoke_stderr[-2500:],file=sys.stderr);return 1
+    if smoke_timed_out: print('WARN: headless product HTML browser required forced shutdown after PASS marker.',file=sys.stderr)
+    # Exercise the actual Blockly UI and CSS in Chromium at desktop and classroom sizes.
+    compact_url_path='tools/ci/blockly_compact_ui_harness.html'
+    with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
+        port=server.server_address[1]
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        url=f'http://127.0.0.1:{port}/{compact_url_path}'
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=45000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try: compact_stdout,compact_stderr=proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill(); compact_stdout,compact_stderr=proc.communicate()
+        server.shutdown()
+    expected_compact='PASS compact instructions and punctual observations on two browser viewport sizes'
+    compact_match=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',compact_stdout)
+    if not compact_match or html.unescape(compact_match.group(1)).strip()!=expected_compact:
+        print('FAIL compact Blockly UI browser regression',file=sys.stderr)
+        # Preserve the actual error marker even if Chromium's full dump is huge.
+        observed=re.search(r'<pre id="result"([^>]*)>([^<]*)</pre>',compact_stdout)
+        print('browser exit:',proc.returncode,'html chars:',len(compact_stdout),file=sys.stderr)
+        print('result DOM:',(observed.group(1)+' '+html.unescape(observed.group(2))) if observed else 'MISSING',file=sys.stderr)
+        print(compact_stderr[-2000:],file=sys.stderr);print(compact_stdout[-6000:],file=sys.stderr)
+        return 1
+    print(expected_compact)
+    print(smoke_marker); return 0
 if __name__=='__main__': raise SystemExit(main())

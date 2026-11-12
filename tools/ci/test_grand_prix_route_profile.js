@@ -268,6 +268,78 @@ async function proveRouteTechnicalDiagnostics() {
     'diagnostic must remain one bounded visible line');
 }
 
+
+/* Route-specific read-only clock: native observations only, not a local wall timer
+ * or an oracle. The same four ordinary Runtime states must remain authoritative. */
+async function proveRouteLiveClock() {
+  const events = new Map(), timers = new Map();
+  let nextInterval = 1, backend = null, reads = 0;
+  const span = {id: null, textContent: '', style: {},
+    setAttribute(key, value) { this[key] = value; }};
+  const panel = {children: [], style: {}, appendChild(el) {this.children.push(el);}};
+  const context = {
+    WebeeBlocksActivities: {BLOCK_CATALOG: Activities.BLOCK_CATALOG, DOCUMENT: Activities.DOCUMENT},
+    WebeeBlocksRuntimeOutcome: {classify() {return null;}},
+    WebeeBlocksActivityContract: {execute() {}, preflightWorkspace() {}, applyFieldBounds() {}},
+    Blockly: {inject() {}},
+    WebeeBlocksWwiBackend: function () {},
+    document: {getElementById(id) {return id === 'observationReadouts' ? panel : null;},
+      createElement() {return span;}},
+    addEventListener(name, listener) {events.set(name, listener);},
+    setInterval(fn, ms) {assert.equal(ms, 1000); const id = nextInterval++;timers.set(id, fn);return id;},
+    clearInterval(id) {timers.delete(id);},
+    Promise
+  };
+  context.window = context;
+  Object.defineProperty(context, 'runtimeBackend', {get() {return backend;}, set(value) {backend = value;}});
+  vm.runInNewContext(variable, context);
+  const change = state => events.get('webeeblocks-runtime-v2')({detail: {state}});
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  events.get('webeeblocks-ui-ready')();
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
+  assert.equal(span['aria-live'], 'off');
+  assert.equal(panel.children[0], span, 'clock must live in the fixed observation readouts');
+  assert(html.includes('id="observationReadouts"'), 'fixed observation readout container missing');
+  change('EXÉCUTION');
+  assert.equal(timers.size, 1);
+  await flush();
+  assert.equal(span.textContent, '00min 00s / 03min 30s',
+    'the zero placeholder must not advance before a native reading');
+  backend = {ready: true, readElapsedTime() {reads++; return Promise.resolve(9.05);}};
+  [...timers.values()][0]();await flush();
+  assert.equal(reads, 1);
+  assert.equal(span.textContent, '00min 09s / 03min 30s');
+  backend.readElapsedTime = () => {reads++; return Promise.resolve(12.99);};
+  [...timers.values()][0]();await flush();
+  assert.equal(span.textContent, '00min 12s / 03min 30s');
+  let reply;
+  backend.readElapsedTime = () => {reads++; return new Promise(resolve => {reply = resolve;});};
+  [...timers.values()][0]();await flush();
+  [...timers.values()][0]();await flush();
+  assert.equal(reads, 3, 'no overlapping ELAPSED observations');
+  change('MISSION RÉUSSIE');
+  reply(99.9);await flush();
+  assert.equal(span.textContent, '00min 12s / 03min 30s',
+    'a late observation cannot update a terminal state');
+  assert.equal(timers.size, 0);
+  change('PRÊT');
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
+  backend.readElapsedTime = () => {reads++;return Promise.resolve(20);};
+  change('EXÉCUTION');await flush();
+  assert.equal(span.textContent, '00min 20s / 03min 30s');
+  change('RÉINITIALISATION');
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
+  assert.equal(timers.size, 0);
+  change('EXÉCUTION');await flush();
+  backend.readElapsedTime = () => Promise.reject(Object.assign(new Error('unavailable'), {code:'TIME_UNAVAILABLE'}));
+  [...timers.values()][0]();await flush();
+  assert.equal(span.textContent, '00min 20s / 03min 30s');
+  change('ARRÊTÉ');
+  assert.equal(timers.size, 0);
+  assert.equal(panel.children.length, 1, 'clock must not duplicate after reset');
+  console.log('PASS native ELAPSED Grand Prix route clock: onset, samples, stale suppression, reset/stop, bounded polling');
+}
+
 run(false);
 run(true);
 for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveAs',
@@ -277,6 +349,6 @@ for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveA
 assert(html.includes('src="setup.js"'));
 assert(html.includes('../blockly_v2/main.js'));
 assert(!html.includes('grand_prix_u'));
-Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics()]).then(() => {
+Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock()]).then(() => {
   console.log('PASS isolated Grand Prix variable profile: stable .wbb world, generic blocks, unfinished same-file Save/Open across host routes');
 }).catch(error => { console.error(error); process.exitCode = 1; });

@@ -268,6 +268,9 @@ static double wrap_angle(double angle) {
     anchor='  while ((message = wb_robot_wwi_receive_text()) != nullptr) {'
     if broker.count(anchor)!=1:raise RuntimeError('shared broker anchor changed; revalidation required')
     broker='#include "grand_prix_u_hook.h"\n'+broker.replace(anchor,anchor+'\n    if (!gp_u_filter_raw(message)) continue;')
+    if route_observations:
+        from tools.grand_prix.route_broker_outcome_v2 import compose_route_outcome_broker
+        broker = compose_route_outcome_broker(broker)
     broker_output=output.with_name('file_broker_u.cpp')
     if not broker_output.exists() or broker_output.read_text()!=broker:broker_output.write_text(broker)
     print('GP_U_COMPOSED_BROKER_SHA256 '+hashlib.sha256(broker.encode()).hexdigest())

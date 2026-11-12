@@ -77,6 +77,33 @@ nécessiter un accès au registre npm ; les ressources officielles Webots
 R2025a doivent déjà être installées sur le poste. Le checkpoint n'impose
 aucune installation root ni vol physique.
 
+## Validation graphique des causes de fin de mission (Linux R2025a)
+
+Après qualification automatisée du HEAD candidat et dans le cadre d'un
+checkpoint V5 de confiance existant, utiliser le paquet lié au SHA exact.
+Lancer `python3 tools/grand_prix/launch_linux.py --index 5`.
+Dans Blockly, vérifier pour chaque cas un **nouveau RESET** (aucune cause
+héritée), le verdict et l'action de sécurité distincts :
+
+- Collision contre un solide H ou un coin ; sortie de la piste ; dépassement
+  réel du plafond ; vol sous 0,62 m hors bande jaune ; atterrissage volontaire
+  dans une mauvaise zone ; dépassement effectif des 210 s Webots.
+  Vérifier chaque cause seulement si le journal natif de **cette tentative**
+  l'atteste. Ne pas déduire une cause d'un `TIME_LIMIT` transport.
+- Après chaque échec, RESET puis essai différent ; répéter deux RESET
+  successifs et vérifier l'absence de motif ancien avant le nouveau refus.
+- Simuler une indisponibilité de l'évaluateur : jamais de motif inventé, jamais
+  de réussite ; vérifier l'atterrissage indépendant. Vérifier une réussite
+  réelle et la disparition de tout diagnostic ancien.
+
+Conserver SHA, identité du parcours, numéro de tentative, horodatages,
+`GP_ROUTE_EVALUATOR_CLOSED`, `GP_ROUTE_SAFETY_LAND`,
+`GP_U_DEADLINE`, réponses runtime, capture de `runtimeState` /
+`runtimeDetail`, et une vidéo ou captures du déroulement/RESET. Le message
+élève ne donne aucun détail de géométrie cachée. Une cause ambiguë comme
+`invalid-route-observation` reste « Mission non accomplie » sans
+attribution spécifique. Une validation de simulation n'autorise pas de vol réel.
+
 ## Lancer un parcours variable
 
 Sur un checkout exact intégrant l'évaluateur qualifié, relever `git rev-parse HEAD`,
