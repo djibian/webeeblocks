@@ -252,7 +252,7 @@ def main():
         port=server.server_address[1]
         threading.Thread(target=server.serve_forever,daemon=True).start()
         url=f'http://127.0.0.1:{port}/{compact_url_path}'
-        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=12000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=45000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
         try: compact_stdout,compact_stderr=proc.communicate(timeout=60)
         except subprocess.TimeoutExpired:
             proc.kill(); compact_stdout,compact_stderr=proc.communicate()
