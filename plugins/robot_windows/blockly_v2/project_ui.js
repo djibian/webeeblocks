@@ -169,7 +169,7 @@
 
   function markProjectChanged(detail) {
     // Opening another .wbb/activity must never restore old UI-only breakpoints.
-    if (runtimeDebug && typeof runtimeDebug.clearBreakpoints === 'function') runtimeDebug.clearBreakpoints();
+    if (typeof runtimeDebug !== 'undefined' && runtimeDebug && typeof runtimeDebug.clearBreakpoints === 'function') runtimeDebug.clearBreakpoints();
     if (runtimeBackend && runtimeBackend.ready) {
       if (runtimeTerminal) {
         document.getElementById('runtimeDetail').textContent = detail + ' — réinitialisez la simulation avant de relancer';

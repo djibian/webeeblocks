@@ -138,6 +138,28 @@ function applySemanticBuiltinStyles() {
   overrideBuiltinBlockStyle('variables_get', 'variable_blocks');
 }
 
+// Toolbox shadows are explicit editable Blockly numbers, not runtime fallbacks.
+function appendNumericShadow(block, socket, number) {
+  var value = document.createElement('value');
+  value.setAttribute('name', socket);
+  var shadow = document.createElement('shadow');
+  shadow.setAttribute('type', 'math_number');
+  var field = document.createElement('field');
+  field.setAttribute('name', 'NUM');
+  field.textContent = String(number);
+  shadow.appendChild(field);
+  value.appendChild(shadow);
+  block.appendChild(value);
+}
+
+function profileNumberDefault(profile, preferred) {
+  var limits = profile.parameterBounds && profile.parameterBounds.math_number &&
+    profile.parameterBounds.math_number.NUM || {};
+  var min = Number.isFinite(limits.min) ? limits.min : preferred;
+  var max = Number.isFinite(limits.max) ? limits.max : preferred;
+  return Math.max(min, Math.min(preferred, max));
+}
+
 function buildToolbox(profile) {
   var toolbox = document.createElement('xml');
   var groups = {flight: [], control: [], sensor: [], operator: [], variable: [], procedure: []};
@@ -145,7 +167,9 @@ function buildToolbox(profile) {
     var definition = WebeeBlocksActivities.BLOCK_CATALOG[type];
     var category = (definition && definition.category) || 'control';
     if (!Object.prototype.hasOwnProperty.call(groups, category)) throw new Error('unsupported toolbox category for ' + type + ': ' + category);
-    groups[category].push(type);
+    // A number remains an allowed block in the profile and in saved projects.
+    // Numeric expression sockets now already offer one without a separate flyout item.
+    if (type !== 'math_number') groups[category].push(type);
   });
   ['flight', 'control', 'sensor', 'operator', 'variable', 'procedure'].forEach(function(category) {
     if (!groups[category].length) return;
@@ -167,12 +191,6 @@ function buildToolbox(profile) {
       var block = document.createElement('block'); block.setAttribute('type', type);
       if (type === 'webeeblocks_v2_takeoff' || type === 'webeeblocks_v2_move' ||
           type === 'webeeblocks_v2_vertical') {
-        var arg = document.createElement('value');
-        arg.setAttribute('name', type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE');
-        var shadowArg = document.createElement('shadow');
-        shadowArg.setAttribute('type', 'math_number');
-        var fieldArg = document.createElement('field');
-        fieldArg.setAttribute('name', 'NUM');
         var bounds = profile.runtime && profile.runtime.astBounds || {};
         var name = type === 'webeeblocks_v2_takeoff' ? 'takeoff.height_m' :
           type === 'webeeblocks_v2_vertical' ? 'vertical.distance_m' : 'move.distance_m';
@@ -181,15 +199,19 @@ function buildToolbox(profile) {
           type === 'webeeblocks_v2_vertical' ? 0.2 : 0.3;
         var minimum = Number.isFinite(limits.min) ? limits.min : preferred;
         var maximum = Number.isFinite(limits.max) ? limits.max : preferred;
-        fieldArg.textContent = String(Math.max(minimum, Math.min(preferred, maximum)));
-        shadowArg.appendChild(fieldArg); arg.appendChild(shadowArg); block.appendChild(arg);
+        appendNumericShadow(block, type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE',
+          Math.max(minimum, Math.min(preferred, maximum)));
       }
-      if (type === 'controls_repeat_ext') {
-        var value = document.createElement('value'); value.setAttribute('name', 'TIMES');
-        var shadow = document.createElement('shadow'); shadow.setAttribute('type', 'math_number');
-        var field = document.createElement('field'); field.setAttribute('name', 'NUM'); field.textContent = '3';
-        shadow.appendChild(field); value.appendChild(shadow); block.appendChild(value);
-      }
+      var defaults = {
+        controls_repeat_ext: [['TIMES', 3]],
+        variables_set: [['VALUE', 0]],
+        math_change: [['DELTA', 1]],
+        logic_compare: [['A', 0], ['B', 1]],
+        math_arithmetic: [['A', 1], ['B', 1]]
+      }[type] || [];
+      defaults.forEach(function(entry) {
+        appendNumericShadow(block, entry[0], profileNumberDefault(profile, entry[1]));
+      });
       categoryNode.appendChild(block);
     });
     toolbox.appendChild(categoryNode);
