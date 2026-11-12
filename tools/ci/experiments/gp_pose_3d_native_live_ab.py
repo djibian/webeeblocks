@@ -71,6 +71,39 @@ def _require_live_stop_pose(displayed, publisher):
     return publisher['time_ms']
 
 
+def _require_native_canvas_layout(geometry, resolution):
+    """Require a full-size native canvas, not one machine's header font height.
+
+    The 960x620 browser viewport is fixed by this experiment; header height
+    depends on the local font and must not be hard-coded as 66 pixels.
+    """
+    if type(geometry) is not dict:
+        raise RuntimeError('browser full-viewport framebuffer/layout mismatch')
+    viewport = geometry.get('viewport')
+    framebuffer = geometry.get('framebuffer')
+    client = geometry.get('client')
+    bounds = geometry.get('bounds')
+    header_bottom = geometry.get('header_bottom')
+    dpr = geometry.get('dpr')
+    scroll = geometry.get('document_scroll')
+    values = bounds if type(bounds) is list and len(bounds) == 4 else ()
+    if (viewport != [960, 620] or type(dpr) not in (float, int) or dpr != 1
+            or type(resolution) is not list or len(resolution) != 2
+            or type(framebuffer) is not list or framebuffer != resolution
+            or type(client) is not list or client != resolution
+            or type(header_bottom) not in (float, int)
+            or not 0 < header_bottom < 155
+            or type(scroll) is not list or len(scroll) != 2
+            or any(type(v) not in (float, int) for v in values)
+            or len(values) != 4
+            or not all(abs(a-b) <= 2 for a,b in zip(
+                values, (0, header_bottom, 960, 620)))
+            or resolution[1] < 496
+            or scroll[0] > 962 or scroll[1] > 622):
+        raise RuntimeError('browser full-viewport framebuffer/layout mismatch: '
+                           + str((geometry, resolution)))
+
+
 def _finish_browser_report(report, screenshot, close):
     """Only publish success after every browser evidence operation succeeds."""
     if screenshot is not None:
@@ -124,6 +157,18 @@ def _browser_child(args):
             }''')
             if not page.evaluate('window.viewerMetrics.staticBoxes === 21'):
                 raise RuntimeError('not the expected native 21-Box witness')
+            report['viewport_geometry'] = page.evaluate("""() => {
+                const canvas = document.getElementById('view');
+                const rect = canvas.getBoundingClientRect();
+                const header = document.querySelector('header').getBoundingClientRect();
+                return {viewport:[innerWidth,innerHeight], dpr:devicePixelRatio,
+                    framebuffer:[canvas.width,canvas.height],
+                    client:[canvas.clientWidth,canvas.clientHeight],
+                    bounds:[rect.left,rect.top,rect.right,rect.bottom],
+                    header_bottom:header.bottom,
+                    document_scroll:[document.documentElement.scrollWidth,
+                                     document.documentElement.scrollHeight]};
+            }""")
             start_cpu = _cpu_total()
             first = time.monotonic()
             # Atomic marker: the parent must never read a partial JSON file.
@@ -199,8 +244,7 @@ def _browser_child(args):
             if args.arm != 'viewer_stopped' and (last['incarnations'] < 1 or
                     last['poseTimeMs'] is None or last['poseTimeMs'] < 14008):
                 raise RuntimeError('WebGL did not observe the post-RESET flight')
-            if not (last['resolution'] == [960, 554]):
-                raise RuntimeError('browser native framebuffer unexpected: ' + str(last['resolution']))
+            _require_native_canvas_layout(report['viewport_geometry'], last['resolution'])
             if len(report['samples']) >= 2:
                 a, b = report['samples'][0], report['samples'][-1]
                 span = b['wall_s'] - a['wall_s']
