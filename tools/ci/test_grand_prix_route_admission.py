@@ -227,8 +227,11 @@ int main(){
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
  assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ // Both later flight ticks and broker OUTCOME must restore the same first
+ // native time-limit cause after an adversarial stale "achieved" marker.
+ vehicle=achieved;assert(gp_u_deadline(now+0.080,0)==0);assert(vehicle==timed);
  vehicle=achieved;assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 18 OUTCOME grand-prix-route-v2")==1);
- assert(vehicle==failed);
+ assert(vehicle==timed);
  // Freshness does not relax the exact cap, even with an achieved outcome.
  for(int elapsed:{209999,210000,210001}){
   admit();alive(2112+elapsed);vehicle=achieved;

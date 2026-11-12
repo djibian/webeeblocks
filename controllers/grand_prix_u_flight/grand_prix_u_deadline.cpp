@@ -23,6 +23,7 @@ constexpr const char *evaluatorDef="GP_ROUTE_EVALUATOR";
 std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
 long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
+bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -246,6 +247,9 @@ extern "C" int gp_u_start(double now) {
   }
 #endif
   begin=std::llround(now*1000);attempt=current;expired=false;landed=false;success=false;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  nativeRouteDeadline=false;
+#endif
   publish("admitted");
   std::printf("GP_U_ADMISSION attempt=%llu start_ms=%lld\n",attempt,begin);std::fflush(stdout);
   return 1;
@@ -253,7 +257,15 @@ extern "C" int gp_u_start(double now) {
 extern "C" int gp_u_deadline(double now,int nativeLanded) {
   landed=nativeLanded!=0;
   if(begin<0 || success)return 0;
-  if(expired){failed_outcome();return 0;}
+  if(expired){
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    // Late broker/flight ticks must retain an already attested 210 s failure.
+    failed_outcome(nativeRouteDeadline ? "time-limit" : nullptr);
+#else
+    failed_outcome();
+#endif
+    return 0;
+  }
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
   const char *value=field?wb_supervisor_field_get_sf_string(field):nullptr;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -266,7 +278,11 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
   // may bypass the deadline. The outcome channel has no validation timestamp:
   // first observations at/after expiry fail closed even if delivered late.
   if(std::llround(now*1000)-begin>=210000) {
-    expired=true;publish("deadline");
+    expired=true;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    nativeRouteDeadline=true; // Do not confuse broker TIME_LIMIT with elapsed time.
+#endif
+    publish("deadline");
     failed_outcome("time-limit");
     return 1;
   }
@@ -292,6 +308,9 @@ extern "C" int gp_u_next_step(int normal) {
 }
 extern "C" void gp_u_reset_complete(void) {
   begin=-1;attempt=0;expired=false;landed=false;success=false;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  nativeRouteDeadline=false;
+#endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   clearRouteEpoch();
@@ -305,7 +324,13 @@ extern "C" void gp_u_file_idle(int idle) {
 #endif
 }
 extern "C" int gp_u_filter_raw(const char *message) {
-  if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
+  if(expired && begin>=0) {
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    failed_outcome(nativeRouteDeadline ? "time-limit" : nullptr);
+#else
+    failed_outcome();
+#endif
+  } // OUTCOME cannot expose a late overwrite
   // Every broker operation can enter a provider (including creation, metadata,
   // read/write and release). Fence the namespace before that shared path runs.
   // A failed/unfinished attempt stays fenced through confirmed RESET.
