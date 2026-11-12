@@ -75,10 +75,10 @@ DEF WEBEEBLOCKS_MINI_GP_L_SCENE Group {
     boundingObject Box { size 0.57 0.08 0.30 }
   }
   DEF ACTIVITY7_L_CLOSED_PANEL Solid {
-    translation 0.200 1.420 0.32
+    translation 0.200 1.420 
     name "ACTIVITY7_L_CLOSED_PANEL"
-    children [ Shape { appearance PBRAppearance { baseColor 0.54 0.18 0.18 roughness 0.70 } geometry Box { size 0.57 0.08 0.64 } } ]
-    boundingObject Box { size 0.57 0.08 0.64 }
+    children [ Shape { appearance PBRAppearance { baseColor 0.54 0.18 0.18 roughness 0.70 } geometry Box { size 0.57 0.08 1.30 } } ]
+    boundingObject Box { size 0.57 0.08 1.30 }
   }
  ]
 }
