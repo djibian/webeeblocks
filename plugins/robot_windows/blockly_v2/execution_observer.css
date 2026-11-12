@@ -22,6 +22,26 @@ body[data-runtime-state="ARRÊTÉ"] #runtimeState {
 #stepMode { width: 16px; height: 16px; }
 #stepNext, #stepContinue { min-height: 31px; padding: 4px 10px; font-size: 13px; }
 #debugState { color: var(--wb-ink); font-weight: 650; }
+#debugBreakpointHint { font-size: 11px; color: #64748b; }
+/* A border stays attached to the real SVG block through scrolling and zoom. */
+.blocklyBlock.webeeblocks-breakpoint .blocklyPath,
+.blocklyDraggable.webeeblocks-breakpoint .blocklyPath {
+  stroke: #be123c !important;
+  stroke-width: 3px !important;
+}
+.webee-debug-breakpoint-menu {
+  position: fixed;
+  z-index: 10000;
+  padding: 9px 13px;
+  border-radius: 7px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #1f2937;
+  box-shadow: 0 5px 18px #0002;
+  font: 13px Inter, Arial, sans-serif;
+  cursor: pointer;
+}
+.webee-debug-breakpoint-menu[hidden] { display: none; }
 #observationToggle { min-height: 31px; padding: 4px 10px; font-size: 13px; }
 #observationInspector { bottom: 12px; right: 12px; width: min(340px, calc(100% - 24px)); max-height: min(55vh, calc(100% - 24px)); }
 #observationNote { margin-bottom: 12px; font-size: 12px; }
