@@ -5,6 +5,9 @@
 DEF WEBEEBLOCKS_COUNT_2_SCENE Group {
  children [
   Pose { translation -1.40 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } } ] } # blue start
+  # Visible lateral limits, no collider: crossing constraints belong to the oracle.
+  Pose { translation 0.10 0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 3.40 0.012 0.004 } } ] }
+  Pose { translation 0.10 -0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 3.40 0.012 0.004 } } ] }
   Pose { translation 1.48 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 1
   Pose { translation 1.420000 -0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
   Pose { translation 1.420000 0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
