@@ -303,7 +303,7 @@ async function proveRouteLiveClock() {
   change('EXÉCUTION');
   assert.equal(timers.size, 1);
   await flush();
-  assert.equal(span.textContent, 'Temps simulé : — / 03:30',
+  assert.equal(span.textContent, '00min 00s / 03min 30s',
     'the zero placeholder must not advance before a native reading');
   backend = {ready: true, readElapsedTime() {reads++; return Promise.resolve(9.05);}};
   [...timers.values()][0]();await flush();
