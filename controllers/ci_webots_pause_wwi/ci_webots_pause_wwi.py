@@ -93,18 +93,30 @@ if not resumed_by_wwi:
     abort('robot-window-resume-unavailable-during-pause')
 if rejected_token < 1:
     abort('missing-adversarial-stale-resume')
+print(PFX + 'STALE_RESUME_REJECTED count=' + str(rejected_token), flush=True)
 
 wall_elapsed = time.monotonic() - pause_started
+print(PFX + 'CLOCK_PRE_RESUME frozen_ms=' + str(round(frozen * 1000.0)) +
+      ' now_ms=' + str(round(controller.getTime() * 1000.0)) +
+      ' wall_seconds=' + str(round(wall_elapsed, 3)), flush=True)
 if wall_elapsed < 1.0 or controller.getTime() != frozen:
     abort('pause-duration-or-clock-invalid')
+print(PFX + 'MODE_REALTIME_REQUESTED', flush=True)
 controller.simulationSetMode(Supervisor.SIMULATION_MODE_REAL_TIME)
+print(PFX + 'MODE_REALTIME_CALL_RETURNED', flush=True)
+print(PFX + 'STEP_ZERO_AFTER_RESUME_REQUESTED', flush=True)
 if controller.step(0) == -1:
     abort('step-zero-cannot-acknowledge-resume')
+print(PFX + 'STEP_ZERO_AFTER_RESUME_RETURNED', flush=True)
 if controller.simulationGetMode() != Supervisor.SIMULATION_MODE_REAL_TIME:
     abort('realtime-mode-unattested')
+print(PFX + 'MODE_REALTIME_ATTESTED', flush=True)
+print(PFX + 'STEP_32_AFTER_RESUME_REQUESTED', flush=True)
 if controller.step(32) == -1:
     abort('nonzero-step-did-not-resume')
+print(PFX + 'STEP_32_AFTER_RESUME_RETURNED', flush=True)
 advanced_ms = round((controller.getTime() - frozen) * 1000.0)
+print(PFX + 'CLOCK_RESUMED_DELTA_MS ' + str(advanced_ms), flush=True)
 if not 32 <= advanced_ms <= 64:
     abort('resumed-simulation-clock-not-advanced-as-expected')
 
