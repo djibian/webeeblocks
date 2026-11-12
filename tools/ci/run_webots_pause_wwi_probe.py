@@ -31,7 +31,12 @@ def run():
     browser = ROOT / 'tools/ci/webots_runtime_v2_browser.sh'
     conf = Path.home() / '.config/Cyberbotics/Webots-R2025a.conf'
     conf.parent.mkdir(parents=True, exist_ok=True)
-    conf.write_text('[RobotWindow]\nbrowser=' + str(browser) +
+    # R2025a WbGuiApplication::setup() opens the modal Welcome dialog
+    # without --batch when either General/theme or General/telemetry is
+    # missing. Preseed a private, non-telemetry GUI profile instead of
+    # suppressing all dialogs; preserve the real non-batch WWI experiment.
+    conf.write_text('[General]\ntheme=webots_night.qss\ntelemetry=false\n'
+                    '[RobotWindow]\nbrowser=' + str(browser) +
                     '\nnewBrowserWindow=false\n', encoding='utf-8')
     env = os.environ.copy()
     env.update(
