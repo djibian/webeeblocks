@@ -114,9 +114,10 @@ only during native idle/ground observations. Missing entropy refuses admission.
 RESET, loss of pre-admission idle, changed attempt or changed configuration
 invalidate it. A restarted flight process cannot reuse an earlier response.
 
-Before publishing READY, the evaluator must independently check canonical
-colliders/scene, sensor/contact availability, finite pose and confirmed fresh
-initial/reset state. Node presence is insufficient. It echoes the exact
+Before publishing the first READY for a newly loaded world, the evaluator must
+independently attest canonical colliders/scene; each READY (including after an
+ordinary RESET in the same unchanged activity) still requires fresh native
+sensor/contact availability, finite pose, attempt/epoch and initial/reset state. Node presence is insufficient. It echoes the exact
 challenge only after these checks and refreshes READY while waiting for START.
 Both READY and ALIVE require a canonical nonnegative integer native simulation
 timestamp, no earlier than challenge creation, no later than the current native
@@ -237,7 +238,8 @@ course, flight, RESET recovery or the teacher's Linux journey.
 
 `grand_prix_route_evaluator` uses `NativeRouteEvaluator` in
 `evaluator_publisher_v2.py`. It consumes the existing coherent native sampler,
-full scene/collider check, strict wire state and pure attempt oracle; it accepts
+a full scene/collider attestation at evaluator startup for classroom mode,
+strict wire state and pure attempt oracle; it accepts
 no caller-provided observation or `native_validated` flag. The sole native host
 boundary supplies that flag internally after checking real readbacks.
 
@@ -253,8 +255,11 @@ pilot nonce may discard a partial ground window before any READY was issued.
 After authority or a refutation, only a newer runtime RESET attempt may rearm.
 
 START must match this process's fresh READY. Missing/inconsistent observations,
-lost cadence or scene changes revoke evidence irreversibly for that attempt;
-the independent pilot retains LAND authority. Deadline is tested before any
+lost cadence, stale observations or changed native vehicle identity revoke
+evidence irreversibly for that attempt; the independent pilot retains LAND
+authority. The historical continuous-checker mode also revokes on detected
+static scene edits; intentional static edits are **not monitored** in the
+classroom-static mode and are outside its pedagogical validity. Deadline is tested before any
 first success at **210000 ms**. Directed gates, swept geometry, altitude and
 terminal dwell use the unchanged pure oracle. A positive terminal additionally
 requires native landed evidence. ALIVE continues with current landing evidence
@@ -266,10 +271,13 @@ The evaluator publishes a negative outcome once and only while the flight
 channel still names that attempt. A RESET marker belongs to the broker and
 must survive closure of an older evaluator attempt.
 
-The existing required geometry job runs two isolated native projects with the
-production evaluator class. The first keeps the real pilot **idle**: native
-ground/range data must establish READY, then a genuinely moved L must revoke it;
-restoring that L cannot revive the old attempt. The second wraps only the test
+The existing geometry job historically runs two isolated native projects. Its
+first idle-pilot mutation/restoration case demonstrates **only the historical
+continuous-checker diagnostic**: a genuinely moved L revokes READY and cannot
+restore the same attempt. It is **not** a classroom-static anti-mutation test or
+a condition for the new policy. The classroom publisher instead requires a
+native refusal of an **initially noncanonical** scene before READY and a fresh
+attestation on world/activity reload. The second project wraps only the test
 pilot's WWI input and outgoing ACK observation. Generated C/broker bytes must
 equal production exactly; pose, sensors, PID, clocks and safety hooks are real.
 It supplies **one TAKEOFF request**, waits for real native airborne/ALIVE and
@@ -277,8 +285,10 @@ TAKEOFF ACK, then stops the evaluator service without clearing its last ALIVE.
 The pilot must independently fail and initiate LAND within its bounded liveness
 interleaving (at most two 32-ms pilot steps); **no LAND request is injected**.
 Only its genuine forced-LAND ACK permits the test's sole RESET request through
-the normal broker. The same evaluator instance must then attest attempt 2, a new
-private epoch and fresh ground window; the old outcome must be gone. Each case
+the normal broker. The same evaluator instance must then validate attempt 2, a new
+private epoch and fresh ground window; the old outcome must be gone. This
+ordinary RESET does not re-attest unchanged static colliders, whereas a new
+world/activity requires a restarted evaluator and a new full attestation. Each case
 requires unique JSON, agreeing native stdout and zero exit. No pupil program or
 solution trajectory is supplied by either probe.
 
