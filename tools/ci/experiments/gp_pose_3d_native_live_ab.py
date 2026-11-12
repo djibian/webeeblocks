@@ -102,8 +102,14 @@ def _browser_child(args):
             if not report['samples']:
                 raise RuntimeError('browser rendered no measurable frame samples')
             last = report['samples'][-1]
-            if last['gl_error'] != 0 or last['staticBoxes'] != 21 or last['errors']:
+            if (any(sample['gl_error'] != 0 for sample in report['samples'])
+                    or last['staticBoxes'] != 21 or last['errors']):
                 raise RuntimeError('browser GL, geometry or HTTP failure: ' + str(last))
+            if last['received'] < 2 or not last.get('poseSeq'):
+                raise RuntimeError('WebGL renderer never consumed live native poses')
+            if args.arm != 'viewer_stopped' and (last['incarnations'] < 1 or
+                    last['poseTimeMs'] is None or last['poseTimeMs'] < 14008):
+                raise RuntimeError('WebGL did not observe the post-RESET flight')
             if not (last['resolution'] == [960, 554]):
                 raise RuntimeError('browser native framebuffer unexpected: ' + str(last['resolution']))
             if len(report['samples']) >= 2:
