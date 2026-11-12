@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>WebeeBlocks real entry-point step browser smoke</title></head>
+<body>
+<iframe id="editor" title="WebeeBlocks produit" style="width:1000px;height:700px;border:0"></iframe>
+<pre id="result">RUNNING</pre>
+<script>
+(async function() {
+  'use strict';
+  var frame=document.getElementById('editor'), result=document.getElementById('result');
+  var pages=[
+    '../../plugins/robot_windows/blockly_v2/blockly_v2.html',
+    '../../plugins/robot_windows/grand_prix/grand_prix.html',
+    '../../plugins/robot_windows/grand_prix_u/grand_prix_u.html',
+    '../../plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'
+  ];
+  function assert(ok, message) { if (!ok) throw new Error(message); }
+  function el(doc,id) { var v=doc.getElementById(id); assert(!!v,'missing #'+id); return v; }
+  function delay() { return new Promise(function(resolve){setTimeout(resolve,40);}); }
+  async function until(predicate,message) {
+    for(var i=0;i<140;i++) { if(predicate()) return; await delay(); }
+    throw new Error(message);
+  }
+  function saved(win) { return JSON.stringify(win.Blockly.serialization.workspaces.save(win.workspace)); }
+  try {
+    for(var page of pages) {
+      await new Promise(function(resolve) {
+        frame.addEventListener('load',resolve,{once:true});
+        frame.src=page;
+      });
+      var win=frame.contentWindow, doc=win.document;
+      // The real product HTML and window.onload must reach backend creation.
+      // This timed failure reproduces the original missing-button exception.
+      await until(function() {
+        return !!(win.workspace && win.runtimeProfile && win.runtimeDebug &&
+          win.robotWindow && win.runtimeBackend);
+      },'main.js onload did not build backend on '+page);
+      assert(win.Blockly.VERSION==='13.2.1','incorrect product Blockly version: '+page);
+      assert(win.runtimeBackend.robotWindow===win.robotWindow,'backend transport mismatch: '+page);
+      var show=el(doc,'debugShowCurrent');
+      assert(show.tagName==='BUTTON' && show.disabled &&
+        show.textContent.trim()==='Voir le bloc courant' &&
+        show.previousElementSibling.id==='stepContinue','debug control DOM contract: '+page);
+      // CI has no Webots controller. Use the real RobotWindow.receive ->
+      // receiveMessage -> WwiBackend.handleMessage READY handshake instead.
+      win.robotWindow.receive('WEBEEBLOCKS_RUNTIME_V2 READY HELLO',win.robotWindow.name);
+      await until(function() {
+        return win.runtimeBackend.ready && el(doc,'runtimeState').textContent==='PRÊT';
+      },'runtime READY handshake failed: '+page);
+      assert(!el(doc,'debugPanel').hidden,'debug panel not exposed after READY: '+page);
+      var ws=win.workspace;
+      var keep=ws.newBlock('webeeblocks_v2_land');
+      keep.initSvg();keep.render();keep.moveBy(25,25);
+      var proc=ws.newBlock('procedures_defnoreturn');
+      proc.initSvg();proc.render();proc.moveBy(950,700);
+      await delay();
+      var before=saved(win), nativeCenter=ws.centerOnBlock.bind(ws), centered=[];
+      ws.centerOnBlock=function(id,blockOnly) {
+        centered.push([id,blockOnly]);return nativeCenter(id,blockOnly);
+      };
+      win.runtimeRunning=true;
+      win.runtimeDebug.begin(true);
+      win.setRuntimeStatus('EXÉCUTION','Épreuve de pas à pas');
+      assert(ws.isReadOnly() && !el(doc,'blocklyDiv').inert,'Blockly must remain read-only but scrollable: '+page);
+      assert(el(doc,'projectOpen').disabled && el(doc,'projectSaveAs').disabled,
+        'project editing controls not locked: '+page);
+      win.runtimeDebug.callbacks.onActive({blockId:proc.id,path:['program',0],node:{kind:'call'}});
+      win.runtimeDebug.callbacks.onPause({blockId:proc.id});
+      assert(centered.length===1 && centered[0][0]===proc.id,
+        'offscreen procedure not brought into view: '+page);
+      assert(!show.disabled && !el(doc,'stepNext').disabled && !el(doc,'stepContinue').disabled,
+        'step controls unavailable during pause: '+page);
+      el(doc,'blocklyDiv').dispatchEvent(new win.WheelEvent('wheel',{
+        bubbles:true,cancelable:true,deltaY:80
+      }));
+      assert(win.debugFollowExecution===false,'pupil scroll failed to disable follow: '+page);
+      win.runtimeDebug.callbacks.onActive({blockId:keep.id,path:['program',1],node:{kind:'land'}});
+      win.runtimeDebug.callbacks.onPause({blockId:keep.id});
+      assert(centered.length===1,'automatic recenter overrode manual navigation: '+page);
+      show.click();
+      assert(centered.length===2 && centered[1][0]===keep.id && win.debugFollowExecution===true,
+        'explicit return to current block failed: '+page);
+      win.runtimeDebug.callbacks.onPause({blockId:keep.id});
+      assert(centered.length===2,'already-visible block was recentered: '+page);
+      el(doc,'zoomOut').click();
+      assert(win.debugFollowExecution===false,'zoom failed to suspend auto-follow: '+page);
+      // Adversarial pupil-style DOM gestures, not privileged Block.dispose() etc.
+      var root=keep.getSvgRoot(),rect=root.getBoundingClientRect();
+      var x=rect.left+10,y=rect.top+10;
+      root.dispatchEvent(new win.PointerEvent('pointerdown',{
+        bubbles:true,cancelable:true,pointerId:1,pointerType:'mouse',
+        button:0,buttons:1,clientX:x,clientY:y
+      }));
+      doc.dispatchEvent(new win.PointerEvent('pointermove',{
+        bubbles:true,cancelable:true,pointerId:1,pointerType:'mouse',
+        buttons:1,clientX:x+120,clientY:y+90
+      }));
+      doc.dispatchEvent(new win.PointerEvent('pointerup',{
+        bubbles:true,cancelable:true,pointerId:1,pointerType:'mouse',
+        button:0,clientX:x+120,clientY:y+90
+      }));
+      var editor=el(doc,'blocklyDiv');editor.setAttribute('tabindex','0');editor.focus();
+      doc.dispatchEvent(new win.KeyboardEvent('keydown',{
+        key:'Delete',code:'Delete',bubbles:true,cancelable:true
+      }));
+      doc.dispatchEvent(new win.KeyboardEvent('keydown',{
+        key:'z',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true
+      }));
+      await delay();
+      assert(ws.isReadOnly() && ws.getBlockById(keep.id)===keep &&
+        ws.getBlockById(proc.id)===proc,'delete/undo altered read-only blocks: '+page);
+      assert(saved(win)===before,'drag/delete/undo/navigation changed serialized .wbb workspace: '+page);
+      win.runtimeDebug.finish();
+      win.runtimeRunning=false;
+      win.setRuntimeStatus('PRÊT','Épreuve terminée');
+      assert(!ws.isReadOnly(),'Blockly editing did not restore after execution: '+page);
+      assert(saved(win)===before,'workspace changed when execution stopped: '+page);
+    }
+    result.textContent='PASS step navigation across four real HTML entry points';
+    result.setAttribute('data-status','PASS');
+  } catch(error) {
+    result.textContent='FAIL four HTML entry points: '+String(error && (error.stack||error.message) || error);
+    result.setAttribute('data-status','FAIL');
+  }
+})();
+</script></body></html>
