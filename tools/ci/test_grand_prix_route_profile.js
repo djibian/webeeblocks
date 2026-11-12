@@ -283,7 +283,7 @@ async function proveRouteLiveClock() {
     WebeeBlocksActivityContract: {execute() {}, preflightWorkspace() {}, applyFieldBounds() {}},
     Blockly: {inject() {}},
     WebeeBlocksWwiBackend: function () {},
-    document: {getElementById(id) {return id === 'statusPanel' ? panel : null;},
+    document: {getElementById(id) {return id === 'observationReadouts' ? panel : null;},
       createElement() {return span;}},
     addEventListener(name, listener) {events.set(name, listener);},
     setInterval(fn, ms) {assert.equal(ms, 1000); const id = nextInterval++;timers.set(id, fn);return id;},
@@ -296,21 +296,22 @@ async function proveRouteLiveClock() {
   const change = state => events.get('webeeblocks-runtime-v2')({detail: {state}});
   const flush = () => new Promise(resolve => setImmediate(resolve));
   events.get('webeeblocks-ui-ready')();
-  assert.equal(span.textContent, 'Temps simulé : — / 03:30');
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
   assert.equal(span['aria-live'], 'off');
-  assert.equal(panel.style.flexWrap, 'wrap', 'small Robot Windows must not clip the clock');
+  assert.equal(panel.children[0], span, 'clock must live in the fixed observation readouts');
+  assert(html.includes('id="observationReadouts"'), 'fixed observation readout container missing');
   change('EXÉCUTION');
   assert.equal(timers.size, 1);
   await flush();
   assert.equal(span.textContent, 'Temps simulé : — / 03:30',
-    'the UI must not invent a clock before native takeoff');
+    'the zero placeholder must not advance before a native reading');
   backend = {ready: true, readElapsedTime() {reads++; return Promise.resolve(9.05);}};
   [...timers.values()][0]();await flush();
   assert.equal(reads, 1);
-  assert.equal(span.textContent, 'Temps simulé : 00:09.0 / 03:30');
+  assert.equal(span.textContent, '00min 09s / 03min 30s');
   backend.readElapsedTime = () => {reads++; return Promise.resolve(12.99);};
   [...timers.values()][0]();await flush();
-  assert.equal(span.textContent, 'Temps simulé : 00:12.9 / 03:30');
+  assert.equal(span.textContent, '00min 12s / 03min 30s');
   let reply;
   backend.readElapsedTime = () => {reads++; return new Promise(resolve => {reply = resolve;});};
   [...timers.values()][0]();await flush();
@@ -318,21 +319,21 @@ async function proveRouteLiveClock() {
   assert.equal(reads, 3, 'no overlapping ELAPSED observations');
   change('MISSION RÉUSSIE');
   reply(99.9);await flush();
-  assert.equal(span.textContent, 'Dernière mesure : 00:12.9 / 03:30',
+  assert.equal(span.textContent, '00min 12s / 03min 30s',
     'a late observation cannot update a terminal state');
   assert.equal(timers.size, 0);
   change('PRÊT');
-  assert.equal(span.textContent, 'Temps simulé : — / 03:30');
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
   backend.readElapsedTime = () => {reads++;return Promise.resolve(20);};
   change('EXÉCUTION');await flush();
-  assert.equal(span.textContent, 'Temps simulé : 00:20.0 / 03:30');
+  assert.equal(span.textContent, '00min 20s / 03min 30s');
   change('RÉINITIALISATION');
-  assert.equal(span.textContent, 'Temps simulé : — / 03:30');
+  assert.equal(span.textContent, '00min 00s / 03min 30s');
   assert.equal(timers.size, 0);
   change('EXÉCUTION');await flush();
   backend.readElapsedTime = () => Promise.reject(Object.assign(new Error('unavailable'), {code:'TIME_UNAVAILABLE'}));
   [...timers.values()][0]();await flush();
-  assert.equal(span.textContent, 'Dernière mesure : 00:20.0 / 03:30');
+  assert.equal(span.textContent, '00min 20s / 03min 30s');
   change('ARRÊTÉ');
   assert.equal(timers.size, 0);
   assert.equal(panel.children.length, 1, 'clock must not duplicate after reset');
