@@ -285,7 +285,7 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
   // time or modify the irreversible deadline/oracle. One update per observed
   // simulated-second transition. No notifications before admission or after
   // the actual 210 s limit. Loss of a notification never grants authority.
-  if(!routeClockNonce.empty() && observed>=begin && observed<begin+210000) {
+  if(!routeClockNonce.empty() && observed>=begin && observed<=begin+210000) {
     const long long second=(observed-begin)/1000;
     if(second>routeClockLastSecond) {
       char event[180];

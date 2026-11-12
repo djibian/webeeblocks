@@ -366,6 +366,12 @@ async function proveRouteLiveClock() {
   notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=60');
   assert.equal(span.textContent, '01min 00s / 03min 30s',
     'simulated minute rollover did not reach pinned clock');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=210');
+  assert.equal(span.textContent, '03min 30s / 03min 30s',
+    'exact native 210 s boundary did not reach pinned clock');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=211');
+  assert.equal(span.textContent, '03min 30s / 03min 30s',
+    'out-of-bounds time from native clock accepted');
   change('PRÊT');
   notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=61');
   assert.equal(span.textContent, '00min 00s / 03min 30s',

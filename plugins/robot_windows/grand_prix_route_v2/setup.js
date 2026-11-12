@@ -189,7 +189,7 @@ if (typeof window.addEventListener === 'function') {
     if (!tick || tick[1]!==clockNonce || clockAttempt===null ||
         Number(tick[2])!==clockAttempt) return;
     var second=Number(tick[3]);
-    if (!Number.isSafeInteger(second) || second<0 || second>=210 ||
+    if (!Number.isSafeInteger(second) || second<0 || second>210 ||
         (last!==null && second<last)) return;
     last=second;
     show(face(second));

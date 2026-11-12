@@ -196,6 +196,12 @@ int main(){
  const std::string stoppedClock=reply;
  alive(2144);assert(gp_u_deadline(now,0)==0);
  assert(reply==stoppedClock);
+ // The clock may show exactly 03:30 at the native 210000 ms terminal boundary;
+ // its read-only notification never suppresses the irreversible safety LAND.
+ admit();assert(gp_u_filter_raw(subscribe.c_str())==0);
+ now=212.112;assert(gp_u_deadline(now,0)==1);
+ assert(reply=="GP_ROUTE_CLOCK_V1 TICK nonce="+clockNonce+" attempt=1 seconds=210");
+ assert(vehicle==timed);
  // Failure remains terminal, files stay fenced, RESET waits for actual landing.
  admit();alive(2144);evidence.clear();oneLand();
  // Evaluator's first factual cause must survive the subsequent independent
