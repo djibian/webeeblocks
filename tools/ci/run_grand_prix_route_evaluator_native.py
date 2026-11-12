@@ -84,10 +84,15 @@ def check_native(data):
             raise RuntimeError('native second admission/TAKEOFF sequence invalid')
 
 
-def run_case(home, env, mode, index=5):
+def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
-                    'paired-benchmark'):
+                    'paired-benchmark', 'session-benchmark'):
         raise RuntimeError('unknown native evaluator probe mode')
+    if mode == 'session-benchmark':
+        if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
+            raise RuntimeError('session benchmark policy required')
+    elif profile_policy is not None:
+        raise RuntimeError('unexpected native benchmark policy')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('R2025a native evaluator witness required')
     OUT.mkdir(parents=True, exist_ok=True)
@@ -140,6 +145,8 @@ def run_case(home, env, mode, index=5):
             GP_ROUTE_PILOT_NATIVE_READY_OUT=str(case / 'pilot-native-ready.txt'),
             GP_ROUTE_PILOT_COURSE_ID=course.identifier,
             GP_ROUTE_EVALUATOR_INDEX=str(index))
+        if mode == 'session-benchmark':
+            environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
         process = None
         try:
             with log.open('w') as stream:
@@ -168,12 +175,50 @@ def run_case(home, env, mode, index=5):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-route-evaluator-paired-ticks-v1' if mode == 'paired-benchmark'
+        expected_claim = ('native-route-evaluator-independent-session-cycles-v1'
+                          if mode == 'session-benchmark' else
+                          'native-route-evaluator-paired-ticks-v1' if mode == 'paired-benchmark'
                           else 'native-classroom-startup-attestation-v1' if classroom
                           else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
         if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
-        if mode == 'paired-benchmark':
+        if mode == 'session-benchmark':
+            expected_metrics = ('step_wall_ns', 'tick_wall_ns', 'cycle_wall_ns')
+            series = data.get('durations_ns')
+            first, last = data.get('first_sim_ms'), data.get('last_sim_ms')
+            ready = data.get('ready_sim_ms')
+            window_ns = data.get('measured_window_wall_ns')
+            expected_reads = 96 if profile_policy == 'historical-continuous-v1' else 0
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or
+                    data.get('timestep_ms') != 8 or data.get('phase') != 'idle-ready' or
+                    data.get('mode') != 'batch-fast-minimized' or
+                    data.get('policy') != profile_policy or
+                    data.get('samples') != 96 or data.get('simulated_ms') != 768 or
+                    type(ready) is not int or type(first) is not int or
+                    type(last) is not int or first - ready < 128 or
+                    last - first != 760 or
+                    type(series) is not dict or set(series) != set(expected_metrics) or
+                    type(window_ns) is not int or window_ns <= 0 or
+                    data.get('scene_reads_measured') != expected_reads or
+                    (profile_policy == 'classroom-static-v1' and
+                     data.get('scene_checks_total') != 1) or
+                    (profile_policy == 'historical-continuous-v1' and
+                     (type(data.get('scene_checks_total')) is not int or
+                      data['scene_checks_total'] < 97))):
+                raise RuntimeError('native independent-session provenance invalid')
+            for metric in expected_metrics:
+                values = series[metric]
+                if (type(values) is not list or len(values) != 96 or
+                        any(type(v) is not int or v <= 0 for v in values)):
+                    raise RuntimeError('native independent-session cycles missing')
+            if any(step + tick != cycle for step, tick, cycle in zip(
+                    series['step_wall_ns'], series['tick_wall_ns'],
+                    series['cycle_wall_ns'])):
+                raise RuntimeError('native step+tick cycle decomposition invalid')
+            if window_ns < sum(series['cycle_wall_ns']):
+                raise RuntimeError('native benchmark wall window undercounts cycles')
+        elif mode == 'paired-benchmark':
             names = ('historical-continuous-v1', 'classroom-static-v1')
             series = data.get('tick_wall_ns')
             reads = data.get('scene_reads_measured')
@@ -255,6 +300,7 @@ def run_case(home, env, mode, index=5):
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
             for p in case.iterdir() if p.is_file()}, indent=2) + '\n')
         print('PASS bounded native route evaluator '+mode+'; no pupil program/mission/GUI qualification', flush=True)
+        return data, case
 
 
 def run_native(home, env):
@@ -282,3 +328,56 @@ def run_native(home, env):
     run_case(home, env, 'classroom-invalid', 5)
     # Real same-process native idle READY cost; no rendered FPS claim.
     run_case(home, env, 'paired-benchmark', 5)
+
+    # Separate product-like native processes for each arm. Three matched
+    # A/B pairs share the same CI job/host/pinned engine/world and vary only
+    # the evaluator scene policy; alternate AB/BA/AB launch order.
+    policies = ('historical-continuous-v1', 'classroom-static-v1')
+    orders = (policies, policies[::-1], policies)
+    sessions = []
+    for pair_number, pair_order in enumerate(orders, start=1):
+        for position, policy in enumerate(pair_order, start=1):
+            data, case = run_case(home, env, 'session-benchmark', 5,
+                                  profile_policy=policy)
+            series = data['durations_ns']
+            sessions.append(dict(
+                pair=pair_number, position=position, policy=policy,
+                case_directory=case.name,
+                native_json_sha256=hashlib.sha256(
+                    (case / 'native.json').read_bytes()).hexdigest(),
+                world_sha256=hashlib.sha256(
+                    (case / 'world.wbt').read_bytes()).hexdigest(),
+                ready_sim_ms=data['ready_sim_ms'],
+                first_sim_ms=data['first_sim_ms'], last_sim_ms=data['last_sim_ms'],
+                samples=data['samples'], simulated_ms=data['simulated_ms'],
+                measured_window_wall_ns=data['measured_window_wall_ns'],
+                step_total_ns=sum(series['step_wall_ns']),
+                tick_total_ns=sum(series['tick_wall_ns']),
+                cycle_total_ns=sum(series['cycle_wall_ns']),
+                scene_reads_measured=data['scene_reads_measured']))
+    if (len(sessions) != 6 or
+            len({session['world_sha256'] for session in sessions}) != 1 or
+            any(session['pair'] != pair or session['policy'] != policy
+                for pair, pair_order in enumerate(orders, 1)
+                for session, policy in zip(sessions[(pair-1)*2:pair*2], pair_order))):
+        raise RuntimeError('native A/B separate-session matching failed')
+    totals = {policy: {key: sum(s[key] for s in sessions if s['policy'] == policy)
+                       for key in ('step_total_ns', 'tick_total_ns', 'cycle_total_ns',
+                                   'measured_window_wall_ns')}
+              for policy in policies}
+    if any(value <= 0 for values in totals.values() for value in values.values()):
+        raise RuntimeError('native A/B totals invalid')
+    summary = dict(
+        claim='native-route-evaluator-separate-session-ab-v1',
+        webots='R2025a', course=reference_course(5).identifier,
+        mode='batch-fast-minimized', host=__import__('platform').node(),
+        webots_image=env.get('WEBEEBLOCKS_GP_WEBOTS_IMAGE'),
+        order='AB-BA-AB', matched_pairs=3, sessions=sessions,
+        total_ns_by_policy=totals,
+        ratios_historical_over_classroom={
+            key: round(totals[policies[0]][key] / totals[policies[1]][key], 6)
+            for key in totals[policies[0]]})
+    (OUT / 'session-benchmark-summary.json').write_text(
+        json.dumps(summary, sort_keys=True, indent=2) + '\n')
+    print('PASS 3 matched native R2025a A/B session pairs; no GUI/FPS/Windows claim',
+          flush=True)
