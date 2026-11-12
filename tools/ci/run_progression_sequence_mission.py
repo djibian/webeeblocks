@@ -318,13 +318,13 @@ def main() -> int:
                 "-v", f"{ROOT}:/workspace",
                 "-w", "/workspace/controllers/crazyflie_runtime_v2",
                 WEBOTS_IMAGE,
-                "bash", "-lc", "make clean && make",
+                "bash", "-lc", "make clean && make && make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1",
             ], capture=True)
         finally:
             controller.write_bytes(original)
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
-            return fail("Runtime v2/progression evaluators build failed", (built.stdout or "")[-6000:])
+            return fail("Runtime v2/progression evaluators or isolated native altitude evaluator build failed", (built.stdout or "")[-6000:])
 
         inner = r'''
 set -e
