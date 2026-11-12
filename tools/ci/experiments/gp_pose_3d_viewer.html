@@ -75,6 +75,7 @@ function draw(mesh){
 }
 let scenery=null,drone=null,pose=null,lastIncarnation=null;
 let sequence=0,received=0,dropped=0,errors=0,frames=0,started=performance.now(),lastDraw=0;
+let polling=false; // Never accumulate HTTP requests when the visual consumer is slow.
 const metrics=window.viewerMetrics={webgl:true,frames:0,fps:0,received:0,
  dropped:0,errors:0,incarnations:0,resolution:null,staticBoxes:0};
 fetch('/scene').then(r=>r.json()).then(scene=>{
@@ -85,17 +86,21 @@ fetch('/scene').then(r=>r.json()).then(scene=>{
  metrics.worldSha256=scene.world_sha256;
 }).catch(()=>{errors++;});
 async function poll(){
+ if(polling)return;
+ polling=true;
  try{
   const res=await fetch('/pose',{cache:'no-store'});
   if(!res.ok)throw Error('pose HTTP error');
   const next=await res.json();
-  if(next&&next.sequence>sequence){
-   if(lastIncarnation!==null&&lastIncarnation!==next.incarnation){
+  // On producer restart the new presentation incarnation may start at seq=1.
+  const changed=!!next&&lastIncarnation!==null&&next.incarnation!==lastIncarnation;
+  if(next&&(changed||next.sequence>sequence)){
+   if(changed){
     pose=null;metrics.incarnations++;
     if(drone)gl.deleteBuffer(drone.buffer);drone=null;
    }
    lastIncarnation=next.incarnation;
-   dropped+=Math.max(0,next.sequence-sequence-1);
+   dropped+=changed?0:Math.max(0,next.sequence-sequence-1);
    sequence=next.sequence;received++;
    pose=next.valid?next:null;
    if(drone)gl.deleteBuffer(drone.buffer);drone=null;
@@ -107,7 +112,7 @@ async function poll(){
     drone=upload(a);
    }
   }
- }catch(_){errors++;}
+ }catch(_){errors++;}finally{polling=false;}
  metrics.received=received;metrics.errors=errors;metrics.dropped=dropped;
  metrics.poseSeq=sequence;metrics.poseTimeMs=pose?pose.time_ms:null;
  metrics.poseValid=!!pose;metrics.incarnation=lastIncarnation;
@@ -128,7 +133,8 @@ function frame(now){
  draw(scenery);draw(drone);
  frames++;metrics.frames=frames;metrics.fps=frames*1000/Math.max(1,now-started);
  metrics.resolution=[w,h];
- status.textContent=metrics.fps.toFixed(1)+' img/s · t='+
+ // rAF draw submissions are NOT proof of frames physically presented.
+ status.textContent=metrics.fps.toFixed(1)+' dessins/s estimés · t='+
   (pose?pose.time_ms:'—')+' ms · seq='+sequence+' · poses ignorées='+dropped;
 }
 requestAnimationFrame(frame);
