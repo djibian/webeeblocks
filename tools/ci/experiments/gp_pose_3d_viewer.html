@@ -74,7 +74,8 @@ function draw(mesh){
  gl.drawArrays(gl.TRIANGLES,0,mesh.count);
 }
 let scenery=null,drone=null,pose=null,lastIncarnation=null;
-let sequence=0,received=0,dropped=0,errors=0,frames=0,started=performance.now(),lastDraw=0;
+let sequence=0,received=0,dropped=0,errors=0,frames=0,started=performance.now(),nextDrawAt=0;
+const drawPeriod=1000/30;
 let polling=false; // Never accumulate HTTP requests when the visual consumer is slow.
 const metrics=window.viewerMetrics={webgl:true,frames:0,fps:0,received:0,
  dropped:0,errors:0,incarnations:0,resolution:null,staticBoxes:0};
@@ -120,8 +121,10 @@ async function poll(){
 setInterval(poll,33);
 function frame(now){
  requestAnimationFrame(frame);
- if(now-lastDraw<1000/30)return;
- lastDraw=now;
+ // Fixed 30 Hz pacing avoids aliasing 60/75 Hz requestAnimationFrame to 20/25 draws/s.
+ // Skip missed frames after a stall; never make the renderer catch up in a burst.
+ if(now+0.5<nextDrawAt)return;
+ nextDrawAt+=drawPeriod*(1+Math.floor(Math.max(0,now-nextDrawAt)/drawPeriod));
  const w=Math.max(1,Math.round(canvas.clientWidth*devicePixelRatio));
  const h=Math.max(1,Math.round(canvas.clientHeight*devicePixelRatio));
  if(canvas.width!==w||canvas.height!==h){
