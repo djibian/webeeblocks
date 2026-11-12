@@ -23,6 +23,7 @@ constexpr const char *evaluatorDef="GP_ROUTE_EVALUATOR";
 std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
 long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
+bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -107,6 +108,39 @@ bool freshRouteEvidence(const char *kind,long long now) {
   }
   return true;
 }
+// Terminal causes are attested by the evaluator on description, never by
+// flight heuristics or a transport TIME_LIMIT. The pilot alone writes the
+// negative outcome into vehicle.customData, including late enrichment.
+bool routeTerminalCause(long long now,std::string &cause) {
+  cause.clear();
+  if(begin<0 || routeEpoch.empty() || routeAttempt!=attempt || now<begin)
+    return false;
+  std::string config;
+  if(!currentConfig(config) || config!=routeConfig)return false;
+  WbNodeRef node=wb_supervisor_node_get_from_def(evaluatorDef);
+  WbFieldRef field=node?wb_supervisor_node_get_field(node,"description"):nullptr;
+  const char *raw=field?wb_supervisor_field_get_sf_string(field):nullptr;
+  if(!raw || std::strlen(raw)>383)return false;
+  const std::string prefix="GP_ROUTE_TERMINAL_V1 attempt="+
+    std::to_string(attempt)+" config="+routeConfig+" epoch="+routeEpoch+" time_ms=";
+  const std::string witness(raw);
+  if(witness.compare(0,prefix.size(),prefix)!=0)return false;
+  const std::string rest=witness.substr(prefix.size());
+  const auto split=rest.find(" reason=");
+  if(split==std::string::npos)return false;
+  long long stamp=-1;
+  if(!canonicalNumber(rest.substr(0,split),stamp) ||
+     stamp<routeIssued || stamp<begin || stamp>now ||
+     stamp>=begin+210000)return false;
+  cause=rest.substr(split+8);
+  if(cause!="envelope-contact" && cause!="course-boundary" &&
+     cause!="altitude" && cause!="low-outside-zone" &&
+     cause!="wrong-landing") {
+    cause.clear();
+    return false;
+  }
+  return true;
+}
 #endif
 void publish(const char *state) {
   char data[384];
@@ -119,11 +153,47 @@ void publish(const char *state) {
   WbFieldRef field=channel();
   if(field)wb_supervisor_field_set_sf_string(field,data);
 }
-void failed_outcome() {
+void failed_outcome(const char *cause=nullptr) {
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+  if(!field)return;
   char result[192];
   std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=not-achieved",attempt,oracleName);
-  if(field)wb_supervisor_field_set_sf_string(field,result);
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // One negative-outcome writer: the native pilot. A newer RESET marker or
+  // another oracle is never replaced by an older attempt's outcome.
+  const char *current=wb_supervisor_field_get_sf_string(field);
+  const std::string existing=current?current:"", generic(result);
+  if(existing.compare(0,generic.size()+8,generic+" reason=")==0) {
+    const std::string first=existing.substr(generic.size()+8);
+    if(first=="envelope-contact" || first=="course-boundary" ||
+       first=="altitude" || first=="low-outside-zone" ||
+       first=="wrong-landing" || first=="time-limit")return;
+  }
+  const std::string currentMarker="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 "+std::to_string(attempt);
+  if(existing.rfind("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ",0)==0 &&
+     existing!=currentMarker)return;
+  if(existing.rfind("WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=",0)==0 &&
+     existing.compare(0,generic.size(),generic)!=0 &&
+     existing!="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt="+std::to_string(attempt)+
+       " oracle="+std::string(oracleName)+" status=achieved")return;
+  // A generic pilot failure may be enriched after the independent safety
+  // LAND. This retry runs in the SAME flight controller as native RESET.
+  if(existing==generic && cause!=nullptr)return;
+  std::string witnessed;
+  long long routeNow=0;
+  const bool terminal=cause==nullptr && routeTime(wb_robot_get_time(),routeNow) &&
+     routeTerminalCause(routeNow,witnessed);
+  if(existing==generic && !terminal)return;
+  if(cause && std::strcmp(cause,"time-limit")==0)
+    std::strncat(result," reason=time-limit",sizeof(result)-std::strlen(result)-1);
+  else if(terminal) {
+    std::strncat(result," reason=",sizeof(result)-std::strlen(result)-1);
+    std::strncat(result,witnessed.c_str(),sizeof(result)-std::strlen(result)-1);
+  }
+#else
+  (void)cause;
+#endif
+  wb_supervisor_field_set_sf_string(field,result);
 }
 }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -177,6 +247,9 @@ extern "C" int gp_u_start(double now) {
   }
 #endif
   begin=std::llround(now*1000);attempt=current;expired=false;landed=false;success=false;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  nativeRouteDeadline=false;
+#endif
   publish("admitted");
   std::printf("GP_U_ADMISSION attempt=%llu start_ms=%lld\n",attempt,begin);std::fflush(stdout);
   return 1;
@@ -184,7 +257,15 @@ extern "C" int gp_u_start(double now) {
 extern "C" int gp_u_deadline(double now,int nativeLanded) {
   landed=nativeLanded!=0;
   if(begin<0 || success)return 0;
-  if(expired){failed_outcome();return 0;}
+  if(expired){
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    // Late broker/flight ticks must retain an already attested 210 s failure.
+    failed_outcome(nativeRouteDeadline ? "time-limit" : nullptr);
+#else
+    failed_outcome();
+#endif
+    return 0;
+  }
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
   const char *value=field?wb_supervisor_field_get_sf_string(field):nullptr;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -197,8 +278,12 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
   // may bypass the deadline. The outcome channel has no validation timestamp:
   // first observations at/after expiry fail closed even if delivered late.
   if(std::llround(now*1000)-begin>=210000) {
-    expired=true;publish("deadline");
-    failed_outcome();
+    expired=true;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    nativeRouteDeadline=true; // Do not confuse broker TIME_LIMIT with elapsed time.
+#endif
+    publish("deadline");
+    failed_outcome("time-limit");
     return 1;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -223,6 +308,9 @@ extern "C" int gp_u_next_step(int normal) {
 }
 extern "C" void gp_u_reset_complete(void) {
   begin=-1;attempt=0;expired=false;landed=false;success=false;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  nativeRouteDeadline=false;
+#endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   clearRouteEpoch();
@@ -236,7 +324,13 @@ extern "C" void gp_u_file_idle(int idle) {
 #endif
 }
 extern "C" int gp_u_filter_raw(const char *message) {
-  if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
+  if(expired && begin>=0) {
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+    failed_outcome(nativeRouteDeadline ? "time-limit" : nullptr);
+#else
+    failed_outcome();
+#endif
+  } // OUTCOME cannot expose a late overwrite
   // Every broker operation can enter a provider (including creation, metadata,
   // read/write and release). Fence the namespace before that shared path runs.
   // A failed/unfinished attempt stays fenced through confirmed RESET.

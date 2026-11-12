@@ -149,7 +149,7 @@ class NativePublisherTests(unittest.TestCase):
     def test_gap_revokes_and_new_reset_rebuilds_without_old_packet_or_outcome(self):
         self.admitted()
         self.assertEqual(self.tick(advance=16), '')
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
         for _ in range(4): self.assertEqual(self.tick(), '')
         self.attempt = 2
         self.epoch = 'cd' * 16
@@ -171,7 +171,7 @@ class NativePublisherTests(unittest.TestCase):
                 self.admitted()
                 if already_closed:
                     self.assertEqual(self.tick(advance=16), '')
-                    self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+                    self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
 
                 # The broker can publish the successful RESET marker before
                 # the evaluator sees the new challenge. Keep its old process.
@@ -200,7 +200,97 @@ class NativePublisherTests(unittest.TestCase):
         self.assertIn(f'attempt=1 time_ms={failed_ms} reason=invalid-native-observation',
                       log.records[0].getMessage())
         self.assertIn('detail=', log.records[0].getMessage())
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
+
+    def test_terminal_witness_survives_both_orders_without_any_evaluator_vehicle_write(self):
+        # The pilot exclusively publishes the negative channel. This fake
+        # intentionally fails if the evaluator ever writes vehicle.customData.
+        self.admitted()
+        def no_vehicle_write(_value):
+            self.fail('evaluator must never publish a negative vehicle outcome')
+        self.evaluator._channel.setSFString = no_vehicle_write
+        generic = f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle={ORACLE} status=not-achieved'
+        original = 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1'
+        self.evaluator._close(self.ms + 8, 'altitude')
+        self.assertEqual(self.native.vehicle.fields['customData'], original)
+        witness = self.native.evaluator.fields['description']
+        self.assertEqual(witness,
+            f'GP_ROUTE_TERMINAL_V1 attempt=1 config={self.course.identifier} '
+            f'epoch={self.epoch} time_ms={self.ms + 8} reason=altitude')
+        self.assertEqual(self.tick(), witness,
+            'repeated terminal ticks must not erase the cause before pilot consumption')
+        # Order A: the pilot receives the terminal witness before it publishes.
+        self.native.vehicle.fields['customData'] = generic + ' reason=altitude'
+        self.assertEqual(self.native.vehicle.fields['customData'], generic + ' reason=altitude')
+        # A newer native RESET marker must not be overwritten by this evaluator.
+        self.native.vehicle.fields['customData'] = 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2'
+        self.assertEqual(self.tick(sample=False, raw=''), witness)
+        self.assertEqual(self.native.vehicle.fields['customData'],
+                         'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2')
+        # Order B: the pilot publishes its generic failure at ALIVE revocation.
+        self.attempt, self.epoch, self.start = 2, 'cd' * 16, None
+        self.admitted()
+        generic2 = generic.replace('attempt=1 ', 'attempt=2 ')
+        original_set = self.evaluator._reply.setSFString
+        def pilot_on_revoke(value):
+            original_set(value)
+            if value == '':
+                self.native.vehicle.fields['customData'] = generic2
+        self.evaluator._reply.setSFString = pilot_on_revoke
+        self.evaluator._close(self.ms + 8, 'low-outside-zone')
+        self.assertEqual(self.native.vehicle.fields['customData'], generic2)
+        self.assertTrue(self.native.evaluator.fields['description'].endswith(
+            ' reason=low-outside-zone'))
+        self.assertEqual(self.evaluator._closed_attempt, 2)
+        # The flight-side native probe independently verifies later enrichment.
+
+
+    def test_cause_enrichment_preserves_prior_cause_timeout_and_other_identity(self):
+        self.admitted()
+        for case in ('first-cause', 'native-deadline', 'stale-attempt',
+                     'other-oracle', 'interrupted'):
+            generic = (f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={self.attempt} '
+                       f'oracle={ORACLE} status=not-achieved')
+            current = {
+                'first-cause': generic + ' reason=envelope-contact',
+                'native-deadline': generic + ' reason=time-limit',
+                'stale-attempt': generic.replace(
+                    f'attempt={self.attempt} ', f'attempt={self.attempt + 1} '),
+                'other-oracle': generic.replace(
+                    f'oracle={ORACLE}', 'oracle=other-oracle'),
+                'interrupted': generic.replace('status=not-achieved', 'status=interrupted'),
+            }[case]
+            with self.subTest(case=case, current=current):
+                self.native.vehicle.fields['customData'] = current
+                self.evaluator._close(self.ms + 8, 'low-outside-zone')
+                self.assertEqual(self.native.vehicle.fields['customData'], current)
+                self.attempt += 1
+                self.epoch = format(self.attempt, '032x')
+                self.start = None
+                self.native.vehicle.fields['customData'] = (
+                    f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {self.attempt}')
+                self.admitted()
+
+    def test_ambiguous_cause_never_enriches_generic_pilot_result(self):
+        self.admitted()
+        generic = f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle={ORACLE} status=not-achieved'
+        self.native.vehicle.fields['customData'] = generic
+        self.evaluator._close(self.ms + 8, 'invalid-native-observation')
+        self.assertEqual(self.native.vehicle.fields['customData'], generic)
+        self.assertEqual(self.native.evaluator.fields['description'], '')
+        self.assertEqual(self.evaluator._active.result.reason, 'invalid-native-observation')
+
+    def test_reset_marker_precedes_late_evaluator_close_and_remains_fresh(self):
+        self.admitted()
+        self.native.vehicle.fields['customData'] = 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2'
+        self.evaluator._close(self.ms + 8, 'altitude')
+        self.assertEqual(self.native.vehicle.fields['customData'],
+                         'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2')
+        self.attempt, self.epoch, self.start = 2, 'ef' * 16, None
+        self.admitted()
+        self.assertEqual(self.evaluator.phase, 'active')
+        self.assertEqual(self.native.vehicle.fields['customData'],
+                         'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2')
 
     def test_unused_bootstrap_epoch_change_discards_the_partial_window(self):
         for _ in range(40): self.assertFalse(self.tick())
@@ -226,7 +316,8 @@ class NativePublisherTests(unittest.TestCase):
         self.native.vehicle.fields['customData'] = (
             f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle={ORACLE} status=achieved')
         self.assertEqual(self.tick(), '')
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertIn('status=achieved', self.native.vehicle.fields['customData'])
+        self.assertEqual(self.evaluator.phase, 'failed')  # pilot must reject fake success
 
     def test_incomplete_program_completes_as_failed_not_as_an_expert_solution(self):
         self.admitted()
@@ -236,8 +327,9 @@ class NativePublisherTests(unittest.TestCase):
             for _ in range(190): self.tick()
         self.assertEqual(len(log.records), 1)
         self.assertIn('reason=wrong-landing', log.records[0].getMessage())
-        self.assertEqual(self.native.evaluator.fields['description'], '')
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertTrue(self.native.evaluator.fields['description'].endswith(' reason=wrong-landing'))
+        self.assertIn('WEBEEBLOCKS_ACTIVITY_COMPLETION_V1',
+                      self.native.vehicle.fields['customData'])
 
     def test_positive_publication_keeps_alive_and_never_overwrites_pilot_failure(self):
         self.admitted()
@@ -305,7 +397,7 @@ class NativePublisherTests(unittest.TestCase):
         self.native.now = float('nan')
         with self.assertRaises(RuntimeError): self.evaluator.tick()
         self.assertEqual(self.native.evaluator.fields['description'], '')
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
         self.native.now = (self.ms + 8) / 1000
         with self.assertRaisesRegex(RuntimeError, 'terminal native clock'):
             self.evaluator.tick()
@@ -325,7 +417,7 @@ class NativePublisherTests(unittest.TestCase):
             self.assertEqual(self.tick(), '')
             oracle.assert_not_called()
         self.assertEqual(self.ms - self.start, 210000)
-        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertEqual(self.native.vehicle.fields['customData'], 'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
         self.assertFalse(self.tick())
 
 
