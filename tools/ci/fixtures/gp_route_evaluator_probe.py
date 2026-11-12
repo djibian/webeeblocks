@@ -21,7 +21,7 @@ def witness():
     trace = output.with_suffix('.trace')
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
-                    'paired-benchmark'):
+                    'paired-benchmark', 'session-benchmark'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -122,6 +122,77 @@ def witness():
         print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
         if robot.step(8) == -1:
             raise RuntimeError('paired native stdout grace step interrupted')
+        robot.simulationQuit(0)
+        return
+    if mode == 'session-benchmark':
+        # Separate R2025a simulator incarnation: exactly one production
+        # evaluator per world. Different policies run in independent launches
+        # of the SAME job, world, host and Webots binary. The real pilot stays
+        # idle; READY is native. These are no-GUI performance observations,
+        # never authority for real flight or pupil mission success.
+        selected = os.environ.get('GP_ROUTE_PROFILE_POLICY')
+        if selected not in (SCENE_POLICY_CONTINUOUS, SCENE_POLICY_CLASSROOM_STATIC):
+            raise RuntimeError('session benchmark requires explicit policy')
+        evaluator = NativeRouteEvaluator(robot, course.identifier,
+                                         scene_policy=selected)
+        if scene_checks[0] != 1:
+            raise RuntimeError('session benchmark startup attestation count invalid')
+        durations = {'step_wall_ns': [], 'tick_wall_ns': [], 'cycle_wall_ns': []}
+        ready_at = first = last = None
+        observed_scene_reads = 0
+        for _ in range(900):
+            step_started = time.perf_counter_ns()
+            if robot.step(8) == -1:
+                raise RuntimeError('session benchmark native Webots interrupted')
+            step_ended = time.perf_counter_ns()
+            before_checks = scene_checks[0]
+            evaluator.tick()
+            tick_ended = time.perf_counter_ns()
+            now = round(robot.getTime() * 1000)
+            if (evaluator.phase == 'failed' or
+                    tick_ended <= step_ended or step_ended <= step_started):
+                raise RuntimeError('session benchmark terminal or invalid timing')
+            if ready_at is None:
+                if evaluator.phase == 'ready':
+                    ready_at = now
+                continue
+            if evaluator.phase != 'ready':
+                raise RuntimeError('session benchmark READY not sustained')
+            observation = evaluator.observation
+            if (observation is None or observation.time_ms != now or
+                    not observation.flight.ground_confirmed or
+                    not 0 <= now - observation.flight.time_ms <= 32):
+                raise RuntimeError('session benchmark lacked fresh native observation')
+            if now - ready_at < 128:
+                continue
+            checks_this_tick = scene_checks[0] - before_checks
+            expected_checks = 1 if selected == SCENE_POLICY_CONTINUOUS else 0
+            if checks_this_tick != expected_checks:
+                raise RuntimeError('session benchmark scene-read policy mismatch')
+            observed_scene_reads += checks_this_tick
+            if first is None:
+                first = now
+            last = now
+            durations['step_wall_ns'].append(step_ended - step_started)
+            durations['tick_wall_ns'].append(tick_ended - step_ended)
+            durations['cycle_wall_ns'].append(tick_ended - step_started)
+            if len(durations['step_wall_ns']) == 96:
+                break
+        if any(len(values) != 96 for values in durations.values()):
+            raise RuntimeError('session benchmark 96 native cycles unavailable')
+        record = dict(
+            claim='native-route-evaluator-independent-session-cycles-v1',
+            configuration=course.identifier, webots='R2025a',
+            timestep_ms=8, phase='idle-ready', mode='batch-fast-minimized',
+            policy=selected, samples=96, ready_sim_ms=ready_at,
+            first_sim_ms=first, last_sim_ms=last,
+            scene_reads_measured=observed_scene_reads,
+            scene_checks_total=scene_checks[0], durations_ns=durations)
+        encoded = json.dumps(record, allow_nan=False, sort_keys=True)
+        output.write_text(encoded + '\n')
+        print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+        if robot.step(8) == -1:
+            raise RuntimeError('session benchmark stdout grace step interrupted')
         robot.simulationQuit(0)
         return
     if mode in ('classroom-startup', 'classroom-invalid'):
