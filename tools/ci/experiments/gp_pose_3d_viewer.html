@@ -124,7 +124,7 @@ function frame(now){
  // Fixed 30 Hz pacing avoids aliasing 60/75 Hz requestAnimationFrame to 20/25 draws/s.
  // Skip missed frames after a stall; never make the renderer catch up in a burst.
  if(now+0.5<nextDrawAt)return;
- nextDrawAt+=drawPeriod*(1+Math.floor(Math.max(0,now-nextDrawAt)/drawPeriod));
+ nextDrawAt+=drawPeriod*(1+Math.floor(Math.max(0,now+0.5-nextDrawAt)/drawPeriod));
  const w=Math.max(1,Math.round(canvas.clientWidth*devicePixelRatio));
  const h=Math.max(1,Math.round(canvas.clientHeight*devicePixelRatio));
  if(canvas.width!==w||canvas.height!==h){
