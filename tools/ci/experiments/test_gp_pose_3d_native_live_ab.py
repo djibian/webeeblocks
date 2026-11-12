@@ -67,6 +67,17 @@ class LiveExperimentLogic(unittest.TestCase):
         live._require_reader_proof('viewer_stopped', True, 0)
         live._require_reader_proof('viewer_fast', False, 0)
 
+    def test_stop_requires_first_active_native_timestamp(self):
+        # A close after the second flight cannot establish post-close continuity.
+        for invalid in (None, True, 0, 4000, 4009, 7008, 14008, 17000):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(RuntimeError, 'first-active-flight close'):
+                    live._require_reader_proof('viewer_stopped', True, 0, invalid)
+        for valid in (4008, 5000, 7000):
+            live._require_reader_proof('viewer_stopped', True, 0, valid)
+        with self.assertRaisesRegex(RuntimeError, 'did not actually close'):
+            live._require_reader_proof('viewer_stopped', False, 0, 5000)
+
     def test_slow_arm_must_intercept_five_real_requests(self):
         for count in (0, 1, 4):
             with self.assertRaisesRegex(RuntimeError, 'five delayed real pose GETs'):
