@@ -74,7 +74,9 @@ def _browser_child(args):
             page_stopped = False
             while not stop.exists() and time.monotonic() - first < 120:
                 elapsed = time.monotonic() - first
-                if args.arm == 'viewer_stopped' and elapsed >= 5 and not page_stopped:
+                if (args.arm == 'viewer_stopped' and elapsed >= 5 and not page_stopped
+                        and page.evaluate('viewerMetrics.poseTimeMs >= 4008')):
+                    # Stop only after a truly observed active native flight pose.
                     report['viewer_closed_wall_s'] = elapsed
                     page.close()
                     page_stopped = True
