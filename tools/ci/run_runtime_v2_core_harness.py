@@ -246,5 +246,27 @@ def main():
         print('FAIL product HTML browser exit:',proc.returncode,file=sys.stderr)
         print(smoke_stderr[-2500:],file=sys.stderr);return 1
     if smoke_timed_out: print('WARN: headless product HTML browser required forced shutdown after PASS marker.',file=sys.stderr)
+    # Exercise the actual Blockly UI and CSS in Chromium at desktop and classroom sizes.
+    compact_url_path='tools/ci/blockly_compact_ui_harness.html'
+    with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
+        port=server.server_address[1]
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        url=f'http://127.0.0.1:{port}/{compact_url_path}'
+        proc=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=45000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try: compact_stdout,compact_stderr=proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill(); compact_stdout,compact_stderr=proc.communicate()
+        server.shutdown()
+    expected_compact='PASS compact instructions and punctual observations on two browser viewport sizes'
+    compact_match=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',compact_stdout)
+    if not compact_match or html.unescape(compact_match.group(1)).strip()!=expected_compact:
+        print('FAIL compact Blockly UI browser regression',file=sys.stderr)
+        # Preserve the actual error marker even if Chromium's full dump is huge.
+        observed=re.search(r'<pre id="result"([^>]*)>([^<]*)</pre>',compact_stdout)
+        print('browser exit:',proc.returncode,'html chars:',len(compact_stdout),file=sys.stderr)
+        print('result DOM:',(observed.group(1)+' '+html.unescape(observed.group(2))) if observed else 'MISSING',file=sys.stderr)
+        print(compact_stderr[-2000:],file=sys.stderr);print(compact_stdout[-6000:],file=sys.stderr)
+        return 1
+    print(expected_compact)
     print(smoke_marker); return 0
 if __name__=='__main__': raise SystemExit(main())

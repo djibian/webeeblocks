@@ -112,7 +112,16 @@ LOCALE=r'''(() => {
    messages:{repeat:Blockly.Msg.CONTROLS_REPEAT_TITLE,if:Blockly.Msg.CONTROLS_IF_MSG_IF,do:Blockly.Msg.CONTROLS_IF_MSG_THEN,else:Blockly.Msg.CONTROLS_IF_MSG_ELSE,and:Blockly.Msg.LOGIC_OPERATION_AND,or:Blockly.Msg.LOGIC_OPERATION_OR,trueValue:Blockly.Msg.LOGIC_BOOLEAN_TRUE,falseValue:Blockly.Msg.LOGIC_BOOLEAN_FALSE,repeatTooltip:Blockly.Msg.CONTROLS_REPEAT_TOOLTIP},
    blocks:{repeat:blockText('controls_repeat_ext'),condition:blockText('controls_if'),logic:blockText('logic_operation'),comparison:blockText('logic_compare'),boolean:blockText('logic_boolean')},
    directionOptions:directionOptions,
-   sensorText:document.getElementById('debugSensors').textContent
+   // Normalize the *rendered* five sensor rows; retain the exact historical
+   // label, order, unit and value assertion for both compact and legacy DOM.
+   sensorText:(() => {
+     const container=document.getElementById('debugSensors');
+     const rows=Array.from(container.querySelectorAll('.observationItem'));
+     return rows.length ? rows.map(row => {
+       const label=row.querySelector('dt'), reading=row.querySelector('dd');
+       return (label ? label.textContent : '')+' = '+(reading ? reading.textContent : '');
+     }).join(' · ') : container.textContent;
+   })()
  };
 })()'''
 

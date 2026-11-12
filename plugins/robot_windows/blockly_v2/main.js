@@ -269,18 +269,80 @@ function studentDirectionLabel(direction) {
   if (!Object.prototype.hasOwnProperty.call(labels, direction)) throw new Error('unsupported student direction: ' + direction);
   return labels[direction];
 }
+function renderObservationRows(target, keys, label, value) {
+  // Structural rows in browsers; preserve the minimal text-only DOM used by
+  // existing runtime/reset contract tests and any non-HTML consumers.
+  if (typeof target.replaceChildren !== 'function' || typeof target.appendChild !== 'function') {
+    target.textContent = keys.length ? keys.map(function(key) {
+      return label(key) + ' = ' + value(key);
+    }).join(' · ') : '—';
+    return;
+  }
+  target.replaceChildren();
+  if (!keys.length) {
+    var empty = document.createElement('div');
+    empty.className = 'observationEmpty';
+    empty.textContent = '—';
+    target.appendChild(empty);
+  }
+  keys.forEach(function(key) {
+    var item = document.createElement('div');
+    item.className = 'observationItem';
+    var name = document.createElement('dt');
+    name.textContent = label(key);
+    var reading = document.createElement('dd');
+    reading.textContent = value(key);
+    item.appendChild(name);
+    item.appendChild(reading);
+    target.appendChild(item);
+  });
+}
 function renderSensorValues(values) {
-  var keys = Object.keys(values || {});
-  document.getElementById('debugSensors').textContent = keys.length ? keys.map(function(direction) {
-    return studentDirectionLabel(direction) + ' = ' + String(values[direction]) + ' m';
-  }).join(' · ') : '—';
+  var readings = values || {};
+  renderObservationRows(document.getElementById('debugSensors'), Object.keys(readings),
+    studentDirectionLabel, function(direction) { return String(readings[direction]) + ' m'; });
 }
 function renderVariables(values) {
   var row = document.getElementById('debugVariablesRow');
-  var target = document.getElementById('debugVariables');
-  var keys = values ? Object.keys(values) : [];
+  var readings = values || {};
+  var keys = Object.keys(readings);
   row.hidden = keys.length === 0;
-  target.textContent = keys.map(function(name) { return name + ' = ' + String(values[name]); }).join(' · ');
+  renderObservationRows(document.getElementById('debugVariables'), keys,
+    function(name) { return name; }, function(name) { return String(readings[name]); });
+}
+function wireFloatingPanels() {
+  var controls = [
+    {button: 'activityInstructionsToggle', panel: 'activityInstructions', close: 'activityInstructionsClose'},
+    {button: 'observationToggle', panel: 'observationInspector', close: 'observationClose'}
+  ].map(function(spec) {
+    return {
+      button: document.getElementById(spec.button),
+      panel: document.getElementById(spec.panel),
+      close: document.getElementById(spec.close)
+    };
+  });
+  function hide(control, restoreFocus) {
+    control.panel.hidden = true;
+    control.button.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) control.button.focus();
+  }
+  controls.forEach(function(control) {
+    control.button.addEventListener('click', function() {
+      var opening = control.panel.hidden;
+      controls.forEach(function(other) { hide(other, false); });
+      if (opening) {
+        control.panel.hidden = false;
+        control.button.setAttribute('aria-expanded', 'true');
+        control.close.focus();
+      } else control.button.focus();
+    });
+    control.close.addEventListener('click', function() { hide(control, true); });
+  });
+  document.addEventListener('keydown', function(event) {
+    if (event.key !== 'Escape') return;
+    var open = controls.find(function(control) { return !control.panel.hidden; });
+    if (open) { event.preventDefault(); hide(open, true); }
+  });
 }
 function wireDebugControls() {
   runtimeDebug = WebeeBlocksExecutionObserver.create(workspace, {
@@ -583,7 +645,7 @@ window.onload = async function() {
     });
   });
   profileFieldOptions.applyWorkspace(workspace);
-  wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
+  wireWorkspaceControls(); wireDebugControls(); wireFloatingPanels(); workspace.addChangeListener(onWorkspaceChange);
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {
