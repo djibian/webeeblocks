@@ -15,6 +15,7 @@ import time
 from unittest.mock import patch
 
 from tools.ci.experiments import gp_pose_channel_native_ab as ipc
+from tools.ci.experiments.gp_pose_wall_cycle_metrics import measure_wall_cycles
 
 ROOT = Path(__file__).resolve().parents[3]
 OUT = ROOT / 'ci-artifacts/grand-prix-pose-3d-live-ab'
@@ -248,6 +249,22 @@ def _native_arm(home, env, arm):
         # test fixture. Here we observe the already patched real Webots launch.
         with patch.object(subprocess, 'Popen', side_effect=launch):
             report, samples = ipc.run_trial(home, env, 'publish_only', 1)
+        # Read the exact native trace AFTER Webots exits, while the browser may
+        # still be alive. Preserve the historical step+tick metrics unchanged.
+        evidence = ipc.OUT / '1-publish_only'
+        cases = list(evidence.glob('flight-reset-invocation-*'))
+        if len(cases) != 1:
+            raise RuntimeError('cannot identify unique native trace for wall-cycle evidence')
+        trace_path = cases[0] / 'native.trace'
+        if ipc.digest(trace_path) != report['trace_sha256']:
+            raise RuntimeError('native trace digest changed before wall-cycle analysis')
+        trace = [json.loads(line) for line in trace_path.read_text().splitlines()]
+        full_wall = {}
+        for phase, (begin, end) in ipc.PHASES.items():
+            full_wall[phase] = measure_wall_cycles(trace, begin, end)
+            report['sections'][phase]['full_wall_cycle'] = full_wall[phase]
+        (evidence / 'wall-cycle-metrics.json').write_text(
+            json.dumps(full_wall, indent=2, sort_keys=True) + '\n')
         if webots_invocations != 1:
             raise RuntimeError('native Webots launch missing')
         return report, samples, scene_hash
