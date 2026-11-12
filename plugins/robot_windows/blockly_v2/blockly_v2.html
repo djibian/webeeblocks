@@ -73,7 +73,10 @@
         <h2 id="observationInspectorTitle">Observations</h2>
         <button id="observationClose" type="button">Masquer</button>
       </div>
-      <p id="observationNote">Derniers relevés ponctuels du pas à pas : ils peuvent dater d’une étape précédente. Pas de télémétrie continue.</p>
+      <div id="observationReadouts" aria-label="LED et chronomètre de simulation">
+        <div id="debugLightRow" class="observationSection"><strong>LED :</strong> <span id="debugLight">éteinte</span> <span id="debugLightSwatch" aria-hidden="true"></span></div>
+      </div>
+      <div id="observationScroll" tabindex="0" aria-label="Mesures ponctuelles des capteurs et variables">
       <section id="debugSensorsRow" class="observationSection" aria-label="Dernières lectures des capteurs">
         <h3>Capteurs</h3>
         <dl id="debugSensors" class="observationList"><div class="observationEmpty">—</div></dl>
@@ -82,7 +85,7 @@
         <h3>Variables</h3>
         <dl id="debugVariables" class="observationList"></dl>
       </section>
-      <div id="debugLightRow" class="observationSection"><strong>LED :</strong> <span id="debugLight">éteinte</span> <span id="debugLightSwatch" aria-hidden="true"></span></div>
+      </div>
     </aside>
     <nav id="workspaceToolbar" aria-label="Zoom et affichage du programme">
       <button id="zoomOut" type="button" title="Réduire le zoom" aria-label="Réduire le zoom"><span class="zoomSymbol" aria-hidden="true">−</span></button>

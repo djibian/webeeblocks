@@ -315,34 +315,71 @@ function wireFloatingPanels() {
     {button: 'activityInstructionsToggle', panel: 'activityInstructions', close: 'activityInstructionsClose'},
     {button: 'observationToggle', panel: 'observationInspector', close: 'observationClose'}
   ].map(function(spec) {
-    return {
-      button: document.getElementById(spec.button),
-      panel: document.getElementById(spec.panel),
-      close: document.getElementById(spec.close)
-    };
+    return {button: document.getElementById(spec.button),
+      panel: document.getElementById(spec.panel), close: document.getElementById(spec.close)};
   });
-  function hide(control, restoreFocus) {
-    control.panel.hidden = true;
-    control.button.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) control.button.focus();
+  var shell = document.getElementById('workspaceShell');
+  var layer = 5000;
+  function bringForward(control) { if (control.panel.style) control.panel.style.zIndex = String(++layer); }
+  function setOpen(control, opened, focus) {
+    control.panel.hidden = !opened;
+    control.button.setAttribute('aria-expanded', opened ? 'true' : 'false');
+    if (opened) { bringForward(control); if (focus) control.close.focus(); }
+    else if (focus) control.button.focus();
   }
   controls.forEach(function(control) {
     control.button.addEventListener('click', function() {
-      var opening = control.panel.hidden;
-      controls.forEach(function(other) { hide(other, false); });
-      if (opening) {
-        control.panel.hidden = false;
-        control.button.setAttribute('aria-expanded', 'true');
-        control.close.focus();
-      } else control.button.focus();
+      setOpen(control, control.panel.hidden, true);
     });
-    control.close.addEventListener('click', function() { hide(control, true); });
+    control.close.addEventListener('click', function() { setOpen(control, false, true); });
+    var header = control.panel.querySelector && control.panel.querySelector('.floatingPanelHeader');
+    if (!header || typeof header.addEventListener !== 'function') return;
+    var drag = null;
+    function finishDrag(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag = null;
+      if (header.hasPointerCapture && header.hasPointerCapture(event.pointerId))
+        header.releasePointerCapture(event.pointerId);
+    }
+    header.addEventListener('pointerdown', function(event) {
+      if (control.panel.hidden || event.button !== 0 ||
+          (event.target.closest && event.target.closest('button'))) return;
+      var parent = shell.getBoundingClientRect();
+      var bounds = control.panel.getBoundingClientRect();
+      drag = {id: event.pointerId, x: event.clientX, y: event.clientY,
+        left: bounds.left - parent.left, top: bounds.top - parent.top};
+      bringForward(control);
+      if (header.setPointerCapture) {
+        try { header.setPointerCapture(event.pointerId); } catch (error) { /* synthetic events have no active pointer */ }
+      }
+      event.preventDefault();
+    });
+    header.addEventListener('pointermove', function(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      var width = shell.clientWidth, height = shell.clientHeight;
+      var left = Math.max(0, Math.min(drag.left + event.clientX - drag.x,
+        Math.max(0, width - control.panel.offsetWidth)));
+      var top = Math.max(0, Math.min(drag.top + event.clientY - drag.y,
+        Math.max(0, height - control.panel.offsetHeight)));
+      control.panel.style.left = left + 'px';
+      control.panel.style.top = top + 'px';
+      control.panel.style.right = 'auto';
+      control.panel.style.bottom = 'auto';
+    });
+    header.addEventListener('pointerup', finishDrag);
+    header.addEventListener('pointercancel', finishDrag);
+    header.addEventListener('lostpointercapture', finishDrag);
   });
   document.addEventListener('keydown', function(event) {
     if (event.key !== 'Escape') return;
-    var open = controls.find(function(control) { return !control.panel.hidden; });
-    if (open) { event.preventDefault(); hide(open, true); }
+    var active = controls.filter(function(control) { return !control.panel.hidden; })
+      .sort(function(a, b) { return Number(b.panel.style && b.panel.style.zIndex || 0) -
+        Number(a.panel.style && a.panel.style.zIndex || 0); })[0];
+    if (active) { event.preventDefault(); setOpen(active, false, true); }
   });
+  // Always show the student measurements without stealing keyboard focus.
+  // Instructions may open and close independently of this inspector.
+  setOpen(controls[1], true, false);
 }
 function wireDebugControls() {
   runtimeDebug = WebeeBlocksExecutionObserver.create(workspace, {
