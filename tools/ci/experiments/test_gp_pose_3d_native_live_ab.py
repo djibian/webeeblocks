@@ -42,6 +42,53 @@ class LiveExperimentLogic(unittest.TestCase):
             live._compare({'publish_only':trial(witness_rows()),
                 'viewer_fast':trial(witness_rows()[1:])})
 
+    def test_duplicate_native_observation_fails(self):
+        duplicate = witness_rows()
+        duplicate.insert(20, dict(duplicate[20]))
+        with self.assertRaisesRegex(RuntimeError, 'duplicate/missing tick'):
+            live._compare({'publish_only':trial(witness_rows()),
+                'viewer_fast':trial(duplicate)})
+        # Duplicate in the baseline must fail too, not get hidden in a dict.
+        with self.assertRaisesRegex(RuntimeError, 'duplicate/missing tick'):
+            live._compare({'publish_only':trial(duplicate),
+                'viewer_fast':trial(witness_rows())})
+
+    def test_browser_success_waits_for_evidence_and_close(self):
+        events = []
+        report = {'status': 'UNPROVEN'}
+        live._finish_browser_report(report,
+            lambda: events.append('screenshot'),
+            lambda: events.append('close'))
+        self.assertEqual(events, ['screenshot', 'close'])
+        live._require_browser_result(report)
+
+    def test_browser_screenshot_exception_never_sets_success(self):
+        def fail_screenshot():
+            raise OSError('screenshot unavailable')
+        report = {'status': 'UNPROVEN'}
+        with self.assertRaisesRegex(OSError, 'screenshot unavailable'):
+            live._finish_browser_report(report, fail_screenshot, lambda: None)
+        self.assertEqual(report['status'], 'UNPROVEN')
+        with self.assertRaisesRegex(RuntimeError, 'real WebGL evidence'):
+            live._require_browser_result(report)
+
+    def test_browser_close_exception_never_sets_success(self):
+        def fail_close():
+            raise RuntimeError('browser process hung')
+        report = {'status': 'UNPROVEN'}
+        with self.assertRaisesRegex(RuntimeError, 'browser process hung'):
+            live._finish_browser_report(report, None, fail_close)
+        self.assertEqual(report['status'], 'UNPROVEN')
+
+    def test_browser_report_success_with_error_is_refused(self):
+        with self.assertRaisesRegex(RuntimeError, 'real WebGL evidence'):
+            live._require_browser_result({
+                'status': 'WEBGL_DRAW_MEASURED_ONLY',
+                'error': 'ScreenshotError: path unavailable'})
+        with self.assertRaisesRegex(RuntimeError, 'real WebGL evidence'):
+            live._require_browser_result({
+                'status': 'WEBGL_FAILURE', 'error': 'browser closed early'})
+
     def test_world_mismatch_fails(self):
         with self.assertRaisesRegex(RuntimeError, 'worlds differ'):
             live._compare({'publish_only':trial(witness_rows()),
