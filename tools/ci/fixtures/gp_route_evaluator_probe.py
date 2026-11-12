@@ -7,18 +7,20 @@ import time
 
 sys.path.insert(0, os.environ['GP_ROUTE_EVALUATOR_SOURCE'])
 from controller import Supervisor
-from tools.grand_prix.evaluator_publisher_v2 import NativeRouteEvaluator
+from tools.grand_prix import evaluator_publisher_v2 as publisher
+from tools.grand_prix.evaluator_publisher_v2 import (
+    NativeRouteEvaluator, SCENE_POLICY_CLASSROOM_STATIC, SCENE_POLICY_CONTINUOUS)
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_solid_v2 import corner_boxes
 
 
 def witness():
     robot = Supervisor()
-    course = reference_course(5)
+    course = reference_course(int(os.environ.get('GP_ROUTE_EVALUATOR_INDEX', '5')))
     output = Path(os.environ['GP_ROUTE_EVALUATOR_OUT'])
     trace = output.with_suffix('.trace')
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
-    if mode not in ('idle', 'flight-reset'):
+    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -37,9 +39,42 @@ def witness():
         body.loadState('canonical')
         if abs(body.getPosition()[0] - original[0]) > 1e-6:
             raise RuntimeError('could not restore canonical native L before READY')
-    evaluator = NativeRouteEvaluator(robot, course.identifier)
+    # Instrument the production native checker without replacing its code or
+    # feeding it synthetic scene values. Static checks must occur exactly once
+    # per fresh Webots evaluator, including after ordinary RESET.
+    scene_checks = [0]
+    real_read_scene = publisher.read_native_evaluator_scene
+    def traced_read_scene(*args, **kwargs):
+        scene_checks[0] += 1
+        return real_read_scene(*args, **kwargs)
+    publisher.read_native_evaluator_scene = traced_read_scene
+    policy = (SCENE_POLICY_CONTINUOUS if mode == 'idle'
+              else SCENE_POLICY_CLASSROOM_STATIC)
+    if mode == 'classroom-invalid':
+        try:
+            NativeRouteEvaluator(robot, course.identifier, scene_policy=policy)
+        except RuntimeError as error:
+            if not str(error).startswith('native collider world pose mismatch: GP_V2_L_'):
+                raise
+            if robot.getSelf().getField('description').getSFString():
+                raise RuntimeError('invalid native initial scene published READY')
+            evidence = dict(claim='native-classroom-startup-attestation-v1',
+                            configuration=course.identifier, webots='R2025a',
+                            timestep_ms=8, rejected_before_ready=True,
+                            scene_checks=scene_checks[0],
+                            error=str(error))
+            encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
+            output.write_text(encoded + '\n')
+            print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+            robot.simulationQuit(0)
+            return
+        raise RuntimeError('noncanonical initial native world was admitted')
+    evaluator = NativeRouteEvaluator(robot, course.identifier, scene_policy=policy)
     evidence = dict(claim=('native-route-evaluator-ready-and-scene-revocation-no-flight'
-                          if mode == 'idle' else 'native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program'),
+                          if mode == 'idle' else
+                          'native-route-evaluator-flight-service-loss-LAND-RESET-TAKEOFF-no-pupil-program'
+                          if mode == 'flight-reset' else
+                          'native-classroom-startup-attestation-v1'),
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
     phase = 'waiting'
     wall_started = time.monotonic()
@@ -111,6 +146,14 @@ def witness():
             raise RuntimeError('native READY/refusal witness incomplete: ' + evaluator.phase)
         if phase == 'waiting' and evaluator.phase == 'ready':
             evidence['ready'] = ready_record(now)
+            if mode == 'classroom-startup':
+                if scene_checks[0] != 1 or evaluator._scene_snapshot is not None:
+                    raise RuntimeError('classroom startup revalidated geometry')
+                evidence['scene_checks'] = scene_checks[0]
+                evidence['new_evaluator_native_id'] = robot.getSelf().getId()
+                evidence['ready_before_mission'] = True
+                finish()
+                return
             first_context = evaluator._context
             if first_context.attempt != 1:
                 raise RuntimeError('native first attempt is not fresh')
@@ -178,6 +221,9 @@ def witness():
                 evidence['acks'] = acks
                 evidence['second_takeoff'] = dict(start_ms=evaluator._start_ms, observed_ms=now,
                     airborne_z=evaluator.observation.kinematics.position[2])
+                if scene_checks[0] != 1 or evaluator._scene_snapshot is not None:
+                    raise RuntimeError('ordinary RESET unexpectedly rechecked geometry')
+                evidence['scene_checks'] = scene_checks[0]
                 finish()
                 return
     raise RuntimeError('native evaluator witness interrupted')

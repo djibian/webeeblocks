@@ -84,8 +84,8 @@ def check_native(data):
             raise RuntimeError('native second admission/TAKEOFF sequence invalid')
 
 
-def run_case(home, env, mode):
-    if mode not in ('idle', 'flight-reset'):
+def run_case(home, env, mode, index=5):
+    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid'):
         raise RuntimeError('unknown native evaluator probe mode')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('R2025a native evaluator witness required')
@@ -102,7 +102,7 @@ def run_case(home, env, mode):
         (project / 'worlds').mkdir()
         controllers = project / 'controllers'
         controllers.mkdir()
-        if mode == 'idle':
+        if mode != 'flight-reset':
             (controllers / 'grand_prix_route_flight').symlink_to(ROOT / 'controllers/grand_prix_route_flight', target_is_directory=True)
         else:
             flight = controllers / 'grand_prix_route_flight'
@@ -116,8 +116,18 @@ def run_case(home, env, mode):
         evaluator.mkdir()
         fixture = ROOT / 'tools/ci/fixtures/gp_route_evaluator_probe.py'
         shutil.copyfile(fixture, evaluator / 'grand_prix_route_evaluator.py')
-        scene = active_course_world(reference_course(5)).replace(
+        course = reference_course(index)
+        scene = active_course_world(course).replace(
             'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/', 'webots://')
+        if mode == 'classroom-invalid':
+            from tools.grand_prix.route_solid_v2 import corner_boxes
+            box = corner_boxes(course.route)[0]
+            original = box.vrml()
+            displaced = original.replace(
+                f'translation {box.x:.6f} ', f'translation {box.x + .10:.6f} ', 1)
+            if original == displaced or scene.count(original) != 1:
+                raise RuntimeError('failed to corrupt exactly one native initial L collider')
+            scene = scene.replace(original, displaced, 1)
         world = project / 'worlds/route.wbt'
         world.write_text(scene)
         (case / 'world.wbt').write_text(scene)
@@ -127,7 +137,8 @@ def run_case(home, env, mode):
             GP_ROUTE_EVALUATOR_SOURCE=str(ROOT), GP_ROUTE_EVALUATOR_OUT=str(record),
             GP_ROUTE_EVALUATOR_MODE=mode, GP_ROUTE_PILOT_ACK_OUT=str(case / 'pilot-acks.json'),
             GP_ROUTE_PILOT_NATIVE_READY_OUT=str(case / 'pilot-native-ready.txt'),
-            GP_ROUTE_PILOT_COURSE_ID=reference_course(5).identifier)
+            GP_ROUTE_PILOT_COURSE_ID=course.identifier,
+            GP_ROUTE_EVALUATOR_INDEX=str(index))
         process = None
         try:
             with log.open('w') as stream:
@@ -141,7 +152,7 @@ def run_case(home, env, mode):
                 # Bound the flight/LAND/RESET wall budget using this actual
                 # R2025a pace; retain idle's 120 s, all native assertions,
                 # 8-ms sampling and the 210000-ms mission deadline.
-                status = process.wait(timeout=120 if mode == 'idle' else 420)
+                status = process.wait(timeout=120 if mode != 'flight-reset' else 420)
                 if status != 0:
                     raise RuntimeError('native evaluator Webots failed: ' + str(log))
         finally:
@@ -155,9 +166,32 @@ def run_case(home, env, mode):
                     process.wait()
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
-        if type(data) is dict and data.get('claim') != (CLAIM if mode == 'idle' else FLIGHT_CLAIM):
+        classroom = mode.startswith('classroom-')
+        expected_claim = ('native-classroom-startup-attestation-v1' if classroom
+                          else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
+        if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
-        check_native(data)
+        if classroom:
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or
+                    data.get('timestep_ms') != 8 or
+                    data.get('scene_checks') != 1):
+                raise RuntimeError('classroom initial attestation evidence absent')
+            if mode == 'classroom-invalid':
+                if (data.get('rejected_before_ready') is not True or
+                        not data.get('error', '').startswith('native collider world pose mismatch: GP_V2_L_') or
+                        'ready' in data):
+                    raise RuntimeError('noncanonical startup not rejected before READY')
+            elif (data.get('ready_before_mission') is not True or
+                  type(data.get('new_evaluator_native_id')) is not int or
+                  data['new_evaluator_native_id'] <= 0):
+                raise RuntimeError('fresh evaluator initial READY missing')
+            if mode == 'classroom-startup':
+                _check_ready(data.get('ready'))
+        else:
+            check_native(data)
+            if mode == 'flight-reset' and data.get('scene_checks') != 1:
+                raise RuntimeError('RESET re-inspected static scene')
         if mode == 'flight-reset':
             for attempt, suffix, key in ((1, '', 'ready'), (2, '.second', 'reset_ready')):
                 marker = case / ('pilot-native-ready.txt' + suffix)
@@ -210,4 +244,12 @@ def run_native(home, env):
         identities[name] = hashlib.sha256(production).hexdigest()
     (OUT / 'production-source-sha256.json').write_text(json.dumps(identities, indent=2)+'\n')
     run_case(home, env, 'idle')
+    # The production flight and C pilot are reused; RESET must preserve the
+    # attested static world without repeating expensive scene traversal.
     run_case(home, env, 'flight-reset')
+    # Each is a new real R2025a world and evaluator process. Distinct course
+    # IDs prove fresh attestation, not merely reuse of a prior READY token.
+    for index in (5, 0, 11):
+        run_case(home, env, 'classroom-startup', index)
+    # Corrupt the .wbt *before* Webots loads it; reject before first READY.
+    run_case(home, env, 'classroom-invalid', 5)
