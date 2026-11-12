@@ -93,8 +93,11 @@ class OrientationOracleUnitTests(unittest.TestCase):
                 if mode == "outside-pad":
                     position[0] = 1.10
                 velocity = [0.4, 0, 0] if mode == "moving" else [0, 0, 0]
-                self.assertIsNone(a.sample(4, position, 0, velocity, True)) if mode != "no-flight" else self.assertEqual(
-                    a.sample(4, position, 0, velocity, True), "not-achieved")
+                result_at_completion = a.sample(4, position, 0, velocity, True)
+                if mode == "no-flight":
+                    self.assertEqual(result_at_completion, "not-achieved")
+                else:
+                    self.assertIsNone(result_at_completion)
                 self.assertEqual(a.sample(6, position, 0, velocity, False), "not-achieved")
 
     def test_unavailable_orientation_after_completion_fails_closed(self):
