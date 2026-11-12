@@ -94,6 +94,41 @@ class LiveExperimentLogic(unittest.TestCase):
             live._compare({'publish_only':trial(witness_rows()),
                 'viewer_fast':trial(witness_rows(), 'other-world')})
 
+    def test_dynamic_native_canvas_height_matches_full_viewport(self):
+        def geometry(header_height):
+            canvas_height = 620 - header_height
+            return (dict(viewport=[960, 620], dpr=1,
+                framebuffer=[960, canvas_height], client=[960, canvas_height],
+                bounds=[0, header_height, 960, 620],
+                header_bottom=header_height, document_scroll=[960, 620]),
+                [960, canvas_height])
+        # Browser in the prior replay had a 66px header. Real Linux Chrome
+        # produced a 60px header and was falsely rejected despite full area.
+        for header_height in (66, 60):
+            with self.subTest(header_height=header_height):
+                geometry_result, resolution = geometry(header_height)
+                live._require_native_canvas_layout(geometry_result, resolution)
+
+    def test_native_canvas_refuses_clipping_scroll_and_downscaling(self):
+        valid = dict(viewport=[960, 620], dpr=1,
+            framebuffer=[960, 560], client=[960, 560],
+            bounds=[0, 60, 960, 620], header_bottom=60,
+            document_scroll=[960, 620])
+        invalid = [
+            dict(valid, viewport=[960, 600]),
+            dict(valid, framebuffer=[945, 560]),
+            dict(valid, bounds=[0, 60, 960, 606]),
+            dict(valid, dpr=2),
+            dict(valid, document_scroll=[960, 630]),
+            dict(valid, header_bottom=200),
+            dict(valid, client=[480, 280]),
+        ]
+        for broken in invalid:
+            with self.subTest(broken=broken):
+                with self.assertRaisesRegex(RuntimeError, 'full-viewport framebuffer'):
+                    live._require_native_canvas_layout(broken, [960, 560])
+
+
     def test_bounded_browser_ready_marker(self):
         with TemporaryDirectory() as directory:
             p=Path(directory)/'ready.json'
