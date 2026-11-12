@@ -11,6 +11,28 @@ GitHub commits, PRs, checks, reviews, issues and evidence describe live executio
 state. Do not duplicate agent/session state, WIP counters, ownership or queues
 here.
 
+## Owner decision — 2026-11-12: trusted classroom scene, no per-step static revalidation
+
+The Grand Prix classroom simulator is **not** an anti-tamper/anti-cheat service.
+After full independent native attestation of the instantiated world **before
+READY**, the canonical physical route is trusted to remain static until the
+activity/world is explicitly reloaded. A native evaluator restart or new world
+incarnation must re-attest. Normal RESET keeps the same static geometry.
+
+Product direction: remove repeated static graph exports, Floor and collider
+readbacks from every 8-ms observation; retain live kinematics, contacts, sensor
+provenance, collision/swept-geometry mission oracle, native attempt and liveness
+checks, independent STOP/RESET/LAND/deadline, and all real-flight gates.
+Direct deliberate editing of the Webots scene during an attempt is **unsupported
+and not detected by the classroom mode**. It invalidates the evidentiary value
+of the attempt; do not claim tamper-proof integrity.
+
+**Qualification, not an automatic release:** test initial malformed-world
+rejection, world/evaluator reincarnation, normal RESET and negative flight
+oracles, the 12 routes, and reproducible paired native/Windows performance.
+The historical continuous checker remains an engineering comparison path.
+No Ready/merge without independent V5 review and observed evidence.
+
 ## Owner priority update — 2026-11-03: Grand Prix Linux for teacher-led Blockly design
 
 The [owner's explicit decision on #587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569) **supersedes the fixed-size U/always-left-turn assumptions** below.

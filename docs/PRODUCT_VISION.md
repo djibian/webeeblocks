@@ -8,6 +8,37 @@ WebeeBlocks is primarily a **training environment for algorithmic reasoning thro
 
 Students should progressively learn to decompose a problem, build algorithms, use sequences/parameters/loops/conditions/variables, exploit sensors, reason as **measure → compare → decide → act**, and iterate through **modify → run → observe → understand → correct → rerun**.
 
+## Owner decision, 2026-11-12 — trusted classroom simulation world
+
+**Pedagogical scope, not anti-cheat certification.** The Grand Prix is a teacher-
+supervised learning exercise. The activity launcher and pinned host components
+generate a deterministic route; the evaluator independently attests the *actual*
+Webots physical scene, collider geometry, floor and native identities **before
+any READY**. The static obstacles are then treated as a trusted invariant for
+the current world/evaluator incarnation and activity. The learner's normal
+Blockly/AST/Runtime path does not include scene-editing commands.
+
+**No continuous anti-tampering obligation:** an intentional direct modification
+of Webots scene fields or colliders during a flight is outside the supported
+classroom workflow. The application does **not** claim to detect or prevent such
+edits, including change-and-restore within one 8-ms step. Such a session is not
+evidence of a successful canonical Grand Prix. An explicit activity/world reload
+requires a new native evaluator incarnation and full scene attestation; normal
+RESET in the same unchanged activity does not require rechecking each static
+collider. If in-process replacement without evaluator restart is supported by a
+launcher, it must invalidate the prior attestation before admission.
+
+**Unchanged:** the physical Webots dynamics and sensor calculations, swept
+obstacle/zone/collision mission oracles on live vehicle observations, independent
+admission/clock/attempt/liveness, failure, STOP, RESET, LAND and the 210-second
+simulation deadline. Real Crazyflie flight retains its **separate** teacher
+approval, host authorization and independently qualified safety gates. A
+simulation PASS cannot substitute for real-world preflight or safety evidence.
+
+This deliberately narrows the simulation **threat model**, not the pedagogical
+difficulty or physical-flight safety. Preserve the historical strict geometry
+checker as an engineering reference until the new mode is natively qualified.
+
 ## Owner decision, 2026-11-03 — Linux Grand Prix with variable sensed corners
 
 The owner will **personally design the pupil's one Blockly program first** using

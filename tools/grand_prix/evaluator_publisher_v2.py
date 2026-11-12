@@ -1,7 +1,9 @@
 """Native variable-course evaluator, never a pupil-program implementation.
 
-All authority originates in this Supervisor's verified live scene and coherent
-native observations. No caller supplies observations or a validation boolean.
+For classroom simulation, each evaluator attests the canonical native scene at
+startup, then trusts its static geometry while continuing fresh 8-ms dynamic
+observations. Deliberate direct scene edits are outside the classroom threat
+model. No caller supplies observations or a validation boolean.
 The Linux launcher remains gated on the separate native/GUI qualifications.
 """
 import logging
@@ -22,6 +24,8 @@ from tools.grand_prix.route_evaluator_wire_v2 import Challenge, EvaluatorHandsha
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
 
 ORACLE = 'grand-prix-route-v2'
+SCENE_POLICY_CONTINUOUS = 'historical-continuous-v1'
+SCENE_POLICY_CLASSROOM_STATIC = 'classroom-static-v1'
 LOGGER = logging.getLogger(__name__)
 
 
@@ -34,7 +38,10 @@ class NativeRouteEvaluator:
     observation in place. A later attempt must establish fresh ground evidence.
     """
 
-    def __init__(self, robot, identifier):
+    def __init__(self, robot, identifier, *, scene_policy=SCENE_POLICY_CONTINUOUS):
+        if scene_policy not in (SCENE_POLICY_CONTINUOUS, SCENE_POLICY_CLASSROOM_STATIC):
+            raise ValueError('unknown native evaluator scene policy')
+        self._scene_policy = scene_policy
         self._robot = robot
         self.course = course_from_identifier(identifier)
         own = robot.getSelf()
@@ -43,7 +50,11 @@ class NativeRouteEvaluator:
             raise RuntimeError('native evaluator description absent')
         self._reply.setSFString('')
         self._scene_fields = NativeFieldLookup()
-        self._scene_snapshot = NativeSceneSnapshot(self.course)
+        # Classroom: full native readback once, before any READY, without a
+        # per-tick signature/cache. Historical continuous policy is retained
+        # strictly for engineering comparisons and negative-mutation tests.
+        self._scene_snapshot = (NativeSceneSnapshot(self.course)
+                                if scene_policy == SCENE_POLICY_CONTINUOUS else None)
         self._vehicle = read_native_evaluator_scene(
             robot, self.course, self._scene_fields, self._scene_snapshot)
         self._self_id = own.getId()
@@ -238,8 +249,14 @@ class NativeRouteEvaluator:
             if (self.observation is None and type(event) is Challenge and
                     model == '' and now - self._challenge_since <= 32):
                 return
-            vehicle = read_native_evaluator_scene(
-                self._robot, self.course, self._scene_fields, self._scene_snapshot)
+            # Deliberate classroom trust model: static colliders were fully
+            # attested at this evaluator's startup; only the drone changes.
+            # Keep source-ID continuity and all live safety/mission readings.
+            if self._scene_policy == SCENE_POLICY_CLASSROOM_STATIC:
+                vehicle = source
+            else:
+                vehicle = read_native_evaluator_scene(
+                    self._robot, self.course, self._scene_fields, self._scene_snapshot)
             if vehicle.getId() != self._vehicle_id:
                 raise RuntimeError('native observation vehicle replaced')
             observation = NativeCourseObservation(
@@ -328,7 +345,10 @@ class NativeRouteEvaluator:
 
 
 def serve_native(robot, identifier):
-    evaluator = NativeRouteEvaluator(robot, identifier)
+    # Trusted, teacher-managed Grand Prix simulation only. This does NOT
+    # establish anti-tamper security or authorize any physical Crazyflie flight.
+    evaluator = NativeRouteEvaluator(robot, identifier,
+                                     scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
     # The ordinary mission path remains completely unchanged.
     import os
     if os.environ.get('WEBEEBLOCKS_GP_STEP_WALL_PROBE') != '1':

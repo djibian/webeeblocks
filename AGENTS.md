@@ -11,6 +11,15 @@ activity -> Blockly -> AST -> preflight -> interpreter -> backend
 Never weaken a safety rule or oracle to obtain a green result. Real Crazyflie
 flight and publication remain human decisions.
 
+The owner-approved Grand Prix *classroom simulation* assumes a canonical, trusted
+static world for the duration of an activity, after full native startup
+attestation. Deliberate in-flight GUI/Supervisor scene editing is outside this
+pedagogical trust model; the product does not certify anti-tampering. This is an
+explicit change in scope, **not** permission to weaken flight dynamics, sensors,
+collisions, mission oracles, native identity/clock/liveness, STOP/RESET/LAND,
+or any independent real-Crazyflie authorization or hardware safety gate.
+Document and test the distinction; a Draft is not qualified for release.
+
 ## 1 — Stateless Controllers
 
 Controller executions are independent, re-entrant and disposable. The state of

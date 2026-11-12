@@ -5,7 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from tools.ci.test_grand_prix_route_evaluator_data_v2 import FakeSupervisor, Node, Field
-from tools.grand_prix.evaluator_publisher_v2 import NativeRouteEvaluator, ORACLE
+from tools.grand_prix.evaluator_publisher_v2 import (NativeRouteEvaluator, ORACLE,
+    SCENE_POLICY_CLASSROOM_STATIC)
 from tools.grand_prix.oracle_attempt_v2 import PureResult
 from tools.grand_prix.route_courses_v2 import reference_course
 
@@ -213,6 +214,31 @@ class NativePublisherTests(unittest.TestCase):
         self.epoch = 'ef' * 16
         self.ground = True
         for _ in range(70): self.assertFalse(self.tick())
+
+    def test_classroom_static_attests_once_and_keeps_full_dynamic_admission(self):
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.checked.assert_not_called()
+        self.assertEqual(self.tick(advance=16), '')
+        self.assertIn('native-observation-gap', self.evaluator.last_error)
+        self.checked.assert_not_called()
+
+    def test_classroom_static_rejects_bad_scene_before_ready_and_reattests_restart(self):
+        self.checked.reset_mock()
+        self.checked.side_effect = RuntimeError('noncanonical initial world')
+        with self.assertRaisesRegex(RuntimeError, 'noncanonical initial world'):
+            NativeRouteEvaluator(self.native, self.course.identifier,
+                                 scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.side_effect = None
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.assertEqual(self.checked.call_count, 2)
 
     def test_scene_change_and_restore_cannot_resurrect_old_readiness(self):
         self.ready()
