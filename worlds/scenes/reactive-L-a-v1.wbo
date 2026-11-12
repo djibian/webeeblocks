@@ -1,0 +1,48 @@
+# Activity 5 A: L corner is physically perceived, not selected by an ID.
+# Length and turn vary; the same pupil .wbb must adapt after real observations.
+# The first boundary and far end are physically distinct; later evaluation must
+# show repeated sensing and route-state utility without checking the pupil AST.
+DEF WEBEEBLOCKS_REACTIVE_L_A_SCENE Group {
+ children [
+  Pose { translation 0 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.18 0.30 0.004 } } ] } # blue start
+  Pose { translation 0.800 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.18 0.18 0.004 } } ] } # junction
+  Pose { translation 0.800 0.450 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.25 0.63 0.87 roughness 0.8 } geometry Box { size 0.18 0.18 0.004 } } ] } # second stage
+  Pose { translation 0.800 0.950 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.32 0.32 0.004 } } ] } # terminal pad
+  Pose { translation 0.704000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.704000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.704000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.704000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.768000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.768000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.768000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.768000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.832000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.832000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.832000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.832000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.896000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.896000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.896000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+  Pose { translation 0.896000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.8 } geometry Box { size 0.064 0.064 0.004 } } ] } # checkerboard
+# Two touching colliders form an actual L with the wrong side physically blocked.
+  DEF ACTIVITY5_A_L_FRONT Solid {
+    translation 1.020 0 0.55
+    name "ACTIVITY5_A_L_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.08 0.64 1.10 } } ]
+    boundingObject Box { size 0.08 0.64 1.10 }
+  }
+  DEF ACTIVITY5_A_L_SIDE Solid {
+    translation 0.800 -0.320 0.55
+    name "ACTIVITY5_A_L_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.48 0.08 1.10 } } ]
+    boundingObject Box { size 0.48 0.08 1.10 }
+  }
+# Separate terminal wall is the second sensor-detectable event.
+  DEF ACTIVITY5_A_TERMINAL Solid {
+    translation 0.800 1.270 0.55
+    name "ACTIVITY5_A_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.78 0.08 1.10 } } ]
+    boundingObject Box { size 0.78 0.08 1.10 }
+  }
+ ]
+}
