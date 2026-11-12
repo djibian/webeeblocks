@@ -163,10 +163,10 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, evaluation, 'SEQUENCE_THIRD_RESET_FRESH');
 
+    // A second valid trajectory must remain a SINGLE takeoff-to-land attempt.
+    // Two short forward moves test compositional commands without a second flight.
     await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
-    await backend.land();
-    await backend.takeoff(0.5);
     await backend.move('forward', 0.25);
     await backend.move('left', 0.28);
     await backend.land();
