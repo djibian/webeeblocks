@@ -320,7 +320,7 @@ function wireFloatingPanels() {
   });
   var shell = document.getElementById('workspaceShell');
   var layer = 5000;
-  function bringForward(control) { control.panel.style.zIndex = String(++layer); }
+  function bringForward(control) { if (control.panel.style) control.panel.style.zIndex = String(++layer); }
   function setOpen(control, opened, focus) {
     control.panel.hidden = !opened;
     control.button.setAttribute('aria-expanded', opened ? 'true' : 'false');
@@ -332,7 +332,8 @@ function wireFloatingPanels() {
       setOpen(control, control.panel.hidden, true);
     });
     control.close.addEventListener('click', function() { setOpen(control, false, true); });
-    var header = control.panel.querySelector('.floatingPanelHeader');
+    var header = control.panel.querySelector && control.panel.querySelector('.floatingPanelHeader');
+    if (!header || typeof header.addEventListener !== 'function') return;
     var drag = null;
     function finishDrag(event) {
       if (!drag || event.pointerId !== drag.id) return;
@@ -372,7 +373,8 @@ function wireFloatingPanels() {
   document.addEventListener('keydown', function(event) {
     if (event.key !== 'Escape') return;
     var active = controls.filter(function(control) { return !control.panel.hidden; })
-      .sort(function(a, b) { return Number(b.panel.style.zIndex) - Number(a.panel.style.zIndex); })[0];
+      .sort(function(a, b) { return Number(b.panel.style && b.panel.style.zIndex || 0) -
+        Number(a.panel.style && a.panel.style.zIndex || 0); })[0];
     if (active) { event.preventDefault(); setOpen(active, false, true); }
   });
   // Always show the student measurements without stealing keyboard focus.
