@@ -3,9 +3,11 @@
 <head><meta charset="utf-8"><title>Grand Prix — vue 3D passive</title>
 <style>
 html,body{margin:0;height:100%;background:#081422;color:#e8f1fc;font:14px system-ui}
+body{display:flex;flex-direction:column;overflow:hidden}
 header{padding:9px 17px;background:#162b43;display:flex;gap:22px;align-items:center}
+header{flex:0 0 auto}
 header strong{font-size:18px}small{color:#a7bbd0}
-#view{width:100%;height:calc(100vh - 57px);display:block}
+#view{width:100%;height:auto;flex:1 1 0;min-height:0;display:block}
 #status{margin-left:auto}
 </style>
 </head>
