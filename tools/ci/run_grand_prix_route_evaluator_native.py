@@ -85,7 +85,8 @@ def check_native(data):
 
 
 def run_case(home, env, mode, index=5):
-    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid'):
+    if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
+                    'paired-benchmark'):
         raise RuntimeError('unknown native evaluator probe mode')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('R2025a native evaluator witness required')
@@ -167,11 +168,37 @@ def run_case(home, env, mode, index=5):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-classroom-startup-attestation-v1' if classroom
+        expected_claim = ('native-route-evaluator-paired-ticks-v1' if mode == 'paired-benchmark'
+                          else 'native-classroom-startup-attestation-v1' if classroom
                           else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
         if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
-        if classroom:
+        if mode == 'paired-benchmark':
+            names = ('historical-continuous-v1', 'classroom-static-v1')
+            series = data.get('tick_wall_ns')
+            reads = data.get('scene_reads_measured')
+            first, last = data.get('first_sim_ms'), data.get('last_sim_ms')
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
+                    data.get('phase') != 'idle-ready' or
+                    data.get('paired_same_step') is not True or
+                    data.get('order') != 'alternating-AB-BA' or
+                    data.get('samples') != 96 or
+                    type(first) is not int or type(last) is not int or
+                    last - first != 95 * 8 or
+                    type(series) is not dict or set(series) != set(names) or
+                    reads != {names[0]: 96, names[1]: 0}):
+                raise RuntimeError('paired native benchmark provenance invalid')
+            for name in names:
+                values = series[name]
+                if (type(values) is not list or len(values) != 96 or
+                        any(type(v) is not int or v <= 0 for v in values)):
+                    raise RuntimeError('paired native tick samples missing')
+            ratio = data.get('wall_tick_ratio_historical_over_classroom')
+            if (type(ratio) not in (int, float) or not math.isfinite(ratio) or
+                    abs(ratio - round(sum(series[names[0]]) / sum(series[names[1]]), 6)) > 1e-6):
+                raise RuntimeError('paired native tick ratio invalid')
+        elif classroom:
             if (data.get('configuration') != course.identifier or
                     data.get('webots') != 'R2025a' or
                     data.get('timestep_ms') != 8 or
@@ -253,3 +280,5 @@ def run_native(home, env):
         run_case(home, env, 'classroom-startup', index)
     # Corrupt the .wbt *before* Webots loads it; reject before first READY.
     run_case(home, env, 'classroom-invalid', 5)
+    # Real same-process native idle READY cost; no rendered FPS claim.
+    run_case(home, env, 'paired-benchmark', 5)
