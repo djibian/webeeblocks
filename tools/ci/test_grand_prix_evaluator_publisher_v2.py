@@ -355,6 +355,54 @@ class NativePublisherTests(unittest.TestCase):
         self.assertFalse(self.tick())
 
 
+    def test_classroom_static_wrong_landing_keeps_dynamic_failure_without_scene_rescan(self):
+        # The deliberate static-world policy removes only *geometry* rescans.
+        # Pure flight/landing oracles still fail an incomplete pupil mission.
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.native.vehicle.fields['customData'] = (
+            f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle={ORACLE}')
+        with self.assertLogs('tools.grand_prix.evaluator_publisher_v2') as log:
+            for _ in range(190):
+                self.tick()
+        self.assertEqual(len(log.records), 1)
+        self.assertIn('reason=wrong-landing', log.records[0].getMessage())
+        self.assertEqual(self.evaluator.phase, 'failed')
+        self.assertEqual(self.native.evaluator.fields['description'], '')
+        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.checked.assert_not_called()
+
+    def test_classroom_static_exact_210s_deadline_preempts_late_oracle(self):
+        # Exercise the real publisher state machine on API-shaped host data.
+        # This is not a native R2025a or physical Crazyflie flight proof.
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.ground = False
+        while self.pose[2] < .65:
+            self.pose[2] = min(.65, self.pose[2] + .02)
+            self.tick()
+        while self.ms - self.start < 209992:
+            self.tick()
+        self.assertEqual(self.evaluator.phase, 'active', self.evaluator.last_error)
+        with patch('tools.grand_prix.evaluator_publisher_v2.observe_pure_attempt') as oracle:
+            self.assertEqual(self.tick(), '')
+            oracle.assert_not_called()
+        self.assertEqual(self.ms - self.start, 210000)
+        self.assertIn('status=not-achieved', self.native.vehicle.fields['customData'])
+        self.assertFalse(self.tick())
+        self.checked.assert_not_called()
+
+
 class NativePublisherEvidenceTests(unittest.TestCase):
     def test_compiled_protocol_wrapper_never_injects_land_and_waits_for_real_acks(self):
         # Compile the actual wrapper against API-shaped callbacks. This proves
