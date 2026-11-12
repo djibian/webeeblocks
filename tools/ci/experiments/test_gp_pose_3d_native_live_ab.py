@@ -126,6 +126,37 @@ class LiveExperimentLogic(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'did not actually close'):
             live._require_reader_proof('viewer_stopped', False, 0, 5000)
 
+    def test_stop_rejects_stale_display_after_native_publisher_advances(self):
+        displayed = dict(poseValid=True, poseTimeMs=5000, poseSeq=150,
+                         incarnation='incarnation-a')
+        current = dict(valid=True, time_ms=17000, sequence=1800,
+                       incarnation='incarnation-a')
+        # The old check accepted the 5000-ms displayed pose as a valid stop.
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, current)
+
+    def test_stop_requires_current_pub_and_same_incarnation(self):
+        displayed = dict(poseValid=True, poseTimeMs=5000, poseSeq=150,
+                         incarnation='incarnation-a')
+        current = dict(valid=True, time_ms=5072, sequence=160,
+                       incarnation='incarnation-a')
+        self.assertEqual(live._require_live_stop_pose(displayed, current), 5072)
+        changed = dict(current, incarnation='incarnation-b')
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, changed)
+        invalid = dict(current, sequence=149)
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, invalid)
+        delayed = dict(current, time_ms=6008)
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, delayed)
+        unaligned = dict(current, time_ms=5073)
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, unaligned)
+        not_valid = dict(current, valid=False)
+        with self.assertRaisesRegex(RuntimeError, 'fresh first-flight native'):
+            live._require_live_stop_pose(displayed, not_valid)
+
     def test_slow_arm_must_intercept_five_real_requests(self):
         for count in (0, 1, 4):
             with self.assertRaisesRegex(RuntimeError, 'five delayed real pose GETs'):
