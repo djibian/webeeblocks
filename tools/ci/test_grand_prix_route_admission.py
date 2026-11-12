@@ -179,6 +179,47 @@ int main(){
  assert(vehicle==failed+" reason=altitude");
  assert(gp_u_deadline(now+0.032,1)==0);
  assert(vehicle==failed+" reason=altitude");
+ // Route-only cause authority: evaluator supplies typed evidence, while this
+ // native pilot is the only writer of negative vehicle outcomes.
+ admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
+ now=2.176;assert(gp_u_deadline(now,0)==1);
+ assert(vehicle==failed+" reason=altitude");
+ assert(gp_u_deadline(now+0.032,1)==0);
+ assert(vehicle==failed+" reason=altitude");
+ // Pilot may run first: generic LAND followed by a persistent terminal
+ // witness must enrich in this same controller without inventing a cause.
+ admit();alive(2144);evidence.clear();now=2.176;
+ assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
+ evidence=response("TERMINAL","2176 reason=course-boundary");
+ now=2.208;assert(gp_u_deadline(now,0)==0);
+ assert(vehicle==failed+" reason=course-boundary");
+ // Last pilot failure belongs to an older attempt: later RESET is inviolable.
+ vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";
+ assert(gp_u_deadline(now+0.032,0)==0);
+ assert(vehicle=="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2");
+ // Unknown/stale/malformed reason/identity never becomes a diagnosis.
+ for(const std::string suffix:{
+   "2176 reason=invalid-route-observation",
+   "2176 reason=time-limit",
+   "2176 reason=altitude extra",
+   "+2176 reason=altitude",
+   "02176 reason=altitude",
+   "2111 reason=altitude",
+   "212112 reason=altitude"
+ }) {
+   admit();alive(2144);evidence=response("TERMINAL",suffix);
+   now=2.176;assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
+ }
+ admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
+ evidence.replace(evidence.find("epoch=")+6,1,"f");
+ now=2.176;assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
+ admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
+ evidence.replace(evidence.find("attempt=1"),9,"attempt=2");
+ now=2.176;assert(gp_u_deadline(now,0)==1);assert(vehicle==failed);
+ // Time-limit alone belongs to the independent 210000 ms clock, even when a
+ // valid earlier witness was not consumed before the exact deadline.
+ admit();alive(2144);evidence=response("TERMINAL","2176 reason=altitude");
+ now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==1); // oneLand observed landed=1
  gp_u_deadline(now+0.064,0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RESET")==0);

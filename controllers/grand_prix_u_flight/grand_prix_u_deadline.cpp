@@ -107,6 +107,39 @@ bool freshRouteEvidence(const char *kind,long long now) {
   }
   return true;
 }
+// Terminal causes are attested by the evaluator on description, never by
+// flight heuristics or a transport TIME_LIMIT. The pilot alone writes the
+// negative outcome into vehicle.customData, including late enrichment.
+bool routeTerminalCause(long long now,std::string &cause) {
+  cause.clear();
+  if(begin<0 || routeEpoch.empty() || routeAttempt!=attempt || now<begin)
+    return false;
+  std::string config;
+  if(!currentConfig(config) || config!=routeConfig)return false;
+  WbNodeRef node=wb_supervisor_node_get_from_def(evaluatorDef);
+  WbFieldRef field=node?wb_supervisor_node_get_field(node,"description"):nullptr;
+  const char *raw=field?wb_supervisor_field_get_sf_string(field):nullptr;
+  if(!raw || std::strlen(raw)>383)return false;
+  const std::string prefix="GP_ROUTE_TERMINAL_V1 attempt="+
+    std::to_string(attempt)+" config="+routeConfig+" epoch="+routeEpoch+" time_ms=";
+  const std::string witness(raw);
+  if(witness.compare(0,prefix.size(),prefix)!=0)return false;
+  const std::string rest=witness.substr(prefix.size());
+  const auto split=rest.find(" reason=");
+  if(split==std::string::npos)return false;
+  long long stamp=-1;
+  if(!canonicalNumber(rest.substr(0,split),stamp) ||
+     stamp<routeIssued || stamp<begin || stamp>now ||
+     stamp>=begin+210000)return false;
+  cause=rest.substr(split+8);
+  if(cause!="envelope-contact" && cause!="course-boundary" &&
+     cause!="altitude" && cause!="low-outside-zone" &&
+     cause!="wrong-landing") {
+    cause.clear();
+    return false;
+  }
+  return true;
+}
 #endif
 void publish(const char *state) {
   char data[384];
@@ -125,23 +158,37 @@ void failed_outcome(const char *cause=nullptr) {
   char result[192];
   std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=not-achieved",attempt,oracleName);
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
-  // A native evaluator's first exact-attempt failure must survive the later
-  // independent safety LAND. Never overwrite it with a generic flight error.
+  // One negative-outcome writer: the native pilot. A newer RESET marker or
+  // another oracle is never replaced by an older attempt's outcome.
   const char *current=wb_supervisor_field_get_sf_string(field);
-  if(current) {
-    const std::string existing(current), prefix(result);
-    if(existing==prefix)return;
-    if(existing.compare(0,prefix.size()+8,prefix+" reason=")==0) {
-      const std::string reason=existing.substr(prefix.size()+8);
-      if(reason=="envelope-contact" || reason=="course-boundary" ||
-         reason=="altitude" || reason=="low-outside-zone" ||
-         reason=="wrong-landing" || reason=="time-limit")return;
-    }
+  const std::string existing=current?current:"", generic(result);
+  if(existing.compare(0,generic.size()+8,generic+" reason=")==0) {
+    const std::string first=existing.substr(generic.size()+8);
+    if(first=="envelope-contact" || first=="course-boundary" ||
+       first=="altitude" || first=="low-outside-zone" ||
+       first=="wrong-landing" || first=="time-limit")return;
   }
-  // Only this independent time comparison may attest 210 s; TIME_LIMIT
-  // transport errors and early evaluator revocation never imply expiry.
+  const std::string currentMarker="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 "+std::to_string(attempt);
+  if(existing.rfind("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ",0)==0 &&
+     existing!=currentMarker)return;
+  if(existing.rfind("WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=",0)==0 &&
+     existing.compare(0,generic.size(),generic)!=0 &&
+     existing!="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt="+std::to_string(attempt)+
+       " oracle="+std::string(oracleName)+" status=achieved")return;
+  // A generic pilot failure may be enriched after the independent safety
+  // LAND. This retry runs in the SAME flight controller as native RESET.
+  if(existing==generic && cause!=nullptr)return;
+  std::string witnessed;
+  long long routeNow=0;
+  const bool terminal=cause==nullptr && routeTime(wb_robot_get_time(),routeNow) &&
+     routeTerminalCause(routeNow,witnessed);
+  if(existing==generic && !terminal)return;
   if(cause && std::strcmp(cause,"time-limit")==0)
     std::strncat(result," reason=time-limit",sizeof(result)-std::strlen(result)-1);
+  else if(terminal) {
+    std::strncat(result," reason=",sizeof(result)-std::strlen(result)-1);
+    std::strncat(result,witnessed.c_str(),sizeof(result)-std::strlen(result)-1);
+  }
 #else
   (void)cause;
 #endif

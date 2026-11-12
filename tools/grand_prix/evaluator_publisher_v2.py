@@ -89,10 +89,12 @@ class NativeRouteEvaluator:
         self.last_error = None
 
     def _close(self, now, reason, *, error=None):
-        self._reply.setSFString('')  # revoke before any outcome or diagnostic
+        # A terminal cause must remain available until the pilot consumes it;
+        # repeated failed ticks may never erase the latched terminal witness.
+        if self._context is not None and self._context.attempt <= self._closed_attempt:
+            return
+        self._reply.setSFString('')  # revoke ALIVE before terminal classification
         if self._context is not None:
-            if self._context.attempt <= self._closed_attempt:
-                return
             self._closed_attempt = self._context.attempt
         self.last_error = reason if error is None else type(error).__name__ + ': ' + str(error)
         self.phase = 'authority-revoked' if self._positive_written else 'failed'
@@ -101,26 +103,17 @@ class NativeRouteEvaluator:
         if self._active is not None and not self._positive_written:
             self._active = fail_pure_attempt(self._active,
                 max(now, self._active.last_ms), reason)
-            attempt = self._context.attempt
-            # The broker may have acknowledged RESET before the next
-            # challenge is visible. Never replace its newer attempt marker
-            # with a failure from this evaluator's previous attempt.
-            observed = self._channel.getSFString()
-            causal = self._outcome('not-achieved', self._active.result.reason)
-            generic = self._outcome('not-achieved')
-            # Revoking ALIVE above may let the independent pilot publish a
-            # generic failure first. Enrich *only* that exact-attempt/oracle
-            # generic marker with an independently attested public cause.
-            # A pre-existing cause (especially pilot-attested time-limit),
-            # a newer RESET marker and any other oracle remain immutable.
-            may_enrich = observed == generic and causal != generic
-            if self._active.attempt == attempt and (
-                    observed in (
-                        f'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 {attempt}',
-                        f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={attempt} oracle={ORACLE}',
-                        f'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt={attempt} oracle={ORACLE}',
-                        self._outcome('achieved')) or may_enrich):
-                self._channel.setSFString(causal)
+            # The pilot alone publishes negative vehicle.customData outcomes.
+            # This evaluator only attests a bounded cause on its own private
+            # description channel; RESET cannot interpose on a vehicle write.
+            cause = self._active.result.reason
+            if (self._active.attempt == self._context.attempt and cause in (
+                    'envelope-contact', 'course-boundary', 'altitude',
+                    'low-outside-zone', 'wrong-landing')):
+                self._reply.setSFString(
+                    f'GP_ROUTE_TERMINAL_V1 attempt={self._context.attempt} '
+                    f'config={self._context.config} epoch={self._context.epoch} '
+                    f'time_ms={now} reason={cause}')
         if self._context is not None:
             LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
                            self._context.attempt, now, reason, self.last_error)
@@ -217,7 +210,10 @@ class NativeRouteEvaluator:
                 return
             context = event if type(event) is Challenge else event.challenge
             if context.attempt <= self._closed_attempt:
-                self._reply.setSFString('')
+                # Keep the exact terminal witness long enough for the independent
+                # pilot to consume it, but never carry it into another epoch.
+                if context != self._context:
+                    self._reply.setSFString('')
                 return
             if context != self._context:
                 if type(event) is not Challenge:
