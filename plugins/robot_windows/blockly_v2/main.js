@@ -13,6 +13,7 @@ var runtimeStopRequested = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
 var runtimeDebug = null;
+var runtimeExecutionSettled = null;
 var debugCurrentBlockId = null;
 var debugFollowExecution = true;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
@@ -72,7 +73,12 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
+    var pausedDebugStop = runtimeRunning && runtimeDebug && runtimeDebug.waiter &&
+      stopSupported && !runtimeStopRequested;
+    reset.disabled = !resetSupported || !ready || (runtimeRunning && !pausedDebugStop) ||
+      runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      runtimeScenePending || runtimeProjectPending || (!runtimeTerminal && !pausedDebugStop);
+    reset.textContent = pausedDebugStop ? 'Arrêter puis réinitialiser' : 'Réinitialiser';
   }
 }
 
@@ -294,11 +300,11 @@ function wireDebugControls() {
     onPause: function(detail) {
       debugCurrentBlockId = detail.blockId || null;
       if (debugFollowExecution) showDebugCurrentBlock(false);
-      document.getElementById('debugState').textContent = 'En pause'; setDebugControls(true);
+      document.getElementById('debugState').textContent = detail.reason === 'breakpoint' ? 'Point d’arrêt' : 'En pause'; setDebugControls(true); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-paused', {detail: detail}));
     },
     onResume: function(detail) {
-      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false);
+      document.getElementById('debugState').textContent = 'Exécution'; setDebugControls(false); updateRuntimeActions();
       window.dispatchEvent(new CustomEvent('webeeblocks-debug-resumed', {detail: detail}));
     },
     onSensor: function(detail) {
@@ -315,6 +321,63 @@ function wireDebugControls() {
   });
   document.getElementById('stepNext').addEventListener('click', function() { runtimeDebug.next(); });
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
+
+  // Native Blockly menu before execution; registry preserves built-in and
+  // procedure-specific menu entries. No block field or .wbb metadata is changed.
+  Blockly.ContextMenuRegistry.registry.register({
+    id: 'webeeblocks-toggle-breakpoint',
+    scopeType: Blockly.ContextMenuRegistry.ScopeType.BLOCK,
+    weight: 25,
+    preconditionFn: function(scope) {
+      var block = scope.block;
+      return block && block.workspace === workspace && block.type !== 'procedures_defnoreturn' &&
+        runtimeDebug && !runtimeRunning ? 'enabled' : 'hidden';
+    },
+    displayText: function(scope) {
+      return runtimeDebug.hasBreakpoint(scope.block.id) ? 'Retirer le point d’arrêt' : 'Ajouter un point d’arrêt';
+    },
+    callback: function(scope) { runtimeDebug.toggleBreakpoint(scope.block.id); }
+  });
+
+  // Blockly 13 deliberately suppresses its own menu on a read-only workspace.
+  // During a debugger pause, offer the same single action on right-click;
+  // never make the Blockly program editable while a flight is in progress.
+  var breakpointMenu = document.createElement('button');
+  breakpointMenu.id = 'debugBreakpointMenu';
+  breakpointMenu.type = 'button';
+  breakpointMenu.hidden = true;
+  breakpointMenu.className = 'webee-debug-breakpoint-menu';
+  document.body.appendChild(breakpointMenu);
+  function closeBreakpointMenu() { breakpointMenu.hidden = true; }
+  breakpointMenu.addEventListener('click', function() {
+    if (!breakpointMenu.hidden && runtimeDebug && runtimeDebug.waiter)
+      runtimeDebug.toggleBreakpoint(breakpointMenu.dataset.blockId);
+    closeBreakpointMenu();
+  });
+  window.addEventListener('click', closeBreakpointMenu);
+  window.addEventListener('keydown', function(event) { if (event.key === 'Escape') closeBreakpointMenu(); });
+  var blocklyView = document.getElementById('blocklyDiv');
+  blocklyView.addEventListener('contextmenu', function(event) {
+    if (!runtimeDebug || !runtimeDebug.enabled || !runtimeDebug.waiter ||
+        !workspace || !workspace.isReadOnly || !workspace.isReadOnly()) return;
+    // Resolve the innermost real block (expressions are nested SVG groups).
+    var clicked = null;
+    workspace.getAllBlocks(false).forEach(function(block) {
+      var svg = block && block.getSvgRoot && block.getSvgRoot();
+      if (svg && svg.contains(event.target) && (!clicked ||
+          clicked.getSvgRoot().contains(svg))) clicked = block;
+    });
+    if (!clicked || clicked.type === 'procedures_defnoreturn') return;
+    event.preventDefault();
+    event.stopPropagation();
+    breakpointMenu.dataset.blockId = clicked.id;
+    breakpointMenu.textContent = runtimeDebug.hasBreakpoint(clicked.id) ?
+      'Retirer le point d’arrêt' : 'Ajouter un point d’arrêt';
+    breakpointMenu.style.left = Math.max(4, Math.min(event.clientX, window.innerWidth - 230)) + 'px';
+    breakpointMenu.style.top = Math.max(4, Math.min(event.clientY, window.innerHeight - 46)) + 'px';
+    breakpointMenu.hidden = false;
+    breakpointMenu.focus();
+  }, true);
   document.getElementById('debugShowCurrent').addEventListener('click', function() {
     if (this.disabled) return;
     debugFollowExecution = true;
@@ -340,21 +403,23 @@ function serializedWorkspace() {
 
 async function stopSimulation() {
   if (!runtimeRunning || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready)
-    return;
+    return false;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
-    return;
+    return false;
   runtimeStopPending = true;
   runtimeStopRequested = true;
   updateRuntimeActions();
   setDebugControls(false);
-  if (runtimeDebug) runtimeDebug.continueRun();
+  if (runtimeDebug) runtimeDebug.cancel();
   try {
     await runtimeBackend.stopSimulation();
     runtimeTerminal = true;
     setRuntimeFailure(userStoppedError());
+    return true;
   } catch (error) {
     runtimeTerminal = true;
     setRuntimeFailure(error);
+    return false;
   } finally {
     runtimeStopPending = false;
     updateRuntimeActions();
@@ -362,7 +427,15 @@ async function stopSimulation() {
 }
 
 async function resetSimulation() {
-  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+  // RESET during a debugger wait must first obtain the ordinary native STOP ACK.
+  // No direct native RESET while an attempt is running or its outcome is pending.
+  if (runtimeRunning && runtimeDebug && runtimeDebug.waiter && !runtimeStopPending) {
+    var executionSettled = runtimeExecutionSettled;
+    if (await stopSimulation() !== true) return;
+    if (executionSettled) await executionSettled;
+  }
+  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+      !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
     setRuntimeFailure(new Error('Simulation reset unavailable'));
@@ -409,6 +482,8 @@ async function runProgram() {
     return;
   }
   submit.disabled = true;
+  var settleExecution;
+  runtimeExecutionSettled = new Promise(function(resolve) { settleExecution = resolve; });
   runtimeTerminal = false;
   runtimeStopRequested = false;
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
@@ -444,6 +519,8 @@ async function runProgram() {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
     updateRuntimeActions();
+    settleExecution();
+    runtimeExecutionSettled = null;
   }
 }
 
@@ -456,6 +533,8 @@ function isPureVisualWorkspaceMove(event) {
     event.oldParentId == null && event.newParentId == null);
 }
 function onWorkspaceChange(event) {
+  if (event && event.type === Blockly.Events.BLOCK_DELETE && runtimeDebug)
+    runtimeDebug.pruneBreakpoints();
   if (!event || event.isUiEvent === true || event.type === Blockly.Events.UI ||
       event.type === Blockly.Events.VIEWPORT_CHANGE || isPureVisualWorkspaceMove(event)) return;
   try {
