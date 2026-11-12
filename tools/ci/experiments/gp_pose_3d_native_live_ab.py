@@ -48,6 +48,29 @@ def _require_reader_proof(arm, closed, delayed_gets, stopped_at_ms=None):
         raise RuntimeError('viewer_slow did not exercise five delayed real pose GETs')
 
 
+def _require_live_stop_pose(displayed, publisher):
+    """Verify a *current* independent mailbox read before closing the reader.
+
+    A renderer frozen on a 5000-ms pose may still draw when Webots has
+    already completed both measurement windows. Its displayed timestamp
+    cannot by itself establish when the reader was actually stopped.
+    """
+    if (type(displayed) is not dict or type(publisher) is not dict or
+            displayed.get('poseValid') is not True or
+            publisher.get('valid') is not True or
+            type(displayed.get('poseSeq')) is not int or
+            type(publisher.get('sequence')) is not int or
+            publisher['sequence'] < displayed['poseSeq'] or
+            type(displayed.get('poseTimeMs')) is not int or
+            type(publisher.get('time_ms')) is not int or
+            displayed.get('incarnation') != publisher.get('incarnation') or
+            not 4008 <= displayed['poseTimeMs'] <= publisher['time_ms'] <= 6500 or
+            publisher['time_ms'] % 8 or displayed['poseTimeMs'] % 8 or
+            publisher['time_ms'] - displayed['poseTimeMs'] > 500):
+        raise RuntimeError('stopped-reader closure is not within fresh first-flight native publisher data')
+    return publisher['time_ms']
+
+
 def _finish_browser_report(report, screenshot, close):
     """Only publish success after every browser evidence operation succeeds."""
     if screenshot is not None:
@@ -112,14 +135,28 @@ def _browser_child(args):
             stopped_at_ms = None
             while not stop.exists() and time.monotonic() - first < 120:
                 elapsed = time.monotonic() - first
-                if (args.arm == 'viewer_stopped' and elapsed >= 5 and not page_stopped
-                        and page.evaluate('viewerMetrics.poseTimeMs >= 4008')):
-                    # Stop only after a truly observed active native flight pose.
-                    stopped_at_ms = page.evaluate('viewerMetrics.poseTimeMs')
-                    report['viewer_closed_native_pose_ms'] = stopped_at_ms
-                    report['viewer_closed_wall_s'] = elapsed
-                    page.close()
-                    page_stopped = True
+                if args.arm == 'viewer_stopped' and elapsed >= 5 and not page_stopped:
+                    # The displayed pose can be stale after a blocked browser
+                    # fetch. Cross-check the independent current mmap publisher
+                    # via the read-only original /pose endpoint before closing.
+                    displayed = page.evaluate("""() => ({
+                        poseTimeMs: viewerMetrics.poseTimeMs,
+                        poseSeq: viewerMetrics.poseSeq,
+                        poseValid: viewerMetrics.poseValid,
+                        incarnation: viewerMetrics.incarnation
+                    })""")
+                    if displayed['poseValid'] and displayed['poseTimeMs'] >= 4008:
+                        import urllib.request
+                        with urllib.request.urlopen(args.url.rstrip('/') + '/pose',
+                                                    timeout=2) as response:
+                            publisher = json.load(response)
+                        stopped_at_ms = _require_live_stop_pose(displayed, publisher)
+                        report['viewer_closed_display_pose_ms'] = displayed['poseTimeMs']
+                        report['viewer_closed_native_pose_ms'] = stopped_at_ms
+                        report['viewer_closed_native_sequence'] = publisher['sequence']
+                        report['viewer_closed_wall_s'] = elapsed
+                        page.close()
+                        page_stopped = True
                 if not page_stopped:
                     page.wait_for_timeout(250)
                     sample = page.evaluate('''() => {
