@@ -59,7 +59,7 @@ def run():
         command = [
             'xvfb-run', '-a', '-e', str(OUT / 'xvfb.log'),
             '-s', '-screen 0 1280x900x24',
-            str(home / 'webots'), '--stdout', '--stderr',
+            str(home / 'webots'), '--stdout', '--stderr', '--minimize',
             '--mode=realtime', str(world),
         ]
         proc = None

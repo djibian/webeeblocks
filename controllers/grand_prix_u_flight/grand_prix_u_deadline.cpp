@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+#include <algorithm>
 #include <charconv>
 #include <random>
 #include <string>
@@ -24,6 +25,9 @@ std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
 long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
 bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
+// Route-only, non-authoritative clock stream, bound to one private browser nonce.
+std::string routeClockNonce;
+long long routeClockLastSecond=-1;
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -67,6 +71,7 @@ void clearRouteObservation() {
 void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
+  routeClockNonce.clear();routeClockLastSecond=-1;
 }
 void challengeRoute() {
   unsigned long long current=0;std::string config;long long now=0;
@@ -249,6 +254,7 @@ extern "C" int gp_u_start(double now) {
   begin=std::llround(now*1000);attempt=current;expired=false;landed=false;success=false;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   nativeRouteDeadline=false;
+  routeClockLastSecond=-1; // Retain pre-admission subscription of the current epoch.
 #endif
   publish("admitted");
   std::printf("GP_U_ADMISSION attempt=%llu start_ms=%lld\n",attempt,begin);std::fflush(stdout);
@@ -272,6 +278,23 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
   long long observed=0;
   if(!routeTime(now,observed) || observed<begin) {
     expired=true;publish("failed");failed_outcome();return 1;
+  }
+#endif
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // Read-only native time notifications: never derive mission time from wall
+  // time or modify the irreversible deadline/oracle. One update per observed
+  // simulated-second transition. No notifications before admission or after
+  // the actual 210 s limit. Loss of a notification never grants authority.
+  if(!routeClockNonce.empty() && observed>=begin && observed<=begin+210000) {
+    const long long second=(observed-begin)/1000;
+    if(second>routeClockLastSecond) {
+      char event[180];
+      std::snprintf(event,sizeof(event),
+        "GP_ROUTE_CLOCK_V1 TICK nonce=%s attempt=%llu seconds=%lld",
+        routeClockNonce.c_str(),attempt,second);
+      wb_robot_wwi_send_text(event);
+      routeClockLastSecond=second;
+    }
   }
 #endif
   // Only a success already latched on an earlier pre-deadline observation
@@ -310,6 +333,7 @@ extern "C" void gp_u_reset_complete(void) {
   begin=-1;attempt=0;expired=false;landed=false;success=false;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   nativeRouteDeadline=false;
+  routeClockNonce.clear();routeClockLastSecond=-1;
 #endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -347,6 +371,27 @@ extern "C" int gp_u_filter_raw(const char *message) {
     return 0;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // The browser can bind an opaque nonce for read-only simulated clock ticks.
+  // Strictly route-mode, one currently evidenced attempt/epoch; never an
+  // actuator, mission oracle, admission, real-flight or RESET channel.
+  const std::string clockPrefix="GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce=";
+  if(message && !std::strncmp(message,clockPrefix.c_str(),clockPrefix.size())) {
+    const std::string token=message+clockPrefix.size();
+    const bool valid=token.size()==32 && std::all_of(token.begin(),token.end(),
+      [](char ch){return (ch>='0'&&ch<='9')||(ch>='a'&&ch<='f');});
+    unsigned long long current=0;
+    if(valid && !expired && !success && !routeEpoch.empty() &&
+       currentAttempt(current) && current==routeAttempt &&
+       (begin<0 ? fileIdle : current==attempt)) {
+      routeClockNonce=token;routeClockLastSecond=-1;
+      char ack[160];
+      std::snprintf(ack,sizeof(ack),
+        "GP_ROUTE_CLOCK_V1 ACK nonce=%s attempt=%llu",
+        routeClockNonce.c_str(),current);
+      wb_robot_wwi_send_text(ack);
+    }
+    return 0; // Never forward unsupported clock messages to the flight parser.
+  }
   // Host-only, non-actuating readiness peek. Do not consume ALIVE, rotate an
   // epoch, start an attempt or disclose the private evaluator context to WWI.
   const std::string queryPrefix="WEBEEBLOCKS_RUNTIME_V2 REQUEST ";
@@ -379,6 +424,9 @@ extern "C" int gp_u_filter_raw(const char *message) {
     char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR TIME_LIMIT",id);
     wb_robot_wwi_send_text(reply);return 0;
   }
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(begin>=0 && parsed && !std::strcmp(cmd,"STOP"))routeClockNonce.clear();
+#endif
   if(begin>=0 && !expired && parsed && !std::strcmp(cmd,"STOP"))publish("failed");
   return 1;
 }
