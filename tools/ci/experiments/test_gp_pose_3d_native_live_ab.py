@@ -64,7 +64,8 @@ class LiveExperimentLogic(unittest.TestCase):
     def test_false_stopped_arm_is_refused(self):
         with self.assertRaisesRegex(RuntimeError, 'did not actually close'):
             live._require_reader_proof('viewer_stopped', False, 0)
-        live._require_reader_proof('viewer_stopped', True, 0)
+        # A closed reader must still supply an observed first-active timestamp.
+        live._require_reader_proof('viewer_stopped', True, 0, 5000)
         live._require_reader_proof('viewer_fast', False, 0)
 
     def test_stop_requires_first_active_native_timestamp(self):
