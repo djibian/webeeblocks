@@ -264,6 +264,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--arms', nargs='+', choices=ARMS,
                         default=['publish_only', 'viewer_fast'])
+    parser.add_argument('--output-root', default='ci-artifacts/grand-prix-pose-3d-live-ab',
+                        help='unique relative ci-artifacts subdirectory, no overwrite')
     parser.add_argument('--child-viewer', action='store_true')
     parser.add_argument('--arm', choices=ARMS)
     for key in ('url','ready','stop','output'):
@@ -275,6 +277,14 @@ def main():
         return _browser_child(args)
     if not args.arms or args.arms[0] != 'publish_only' or len(set(args.arms)) != len(args.arms):
         parser.error('require publish_only first and unique paired arms')
+    global OUT
+    output = Path(args.output_root)
+    evidence_root = (ROOT / 'ci-artifacts').resolve()
+    if (output.is_absolute() or '..' in output.parts or
+            (ROOT / output).resolve() == evidence_root or
+            not (ROOT / output).resolve().is_relative_to(evidence_root)):
+        parser.error('output-root must be a unique subdirectory inside ci-artifacts')
+    OUT = (ROOT / output).resolve()
     home = Path(os.environ['WEBOTS_HOME']).resolve()
     if (home/'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('exact native Webots R2025a required')
