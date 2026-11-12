@@ -20,6 +20,13 @@ def main():
     if scene_test.returncode:
         print('FAIL Runtime v2 physical scene isolation',file=sys.stderr);print(scene_test.stdout,file=sys.stderr);print(scene_test.stderr,file=sys.stderr);return scene_test.returncode
     print(scene_test.stdout.strip())
+    orientation_scene_test=subprocess.run([sys.executable,'tools/ci/test_progression_orientation_scene.py'],text=True,capture_output=True)
+    if orientation_scene_test.returncode:
+        print('FAIL Activity 3 3D orientation scene static geometry',file=sys.stderr)
+        print(orientation_scene_test.stdout,file=sys.stderr)
+        print(orientation_scene_test.stderr,file=sys.stderr)
+        return orientation_scene_test.returncode
+    print(orientation_scene_test.stdout.strip())
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
         print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode
