@@ -456,10 +456,33 @@ def run_native(home, env):
     # The production flight and C pilot are reused; RESET must preserve the
     # attested static world without repeating expensive scene traversal.
     run_case(home, env, 'flight-reset')
-    # Each is a new real R2025a world and evaluator process. Distinct course
-    # IDs prove fresh attestation, not merely reuse of a prior READY token.
-    for index in (5, 0, 11):
-        run_case(home, env, 'classroom-startup', index)
+    # Twelve separate real R2025a worlds/evaluators: the initial complete
+    # readback must precede READY for *every* canonical configuration.
+    # These are startup/admission witnesses, NOT twelve flown missions.
+    startups = []
+    for index in range(12):
+        data, case = run_case(home, env, 'classroom-startup', index)
+        startups.append(dict(
+            index=index, configuration=data['configuration'],
+            world_sha256=hashlib.sha256((case / 'world.wbt').read_bytes()).hexdigest(),
+            native_json_sha256=hashlib.sha256((case / 'native.json').read_bytes()).hexdigest(),
+            scene_checks=data['scene_checks'],
+            ready_time_ms=data['ready']['time_ms'],
+            native_evaluator_id=data['new_evaluator_native_id'],
+            case_directory=case.name))
+    expected = {reference_course(index).identifier for index in range(12)}
+    if (len(startups) != 12 or
+            {row['configuration'] for row in startups} != expected or
+            len({row['world_sha256'] for row in startups}) != 12 or
+            len({row['native_json_sha256'] for row in startups}) != 12 or
+            any(row['index'] != index or row['scene_checks'] != 1
+                for index, row in enumerate(startups))):
+        raise RuntimeError('native twelve-world initial attestation matrix invalid')
+    (OUT / 'classroom-startup-summary.json').write_text(
+        json.dumps(dict(claim='native-classroom-static-twelve-startups-not-flights-v1',
+                        webots='R2025a', timestep_ms=8,
+                        configurations=12, startup_attestations=startups),
+                   sort_keys=True, indent=2) + '\n')
     # Unlike independent startup probes, this *same Webots process* invokes
     # native Supervisor.worldLoad() to switch 5 -> 0. Actual GUI interactions
     # and student workspace transition remain outside this native contract.
