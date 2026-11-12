@@ -10,7 +10,12 @@
   // Preserve the last completed phase if Chromium exhausts its bounded virtual time.
   function phase(label) { result.textContent = 'RUNNING: ' + label; }
   function element(doc, id) { var item = doc.getElementById(id); assert(!!item, 'missing ' + id); return item; }
-  function paint() { return new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); }); }
+  // Headless Chromium can throttle a second RAF after iframe/viewport transitions.
+  // Always run the same geometry assertions after a bounded event-loop turn.
+  function paint() { return Promise.race([
+    new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); }),
+    new Promise(function(resolve) { setTimeout(resolve, 100); })
+  ]); }
   async function until(test) {
     for (var i = 0; i < 150; i++) { if (test()) return; await new Promise(function(resolve) { setTimeout(resolve, 50); }); }
     throw new Error('Blockly workspace did not initialize');
