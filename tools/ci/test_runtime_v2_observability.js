@@ -17,7 +17,9 @@ assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/
 assert.doesNotMatch(mainSource, /getElementById\('stepContinue'\)\.disabled = !runtimeRunning;/);
 assert.match(classroomFixesSource, /body\[data-runtime-state="À CORRIGER"\] #runtimeState/);
 assert.match(projectUiSource, /setRuntimeLocked\(state === 'EXÉCUTION' \|\| state === 'RÉINITIALISATION'\);/);
-assert.match(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
+assert.match(projectUiSource, /workspace\.setIsReadOnly\(runtimeLocked\)/);
+assert.match(projectUiSource, /blocklyDiv\.inert = busy;/);
+assert.doesNotMatch(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
 assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked\) return null;/);
 assert.match(mainSource, /getElementById\('stopSimulation'\)/);
@@ -239,7 +241,108 @@ async function proveOutcomePendingBlocksResetAndLateVerdicts() {
   assert.strictEqual(element('runtimeState').textContent,'PRÊT');
 }
 
+
+function proveReadonlyStepNavigation() {
+  const projectUi = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/blockly_v2.html'), 'utf8');
+  assert.match(html, /id="debugShowCurrent"/);
+  assert.match(mainSource, /workspace\.centerOnBlock\(debugCurrentBlockId, true\)/);
+  const documentListeners = {};
+  const events = {};
+  const controls = {};
+  function el(id) {
+    if (!controls[id]) controls[id] = {
+      disabled:false, inert:false, textContent:'', hidden:false, checked:false,
+      listeners:{}, addEventListener(type, fn) { this.listeners[type] = fn; }
+    };
+    return controls[id];
+  }
+  const centered = [], commands = [];
+  const visible = {};
+  const view = {left:100, top:100, right:800, bottom:600};
+  const wk = {
+    readOnly:false,
+    isReadOnly() { return this.readOnly; },
+    setIsReadOnly(value) { this.readOnly = value; },
+    getBlockById(id) { return {type:'procedures_callnoreturn', getSvgRoot() { return {
+      getBoundingClientRect() { return visible[id] ? {left:200,top:200,right:300,bottom:230,width:100,height:30} :
+        {left:900,top:900,right:1000,bottom:930,width:100,height:30}; }
+    }; }}; },
+    getParentSvg() { return {querySelector() { return {getBoundingClientRect() { return view; }}; }}; },
+    centerOnBlock(id, blockOnly) { centered.push([id,blockOnly]); visible[id] = true; },
+    zoomCenter(value) { commands.push(['zoom',value]); },
+    zoomToFit() { commands.push(['fit']); },
+    setScale(value) { commands.push(['scale',value]); },
+    scrollCenter() { commands.push(['scrollCenter']); }
+  };
+  let boundChecks=0;
+  const context = {
+    console:{log(){},error(){}},
+    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
+      Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create',VIEWPORT_CHANGE:'viewport_change'},Blocks:{}},
+    document:{currentScript:null, getElementById:el, body:{dataset:{}},
+      createElement(){return {setAttribute(){},appendChild(){}};},
+      addEventListener(type,fn){documentListeners[type]=fn;}},
+    window:{addEventListener(type,fn){events[type]=fn;},dispatchEvent(){}},
+    CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
+    WebeeBlocksExecutionObserver:Observer, WebeeBlocksActivities:{BLOCK_CATALOG:{}},
+    WebeeBlocksActivityContract:{applyFieldBounds(){boundChecks++;}},
+    setTimeout,clearTimeout,Promise
+  };
+  vm.createContext(context);
+  vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
+  context.workspace = wk;
+  vm.runInContext(projectUi, context, {filename:'blockly_v2/project_ui.js'});
+  context.wireDebugControls();
+  context.wireWorkspaceControls();
+  context.runtimeRunning = true;
+  events['webeeblocks-runtime-v2']({detail:{state:'EXÉCUTION'}});
+  assert.equal(wk.isReadOnly(),true,'execution must lock Blockly edits');
+  assert.equal(el('blocklyDiv').inert,false,'execution must leave native scrollbars interactive');
+  assert.equal(el('projectSaveAs').disabled,true,'project writes remain locked');
+  const callbacks=context.runtimeDebug.callbacks;
+  context.runtimeDebug.begin(true); // Real onBegin enables stepping before the pointer event.
+  callbacks.onActive({blockId:'main',path:['program',0],node:{kind:'takeoff'}});
+  callbacks.onPause({blockId:'main'});
+  assert.deepEqual(centered,[['main',true]],'first offscreen block must become visible');
+  assert.equal(el('stepNext').disabled,false);
+  assert.equal(el('stepContinue').disabled,false);
+  assert.equal(el('debugShowCurrent').disabled,false);
+  el('blocklyDiv').listeners.pointerdown();
+  callbacks.onActive({blockId:'procedure-a',path:['program',1,'body',0],node:{kind:'move'}});
+  callbacks.onPause({blockId:'procedure-a'});
+  assert.equal(centered.length,1,'manual scrollbar/pan must suppress automatic recenter');
+  el('debugShowCurrent').listeners.click.call(el('debugShowCurrent'));
+  assert.deepEqual(centered[1],['procedure-a',true],'explicit return must center only current block');
+  callbacks.onPause({blockId:'procedure-a'});
+  assert.equal(centered.length,2,'already visible block must not jump');
+  callbacks.onPause({blockId:'procedure-b'});
+  assert.deepEqual(centered[2],['procedure-b',true],'following resumes after explicit return');
+  el('blocklyDiv').listeners.wheel();
+  callbacks.onPause({blockId:'main'});
+  assert.equal(centered.length,3,'wheel navigation must stay in pupil control');
+  el('zoomOut').listeners.click();
+  assert.deepEqual(commands,[['zoom',-1]]);
+  assert.equal(centered.length,3,'zoom must not force recenter');
+  el('runtimeDetail').textContent='En pause';
+  context.runtimeRunning=false;
+  context.runtimeTerminal=true;
+  context.onWorkspaceChange({type:'viewport_change',isUiEvent:false});
+  context.onWorkspaceChange({type:'move',oldParentId:null,newParentId:null});
+  context.onWorkspaceChange({type:'anything',isUiEvent:true});
+  assert.equal(boundChecks,0,'view changes must not invoke AST field bounds');
+  assert.equal(el('runtimeDetail').textContent,'En pause','view changes must not signal program modification');
+  events['webeeblocks-runtime-v2']({detail:{state:'TERMINÉ'}});
+  assert.equal(wk.isReadOnly(),false,'terminal state must restore editability');
+  assert.equal(el('blocklyDiv').inert,false);
+  callbacks.onFinish();
+  assert.equal(el('debugShowCurrent').disabled,true);
+  assert.equal(el('stepNext').disabled,true);
+  assert.equal(el('stepContinue').disabled,true);
+}
+
 (async()=>{
+  proveReadonlyStepNavigation();
   await proveProgramInvalidRetryWithoutReset();
   await proveOutcomePendingBlocksResetAndLateVerdicts();
   var a=backend([.4,.8,.3]),b=backend([.4,.8,.3]),program=ast();
@@ -273,5 +376,6 @@ async function proveOutcomePendingBlocksResetAndLateVerdicts() {
   var resetRequest=stopBackend.resetSimulation();assert.match(stopSent[stopSent.length-1],/ REQUEST 3 RESET$/);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');await resetRequest;
   var afterReset=stopBackend.move('forward',.3);assert.match(stopSent[stopSent.length-1],/ REQUEST 4 MOVE forward /);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');await afterReset;
   var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);assert.deepStrictEqual(physical.capabilities.rangeDirections,['front','back','left','right','up']);assert.deepStrictEqual(physical.capabilities.moveDirections,['forward','back','left','right']);
+  console.log('PASS: native read-only Blockly scrolling, explicit current-block return and no recenter after manual navigation.');
   console.log('PASS: invalid programs are retryable through the real UI runtime without reset, execution state stays coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});

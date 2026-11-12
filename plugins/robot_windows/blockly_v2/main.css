@@ -184,7 +184,7 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
 
 .blocklyFieldRect { stroke-width: 1.25px; }
 .blocklyMainBackground { stroke: none; }
-.blocklyScrollbarHandle { rx: 5px; ry: 5px; }
+.blocklyScrollbarHandle { rx: 5px; ry: 5px; stroke: #43566b; stroke-width: 2px; }
 
 @media (max-width: 850px) {
   header { gap: 12px; padding: 10px 12px; }
