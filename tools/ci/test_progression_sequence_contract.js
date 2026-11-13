@@ -165,9 +165,9 @@ const sequenceXTolerance = pythonNumber(sequenceEvaluatorSource, 'TARGET_X_TOLER
 const sequenceYTolerance = pythonNumber(sequenceEvaluatorSource, 'TARGET_Y_TOLERANCE');
 assert.strictEqual(sequenceX, sequencePadX);
 assert.strictEqual(sequenceY, sequencePadY);
-assert.ok(Math.abs(sequenceXTolerance - (sequencePadW / 2 - 0.05)) < 1e-12,
+assert.ok(Math.abs(sequenceXTolerance - (sequencePadW / 2 - 0.09)) < 1e-12,
   'landing must keep the complete drone inside the visible X extent');
-assert.ok(Math.abs(sequenceYTolerance - (sequencePadD / 2 - 0.05)) < 1e-12,
+assert.ok(Math.abs(sequenceYTolerance - (sequencePadD / 2 - 0.09)) < 1e-12,
   'landing must keep the complete drone inside the visible Y extent');
 const preciseX = numberDefine(preciseEvaluatorSource, 'PRECISE_TARGET_X');
 const preciseY = numberDefine(preciseEvaluatorSource, 'PRECISE_TARGET_Y');
