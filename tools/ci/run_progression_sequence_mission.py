@@ -255,6 +255,7 @@ def main() -> int:
         ["python3", "-m", "py_compile", "tools/ci/run_land_contact_regression.py"],
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
+        [sys.executable, "tools/ci/test_classroom_altitude_smoke_world.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
@@ -355,6 +356,40 @@ apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+# Independent real-Webots process loading witness, *only* in normal shard 0.
+# It is neither a flight PASS nor an SCENE ACK/RESET/Save/Open assertion.
+if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  mkdir -p /workspace/ci-artifacts/progression-sequence-mission
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py prepare
+  set +e
+  timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=fast \
+    /workspace/worlds/ci_classroom_altitude_smoke.wbt \
+    > /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log 2>&1
+  smoke_status=$?
+  set -e
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py clean
+  test "$smoke_status" -eq 0 -o "$smoke_status" -eq 124 || {
+    cat /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log
+    echo "FAIL native altitude startup Webots exited $smoke_status" >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL missing native classroom flight controller READY' >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1 oracle=progression-altitude-3d-v1' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL missing native Webots C altitude evaluator READY' >&2
+    exit 1
+  }
+  ! grep -E 'WEBEEBLOCKS_RUNTIME_V2 (FATAL|ERROR)|WEBEEBLOCKS_ALTITUDE_(FATAL|ERROR)' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL fatal native controller in altitude startup witness' >&2
+    exit 1
+  }
+  echo 'PASS two independent native R2025a controllers started with exact Activity 2 geometry'
+fi
 # Additional #637 regression; the complete browser campaign below is unchanged.
 python3 /workspace/tools/ci/run_land_contact_regression.py \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
@@ -383,6 +418,7 @@ trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
+        inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
         env = os.environ.copy()
