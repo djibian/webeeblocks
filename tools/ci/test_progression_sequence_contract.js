@@ -26,9 +26,27 @@ for (const activity of Activities.DOCUMENT.activities) {
     const changed = JSON.parse(JSON.stringify(activity));
     changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
-      /runtime.scene must be sequence-v1 or legacy-v1/, 'ambiguous scene accepted for ' + activity.id);
+      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1 or orientation-v1/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
+
+// The explicitly declared altitude-v1 token is supported by the classroom
+// transport contract, but NONE of the existing catalog activities silently
+// activates it. This preserves every original starter and oracle until the
+// separately reviewed Activity 2 profile is qualified.
+assert(!Activities.DOCUMENT.activities.some(profile => profile.runtime.scene === 'altitude-v1'),
+  'unstaged school-only scene was activated in the student catalog');
+const stagedAltitude = JSON.parse(JSON.stringify(Activities.DOCUMENT.activities[1]));
+stagedAltitude.runtime.scene = 'altitude-v1';
+assert.strictEqual(Profiles.validateProfile(stagedAltitude, Activities.BLOCK_CATALOG), true);
+
+// Stage only the orientation transport vocabulary; the Activity 3 starter,
+// toolbox, world and oracle stay untouched until native R2025a qualification.
+assert(!Activities.DOCUMENT.activities.some(profile => profile.runtime.scene === 'orientation-v1'),
+  'unstaged orientation scene was activated in the student catalog');
+const stagedOrientation = JSON.parse(JSON.stringify(Activities.DOCUMENT.activities[2]));
+stagedOrientation.runtime.scene = 'orientation-v1';
+assert.strictEqual(Profiles.validateProfile(stagedOrientation, Activities.BLOCK_CATALOG), true);
 
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
