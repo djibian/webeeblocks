@@ -35,7 +35,7 @@ long long routeClockLastSecond=-1;
 enum class RoutePausePhase { IDLE, REQUESTED, PAUSED };
 RoutePausePhase routePausePhase=RoutePausePhase::IDLE;
 std::string routePauseNonce,routePauseEpoch,routeDeferredStop,routeDeliveredStop;
-unsigned long long routePauseAttempt=0,routePauseSeq=0;
+unsigned long long routePauseAttempt=0,routePauseSeq=0,routePauseLastSeq=0;
 bool routePauseResume=false;
 bool routePauseAbortLanding=false,routePauseAbortAdmission=false;
 std::chrono::steady_clock::time_point routePauseHeartbeat;
@@ -98,7 +98,7 @@ void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
   routeClockNonce.clear();routeClockLastSecond=-1;
-  resetRoutePause();
+  resetRoutePause();routePauseLastSeq=0;
 }
 void challengeRoute() {
   unsigned long long current=0;std::string config;long long now=0;
@@ -389,10 +389,10 @@ static bool routePauseMessage(const char *message) {
     const bool correctAttempt=begin>=0 ? attempt==requestedAttempt :
       (fileIdle && currentAttempt(current) && current==requestedAttempt);
     if(routePausePhase==RoutePausePhase::IDLE && !expired && !success &&
-       correctAttempt && routeAttempt==requestedAttempt &&
+       correctAttempt && routeAttempt==requestedAttempt && seq>routePauseLastSeq &&
        !routeEpoch.empty() && nonce==routeClockNonce) {
       routePauseNonce=nonce;routePauseEpoch=routeEpoch;
-      routePauseAttempt=requestedAttempt;routePauseSeq=seq;
+      routePauseAttempt=requestedAttempt;routePauseSeq=seq;routePauseLastSeq=seq;
       routePausePhase=RoutePausePhase::REQUESTED;
       routePauseResume=false;
     }
@@ -511,7 +511,8 @@ extern "C" void gp_u_reset_complete(void) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   nativeRouteDeadline=false;
   routeClockNonce.clear();routeClockLastSecond=-1;
-  resetRoutePause();routePauseAbortLanding=false;routePauseAbortAdmission=false;
+  resetRoutePause();routePauseLastSeq=0;
+  routePauseAbortLanding=false;routePauseAbortAdmission=false;
   routeDeferredStop.clear();routeDeliveredStop.clear();
 #endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
@@ -565,6 +566,7 @@ extern "C" int gp_u_filter_raw(const char *message) {
     if(valid && !expired && !success && !routeEpoch.empty() &&
        currentAttempt(current) && current==routeAttempt &&
        (begin<0 ? fileIdle : current==attempt)) {
+      if(routeClockNonce!=token)routePauseLastSeq=0;
       routeClockNonce=token;routeClockLastSecond=-1;
       char ack[160];
       std::snprintf(ack,sizeof(ack),
