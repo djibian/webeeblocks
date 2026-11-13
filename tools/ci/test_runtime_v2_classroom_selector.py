@@ -42,6 +42,12 @@ Node evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group",
 Node sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false,18};
 Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,21};
 Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
+Node orientOrigin{"","Pose","",false,2};
+Node orientGlyph{"","Shape","",false,0};
+Node orientObserver{"","Robot","",false,0};
+std::string orientController="progression_orientation_3d";
+std::string orientName="Progression orientation 3D evaluator";
+int orientSupervisor=1,orientSynchronization=1;
 Node barrier{"ACTIVITY2_LOW_BARRIER","Solid","",false,0};
 Node left{"ACTIVITY2_LEFT_WALL","Solid","",false,0};
 Node right{"ACTIVITY2_RIGHT_WALL","Solid","",false,0};
@@ -74,13 +80,20 @@ extern "C" void wb_supervisor_node_remove(void*n){
  Node*p=static_cast<Node*>(n);assert(p->alive);p->alive=false;
  removals.push_back(p->def);
  if(p==&altitude){barrier.alive=left.alive=right.alive=false;}
+ if(p==&orientScene){orientOrigin.alive=orientGlyph.alive=orientObserver.alive=false;}
 }
 extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
  if(n==&root && !std::strcmp(field,"children"))return &rootChildren;
  if(n==&viewpoint && !std::strcmp(field,"position"))return &position;
  if(n==&viewpoint && !std::strcmp(field,"orientation"))return &orientation;
  Node*p=static_cast<Node*>(n);
- if(!std::strcmp(field,"children")&&p->type=="Group")return &p->count;
+ if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin))return &p->count;
+ if(p==&orientObserver){
+  if(!std::strcmp(field,"controller"))return &orientController;
+  if(!std::strcmp(field,"name"))return &orientName;
+  if(!std::strcmp(field,"supervisor"))return &orientSupervisor;
+  if(!std::strcmp(field,"synchronization"))return &orientSynchronization;
+ }
  if(!std::strcmp(field,"boundingObject")) {
   if(p==&barrier)return missingBounds?nullptr:&barrierBox;
   if(p==&left)return &leftBox;
@@ -108,7 +121,19 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*f,int index){
   }
   return nullptr;
  }
+ if(f==&orientScene.count)
+  return index==0 ? (orientOrigin.alive?&orientOrigin:nullptr)
+      : index>0&&index<orientScene.count?&viewpoint:nullptr;
+ if(f==&orientOrigin.count)
+  return index==0 ? (orientGlyph.alive?&orientGlyph:nullptr)
+      : index==1&&orientObserver.alive?&orientObserver:nullptr;
  return index>=0&&index<*static_cast<int*>(f)?&viewpoint:nullptr;
+}
+extern "C" const char* wb_supervisor_field_get_sf_string(void*f){
+ return static_cast<std::string*>(f)->c_str();
+}
+extern "C" int wb_supervisor_field_get_sf_bool(void*f){
+ return *static_cast<int*>(f);
 }
 extern "C" const double* wb_supervisor_field_get_sf_vec3f(void*f){
  if(f==barrierSize)return barrierSize;
@@ -135,6 +160,16 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
  const std::string src=data;
  if(src.find("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {")!=std::string::npos){
   orientScene.alive=true;orientScene.count=partial?23:24;
+  orientOrigin.alive=orientGlyph.alive=orientObserver.alive=true;
+  // The 24-child count remains 24 if a nested observer is replaced by Shape.
+  // Never infer a real Robot from a controller string in an WBO comment.
+  orientObserver.type=src.find("      Robot {")!=std::string::npos?"Robot":"Shape";
+  orientController=src.find("controller \"unexpected\"")!=std::string::npos
+    ?"unexpected":"progression_orientation_3d";
+  orientName=src.find("name \"Wrong evaluator\"")!=std::string::npos
+    ?"Wrong evaluator":"Progression orientation 3D evaluator";
+  orientSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
+  orientSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
  } else if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
   altitude.alive=true;altitude.count=partial?20:21;
   barrier.alive=true;left.alive=true;right.alive=!missingCollider;
@@ -285,7 +320,9 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                     "void wb_supervisor_node_remove(WbNodeRef);\n"
                     "WbNodeRef wb_supervisor_field_get_sf_node(WbFieldRef);\n"
                     "const double *wb_supervisor_node_get_position(WbNodeRef);\n"
-                    "const double *wb_supervisor_node_get_orientation(WbNodeRef);"
+                    "const double *wb_supervisor_node_get_orientation(WbNodeRef);\n"
+                    "const char *wb_supervisor_field_get_sf_string(WbFieldRef);\n"
+                    "int wb_supervisor_field_get_sf_bool(WbFieldRef);"
                 ))
             scenes=root/"worlds/scenes"
             scenes.mkdir(parents=True)
@@ -304,6 +341,27 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             built=subprocess.run(cmd,text=True,stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,timeout=45)
             self.assertEqual(built.returncode,0,built.stdout)
+            authentic=(ROOT/"worlds/scenes/orientation-v1.wbo").read_text(encoding="utf-8")
+            real_observer = (
+                '      Robot {\n'
+                '        name "Progression orientation 3D evaluator"\n'
+                '        controller "progression_orientation_3d"\n'
+                '        supervisor TRUE\n'
+                '        synchronization TRUE\n'
+                '      }'
+            )
+            self.assertEqual(authentic.count(real_observer),1)
+            # The exact counterexample from independent NO_GO: same 24 direct
+            # children and literal controller text, but no actual Robot.
+            fake_comment=authentic.replace(
+                real_observer,
+                '      Shape { geometry Box { size 0.01 0.01 0.01 } }\n'
+                '      # controller "progression_orientation_3d"',
+                1)
+            self.assertEqual(fake_comment.count('      Robot {'),0)
+            self.assertEqual(fake_comment.count('controller "progression_orientation_3d"'),1)
+            self.assertEqual(fake_comment.count('    Pose { translation '),
+                             authentic.count('    Pose { translation '))
             cases={
                 "missing":None,
                 "malformed":"DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] }",
@@ -317,8 +375,20 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                 "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "orientation-missing": None,
                 "orientation-malformed": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] }',
-                "orientation-valid": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] controller "progression_orientation_3d" }',
-                "orientation-partial": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] controller "progression_orientation_3d" }',
+                "orientation-valid": authentic,
+                "orientation-partial": authentic,
+                "orientation-comment-only": fake_comment,
+                "orientation-wrong-controller": authentic.replace(
+                    'controller "progression_orientation_3d"',
+                    'controller "unexpected"',1)
+                    + '\n# controller "progression_orientation_3d"\n',
+                "orientation-wrong-name": authentic.replace(
+                    'name "Progression orientation 3D evaluator"',
+                    'name "Wrong evaluator"',1),
+                "orientation-not-supervisor": authentic.replace(
+                    'supervisor TRUE','supervisor FALSE',1),
+                "orientation-not-synchronized": authentic.replace(
+                    'synchronization TRUE','synchronization FALSE',1),
             }
             for name,scene in cases.items():
                 with self.subTest(case=name):
