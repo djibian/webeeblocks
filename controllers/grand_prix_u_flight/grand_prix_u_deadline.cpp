@@ -475,8 +475,8 @@ static void routePauseStep() {
     }
     if(stopped || routePauseResume)break;
     if(std::chrono::duration_cast<std::chrono::seconds>(
-         std::chrono::steady_clock::now()-routePauseHeartbeat).count()>15) {
-      failed=true;break; // Lost window / heartbeat, never endless silent PAUSE.
+         std::chrono::steady_clock::now()-routePauseHeartbeat).count()>300) {
+      failed=true;break; // Lost browser after five minutes; active classroom pauses remain free.
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
