@@ -112,6 +112,10 @@
     const resetButton=document.getElementById('resetSimulation');
     await until(()=>!resetButton.disabled && !resetButton.hidden,120000,
       'RESET_NOT_OFFERED_AFTER_STOP');
+    // The native STOP ACK is not a touchdown certificate. Do not submit
+    // RESET immediately against a still-descending Crazyflie; allow the
+    // unchanged native controller to finish its own ground confirmation.
+    await delay(45000);
     let resetObserved=false;
     window.addEventListener('webeeblocks-runtime-v2-reset',()=>{resetObserved=true;},{once:true});
     resetButton.click();
