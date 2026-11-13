@@ -29,6 +29,14 @@ class LandInstrumentationTests(unittest.TestCase):
         )
         self.assertIn("sequence_ci_land_samples % 16 == 0", self.instrumented)
         self.assertIn("++sequence_ci_land_samples;", self.instrumented)
+        self.assertEqual(self.instrumented.count("sequence_ci_land_step_samples = 0;"), 2)
+        self.assertIn(
+            "command = CMD_LAND;\n"
+            "        sequence_ci_land_samples = 0;\n"
+            "        sequence_ci_land_step_samples = 0;\n"
+            "        stable_since = -1.0;",
+            self.instrumented,
+        )
 
     def test_observation_after_all_four_unchanged_motor_calls(self):
         p = self.instrumented
@@ -56,9 +64,17 @@ class LandInstrumentationTests(unittest.TestCase):
         self.assertEqual(p.count("sequence_ci_native_land(active_id, now, self_node);"), 1)
         self.assertIn(
             "sequence_ci_native_land(active_id, now, self_node);\n"
-            "      }\n"
-            "      if (command == CMD_LAND)",
+            '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id=%d t=%.9f',
             p,
+        )
+        self.assertLess(
+            p.index("sequence_ci_native_land(active_id, now, self_node);"),
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="),
+        )
+        self.assertLess(
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="),
+            p.index("      if (command == CMD_LAND)\n"
+                    "        ++sequence_ci_land_samples;"),
         )
         self.assertLess(
             p.index("wb_motor_set_velocity(m4, motor_power(power.m4));"),
@@ -106,11 +122,29 @@ class LandInstrumentationTests(unittest.TestCase):
             "active_id, now, now - action_start, sequence_ci_wall_ms(), "
             "sequence_ci_monotonic_ms(), x, y, z,", p,
         )
-        self.assertEqual(p.count("sequence_ci_monotonic_ms()"), 1)
+        # A second monotonic sample explicitly witnesses the first native
+        # Webots step *after* a LAND contact read, not a new timeout.
+        self.assertEqual(p.count("sequence_ci_monotonic_ms()"), 2)
         self.assertEqual(p.count("sequence_ci_move_samples++ % 128 == 0"), 1)
         self.assertNotIn("sequence_ci_monotonic_ms", self.original)
         self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
         self.assertEqual(self.original.count("#define ACTION_TIMEOUT 25.0"), 1)
+
+    def test_land_contact_vs_step_witness_is_bounded_and_read_only(self):
+        p = self.instrumented
+        self.assertEqual(p.count("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="), 1)
+        self.assertEqual(p.count("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id="), 1)
+        self.assertIn("sequence_ci_land_step_samples++ % 32 == 0", p)
+        self.assertIn("if (command == CMD_LAND && sequence_ci_land_step_samples++", p)
+        self.assertIn("active_id, now, sequence_ci_wall_ms(), sequence_ci_monotonic_ms()", p)
+        self.assertLess(
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id="),
+            p.index("if (command != CMD_IDLE && command != CMD_RESET &&"),
+        )
+        self.assertNotIn("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT", self.original)
+        self.assertNotIn("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP", self.original)
+        self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
+        self.assertEqual(p.count("#define RESET_TIMEOUT 5.0"), 1)
 
     def test_move_probe_guard_fails_closed(self):
         changed = self.original.replace(
