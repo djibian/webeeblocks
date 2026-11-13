@@ -18,7 +18,10 @@
 #define WB_ORIENT_YAW_TOL 0.20
 #define WB_ORIENT_LAND_X 0.90
 #define WB_ORIENT_LAND_Y -0.90
-#define WB_ORIENT_LAND_TOL 0.11
+/* 0.32 m pad half-width (0.16) minus physical craft half-span (0.09).
+ * Center tolerance must cover the WHOLE craft, not just its center.
+ */
+#define WB_ORIENT_LAND_TOL 0.07
 #define WB_ORIENT_LAND_HEIGHT 0.07
 #define WB_ORIENT_MAX_SPEED 0.12
 #define WB_ORIENT_AIRBORNE 0.20
