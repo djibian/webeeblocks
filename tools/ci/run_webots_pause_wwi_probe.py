@@ -104,6 +104,60 @@ def run():
         xdg_conf = Path(env['XDG_CONFIG_HOME']) / 'Cyberbotics/Webots-R2025a.conf'
         xdg_conf.parent.mkdir(parents=True, exist_ok=True)
         xdg_conf.write_text(conf.read_text(encoding='utf-8'), encoding='utf-8')
+        # The real R2025a GUI reads QSettings NativeFormat/UserScope.
+        # In the previous native run X11 proved a blocking 'Welcome to
+        # Webots R2025a' modal despite our handwritten INI files.
+        # Use the *same Qt5 QSettings writer and the same root path override*
+        # as WbPreferences::createInstance(), verify a fresh round-trip, and
+        # persist the effective pathname for diagnosis. No user approval or
+        # telemetry consent is synthesized: telemetry is explicitly False.
+        qt_settings_writer = r"""
+import json
+import os
+import sys
+from PyQt5.QtCore import QSettings
+if os.geteuid() == 0:
+    QSettings.setPath(QSettings.NativeFormat, QSettings.UserScope, '/root/.config/')
+settings = QSettings(QSettings.NativeFormat, QSettings.UserScope,
+                     'Cyberbotics', 'Webots-R2025a')
+settings.setFallbacksEnabled(False)
+settings.setValue('General/theme', 'webots_night.qss')
+settings.setValue('General/telemetry', False)
+settings.setValue('RobotWindow/browser', sys.argv[1])
+settings.setValue('RobotWindow/newBrowserWindow', False)
+settings.sync()
+readback = QSettings(QSettings.NativeFormat, QSettings.UserScope,
+                     'Cyberbotics', 'Webots-R2025a')
+readback.setFallbacksEnabled(False)
+if (settings.status() != QSettings.NoError or
+    readback.status() != QSettings.NoError or
+    not readback.contains('General/theme') or
+    not readback.contains('General/telemetry') or
+    readback.value('General/telemetry', type=bool) is not False or
+    readback.value('General/theme') != 'webots_night.qss' or
+    readback.value('RobotWindow/browser') != sys.argv[1]):
+    raise RuntimeError('R2025a Qt user-scope preferences not durable')
+print(json.dumps({
+    'schema': 'webeeblocks-webots-r2025a-qt-settings-preflight-v1',
+    'effective_file': settings.fileName(),
+    'theme_present': readback.contains('General/theme'),
+    'telemetry_present': readback.contains('General/telemetry'),
+    'telemetry_enabled': readback.value('General/telemetry', type=bool),
+    'browser_path_matches': readback.value('RobotWindow/browser') == sys.argv[1]
+}, sort_keys=True), flush=True)
+"""
+        qt_probe = subprocess.run(
+            ['/usr/bin/python3', '-c', qt_settings_writer, str(browser)],
+            env=env, cwd=ROOT, capture_output=True, text=True,
+            check=False, timeout=10,
+        )
+        (OUT / 'qt-settings-preflight.log').write_text(
+            'exit_code=' + str(qt_probe.returncode) + '\\n' +
+            qt_probe.stdout[:2000] + qt_probe.stderr[-2000:],
+            encoding='utf-8',
+        )
+        if qt_probe.returncode != 0:
+            raise RuntimeError('R2025a native Qt settings preflight failed')
         world = ROOT / 'worlds/ci_webots_pause_wwi.wbt'
         # Controlled A/B against R2025a --batch: the exact prior native trace
         # reached REAL_TIME, returned from step(0), and Webots exited cleanly
