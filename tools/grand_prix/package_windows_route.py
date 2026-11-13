@@ -177,7 +177,7 @@ function Remove-WebeeBlocksRobotWindowSession {
   $parent = [IO.Path]::GetFullPath($PSScriptRoot)
   $path = [IO.Path]::GetFullPath($Session.Staging)
   if ((Split-Path -Parent $path) -ne $parent -or
-      (Split-Path -Leaf $path) -notmatch '^\._gp_route_session_[0-9]+_[0-9a-f]{12}) {
+      (Split-Path -Leaf $path) -notmatch '^\._gp_route_session_[0-9]+_[0-9a-f]{12}$') {
     throw 'Refus de nettoyer un dossier de session etranger.'
   }
   if (Test-Path -LiteralPath $path) {
@@ -203,154 +203,10 @@ if ($ValidateOnly) {
 
 """
     text = text[:start] + replacement + text[end:]
-    if ('New-WebeeBlocksRobotWindowSession' not in text or
-            'grand_prix_route_v2' not in text):
-        raise ValueError("Packaged launcher patch failed")
-    return text
-
-
-def compose(classroom, evaluated, webots_home, output):
-    sha = exact_sha()
-    files = {"classroom": verified_files(classroom),
-             "python_support": verified_files(evaluated)}
-    if (evaluated / "SOURCE_SHA").read_text(encoding="utf-8").strip() != sha:
-        raise ValueError("Embedded Python built from a different source SHA")
-    if (Path(webots_home) / "resources/version.txt").read_text(encoding="utf-8").strip() != "R2025a":
-        raise ValueError("Only installed Webots R2025a is accepted")
-    if output.exists():
-        raise ValueError("Use a new, empty output path")
-    shutil.copytree(classroom, output)
-    for name in ("controllers", "worlds", "Activites"):
-        shutil.rmtree(output / name)
-    (output / "WINDOWS-ACCEPTANCE.md").unlink(missing_ok=True)
-    copy_controller(output, classroom, webots_home)
-    copy_evaluator(output, evaluated)
-    windows = output / "plugins/robot_windows"
-    legacy = list(windows.glob("blockly_v2_[0-9a-f]*"))
-    if len(legacy) != 1 or (windows / "blockly_v2").exists():
-        raise ValueError("Expected exactly one versioned classroom Blockly closure")
-    legacy[0].rename(windows / "blockly_v2")
-    old_html = windows / "blockly_v2" / (legacy[0].name + ".html")
-    old_html.unlink(missing_ok=True)
-    target_window = windows / "grand_prix_route_v2"
-    target_window.mkdir()
-    for name in ("grand_prix_route_v2.html", "setup.js"):
-        shutil.copyfile(ROOT / "plugins/robot_windows/grand_prix_route_v2" / name,
-                        target_window / name)
-    worlds = output / "worlds"
-    worlds.mkdir()
-    course_ids = []
-    for index in range(12):
-        course_ids.append(reference_course(index).identifier)
-        for fps in FPS:
-            scene, _ = route_world(index, fps)
-            label = f"grand_prix_route_v2_{index:02d}_fps{fps}"
-            (worlds / (label + ".wbt")).write_text(scene, encoding="utf-8")
-            shutil.copyfile(ROOT / "worlds/.crazyflie_runtime_v2.wbproj",
-                            worlds / ("." + label + ".wbproj"))
-    launch = output / "Launch-WebeeBlocks.ps1"
-    launch.write_text(launch_script(launch.read_text(encoding="utf-8-sig")),
-                      encoding="utf-8-sig")
-    (output / "Lancer-Grand-Prix.cmd").write_text(
-        '@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Grand-Prix.ps1"\r\n'
-        'exit /b %ERRORLEVEL%\r\n', encoding="utf-8")
-    shutil.copyfile(ROOT / "packaging/windows/Lancer-Grand-Prix.ps1",
-                    output / "Lancer-Grand-Prix.ps1")
-    (output / "Activites").mkdir()
-    starter = {
-        "format": "webeeblocks-project", "version": 1,
-        "activity": {"id": "progression-grand-prix-route-v2",
-                     "semantics": "webeeblocks-ast-v1"},
-        "workspace": {"blocks": {"languageVersion": 0, "blocks": []}}
-    }
-    (output / "Activites/08-grand-prix-variable.wbb").write_text(
-        json.dumps(starter, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (output / "SOURCE_SHA").write_text(sha + "\n", encoding="utf-8")
-    (output / "PR970_SHA").write_text(PR970_SHA + "\n", encoding="utf-8")
-    (output / "COURSES.json").write_text(json.dumps({
-        "profile": "progression-grand-prix-route-v2",
-        "course_ids": course_ids, "fps": list(FPS), "physics_step_ms": 8
-    }, indent=2) + "\n", encoding="utf-8")
-    shutil.copyfile(ROOT / "docs/GRAND_PRIX_ROUTE_WINDOWS_EXPERIMENT.md",
-                    output / "README-WINDOWS.md")
-    provenance = {
-        "schema": 1, "source_sha": sha, "dependency_pr": 970,
-        "dependency_sha": PR970_SHA, "scene_policy": "classroom-static-v1",
-        "webots": "R2025a", "blockly": "13.2.1",
-        "windows_support_manifest": digest(classroom / "MANIFEST.sha256"),
-        "python_support_manifest": digest(evaluated / "MANIFEST.sha256"),
-        "pilot_binary_sha256": digest(ROOT / "controllers/grand_prix_route_flight/grand_prix_route_flight.exe"),
-        "inputs": {key: {"files": len(entries)} for key, entries in files.items()},
-        "qualification": "UNPROVEN: native and personal GUI evidence required",
-    }
-    (output / "COMPOSITION.json").write_text(
-        json.dumps(provenance, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    manifest = "\n".join(
-        f"{digest(p)}  {p.relative_to(output).as_posix()}"
-        for p in sorted(output.rglob("*")) if p.is_file() and p.name != "MANIFEST.sha256")
-    (output / "MANIFEST.sha256").write_text(manifest + "\n", encoding="utf-8")
-    verified_files(output)
-    archive = output.with_suffix(".zip")
-    if archive.exists():
-        raise ValueError("ZIP target already exists")
-    # Stable order, timestamps and permissions. Reproducibility presupposes
-    # identical, version-locked input binaries and build tools.
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED,
-                         compresslevel=9) as target:
-        for path in sorted(output.rglob("*")):
-            if path.is_file():
-                member = zipfile.ZipInfo(path.relative_to(output).as_posix(),
-                                         date_time=(1980, 1, 1, 0, 0, 0))
-                member.create_system = 3
-                member.external_attr = 0o100644 << 16
-                member.compress_type = zipfile.ZIP_DEFLATED
-                target.writestr(member, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED,
-                                compresslevel=9)
-    (archive.with_suffix(".zip.sha256")).write_text(
-        digest(archive) + "  " + archive.name + "\n", encoding="utf-8")
-    return archive
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--classroom", type=Path, required=True)
-    parser.add_argument("--python-support", type=Path, required=True)
-    parser.add_argument("--webots-home", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    options = parser.parse_args()
-    path = compose(options.classroom, options.python_support,
-                   options.webots_home, options.output)
-    print("GP_ROUTE_WINDOWS_ZIP", path, digest(path))
-
-
-if __name__ == "__main__":
-    main()
-) {
-    throw 'Refus de nettoyer un dossier de session etranger.'
-  }
-  if (Test-Path -LiteralPath $path) {
-    Remove-Item -LiteralPath $path -Recurse -Force
-  }
-}
-"""
-    text = text[:start] + replacement + "\n" + text[end:]
-    start = text.index("if ($ValidateOnly) {")
-    end = text.index("$server = $null", start)
-    replacement = r"""
-if ($ValidateOnly) {
-  # Structural validation only. Does not imply a rendered GUI or native READY.
-  if ($worldText -cnotmatch 'window "grand_prix_route_v2"' -or
-      $worldText -cnotmatch 'basicTimeStep 8' -or
-      $worldText -cnotmatch 'FPS (25|30|60)' -or
-      $worldText -cnotmatch 'controller "grand_prix_route_evaluator"') {
-    throw 'Scene Grand Prix variable incomplete.'
-  }
-  Write-Host 'GP_ROUTE_WINDOWS_LAUNCHER_STRUCTURAL_OK (not GUI/READY)'
-  exit 0
-}
-
-"""
-    text = text[:start] + replacement + text[end:]
+    # The actual embedded interpreter must be in the isolated session root.
+    text = replace_once(text, "  $webotsProcess = Start-Process -FilePath $webots",
+        "  $env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $session.Staging 'runtime\\python'\n"
+        "  $webotsProcess = Start-Process -FilePath $webots")
     if ('New-WebeeBlocksRobotWindowSession' not in text or
             'grand_prix_route_v2' not in text):
         raise ValueError("Packaged launcher patch failed")
