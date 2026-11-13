@@ -41,7 +41,8 @@ extern "C" void wb_supervisor_simulation_set_mode(int);
 extern "C" int wb_supervisor_simulation_get_mode();
 ''')
             test = base / 'test.cpp'
-            test.write_text(r'''#include <cassert>
+            test.write_text(r'''#include <webots/supervisor.h>
+#include <cassert>
 #include <cmath>
 #include <cstring>
 #include <limits>
