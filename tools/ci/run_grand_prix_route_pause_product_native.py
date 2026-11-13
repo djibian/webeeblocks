@@ -25,6 +25,9 @@ sys.path.insert(0, str(ROOT))
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.run_product_vertical_native import compile_native
+from tools.grand_prix.launch_linux import ensure_webots_assets, ensure_blockly_assets
+sys.path.insert(0, str(ROOT / 'tools/ci'))
+from runtime_v2_outcome_assets import prepare as prepare_pinned_assets
 
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/product-native-pause'
 FIXTURE = ROOT / 'tools/ci/fixtures/grand_prix_route_pause_browser.js'
@@ -61,6 +64,35 @@ print('GP_ROUTE_NATIVE_PAUSE_QT_PREFLIGHT_PASS',r.fileName(),flush=True)
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def install_official_assets_for_native_probe(home, folder):
+    """Populate only missing official R2025a files in this disposable CI container.
+
+    The pinned source, each size/SHA256/Git blob, and the exact localized
+    world are verified BEFORE running the real production flight. Never
+    replace an existing mismatching resource or substitute a simplified PROTO.
+    """
+    original = folder / 'route-official-source.wbt'
+    original.write_text(active_course_world(reference_course(5)))
+    localized, projects = prepare_pinned_assets(
+        folder / 'verified-official-assets', original,
+        OUT / 'verified-official-assets.json')
+    for source in projects.rglob('*'):
+        if not source.is_file():
+            continue
+        destination = home / 'projects' / source.relative_to(projects)
+        if destination.is_symlink():
+            raise RuntimeError('untrusted Webots asset symlink: ' + str(destination))
+        if destination.exists():
+            if not destination.is_file() or sha(destination) != sha(source):
+                raise RuntimeError('mismatching installed R2025a asset: ' + str(destination))
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+    ensure_webots_assets(home)
+    ensure_blockly_assets()
+    return localized
 
 
 def prepare_project(folder, port):
@@ -233,7 +265,10 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix='gp-route-real-pause-') as temp:
             folder = Path(temp)
+            localized = install_official_assets_for_native_probe(home, folder)
             project, world = prepare_project(folder, server.server_port)
+            if world.read_bytes() != localized.read_bytes():
+                raise RuntimeError('Grand Prix course differs from pinned official localization')
             (OUT/'world.wbt').write_bytes(world.read_bytes())
             env = dict(os.environ, WEBOTS_HOME=str(home), PYTHONPATH=str(ROOT),
                 GP_ROUTE_EVALUATOR_SOURCE=str(ROOT), WBB_GP_PRODUCT_TRACE='1',
