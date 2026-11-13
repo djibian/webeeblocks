@@ -41,6 +41,7 @@ Node evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group",
  "DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }",true,6};
 Node sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false,18};
 Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,21};
+Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
 Node barrier{"ACTIVITY2_LOW_BARRIER","Solid","",false,0};
 Node left{"ACTIVITY2_LEFT_WALL","Solid","",false,0};
 Node right{"ACTIVITY2_RIGHT_WALL","Solid","",false,0};
@@ -49,7 +50,7 @@ Node leftBox{"","Box","",true,0};
 Node rightBox{"","Box","",true,0};
 double barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
 double barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
-std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&barrier,&left,&right};
+std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&orientScene,&barrier,&left,&right};
 int rootChildren=0, position=0, orientation=0;
 double pos[3]={-2,-2,2},rot[4]={0,0,1,1};
 double colliderIdentity[9]={1,0,0,0,1,0,0,0,1};
@@ -132,7 +133,9 @@ extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double*p){std::memc
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double*p){std::memcpy(rot,p,sizeof(rot));}
 extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char*data){
  const std::string src=data;
- if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
+ if(src.find("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {")!=std::string::npos){
+  orientScene.alive=true;orientScene.count=partial?23:24;
+ } else if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
   altitude.alive=true;altitude.count=partial?20:21;
   barrier.alive=true;left.alive=true;right.alive=!missingCollider;
  } else if(src.find("DEF WEBEEBLOCKS_LEGACY_SCENE Group {")!=std::string::npos){
@@ -158,6 +161,39 @@ int main(int argc,char**argv){
  assert(!webeeblocks_select_activity_scene(""));
  assert(!webeeblocks_select_activity_scene(nullptr));
  assert(removals.empty());
+ if(mode.rfind("orientation-",0)==0){
+  if(mode=="orientation-missing" || mode=="orientation-malformed"){
+   assert(!webeeblocks_select_activity_scene("orientation-v1"));
+   assert(removals.empty() && legacy.alive && evaluators.alive);
+   assert(webeeblocks_activity_scene_ready());
+   std::cout<<"PASS school orientation fail-closed before removal\n";
+   return 0;
+  }
+  partial=mode=="orientation-partial";
+  const bool orientValid=mode=="orientation-valid";
+  assert(bool(webeeblocks_select_activity_scene("orientation-v1"))==orientValid);
+  assert(orientScene.alive && !legacy.alive && !evaluators.alive);
+  assert(bool(webeeblocks_activity_scene_ready())==orientValid);
+  assert(!altitude.alive && !sequence.alive);
+  assert(webeeblocks_select_activity_scene("legacy-v1"));
+  assert(webeeblocks_activity_scene_ready());
+  assert(legacy.alive && evaluators.alive && !orientScene.alive);
+  assert(pos[0]==-2);
+  if(orientValid){
+   assert(webeeblocks_select_activity_scene("sequence-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(webeeblocks_select_activity_scene("orientation-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(!sequence.alive && !legacy.alive);
+   orientScene.count=23;
+   assert(!webeeblocks_activity_scene_ready());
+   assert(!webeeblocks_select_activity_scene("orientation-v1"));
+   assert(webeeblocks_select_activity_scene("legacy-v1"));
+   assert(webeeblocks_activity_scene_ready());
+  }
+  std::cout<<"PASS school orientation selector: "<<mode<<"\n";
+  return 0;
+ }
  if(mode=="missing" || mode=="malformed"){
   assert(!webeeblocks_select_activity_scene("altitude-v1"));
   assert(webeeblocks_activity_scene_ready());
@@ -206,6 +242,10 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn("classroom_scene.cpp", mk)
         self.assertNotIn(" activity_scene.cpp", mk)
         self.assertIn("altitude-v1", cpp)
+        self.assertIn("orientation-v1", cpp)
+        self.assertIn("kOrientationSceneChildren = 24", cpp)
+        self.assertIn("WEBEEBLOCKS_ORIENTATION_SCENE", cpp)
+        self.assertNotIn('"orientation-v1"', phys)
         self.assertIn("kAltitudeSceneChildren = 21", cpp)
         self.assertIn("WEBEEBLOCKS_ALTITUDE_SCENE", cpp)
         self.assertNotIn('"altitude-v1"', phys)
@@ -272,10 +312,14 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                 "wrong-box-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
+                "orientation-missing": None,
+                "orientation-malformed": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] }',
+                "orientation-valid": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] controller "progression_orientation_3d" }',
+                "orientation-partial": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] controller "progression_orientation_3d" }',
             }
             for name,scene in cases.items():
                 with self.subTest(case=name):
-                    target=scenes/"altitude-v1.wbo"
+                    target=scenes/("orientation-v1.wbo" if name.startswith("orientation-") else "altitude-v1.wbo")
                     if target.exists():target.unlink()
                     if scene is not None:target.write_text(scene)
                     run=subprocess.run([str(out),str(root),name],
