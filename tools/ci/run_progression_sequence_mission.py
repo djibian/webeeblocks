@@ -256,6 +256,7 @@ def main() -> int:
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
         [sys.executable, "tools/ci/test_classroom_altitude_smoke_world.py"],
+        [sys.executable, "tools/ci/test_classroom_orientation_smoke_world.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
@@ -321,7 +322,7 @@ def main() -> int:
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2",
             WEBOTS_IMAGE,
-            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
         ], capture=True)
         (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
             classroom_built.stdout or "", encoding="utf-8")
@@ -390,6 +391,40 @@ if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
   }
   echo 'PASS two independent native R2025a controllers started with exact Activity 2 geometry'
 fi
+# Independent native loading of the 3D orientation evaluator alongside the
+# school flight controller. No flight, student program or scene selection proof.
+if [ "WB_ORIENTATION_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  mkdir -p /workspace/ci-artifacts/progression-sequence-mission
+  python3 /workspace/tools/ci/prepare_classroom_orientation_smoke.py prepare
+  set +e
+  timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=fast \
+    /workspace/worlds/ci_classroom_orientation_smoke.wbt \
+    > /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log 2>&1
+  orientation_status=$?
+  set -e
+  python3 /workspace/tools/ci/prepare_classroom_orientation_smoke.py clean
+  test "$orientation_status" -eq 0 -o "$orientation_status" -eq 124 || {
+    cat /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log
+    echo "FAIL native orientation startup Webots exited $orientation_status" >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL missing school flight controller READY in orientation startup' >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 oracle=progression-orientation-3d-v1' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL missing native orientation evaluator READY' >&2
+    exit 1
+  }
+  ! grep -E 'WEBEEBLOCKS_RUNTIME_V2 (FATAL|ERROR)|WEBEEBLOCKS_ORIENTATION_3D_(FATAL|ERROR)' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL native orientation startup fatal result' >&2
+    exit 1
+  }
+  echo 'PASS two independent native R2025a controllers started with Activity 3 geometry'
+fi
 # Additional #637 regression; the complete browser campaign below is unchanged.
 python3 /workspace/tools/ci/run_land_contact_regression.py \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
@@ -419,6 +454,7 @@ sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
         inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
+        inner = inner.replace('WB_ORIENTATION_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
         env = os.environ.copy()
