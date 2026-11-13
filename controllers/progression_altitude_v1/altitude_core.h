@@ -13,8 +13,12 @@
 #define WB_ALT_ORACLE "progression-altitude-3d-v1"
 #define WB_ALT_TARGET_X 1.35
 #define WB_ALT_TARGET_Y 0.0
-#define WB_ALT_TARGET_X_TOL 0.12
-#define WB_ALT_TARGET_Y_TOL 0.12
+/* Physical landing contract: the visual target is a 0.34 m square.
+ * A 0.09 m conservative half-span must fit INSIDE its 0.17 m half-side.
+ * Checking only the drone's center permits a false success off the pad.
+ */
+#define WB_ALT_TARGET_X_TOL 0.08
+#define WB_ALT_TARGET_Y_TOL 0.08
 #define WB_ALT_BARRIER_X 0.62
 #define WB_ALT_BARRIER_HALF_X 0.06
 #define WB_ALT_BARRIER_HALF_Y 0.42
