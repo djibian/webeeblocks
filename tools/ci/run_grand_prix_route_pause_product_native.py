@@ -213,6 +213,65 @@ def events(journal):
     return result
 
 
+def verify_native_stop_postconditions(native, items):
+    # PAUSE/STOP/RESET proof is NOT a successful Grand Prix mission.
+    # The actual 0.4 m flight at its origin crosses the 15 s native takeoff
+    # exemption under the 0.60 m minimum, legitimately closing the oracle.
+    lines = native.splitlines()
+    sent = [e['value'] for e in items if e['stage'] == 'RESET_NATIVE_REQUEST_SENT']
+    received = [e['value'] for e in items if e['stage'] == 'RESET_NATIVE_RESPONSE_RECEIVED']
+    confirmed = [e['value'] for e in items if e['stage'] == 'RESET_CONFIRMED']
+    if (len(sent) != 1 or len(received) != 1 or len(confirmed) != 1 or
+            type(confirmed[0]) is not dict or confirmed[0].get('state') != 'PRÊT' or
+            type(sent[0]) is not dict or type(received[0]) is not dict or
+            type(sent[0].get('id')) is not int or sent[0]['id'] < 1 or
+            sent[0].get('pendingBeforeSend') is not True or
+            received[0].get('id') != sent[0]['id'] or
+            received[0].get('pendingAtArrival') is not True or
+            received[0].get('raw') !=
+                f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {sent[0]['id']} OK"):
+        raise RuntimeError('native RESET request and exact in-flight ACK not attested')
+    reset_trace = [i for i, line in enumerate(lines)
+                   if line.startswith('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ')]
+    reset_reply = [i for i, line in enumerate(lines) if line == received[0]['raw']]
+    if len(reset_trace) != 1 or len(reset_reply) != 1 or reset_trace[0] >= reset_reply[0]:
+        raise RuntimeError('real native RESET postcondition missing')
+    closes = [(i, re.fullmatch(
+        r"GP_ROUTE_EVALUATOR_CLOSED attempt=1 time_ms=([1-9][0-9]*) "
+        r"reason=low-outside-zone detail='low-outside-zone'", line))
+        for i, line in enumerate(lines) if line.startswith('GP_ROUTE_EVALUATOR_CLOSED ')]
+    losses = [i for i, line in enumerate(lines)
+              if line.startswith('GP_ROUTE_SAFETY_LAND ')]
+    forced = [(i, re.fullmatch(
+        r'GP_U_DEADLINE time_ms=([1-9][0-9]*) command=LAND interrupted_id=-1', line))
+        for i, line in enumerate(lines) if line.startswith('GP_U_DEADLINE ')]
+    if not closes and not losses and not forced:
+        return None  # No negative oracle on this host; RESET remains required.
+    admissions = [re.fullmatch(r'GP_U_ADMISSION attempt=1 start_ms=([0-9]+)', line)
+                  for line in lines if line.startswith('GP_U_ADMISSION ')]
+    ground = [i for i, line in enumerate(lines)
+              if line.startswith('GP_U_LAND_GROUND_READY ')]
+    land_trace = [i for i, line in enumerate(lines)
+                  if line == 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1']
+    land_ack = [i for i, line in enumerate(lines)
+                if line == 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK']
+    if (len(closes) != 1 or closes[0][1] is None or len(losses) != 1 or
+            lines[losses[0]] != 'GP_ROUTE_SAFETY_LAND evaluator-unavailable' or
+            len(forced) != 1 or forced[0][1] is None or
+            len(admissions) != 1 or admissions[0] is None or
+            len(ground) != 1 or len(land_trace) != 1 or len(land_ack) != 1):
+        raise RuntimeError('unexpected evaluator loss or unverified native failsafe LAND')
+    close_ms = int(closes[0][1].group(1))
+    admitted_ms = int(admissions[0].group(1))
+    land_ms = int(forced[0][1].group(1))
+    if (close_ms - admitted_ms < 15000 or close_ms - admitted_ms >= 210000 or
+            not (closes[0][0] < losses[0] < forced[0][0] < ground[0] <
+                 land_trace[0] < land_ack[0] < reset_trace[0] < reset_reply[0]) or
+            not (0 < land_ms - close_ms <= 128)):
+        raise RuntimeError('negative oracle / independent LAND / RESET ordering invalid')
+    return 'low-outside-zone'  # Native failed mission remains failed.
+
+
 def verify(log_path, journal, compiled, world):
     items = events(journal)
     stages = [e['stage'] for e in items]
@@ -252,8 +311,9 @@ def verify(log_path, journal, compiled, world):
     native = log_path.read_text(errors='replace')
     if 'WEBEEBLOCKS_RUNTIME_V2 READY' not in native:
         raise RuntimeError('real product binary did not publish runtime READY')
-    if 'Segmentation fault' in native or 'GP_ROUTE_SAFETY_LAND evaluator-unavailable' in native:
-        raise RuntimeError('native fault or evaluator unavailable during integration proof')
+    if 'Segmentation fault' in native:
+        raise RuntimeError('native segmentation fault during integration proof')
+    negative_oracle = verify_native_stop_postconditions(native, items)
     report = {'schema': 'gp-route-native-pause-e2e-r2025a-v1',
               'claim': 'real-route-binary-real-blockly-robot-window-pause',
               'status': 'NATIVE_E2E_PASS_NOT_PEDAGOGICAL_ACCEPTANCE',
@@ -263,6 +323,8 @@ def verify(log_path, journal, compiled, world):
               'flight_binary_sha256': compiled['product_binary_sha256'],
               'browser_fixture_sha256': sha(FIXTURE),
               'native_ack_count': ack_count, 'clock_samples_s': clocks,
+              'negative_mission_oracle': negative_oracle,
+              'grand_prix_mission_success_claimed': False,
               'evidence_sha256': sha(journal), 'webots_log_sha256': sha(log_path),
               'product_safety_relaxation': False, 'physical_flight_authorized': False}
     (OUT / 'result.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
