@@ -23,7 +23,8 @@ class VariableNativeAdmissionTests(unittest.TestCase):
             (base / 'webots/plugins/robot_window').mkdir(parents=True)
             (base / 'webots/robot.h').write_text(
                 'extern "C" double wb_robot_get_time();\n'
-                'extern "C" void wb_robot_wwi_send_text(const char*);\n')
+                'extern "C" void wb_robot_wwi_send_text(const char*);\n'
+                'extern "C" int wb_robot_step(int);\n')
             (base / 'webots/plugins/robot_window/default.h').write_text('')
             (base / 'webots/supervisor.h').write_text('''typedef void* WbNodeRef; typedef void* WbFieldRef;
 extern "C" WbNodeRef wb_supervisor_node_get_from_def(const char*);
@@ -33,6 +34,10 @@ extern "C" void wb_supervisor_field_set_sf_string(WbFieldRef,const char*);
 extern "C" const char* wb_supervisor_field_get_sf_string(WbFieldRef);
 extern "C" int wb_supervisor_field_get_count(WbFieldRef);
 extern "C" const char* wb_supervisor_field_get_mf_string(WbFieldRef,int);
+#define WB_SUPERVISOR_SIMULATION_MODE_PAUSE 0
+#define WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME 1
+extern "C" void wb_supervisor_simulation_set_mode(int);
+extern "C" int wb_supervisor_simulation_get_mode();
 ''')
             test = base / 'test.cpp'
             test.write_text(r'''#include <cassert>
@@ -40,12 +45,21 @@ extern "C" const char* wb_supervisor_field_get_mf_string(WbFieldRef,int);
 #include <cstring>
 #include <limits>
 #include <string>
+#include <deque>
+#include <vector>
+#include <algorithm>
 #include "grand_prix_u_hook.h"
 std::string vehicle, request, evidence, config, reply, sample;
 const std::string canonical="gp-route-v2-L2000-2500-3000-TGD-s17-H2";
 int argsCount=1; double now=2.112; bool present=true, description=true;
+int simMode=WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME,zeroSteps=0;
+std::deque<std::string> messages;std::string delivered;
+std::vector<std::string> sent;
 extern "C" double wb_robot_get_time(){return now;}
-extern "C" void wb_robot_wwi_send_text(const char* s){reply=s;}
+extern "C" void wb_robot_wwi_send_text(const char* s){reply=s;sent.push_back(s);}
+extern "C" int wb_robot_step(int duration){assert(duration==0);++zeroSteps;return 0;}
+extern "C" void wb_supervisor_simulation_set_mode(int mode){simMode=mode;}
+extern "C" int wb_supervisor_simulation_get_mode(){return simMode;}
 extern "C" void* wb_supervisor_node_get_self(){return &vehicle;}
 extern "C" void* wb_supervisor_node_get_from_def(const char* def){
  assert(!std::strcmp(def,"GP_ROUTE_EVALUATOR"));return present?&request:nullptr;
@@ -68,7 +82,11 @@ extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* value){
 }
 extern "C" int wb_supervisor_field_get_count(void* f){assert(f==&config);return argsCount;}
 extern "C" const char* wb_supervisor_field_get_mf_string(void* f,int index){assert(f==&config&&index==0);return config.c_str();}
-extern "C" const char* webeeblocks_file_broker_receive_text(){return nullptr;}
+extern "C" const char* webeeblocks_file_broker_receive_text(){
+ if(messages.empty())return nullptr;
+ delivered=messages.front();messages.pop_front();
+ return gp_u_filter_raw(delivered.c_str())?delivered.c_str():nullptr;
+}
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
 std::string challenge;
 void fresh(){
@@ -100,6 +118,48 @@ void query(int expected){
  assert(request==beforeRequest && evidence==beforeEvidence && sample==beforeSample);
 }
 int main(){
+ // Route-only native PAUSE freezes the Webots clock across step(0),
+ // rejects stale epochs, and STOP wakes without bypassing the native parser.
+ {
+  fresh();ready();
+  std::string nonce(32,'a');
+  std::string sub="GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce="+nonce;
+  assert(gp_u_filter_raw(sub.c_str())==0);
+  assert(reply=="GP_ROUTE_CLOCK_V1 ACK nonce="+nonce+" attempt=1");
+  std::string pause="GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+" attempt=1 seq=1";
+  std::string resume="GP_ROUTE_PAUSE_V1 RESUME nonce="+nonce+" attempt=1 seq=1";
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  int steps=zeroSteps;double frozen=now;
+  messages.push_back("GP_ROUTE_PAUSE_V1 RESUME nonce="+nonce+" attempt=1 seq=2");
+  messages.push_back(resume);
+  assert(gp_u_next_step(32)==32);
+  assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+  assert(now==frozen && zeroSteps>=steps+4);
+  assert(std::find(sent.begin(),sent.end(),
+    "GP_ROUTE_PAUSE_V1 PAUSED nonce="+nonce+" attempt=1 seq=1")!=sent.end());
+  assert(std::find(sent.begin(),sent.end(),
+    "GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+" attempt=1 seq=1")!=sent.end());
+  steps=zeroSteps;
+  std::string wrong="GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+" attempt=2 seq=2";
+  assert(gp_u_filter_raw(wrong.c_str())==0);
+  assert(gp_u_next_step(32)==32&&zeroSteps==steps);
+  gp_u_reset_complete();
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  assert(gp_u_next_step(32)==32&&zeroSteps==steps);
+  fresh();ready();assert(gp_u_filter_raw(sub.c_str())==0);
+  assert(gp_u_start(now)==1);
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  messages.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 STOP");
+  steps=zeroSteps;
+  assert(gp_u_next_step(32)==32 && zeroSteps>=steps+3);
+  assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+  const char *stop=gp_u_receive();
+  assert(stop&&!std::strcmp(stop,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 STOP"));
+  steps=zeroSteps;
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  assert(gp_u_next_step(32)==32 && zeroSteps==steps); // STOP revoked nonce.
+  gp_u_reset_complete();
+ }
  // ADMISSION observes only the current native READY; it never creates authority.
  fresh();query(0);assert(request==challenge);ready();query(1);query(1);
  assert(vehicle=="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
