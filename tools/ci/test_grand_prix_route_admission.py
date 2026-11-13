@@ -176,6 +176,24 @@ int main(){
   assert(gp_u_filter_raw(pause.c_str())==0);
   assert(gp_u_next_step(32)==32 && zeroSteps==steps); // STOP revoked nonce.
   gp_u_reset_complete();
+  // Distinct race: RESUME was accepted under PAUSE, but the *normal*
+  // native STOP arrives before the first positive-step RESUMED ACK.
+  // STOP must suppress that ACK without introducing a second safety LAND.
+  fresh();ready();
+  assert(gp_u_filter_raw(sub.c_str())==0);
+  assert(gp_u_start(now)==1);
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  messages.push_back(resume);
+  const int acknowledgements=std::count(sent.begin(),sent.end(),resumeAck);
+  assert(gp_u_next_step(32)==32); // Return from PAUSE, still RESUMING.
+  assert(std::count(sent.begin(),sent.end(),resumeAck)==acknowledgements);
+  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 66 STOP")==1);
+  now+=0.032; // The stopped native pilot completed one positive step.
+  alive(2144);
+  assert(gp_u_deadline(now,0)==0); // No spurious independent LAND from STOP.
+  assert(gp_u_next_step(32)==32);
+  assert(std::count(sent.begin(),sent.end(),resumeAck)==acknowledgements);
+  gp_u_reset_complete();
  }
  // ADMISSION observes only the current native READY; it never creates authority.
  fresh();query(0);assert(request==challenge);ready();query(1);query(1);
