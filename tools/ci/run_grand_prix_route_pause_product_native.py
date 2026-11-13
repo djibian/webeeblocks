@@ -9,6 +9,7 @@ It cannot authorize a mission or bypass native STOP/RESET, deadline or oracles.
 import hashlib
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import shutil
@@ -169,17 +170,30 @@ def verify(log_path, journal, compiled, world):
     if not all(stage in stages for stage in EXPECTED):
         raise RuntimeError('native product proof missing stages: ' +
                            repr([stage for stage in EXPECTED if stage not in stages]))
-    if [e['stage'] for e in items if e['stage'] == 'NATIVE_PAUSED'].__len__() != 3 or \
-       sum(e['stage'] == 'NATIVE_RESUMED' for e in items) != 2:
-        raise RuntimeError('wrong native pause/resume acknowledgement counts')
-    acks = [e['value'] for e in items if e['stage'] in ('NATIVE_PAUSED','NATIVE_RESUMED')]
-    if not all(type(s) is str and s.startswith('GP_ROUTE_PAUSE_V1 ') for s in acks):
-        raise RuntimeError('missing real native acknowledgements')
-    clocks = [e['value'] for e in items if e['stage'] in
-              ('FROZEN_CLOCK_START','FROZEN_CLOCK_END')]
+    native_events = [e for e in items if e['stage'] in
+                     ('NATIVE_PAUSED','NATIVE_RESUMED')]
+    expected_native = (('PAUSED',1), ('RESUMED',1), ('PAUSED',2),
+                       ('RESUMED',2), ('PAUSED',3))
+    ack_re = re.compile(
+        r'^GP_ROUTE_PAUSE_V1 (PAUSED|RESUMED) nonce=([0-9a-f]{32})'
+        r' attempt=([1-9][0-9]*) seq=([1-9][0-9]*)$')
+    parsed = [ack_re.fullmatch(e['value']) if type(e['value']) is str else None
+              for e in native_events]
+    if (len(parsed) != len(expected_native) or any(m is None for m in parsed) or
+        tuple((m.group(1),int(m.group(4))) for m in parsed) != expected_native or
+        len({(m.group(2),m.group(3)) for m in parsed}) != 1):
+        raise RuntimeError('native ACK sequence, attempt, nonce or STOP fencing invalid')
+    if (sum(e['stage']=='UI_PAUSED' for e in items) != 3 or
+        sum(e['stage']=='UI_RESUMED' for e in items) != 2):
+        raise RuntimeError('native-ACK/UI debugger states disagree')
+    ack_count = len(parsed)
+    clock_events = [x for x in items if x['stage'] in
+                    ('FROZEN_CLOCK_START','FROZEN_CLOCK_END')]
+    clocks = [e['value'] for e in clock_events]
     if (len(clocks) != 2 or any(type(x) not in (int,float) or x < 0 for x in clocks)
-        or clocks[0] != clocks[1]):
-        raise RuntimeError('native mission clock was not frozen during real GUI pause')
+        or clocks[0] != clocks[1] or
+        clock_events[1]['wall_ms'] - clock_events[0]['wall_ms'] < 1300):
+        raise RuntimeError('native mission clock did not stay frozen for real wall time')
     if stages.index('BEFORE_TAKEOFF_PAUSED') >= stages.index('BEFORE_TAKEOFF_RESUMED') or \
        stages.index('STOP_WHILE_TRULY_PAUSED') >= stages.index('RESET_CONFIRMED'):
         raise RuntimeError('browser/WWI trace order invalid')
@@ -196,7 +210,7 @@ def verify(log_path, journal, compiled, world):
               'route_js_sha256': sha(HTML.parent/'setup.js'),
               'flight_binary_sha256': compiled['product_binary_sha256'],
               'browser_fixture_sha256': sha(FIXTURE),
-              'native_ack_count': len(acks), 'clock_samples_s': clocks,
+              'native_ack_count': ack_count, 'clock_samples_s': clocks,
               'evidence_sha256': sha(journal), 'webots_log_sha256': sha(log_path),
               'product_safety_relaxation': False, 'physical_flight_authorized': False}
     (OUT / 'result.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
