@@ -255,6 +255,7 @@ def main() -> int:
         ["python3", "-m", "py_compile", "tools/ci/run_land_contact_regression.py"],
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
+        [sys.executable, "tools/ci/test_progression_sequence_3d_native.py"],
         ["python3", "tools/ci/test_progression_sequence_3d_oracle.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
