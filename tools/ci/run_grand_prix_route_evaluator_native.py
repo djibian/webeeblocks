@@ -260,7 +260,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                     text.splitlines().count(f'GP_ROUTE_PILOT_ACK id=1 time_ms={ack}') != 1 or
                     text.splitlines().count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1):
                 raise RuntimeError('native lateral MOVE / TAKEOFF source evidence invalid')
-        if mode == 'flight-window':
+        elif mode == 'flight-window':
             _check_ready(data.get('ready'))
             streams = data.get('streams')
             required = ('step_wall_ns', 'tick_wall_ns', 'cycle_wall_ns',
