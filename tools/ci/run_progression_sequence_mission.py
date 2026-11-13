@@ -321,7 +321,7 @@ def main() -> int:
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2",
             WEBOTS_IMAGE,
-            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
         ], capture=True)
         (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
             classroom_built.stdout or "", encoding="utf-8")
