@@ -26,6 +26,8 @@ class NativeSceneAckContract(unittest.TestCase):
         self.assertNotIn('Progression sequence evaluator', world)
         self.assertNotIn('controller "progression_altitude_v1"', world)
         self.assertNotIn('DEF WEBEEBLOCKS_ALTITUDE_SCENE', world)
+        self.assertNotIn('DEF WEBEEBLOCKS_ORIENTATION_SCENE', world)
+        self.assertNotIn('controller "progression_orientation_3d"', world)
         self.assertIn('window "altitude_scene_ack_probe"', world)
         self.assertIn('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {', world)
         self.assertIn('# WEBEEBLOCKS_CLASSROOM_ALTITUDE_SCENE_ACK_CI_ONLY', world)
@@ -41,6 +43,7 @@ class NativeSceneAckContract(unittest.TestCase):
             self.source.replace('controller "crazyflie_runtime_v2"', 'controller "bad"'),
             self.source.replace('WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END', 'BAD_END'),
             self.source + '\nDEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] }\n',
+            self.source + '\nDEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] }\n',
         )
         for damaged in corruptions:
             with self.subTest(corruption=damaged[:80]):
@@ -73,15 +76,23 @@ class NativeSceneAckContract(unittest.TestCase):
         self.assertIn("ERR SCENE_UNAVAILABLE", js)
         self.assertIn("LEGACY_SCENE_RESTORED", js)
         self.assertIn("ALTITUDE_SCENE_REATTACHED", js)
+        self.assertIn("SCENE_OK ' + orientationNonce", js)
+        self.assertIn("SCENE_OK ' + orientationAgainNonce", js)
+        self.assertIn("ORIENTATION_SCENE_ACK", js)
+        self.assertIn("LEGACY_AFTER_ORIENTATION_RESTORED", js)
+        self.assertIn("ORIENTATION_SCENE_REATTACHED", js)
         self.assertIn("NATIVE_SCENE_ACK_TEST_COMPLETE", js)
         self.assertIn("ThreadingHTTPServer", runner)
         self.assertIn("two_evaluators =", runner)
+        self.assertIn("two_orientations =", runner)
+        self.assertIn('output.read_text(encoding="utf-8", errors="replace").count(orientation_ready_marker) >= 2', runner)
         # A browser ACK may arrive before imported evaluator startup.
         # No early process teardown is allowed until two real READY witnesses.
         self.assertIn("ready_twice = complete and output.exists()", runner)
         self.assertIn("if ready_twice:", runner)
         self.assertNotIn('if any(e["event"] == "NATIVE_SCENE_ACK_TEST_COMPLETE" for e in EVENTS):\n                break', runner)
         self.assertIn("WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1", runner)
+        self.assertIn("WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1", runner)
         self.assertIn("WEBEEBLOCKS_RUNTIME_V2 READY", runner)
         self.assertIn("world_probe.cleanup()", runner)
         self.assertNotIn("assertTrue(True)", runner)
