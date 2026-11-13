@@ -114,7 +114,7 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertIn("#define WB_ORIENT_CHILDREN 24",core)
         self.assertIn("#define WB_ORIENT_LAND_X 0.90",core)
         self.assertIn("#define WB_ORIENT_LAND_Y -0.90",core)
-        self.assertEqual(len(re.findall(r"^    Pose \\{ translation ",scene,re.MULTILINE)),24)
+        self.assertEqual(len(re.findall(r"^    Pose \{ translation ",scene,re.MULTILINE)),24)
         for label,coords,angle in (
             ("A",(.45,0,.63),-1.570796),
             ("B",(.45,-.45,.79),0),
