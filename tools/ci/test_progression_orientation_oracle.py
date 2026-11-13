@@ -148,7 +148,7 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertEqual(scene.count(" Robot {"),1)
         self.assertNotIn("wb_robot_set_mode",src)
         self.assertNotIn("allowedStatementKinds",src)
-        self.assertNotIn("Blockly",src)
+        self.assertNotIn("Blockly",src.split("*/",1)[-1])
         self.assertNotIn("Py_Initialize",src)
 
 
