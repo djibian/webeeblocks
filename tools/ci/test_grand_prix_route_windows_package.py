@@ -25,6 +25,7 @@ def verify(root):
     if (metadata.get("dependency_sha") != PR970 or
             metadata.get("scene_policy") != "classroom-static-v1" or
             metadata.get("webots") != "R2025a" or
+            metadata.get("webots_source_sha") != "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b" or
             metadata.get("blockly") != "13.2.1" or
             metadata.get("source_sha") != (root / "SOURCE_SHA").read_text().strip() or
             (root / "PR970_SHA").read_text().strip() != PR970):
@@ -56,10 +57,23 @@ def verify(root):
                     scene.count('basicTimeStep 8') != 1 or
                     scene.count(f'FPS {fps} ') != 1 or
                     scene.count("Floor {") != 1 or
-                    re.search(r'"https?://', scene)):
+                    re.search(r'"(?:https?|webots)://', scene) or
+                    any(scene.count(f'EXTERNPROTO "../protos/{proto}.proto"') != 1
+                        for proto in ("Crazyflie", "Floor", "TexturedBackground",
+                                      "TexturedBackgroundLight"))):
                 raise ValueError("Canonical scene contract mismatch: " + stem)
             if not (root / "worlds" / ("." + stem + ".wbproj")).is_file():
                 raise ValueError("Native R2025a project perspective missing")
+    for name in ("Crazyflie", "Floor", "Parquetry", "TexturedBackground", "TexturedBackgroundLight"):
+        if not (root / "protos" / (name + ".proto")).is_file():
+            raise ValueError("Offline native R2025a PROTO absent: " + name)
+    for direction in ("back", "bottom", "front", "left", "right", "top"):
+        for ext in ("jpg", "hdr"):
+            if not (root / "protos/textures/cubic" / f"mountains_{direction}.{ext}").is_file():
+                raise ValueError("Offline native original skybox texture missing")
+    for kind in ("base_color", "roughness", "normal", "occlusion"):
+        if not (root / "protos/textures/parquetry" / f"chequered_parquetry_{kind}.jpg").is_file():
+            raise ValueError("Native Floor appearance texture missing")
     if {p.name for p in worlds} != expected:
         raise ValueError("Unexpected route worlds")
     if not (root / "controllers/grand_prix_route_flight/grand_prix_route_flight.exe").is_file():

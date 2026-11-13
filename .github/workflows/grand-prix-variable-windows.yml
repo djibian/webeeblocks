@@ -36,6 +36,12 @@ jobs:
             /projects/robots/bitcraze/crazyflie/protos/
             /projects/default/protos/textures/fast_helix.png
             /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
           sparse-checkout-cone-mode: false
           fetch-depth: 1
 
@@ -100,7 +106,7 @@ jobs:
       - name: Compose 12 real variable worlds x 3 native FPS
         shell: pwsh
         run: |
-          python tools/grand_prix/package_windows_route.py --classroom 'ci-artifacts/windows-classroom/WebeeBlocks-Windows-R2025a' --python-support 'ci-artifacts/windows-python/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a' --webots-home $env:WEBOTS_HOME --output 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a'
+          python tools/grand_prix/package_windows_route.py --classroom 'ci-artifacts/windows-classroom/WebeeBlocks-Windows-R2025a' --python-support 'ci-artifacts/windows-python/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a' --webots-home $env:WEBOTS_HOME --webots-source '.ci-webots-r2025a' --output 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a'
           if ($LASTEXITCODE -ne 0) { throw 'Real variable ZIP composition failed' }
 
       - name: Verify copied ZIP in independently extracted directory

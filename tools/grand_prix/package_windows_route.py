@@ -23,6 +23,7 @@ from tools.grand_prix.launch_linux import configure_render_fps
 PR970_SHA = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
 NAME = "WebeeBlocks-Grand-Prix-Variable-Windows-R2025a"
 FPS = (60, 30, 25)
+WEBOTS_SOURCE_SHA = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
 
 
 def exact_sha():
@@ -84,9 +85,78 @@ def copy_evaluator(output, evaluated):
                     output / "PYTHON-SOURCE.json")
 
 
+def stage_native_webots_protos(output, classroom, webots_source):
+    """Ship pinned R2025a PROTO + asset closure; do not rewrite physics.
+
+    The official Windows installer alone does not ship these sample-project
+    PROTOs. The source checkout is the immutable, sparse-pinned Webots commit.
+    """
+    source = Path(webots_source).resolve(strict=True)
+    actual = subprocess.check_output(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    if actual != WEBOTS_SOURCE_SHA:
+        raise ValueError("Webots PROTO source is not the pinned R2025a commit")
+    protos = output / "protos"
+    if not (protos / "Crazyflie.proto").is_file():
+        raise ValueError("Verified local Crazyflie native PROTO missing")
+    sources = {
+        "TexturedBackground.proto":
+            "objects/backgrounds/protos/TexturedBackground.proto",
+        "TexturedBackgroundLight.proto":
+            "objects/backgrounds/protos/TexturedBackgroundLight.proto",
+        "Floor.proto": "objects/floors/protos/Floor.proto",
+        "Parquetry.proto": "appearances/protos/Parquetry.proto",
+    }
+    for name, subpath in sources.items():
+        path = source / "projects" / subpath
+        content = path.read_text(encoding="utf-8")
+        if not content.startswith("#VRML_SIM R2025a utf8"):
+            raise ValueError("Mismatched official R2025a PROTO: " + name)
+        if name == "Floor.proto":
+            old = 'EXTERNPROTO "webots://projects/appearances/protos/Parquetry.proto"'
+            if content.count(old) != 1:
+                raise ValueError("Floor default appearance closure changed")
+            content = content.replace(old, 'EXTERNPROTO "Parquetry.proto"')
+        elif name == "TexturedBackground.proto":
+            old = "'webots://projects/default/worlds/textures/cubic'"
+            if content.count(old) != 1:
+                raise ValueError("Official background skybox resource changed")
+            content = content.replace(old, "'textures/cubic'")
+        (protos / name).write_text(content, encoding="utf-8")
+    parquetry = protos / "textures/parquetry"
+    parquetry.mkdir(parents=True)
+    for kind in ("base_color", "roughness", "normal", "occlusion"):
+        file = f"chequered_parquetry_{kind}.jpg"
+        # The classroom builder already certifies these original R2025a images.
+        shutil.copyfile(classroom / "worlds/textures/parquetry" / file,
+                        parquetry / file)
+    cubic = protos / "textures/cubic"
+    cubic.mkdir(parents=True)
+    for direction in ("back", "bottom", "front", "left", "right", "top"):
+        for extension in ("jpg", "hdr"):
+            file = f"mountains_{direction}.{extension}"
+            shutil.copyfile(
+                source / "projects/default/worlds/textures/cubic" / file,
+                cubic / file)
+
+
 def route_world(course_index, fps):
     course = reference_course(course_index)
     scene = configure_render_fps(active_course_world(course), fps)
+    # Keep every original PROTO node and its geometry. Only bind imports to
+    # pinned, verified local R2025a copies, instead of absent installer projects.
+    external = {
+        "Crazyflie": "robots/bitcraze/crazyflie/protos",
+        "TexturedBackground": "objects/backgrounds/protos",
+        "TexturedBackgroundLight": "objects/backgrounds/protos",
+        "Floor": "objects/floors/protos",
+    }
+    for name, location in external.items():
+        old = f'EXTERNPROTO "webots://projects/{location}/{name}.proto"'
+        new = f'EXTERNPROTO "../protos/{name}.proto"'
+        if scene.count(old) != 1:
+            raise ValueError("Canonical native Webots PROTO reference changed: " + name)
+        scene = scene.replace(old, new)
     if (scene.count('controller "grand_prix_route_flight"') != 1 or
             scene.count('controller "grand_prix_route_evaluator"') != 1 or
             scene.count('window "grand_prix_route_v2"') != 1 or
@@ -94,8 +164,8 @@ def route_world(course_index, fps):
             scene.count("basicTimeStep 8") != 1 or
             scene.count("FPS " + str(fps) + " ") != 1):
         raise ValueError("Variable-route native scene identity/timestep altered")
-    if re.search(r'"https?://', scene):
-        raise ValueError("No network resource is permitted in distributed scenes")
+    if re.search(r'"(?:https?|webots)://', scene):
+        raise ValueError("No remote or missing-project resources in distributed scenes")
     # 'webots://' resolves exclusively in the installed, verified R2025a tree.
     # Keeping the genuine Floor PROTO is required by native attestation.
     if scene.count("Floor {") != 1:
@@ -213,7 +283,7 @@ if ($ValidateOnly) {
     return text
 
 
-def compose(classroom, evaluated, webots_home, output):
+def compose(classroom, evaluated, webots_home, webots_source, output):
     sha = exact_sha()
     files = {"classroom": verified_files(classroom),
              "python_support": verified_files(evaluated)}
@@ -227,6 +297,7 @@ def compose(classroom, evaluated, webots_home, output):
     for name in ("controllers", "worlds", "Activites"):
         shutil.rmtree(output / name)
     (output / "WINDOWS-ACCEPTANCE.md").unlink(missing_ok=True)
+    stage_native_webots_protos(output, classroom, webots_source)
     copy_controller(output, classroom, webots_home)
     copy_evaluator(output, evaluated)
     windows = output / "plugins/robot_windows"
@@ -280,6 +351,7 @@ def compose(classroom, evaluated, webots_home, output):
     provenance = {
         "schema": 1, "source_sha": sha, "dependency_pr": 970,
         "dependency_sha": PR970_SHA, "scene_policy": "classroom-static-v1",
+        "webots_source_sha": WEBOTS_SOURCE_SHA,
         "webots": "R2025a", "blockly": "13.2.1",
         "windows_support_manifest": digest(classroom / "MANIFEST.sha256"),
         "python_support_manifest": digest(evaluated / "MANIFEST.sha256"),
@@ -320,10 +392,11 @@ def main():
     parser.add_argument("--classroom", type=Path, required=True)
     parser.add_argument("--python-support", type=Path, required=True)
     parser.add_argument("--webots-home", type=Path, required=True)
+    parser.add_argument("--webots-source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     options = parser.parse_args()
     path = compose(options.classroom, options.python_support,
-                   options.webots_home, options.output)
+                   options.webots_home, options.webots_source, options.output)
     print("GP_ROUTE_WINDOWS_ZIP", path, digest(path))
 
 
