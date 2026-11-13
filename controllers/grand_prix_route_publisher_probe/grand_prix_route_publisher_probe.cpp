@@ -68,21 +68,27 @@ extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
       return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4";
     }
   } else if(phase==send_negative_move) {
-    // Test-only ordinary Blockly-equivalent lateral request. The genuine C
-    // flight controller, native physics and mission evaluator remain in charge.
+    // Test-only Blockly-equivalent motion. The genuine C flight controller,
+    // native physics and independent oracle remain fully authoritative.
     phase=negative_move_sent;
     const char *path=std::getenv("GP_ROUTE_PILOT_NEGATIVE_OUT");
     const char *course=std::getenv("GP_ROUTE_PILOT_COURSE_ID");
+    const char *kind=std::getenv("GP_ROUTE_PILOT_NEGATIVE_ACTION");
     if(!path || !course)std::abort();
+    const bool vertical=kind && !std::strcmp(kind,"VERTICAL-up-0.8");
+    if(kind && !vertical)std::abort();
+    const char *action=vertical?"VERTICAL-up-0.8":"MOVE-right-1.2";
+    const char *command=vertical?"VERTICAL up 0.8":"MOVE right 1.2";
     const long long now=std::llround(wb_robot_get_time()*1000);
     const std::string pending=std::string(path)+".pending";
     FILE *f=std::fopen(pending.c_str(),"w");if(!f)std::abort();
-    if(std::fprintf(f,"GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=%lld course=%s action=MOVE-right-1.2\\n",
-                    now,course)<1 || std::fclose(f))std::abort();
+    if(std::fprintf(f,"GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=%lld course=%s action=%s\\n",
+                    now,course,action)<1 || std::fclose(f))std::abort();
     if(std::rename(pending.c_str(),path))std::abort();
-    std::puts("GP_ROUTE_PILOT_REQUEST id=2 command=MOVE right 1.2");
+    std::printf("GP_ROUTE_PILOT_REQUEST id=2 command=%s\n",command);
     std::fflush(stdout);
-    return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 MOVE right 1.2";
+    return vertical ? "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 VERTICAL up 0.8"
+                    : "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 MOVE right 1.2";
   } else if(phase==send_reset) {
     phase=reset_sent;
     std::puts("GP_ROUTE_PILOT_REQUEST id=2 command=RESET");std::fflush(stdout);

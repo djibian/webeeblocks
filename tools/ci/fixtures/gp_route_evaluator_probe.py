@@ -30,7 +30,7 @@ def witness():
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
                     'classroom-switch', 'classroom-switch-invalid',
-                    'flight-course-negative'):
+                    'flight-course-negative', 'flight-altitude-negative'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -375,6 +375,8 @@ def witness():
         evidence['claim'] = 'native-route-evaluator-real-airborne-window-v1'
     if mode == 'flight-course-negative':
         evidence['claim'] = 'native-route-evaluator-real-lateral-course-negative-v1'
+    if mode == 'flight-altitude-negative':
+        evidence['claim'] = 'native-route-evaluator-real-vertical-altitude-negative-v1'
     phase = 'waiting'
     wall_started = time.monotonic()
     restored_ticks = 0
@@ -501,10 +503,11 @@ def witness():
                 return
         raise RuntimeError('real native airborne measurement incomplete')
 
-    if mode == 'flight-course-negative':
-        # Only a standard WWI MOVE is injected into the REAL native C pilot.
-        # Geometry, sensor outputs, pose, PID, oracle and safety authority are
-        # never modified. One bounded native counterexample, not twelve flights.
+    if mode in ('flight-course-negative', 'flight-altitude-negative'):
+        # Only a standard WWI MOVE or VERTICAL is injected into the genuine C
+        # pilot. No Supervisor pose mutation, fake sensor or oracle override.
+        # The vertical target is valid under Runtime's 1.5 m command limit,
+        # but crosses the Grand Prix mission's independent 1.15 m ceiling.
         if policy != SCENE_POLICY_CLASSROOM_STATIC or scene_checks[0] != 1:
             raise RuntimeError('native dynamic negative needs one static attestation')
         negative_path = output.with_name('negative-request.txt')
@@ -547,8 +550,10 @@ def witness():
                         raise RuntimeError('negative occurred without the real pilot MOVE')
                     command = negative_path.read_text()
                     prefix = ('GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=')
+                    action = ('VERTICAL-up-0.8' if mode == 'flight-altitude-negative'
+                              else 'MOVE-right-1.2')
                     suffix = (' course=' + course.identifier +
-                              ' action=MOVE-right-1.2\\n')
+                              ' action=' + action + '\\n')
                     if not command.startswith(prefix) or not command.endswith(suffix):
                         raise RuntimeError('native lateral command evidence corrupted')
                     request_ms = int(command[len(prefix):-len(suffix)])
@@ -557,9 +562,11 @@ def witness():
                             request_ms < now):
                         raise RuntimeError('native lateral request ordering invalid')
                     reason = evaluator.last_error
-                    if reason not in ('course-boundary', 'envelope-contact',
-                                      'low-outside-zone'):
-                        raise RuntimeError('oracle did not reject native off-course motion: ' +
+                    allowed = (('altitude',) if mode == 'flight-altitude-negative'
+                               else ('course-boundary', 'envelope-contact',
+                                     'low-outside-zone'))
+                    if reason not in allowed:
+                        raise RuntimeError('oracle did not reject native requested motion: ' +
                                            str(reason))
                     if (evaluator._active is None or evaluator._active.result is None or
                             evaluator._active.result.reason != reason or
@@ -587,7 +594,7 @@ def witness():
                             evaluator.observation.kinematics.position[2]))
                     finish()
                     return
-        raise RuntimeError('real native lateral oracle negative incomplete')
+        raise RuntimeError('real native course/altitude oracle negative incomplete')
 
     while True:
         step_started = time.monotonic()
