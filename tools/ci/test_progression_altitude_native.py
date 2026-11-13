@@ -102,6 +102,23 @@ int main(void) {
   normal_takeoff(&m, 10);
   assert(step(&m, 2.0, 0.60, 0.48, 0.46, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
 
+  /* The pad is 0.34 m across and the craft's conservative half-span
+   * is 0.09 m. A centered landing may pass, but offset 0.10 m in either
+   * axis puts an arm outside the 0.17 m half-side and MUST NOT pass.
+   */
+  normal_takeoff(&m, 11);
+  cross_higher(&m);
+  assert(step(&m, 6.0, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.6, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  normal_takeoff(&m, 12);
+  cross_higher(&m);
+  assert(step(&m, 6.0, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.6, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  /* A legitimate landing at small but nonzero errors still succeeds. */
+  normal_takeoff(&m, 13);
+  cross_higher(&m);
+  assert(step(&m, 6.0, 1.41, 0.06, 0.02, 0, 0, 1) == WB_ALT_ACHIEVED);
+
   puts("PASS native altitude C oracle: crossing, landing, collision, reset, negatives");
   return 0;
 }
@@ -163,6 +180,20 @@ class NativeAltitudeContract(unittest.TestCase):
             "WB_ALT_CRAFT_CLEARANCE": "0.09",
         }.items():
             self.assertRegex(core, rf"#define {define} {re.escape(value)}(?:\n|$)")
+        # Verify actual pad geometry AND oracle lateral tolerance together.
+        # 0.34/2 = 0.17, so the conservative drone half-span (0.09)
+        # leaves at most 0.08 m deviation on either horizontal axis.
+        pad_text = text.split("Pose { translation 1.35 0 0.002 children [", 1)[1].split("] }", 1)[0]
+        self.assertIn("geometry Box { size 0.34 0.34 0.004 }", pad_text)
+        def native_constant(name):
+            match = re.search(rf"^#define {re.escape(name)} ([0-9.]+)$", core, re.MULTILINE)
+            self.assertIsNotNone(match, f"missing numeric native constant {name}")
+            return float(match.group(1))
+        span = native_constant("WB_ALT_CRAFT_CLEARANCE")
+        for axis in ("X", "Y"):
+            tolerance = native_constant(f"WB_ALT_TARGET_{axis}_TOL")
+            self.assertLessEqual(tolerance + span, 0.34 / 2 + 1e-10)
+            self.assertAlmostEqual(tolerance, 0.08)
         self.assertIn("Pose { translation 1.35 0 0.002", text)
         self.assertIn("DEF ACTIVITY2_LOW_BARRIER Solid", text)
 
