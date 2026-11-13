@@ -149,6 +149,7 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
         ('  double reset_max_stable = 0.0;',
          '  double reset_max_stable = 0.0;\n'
          '  unsigned long sequence_ci_land_samples = 0;\n'
+         '  unsigned long sequence_ci_land_step_samples = 0;\n'
          '  unsigned long sequence_ci_move_samples = 0;'),
         # CI-only paired clocks for the already-active MOVE: never change
         # simulated deadlines, student behavior, response codes or oracles.
@@ -156,6 +157,17 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
          '        command = CMD_MOVE;\n'
          '        sequence_ci_move_samples = 0;\n'
          '        stable_since = -1.0;'),
+        # Read-only, bounded sample after wb_robot_step has *returned* during
+        # LAND. When a LAND response times out, absence of this marker after
+        # a POST_CONTACT marker separates a blocked Webots step from a blocked
+        # contact read; this is not a mission clock or a new acceptance oracle.
+        ('    const double now = wb_robot_get_time();',
+         '    const double now = wb_robot_get_time();\n'
+         '    if (command == CMD_LAND && sequence_ci_land_step_samples++ % 32 == 0) {\n'
+         '      printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id=%d t=%.9f wall_ms=%lld monotonic_ms=%lld\\n",\n'
+         '             active_id, now, sequence_ci_wall_ms(), sequence_ci_monotonic_ms());\n'
+         '      fflush(stdout);\n'
+         '    }'),
         ('    if (command != CMD_IDLE && command != CMD_RESET &&',
          '    if (command == CMD_MOVE && sequence_ci_move_samples++ % 128 == 0) {\n'
          '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld monotonic_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
@@ -169,6 +181,7 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
         ('        command = CMD_LAND;\n        stable_since = -1.0;',
          '        command = CMD_LAND;\n'
          '        sequence_ci_land_samples = 0;\n'
+         '        sequence_ci_land_step_samples = 0;\n'
          '        stable_since = -1.0;'),
         ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
          '      wb_motor_set_velocity(m4, motor_power(power.m4));\n'
@@ -182,6 +195,8 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
          '               motor_power(power.m4));\n'
          '        fflush(stdout);\n'
          '        sequence_ci_native_land(active_id, now, self_node);\n'
+         '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id=%d t=%.9f\\n", active_id, now);\n'
+         '        fflush(stdout);\n'
          '      }\n'
          '      if (command == CMD_LAND)\n'
          '        ++sequence_ci_land_samples;'),
