@@ -138,6 +138,15 @@ class NativeActivity3Oracle(unittest.TestCase):
             self.assertEqual(tuple(map(float,mark.groups())),coords)
             self.assertAlmostEqual(float(arrow.group(4)),angle,places=5)
 
+    def test_full_webots_native_supervisor_is_built_from_current_sources(self):
+        # A green core test alone cannot prove the Webots C API actually links.
+        # Keep the compilation in the R2025a-pinned Runtime native owner.
+        native_runner=(ROOT/"tools/ci/run_progression_sequence_mission.py").read_text(encoding="utf8")
+        self.assertIn("make -C ../progression_orientation_3d clean",native_runner)
+        self.assertIn("make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d",native_runner)
+        self.assertIn("make -C ../crazyflie_classroom_v2",native_runner)
+        self.assertIn("WB_ALTITUDE_NATIVE_SMOKE_ENABLED",native_runner)
+
     def test_scene_only_native_executable_has_no_program_authority(self):
         src=SOURCE.read_text(encoding="utf8")
         mk=MAKEFILE.read_text(encoding="utf8")
