@@ -20,6 +20,52 @@ sys.path.insert(0, str(ROOT))
 from tools.ci.test_grand_prix_route_windows_package import verify
 from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, read
 
+
+def probe_windows_entropy(home, output):
+    """CI-only readout of the installed exact MinGW C++ random_device.
+
+    Never changes the flight binary, oracle, READY or native admission.
+    A zero entropy estimate is diagnostic, not proof of deterministic output.
+    """
+    code = r"""#include <random>
+#include <cstdio>
+#include <exception>
+int main() {
+  try {
+    std::random_device random;
+    std::printf("MIN_GW_RANDOM_DEVICE_ENTROPY %.6f\n", random.entropy());
+    volatile unsigned value = random(); (void)value;
+    return 0;
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "MIN_GW_RANDOM_DEVICE_ERROR %s\n", e.what());
+    return 2;
+  }
+}
+"""
+    source = output / "mingw_entropy_probe.cpp"
+    binary = output / "mingw_entropy_probe.exe"
+    source.write_text(code, encoding="utf-8")
+    env = engine_environment(home, os.environ)
+    compiler = home / "msys64/mingw64/bin/g++.exe"
+    observations = {"compiler": str(compiler), "native": True}
+    try:
+        built = subprocess.run([str(compiler), "-std=c++17", str(source),
+                                "-o", str(binary)], cwd=output, env=env,
+                               capture_output=True, text=True, timeout=45)
+        observations["build_return_code"] = built.returncode
+        observations["build_output"] = built.stdout + built.stderr
+        if built.returncode == 0:
+            tested = subprocess.run([str(binary)], cwd=output, env=env,
+                                    capture_output=True, text=True, timeout=15)
+            observations["run_return_code"] = tested.returncode
+            observations["run_output"] = tested.stdout + tested.stderr
+    except Exception as exc:
+        observations["diagnostic_error"] = type(exc).__name__ + ": " + str(exc)
+    (output / "mingw_entropy_probe.json").write_text(
+        json.dumps(observations, indent=2) + "\n", encoding="utf-8")
+    print("MIN_GW_RANDOM_DEVICE_DIAGNOSTIC", json.dumps(observations), flush=True)
+
+
 def run_one(package, home, root, index):
     folder = root / f"route-{index:02d}"
     folder.mkdir()
@@ -34,6 +80,7 @@ def run_one(package, home, root, index):
     env = engine_environment(home, os.environ)
     env.update(
         WEBOTS_HOME=str(home),
+        WBB_GP_PRODUCT_TRACE="1",
         WEBEEBLOCKS_GP_PYTHON_DIR=str(package / "runtime/python"),
         WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE="true",
         PYTHONHOME=str(folder / "nonexistent"),
@@ -97,6 +144,7 @@ def main():
         raise ValueError("Native engine is not Webots R2025a")
     verified=verify(package)
     output.mkdir(parents=True,exist_ok=False)
+    probe_windows_entropy(home, output)
     results=[]
     try:
         for index in (5,0,11):
