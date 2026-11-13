@@ -10,6 +10,9 @@ import hashlib
 import json
 import os
 import re
+import socket
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import shutil
@@ -266,6 +269,45 @@ def verify(log_path, journal, compiled, world):
     print('GP_ROUTE_NATIVE_PAUSE_PRODUCT_PASS', json.dumps(report), flush=True)
 
 
+def probe_real_route_page(port, timeout=32):
+    """Use Webots' OWN HTTP server; never serve an imitation page or backend.
+
+    Even with multiple Robots, Webots R2025a opens a Robot Window only when
+    the correct Robot is selected. The test may open its legitimate URL
+    explicitly, but the real browser must prove native WWI afterward.
+    """
+    url = (f'http://localhost:{port}/robot_windows/grand_prix_route_v2/'
+           'grand_prix_route_v2.html?name=Crazyflie%20WebeeBlocks')
+    deadline = time.monotonic() + timeout
+    last = 'no HTTP response'
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=2) as response:
+                status = response.status
+                page = response.read(180000).decode('utf8', 'replace')
+            if status != 200 or 'grand_prix_pause_browser_probe.js' not in page or \
+               'src="../blockly_v2/main.js"' not in page or \
+               'src="setup.js"' not in page:
+                raise RuntimeError('not the genuine test-bound Grand Prix UI')
+            (OUT / 'robot-window-http-preflight.json').write_text(json.dumps({
+                'url': url, 'http_status': status, 'native_webots_port': port,
+                'html_sha256': hashlib.sha256(page.encode('utf8')).hexdigest(),
+                'test_script_present': True,
+                'claim': 'real-Webots-HTTP-page-only-not-WWI-success'
+            }, sort_keys=True, indent=2) + '\n')
+            return url
+        except (urllib.error.URLError, OSError, TimeoutError) as error:
+            last = type(error).__name__ + ': ' + str(error)
+        time.sleep(.25)
+    raise RuntimeError('real Webots RobotWindow HTTP preflight timed out: ' + last)
+
+
+def unused_local_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as channel:
+        channel.bind(('127.0.0.1', 0))
+        return channel.getsockname()[1]
+
+
 def main():
     home = Path(os.environ.get('WEBOTS_HOME', '/usr/local/webots'))
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
@@ -274,11 +316,13 @@ def main():
        shutil.which('xvfb-run') is None or not BROWSER.is_file():
         raise RuntimeError('real Chrome / Xvfb Robot Window unavailable')
     OUT.mkdir(parents=True, exist_ok=True)
-    for name in ('result.json','browser-launch.log','webots.log','qt-preflight.log'):
+    for name in ('result.json','browser-launch.log','browser-stdout.log',
+                 'webots.log','qt-preflight.log','robot-window-http-preflight.json'):
         (OUT/name).unlink(missing_ok=True)
     compiled = compile_native(home)
     server, journal = trace_server()
-    process = None
+    process = browser_process = None
+    browser_stdout = None
     try:
         with tempfile.TemporaryDirectory(prefix='gp-route-real-pause-') as temp:
             folder = Path(temp)
@@ -303,15 +347,44 @@ def main():
             (OUT/'qt-preflight.log').write_text(proc.stdout + proc.stderr)
             if proc.returncode != 0:
                 raise RuntimeError('real R2025a GUI Qt settings unavailable')
+            webots_port=unused_local_port()
             command = ['xvfb-run','-a','-e',str(OUT/'xvfb.log'),
                        '-s','-screen 0 1280x900x24',
                        str(home/'webots'),'--stdout','--stderr','--minimize',
-                       '--mode=realtime',str(world)]
+                       f'--port={webots_port}','--mode=realtime',str(world)]
             log = OUT/'webots.log'
             with log.open('w') as output:
                 process = subprocess.Popen(command,cwd=project,env=env,
                   stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
-                deadline = time.monotonic()+550
+                # The two-robot world need not auto-select the Crazyflie.
+                # Do not wait 550 s for an implicitly unopened window.
+                ready_deadline = time.monotonic() + 90
+                while time.monotonic() < ready_deadline:
+                    if process.poll() is not None:
+                        raise RuntimeError('real Grand Prix Webots ended before READY')
+                    if 'WEBEEBLOCKS_RUNTIME_V2 READY' in log.read_text(errors='replace'):
+                        break
+                    time.sleep(.25)
+                else:
+                    raise RuntimeError('real Grand Prix native READY unavailable')
+                route_url = probe_real_route_page(webots_port)
+                # Give Webots the opportunity to open the default selected
+                # Robot Window; if none opens, the test driver opens the exact
+                # same genuine URL with the approved R2025a Chrome executable.
+                automatic_deadline = time.monotonic() + 4
+                while time.monotonic() < automatic_deadline:
+                    if (OUT/'browser-launch.log').is_file() and \
+                       (OUT/'browser-launch.log').stat().st_size > 0:
+                        break
+                    time.sleep(.2)
+                if not (OUT/'browser-launch.log').is_file():
+                    browser_stdout = (OUT/'browser-stdout.log').open('w')
+                    browser_process = subprocess.Popen(
+                        [str(BROWSER), route_url], cwd=project, env=env,
+                        stdout=browser_stdout, stderr=subprocess.STDOUT,
+                        start_new_session=True)
+                ui_deadline = time.monotonic() + 95
+                deadline = time.monotonic() + 550
                 while time.monotonic() < deadline:
                     if process.poll() is not None:
                         raise RuntimeError('real product Webots process ended early')
@@ -320,6 +393,12 @@ def main():
                         raise RuntimeError('real product browser reported FAIL')
                     if any(item['stage']=='PASS' for item in current):
                         break
+                    if (not any(item['stage']=='REAL_UI_READY' for item in current)
+                        and time.monotonic() > ui_deadline):
+                        raise RuntimeError('real Webots Robot Window failed to reach Blockly READY; '
+                                           'inspect browser-stdout and native HTTP preflight')
+                    if browser_process is not None and browser_process.poll() is not None:
+                        raise RuntimeError('real Chrome exited before Blockly end-to-end PASS')
                     time.sleep(.25)
                 else:
                     raise RuntimeError('real product RobotWindow end-to-end hard timeout 550s')
@@ -332,7 +411,10 @@ def main():
                     raise RuntimeError('real Grand Prix Chrome Robot Window never launched')
             verify(OUT/'webots.log',journal,compiled,OUT/'world.wbt')
     finally:
+        stop_group(browser_process)
         stop_group(process)
+        if browser_stdout is not None:
+            browser_stdout.close()
         server.shutdown()
     return 0
 
