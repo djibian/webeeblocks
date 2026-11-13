@@ -140,6 +140,8 @@ int main(){
   assert(std::find(sent.begin(),sent.end(),
     "GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+" attempt=1 seq=1")!=sent.end());
   steps=zeroSteps;
+  assert(gp_u_filter_raw(pause.c_str())==0); // Completed seq=1 cannot be replayed.
+  assert(gp_u_next_step(32)==32 && zeroSteps==steps);
   std::string wrong="GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+" attempt=2 seq=2";
   assert(gp_u_filter_raw(wrong.c_str())==0);
   assert(gp_u_next_step(32)==32&&zeroSteps==steps);
