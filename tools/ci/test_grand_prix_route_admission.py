@@ -24,7 +24,8 @@ class VariableNativeAdmissionTests(unittest.TestCase):
             (base / 'webots/robot.h').write_text(
                 'extern "C" double wb_robot_get_time();\n'
                 'extern "C" void wb_robot_wwi_send_text(const char*);\n'
-                'extern "C" int wb_robot_step(int);\n')
+                'extern "C" int wb_robot_step(int);\n'
+                'extern "C" const char* wb_robot_wwi_receive_text();\n')
             (base / 'webots/plugins/robot_window/default.h').write_text('')
             (base / 'webots/supervisor.h').write_text('''typedef void* WbNodeRef; typedef void* WbFieldRef;
 extern "C" WbNodeRef wb_supervisor_node_get_from_def(const char*);
@@ -82,10 +83,14 @@ extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* value){
 }
 extern "C" int wb_supervisor_field_get_count(void* f){assert(f==&config);return argsCount;}
 extern "C" const char* wb_supervisor_field_get_mf_string(void* f,int index){assert(f==&config&&index==0);return config.c_str();}
-extern "C" const char* webeeblocks_file_broker_receive_text(){
+// The actual file broker does NOT call gp_u_filter_raw. During PAUSE,
+ // the route-only pump must read raw WWI and recognize RESUME/PING itself.
+extern "C" const char* wb_robot_wwi_receive_text(){
  if(messages.empty())return nullptr;
- delivered=messages.front();messages.pop_front();
- return gp_u_filter_raw(delivered.c_str())?delivered.c_str():nullptr;
+ delivered=messages.front();messages.pop_front();return delivered.c_str();
+}
+extern "C" const char* webeeblocks_file_broker_receive_text(){
+ return wb_robot_wwi_receive_text();
 }
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
 std::string challenge;
@@ -131,14 +136,22 @@ int main(){
   assert(gp_u_filter_raw(pause.c_str())==0);
   int steps=zeroSteps;double frozen=now;
   messages.push_back("GP_ROUTE_PAUSE_V1 RESUME nonce="+nonce+" attempt=1 seq=2");
+  messages.push_back("GP_ROUTE_PAUSE_V1 PING nonce="+nonce+" attempt=1 seq=1");
   messages.push_back(resume);
   assert(gp_u_next_step(32)==32);
   assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
-  assert(now==frozen && zeroSteps>=steps+4);
+  assert(now==frozen && zeroSteps>=steps+2);
   assert(std::find(sent.begin(),sent.end(),
     "GP_ROUTE_PAUSE_V1 PAUSED nonce="+nonce+" attempt=1 seq=1")!=sent.end());
-  assert(std::find(sent.begin(),sent.end(),
-    "GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+" attempt=1 seq=1")!=sent.end());
+  const std::string resumeAck=
+    "GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+" attempt=1 seq=1";
+  // The first RESUMED ACK cannot be emitted before the real flight loop
+  // has returned from a strictly POSITIVE wb_robot_step() after resume.
+  assert(std::find(sent.begin(),sent.end(),resumeAck)==sent.end());
+  steps=zeroSteps;
+  now += 0.032; // Native 32ms positive step has returned to the pilot.
+  assert(gp_u_next_step(32)==32 && zeroSteps==steps);
+  assert(std::count(sent.begin(),sent.end(),resumeAck)==1);
   steps=zeroSteps;
   assert(gp_u_filter_raw(pause.c_str())==0); // Completed seq=1 cannot be replayed.
   assert(gp_u_next_step(32)==32 && zeroSteps==steps);
@@ -153,8 +166,9 @@ int main(){
   assert(gp_u_filter_raw(pause.c_str())==0);
   messages.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 STOP");
   steps=zeroSteps;
-  assert(gp_u_next_step(32)==32 && zeroSteps>=steps+3);
+  assert(gp_u_next_step(32)==32 && zeroSteps>=steps+2);
   assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+  assert(std::count(sent.begin(),sent.end(),resumeAck)==1);
   const char *stop=gp_u_receive();
   assert(stop&&!std::strcmp(stop,"WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 STOP"));
   steps=zeroSteps;

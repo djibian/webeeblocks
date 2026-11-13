@@ -32,17 +32,18 @@ std::string routeClockNonce;
 long long routeClockLastSecond=-1;
 // Route-only PAUSE token is the already-bound native clock nonce of this run.
 // No new authority or command is ever exposed to real-flight or legacy U.
-enum class RoutePausePhase { IDLE, REQUESTED, PAUSED };
+enum class RoutePausePhase { IDLE, REQUESTED, PAUSED, RESUMING };
 RoutePausePhase routePausePhase=RoutePausePhase::IDLE;
 std::string routePauseNonce,routePauseEpoch,routeDeferredStop,routeDeliveredStop;
 unsigned long long routePauseAttempt=0,routePauseSeq=0,routePauseLastSeq=0;
 bool routePauseResume=false;
+double routePauseFrozen=-1.0;
 bool routePauseAbortLanding=false,routePauseAbortAdmission=false;
 std::chrono::steady_clock::time_point routePauseHeartbeat;
 void resetRoutePause() {
   routePausePhase=RoutePausePhase::IDLE;
   routePauseNonce.clear();routePauseEpoch.clear();routePauseAttempt=0;
-  routePauseSeq=0;routePauseResume=false;
+  routePauseSeq=0;routePauseResume=false;routePauseFrozen=-1.0;
 }
 bool currentAttempt(unsigned long long& current);
 bool pauseIdentityCurrent() {
@@ -440,8 +441,11 @@ static void routePauseStep() {
       failed=true;break;
     }
     for(int i=0;i<64;++i) {
-      const char *message=webeeblocks_file_broker_receive_text();
+      // Raw WWI is essential: the shared file broker does NOT invoke
+      // gp_u_filter_raw, and broker outcomes must not execute while frozen.
+      const char *message=wb_robot_wwi_receive_text();
       if(!message)break;
+      if(routePauseMessage(message))continue;
       // STOP is the only actuation allowed to break a paused interpreter.
       // Preserve the exact original message for the unchanged flight parser.
       int id=0;char command[24]={0},extra[2]={0};
@@ -487,16 +491,36 @@ static void routePauseStep() {
   if(!recovered || failed) {routePauseFailClosed();return;}
   if(stopped)routeClockNonce.clear(); // STOP revokes future PAUSE bindings.
   if(!stopped) {
-    std::snprintf(ack,sizeof(ack),
-      "GP_ROUTE_PAUSE_V1 RESUMED nonce=%s attempt=%llu seq=%llu",
-      routePauseNonce.c_str(),routePauseAttempt,routePauseSeq);
-    wb_robot_wwi_send_text(ack);
+    // Do not acknowledge a simulated RESUME on setMode() or step(0) alone.
+    // The enclosing flight loop must return from its next positive step
+    // and run its ordinary safety/deadline/body before Blockly is released.
+    routePauseFrozen=frozen;
+    routePausePhase=RoutePausePhase::RESUMING;
+    routePauseResume=false;
+  } else {
+    resetRoutePause();
   }
+}
+static void routePauseAcknowledgePositiveStep() {
+  if(routePausePhase!=RoutePausePhase::RESUMING)return;
+  const double now=wb_robot_get_time();
+  if(!pauseIdentityCurrent() || !std::isfinite(now) ||
+     !std::isfinite(routePauseFrozen) || now<=routePauseFrozen ||
+     wb_supervisor_simulation_get_mode()!=WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME) {
+    routePauseFailClosed();
+    return;
+  }
+  char ack[200];
+  std::snprintf(ack,sizeof(ack),
+    "GP_ROUTE_PAUSE_V1 RESUMED nonce=%s attempt=%llu seq=%llu",
+    routePauseNonce.c_str(),routePauseAttempt,routePauseSeq);
+  wb_robot_wwi_send_text(ack);
   resetRoutePause();
 }
 #endif
 extern "C" int gp_u_next_step(int normal) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  routePauseAcknowledgePositiveStep();
   routePauseStep();
 #endif
   if(begin<0 || expired || success)return normal;
@@ -610,7 +634,8 @@ extern "C" int gp_u_filter_raw(const char *message) {
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   if(parsed && !std::strcmp(cmd,"STOP")) {
-    if(routePausePhase==RoutePausePhase::REQUESTED)resetRoutePause();
+    if(routePausePhase==RoutePausePhase::REQUESTED ||
+       routePausePhase==RoutePausePhase::RESUMING)resetRoutePause();
     // Do not clear the nonce until PAUSE has actually been resumed and
     // the deferred native STOP is delivered to the normal flight parser.
     if(routePausePhase!=RoutePausePhase::PAUSED)routeClockNonce.clear();
