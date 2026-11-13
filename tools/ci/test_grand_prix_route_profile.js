@@ -468,7 +468,7 @@ async function proveRouteOnlyNativePauseBrowser() {
     'GP_ROUTE_PAUSE_V1 PAUSE nonce='+currentNonce+' attempt=5 seq=1');
   backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+'a'.repeat(32)+
     ' attempt=4 seq=1');
-  let stale=false;next.then(()=>{stale=true;});
+  let stale=false;next.then(()=>{stale=true;},()=>{});
   await Promise.resolve();
   assert.equal(stale,false,'stale ACK crossed the RESET/browser epoch');
   observer.onFinish();
