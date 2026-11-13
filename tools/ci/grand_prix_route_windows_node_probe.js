@@ -46,19 +46,37 @@ socket.onopen=async()=>{
     out('dynamic-command-error',{code:error.code||null,message:String(error)});
   }
   const evaluation={type:'mission-state-v1',oracle:'grand-prix-route-v2'};
-  try {
-    await backend.probeActivityMissionFailure(evaluation);
-    const state=await backend.readActivityOutcome(evaluation);
-    out('dynamic-outcome',state);
-    const reasons=['envelope-contact','course-boundary','altitude','low-outside-zone',
-                   'wrong-landing','time-limit'];
-    if(state&&state.status==='not-achieved'&&reasons.includes(state.reason))
-      nativeRefusal=state.reason;
-  } catch(error) {
-    out('dynamic-outcome-error',{code:error.code||null,message:String(error)});
+  const reasons=['envelope-contact','course-boundary','altitude','low-outside-zone',
+                 'wrong-landing','time-limit'];
+  // The genuine native evaluator has already terminally classified the
+  // deliberate bad traversal. Never issue FAILURE here: once the pilot
+  // safety-lands, it must reject new mutating commands with TIME_LIMIT.
+  // OUTCOME is expressly permitted after that revocation, read-only and
+  // exact-attempt-bound. Poll only for the independent *reasoned* verdict.
+  const deadline=Date.now()+10000;
+  let lastOutcome=null;
+  while(Date.now()<deadline&&!nativeRefusal) {
+    try {
+      const state=await backend.readActivityOutcome(evaluation);
+      lastOutcome=state;
+      if(state&&state.status==='not-achieved'&&reasons.includes(state.reason)) {
+        nativeRefusal=state.reason;
+        out('dynamic-outcome',state);
+        break;
+      }
+      if(state&&state.status!=='not-achieved')
+        throw new Error('Unexpected terminal mission outcome: '+JSON.stringify(state));
+    } catch(error) {
+      if(!(error&&error.code==='OUTCOME_UNAVAILABLE'))
+        throw error;
+      lastOutcome={error:'OUTCOME_UNAVAILABLE'};
+    }
+    await new Promise(resolve=>setTimeout(resolve,50));
   }
-  // A timeout, generic controller refusal or transport error cannot establish
-  // the native physical/dynamic oracle. Require a concrete terminal reason.
+  if(!nativeRefusal)
+    out('dynamic-outcome-unproven',lastOutcome);
+  // A timeout, generic failure, transport rejection, or success cannot
+  // establish the real native dynamic oracle. Require a concrete reason.
   if(!nativeRefusal)
     throw new Error('Real native route dynamic oracle refusal not established');
   out('dynamic-refusal-confirmed',nativeRefusal);
