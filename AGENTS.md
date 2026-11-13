@@ -19,12 +19,18 @@ explicit change in scope, **not** permission to weaken flight dynamics, sensors,
 collisions, mission oracles, native identity/clock/liveness, STOP/RESET/LAND,
 or any independent real-Crazyflie authorization or hardware safety gate.
 Document and test the distinction; a Draft is not qualified for release.
-For this specific performance effort, the active references are #970 (startup
-attestation), #967/#912 (independent rendering), and #914 (Windows delivery).
-Historic compact-frame/revision work #910/#911/#913 and PRs #922/#923/#946,
-visual caching #966, and WREN render-scale changes #938 are experimental
-evidence, **not active safety or architecture dependencies**. Do not remove
-dynamic oracle checks or infer a Windows product PASS from Linux benchmarks.
+For this performance effort, #914 is the current authoritative delivery
+entry point and #970 is the Draft startup-attestation experiment. The only
+active graphics experiment is the native Webots R2025a 3D viewport at full
+resolution, comparing WorldInfo.FPS caps 60/30/25 while retaining 8-ms native
+physics, sensors and the ordinary Blockly interface. The independent WebGL
+view/IPC/asynchronous rendering proposals #967/#912 were explicitly abandoned
+and closed without product integration on 2026-11-12; do not reopen them
+without a new owner decision. Historic compact-frame/revision work
+#910/#911/#913 and PRs #922/#923/#946, visual caching #966 and WREN
+render-scale experiments #938 remain evidence, not active architecture
+dependencies. Do not remove dynamic oracle checks, degrade the visible
+resolution or infer a Windows product PASS from Linux benchmarks.
 
 ## 1 — Stateless Controllers
 
