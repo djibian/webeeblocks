@@ -474,6 +474,7 @@ static void routePauseStep() {
     wb_supervisor_simulation_get_mode()==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME &&
     wb_robot_get_time()==frozen;
   if(!recovered || failed) {routePauseFailClosed();return;}
+  if(stopped)routeClockNonce.clear(); // STOP revokes future PAUSE bindings.
   if(!stopped) {
     std::snprintf(ack,sizeof(ack),
       "GP_ROUTE_PAUSE_V1 RESUMED nonce=%s attempt=%llu seq=%llu",
