@@ -840,6 +840,8 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
           node --check plugins/robot_windows/blockly_v2/main.js
           python3 -m py_compile tools/ci/prepare_runtime_v2_webots.py
+          python3 -m py_compile tools/ci/run_grand_prix_route_pause_product_native.py
+          node --check tools/ci/fixtures/grand_prix_route_pause_browser.js
           grep -Fq 'vendor/blockly_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
           grep -Fq 'vendor/blocks_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
           if grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html; then
