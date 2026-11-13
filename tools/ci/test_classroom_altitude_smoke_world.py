@@ -55,6 +55,18 @@ class NativeAltitudeSmokeWorld(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     generator.compose(a, b)
 
+    def test_classroom_native_runtime_inherits_official_webots_qt_loader_paths(self):
+        # This exact native startup failed in Ready CI 43402310288 with
+        # "libQt6Core.so.6: cannot open shared object file"; the original
+        # controller already has the documented Webots runtime.ini fix.
+        physical_ini = (ROOT / "controllers/crazyflie_runtime_v2/runtime.ini").read_bytes()
+        classroom_ini = (ROOT / "controllers/crazyflie_classroom_v2/runtime.ini").read_bytes()
+        self.assertEqual(classroom_ini, physical_ini,
+                         "native school controller must use the proven Webots Qt loader")
+        self.assertIn(b"[environment variables for Linux]", classroom_ini)
+        self.assertIn(b"WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots", classroom_ini)
+        self.assertIn(b"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins", classroom_ini)
+
     def test_no_unauthorized_smoke_world_cleanup(self):
         source = MODULE.read_text(encoding="utf-8")
         self.assertIn('refusing to overwrite an existing native smoke world', source)
