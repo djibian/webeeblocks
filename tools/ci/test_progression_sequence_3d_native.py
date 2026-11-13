@@ -111,6 +111,9 @@ class NativeSequence3D(unittest.TestCase):
         runner = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(
             encoding="utf8")
         self.assertIn('#include "sequence_core.h"', source)
+        self.assertIn("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY", source)
+        self.assertNotIn("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY",
+                         (NATIVE / "progression_sequence_3d.py").read_text(encoding="utf8"))
         self.assertIn("wb_supervisor_node_get_position(craft)", source)
         self.assertIn("wb_supervisor_node_get_velocity(craft)", source)
         self.assertIn("wb_supervisor_field_set_sf_string(channel, result)", source)
@@ -132,6 +135,11 @@ class NativeSequence3D(unittest.TestCase):
         self.assertIn('test -s \\"$proof_dir/progression_sequence_3d\\"', runner)
         self.assertNotIn('"make clean && make && test -s progression_sequence_3d"', runner)
         self.assertIn("test_progression_sequence_3d_native.py", runner)
+        self.assertIn("make -C ../progression_sequence_3d", runner)
+        self.assertIn("test -s ../progression_sequence_3d/progression_sequence_3d", runner)
+        self.assertIn("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY", runner)
+        self.assertIn("prepare_progression_world(source_world, neutral=NEUTRAL_START)", runner)
+        self.assertIn('crazyflie_classroom_v2', runner)
 
     def test_windows_release_builds_native_observer_without_python_dependency(self):
         builder = (ROOT / "tools/build_windows_classroom_release.ps1").read_text(

@@ -101,6 +101,9 @@ int main(void) {
   wb_seq_mission mission = {0};
   unsigned long long last_attempt = 0;
   printf("WEBEEBLOCKS_SEQUENCE_3D_READY target_x=0.350 target_y=0.280\n");
+  // Distinct from the Python compatibility observer: release and CI must
+  // demonstrate that Webots actually launched the shipped native C engine.
+  printf("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY oracle=%s scene=sequence-v1\n", WB_SEQ_ORACLE);
   fflush(stdout);
   while (wb_robot_step(step) != -1) {
     const char *data = wb_supervisor_field_get_sf_string(channel);

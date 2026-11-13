@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,6 +18,28 @@ TEMP_WORLD = ROOT / "worlds" / "ci_progression_sequence.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_sequence.wbproj"
 
 
+def prepare_progression_world(source_world: str, *, neutral: bool) -> str:
+    """Prepare only the declared Robot Window and school-only flight role.
+
+    The neutral classroom proof must exercise the same real school controller
+    as the Windows ZIP. The historical world must preserve its original pilot.
+    """
+    probe = "sequence_neutral_probe" if neutral else "sequence_probe"
+    if source_world.count('window "blockly_v2"') != 1:
+        raise ValueError("ambiguous source Robot Window identity")
+    prepared = source_world.replace('window "blockly_v2"', f'window "{probe}"', 1)
+    if neutral:
+        craft = re.compile(
+            r'(?m)(^\s*name "Crazyflie WebeeBlocks"\r?\n\s*controller )"crazyflie_runtime_v2"'
+        )
+        prepared, count = craft.subn(r'\g<1>"crazyflie_classroom_v2"', prepared)
+        if count != 1:
+            raise ValueError("expected exactly one pupil Crazyflie controller")
+        if prepared.count('controller "crazyflie_classroom_v2"') != 1:
+            raise ValueError("school-only controller role ambiguous")
+    return prepared
+
+
 def native_context(world_name: str, source_world: str, prepared_world: str, *, neutral: bool) -> dict:
     """Archive input identities, not a claim of identical ODE contact dynamics.
 
@@ -28,10 +51,8 @@ def native_context(world_name: str, source_world: str, prepared_world: str, *, n
         raise ValueError('unknown progression world')
     if neutral != (world_name == 'crazyflie_classroom_start.wbt'):
         raise ValueError('progression context mode/world mismatch')
-    window = 'sequence_neutral_probe' if neutral else 'sequence_probe'
-    if source_world.count('window "blockly_v2"') != 1 or prepared_world != source_world.replace(
-            'window "blockly_v2"', f'window "{window}"', 1):
-        raise ValueError('prepared progression world does not match the source')
+    if prepared_world != prepare_progression_world(source_world, neutral=neutral):
+        raise ValueError('prepared progression world does not match exact source roles')
     digest = lambda text: hashlib.sha256(text.encode('utf-8')).hexdigest()
     return {
         'schema': 'progression-native-source-context-v1',
@@ -304,8 +325,10 @@ def main() -> int:
     for marker in markers:
         if marker not in source_world:
             return fail(f"missing progression world marker: {marker}")
-    probe = 'sequence_neutral_probe' if NEUTRAL_START else 'sequence_probe'
-    prepared_world = source_world.replace('window "blockly_v2"', f'window "{probe}"', 1)
+    try:
+        prepared_world = prepare_progression_world(source_world, neutral=NEUTRAL_START)
+    except ValueError as exc:
+        return fail("progression preparation denied: " + str(exc))
     TEMP_WORLD.write_text(prepared_world, encoding="utf-8")
     TEMP_PROJECT.write_text(
         "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
@@ -359,7 +382,7 @@ def main() -> int:
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2",
             WEBOTS_IMAGE,
-            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2 && make -C ../progression_sequence_3d clean && make -C ../progression_sequence_3d && test -s ../progression_sequence_3d/progression_sequence_3d",
         ], capture=True)
         (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
             classroom_built.stdout or "", encoding="utf-8")
@@ -523,8 +546,23 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
             return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-14000:])
-        if NEUTRAL_START and webots_log.count('WEBEEBLOCKS_SEQUENCE_CI_STARTUP legacy=0 evaluators=0 sequence=0') != 1:
-            return fail('neutral launch did not prove absence of preloaded native scenarios', webots_log[-14000:])
+        # The school-only flight binary does not carry the temporary legacy
+        # diagnostic marker. Refuse preloaded scenes in the prepared world;
+        # the exact browser SCENE_UNAVAILABLE refusal is checked below.
+        if NEUTRAL_START and (
+            "DEF WEBEEBLOCKS_LEGACY_SCENE" in prepared_world or
+            "DEF WEBEEBLOCKS_SEQUENCE_SCENE" in prepared_world
+        ):
+            return fail("neutral world contained a preloaded scenario")
+        # The Python oracle deliberately has no such line. A shared READY or
+        # RESULT message can never prove the native executable was selected.
+        native_c_marker = (
+            "WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY "
+            "oracle=progression-sequence-3d-v1 scene=sequence-v1"
+        )
+        if native_c_marker not in webots_log:
+            return fail("Activity 1 real Webots mission did not launch native C observer",
+                        webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
