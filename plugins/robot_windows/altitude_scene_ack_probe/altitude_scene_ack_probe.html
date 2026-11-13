@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebeeBlocks classroom native altitude SCENE probe (CI only)</title>
+  <!-- Bootstrap runs before loading either JS module; zero bootstrap
+       events therefore establishes a Webots/browser/opening failure. -->
+  <script>
+    fetch('http://127.0.0.1:8765/event', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event:'CLASSROOM_WINDOW_HTML_LOADED',wall_ms:Date.now()})
+    }).catch(error => console.error('CLASSROOM_WINDOW_BOOTSTRAP_FAILED', error));
+  </script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="altitude_scene_ack_probe.js"></script></body>
+</html>

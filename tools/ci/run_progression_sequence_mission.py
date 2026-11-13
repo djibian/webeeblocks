@@ -255,6 +255,10 @@ def main() -> int:
         ["python3", "-m", "py_compile", "tools/ci/run_land_contact_regression.py"],
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
+        [sys.executable, "tools/ci/test_classroom_altitude_smoke_world.py"],
+        [sys.executable, "tools/ci/test_classroom_orientation_smoke_world.py"],
+        [sys.executable, "tools/ci/test_classroom_altitude_scene_ack.py"],
+        ["node", "--check", "plugins/robot_windows/altitude_scene_ack_probe/altitude_scene_ack_probe.js"],
         [sys.executable, "tools/ci/test_progression_sequence_3d_native.py"],
         ["python3", "tools/ci/test_progression_sequence_3d_oracle.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
@@ -331,6 +335,26 @@ def main() -> int:
             "instrumented": hashlib.sha256(diagnostic).hexdigest(),
             "step_timing_enabled": timing_selection == "1",
         }, indent=2) + "\n", encoding="utf-8")
+        # Compile the school executable from the ORIGINAL flight C bytes,
+        # not from the temporary CI diagnostics inserted for the legacy probe.
+        # This is a distinct, executable artifact; the physical runtime's
+        # generated-input hash lock is never weakened or rewritten.
+        classroom_built = run([
+            "docker", "run", "--rm",
+            "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/crazyflie_runtime_v2",
+            WEBOTS_IMAGE,
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+        ], capture=True)
+        (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
+            classroom_built.stdout or "", encoding="utf-8")
+        if classroom_built.returncode:
+            return fail("independent classroom native R2025a build from unmodified flight source failed",
+                        (classroom_built.stdout or "")[-6000:])
+
+        # The existing legacy probe still requires its position/timing
+        # diagnostics. Never mistake THAT instrumented build for a classroom
+        # product build. Always restore the original C source in finally.
         try:
             controller.write_bytes(diagnostic)
             built = run([
@@ -344,7 +368,8 @@ def main() -> int:
             controller.write_bytes(original)
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
-            return fail("Runtime v2/progression evaluators build failed", (built.stdout or "")[-6000:])
+            return fail("Runtime v2 diagnostic progression build failed",
+                        (built.stdout or "")[-6000:])
 
         inner = r'''
 set -e
@@ -354,6 +379,74 @@ apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+# Independent real-Webots process loading witness, *only* in normal shard 0.
+# It is neither a flight PASS nor an SCENE ACK/RESET/Save/Open assertion.
+if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  mkdir -p /workspace/ci-artifacts/progression-sequence-mission
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py prepare
+  set +e
+  timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=fast \
+    /workspace/worlds/ci_classroom_altitude_smoke.wbt \
+    > /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log 2>&1
+  smoke_status=$?
+  set -e
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py clean
+  test "$smoke_status" -eq 0 -o "$smoke_status" -eq 124 || {
+    cat /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log
+    echo "FAIL native altitude startup Webots exited $smoke_status" >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL missing native classroom flight controller READY' >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1 oracle=progression-altitude-3d-v1' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL missing native Webots C altitude evaluator READY' >&2
+    exit 1
+  }
+  ! grep -E 'WEBEEBLOCKS_RUNTIME_V2 (FATAL|ERROR)|WEBEEBLOCKS_ALTITUDE_(FATAL|ERROR)' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-native-smoke.log || {
+    echo 'FAIL fatal native controller in altitude startup witness' >&2
+    exit 1
+  }
+  echo 'PASS two independent native R2025a controllers started with exact Activity 2 geometry'
+fi
+# Independent native loading of the 3D orientation evaluator alongside the
+# school flight controller. No flight, student program or scene selection proof.
+if [ "WB_ORIENTATION_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  mkdir -p /workspace/ci-artifacts/progression-sequence-mission
+  python3 /workspace/tools/ci/prepare_classroom_orientation_smoke.py prepare
+  set +e
+  timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=fast \
+    /workspace/worlds/ci_classroom_orientation_smoke.wbt \
+    > /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log 2>&1
+  orientation_status=$?
+  set -e
+  python3 /workspace/tools/ci/prepare_classroom_orientation_smoke.py clean
+  test "$orientation_status" -eq 0 -o "$orientation_status" -eq 124 || {
+    cat /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log
+    echo "FAIL native orientation startup Webots exited $orientation_status" >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL missing school flight controller READY in orientation startup' >&2
+    exit 1
+  }
+  grep -Fq 'WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 oracle=progression-orientation-3d-v1' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL missing native orientation evaluator READY' >&2
+    exit 1
+  }
+  ! grep -E 'WEBEEBLOCKS_RUNTIME_V2 (FATAL|ERROR)|WEBEEBLOCKS_ORIENTATION_3D_(FATAL|ERROR)' \
+    /workspace/ci-artifacts/progression-sequence-mission/orientation-native-smoke.log || {
+    echo 'FAIL native orientation startup fatal result' >&2
+    exit 1
+  }
+  echo 'PASS two independent native R2025a controllers started with Activity 3 geometry'
+fi
 # Additional #637 regression; the complete browser campaign below is unchanged.
 python3 /workspace/tools/ci/run_land_contact_regression.py \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
@@ -368,6 +461,7 @@ python3 /workspace/tools/ci/run_land_contact_regression.py \
   --case idle-stop \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/idle-stop-response
+# Configure native Robot Window BEFORE the scene-ACK witness.
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \
@@ -375,6 +469,10 @@ printf "%s\n" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
+# This additional witness is school-only; never a program / flight PASS.
+if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  python3 /workspace/tools/ci/run_classroom_altitude_scene_ack.py
+fi
 python3 /workspace/tools/ci/runtime_wwi_event_server.py \
   --output /workspace/ci-artifacts/progression-sequence-mission/browser-events.jsonl &
 server=$!
@@ -382,6 +480,8 @@ trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
+        inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
+        inner = inner.replace('WB_ORIENTATION_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
         env = os.environ.copy()

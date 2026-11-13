@@ -283,4 +283,8 @@ int main(void) {
 ''')
         subprocess.run(['gcc','-std=c11','-Wall','-Wextra',str(root/'framing.c'),'-o',str(root/'framing')],check=True)
         subprocess.run([str(root/'framing')],check=True)
-if __name__=='__main__':main()
+if __name__=='__main__':
+    main()
+    # Execute the new classroom-only C++ selector in the owning Runtime suite.
+    # This does not change the hash-locked production selector's own tests.
+    subprocess.run([sys.executable, 'tools/ci/test_runtime_v2_classroom_selector.py'],check=True)
