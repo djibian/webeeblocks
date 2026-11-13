@@ -673,6 +673,47 @@ def witness():
                         pilot_outcome=vehicle, pilot_failed_ms=now,
                         aircraft_altitude_at_failure_m=(
                             evaluator.observation.kinematics.position[2]))
+                    # Observe 96 more real 8-ms steps with no subsequent
+                    # pupil command, reset, scene edit or new admission.
+                    # Check monotonic terminal evidence while the genuine
+                    # C pilot owns its independent safety LAND. This proves
+                    # neither landing completion nor sensor freshness after
+                    # mission retirement.
+                    last = now
+                    terminal = evidence['terminal_witness']
+                    reason = evidence['reason']
+                    for _ in range(96):
+                        if robot.step(8) == -1:
+                            raise RuntimeError('native negative latch interrupted')
+                        evaluator.tick()
+                        observed = round(robot.getTime() * 1000)
+                        remaining = evaluator._vehicle.getField('customData').getSFString()
+                        observed_terminal = robot.getSelf().getField(
+                            'description').getSFString()
+                        if (observed != last + 8 or
+                                evaluator._context is None or
+                                evaluator._context.attempt != 1 or
+                                evaluator._closed_attempt != 1 or
+                                evaluator.phase != 'failed' or
+                                evaluator._ready or
+                                evaluator._positive_written or
+                                evaluator.last_error != reason or
+                                evaluator._active is None or
+                                evaluator._active.result is None or
+                                evaluator._active.result.status != 'not-achieved' or
+                                evaluator._active.result.reason != reason or
+                                observed_terminal != terminal or
+                                remaining != vehicle or
+                                scene_checks[0] != 1):
+                            raise RuntimeError(
+                                'native terminal or pilot outcome changed after closure')
+                        last = observed
+                    evidence.update(post_negative_steps=96,
+                        post_negative_simulated_ms=96 * 8,
+                        post_negative_last_ms=last, post_negative_latched=True)
+                    print('GP_ROUTE_NEGATIVE_LATCHED_V1 attempt=1 '
+                          f'checks=96 last_ms={last} reason={reason}',
+                          flush=True)
                     finish()
                     return
         raise RuntimeError('real native lateral course oracle negative incomplete')

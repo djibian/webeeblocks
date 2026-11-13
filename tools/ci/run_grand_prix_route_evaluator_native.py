@@ -301,6 +301,12 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                         ('course-boundary', 'envelope-contact', 'low-outside-zone') or
                     data.get('scene_checks') != 1 or
                     data.get('oracle_result') != 'not-achieved' or
+                    data.get('post_negative_latched') is not True or
+                    data.get('post_negative_steps') != 96 or
+                    data.get('post_negative_simulated_ms') != 768 or
+                    type(data.get('post_negative_last_ms')) is not int or
+                    type(failed) is not int or
+                    data['post_negative_last_ms'] != failed + 768 or
                     type(outcome) is not str or not outcome.startswith(negative) or
                     type(data.get('terminal_witness')) is not str or
                     not data['terminal_witness'].startswith('GP_ROUTE_TERMINAL_V1 attempt=1 ') or
@@ -321,8 +327,11 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                                             pilot_command) != 1 or
                     text.splitlines().count('GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF') != 1 or
                     text.splitlines().count(f'GP_ROUTE_PILOT_ACK id=1 time_ms={ack}') != 1 or
-                    text.splitlines().count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1):
-                raise RuntimeError('native requested MOVE/VERTICAL and TAKEOFF evidence invalid')
+                    text.splitlines().count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1 or
+                    text.splitlines().count(
+                        'GP_ROUTE_NEGATIVE_LATCHED_V1 attempt=1 '
+                        f'checks=96 last_ms={failed + 768} reason={data["reason"]}') != 1):
+                raise RuntimeError('native MOVE / TAKEOFF / 96-tick latch evidence invalid')
         elif mode == 'flight-window':
             _check_ready(data.get('ready'))
             streams = data.get('streams')
@@ -669,6 +678,9 @@ def run_native(home, env):
             request_ms=data['negative_request_ms'],
             rejected_ms=data['rejected_ms'],
             pilot_failed_ms=data['pilot_failed_ms'],
+            post_negative_last_ms=data['post_negative_last_ms'],
+            post_negative_steps=data['post_negative_steps'],
+            post_negative_latched=data['post_negative_latched'],
             scene_checks=data['scene_checks'],
             world_sha256=hashlib.sha256((case / 'world.wbt').read_bytes()).hexdigest(),
             native_json_sha256=hashlib.sha256(
@@ -681,6 +693,9 @@ def run_native(home, env):
             len({r['world_sha256'] for r in negative_cases}) != 3 or
             len({r['native_json_sha256'] for r in negative_cases}) != 3 or
             any(r['scene_checks'] != 1 or
+                r['post_negative_latched'] is not True or
+                r['post_negative_steps'] != 96 or
+                r['post_negative_last_ms'] != r['pilot_failed_ms'] + 768 or
                 not r['ready_ms'] <= r['request_ms'] <
                 r['rejected_ms'] <= r['pilot_failed_ms']
                 for r in negative_cases)):
