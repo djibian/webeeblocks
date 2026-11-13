@@ -5,7 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from tools.ci.test_grand_prix_route_evaluator_data_v2 import FakeSupervisor, Node, Field
-from tools.grand_prix.evaluator_publisher_v2 import NativeRouteEvaluator, ORACLE
+from tools.grand_prix.evaluator_publisher_v2 import (NativeRouteEvaluator, ORACLE,
+    SCENE_POLICY_CLASSROOM_STATIC)
 from tools.grand_prix.oracle_attempt_v2 import PureResult
 from tools.grand_prix.route_courses_v2 import reference_course
 
@@ -145,6 +146,31 @@ class NativePublisherTests(unittest.TestCase):
         self.start = None
         for _ in range(70):
             self.assertEqual(self.tick(), '')
+
+    def test_classroom_static_attests_once_and_keeps_full_dynamic_admission(self):
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.checked.assert_not_called()
+        self.assertEqual(self.tick(advance=16), '')
+        self.assertIn('native-observation-gap', self.evaluator.last_error)
+        self.checked.assert_not_called()
+
+    def test_classroom_static_rejects_bad_scene_before_ready_and_reattests_restart(self):
+        self.checked.reset_mock()
+        self.checked.side_effect = RuntimeError('noncanonical initial world')
+        with self.assertRaisesRegex(RuntimeError, 'noncanonical initial world'):
+            NativeRouteEvaluator(self.native, self.course.identifier,
+                                 scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.side_effect = None
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.assertEqual(self.checked.call_count, 2)
 
     def test_gap_revokes_and_new_reset_rebuilds_without_old_packet_or_outcome(self):
         self.admitted()
@@ -421,6 +447,57 @@ class NativePublisherTests(unittest.TestCase):
         self.assertFalse(self.tick())
 
 
+    def test_classroom_static_wrong_landing_keeps_dynamic_failure_without_scene_rescan(self):
+        # The deliberate static-world policy removes only *geometry* rescans.
+        # Pure flight/landing oracles still fail an incomplete pupil mission.
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.native.vehicle.fields['customData'] = (
+            f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle={ORACLE}')
+        with self.assertLogs('tools.grand_prix.evaluator_publisher_v2') as log:
+            for _ in range(190):
+                self.tick()
+        self.assertEqual(len(log.records), 1)
+        self.assertIn('reason=wrong-landing', log.records[0].getMessage())
+        self.assertEqual(self.evaluator.phase, 'failed')
+        self.assertTrue(self.native.evaluator.fields['description'].endswith(' reason=wrong-landing'))
+        self.assertIn('WEBEEBLOCKS_ACTIVITY_COMPLETION_V1',
+                      self.native.vehicle.fields['customData'])
+        self.checked.assert_not_called()
+
+    def test_classroom_static_exact_210s_deadline_preempts_late_oracle(self):
+        # Exercise the real publisher state machine on API-shaped host data.
+        # This is not a native R2025a or physical Crazyflie flight proof.
+        self.checked.reset_mock()
+        self.evaluator = NativeRouteEvaluator(
+            self.native, self.course.identifier,
+            scene_policy=SCENE_POLICY_CLASSROOM_STATIC)
+        self.checked.assert_called_once()
+        self.checked.reset_mock()
+        self.admitted()
+        self.ground = False
+        while self.pose[2] < .65:
+            self.pose[2] = min(.65, self.pose[2] + .02)
+            self.tick()
+        while self.ms - self.start < 209992:
+            self.tick()
+        self.assertEqual(self.evaluator.phase, 'active', self.evaluator.last_error)
+        with patch('tools.grand_prix.evaluator_publisher_v2.observe_pure_attempt') as oracle:
+            self.assertEqual(self.tick(), '')
+            oracle.assert_not_called()
+        self.assertEqual(self.ms - self.start, 210000)
+        self.assertEqual(self.native.vehicle.fields['customData'],
+                         'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1')
+        self.assertFalse(self.tick())
+        self.checked.assert_not_called()
+
+
+
 class NativePublisherEvidenceTests(unittest.TestCase):
     def test_compiled_protocol_wrapper_never_injects_land_and_waits_for_real_acks(self):
         # Compile the actual wrapper against API-shaped callbacks. This proves
@@ -559,7 +636,7 @@ int main(){
             with patch.object(runner, 'OUT', out), patch.object(runner.subprocess, 'Popen') as spawned:
                 spawned.return_value.wait.return_value = 0
                 spawned.return_value.poll.return_value = 0
-                with self.assertRaisesRegex(RuntimeError, 'identity mismatch'):
+                with self.assertRaisesRegex(RuntimeError, 'native evaluator probe mode/claim mismatch'):
                     runner.run_case(home, {}, 'idle')
                 self.assertTrue(spawned.call_args.kwargs['start_new_session'])
             self.assertEqual(len(list(out.glob('*-invocation-*/native.log'))), 1)
