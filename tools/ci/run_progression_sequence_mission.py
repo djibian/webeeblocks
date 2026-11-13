@@ -303,14 +303,16 @@ def main() -> int:
             return fail("pinned Webots image could not be prepared", pull.stdout)
 
         # Real Webots R2025a C API compile of the *separate* Activity 1
-        # supervisor. This is not a startup, ACK or student-flight proof.
+        # supervisor. Compile in an isolated temp dir, never into the actual
+        # scene controller folder: the active Python oracle stays unchanged.
+        # This is not a startup, ACK or student-flight proof.
         native_sequence_build = run([
             "docker", "run", "--rm",
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/progression_sequence_3d",
             WEBOTS_IMAGE,
             "bash", "-lc",
-            "make clean && make && test -s progression_sequence_3d",
+            "set -e; proof_dir=$(mktemp -d /tmp/wb-a1-native-XXXXXX); trap 'rm -rf \"$proof_dir\"' EXIT; cp Makefile progression_sequence_3d.c sequence_core.h \"$proof_dir\"; make -C \"$proof_dir\" clean && make -C \"$proof_dir\" && test -s \"$proof_dir/progression_sequence_3d\"",
         ], capture=True)
         (ARTIFACT_ROOT / "activity1-native-build.log").write_text(
             native_sequence_build.stdout or "", encoding="utf-8")
