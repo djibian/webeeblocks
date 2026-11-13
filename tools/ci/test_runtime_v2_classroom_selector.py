@@ -40,6 +40,12 @@ Node legacy{"WEBEEBLOCKS_LEGACY_SCENE","Group",
 Node evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group",
  "DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }",true,6};
 Node sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false,18};
+Node seqOrigin{"","Pose","",false,2};
+Node seqGlyph{"","Shape","",false,0};
+Node seqObserver{"","Robot","",false,0};
+std::string seqController="progression_sequence_3d";
+std::string seqName="Progression sequence 3D evaluator";
+int seqSupervisor=1,seqSynchronization=1;
 Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,21};
 Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
 Node orientOrigin{"","Pose","",false,2};
@@ -80,6 +86,7 @@ extern "C" void wb_supervisor_node_remove(void*n){
  Node*p=static_cast<Node*>(n);assert(p->alive);p->alive=false;
  removals.push_back(p->def);
  if(p==&altitude){barrier.alive=left.alive=right.alive=false;}
+ if(p==&sequence){seqOrigin.alive=seqGlyph.alive=seqObserver.alive=false;}
  if(p==&orientScene){orientOrigin.alive=orientGlyph.alive=orientObserver.alive=false;}
 }
 extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
@@ -87,7 +94,13 @@ extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
  if(n==&viewpoint && !std::strcmp(field,"position"))return &position;
  if(n==&viewpoint && !std::strcmp(field,"orientation"))return &orientation;
  Node*p=static_cast<Node*>(n);
- if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin))return &p->count;
+ if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin||p==&seqOrigin))return &p->count;
+ if(p==&seqObserver){
+  if(!std::strcmp(field,"controller"))return &seqController;
+  if(!std::strcmp(field,"name"))return &seqName;
+  if(!std::strcmp(field,"supervisor"))return &seqSupervisor;
+  if(!std::strcmp(field,"synchronization"))return &seqSynchronization;
+ }
  if(p==&orientObserver){
   if(!std::strcmp(field,"controller"))return &orientController;
   if(!std::strcmp(field,"name"))return &orientName;
@@ -121,6 +134,12 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*f,int index){
   }
   return nullptr;
  }
+ if(f==&sequence.count)
+  return index==0 ? (seqOrigin.alive?&seqOrigin:nullptr)
+      : index>0&&index<sequence.count?&viewpoint:nullptr;
+ if(f==&seqOrigin.count)
+  return index==0 ? (seqGlyph.alive?&seqGlyph:nullptr)
+      : index==1&&seqObserver.alive?&seqObserver:nullptr;
  if(f==&orientScene.count)
   return index==0 ? (orientOrigin.alive?&orientOrigin:nullptr)
       : index>0&&index<orientScene.count?&viewpoint:nullptr;
@@ -178,7 +197,17 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
  } else if(src.find("DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group {")!=std::string::npos){
   evaluators.alive=true;
  } else if(src.find("DEF WEBEEBLOCKS_SEQUENCE_SCENE Group {")!=std::string::npos){
-  sequence.alive=true;sequence.count=18;
+  sequence.alive=true;sequence.count=partial?17:18;
+  seqOrigin.alive=seqGlyph.alive=seqObserver.alive=true;
+  // The root 18-count remains 18 after replacing a real nested Robot by Shape.
+  // The text "controller progression_sequence_3d" may still be in a comment.
+  seqObserver.type=src.find("  Robot {")!=std::string::npos?"Robot":"Shape";
+  seqController=src.find("controller \"unexpected\"")!=std::string::npos
+    ?"unexpected":"progression_sequence_3d";
+  seqName=src.find("name \"Wrong evaluator\"")!=std::string::npos
+    ?"Wrong evaluator":"Progression sequence 3D evaluator";
+  seqSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
+  seqSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
  }
 }
 int main(int argc,char**argv){
@@ -196,6 +225,41 @@ int main(int argc,char**argv){
  assert(!webeeblocks_select_activity_scene(""));
  assert(!webeeblocks_select_activity_scene(nullptr));
  assert(removals.empty());
+ if(mode.rfind("sequence-",0)==0){
+  if(mode=="sequence-missing" || mode=="sequence-malformed"){
+   assert(!webeeblocks_select_activity_scene("sequence-v1"));
+   assert(removals.empty() && legacy.alive && evaluators.alive);
+   assert(webeeblocks_activity_scene_ready());
+   std::cout<<"PASS school sequence preflight: "<<mode<<"\n";
+   return 0;
+  }
+  partial=mode=="sequence-partial";
+  const bool seqValid=mode=="sequence-valid";
+  assert(bool(webeeblocks_select_activity_scene("sequence-v1"))==seqValid);
+  assert(sequence.alive && !legacy.alive && !evaluators.alive);
+  assert(bool(webeeblocks_activity_scene_ready())==seqValid);
+  assert(!altitude.alive && !orientScene.alive);
+  assert(webeeblocks_select_activity_scene("legacy-v1"));
+  assert(webeeblocks_activity_scene_ready());
+  assert(legacy.alive && evaluators.alive && !sequence.alive);
+  if(seqValid){
+   assert(webeeblocks_select_activity_scene("sequence-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   // A live damaged observer must revoke scene identity even when the
+   // checkerboard still contains all 18 direct visual children.
+   seqObserver.type="Shape";
+   assert(sequence.count==18);
+   assert(!webeeblocks_activity_scene_ready());
+   // A fresh valid import may reconstruct readiness, not the old identity.
+   assert(webeeblocks_select_activity_scene("sequence-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(seqObserver.type=="Robot");
+   assert(webeeblocks_select_activity_scene("legacy-v1"));
+   assert(webeeblocks_activity_scene_ready());
+  }
+  std::cout<<"PASS school sequence selector: "<<mode<<"\n";
+  return 0;
+ }
  if(mode.rfind("orientation-",0)==0){
   if(mode=="orientation-missing" || mode=="orientation-malformed"){
    assert(!webeeblocks_select_activity_scene("orientation-v1"));
@@ -282,6 +346,9 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn("altitude-v1", cpp)
         self.assertIn("orientation-v1", cpp)
         self.assertIn("kOrientationSceneChildren = 24", cpp)
+        self.assertIn("kSequenceSceneChildren = 18", cpp)
+        self.assertIn("sequenceObserver()", cpp)
+        self.assertIn("sequenceObserver() &&", cpp)
         self.assertIn("WEBEEBLOCKS_ORIENTATION_SCENE", cpp)
         self.assertNotIn('"orientation-v1"', phys)
         self.assertIn("kAltitudeSceneChildren = 21", cpp)
@@ -330,8 +397,27 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                 "DEF WEBEEBLOCKS_LEGACY_SCENE Group { children [] }")
             (scenes/"legacy-evaluators-v1.wbo").write_text(
                 "DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }")
-            (scenes/"sequence-v1.wbo").write_text(
-                "DEF WEBEEBLOCKS_SEQUENCE_SCENE Group { children [] }")
+            sequence_authentic=(ROOT/"worlds/scenes/sequence-v1.wbo").read_text(encoding="utf-8")
+            real_sequence_observer=(
+                '  Robot {\n'
+                '    name "Progression sequence 3D evaluator"\n'
+                '    controller "progression_sequence_3d"\n'
+                '    supervisor TRUE\n'
+                '    synchronization TRUE\n'
+                '  }'
+            )
+            self.assertEqual(sequence_authentic.count(real_sequence_observer),1)
+            sequence_fake_comment=sequence_authentic.replace(
+                real_sequence_observer,
+                '  Shape { geometry Box { size 0.01 0.01 0.01 } }\n'
+                '  # controller "progression_sequence_3d"',
+                1)
+            self.assertEqual(sequence_fake_comment.count('  Robot {'),0)
+            self.assertEqual(sequence_fake_comment.count('controller "progression_sequence_3d"'),1)
+            self.assertEqual(
+                sequence_authentic.count('Pose { translation '),
+                sequence_fake_comment.count('Pose { translation '))
+            (scenes/"sequence-v1.wbo").write_text(sequence_authentic)
             (root/"test.cpp").write_text(DRIVER)
             out=root/"test"
             cmd=[gpp,"-std=c++17","-Wall","-Wextra","-Werror",
@@ -373,6 +459,22 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                 "wrong-box-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
+                "sequence-missing": None,
+                "sequence-malformed": "DEF WEBEEBLOCKS_SEQUENCE_SCENE Group { children [] }",
+                "sequence-valid": sequence_authentic,
+                "sequence-partial": sequence_authentic,
+                "sequence-comment-only": sequence_fake_comment,
+                "sequence-wrong-controller": sequence_authentic.replace(
+                    'controller "progression_sequence_3d"',
+                    'controller "unexpected"', 1)
+                    + '\n# controller "progression_sequence_3d"\n',
+                "sequence-wrong-name": sequence_authentic.replace(
+                    'name "Progression sequence 3D evaluator"',
+                    'name "Wrong evaluator"', 1),
+                "sequence-not-supervisor": sequence_authentic.replace(
+                    'supervisor TRUE', 'supervisor FALSE', 1),
+                "sequence-not-synchronized": sequence_authentic.replace(
+                    'synchronization TRUE', 'synchronization FALSE', 1),
                 "orientation-missing": None,
                 "orientation-malformed": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] }',
                 "orientation-valid": authentic,
@@ -392,7 +494,10 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             }
             for name,scene in cases.items():
                 with self.subTest(case=name):
-                    target=scenes/("orientation-v1.wbo" if name.startswith("orientation-") else "altitude-v1.wbo")
+                    target=scenes/(
+                        "orientation-v1.wbo" if name.startswith("orientation-") else
+                        "sequence-v1.wbo" if name.startswith("sequence-") else
+                        "altitude-v1.wbo")
                     if target.exists():target.unlink()
                     if scene is not None:target.write_text(scene)
                     run=subprocess.run([str(out),str(root),name],
