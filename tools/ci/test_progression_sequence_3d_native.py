@@ -105,6 +105,26 @@ class NativeSequence3D(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("PASS pure C Activity 1", result.stdout)
 
+    def test_native_supervisor_is_observer_only_and_build_cannot_switch_active_oracle(self):
+        source = (NATIVE / "progression_sequence_3d.c").read_text(encoding="utf8")
+        makefile = (NATIVE / "Makefile").read_text(encoding="utf8")
+        runner = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(
+            encoding="utf8")
+        self.assertIn('#include "sequence_core.h"', source)
+        self.assertIn("wb_supervisor_node_get_position(craft)", source)
+        self.assertIn("wb_supervisor_node_get_velocity(craft)", source)
+        self.assertIn("wb_supervisor_field_set_sf_string(channel, result)", source)
+        for forbidden in ("wb_motor_set_velocity", "wb_motor_set_position",
+                          "wb_supervisor_node_set_velocity", "wb_supervisor_node_set_position",
+                          "parse_ast", "controllerArgs", "crazyflie_runtime_v2.c"):
+            self.assertNotIn(forbidden, source)
+        self.assertIn("C_SOURCES = progression_sequence_3d.c", makefile)
+        self.assertIn("mktemp -d /tmp/wb-a1-native-", runner)
+        self.assertIn("cp Makefile progression_sequence_3d.c sequence_core.h", runner)
+        self.assertIn('make -C \\"$proof_dir\\"', runner)
+        self.assertNotIn('"make clean && make && test -s progression_sequence_3d"', runner)
+        self.assertIn("test_progression_sequence_3d_native.py", runner)
+
     def test_oracle_constants_match_real_pad_and_python_reference(self):
         header = CORE.read_text(encoding="utf8")
         scene = SCENE.read_text(encoding="utf8")
