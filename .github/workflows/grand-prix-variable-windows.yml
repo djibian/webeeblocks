@@ -9,6 +9,7 @@ on:
       - 'tools/grand_prix/route_windows_epoch.py'
       - 'controllers/grand_prix_route_flight/Makefile'
       - 'tools/ci/*grand_prix_route_windows*'
+      - 'tools/ci/test_workflow_contract.py'
       - 'packaging/windows/Lancer-Grand-Prix.ps1'
       - 'packaging/windows/grand_prix_route_evaluator_bootstrap.py'
       - 'docs/GRAND_PRIX_ROUTE_WINDOWS_EXPERIMENT.md'
