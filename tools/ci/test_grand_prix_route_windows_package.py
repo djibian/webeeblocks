@@ -92,7 +92,10 @@ def verify(root):
     if ("grand_prix_route_v2" not in launcher or
             "._gp_route_session_" not in launcher or
             "WEBEEBLOCKS_GP_FPS" not in launcher or
-            "WEBEEBLOCKS_GP_INDEX" not in launcher):
+            "WEBEEBLOCKS_GP_INDEX" not in launcher or
+            "GetRelativePath(" in launcher or
+            "GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK" not in launcher or
+            "Stop-WebeeBlocksLocalServer -Server $testServer" not in launcher):
         raise ValueError("Windows launcher not routed to isolated static identity")
     if any("grand_prix_u" in x.lower() for x in expected):
         raise ValueError("Historical U geometry leaked into delivery")

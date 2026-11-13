@@ -34,6 +34,16 @@ une mesure des FPS effectivement affichés et **ne change jamais**
 basicTimeStep 8 ms, la résolution 100 %, la physique, les capteurs, le
 pilote ou les oracles. Ne pas activer d'options de rendu dégradé.
 
+## Vérification de compatibilité du lanceur
+
+Le double-clic sur \`Lancer-Grand-Prix.cmd\` utilise le **Windows PowerShell
+5.1 natif**, sans installer PowerShell 7. La CI exécute le véritable mode
+\`-ValidateOnly\` dans PowerShell 5.1 : copie de session isolée, écriture de
+la perspective native, réécriture HTML/HTTP local, présence du Python embarqué
+et nettoyage. Ce contrôle ne lance ni Webots graphique ni Chrome, et ne
+constitue donc pas une validation GUI ou de fluidité.
+
+
 ## Parcours élève et reprises
 
 Attendre **PRÊT** dans Blockly, puis cliquer « Démarrer une activité » et

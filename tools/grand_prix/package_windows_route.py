@@ -205,9 +205,19 @@ function New-WebeeBlocksRobotWindowSession {
       if ($item.Name -like '._gp_route_session_*') { continue }
       Copy-Item -LiteralPath $item.FullName -Destination $staging -Recurse -Force
     }
-    $relativeWorld = [IO.Path]::GetRelativePath($PSScriptRoot, $world)
+    # powershell.exe on Windows 10/11 is Windows PowerShell 5.1/.NET Framework,
+    # whose System.IO.Path lacks GetRelativePath. Both inputs must stay in the
+    # single canonical "worlds" folder: never accept an external file.
+    $canonicalWorldDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'worlds'))
+    $sourceWorldDir = [IO.Path]::GetFullPath((Split-Path -Parent $world))
+    $sourcePerspectiveDir = [IO.Path]::GetFullPath((Split-Path -Parent $PerspectivePath))
+    if (-not $sourceWorldDir.Equals($canonicalWorldDir, [StringComparison]::OrdinalIgnoreCase) -or
+        -not $sourcePerspectiveDir.Equals($canonicalWorldDir, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'World/perspective outside canonical packaged worlds directory.'
+    }
+    $relativeWorld = Join-Path 'worlds' ([IO.Path]::GetFileName($world))
     $sessionWorld = Join-Path $staging $relativeWorld
-    $relativePerspective = [IO.Path]::GetRelativePath($PSScriptRoot, $PerspectivePath)
+    $relativePerspective = Join-Path 'worlds' ([IO.Path]::GetFileName($PerspectivePath))
     $sessionPerspective = Join-Path $staging $relativePerspective
     $contents = [IO.File]::ReadAllText($sessionWorld, [Text.Encoding]::UTF8)
     if ($contents -cne $WorldText -or
@@ -260,14 +270,37 @@ function Remove-WebeeBlocksRobotWindowSession {
     end = text.index("$server = $null", start)
     replacement = r"""
 if ($ValidateOnly) {
-  # Structural validation only. Does not imply a rendered GUI or native READY.
+  # This must execute the *same* real launcher session preparation as normal,
+  # using Windows PowerShell 5.1, without launching Chrome or Webots. Merely
+  # checking the world text would miss unsupported .NET methods in the GUI path.
   if ($worldText -cnotmatch 'window "grand_prix_route_v2"' -or
       $worldText -cnotmatch 'basicTimeStep 8' -or
       $worldText -cnotmatch 'FPS (25|30|60)' -or
       $worldText -cnotmatch 'controller "grand_prix_route_evaluator"') {
     throw 'Scene Grand Prix variable incomplete.'
   }
-  Write-Host 'GP_ROUTE_WINDOWS_LAUNCHER_STRUCTURAL_OK (not GUI/READY)'
+  $testServer = $null
+  $testSession = $null
+  try {
+    $testServer = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
+    $testSession = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective
+    Set-WebeeBlocksSessionHtml -Session $testSession -Port $testServer.Port | Out-Null
+    if (-not (Test-Path -LiteralPath $testSession.World -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $testSession.Html -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $testSession.Perspective -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $testSession.Staging 'runtime\python') -PathType Container) -or
+        -not ([IO.File]::ReadAllText($testSession.Html).Contains('http://127.0.0.1:'))) {
+      throw 'Real isolated Windows session/HTML/Python preparation incomplete.'
+    }
+  }
+  finally {
+    Stop-WebeeBlocksLocalServer -Server $testServer
+    Remove-WebeeBlocksRobotWindowSession -Session $testSession
+  }
+  if ($null -eq $testSession -or (Test-Path -LiteralPath $testSession.Staging)) {
+    throw 'Native Windows session cleanup failed.'
+  }
+  Write-Host 'GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK (not GUI/READY)'
   exit 0
 }
 
@@ -278,7 +311,9 @@ if ($ValidateOnly) {
         "  $env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $session.Staging 'runtime\\python'\n"
         "  $webotsProcess = Start-Process -FilePath $webots")
     if ('New-WebeeBlocksRobotWindowSession' not in text or
-            'grand_prix_route_v2' not in text):
+            'grand_prix_route_v2' not in text or
+            'GetRelativePath(' in text or
+            'GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK' not in text):
         raise ValueError("Packaged launcher patch failed")
     return text
 

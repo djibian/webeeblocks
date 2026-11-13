@@ -122,8 +122,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Extracted product inventory failed' }
           $env:WEBEEBLOCKS_GP_INDEX = '5'
           $env:WEBEEBLOCKS_GP_FPS = '30'
-          & 'ci-artifacts/EXTRACTED variable route with spaces/Launch-WebeeBlocks.ps1' -WebotsHome $env:WEBOTS_HOME -ValidateOnly
-          if ($LASTEXITCODE -ne 0) { throw 'Extracted native launcher structural check failed' }
+          # .cmd launches Windows PowerShell 5.1, not pwsh 7. Exercise the real
+          # isolated session creation, HTML dependency rewriting, and cleanup.
+          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED variable route with spaces/Launch-WebeeBlocks.ps1' -WebotsHome $env:WEBOTS_HOME -ValidateOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 extracted session staging failed' }
 
       - uses: actions/cache@v4
         with:
