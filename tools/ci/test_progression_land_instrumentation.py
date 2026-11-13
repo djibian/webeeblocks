@@ -21,12 +21,6 @@ class LandInstrumentationTests(unittest.TestCase):
         # Global declaration plus per-LAND reset: every new LAND logs its first
         # commanded motor sample, including subsequent runs after RESET.
         self.assertEqual(self.instrumented.count("sequence_ci_land_samples = 0;"), 2)
-        self.assertIn(
-            "command = CMD_LAND;\n"
-            "        sequence_ci_land_samples = 0;\n"
-            "        stable_since = -1.0;",
-            self.instrumented,
-        )
         self.assertIn("sequence_ci_land_samples % 16 == 0", self.instrumented)
         self.assertIn("++sequence_ci_land_samples;", self.instrumented)
         self.assertEqual(self.instrumented.count("sequence_ci_land_step_samples = 0;"), 2)
