@@ -44,6 +44,9 @@ def compose(start: str, scene: str) -> str:
             scene.count("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {") != 1 or
             scene.count('controller "progression_orientation_3d"') != 1 or
             scene.count('name "Progression orientation 3D evaluator"') != 1 or
+            scene.count("supervisor TRUE") != 1 or
+            scene.count("synchronization TRUE") != 1 or
+            "controllerArgs" in scene or
             scene.count(" Robot {") != 1 or
             re.search(r"\bSolid\s*\{|\bboundingObject\b", scene) or
             len(re.findall(r"^    Pose \{ translation ", scene, re.MULTILINE)) != 24 or
