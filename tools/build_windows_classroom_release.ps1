@@ -62,7 +62,7 @@ foreach ($requiredTool in @($make, $gcc)) {
 if ($LASTEXITCODE -ne 0) { throw 'Runtime v2 asset preparation failed.' }
 
 $controllerDir = Join-Path $repoRoot 'controllers\crazyflie_runtime_v2'
-# The school-only executable contains the stronger sequenceObserver() gate.
+# The school-only executable contains the strict sequenceObserver() scene gate.
 $schoolControllerDir = Join-Path $repoRoot 'controllers\crazyflie_classroom_v2'
 # A separate native observer is mandatory for the portable Activity 1 archive.
 # The same exact R2025a toolchain builds it without touching the flight exe.
@@ -80,8 +80,8 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Webots R2025a controller build failed with exit code $LASTEXITCODE."
   }
-  # Keep the historic hash-locked runtime above unmodified; build the school
-  # controller separately for the classroom pupil drone.
+  # Keep the historic hash-locked runtime intact; compile the separate school
+  # flight controller with the same pinned Webots R2025a Windows toolchain.
   & $make -C $schoolControllerDir clean
   if ($LASTEXITCODE -ne 0) {
     throw "Webots R2025a school controller clean failed with exit code $LASTEXITCODE."
@@ -141,285 +141,7 @@ if ($LASTEXITCODE -ne 0) {
   throw 'Could not inspect the Windows school controller import table.'
 }
 foreach ($qtDll in @('Qt6Core.dll', 'Qt6Widgets.dll')) {
-  if ($schoolImports -notmatch ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($qtDll) + '\s*
-$qtGui = Join-Path $qtBinRoot 'Qt6Gui.dll'
-$qtWidgets = Join-Path $qtBinRoot 'Qt6Widgets.dll'
-foreach ($qtRuntime in @($qtGui, $qtWidgets)) {
-  if (-not (Test-Path -LiteralPath $qtRuntime -PathType Leaf)) {
-    throw "Webots R2025a Qt runtime dependency is missing: $qtRuntime"
-  }
-}
-$widgetsImports = (& $objdump -p $qtWidgets | Out-String)
-if ($LASTEXITCODE -ne 0) {
-  throw 'Could not inspect the pinned Qt6Widgets dependency closure.'
-}
-if ($widgetsImports -notmatch '(?im)^\s*DLL Name:\s*Qt6Gui\.dll\s*$') {
-  throw 'Pinned Webots Qt6Widgets no longer depends on Qt6Gui.dll as expected.'
-}
-$qtPluginRoot = Join-Path $webotsRoot 'msys64\mingw64\share\qt6\plugins'
-$qwindows = Join-Path $qtPluginRoot 'platforms\qwindows.dll'
-if (-not (Test-Path -LiteralPath $qwindows -PathType Leaf)) {
-  throw "Webots R2025a Qt Windows platform plugin is missing: $qwindows"
-}
-
-New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
-if (Test-Path -LiteralPath $packageDir) {
-  Remove-Item -LiteralPath $packageDir -Recurse -Force
-}
-if (Test-Path -LiteralPath $archivePath) {
-  Remove-Item -LiteralPath $archivePath -Force
-}
-New-Item -ItemType Directory -Path $packageDir | Out-Null
-
-foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-WINDOWS.md', 'WINDOWS-ACCEPTANCE.md', 'THIRD_PARTY_NOTICES.md')) {
-  Copy-RequiredFile `
-    (Join-Path $repoRoot "packaging\windows\$name") `
-    (Join-Path $packageDir $name)
-}
-
-# Ship the canonical progression starters as teacher-distributable templates.
-# Copy the source-of-truth files dynamically so the classroom release cannot
-# silently drift from activities/progression.
-$progressionSource = Join-Path $repoRoot 'activities\progression'
-if (-not (Test-Path -LiteralPath $progressionSource -PathType Container)) {
-  throw "Progression starter directory is missing: $progressionSource"
-}
-$progressionStarters = @(Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name)
-if ($progressionStarters.Count -eq 0) {
-  throw 'No progression starter project is available for the classroom release.'
-}
-$progressionTarget = Join-Path $packageDir 'Activites'
-foreach ($starter in $progressionStarters) {
-  Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
-}
-
-$blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
-$blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-# Keep the classroom archive bounded to the actual Runtime root dependency
-# closure. The fail-closed HTML resolver below catches any future referenced
-# root asset that is added to blockly_v2.html without being admitted here.
-foreach ($name in @(
-  'blockly_v2.html',
-  'execution_observer.css',
-  'main.css',
-  'main.js',
-  'project_files.css',
-  'project_ui.js',
-  'classroom_fixes.css',
-  'classroom_fixes.js',
-  'led_observability.js',
-  'physical_preflight_runtime.js'
-)) {
-  Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
-}
-foreach ($directory in @('vendor', 'webots')) {
-  $source = Join-Path $blocklySource $directory
-  $target = Join-Path $blocklyTarget $directory
-  if (-not (Test-Path -LiteralPath $source -PathType Container)) {
-    throw "Required Runtime v2 directory is missing: $source"
-  }
-  New-Item -ItemType Directory -Path $target -Force | Out-Null
-  Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
-}
-
-$contractsSource = Join-Path $repoRoot 'plugins\robot_windows\blockly\webeeblocks'
-$contractsTarget = Join-Path $packageDir 'plugins\robot_windows\blockly\webeeblocks'
-New-Item -ItemType Directory -Path $contractsTarget -Force | Out-Null
-Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Object {
-  Copy-RequiredFile $_.FullName (Join-Path $contractsTarget $_.Name)
-}
-# Fail closed on every local HTML dependency and fingerprint the URL from the
-# exact bytes packaged in this archive. Webots reuses localhost Robot Window
-# paths between launches; content-addressed query keys prevent a browser from
-# reusing stale CSS/JS bytes for a new release while preserving offline loading.
-$blocklyHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
-$blocklyHtml = Get-Content -LiteralPath $blocklyHtmlPath -Raw
-$packagePrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
-$assetPattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
-$blocklyHtml = [regex]::Replace(
-  $blocklyHtml,
-  $assetPattern,
-  [System.Text.RegularExpressions.MatchEvaluator]{
-    param($match)
-    $url = $match.Groups['url'].Value
-    if ($url -match '^(?:[a-z][a-z0-9+.-]*:|//|#)') {
-      throw "Robot Window release dependency must be local: $url"
-    }
-    $assetRelative = ($url -split '[?#]', 2)[0]
-    if ([string]::IsNullOrWhiteSpace($assetRelative)) {
-      throw "Robot Window release dependency is empty: $url"
-    }
-    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $blocklyTarget $assetRelative))
-    if (-not $assetPath.StartsWith($packagePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-      throw "Robot Window release dependency escapes package root: $assetRelative"
-    }
-    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
-      throw "Referenced Robot Window asset missing from release: $assetRelative"
-    }
-    $digest = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 16)
-    return $match.Groups['prefix'].Value + $assetRelative + "?wb=$digest" + $match.Groups['suffix'].Value
-  }
-)
-Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml
-
-# The Webots R2025a Robot Window HTTP server may cache the top-level HTML URL for
-# one hour. A new release must therefore change the top-level path itself, not
-# merely its child-resource query strings. Derive that path from every packaged
-# Robot Window/plugin runtime byte so nested imports cannot keep an old URL.
-$robotWindowsRoot = Join-Path $packageDir 'plugins\robot_windows'
-$robotWindowIdentityLines = Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
-  $relative = [System.IO.Path]::GetRelativePath($robotWindowsRoot, $_.FullName).Replace('\', '/')
-  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-  "$hash  $relative"
-}
-$robotWindowIdentity = (($robotWindowIdentityLines -join "`n") + "`n")
-$identityHasher = [System.Security.Cryptography.SHA256]::Create()
-try {
-  $identityBytes = [System.Text.Encoding]::UTF8.GetBytes($robotWindowIdentity)
-  $identityHashBytes = $identityHasher.ComputeHash($identityBytes)
-}
-finally {
-  $identityHasher.Dispose()
-}
-$robotWindowDigest = -join ($identityHashBytes | ForEach-Object { $_.ToString('x2') })
-$robotWindowReleaseName = "blockly_v2_$($robotWindowDigest.Substring(0, 16))"
-$robotWindowReleaseRoot = Join-Path $robotWindowsRoot $robotWindowReleaseName
-if (Test-Path -LiteralPath $robotWindowReleaseRoot) {
-  throw "Content-addressed Robot Window target already exists: $robotWindowReleaseRoot"
-}
-Move-Item -LiteralPath $blocklyTarget -Destination $robotWindowReleaseRoot
-$robotWindowHtmlTarget = Join-Path $robotWindowReleaseRoot "$robotWindowReleaseName.html"
-Move-Item `
-  -LiteralPath (Join-Path $robotWindowReleaseRoot 'blockly_v2.html') `
-  -Destination $robotWindowHtmlTarget
-$blocklyTarget = $robotWindowReleaseRoot
-$blocklyHtmlPath = $robotWindowHtmlTarget
-
-$packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
-Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
-$runtimeIni = @'
-[environment variables with paths]
-WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw64/bin
-QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins
-'@
-Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
-# Activity 1 is evaluated by a *separate* Webots C supervisor, compiled above
-# from the exact sources. Never package a Python fallback or require a system
-# interpreter on old Windows classroom machines.
-Copy-RequiredFile $observerBinary (Join-Path $packageDir 'controllers\progression_sequence_3d\progression_sequence_3d.exe')
-
-
-$crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
-$protoSource = Join-Path $crazyflieRoot 'Crazyflie.proto'
-$protoText = Get-Content -LiteralPath $protoSource -Raw
-$remoteTexture = 'webots://projects/default/protos/textures/fast_helix.png'
-if (($protoText.Split($remoteTexture).Count - 1) -ne 1) {
-  throw 'Unexpected Crazyflie.proto fast-helix dependency count.'
-}
-$protoText = $protoText.Replace($remoteTexture, 'textures/fast_helix.png')
-if ($protoText -match '"(?:https?|webots)://') {
-  throw 'Crazyflie.proto still contains a remote runtime asset.'
-}
-Write-Utf8NoBom (Join-Path $packageDir 'protos\Crazyflie.proto') $protoText
-foreach ($mesh in @('cf2_assembly.dae', 'ccw_prop.dae')) {
-  Copy-RequiredFile `
-    (Join-Path $crazyflieRoot "meshes\$mesh") `
-    (Join-Path $packageDir "protos\meshes\$mesh")
-}
-Copy-RequiredFile `
-  (Join-Path $projectsRoot 'default\protos\textures\fast_helix.png') `
-  (Join-Path $packageDir 'protos\textures\fast_helix.png')
-
-# Preserve the R2025a Floor default chequered Parquetry appearance offline.
-# The existing classroom collision box and top plane remain unchanged.
-foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
-  $texture = "chequered_parquetry_${map}.jpg"
-  Copy-RequiredFile `
-    (Join-Path $projectsRoot "appearances\protos\textures\parquetry\$texture") `
-    (Join-Path $packageDir "worlds\textures\parquetry\$texture")
-}
-
-$worldSource = Join-Path $repoRoot 'worlds\crazyflie_classroom_start.wbt'
-$worldText = Get-Content -LiteralPath $worldSource -Raw
-$remotePrefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/'
-if (($worldText.Split($remotePrefix).Count - 1) -ne 4) {
-  throw 'Expected exactly four pinned remote references in the source Runtime v2 world.'
-}
-$worldText = $worldText.Replace(
-  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"',
-  'EXTERNPROTO "../protos/Crazyflie.proto"'
-)
-foreach ($line in @(
-  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"',
-  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"',
-  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"'
-)) {
-  $worldText = $worldText.Replace("$line`r`n", '').Replace("$line`n", '')
-}
-$worldText = $worldText.Replace('TexturedBackground { }', 'Background { skyColor [ 0.75 0.83 0.92 ] }')
-$worldText = $worldText.Replace('TexturedBackgroundLight { }', 'DirectionalLight { direction -0.4 -0.5 -1 intensity 1.5 }')
-$floor = @'
-Solid {
-  translation 0 0 -0.025
-  children [
-    Shape {
-      appearance PBRAppearance {
-        baseColor 1 1 1
-        baseColorMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_base_color.jpg" ] }
-        roughness 1
-        roughnessMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_roughness.jpg" ] }
-        metalness 0
-        normalMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_normal.jpg" ] }
-        normalMapFactor 1
-        occlusionMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_occlusion.jpg" ] }
-        textureTransform TextureTransform { scale 8 8 }
-      }
-      geometry Box { size 4 4 0.05 }
-    }
-  ]
-  boundingObject Box { size 4 4 0.05 }
-}
-'@
-$worldText = $worldText.Replace('Floor { size 4 4 }', $floor.TrimEnd())
-$sourceRobotWindow = '  window "blockly_v2"'
-if (($worldText.Split($sourceRobotWindow).Count - 1) -ne 1) {
-  throw 'Expected exactly one Runtime v2 Robot Window identity in the source world.'
-}
-$packagedRobotWindow = '  window "' + $robotWindowReleaseName + '"'
-$worldText = $worldText.Replace($sourceRobotWindow, $packagedRobotWindow)
-if ($worldText -match '"(?:https?|webots)://') {
-  throw 'The classroom world still contains a remote runtime asset.'
-}
-Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
-  Copy-RequiredFile `
-    (Join-Path $repoRoot "worlds\scenes\$scene") `
-    (Join-Path $packageDir "worlds\scenes\$scene")
-}
-Copy-RequiredFile `
-  (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
-  (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
-
-$manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
-  $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')
-  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-  "$hash  $relative"
-}
-Write-Utf8NoBom (Join-Path $packageDir 'MANIFEST.sha256') (($manifestLines -join "`n") + "`n")
-
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-  $packageDir,
-  $archivePath,
-  [System.IO.Compression.CompressionLevel]::Optimal,
-  $false
-)
-if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf) -or (Get-Item $archivePath).Length -le 0) {
-  throw 'Windows classroom archive was not created.'
-}
-
-Write-Host "WEBEEBLOCKS_WINDOWS_RELEASE=$archivePath"
-)) {
+  if ($schoolImports -notmatch ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($qtDll) + '\s*$')) {
     throw "Windows school controller is missing native Firefox broker dependency: $qtDll"
   }
 }
@@ -585,6 +307,9 @@ WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw6
 QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins
 '@
 Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
+$packagedSchoolControllerDir = Join-Path $packageDir 'controllers\crazyflie_classroom_v2'
+Copy-RequiredFile $schoolControllerBinary (Join-Path $packagedSchoolControllerDir 'crazyflie_classroom_v2.exe')
+Write-Utf8NoBom (Join-Path $packagedSchoolControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
 # Activity 1 is evaluated by a *separate* Webots C supervisor, compiled above
 # from the exact sources. Never package a Python fallback or require a system
 # interpreter on old Windows classroom machines.
@@ -623,6 +348,17 @@ foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
 
 $worldSource = Join-Path $repoRoot 'worlds\crazyflie_classroom_start.wbt'
 $worldText = Get-Content -LiteralPath $worldSource -Raw
+# Route ONLY the pupil Crazyflie to the school scene adapter. Keep the
+# legacy sequence evaluator Robot on the unchanged original runtime.
+$craftPattern = '(?m)(^\s*name "Crazyflie WebeeBlocks"\r?\n\s*controller )"crazyflie_runtime_v2"'
+if ([regex]::Matches($worldText, $craftPattern).Count -ne 1) {
+  throw 'Expected exactly one pupil drone with the original runtime controller.'
+}
+$worldText = [regex]::Replace($worldText, $craftPattern, '$1"crazyflie_classroom_v2"')
+if (($worldText.Split('controller "crazyflie_classroom_v2"').Count - 1) -ne 1 -or
+    ($worldText.Split('controller "crazyflie_runtime_v2"').Count - 1) -ne 1) {
+  throw 'School flight and legacy evaluator controller identities must be distinct.'
+}
 $remotePrefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/'
 if (($worldText.Split($remotePrefix).Count - 1) -ne 4) {
   throw 'Expected exactly four pinned remote references in the source Runtime v2 world.'
