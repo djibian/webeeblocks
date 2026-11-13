@@ -331,7 +331,7 @@ def main() -> int:
             "-w", "/workspace/controllers/progression_sequence_3d",
             WEBOTS_IMAGE,
             "bash", "-lc",
-            "set -e; proof_dir=$(mktemp -d /tmp/wb-a1-native-XXXXXX); trap 'rm -rf \"$proof_dir\"' EXIT; cp Makefile progression_sequence_3d.c sequence_core.h \"$proof_dir\"; make -C \"$proof_dir\" clean && make -C \"$proof_dir\" && test -s \"$proof_dir/progression_sequence_3d\"",
+            "set -e; proof_root=$(mktemp -d /tmp/wb-a1-native-XXXXXX); trap 'rm -rf \"$proof_root\"' EXIT; proof_dir=\"$proof_root/controllers/progression_sequence_3d\"; mkdir -p \"$proof_dir\"; cp Makefile progression_sequence_3d.c sequence_core.h \"$proof_dir\"; make -C \"$proof_dir\" clean && make -C \"$proof_dir\" && test -s \"$proof_dir/progression_sequence_3d\"",
         ], capture=True)
         (ARTIFACT_ROOT / "activity1-native-build.log").write_text(
             native_sequence_build.stdout or "", encoding="utf-8")
