@@ -592,10 +592,42 @@ def run_native(home, env):
     print('PASS 3 matched native R2025a A/B session pairs; no GUI/FPS/Windows claim',
           flush=True)
 
-    # Native dynamic refutation, NOT a teleported Supervisor scene mutation:
-    # the genuine pilot executes an intentionally off-course MOVE after TAKEOFF.
-    # The native oracle must fail and the pilot must publish its own negative.
-    run_case(home, env, 'flight-course-negative', 5)
+    # Three independent R2025a physical counterexamples: sample the
+    # canonical one-, two- and three-H configuration groups (0, 5, 11).
+    # These are real lateral MOVE commands on the test-wrapped production
+    # pilot, NOT Supervisor pose changes or three completed pupil missions.
+    negative_cases = []
+    for index in (0, 5, 11):
+        data, case = run_case(home, env, 'flight-course-negative', index)
+        negative_cases.append(dict(
+            index=index, configuration=data['configuration'],
+            reason=data['reason'],
+            ready_ms=data['ready']['time_ms'],
+            request_ms=data['negative_request_ms'],
+            rejected_ms=data['rejected_ms'],
+            pilot_failed_ms=data['pilot_failed_ms'],
+            scene_checks=data['scene_checks'],
+            world_sha256=hashlib.sha256((case / 'world.wbt').read_bytes()).hexdigest(),
+            native_json_sha256=hashlib.sha256(
+                (case / 'native.json').read_bytes()).hexdigest(),
+            case_directory=case.name))
+    if (len(negative_cases) != 3 or
+            {r['index'] for r in negative_cases} != {0, 5, 11} or
+            {r['configuration'] for r in negative_cases} !=
+            {reference_course(i).identifier for i in (0, 5, 11)} or
+            len({r['world_sha256'] for r in negative_cases}) != 3 or
+            len({r['native_json_sha256'] for r in negative_cases}) != 3 or
+            any(r['scene_checks'] != 1 or
+                not r['ready_ms'] <= r['request_ms'] <
+                r['rejected_ms'] <= r['pilot_failed_ms']
+                for r in negative_cases)):
+        raise RuntimeError('native three-course dynamic negative evidence invalid')
+    (OUT / 'flight-course-negative-summary.json').write_text(
+        json.dumps(dict(
+            claim='native-grand-prix-three-course-real-pilot-negatives-not-missions-v1',
+            webots='R2025a', timestep_ms=8,
+            indices=[0, 5, 11], negative_witnesses=negative_cases),
+            sort_keys=True, indent=2) + '\n')
 
     # Three matched independently launched airborne A/B pairs. Alternate
     # policy order AB-BA-AB to expose run-order and host scheduling effects.
