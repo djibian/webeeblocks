@@ -88,7 +88,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
                     'classroom-switch', 'classroom-switch-invalid',
-                    'flight-course-negative', 'flight-altitude-negative'):
+                    'flight-course-negative', 'flight-vertical-preflight'):
         raise RuntimeError('unknown native evaluator probe mode')
     if mode in ('session-benchmark', 'flight-window'):
         if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
@@ -110,7 +110,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         (project / 'worlds').mkdir()
         controllers = project / 'controllers'
         controllers.mkdir()
-        if mode not in ('flight-reset', 'flight-window', 'flight-course-negative', 'flight-altitude-negative'):
+        if mode not in ('flight-reset', 'flight-window', 'flight-course-negative', 'flight-vertical-preflight'):
             (controllers / 'grand_prix_route_flight').symlink_to(ROOT / 'controllers/grand_prix_route_flight', target_is_directory=True)
         else:
             flight = controllers / 'grand_prix_route_flight'
@@ -172,9 +172,9 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             GP_ROUTE_EVALUATOR_INDEX=str(index))
         if mode in ('session-benchmark', 'flight-window'):
             environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
-        if mode in ('flight-course-negative', 'flight-altitude-negative'):
+        if mode in ('flight-course-negative', 'flight-vertical-preflight'):
             environment['GP_ROUTE_PILOT_NEGATIVE_OUT'] = str(case / 'negative-request.txt')
-        if mode == 'flight-altitude-negative':
+        if mode == 'flight-vertical-preflight':
             environment['GP_ROUTE_PILOT_NEGATIVE_ACTION'] = 'VERTICAL-up-0.8'
         if mode in ('classroom-switch', 'classroom-switch-invalid'):
             environment['GP_ROUTE_SWITCH_WORLD'] = str(switched_world)
@@ -192,7 +192,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                 # Bound the flight/LAND/RESET wall budget using this actual
                 # R2025a pace; retain idle's 120 s, all native assertions,
                 # 8-ms sampling and the 210000-ms mission deadline.
-                status = process.wait(timeout=420 if mode in ('flight-reset', 'flight-window', 'flight-course-negative', 'flight-altitude-negative') else 120)
+                status = process.wait(timeout=420 if mode in ('flight-reset', 'flight-window', 'flight-course-negative', 'flight-vertical-preflight') else 120)
                 if status != 0:
                     raise RuntimeError('native evaluator Webots failed: ' + str(log))
         finally:
@@ -207,8 +207,8 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-route-evaluator-real-vertical-altitude-negative-v1'
-                          if mode == 'flight-altitude-negative' else
+        expected_claim = ('native-route-pilot-vertical-preflight-refusal-v1'
+                          if mode == 'flight-vertical-preflight' else
                           'native-route-evaluator-real-lateral-course-negative-v1'
                           if mode == 'flight-course-negative' else
                           'native-classroom-world-switch-invalid-rejection-v1'
@@ -224,7 +224,63 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                           else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
         if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
-        if mode in ('flight-course-negative', 'flight-altitude-negative'):
+        if mode == 'flight-vertical-preflight':
+            _check_ready(data.get('ready'))
+            ready = data['ready']
+            start, ack, airborne = (data.get(key) for key in
+                                    ('start_ms', 'takeoff_ack_ms', 'airborne_ms'))
+            request, last = data.get('request_ms'), data.get('final_ms')
+            low_z, high_z = data.get('min_altitude_m'), data.get('max_altitude_m')
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
+                    data.get('phase') != 'native-pilot-vertical-preflight-rejected' or
+                    data.get('native_pilot') is not True or
+                    data.get('no_pupil_program') is not True or
+                    data.get('scene_checks') != 1 or
+                    data.get('oracle_phase') != 'active' or
+                    data.get('oracle_result') is not None or
+                    data.get('observed_steps') != 96 or
+                    any(type(v) is not int or v < 0 or v % 8
+                        for v in (start, ack, airborne, request, last)) or
+                    not ready['time_ms'] <= start <= ack <= airborne <= request < last or
+                    not 95 * 8 <= last - request <= 98 * 8 or
+                    type(data.get('airborne_z')) not in (int, float) or
+                    not .20 <= data['airborne_z'] < 1.165 or
+                    any(type(v) not in (int, float) or not math.isfinite(v)
+                        for v in (low_z, high_z)) or
+                    not 0 < low_z <= high_z < ready['position'][2] + 1.15):
+                raise RuntimeError('native vertical preflight/ceiling witness invalid')
+            expected = (f'GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms={request} '
+                        f'course={course.identifier} action=VERTICAL-up-0.8\\n')
+            lines = text.splitlines()
+            preflights = [line for line in lines if line.startswith(
+                'GP_CEILING_PREFLIGHT_V1 command=VERTICAL ')]
+            pattern = (r'GP_CEILING_PREFLIGHT_V1 command=VERTICAL '
+                       r'z=(\S+) vz=(\S+) target=(\S+) top=(\S+) '
+                       r'headroom=(\S+) ceiling=(\S+) code=VERTICAL_LIMIT')
+            parsed = re.fullmatch(pattern, preflights[0]) if len(preflights) == 1 else None
+            if (parsed is None or not (case / 'negative-request.txt').is_file() or
+                    (case / 'negative-request.txt').read_text() != expected or
+                    lines.count('GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF') != 1 or
+                    lines.count('GP_ROUTE_PILOT_REQUEST id=2 command=VERTICAL up 0.8') != 1 or
+                    lines.count(f'GP_ROUTE_PILOT_ACK id=1 time_ms={ack}') != 1 or
+                    lines.count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1 or
+                    lines.count('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR VERTICAL_LIMIT') != 1 or
+                    len([line for line in lines if line.startswith(
+                        'GP_ROUTE_PILOT_SEND phase=') and line.endswith(
+                        'data=WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR VERTICAL_LIMIT')]) != 1 or
+                    any(line.startswith('GP_ROUTE_TERMINAL_V1 ') or
+                        line.startswith('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 ')
+                        for line in lines)):
+                raise RuntimeError('native C pilot vertical VERTICAL_LIMIT trace invalid')
+            z, vz, target, top, headroom, ceiling = (float(v) for v in parsed.groups())
+            if (not all(math.isfinite(v) for v in
+                        (z, vz, target, top, headroom, ceiling)) or
+                    not headroom > 0 or not target > top or
+                    abs(ceiling - (ready['position'][2] + 1.15)) > .02 or
+                    high_z >= ceiling):
+                raise RuntimeError('native vertical predictive preflight guard unproven')
+        elif mode == 'flight-course-negative':
             _check_ready(data.get('ready'))
             negative = ('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 '
                         'oracle=grand-prix-route-v2 status=not-achieved')
@@ -242,8 +298,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                     data.get('native_pilot') is not True or
                     data.get('no_pupil_program') is not True or
                     data.get('reason') not in
-                        (('altitude',) if mode == 'flight-altitude-negative' else
-                         ('course-boundary', 'envelope-contact', 'low-outside-zone')) or
+                        ('course-boundary', 'envelope-contact', 'low-outside-zone') or
                     data.get('scene_checks') != 1 or
                     data.get('oracle_result') != 'not-achieved' or
                     type(outcome) is not str or not outcome.startswith(negative) or
@@ -255,10 +310,8 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                     type(data.get('airborne_z')) not in (float, int) or
                     not .20 <= data['airborne_z'] <= 1.165):
                 raise RuntimeError('native lateral dynamic negative provenance invalid')
-            action = ('VERTICAL-up-0.8' if mode == 'flight-altitude-negative'
-                      else 'MOVE-right-1.2')
-            pilot_command = ('VERTICAL up 0.8' if mode == 'flight-altitude-negative'
-                             else 'MOVE right 1.2')
+            action = 'MOVE-right-1.2'
+            pilot_command = 'MOVE right 1.2'
             expected_command = (
                 f'GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms={request} '
                 f'course={course.identifier} action={action}\\n')
@@ -639,23 +692,30 @@ def run_native(home, env):
             indices=[0, 5, 11], negative_witnesses=negative_cases),
             sort_keys=True, indent=2) + '\n')
 
-    # Separate native negative category: standard VERTICAL up 0.8, initially
-    # accepted by the real Runtime, must be rejected by the unchanged oracle
-    # when the craft itself crosses the 1.15 m Grand Prix altitude ceiling.
-    altitude, altitude_case = run_case(home, env, 'flight-altitude-negative', 5)
-    if (altitude.get('reason') != 'altitude' or altitude.get('scene_checks') != 1 or
-            altitude.get('configuration') != reference_course(5).identifier):
-        raise RuntimeError('native real-pilot vertical ceiling refusal unproven')
-    (OUT / 'flight-altitude-negative-summary.json').write_text(
+    # Hypothesis refuted in native R2025a: VERTICAL up 0.8 is rejected
+    # by the real route-only predictive ceiling guard before mission altitude
+    # could be exceeded. Verify the genuine C VERTICAL_LIMIT response, intact
+    # dynamic oracle and 96 subsequent safe native 8-ms steps instead of
+    # bypassing the safety preflight to manufacture an altitude violation.
+    vertical, vertical_case = run_case(home, env, 'flight-vertical-preflight', 5)
+    if (vertical.get('phase') != 'native-pilot-vertical-preflight-rejected' or
+            vertical.get('scene_checks') != 1 or
+            vertical.get('configuration') != reference_course(5).identifier):
+        raise RuntimeError('native pilot vertical ceiling preflight unproven')
+    (OUT / 'flight-vertical-preflight-summary.json').write_text(
         json.dumps(dict(
-            claim='native-route-evaluator-real-vertical-altitude-rejection-not-a-mission-v1',
-            index=5, configuration=altitude['configuration'],
-            reason=altitude['reason'], scene_checks=altitude['scene_checks'],
+            claim='native-route-pilot-vertical-command-rejected-before-oracle-v1',
+            index=5, configuration=vertical['configuration'],
+            action='VERTICAL up 0.8', error='VERTICAL_LIMIT',
+            observed_steps=vertical['observed_steps'],
+            min_altitude_m=vertical['min_altitude_m'],
+            max_altitude_m=vertical['max_altitude_m'],
+            scene_checks=vertical['scene_checks'],
             native_json_sha256=hashlib.sha256(
-                (altitude_case / 'native.json').read_bytes()).hexdigest(),
+                (vertical_case / 'native.json').read_bytes()).hexdigest(),
             world_sha256=hashlib.sha256(
-                (altitude_case / 'world.wbt').read_bytes()).hexdigest(),
-            case_directory=altitude_case.name),
+                (vertical_case / 'world.wbt').read_bytes()).hexdigest(),
+            case_directory=vertical_case.name),
             sort_keys=True, indent=2) + '\n')
 
     # Three matched independently launched airborne A/B pairs. Alternate

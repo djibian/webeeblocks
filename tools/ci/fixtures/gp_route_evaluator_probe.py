@@ -30,7 +30,7 @@ def witness():
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
                     'classroom-switch', 'classroom-switch-invalid',
-                    'flight-course-negative', 'flight-altitude-negative'):
+                    'flight-course-negative', 'flight-vertical-preflight'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -375,8 +375,8 @@ def witness():
         evidence['claim'] = 'native-route-evaluator-real-airborne-window-v1'
     if mode == 'flight-course-negative':
         evidence['claim'] = 'native-route-evaluator-real-lateral-course-negative-v1'
-    if mode == 'flight-altitude-negative':
-        evidence['claim'] = 'native-route-evaluator-real-vertical-altitude-negative-v1'
+    if mode == 'flight-vertical-preflight':
+        evidence['claim'] = 'native-route-pilot-vertical-preflight-refusal-v1'
     phase = 'waiting'
     wall_started = time.monotonic()
     restored_ticks = 0
@@ -503,11 +503,94 @@ def witness():
                 return
         raise RuntimeError('real native airborne measurement incomplete')
 
-    if mode in ('flight-course-negative', 'flight-altitude-negative'):
-        # Only a standard WWI MOVE or VERTICAL is injected into the genuine C
-        # pilot. No Supervisor pose mutation, fake sensor or oracle override.
-        # The vertical target is valid under Runtime's 1.5 m command limit,
-        # but crosses the Grand Prix mission's independent 1.15 m ceiling.
+
+    if mode == 'flight-vertical-preflight':
+        # The real C pilot must reject VERTICAL up 0.8 at its independent
+        # predictive ceiling guard. Never disable its guard to force the
+        # route oracle to witness an unsafe altitude.
+        if policy != SCENE_POLICY_CLASSROOM_STATIC or scene_checks[0] != 1:
+            raise RuntimeError('native vertical preflight lacks static attestation')
+        request_file = output.with_name('negative-request.txt')
+        stage = 'ready'
+        request_ms = None
+        samples = 0
+        low_z, high_z = float('inf'), float('-inf')
+        for _ in range(5400):
+            if robot.step(8) == -1:
+                raise RuntimeError('native vertical safety flight interrupted')
+            evaluator.tick()
+            now = round(robot.getTime() * 1000)
+            description = robot.getSelf().getField('description').getSFString()
+            if evaluator.phase in ('failed', 'authority-revoked'):
+                raise RuntimeError('native vertical safety triggered oracle failure')
+            if stage == 'ready':
+                if evaluator.phase == 'ready':
+                    evidence['ready'] = ready_record(now)
+                    if evaluator._context is None or evaluator._context.attempt != 1:
+                        raise RuntimeError('native vertical safety attempt missing')
+                    cue_takeoff(1, now)
+                    stage = 'takeoff'
+                continue
+            acks = json.loads(ack_path.read_text()) if ack_path.is_file() else {}
+            if stage == 'takeoff':
+                sample = evaluator.observation
+                if (acks.get('takeoff_ack_ms', -1) < 0 or
+                        evaluator.phase != 'active' or sample is None or
+                        sample.kinematics.position[2] < .20 or
+                        not description.startswith('GP_ROUTE_ALIVE_V1 attempt=1 ') or
+                        sample.time_ms != now or
+                        not 0 <= now - sample.flight.time_ms <= 32):
+                    continue
+                evidence.update(start_ms=evaluator._start_ms,
+                    takeoff_ack_ms=acks['takeoff_ack_ms'], airborne_ms=now,
+                    airborne_z=sample.kinematics.position[2])
+                stage = 'request'
+            if stage == 'request':
+                if not request_file.is_file():
+                    continue
+                raw = request_file.read_text()
+                prefix = 'GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms='
+                suffix = ' course=' + course.identifier + ' action=VERTICAL-up-0.8\\n'
+                if not raw.startswith(prefix) or not raw.endswith(suffix):
+                    raise RuntimeError('native vertical request marker malformed')
+                request_ms = int(raw[len(prefix):-len(suffix)])
+                if (request_ms % 8 or
+                        not evidence['start_ms'] <= evidence['takeoff_ack_ms']
+                        <= request_ms <= now):
+                    raise RuntimeError('native vertical request timestamp invalid')
+                evidence['request_ms'] = request_ms
+                stage = 'watch'
+            if stage == 'watch':
+                sample = evaluator.observation
+                outcome = evaluator._vehicle.getField('customData').getSFString()
+                if (evaluator.phase != 'active' or evaluator._active is None or
+                        evaluator._active.result is not None or
+                        evaluator._positive_written or evaluator.last_error is not None or
+                        scene_checks[0] != 1 or sample is None or
+                        sample.time_ms != now or
+                        not 0 <= now - sample.flight.time_ms <= 32 or
+                        not description.startswith('GP_ROUTE_ALIVE_V1 attempt=1 ') or
+                        outcome.startswith('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 ')):
+                    raise RuntimeError('native vertical preflight violated alive/oracle')
+                z = sample.kinematics.position[2]
+                if not 0 < z < evidence['ready']['position'][2] + 1.15:
+                    raise RuntimeError('native vertical preflight exceeded altitude ceiling')
+                low_z, high_z = min(low_z, z), max(high_z, z)
+                samples += 1
+                if samples == 96:
+                    evidence.update(phase='native-pilot-vertical-preflight-rejected',
+                        native_pilot=True, no_pupil_program=True,
+                        observed_steps=samples, final_ms=now,
+                        min_altitude_m=low_z, max_altitude_m=high_z,
+                        oracle_phase=evaluator.phase, oracle_result=None,
+                        scene_checks=scene_checks[0])
+                    finish()
+                    return
+        raise RuntimeError('native vertical preflight 96 safe steps incomplete')
+
+    if mode == 'flight-course-negative':
+        # Only a standard WWI MOVE is injected into the genuine C pilot.
+        # No Supervisor pose mutation, fake sensor or oracle override.
         if policy != SCENE_POLICY_CLASSROOM_STATIC or scene_checks[0] != 1:
             raise RuntimeError('native dynamic negative needs one static attestation')
         negative_path = output.with_name('negative-request.txt')
@@ -550,8 +633,7 @@ def witness():
                         raise RuntimeError('negative occurred without the real pilot MOVE')
                     command = negative_path.read_text()
                     prefix = ('GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=')
-                    action = ('VERTICAL-up-0.8' if mode == 'flight-altitude-negative'
-                              else 'MOVE-right-1.2')
+                    action = 'MOVE-right-1.2'
                     suffix = (' course=' + course.identifier +
                               ' action=' + action + '\\n')
                     if not command.startswith(prefix) or not command.endswith(suffix):
@@ -562,9 +644,8 @@ def witness():
                             request_ms < now):
                         raise RuntimeError('native lateral request ordering invalid')
                     reason = evaluator.last_error
-                    allowed = (('altitude',) if mode == 'flight-altitude-negative'
-                               else ('course-boundary', 'envelope-contact',
-                                     'low-outside-zone'))
+                    allowed = ('course-boundary', 'envelope-contact',
+                               'low-outside-zone')
                     if reason not in allowed:
                         raise RuntimeError('oracle did not reject native requested motion: ' +
                                            str(reason))
@@ -594,7 +675,7 @@ def witness():
                             evaluator.observation.kinematics.position[2]))
                     finish()
                     return
-        raise RuntimeError('real native course/altitude oracle negative incomplete')
+        raise RuntimeError('real native lateral course oracle negative incomplete')
 
     while True:
         step_started = time.monotonic()
