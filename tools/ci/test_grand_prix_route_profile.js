@@ -548,12 +548,33 @@ async function proveBoundedRouteTakeoffReply() {
   ]) {
     const messages=[];
     const generic=new WwiBackend({send:message=>messages.push(message)},opts);
+    // An admitted simulation may not issue TAKEOFF before a *real* positive
+    // ADMISSION reply. The negative-option test must exercise that preflight
+    // rather than incorrectly expect immediate TAKEOFF on a not-ready backend.
+    generic.ready=true;
     const flight=generic.takeoff(.4);
-    assert.equal(generic.pending[1].timer._idleTimeout,35000,
+    let takeoffId=1;
+    if(generic.capabilities.simulationAdmission===true) {
+      await flush();
+      assert.match(messages[0], / REQUEST 1 ADMISSION$/);
+      assert(generic.pending[1], 'missing required admission request');
+      const remainingMs=generic.pending[1].timer._idleTimeout;
+      assert(Number.isFinite(remainingMs) && remainingMs>0 && remainingMs<=35000,
+        'generic admission inherited the route-only 90s effect timeout');
+      assert.equal(messages.filter(x=>/ TAKEOFF /.test(x)).length,0,
+        'generic TAKEOFF emitted before positive native admission');
+      generic.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
+      await flush();
+      takeoffId=2;
+    }
+    assert.match(messages.at(-1),new RegExp(' REQUEST '+takeoffId+' TAKEOFF '));
+    assert(generic.pending[takeoffId], 'missing actual TAKEOFF pending request');
+    assert.equal(generic.pending[takeoffId].timer._idleTimeout,35000,
       'generic/physical/noncanonical backend unexpectedly received extended timeout');
-    assert.match(messages[0], / REQUEST 1 TAKEOFF /);
-    generic.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
+    generic.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+takeoffId+' OK');
     await flight;
+    assert.equal(messages.filter(x=>/ TAKEOFF /.test(x)).length,1,
+      'generic backend retried or skipped the only native TAKEOFF request');
   }
   console.log('PASS route-only 90s TAKEOFF ACK: exact admission, stale/reset rejection, STOP 35s, no physical/generic opt-in, no replay');
 }
