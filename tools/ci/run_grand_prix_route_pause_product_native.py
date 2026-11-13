@@ -73,11 +73,28 @@ def install_official_assets_for_native_probe(home, folder):
     world are verified BEFORE running the real production flight. Never
     replace an existing mismatching resource or substitute a simplified PROTO.
     """
+    # The real route generator already emits four offline webots:// EXTERNPROTOs.
+    # The shared asset preparer expects the *remote* pinned R2025a form and
+    # localizes those four URLs itself. Reconstruct only its temporary input;
+    # the resulting world MUST match the canonical route byte for byte.
+    canonical = active_course_world(reference_course(5))
+    local = 'EXTERNPROTO "webots://'
+    remote = ('EXTERNPROTO "https://raw.githubusercontent.com/'
+              'cyberbotics/webots/R2025a/')
+    if (canonical.count(local) != 4 or canonical.count('webots://') != 4 or
+            'raw.githubusercontent.com/cyberbotics/webots/' in canonical):
+        raise RuntimeError('unexpected Grand Prix official R2025a PROTO inventory')
+    reconstructed = canonical.replace(local, remote)
+    if (reconstructed.count(remote) != 4 or
+            reconstructed.replace(remote, local) != canonical):
+        raise RuntimeError('Grand Prix official PROTO source reconstruction changed scene')
     original = folder / 'route-official-source.wbt'
-    original.write_text(active_course_world(reference_course(5)))
+    original.write_text(reconstructed)
     localized, projects = prepare_pinned_assets(
         folder / 'verified-official-assets', original,
         OUT / 'verified-official-assets.json')
+    if localized.read_text() != canonical:
+        raise RuntimeError('pinned official localization changed Grand Prix route scene')
     for source in projects.rglob('*'):
         if not source.is_file():
             continue
