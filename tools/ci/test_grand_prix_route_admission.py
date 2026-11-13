@@ -55,10 +55,19 @@ std::string vehicle, request, evidence, config, reply, sample;
 const std::string canonical="gp-route-v2-L2000-2500-3000-TGD-s17-H2";
 int argsCount=1; double now=2.112; bool present=true, description=true;
 int simMode=WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME,zeroSteps=0;
+bool loseBrowserOnPauseAck=false;
+extern "C" int gp_route_test_pause_watchdog_after_ms(int);
+extern "C" void gp_route_test_age_pause_heartbeat_ms(int);
 std::deque<std::string> messages;std::string delivered;
 std::vector<std::string> sent;
 extern "C" double wb_robot_get_time(){return now;}
-extern "C" void wb_robot_wwi_send_text(const char* s){reply=s;sent.push_back(s);}
+extern "C" void wb_robot_wwi_send_text(const char* s){
+ reply=s;sent.push_back(s);
+ if(loseBrowserOnPauseAck && !std::strncmp(s,"GP_ROUTE_PAUSE_V1 PAUSED ",25)){
+  loseBrowserOnPauseAck=false;
+  gp_route_test_age_pause_heartbeat_ms(16000); // Test-only lost window: no PING ever arrives.
+ }
+}
 extern "C" int wb_robot_step(int duration){assert(duration==0);++zeroSteps;return 0;}
 extern "C" void wb_supervisor_simulation_set_mode(int mode){simMode=mode;}
 extern "C" int wb_supervisor_simulation_get_mode(){return simMode;}
@@ -193,6 +202,74 @@ int main(){
   assert(gp_u_deadline(now,0)==0); // No spurious independent LAND from STOP.
   assert(gp_u_next_step(32)==32);
   assert(std::count(sent.begin(),sent.end(),resumeAck)==acknowledgements);
+  gp_u_reset_complete();
+ }
+ // A genuinely lost Robot Window cannot leave a frozen airborne attempt hanging.
+ // Test-only heartbeat aging happens at the native PAUSED ACK, not via a forged
+ // RESUME. The compiled production watchdog and ordinary LAND handler run.
+ {
+  assert(gp_route_test_pause_watchdog_after_ms(14999)==0);
+  assert(gp_route_test_pause_watchdog_after_ms(15000)==1);
+  admit();
+  const std::string nonce(32,'d');
+  const std::string subscribe="GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce="+nonce;
+  assert(gp_u_filter_raw(subscribe.c_str())==0);
+  const std::string pause="GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+" attempt=1 seq=1";
+  const std::string resume="GP_ROUTE_PAUSE_V1 RESUME nonce="+nonce+" attempt=1 seq=1";
+  assert(gp_u_filter_raw(pause.c_str())==0);
+  const auto before=sent.size();
+  loseBrowserOnPauseAck=true;
+  const double frozen=now;
+  assert(gp_u_next_step(32)==32 && !loseBrowserOnPauseAck);
+  assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME && now==frozen);
+  const std::string paused="GP_ROUTE_PAUSE_V1 PAUSED nonce="+nonce+" attempt=1 seq=1";
+  const std::string resumed="GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+" attempt=1 seq=1";
+  assert(std::count(sent.begin()+before,sent.end(),paused)==1);
+  assert(std::find(sent.begin()+before,sent.end(),resumed)==sent.end());
+  assert(gp_u_filter_raw(resume.c_str())==0);
+  const auto after=sent.size();
+  assert(gp_u_next_step(32)==32 && sent.size()==after); // No late RESUMED.
+  alive(2144);
+  assert(gp_u_deadline(now,0)==1 && vehicle==failed); // Independent safety LAND.
+  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 96 RESET")==0);
+  assert(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 96 ERR TIME_LIMIT");
+  assert(gp_u_deadline(now+0.032,1)==0); // Landing cannot be faked by RESET.
+  gp_u_reset_complete();
+ }
+ // A lost classroom browser before TAKEOFF denies later admission until RESET.
+ {
+  fresh();ready();
+  const std::string nonce(32,'e');
+  assert(gp_u_filter_raw(("GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce="+nonce).c_str())==0);
+  assert(gp_u_filter_raw(("GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+
+                         " attempt=1 seq=1").c_str())==0);
+  loseBrowserOnPauseAck=true;
+  assert(gp_u_next_step(32)==32 && !loseBrowserOnPauseAck);
+  assert(simMode==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+  assert(gp_u_start(now)==0); // A lost preflight cannot authorize a late TAKEOFF.
+  gp_u_reset_complete();
+ }
+ // PAUSE immediately before the irreversible 210 s mission cap must neither
+ // spend time during the frozen wait nor extend the cap after the positive step.
+ {
+  admit();
+  const std::string nonce(32,'f');
+  assert(gp_u_filter_raw(("GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce="+nonce).c_str())==0);
+  alive(212080);assert(gp_u_deadline(now,0)==0); // 32 ms remain.
+  assert(gp_u_filter_raw(("GP_ROUTE_PAUSE_V1 PAUSE nonce="+nonce+
+                         " attempt=1 seq=1").c_str())==0);
+  const std::string resumed="GP_ROUTE_PAUSE_V1 RESUMED nonce="+nonce+
+                            " attempt=1 seq=1";
+  const auto countBefore=std::count(sent.begin(),sent.end(),resumed);
+  messages.push_back("GP_ROUTE_PAUSE_V1 RESUME nonce="+nonce+" attempt=1 seq=1");
+  const double frozen=now;
+  assert(gp_u_next_step(32)==32 && now==frozen);
+  assert(std::count(sent.begin(),sent.end(),resumed)==countBefore);
+  now=212.112; // The next POSITIVE 32-ms flight step has completed.
+  assert(gp_u_next_step(32)==32);
+  assert(std::count(sent.begin(),sent.end(),resumed)==countBefore+1);
+  assert(gp_u_deadline(now,0)==1 && vehicle==timed);
+  assert(gp_u_deadline(now+0.032,1)==0 && vehicle==timed);
   gp_u_reset_complete();
  }
  // ADMISSION observes only the current native READY; it never creates authority.
@@ -423,6 +500,7 @@ int main(){
             binary = base / 'test'
             subprocess.run([
                 compiler, '-std=c++17', '-DWEBEEBLOCKS_GP_ROUTE_MODE',
+                '-DWEBEEBLOCKS_GP_ROUTE_TEST_HOOKS',
                 '-I' + str(base), '-I' + str(ROOT / 'controllers/grand_prix_u_flight'),
                 str(test), str(ROOT / 'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp'),
                 '-o', str(binary),
