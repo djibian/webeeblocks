@@ -53,6 +53,11 @@ class NativeOrientationSmokeTests(unittest.TestCase):
             (self.start, self.scene.replace(
                 'name "Progression orientation 3D evaluator"',
                 'name "unexpected supervisor"', 1)),
+            (self.start, self.scene.replace("supervisor TRUE", "supervisor FALSE", 1)),
+            (self.start, self.scene.replace("synchronization TRUE", "synchronization FALSE", 1)),
+            (self.start, self.scene.replace(
+                'controller "progression_orientation_3d"',
+                'controller "progression_orientation_3d" controllerArgs ["unsafe"]', 1)),
             (self.start, self.scene.replace(" Robot {", " Solid {", 1)),
             (self.start, self.scene.replace(
                 "geometry Box { size 0.32 0.32 0.004 }",
