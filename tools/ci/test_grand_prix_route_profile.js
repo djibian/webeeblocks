@@ -407,6 +407,78 @@ async function proveRouteLiveClock() {
   console.log('PASS native route clock: simulated-second pushes, 59→60, nonce/attempt binding, STOP/RESET, late fallback exclusion, no wall extrapolation');
 }
 
+
+async function proveRouteOnlyNativePauseBrowser() {
+  // Browser-only adversarial test of the exact opt-in hooks. No flight source,
+  // physics clock or native Webots success is inferred from these fakes.
+  const sent = [], original = {create(_workspace, callbacks) {return callbacks;}};
+  const catalog = Object.assign({}, Activities.BLOCK_CATALOG);
+  const context = {
+    WebeeBlocksActivities:{BLOCK_CATALOG:catalog,DOCUMENT:Activities.DOCUMENT},
+    WebeeBlocksRuntimeOutcome:{classify:()=>null},
+    WebeeBlocksActivityContract:{execute(){},preflightWorkspace(){},applyFieldBounds(){}},
+    Blockly:{inject(_element,options){return options;}},
+    WebeeBlocksWwiBackend:function(_rw,_options) {
+      this.ready=true;
+      this.robotWindow={send(message){sent.push(message);}};
+      this.stopSimulation=async function(){sent.push('NATIVE_STOP');};
+      this.handleMessage=function(){return false;};
+    },
+    WebeeBlocksExecutionObserver:original,
+    setTimeout,clearTimeout,setInterval,clearInterval
+  };
+  context.window=context;
+  vm.runInNewContext(variable,context);
+  let currentNonce='a'.repeat(32),currentAttempt=4;
+  context.WebeeBlocksRouteClockBinding=()=>({nonce:currentNonce,attempt:currentAttempt});
+  const backend=new context.WebeeBlocksWwiBackend({},{});
+  context.runtimeBackend=backend;
+  const observer=context.WebeeBlocksExecutionObserver.create({},{onBegin(){},onFinish(){}});
+  observer.onBegin({enabled:true});
+  const pause=observer.beforePause();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 PAUSE nonce='+currentNonce+' attempt=4 seq=1');
+  let resolved=false;pause.then(()=>{resolved=true;});
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+currentNonce+
+    ' attempt=4 seq=2');
+  await Promise.resolve();
+  assert.equal(resolved,false,'wrong sequence released the paused browser');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+currentNonce+
+    ' attempt=4 seq=1');
+  await pause;
+  const resume=observer.beforeResume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 RESUME nonce='+currentNonce+' attempt=4 seq=1');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 RESUMED nonce='+currentNonce+
+    ' attempt=5 seq=1');
+  let resumed=false;resume.then(()=>{resumed=true;});
+  await Promise.resolve();
+  assert.equal(resumed,false,'another attempt released the browser');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 RESUMED nonce='+currentNonce+
+    ' attempt=4 seq=1');
+  await resume;
+  observer.onFinish();
+  currentNonce='b'.repeat(32);currentAttempt=5;
+  observer.onBegin({enabled:true});
+  const next=observer.beforePause();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 PAUSE nonce='+currentNonce+' attempt=5 seq=1');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+'a'.repeat(32)+
+    ' attempt=4 seq=1');
+  let stale=false;next.then(()=>{stale=true;});
+  await Promise.resolve();
+  assert.equal(stale,false,'stale ACK crossed the RESET/browser epoch');
+  observer.onFinish();
+  await assert.rejects(next,/PAUSE_NATIVE_CANCELLED/);
+  observer.onBegin({enabled:false});
+  await assert.rejects(observer.beforePause(),/PAUSE_NATIVE_NOT_READY/);
+  observer.onFinish();
+  console.log('PASS route-only browser native PAUSE: ACK fences, wrong seq, old attempt, STOP cancellation and no opt-in');
+}
+
 run(false);
 run(true);
 for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveAs',
@@ -416,6 +488,6 @@ for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveA
 assert(html.includes('src="setup.js"'));
 assert(html.includes('../blockly_v2/main.js'));
 assert(!html.includes('grand_prix_u'));
-Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock()]).then(() => {
+Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock(), proveRouteOnlyNativePauseBrowser()]).then(() => {
   console.log('PASS isolated Grand Prix variable profile: stable .wbb world, generic blocks, unfinished same-file Save/Open across host routes');
 }).catch(error => { console.error(error); process.exitCode = 1; });
