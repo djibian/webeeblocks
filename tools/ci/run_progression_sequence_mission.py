@@ -302,6 +302,22 @@ def main() -> int:
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
 
+        # Real Webots R2025a C API compile of the *separate* Activity 1
+        # supervisor. This is not a startup, ACK or student-flight proof.
+        native_sequence_build = run([
+            "docker", "run", "--rm",
+            "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/progression_sequence_3d",
+            WEBOTS_IMAGE,
+            "bash", "-lc",
+            "make clean && make && test -s progression_sequence_3d",
+        ], capture=True)
+        (ARTIFACT_ROOT / "activity1-native-build.log").write_text(
+            native_sequence_build.stdout or "", encoding="utf-8")
+        if native_sequence_build.returncode:
+            return fail("Activity 1 full native R2025a controller build failed",
+                        (native_sequence_build.stdout or "")[-6000:])
+
         controller = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
         original = controller.read_bytes()
         diagnostic_source = instrument_position(original.decode("utf-8"))
