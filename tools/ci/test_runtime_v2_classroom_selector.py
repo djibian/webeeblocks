@@ -494,6 +494,11 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             }
             for name,scene in cases.items():
                 with self.subTest(case=name):
+                    # Each native child process may re-select sequence-v1 after
+                    # testing a different scene. Never leave the preceding
+                    # negative mutant behind as an accidental shared fixture.
+                    if not name.startswith("sequence-"):
+                        (scenes/"sequence-v1.wbo").write_text(sequence_authentic)
                     target=scenes/(
                         "orientation-v1.wbo" if name.startswith("orientation-") else
                         "sequence-v1.wbo" if name.startswith("sequence-") else
