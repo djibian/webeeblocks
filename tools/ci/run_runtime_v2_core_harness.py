@@ -20,6 +20,19 @@ def main():
     if scene_test.returncode:
         print('FAIL Runtime v2 physical scene isolation',file=sys.stderr);print(scene_test.stdout,file=sys.stderr);print(scene_test.stderr,file=sys.stderr);return scene_test.returncode
     print(scene_test.stdout.strip())
+    # These independent Activity 2 tests exercise the *real C* oracle core
+    # and its 3D scene contract. Never treat geometry-only green as native
+    # Webots contact, scene selection, or a pupil-program PASS.
+    for altitude_proof in (
+        'tools/ci/test_progression_altitude_scene.py',
+        'tools/ci/test_progression_altitude_native.py',
+    ):
+        result=subprocess.run([sys.executable, altitude_proof],text=True,capture_output=True)
+        if result.returncode:
+            print('FAIL Activity 2 independently compiled native-oracle proof: '+altitude_proof,file=sys.stderr)
+            print(result.stdout,file=sys.stderr);print(result.stderr,file=sys.stderr)
+            return result.returncode
+        print('PASS Activity 2 executable proof: '+altitude_proof)
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
         print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode
