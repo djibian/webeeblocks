@@ -513,8 +513,105 @@ async function proveResetFromPausedDebugger() {
   assert.deepEqual(refusedCalls,['STOP'],'rejected STOP must block native RESET');
 }
 
+
+async function proveOptInNativePauseAcknowledgements() {
+  // This is an observer-only preparation for #974. No native Webots pause,
+  // physical backend command, flight oracle or activity is enabled here.
+  function latch() {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {resolve = res; reject = rej;});
+    return {promise, resolve, reject};
+  }
+  const ctx = {path:['program',0],node:{kind:'takeoff'}};
+  const pause = latch(), resume = latch(), sequence = [];
+  const gated = Observer.create(workspace(), {
+    beforePause: async () => {
+      sequence.push('PAUSE_REQUEST');
+      await pause.promise;
+      sequence.push('PAUSE_ACK');
+    },
+    onPause: () => sequence.push('UI_PAUSED'),
+    beforeResume: async () => {
+      sequence.push('RESUME_REQUEST');
+      await resume.promise;
+      sequence.push('RESUME_ACK');
+    },
+    onResume: () => sequence.push('UI_RESUMED')
+  });
+  const hooks = gated.begin(true);
+  const flight = hooks.beforeStep(ctx).then(() => sequence.push('NEXT_AST_EFFECT'));
+  assert.equal(gated.next(),false,'NEXT released interpreter before PAUSE_ACK');
+  assert.equal(gated.continueRun(),false,'CONTINUE bypassed PAUSE_ACK');
+  pause.resolve();
+  await until(() => sequence.includes('UI_PAUSED'), 'native PAUSE acknowledgement');
+  assert.deepStrictEqual(sequence,['PAUSE_REQUEST','PAUSE_ACK','UI_PAUSED']);
+  assert.equal(gated.next(),true);
+  assert.equal(gated.next(),false,'repeated NEXT accepted during RESUMING');
+  assert.equal(gated.continueRun(),false,'CONTINUE bypassed pending RESUME_ACK');
+  await until(() => sequence.includes('RESUME_REQUEST'), 'native RESUME request');
+  assert(!sequence.includes('NEXT_AST_EFFECT'),'AST progressed before RESUME_ACK');
+  resume.resolve();
+  await flight;
+  assert.deepStrictEqual(sequence,[
+    'PAUSE_REQUEST','PAUSE_ACK','UI_PAUSED','RESUME_REQUEST','RESUME_ACK',
+    'UI_RESUMED','NEXT_AST_EFFECT'
+  ]);
+  gated.finish();
+
+  // STOP cannot wait for an unresponsive native PAUSE promise.
+  const hangingPause = latch();
+  let uiPaused = false;
+  const pausing = Observer.create(workspace(), {
+    beforePause: () => hangingPause.promise,
+    beforeResume: () => Promise.resolve(),
+    onPause: () => {uiPaused = true;}
+  });
+  const pausedAttempt = pausing.begin(true).beforeStep(ctx);
+  assert.equal(pausing.next(),false);
+  pausing.cancel();
+  await assert.rejects(pausedAttempt, error => error.code === 'USER_STOPPED');
+  assert.equal(uiPaused,false,'late PAUSE ACK was admitted after STOP');
+  pausing.finish();
+
+  // STOP must also interrupt the wait for native RESUME, not issue the next
+  // Blockly action or claim the student simulation has resumed.
+  const hangingResume = latch();
+  let uiResumed = false;
+  const resuming = Observer.create(workspace(), {
+    beforePause: () => Promise.resolve(),
+    beforeResume: () => hangingResume.promise,
+    onResume: () => {uiResumed = true;}
+  });
+  const resumable = resuming.begin(true).beforeStep(ctx);
+  await until(() => resuming.waiter && resuming.waiter.ready, 'native PAUSE ready');
+  assert.equal(resuming.next(),true);
+  resuming.cancel();
+  await assert.rejects(resumable, error => error.code === 'USER_STOPPED');
+  assert.equal(uiResumed,false,'UI acknowledged a cancelled native RESUME');
+  resuming.finish();
+
+  // A late acknowledgement from a finished interpreter must not unlock the
+  // next attempt. A one-sided hook is rejected at construction, fail closed.
+  const stale = latch();
+  let staleUiPause = false;
+  const old = Observer.create(workspace(), {
+    beforePause: () => stale.promise, beforeResume: () => Promise.resolve(),
+    onPause: () => {staleUiPause = true;}
+  });
+  const obsolete = old.begin(true).beforeStep(ctx);
+  old.finish();
+  old.begin(true);
+  await assert.rejects(obsolete, error => error.code === 'USER_STOPPED');
+  assert.equal(staleUiPause,false,'stale PAUSE crossed the reset session');
+  old.finish();
+  assert.throws(() => Observer.create(workspace(), {beforePause() {}}), /paired/);
+  assert.throws(() => Observer.create(workspace(), {beforeResume() {}}), /paired/);
+  console.log('PASS opt-in awaited PAUSE/RESUME: exact ACK-before-UI/AST, STOP interrupts both gates, double clicks and stale epoch rejected');
+}
+
 (async()=>{
   await require('./test_runtime_v2_breakpoints.js')();
+  await proveOptInNativePauseAcknowledgements();
   await proveResetFromPausedDebugger();
   proveReadonlyStepNavigation();
   await proveProgramInvalidRetryWithoutReset();

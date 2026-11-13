@@ -29,7 +29,21 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
   error.code='BLOCKLY_ASSET_MISMATCH';
   throw error;
  }
- return new OriginalBackend(robotWindow,Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
+ const backend=new OriginalBackend(robotWindow,
+   Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
+ // Only this simulated Grand Prix host recognizes read-only clock notifications.
+ // They are never Runtime v2 responses, commands, mission outcomes or flight data.
+ if (backend && typeof backend.handleMessage==='function') {
+  const receive=backend.handleMessage.bind(backend);
+  backend.handleMessage=function(message) {
+   if (typeof message==='string' && message.indexOf('GP_ROUTE_CLOCK_V1 ')===0) {
+    window.dispatchEvent(new CustomEvent('webeeblocks-route-native-clock',{detail:{raw:message}}));
+    return true;
+   }
+   return receive(message);
+  };
+ }
+ return backend;
 };
 const originalOutcome=window.WebeeBlocksRuntimeOutcome;
 window.WebeeBlocksRuntimeOutcome=Object.assign({},originalOutcome,{
@@ -63,6 +77,21 @@ if (typeof window.addEventListener === 'function') {
   if (typeof window.addEventListener !== 'function') return;
   var element = null, interval = null, generation = 0;
   var running = false, pending = false, last = null;
+  // Per-run unpredictable nonce: a delayed notification from an earlier
+  // STOP/RESET/attempt must never be attached to a new student run.
+  var clockNonce = null, clockAttempt = null;
+  function newNonce() {
+    if (!window.crypto || typeof window.crypto.getRandomValues!=='function') return null;
+    var raw=new Uint8Array(16);window.crypto.getRandomValues(raw);
+    return Array.from(raw,function(n){return n.toString(16).padStart(2,'0');}).join('');
+  }
+  function subscribe() {
+    if (!running || !clockNonce || clockAttempt!==null) return;
+    var backend=window.runtimeBackend;
+    if (!backend || !backend.ready || !backend.robotWindow ||
+        typeof backend.robotWindow.send!=='function') return;
+    backend.robotWindow.send('GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce='+clockNonce);
+  }
   function mount() {
     if (!element && typeof document !== 'undefined' && document &&
         typeof document.getElementById === 'function' &&
@@ -95,6 +124,7 @@ if (typeof window.addEventListener === 'function') {
     pending = false;
     if (interval !== null) window.clearInterval(interval);
     interval = null;
+    clockNonce=null;clockAttempt=null;
   }
   function reset() {
     clear();
@@ -106,7 +136,9 @@ if (typeof window.addEventListener === 'function') {
     show(face(last));
   }
   function sample() {
-    if (!running || pending) return;
+    // Once native ticks are bound, do not overwrite their per-simulation-second
+    // cadence with slower one-second wall-clock observations.
+    if (!running || pending || clockAttempt!==null) return;
     var backend = window.runtimeBackend;
     if (!backend || !backend.ready || typeof backend.readElapsedTime !== 'function') {
       if (last !== null) show(face(last));
@@ -115,7 +147,9 @@ if (typeof window.addEventListener === 'function') {
     var bound = generation;
     pending = true;
     Promise.resolve().then(function() { return backend.readElapsedTime(); }).then(function(seconds) {
-      if (bound !== generation || !running) return;
+      // An ELAPSED fallback launched before the native ACK may resolve late.
+      // Once bound, only the native simulated-second stream owns the display.
+      if (bound !== generation || !running || clockAttempt!==null) return;
       if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 ||
           (last !== null && seconds < last)) {
         show(face(last));
@@ -124,7 +158,7 @@ if (typeof window.addEventListener === 'function') {
       last = seconds;
       show(face(seconds));
     }, function() {
-      if (bound !== generation || !running) return;
+      if (bound !== generation || !running || clockAttempt!==null) return;
       // TIME_UNAVAILABLE is expected before TAKEOFF completes and after LAND.
       show(face(last));
     }).finally(function() {
@@ -135,9 +169,33 @@ if (typeof window.addEventListener === 'function') {
     if (running) return;
     reset();
     running = true;
+    clockNonce=newNonce();
+    subscribe();
     sample();
-    interval = window.setInterval(sample, 1000); // <= 1 request/s; never overlap.
+    interval = window.setInterval(function() {
+      subscribe();
+      sample();
+    }, 1000); // Bounded fallback while native subscription is unavailable.
   }
+  window.addEventListener('webeeblocks-route-native-clock', function(event) {
+    var raw=event && event.detail && event.detail.raw;
+    if (!running || !clockNonce || typeof raw!=='string') return;
+    var ack=/^GP_ROUTE_CLOCK_V1 ACK nonce=([0-9a-f]{32}) attempt=([1-9][0-9]*)$/.exec(raw);
+    if (ack) {
+      var attempt=Number(ack[2]);
+      if (ack[1]===clockNonce && Number.isSafeInteger(attempt))
+        clockAttempt=attempt;
+      return;
+    }
+    var tick=/^GP_ROUTE_CLOCK_V1 TICK nonce=([0-9a-f]{32}) attempt=([1-9][0-9]*) seconds=(0|[1-9][0-9]*)$/.exec(raw);
+    if (!tick || tick[1]!==clockNonce || clockAttempt===null ||
+        Number(tick[2])!==clockAttempt) return;
+    var second=Number(tick[3]);
+    if (!Number.isSafeInteger(second) || second<0 || second>210 ||
+        (last!==null && second<last)) return;
+    last=second;
+    show(face(second));
+  });
   window.addEventListener('webeeblocks-ui-ready', empty);
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail && event.detail.state;

@@ -243,7 +243,18 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.draft.lower() == "true":
-        selection = Selection(False, False, False, "draft PR", ())
+        # V5 Draft stays non-decision: run the *existing* native suites when
+        # the new Grand Prix evaluator implementation is changed, without
+        # creating an experimental workflow or advertising the Ready CI Gate.
+        # Other Drafts keep their current cheap host-only selection.
+        draft_paths = (git_changed_paths(args.base, args.head)
+                       if args.event == "pull_request" and args.base and args.head
+                       else [])
+        if "tools/grand_prix/evaluator_publisher_v2.py" in draft_paths:
+            selection = Selection(True, True, False,
+                "draft Grand Prix native evaluator qualification", tuple(sorted(set(draft_paths))))
+        else:
+            selection = Selection(False, False, False, "draft PR", ())
     else:
         force_full = args.event != "pull_request"
         if args.paths_file:

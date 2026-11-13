@@ -114,9 +114,10 @@ only during native idle/ground observations. Missing entropy refuses admission.
 RESET, loss of pre-admission idle, changed attempt or changed configuration
 invalidate it. A restarted flight process cannot reuse an earlier response.
 
-Before publishing READY, the evaluator must independently check canonical
-colliders/scene, sensor/contact availability, finite pose and confirmed fresh
-initial/reset state. Node presence is insufficient. It echoes the exact
+Before publishing the first READY for a newly loaded world, the evaluator must
+independently attest canonical colliders/scene; each READY (including after an
+ordinary RESET in the same unchanged activity) still requires fresh native
+sensor/contact availability, finite pose, attempt/epoch and initial/reset state. Node presence is insufficient. It echoes the exact
 challenge only after these checks and refreshes READY while waiting for START.
 Both READY and ALIVE require a canonical nonnegative integer native simulation
 timestamp, no earlier than challenge creation, no later than the current native
@@ -237,7 +238,8 @@ course, flight, RESET recovery or the teacher's Linux journey.
 
 `grand_prix_route_evaluator` uses `NativeRouteEvaluator` in
 `evaluator_publisher_v2.py`. It consumes the existing coherent native sampler,
-full scene/collider check, strict wire state and pure attempt oracle; it accepts
+a full scene/collider attestation at evaluator startup for classroom mode,
+strict wire state and pure attempt oracle; it accepts
 no caller-provided observation or `native_validated` flag. The sole native host
 boundary supplies that flag internally after checking real readbacks.
 
@@ -253,8 +255,11 @@ pilot nonce may discard a partial ground window before any READY was issued.
 After authority or a refutation, only a newer runtime RESET attempt may rearm.
 
 START must match this process's fresh READY. Missing/inconsistent observations,
-lost cadence or scene changes revoke evidence irreversibly for that attempt;
-the independent pilot retains LAND authority. Deadline is tested before any
+lost cadence, stale observations or changed native vehicle identity revoke
+evidence irreversibly for that attempt; the independent pilot retains LAND
+authority. The historical continuous-checker mode also revokes on detected
+static scene edits; intentional static edits are **not monitored** in the
+classroom-static mode and are outside its pedagogical validity. Deadline is tested before any
 first success at **210000 ms**. Directed gates, swept geometry, altitude and
 terminal dwell use the unchanged pure oracle. A positive terminal additionally
 requires native landed evidence. ALIVE continues with current landing evidence
@@ -266,10 +271,13 @@ The evaluator publishes a negative outcome once and only while the flight
 channel still names that attempt. A RESET marker belongs to the broker and
 must survive closure of an older evaluator attempt.
 
-The existing required geometry job runs two isolated native projects with the
-production evaluator class. The first keeps the real pilot **idle**: native
-ground/range data must establish READY, then a genuinely moved L must revoke it;
-restoring that L cannot revive the old attempt. The second wraps only the test
+The existing geometry job historically runs two isolated native projects. Its
+first idle-pilot mutation/restoration case demonstrates **only the historical
+continuous-checker diagnostic**: a genuinely moved L revokes READY and cannot
+restore the same attempt. It is **not** a classroom-static anti-mutation test or
+a condition for the new policy. The classroom publisher instead requires a
+native refusal of an **initially noncanonical** scene before READY and a fresh
+attestation on world/activity reload. The second project wraps only the test
 pilot's WWI input and outgoing ACK observation. Generated C/broker bytes must
 equal production exactly; pose, sensors, PID, clocks and safety hooks are real.
 It supplies **one TAKEOFF request**, waits for real native airborne/ALIVE and
@@ -277,8 +285,10 @@ TAKEOFF ACK, then stops the evaluator service without clearing its last ALIVE.
 The pilot must independently fail and initiate LAND within its bounded liveness
 interleaving (at most two 32-ms pilot steps); **no LAND request is injected**.
 Only its genuine forced-LAND ACK permits the test's sole RESET request through
-the normal broker. The same evaluator instance must then attest attempt 2, a new
-private epoch and fresh ground window; the old outcome must be gone. Each case
+the normal broker. The same evaluator instance must then validate attempt 2, a new
+private epoch and fresh ground window; the old outcome must be gone. This
+ordinary RESET does not re-attest unchanged static colliders, whereas a new
+world/activity requires a restarted evaluator and a new full attestation. Each case
 requires unique JSON, agreeing native stdout and zero exit. No pupil program or
 solution trajectory is supplied by either probe.
 
@@ -289,40 +299,52 @@ variable launcher, qualify those remaining paths, reconfiguration and the real
 same-file Blockly Save/Open workflow. The Linux launcher deliberately remains
 gated; no expert solution or new pupil block is supplied by this publisher.
 
-### Live scene-check cost and native diagnostics
+### Trusted classroom static-scene contract — owner decision 2026-11-12
 
-The publisher validates the scene at every 8-ms observation. After the full
-startup check it subscribes to the validated single-field values and world
-poses through the R2025a Supervisor APIs. Webots supplies those samples
-together in its step response. Native getters still request the current value
-if no current sample is available.
+The Grand Prix is a **teacher-managed pedagogical simulation**, not an
+adversarial anti-tamper authority. Its canonical static course is generated by
+trusted host components. Before any READY, each native evaluator process must
+independently validate the *instantiated* scene: exact course/configuration,
+root and controller identities, Floor, obstacle inventory, visual and physical
+collider dimensions, placement and topology, as well as the pinned vehicle model.
+A failed initial attestation refuses admission.
 
-`NativeFieldLookup` reuses immutable built-in field declarations between
-steps. The evaluator also requests one live R2025a VRML export of the root at
-each tick. The comparison removes only the two root robots' live pose,
-velocities and protocol strings. Every remaining byte, including graph edges
-and names, must match a scene verified by the full native traversal. A changed
-export forces a full traversal even when the node count stays constant.
-Unsupported exports, USE references and nested PROTOs keep the full traversal.
+After that successful initial attestation, the physical **static** geometry is
+assumed unchanged throughout the current loaded world and its successive normal
+RESET attempts. There are **no per-step VRML root exports, collider geometry
+walks, static Floor checks, or per-box visual/physical remeasurements** in the
+classroom evaluator. The previously attested native vehicle node/ID remains
+bound to the same process, and live identity continuity is checked per tick.
+A replacement evaluator process performs a new full native attestation. An
+explicit activity/world switch or reload requires a new evaluator incarnation
+and full attestation *before* further READY; no launcher may reuse an attestation
+after a world replacement without restart.
 
-The evaluator rereads the root count and the identities of the PROTO roots
-and evaluator. It still checks the Floor's native Plane and world pose, the
-live colliders' lock, world pose, rotation and dimensions, and both controllers'
-identity and arguments. Unknown opaque roots are fully traversed. The pinned
-Floor/Crazyflie expose their inspected node parameters in the VRML export.
-The evaluator checks the protocol and flight observations separately on every
-step. A snapshot cannot grant READY or preserve a closed attempt.
+**Assumption and limitation:** direct editing in the Webots scene tree/3D UI,
+arbitrary Supervisor writes by trusted components, PROTO regeneration, or scene
+change-and-restore mid-flight are **outside** the supported classroom model.
+This mode does not prevent, detect or revoke those deliberate edits; any such
+session is noncanonical and cannot establish pedagogical success. If reliable
+in-process replacement without an evaluator restart is introduced, its lifecycle
+must be addressed explicitly before that launcher is supported. This restriction
+must not be misrepresented as engine-level immutability.
 
-Each publisher tick reuses the verified Crazyflie node and reads its live
-position, orientation, velocity and descendant contacts. Scene checks read
-collider measurements without Supervisor tracking. In R2025a a tracked pose
-or field can still describe the scene before a same-tick mutation. A changed
-export triggers a fresh traversal and measurement, even when simulation time
-has not advanced since the mutation. The existing pilot channels carry the
-request, sensor packet and attempt marker.
+Every native 8-ms observation must still use fresh vehicle kinematics,
+independently read contacts and flight-owned sensor samples; check time,
+attempt/epoch, native vehicle/evaluator identity continuity and publication
+freshness; evaluate swept-geometry route/zone/collision/landing oracles; and
+enforce failed STOP/RESET/LAND and **210000-ms** deadline exactly as before.
+A changed observed drone trajectory, missed step, missing sample or evaluator
+loss still revokes authorization as required. **No student AST or Blockly code
+may provide scene evidence or select the trust policy.**
 
-This addresses the pinned R2025a C API's uncached negative `get_field` path:
-[supervisor.c](https://github.com/cyberbotics/webots/blob/c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b/src/controller/c/supervisor.c#L2488).
+The *historical* strict per-tick scene path remains available as a diagnostic
+comparison during qualification. Its repeated root VRML export, snapshot,
+PROTO/Floor and collider rechecks were originally intended to detect deliberate
+between-step scene mutation. Their removal is an **explicitly accepted
+pedagogical threat-model change**, not a proof of native confinement or a reason
+to weaken physical-flight safety or mission oracles.
+
 The required real publisher witness must still pass within its bounded wall
 budget: 120 seconds for idle and
 420 seconds for flight-reset. The latter bound follows the retained native

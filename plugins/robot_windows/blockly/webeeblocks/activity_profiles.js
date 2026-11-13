@@ -95,9 +95,15 @@
     if (!isObject(profile.runtime)) fail('runtime must be an object');
     // Dedicated worlds (including archived experiment profiles) do not select
     // a managed scene. If supplied, however, the native scene token is strict.
+    // Altitude and orientation are explicitly declared classroom-only scenes.
+    // No catalog profile selects either yet. The physically locked runtime
+    // independently refuses these tokens; never infer a scene from an activity ID.
     if (profile.runtime.scene !== undefined &&
-        profile.runtime.scene !== 'sequence-v1' && profile.runtime.scene !== 'legacy-v1')
-      fail('runtime.scene must be sequence-v1 or legacy-v1');
+        profile.runtime.scene !== 'sequence-v1' &&
+        profile.runtime.scene !== 'legacy-v1' &&
+        profile.runtime.scene !== 'altitude-v1' &&
+        profile.runtime.scene !== 'orientation-v1')
+      fail('runtime.scene must be sequence-v1, legacy-v1, altitude-v1 or orientation-v1');
     if (profile.runtime.maxSteps !== undefined &&
         (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000))
       fail('runtime.maxSteps outside [1, 20000]');
