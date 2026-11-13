@@ -233,6 +233,10 @@ print(json.dumps({
     # Diagnostic artefact is never evidence for a PASS; only native PASS
     # together with the real Robot Window launch and exact mode/time checks is.
     diagnostics = {'schema': 'webeeblocks-webots-pause-diagnostic-v1',
+                   # Read-only evidence for the case where Webots stops
+                   # forwarding stdout after requesting controller shutdown.
+                   'controller_sidecar_present':
+                       (OUT / 'controller-sidecar.jsonl').is_file(),
                    'webots_exit_code': code, 'browser_launched': bool(browser_text),
                    'browser_invocation': browser_text[:2000], 'stages': markers,
                    'timed_out': timed_out, 'wall_seconds': wall_seconds,

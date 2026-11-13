@@ -4,13 +4,38 @@ The real Robot Window must deliver a fresh resume command *after* a bounded
 wall-clock hold while wb_robot_step(0) is used and simulated time stays exact.
 A controller that hangs in step(0) fails the external hard timeout.
 """
+import atexit
 import json
+import os
+from pathlib import Path
 import time
 from controller import Supervisor
 
 TOKEN = 'wb-pause-native-r2025a-974'
 PFX = 'GP_PAUSE_WWI_'
+# This intentionally independent sidecar outlives Webots' controller stdout:
+# its console silently stops forwarding after the simulator asks for shutdown.
+trace_dir = os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR')
+if not trace_dir:
+    raise RuntimeError('isolated PAUSE/WWI trace directory missing')
+trace_path = Path(trace_dir) / 'controller-sidecar.jsonl'
+trace_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def trace(stage, **evidence):
+    value = dict(schema='webeeblocks-webots-pause-controller-sidecar-v1',
+                 stage=stage, wall_monotonic_seconds=round(time.monotonic(), 6),
+                 **evidence)
+    with trace_path.open('a', encoding='utf-8') as output:
+        output.write(json.dumps(value, sort_keys=True) + '\n')
+        output.flush()
+        os.fsync(output.fileno())
+
+
+atexit.register(trace, 'PYTHON_ATEXIT')
+trace('CONTROLLER_ENTRY')
 controller = Supervisor()
+trace('SUPERVISOR_CONSTRUCTED')
 print(PFX + "CONTROLLER_START", flush=True)
 
 
@@ -24,6 +49,7 @@ def receive():
 
 
 def abort(reason):
+    trace('ABORT', reason=reason)
     print(PFX + 'FAIL ' + reason, flush=True)
     # Only this isolated test world may change the simulator mode.
     try:
@@ -111,11 +137,19 @@ print(PFX + 'STEP_ZERO_AFTER_RESUME_RETURNED', flush=True)
 if controller.simulationGetMode() != Supervisor.SIMULATION_MODE_REAL_TIME:
     abort('realtime-mode-unattested')
 print(PFX + 'MODE_REALTIME_ATTESTED', flush=True)
+trace('BEFORE_STEP_32', frozen_simulated_ms=round(frozen * 1000),
+      mode=int(controller.simulationGetMode()))
 print(PFX + 'STEP_32_AFTER_RESUME_REQUESTED', flush=True)
-if controller.step(32) == -1:
+first_step_result = controller.step(32)
+# If Webots starts terminating controllers, their stdout may disappear before
+# the Python branch runs. Persist the return code before any Webots calls.
+trace('AFTER_STEP_32', return_code=int(first_step_result))
+if first_step_result == -1:
     abort('nonzero-step-did-not-resume')
 print(PFX + 'STEP_32_AFTER_RESUME_RETURNED', flush=True)
 advanced_ms = round((controller.getTime() - frozen) * 1000.0)
+trace('SIMULATED_TIME_AFTER_STEP_32', delta_ms=advanced_ms,
+      mode=int(controller.simulationGetMode()))
 print(PFX + 'CLOCK_RESUMED_DELTA_MS ' + str(advanced_ms), flush=True)
 if not 32 <= advanced_ms <= 64:
     abort('resumed-simulation-clock-not-advanced-as-expected')
@@ -131,5 +165,6 @@ proof = {
     'steps_while_paused': 0,
     'simulation': 'isolated-r2025a-only',
 }
+trace('NATIVE_PASS', delta_ms=advanced_ms)
 print(PFX + 'PASS ' + json.dumps(proof, sort_keys=True), flush=True)
 controller.simulationQuit(0)
