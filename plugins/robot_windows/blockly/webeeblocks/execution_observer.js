@@ -110,6 +110,14 @@
     this.breakpoints = new Set();
     this.skipBeforeStep = Object.create(null);
     this.cancelled = false;
+    this.sessionEpoch = 0;
+    // Opt-in only. The real-flight and existing simulated debugger have no
+    // native pause bridge and preserve their current synchronous controls.
+    var pause = typeof this.callbacks.beforePause === 'function';
+    var resume = typeof this.callbacks.beforeResume === 'function';
+    if (pause !== resume)
+      fail('native PAUSE and RESUME acknowledgements must be paired');
+    this.nativePauseGated = pause;
     this.sensorValues = Object.create(null);
     this.lightColor = 'off';
     var self = this;
@@ -178,20 +186,36 @@
   };
 
   Controller.prototype._pause = async function(detail, reason) {
-    var self = this, waiter;
+    var waiter, epoch = this.sessionEpoch;
+    var event = Object.assign({}, detail, {reason: reason});
     var pending = new Promise(function(resolve, reject) {
-      waiter = {resolve: resolve, reject: reject, context: detail};
+      waiter = {resolve: resolve, reject: reject, context: detail,
+        ready: false, resuming: false};
     });
+    // STOP must still see an in-progress pause. Next/Continue cannot resolve
+    // the waiter until the *native* PAUSE acknowledgement has been awaited.
+    // An in-flight native PAUSE or RESUME must be interruptible by STOP,
+    // even if its acknowledgement never arrives.
+    var interrupt = this.nativePauseGated ? new Promise(function(resolve, reject) {
+      waiter.interrupt = reject;
+    }) : null;
     this.waiter = waiter;
     try {
+      if (this.nativePauseGated)
+        await Promise.race([this.callbacks.beforePause(event), interrupt]);
+      if (this.cancelled || this.sessionEpoch !== epoch)
+        rejectCancelledExecution();
+      waiter.ready = true;
       if (typeof this.callbacks.onPause === 'function')
-        this.callbacks.onPause(Object.assign({}, detail, {reason: reason}));
+        this.callbacks.onPause(event);
       await pending;
-      if (this.cancelled) {
-        var error = new Error('Step debugger cancelled by STOP');
-        error.code = 'USER_STOPPED';
-        throw error;
-      }
+      if (this.cancelled || this.sessionEpoch !== epoch)
+        rejectCancelledExecution();
+      // No further Blockly effect may execute before the native RESUME ACK.
+      if (this.nativePauseGated)
+        await Promise.race([this.callbacks.beforeResume(detail), interrupt]);
+      if (this.cancelled || this.sessionEpoch !== epoch)
+        rejectCancelledExecution();
       if (typeof this.callbacks.onResume === 'function')
         this.callbacks.onResume(detail);
     } finally {
@@ -295,18 +319,29 @@
   Controller.prototype.next = function() {
     if (!this.enabled || this.continuous) return false;
     if (this.waiter) {
+      if (!this.waiter.ready || this.waiter.resuming) return false;
+      this.waiter.resuming = true;
       this.waiter.resolve();
       return true;
     }
+    // Pre-credit is legacy-only: a real native pause must be acknowledged
+    // before any learner Step can release an interpreter instruction.
+    if (this.nativePauseGated) return false;
     this.credit = 1;
     return true;
   };
 
   Controller.prototype.continueRun = function() {
     if (!this.enabled) return false;
+    if (this.nativePauseGated &&
+        (!this.waiter || !this.waiter.ready || this.waiter.resuming))
+      return false;
     this.continuous = true;
     this.credit = 0;
-    if (this.waiter) this.waiter.resolve();
+    if (this.waiter) {
+      this.waiter.resuming = true;
+      this.waiter.resolve();
+    }
     return true;
   };
 
@@ -318,13 +353,26 @@
     if (this.waiter) {
       var error = new Error('Step debugger interrupted by STOP');
       error.code = 'USER_STOPPED';
-      this.waiter.reject(error);
+      if (this.waiter.interrupt) this.waiter.interrupt(error);
+      if (this.waiter.ready && !this.waiter.resuming) {
+        this.waiter.resuming = true;
+        this.waiter.reject(error);
+      }
     }
     return true;
   };
 
   Controller.prototype.finish = function() {
-    if (this.waiter) this.waiter.resolve();
+    // A stale PAUSE/RESUME ACK from an earlier run must never unlock a new one.
+    this.sessionEpoch += 1;
+    if (this.waiter) {
+      if (this.waiter.interrupt) {
+        var error = new Error('Step debugger finished during native acknowledgement');
+        error.code = 'USER_STOPPED';
+        this.waiter.interrupt(error);
+      }
+      this.waiter.resolve();
+    }
     this.waiter = null;
     this.credit = 0;
     this.skipBeforeStep = Object.create(null);

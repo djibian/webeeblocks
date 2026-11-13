@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Native Webots pause WWI experiment</title></head><body>
+<h1>R2025a WWI pause experiment — not a student interface</h1>
+<script type="module">
+  // Official R2025a RobotWindow API used by the upstream sample.
+  // Offline, exact-R2025a vendor used by the other classroom CI worlds.
+  import RobotWindow from '../blockly_v2/webots/RobotWindow.js';
+  const robotWindow = new RobotWindow();
+  console.log('GP_PAUSE_WWI_BROWSER_INIT');
+  const token = 'wb-pause-native-r2025a-974';
+  const prefix = 'GP_PAUSE_WWI_';
+  let paused = false;
+  let resumeScheduled = false;
+  robotWindow.receive = function(message) {
+    if (message === prefix + 'PAUSED ' + token && !resumeScheduled) {
+      paused = true;
+      resumeScheduled = true;
+      setTimeout(() => robotWindow.send(prefix + 'RESUME wrong-epoch'), 350);
+      setTimeout(() => robotWindow.send(prefix + 'RESUME ' + token), 1500);
+    }
+  };
+  // Readiness messages may precede the browser's page/module load. Retry only
+  // until a native PAUSED response; never create success locally.
+  const begin = setInterval(() => {
+    if (paused) { clearInterval(begin); return; }
+    robotWindow.send(prefix + 'BEGIN ' + token);
+  }, 200);
+</script></body></html>
