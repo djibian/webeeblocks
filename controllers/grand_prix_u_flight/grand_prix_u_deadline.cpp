@@ -37,6 +37,7 @@ RoutePausePhase routePausePhase=RoutePausePhase::IDLE;
 std::string routePauseNonce,routePauseEpoch,routeDeferredStop,routeDeliveredStop;
 unsigned long long routePauseAttempt=0,routePauseSeq=0;
 bool routePauseResume=false;
+bool routePauseAbortLanding=false,routePauseAbortAdmission=false;
 std::chrono::steady_clock::time_point routePauseHeartbeat;
 void resetRoutePause() {
   routePausePhase=RoutePausePhase::IDLE;
@@ -265,7 +266,8 @@ extern "C" void gp_route_observe_native(double now,int controlValid,int ground,c
 extern "C" int gp_u_start(double now) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   unsigned long long current=0;long long observed=0;
-  if(!fileIdle || !routeTime(now,observed) || !currentAttempt(current) ||
+  if(routePauseAbortLanding || routePauseAbortAdmission || !fileIdle ||
+     !routeTime(now,observed) || !currentAttempt(current) ||
      current!=routeAttempt || begin>=0 || !freshRouteEvidence("READY",observed)) {
     expired=true;publish("failed");return 0;
   }
@@ -288,6 +290,14 @@ extern "C" int gp_u_start(double now) {
 }
 extern "C" int gp_u_deadline(double now,int nativeLanded) {
   landed=nativeLanded!=0;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(routePauseAbortLanding && begin>=0 && !success && !expired) {
+    // A PAUSE transport failure is not a 210-s expiry: it nevertheless
+    // forces the SAME independent native LAND as other safety preemptions.
+    routePauseAbortLanding=false;expired=true;
+    publish("failed");failed_outcome();return 1;
+  }
+#endif
   if(begin<0 || success)return 0;
   if(expired){
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -398,7 +408,8 @@ static bool routePauseMessage(const char *message) {
 static void routePauseFailClosed() {
   // The unchanged deadline handler performs the independent LAND on the next
   // physical step; the browser does not gain any admission or oracle authority.
-  if(begin>=0 && !success)expired=true;
+  if(begin>=0 && !success)routePauseAbortLanding=true;
+  else routePauseAbortAdmission=true; // Fresh RESET required before TAKEOFF.
   resetRoutePause();
 }
 static void routePauseStep() {
@@ -500,7 +511,8 @@ extern "C" void gp_u_reset_complete(void) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   nativeRouteDeadline=false;
   routeClockNonce.clear();routeClockLastSecond=-1;
-  resetRoutePause();routeDeferredStop.clear();routeDeliveredStop.clear();
+  resetRoutePause();routePauseAbortLanding=false;routePauseAbortAdmission=false;
+  routeDeferredStop.clear();routeDeliveredStop.clear();
 #endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
