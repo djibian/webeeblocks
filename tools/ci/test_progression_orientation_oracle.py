@@ -71,6 +71,12 @@ int main(void) {
   assert(step(&m,4,x,-.9,z,0,vx,1)==WB_ORIENT_WAIT);
   assert(step(&m,6,x,-.9,z,0,vx,0)==WB_ORIENT_NOT_ACHIEVED);
  }
+
+ // Near-pad center is NOT sufficient if the drone's envelope extends outside.
+ wb_orient_reset(&m,10,0);
+ route(&m);
+ assert(step(&m,4,.99,-.9,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,6,.99,-.9,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
  // Invalid orientation/observations are fail-closed, not success.
  wb_orient_reset(&m,9,0);
  route(&m);
@@ -114,6 +120,8 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertIn("#define WB_ORIENT_CHILDREN 24",core)
         self.assertIn("#define WB_ORIENT_LAND_X 0.90",core)
         self.assertIn("#define WB_ORIENT_LAND_Y -0.90",core)
+        self.assertIn("#define WB_ORIENT_LAND_TOL 0.07",core)
+        self.assertIn("geometry Box { size 0.32 0.32 0.004 }",scene)
         self.assertEqual(len(re.findall(r"^    Pose \{ translation ",scene,re.MULTILINE)),24)
         for label,coords,angle in (
             ("A",(.45,0,.63),-1.570796),
