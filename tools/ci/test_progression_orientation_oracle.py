@@ -73,12 +73,12 @@ int main(void) {
  }
 
  // Near-pad center is NOT sufficient if the drone's envelope extends outside.
- wb_orient_reset(&m,10,0);
+ wb_orient_reset(&m,9,0);
  route(&m);
  assert(step(&m,4,.99,-.9,.03,0,0,1)==WB_ORIENT_WAIT);
  assert(step(&m,6,.99,-.9,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
  // Invalid orientation/observations are fail-closed, not success.
- wb_orient_reset(&m,9,0);
+ wb_orient_reset(&m,10,0);
  route(&m);
  assert(step(&m,4,.9,-.9,.03,NAN,0,1)==WB_ORIENT_NOT_ACHIEVED);
  const double identity[]={1,0,0,0,1,0,0,0,1};
