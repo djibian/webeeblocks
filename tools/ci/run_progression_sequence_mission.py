@@ -311,6 +311,26 @@ def main() -> int:
             "instrumented": hashlib.sha256(diagnostic).hexdigest(),
             "step_timing_enabled": timing_selection == "1",
         }, indent=2) + "\n", encoding="utf-8")
+        # Compile the school executable from the ORIGINAL flight C bytes,
+        # not from the temporary CI diagnostics inserted for the legacy probe.
+        # This is a distinct, executable artifact; the physical runtime's
+        # generated-input hash lock is never weakened or rewritten.
+        classroom_built = run([
+            "docker", "run", "--rm",
+            "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/crazyflie_runtime_v2",
+            WEBOTS_IMAGE,
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+        ], capture=True)
+        (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
+            classroom_built.stdout or "", encoding="utf-8")
+        if classroom_built.returncode:
+            return fail("independent classroom native R2025a build from unmodified flight source failed",
+                        (classroom_built.stdout or "")[-6000:])
+
+        # The existing legacy probe still requires its position/timing
+        # diagnostics. Never mistake THAT instrumented build for a classroom
+        # product build. Always restore the original C source in finally.
         try:
             controller.write_bytes(diagnostic)
             built = run([
@@ -318,13 +338,14 @@ def main() -> int:
                 "-v", f"{ROOT}:/workspace",
                 "-w", "/workspace/controllers/crazyflie_runtime_v2",
                 WEBOTS_IMAGE,
-                "bash", "-lc", "make clean && make && make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1",
+                "bash", "-lc", "make clean && make",
             ], capture=True)
         finally:
             controller.write_bytes(original)
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
-            return fail("Runtime v2/progression evaluators or isolated native altitude evaluator build failed", (built.stdout or "")[-6000:])
+            return fail("Runtime v2 diagnostic progression build failed",
+                        (built.stdout or "")[-6000:])
 
         inner = r'''
 set -e
