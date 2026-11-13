@@ -6,6 +6,7 @@ and real Blockly modules are kept unchanged. A temporary HTML copy receives one
 test-only browser stimulus, which uses the normal buttons and WWI RobotWindow.
 It cannot authorize a mission or bypass native STOP/RESET, deadline or oracles.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -386,8 +387,17 @@ def main():
     process = browser_process = None
     browser_stdout = None
     try:
-        with tempfile.TemporaryDirectory(prefix='gp-route-real-pause-') as temp:
-            folder = Path(temp)
+        # The temporary world, Webots profiles and Chrome caches MUST outlive
+        # their writers. Register process teardown *after* entering the temp
+        # context so ExitStack runs it first, even if verification raises.
+        # Suppressing rmtree's ENOTEMPTY would hide a live native subprocess.
+        with contextlib.ExitStack() as cleanup:
+            folder = Path(cleanup.enter_context(
+                tempfile.TemporaryDirectory(prefix='gp-route-real-pause-')))
+            cleanup.callback(lambda: browser_stdout.close()
+                             if browser_stdout is not None else None)
+            cleanup.callback(lambda: stop_group(process))
+            cleanup.callback(lambda: stop_group(browser_process))
             localized = install_official_assets_for_native_probe(home, folder)
             project, world = prepare_project(folder, server.server_port)
             if world.read_bytes() != localized.read_bytes():
@@ -473,10 +483,8 @@ def main():
                     raise RuntimeError('real Grand Prix Chrome Robot Window never launched')
             verify(OUT/'webots.log',journal,compiled,OUT/'world.wbt')
     finally:
-        stop_group(browser_process)
-        stop_group(process)
-        if browser_stdout is not None:
-            browser_stdout.close()
+        # By this point ExitStack has retired Chrome and Webots and removed
+        # their private directory. The trace server remains a separate owner.
         server.shutdown()
     return 0
 
