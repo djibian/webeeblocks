@@ -597,43 +597,100 @@ def run_native(home, env):
     # The native oracle must fail and the pilot must publish its own negative.
     run_case(home, env, 'flight-course-negative', 5)
 
-    # One bounded real native airborne A/B pair, with identical C pilot
-    # stimulus and without changing policy, PID, or mission oracles.
+    # Three matched independently launched airborne A/B pairs. Alternate
+    # policy order AB-BA-AB to expose run-order and host scheduling effects.
+    # Both arms run the same native C pilot, geometry, 8-ms physics and exact
+    # 96-sample simulated trajectory, but neither has a pupil program or GUI.
+    flight_orders = (policies, policies[::-1], policies)
     flight = []
-    for policy in policies:
-        data, case = run_case(home, env, 'flight-window', 5,
-                              profile_policy=policy)
-        durations = data['streams']
-        flight.append(dict(
-            policy=policy, case_directory=case.name,
-            world_sha256=hashlib.sha256(
-                (case / 'world.wbt').read_bytes()).hexdigest(),
-            native_json_sha256=hashlib.sha256(
-                (case / 'native.json').read_bytes()).hexdigest(),
-            samples=96, first_sim_ms=data['first_sim_ms'],
-            last_sim_ms=data['last_sim_ms'], start_ms=data['start_ms'],
-            takeoff_ack_ms=data['takeoff_ack_ms'],
-            first_airborne_z=data['first_airborne_z'],
-            first_sample_z=durations['altitude_m'][0],
-            last_sample_z=durations['altitude_m'][-1],
-            measured_window_wall_ns=data['measured_window_wall_ns'],
-            step_total_ns=sum(durations['step_wall_ns']),
-            tick_total_ns=sum(durations['tick_wall_ns']),
-            cycle_total_ns=sum(durations['cycle_wall_ns']),
-            scene_reads_measured=data['scene_reads_measured']))
-    if len(flight) != 2 or flight[0]['world_sha256'] != flight[1]['world_sha256']:
-        raise RuntimeError('native airborne A/B does not compare one world')
+    altitude_series = {}
+    cycle_series = {policy: [] for policy in policies}
+    for pair_number, pair_order in enumerate(flight_orders, start=1):
+        for position, policy in enumerate(pair_order, start=1):
+            data, case = run_case(home, env, 'flight-window', 5,
+                                  profile_policy=policy)
+            durations = data['streams']
+            altitude_series[(pair_number, policy)] = durations['altitude_m']
+            cycle_series[policy].extend(durations['cycle_wall_ns'])
+            flight.append(dict(
+                pair=pair_number, position=position,
+                policy=policy, case_directory=case.name,
+                world_sha256=hashlib.sha256(
+                    (case / 'world.wbt').read_bytes()).hexdigest(),
+                native_json_sha256=hashlib.sha256(
+                    (case / 'native.json').read_bytes()).hexdigest(),
+                ready_time_ms=data['ready']['time_ms'],
+                samples=96, first_sim_ms=data['first_sim_ms'],
+                last_sim_ms=data['last_sim_ms'], start_ms=data['start_ms'],
+                takeoff_ack_ms=data['takeoff_ack_ms'],
+                first_airborne_z=data['first_airborne_z'],
+                first_sample_z=durations['altitude_m'][0],
+                last_sample_z=durations['altitude_m'][-1],
+                measured_window_wall_ns=data['measured_window_wall_ns'],
+                step_total_ns=sum(durations['step_wall_ns']),
+                tick_total_ns=sum(durations['tick_wall_ns']),
+                cycle_total_ns=sum(durations['cycle_wall_ns']),
+                scene_reads_measured=data['scene_reads_measured']))
+    if (len(flight) != 6 or
+            len({session['world_sha256'] for session in flight}) != 1 or
+            any(session['pair'] != pair or session['position'] != position or
+                session['policy'] != policy
+                for pair, order in enumerate(flight_orders, 1)
+                for position, (session, policy) in enumerate(
+                    zip(flight[(pair - 1) * 2:pair * 2], order), 1))):
+        raise RuntimeError('native airborne three-pair order or world mismatch')
+
+    matched_fields = ('ready_time_ms', 'start_ms', 'takeoff_ack_ms',
+                      'first_sim_ms', 'last_sim_ms', 'first_airborne_z',
+                      'first_sample_z', 'last_sample_z')
+    pair_ratios = []
+    for pair_number, order in enumerate(flight_orders, 1):
+        matched = flight[(pair_number - 1) * 2:pair_number * 2]
+        a = next(x for x in matched if x['policy'] == policies[0])
+        b = next(x for x in matched if x['policy'] == policies[1])
+        if (any(a[key] != b[key] for key in matched_fields) or
+                altitude_series[(pair_number, policies[0])] !=
+                altitude_series[(pair_number, policies[1])]):
+            raise RuntimeError('native A/B flight policies changed physical trajectory')
+        pair_ratios.append(dict(
+            pair=pair_number, order=''.join('A' if x == policies[0] else 'B'
+                                             for x in order),
+            cycle_historical_over_classroom=round(
+                a['cycle_total_ns'] / b['cycle_total_ns'], 6),
+            speed_historical=round(768 * 1_000_000 /
+                                   a['measured_window_wall_ns'], 6),
+            speed_classroom=round(768 * 1_000_000 /
+                                  b['measured_window_wall_ns'], 6)))
+
+    totals = {policy: {key: sum(x[key] for x in flight if x['policy'] == policy)
+                       for key in ('step_total_ns', 'tick_total_ns',
+                                   'cycle_total_ns', 'measured_window_wall_ns')}
+              for policy in policies}
+    if (any(value <= 0 for values in totals.values() for value in values.values()) or
+            any(len(cycle_series[policy]) != 3 * 96 for policy in policies)):
+        raise RuntimeError('native airborne three-pair durations incomplete')
+    p99_cycles_ms = {policy: round(
+        sorted(cycle_series[policy])[math.ceil(.99 * len(cycle_series[policy])) - 1] /
+        1_000_000, 6) for policy in policies}
     summary = dict(
-        claim='native-route-evaluator-airborne-ab-no-pupil-program-v1',
+        claim='native-route-evaluator-airborne-three-matched-ab-pairs-v2',
         course=reference_course(5).identifier, webots='R2025a',
         webots_image=env.get('WEBEEBLOCKS_GP_WEBOTS_IMAGE'),
         host=__import__('platform').node(), mode='batch-fast-minimized',
-        order='AB', policies=policies, samples_per_policy=96, sessions=flight,
+        order='AB-BA-AB', matched_pairs=3,
+        policies=policies, samples_per_session=96, sessions=flight,
+        pair_ratios=pair_ratios, total_ns_by_policy=totals,
+        p99_cycle_ms_by_policy=p99_cycles_ms,
+        simulated_ms_per_policy=3 * 96 * 8,
+        simulated_over_wall_by_policy={
+            policy: round(3 * 768 * 1_000_000 /
+                          totals[policy]['measured_window_wall_ns'], 6)
+            for policy in policies},
         ratios_historical_over_classroom={
-            field: round(flight[0][field] / flight[1][field], 6)
-            for field in ('step_total_ns', 'tick_total_ns', 'cycle_total_ns',
-                          'measured_window_wall_ns')})
+            key: round(totals[policies[0]][key] /
+                       totals[policies[1]][key], 6)
+            for key in totals[policies[0]]})
     (OUT / 'flight-window-summary.json').write_text(
         json.dumps(summary, sort_keys=True, indent=2) + '\n')
-    print('PASS bounded real R2025a TAKEOFF/ALIVE A/B flight window; no GUI/FPS/full mission claim',
+    print('PASS 3 matched real R2025a airborne AB-BA-AB pairs; no GUI/FPS/Windows/full mission claim',
           flush=True)
