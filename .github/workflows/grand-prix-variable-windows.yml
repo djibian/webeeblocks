@@ -5,6 +5,9 @@ on:
     paths:
       - 'tools/grand_prix/package_windows_route.py'
       - 'tools/grand_prix/build_windows_route_controller.ps1'
+      - 'tools/grand_prix/prepare_route_runtime.py'
+      - 'tools/grand_prix/route_windows_epoch.py'
+      - 'controllers/grand_prix_route_flight/Makefile'
       - 'tools/ci/*grand_prix_route_windows*'
       - 'packaging/windows/Lancer-Grand-Prix.ps1'
       - 'packaging/windows/grand_prix_route_evaluator_bootstrap.py'
@@ -54,8 +57,10 @@ jobs:
       - name: Check sources and canonical 12-course selectors
         shell: pwsh
         run: |
-          python -m py_compile tools/grand_prix/package_windows_route.py tools/ci/test_grand_prix_route_windows_package.py tools/ci/run_grand_prix_route_windows_native.py packaging/windows/grand_prix_route_evaluator_bootstrap.py
+          python -m py_compile tools/grand_prix/package_windows_route.py tools/ci/test_grand_prix_route_windows_package.py tools/ci/run_grand_prix_route_windows_native.py packaging/windows/grand_prix_route_evaluator_bootstrap.py tools/grand_prix/route_windows_epoch.py tools/grand_prix/prepare_route_runtime.py tools/ci/test_grand_prix_route_windows_epoch.py
           if ($LASTEXITCODE -ne 0) { throw 'Python source check failed' }
+          python -m unittest tools.ci.test_grand_prix_route_windows_epoch
+          if ($LASTEXITCODE -ne 0) { throw 'Fail-closed Windows route CNG composer tests failed' }
           node --check tools/ci/grand_prix_route_windows_node_probe.js
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"

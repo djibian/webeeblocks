@@ -79,6 +79,17 @@ vitesse ≥0,95×, 25–30 FPS réellement visibles, p99 ≤25 ms et
 maximum ≤80 ms hors chargements explicités. Mesurer les écarts ;
 ne pas annoncer de PASS si le produit reste inutilisable.
 
+## Époque cryptographique native Windows
+
+Dans le pilote de la **route seulement** compilé pour Windows, chaque
+nouvelle tentative obtient un identifiant aléatoire de 128 bits auprès du
+fournisseur cryptographique de Windows via `BCryptGenRandom` (CNG). En cas
+d'échec, aucun identifiant n'est délivré, donc aucun décollage n'est autorisé.
+Cette adaptation remplace uniquement le test `std::random_device::entropy()`
+qui vaut 0 avec le MinGW de Webots R2025a ; elle ne modifie ni le générateur
+Linux, ni le Runtime partagé, ni le protocole de validation ou les oracles.
+Le simple succès d'une création d'identifiant n'atteste pas un vol réussi.
+
 ## Preuves, provenance et limites
 
 La CI Windows propre à cette PR assemble le ZIP sur windows-2022 avec
