@@ -40,6 +40,22 @@ bool routePauseResume=false;
 double routePauseFrozen=-1.0;
 bool routePauseAbortLanding=false,routePauseAbortAdmission=false;
 std::chrono::steady_clock::time_point routePauseHeartbeat;
+// Browser PINGs every second; a vanished Robot Window must stop a PAUSED
+// in-flight simulator within 15 s of the last actual native heartbeat.
+static bool routePauseHeartbeatLost(std::chrono::steady_clock::time_point now,
+                                   std::chrono::steady_clock::time_point last) {
+  return now-last>=std::chrono::seconds(15);
+}
+#ifdef WEBEEBLOCKS_GP_ROUTE_TEST_HOOKS
+// Compiled only by the deterministic native harness; never in the product.
+extern "C" int gp_route_test_pause_watchdog_after_ms(int elapsedMs) {
+  const auto current=std::chrono::steady_clock::now();
+  return routePauseHeartbeatLost(current,current-std::chrono::milliseconds(elapsedMs))?1:0;
+}
+extern "C" void gp_route_test_age_pause_heartbeat_ms(int elapsedMs) {
+  routePauseHeartbeat=std::chrono::steady_clock::now()-std::chrono::milliseconds(elapsedMs);
+}
+#endif
 void resetRoutePause() {
   routePausePhase=RoutePausePhase::IDLE;
   routePauseNonce.clear();routePauseEpoch.clear();routePauseAttempt=0;
@@ -478,9 +494,8 @@ static void routePauseStep() {
       }
     }
     if(stopped || routePauseResume)break;
-    if(std::chrono::duration_cast<std::chrono::seconds>(
-         std::chrono::steady_clock::now()-routePauseHeartbeat).count()>300) {
-      failed=true;break; // Lost browser after five minutes; active classroom pauses remain free.
+    if(routePauseHeartbeatLost(std::chrono::steady_clock::now(),routePauseHeartbeat)) {
+      failed=true;break; // Lost Robot Window: unpause, fail closed and trigger native LAND.
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
