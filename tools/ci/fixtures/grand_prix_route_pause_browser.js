@@ -27,6 +27,7 @@
   let nativePauseCount=0;
   let nativeResumeCount=0;
   let takeoffRequestId=null;
+  let resetRequestId=null,resetStarted=false,resetDiagnostic=null;
   window.addEventListener('webeeblocks-debug-paused', function() {
     pauseCount++;
     record('UI_PAUSED',pauseCount);
@@ -55,6 +56,13 @@
         record('TAKEOFF_REQUEST_SENT', {id:takeoffRequestId,
           pendingBeforeSend:!!backend.pending[takeoffRequestId]});
       }
+      const reset=typeof message==='string' &&
+        /^WEBEEBLOCKS_RUNTIME_V2 REQUEST ([1-9][0-9]*) RESET(?:\s|$)/.exec(message);
+      if(reset) {
+        resetRequestId=Number(reset[1]);
+        record('RESET_NATIVE_REQUEST_SENT', {id:resetRequestId,
+          pendingBeforeSend:!!backend.pending[resetRequestId]});
+      }
       return realSend(message);
     };
     const original=backend.handleMessage.bind(backend);
@@ -65,6 +73,10 @@
         record('TAKEOFF_NATIVE_RESPONSE_RECEIVED', {id:takeoffRequestId,
           raw:message.slice(0,240),pendingAtArrival:!!backend.pending[takeoffRequestId],
           runtimeRunning:window.runtimeRunning===true});
+      }
+      if(reply && resetRequestId!==null && Number(reply[1])===resetRequestId) {
+        record('RESET_NATIVE_RESPONSE_RECEIVED', {id:resetRequestId,
+          raw:message.slice(0,240),pendingAtArrival:!!backend.pending[resetRequestId]});
       }
       if(typeof message==='string' && message.indexOf('GP_ROUTE_PAUSE_V1 ')===0) {
         const m=/^GP_ROUTE_PAUSE_V1 (PAUSED|RESUMED) nonce=([0-9a-f]{32}) attempt=([1-9][0-9]*) seq=([1-9][0-9]*)$/.exec(message);
@@ -77,6 +89,27 @@
       }
       return original(message);
     };
+    window.addEventListener('webeeblocks-runtime-v2-diagnostic', function(event) {
+      if(!resetStarted)return;
+      const detail=event&&event.detail||{};
+      resetDiagnostic={studentState:detail.studentState||null,
+        machineCode:detail.machineCode||null,
+        technicalMessage:detail.technicalMessage||null};
+      record('RESET_UI_DIAGNOSTIC',resetDiagnostic);
+    });
+    function resetSnapshot(button) {
+      return {runtimeState:document.getElementById('runtimeState').textContent,
+        debugState:document.getElementById('debugState').textContent,
+        runtimeRunning:window.runtimeRunning===true,
+        runtimeTerminal:window.runtimeTerminal===true,
+        runtimeResetPending:window.runtimeResetPending===true,
+        runtimeStopPending:window.runtimeStopPending===true,
+        runtimeOutcomePending:window.runtimeOutcomePending===true,
+        backendReady:backend.ready===true,
+        backendSimulationStopped:backend.simulationStopped===true,
+        resetDisabled:button.disabled,resetHidden:button.hidden,
+        pendingIds:Object.keys(backend.pending||{}),resetRequestId};
+    }
     const root=window.workspace;
     root.clear();
     const takeoff=root.newBlock('webeeblocks_v2_takeoff');
@@ -159,10 +192,42 @@
     // RESET immediately against a still-descending Crazyflie; allow the
     // unchanged native controller to finish its own ground confirmation.
     await delay(45000);
-    let resetObserved=false;
+    record('RESET_BEFORE_CLICK',resetSnapshot(resetButton));
+    if(resetButton.disabled||resetButton.hidden)
+      throw Error('RESET_BECAME_UNAVAILABLE_BEFORE_CLICK');
+    let resetObserved=false,resetBackendError=null;
+    const realReset=backend.resetSimulation.bind(backend);
+    backend.resetSimulation=function() {
+      record('RESET_BACKEND_INVOKED',resetSnapshot(resetButton));
+      let task;
+      try {task=realReset();}
+      catch(error) {
+        resetBackendError={code:error&&error.code||null,message:String(error)};
+        record('RESET_BACKEND_SYNC_ERROR',resetBackendError);
+        throw error;
+      }
+      return task.then(function(value) {
+        record('RESET_BACKEND_RESOLVED',resetSnapshot(resetButton));return value;
+      },function(error) {
+        resetBackendError={code:error&&error.code||null,
+          message:error&&error.message||String(error)};
+        record('RESET_BACKEND_REJECTED',resetBackendError);
+        throw error;
+      });
+    };
     window.addEventListener('webeeblocks-runtime-v2-reset',()=>{resetObserved=true;},{once:true});
+    resetStarted=true;
     resetButton.click();
-    await until(()=>resetObserved,180000,'NATIVE_STRICT_RESET_NOT_CONFIRMED');
+    record('RESET_CLICKED',resetSnapshot(resetButton));
+    await until(()=>{
+      if(resetObserved)return true;
+      if(resetBackendError||resetDiagnostic) {
+        record('RESET_REFUTED', {backendError:resetBackendError,
+          uiDiagnostic:resetDiagnostic,state:resetSnapshot(resetButton)});
+        throw Error('NATIVE_STRICT_RESET_REJECTED');
+      }
+      return false;
+    },180000,'NATIVE_STRICT_RESET_NOT_CONFIRMED');
     record('RESET_CONFIRMED',{state:document.getElementById('runtimeState').textContent,
       nativeResumeCount});
     if(document.getElementById('runtimeState').textContent!=='PRÊT')
