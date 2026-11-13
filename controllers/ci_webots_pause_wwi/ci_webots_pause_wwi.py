@@ -165,6 +165,6 @@ proof = {
     'steps_while_paused': 0,
     'simulation': 'isolated-r2025a-only',
 }
-trace('NATIVE_PASS', delta_ms=advanced_ms)
+trace('NATIVE_PASS', delta_ms=advanced_ms, proof=proof)
 print(PFX + 'PASS ' + json.dumps(proof, sort_keys=True), flush=True)
 controller.simulationQuit(0)

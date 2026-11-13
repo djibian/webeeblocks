@@ -7,12 +7,13 @@ Never exercise this in a flight scene or claim product pause support.
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import signal
 import subprocess
 import tempfile
 import time
+
+from pause_wwi_evidence import verify_native_pause_evidence
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/native-pause'
@@ -76,6 +77,11 @@ def run():
     if not Path('/usr/bin/google-chrome').is_file():
         raise RuntimeError('real Chrome Robot Window launcher unavailable')
     OUT.mkdir(parents=True, exist_ok=True)
+    # A candidate must never satisfy a test with a stale artifact from an
+    # earlier launch in this workspace, even after a failed/cancelled process.
+    for name in ('controller-sidecar.jsonl', 'result.json', 'diagnostic.json',
+                 'browser-launch.log', 'qt-settings-preflight.log'):
+        (OUT / name).unlink(missing_ok=True)
     browser = ROOT / 'tools/ci/webots_runtime_v2_browser.sh'
     conf = Path.home() / '.config/Cyberbotics/Webots-R2025a.conf'
     conf.parent.mkdir(parents=True, exist_ok=True)
@@ -191,7 +197,6 @@ print(json.dumps({
                         observed = ''
                     if 'GP_PAUSE_WWI_PASS {' in observed:
                         native_pass_observed = True
-                        break
                     if time.monotonic() >= deadline:
                         timed_out = True
                         # Inspect modal/window state before Xvfb shutdown;
@@ -254,24 +259,19 @@ print(json.dumps({
 
     if 'Segmentation fault' in transcript or 'Traceback (most recent call last)' in transcript:
         raise RuntimeError('native crash/traceback')
-    matches = re.findall(r'^GP_PAUSE_WWI_PASS (\{[^\n]+\})$', transcript, re.M)
-    if len(matches) != 1 or not native_pass_observed:
-        # On clean GUI exit we may read PASS only after the process has already
-        # ended. Treat exactly one such native PASS as valid, without admitting
-        # any other form of success.
-        if len(matches) != 1 or (not native_pass_observed and code != 0):
-            raise RuntimeError('missing/ambiguous native proof; consult webots.log and diagnostic.json')
-    proof = json.loads(matches[0])
-    if not (
-        proof.get('schema') == 'webeeblocks-webots-pause-wwi-v1'
-        and proof.get('simulation') == 'isolated-r2025a-only'
-        and proof.get('frozen_delta_ms') == 0
-        and proof.get('pause_wall_seconds', 0) >= 1.0
-        and 32 <= proof.get('resumed_simulated_ms', -1) <= 64
-        and proof.get('resume_via_robot_window_wwi') is True
-        and proof.get('wrong_token_rejected', 0) >= 1
-    ):
-        raise RuntimeError('unqualified WWI pause result')
+    # The real supervisor fsyncs a full canonical proof before Webots invokes
+    # simulationQuit(0). Webots R2025a can drop the last console lines when it
+    # terminates that controller: independently verify the sidecar instead of
+    # mistaking the stdout truncation for a failed physical step.
+    try:
+        proof = verify_native_pause_evidence(
+            OUT / 'controller-sidecar.jsonl', transcript, browser_text, code)
+    except (ValueError, OSError, UnicodeError, TypeError, KeyError) as error:
+        raise RuntimeError('unqualified native pause sidecar: ' + str(error)) from error
+    diagnostics['sidecar_proof_verified'] = True
+    (OUT / 'diagnostic.json').write_text(
+        json.dumps(diagnostics, sort_keys=True, indent=2) + '\n',
+        encoding='utf-8')
     result = dict(proof, webots_version=version, claim='native-transport-feasibility-only')
     (OUT / 'result.json').write_text(
         json.dumps(result, sort_keys=True, indent=2) + '\n', encoding='utf-8')
