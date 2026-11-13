@@ -12,7 +12,8 @@ extern "C" void __real_gp_u_send(const char *, int);
 namespace {
 enum Phase {
   wait_first_ready, first_takeoff_sent, wait_safety_land, send_reset,
-  reset_sent, wait_second_ready, second_takeoff_sent, finished
+  reset_sent, wait_second_ready, second_takeoff_sent, send_negative_move,
+  negative_move_sent, finished
 };
 Phase phase=wait_first_ready;
 long long takeoff=-1,land=-1,reset=-1,second_takeoff=-1;
@@ -66,6 +67,22 @@ extern "C" const char *__wrap_wb_robot_wwi_receive_text(void) {
       std::puts("GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF");std::fflush(stdout);
       return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.4";
     }
+  } else if(phase==send_negative_move) {
+    // Test-only ordinary Blockly-equivalent lateral request. The genuine C
+    // flight controller, native physics and mission evaluator remain in charge.
+    phase=negative_move_sent;
+    const char *path=std::getenv("GP_ROUTE_PILOT_NEGATIVE_OUT");
+    const char *course=std::getenv("GP_ROUTE_PILOT_COURSE_ID");
+    if(!path || !course)std::abort();
+    const long long now=std::llround(wb_robot_get_time()*1000);
+    const std::string pending=std::string(path)+".pending";
+    FILE *f=std::fopen(pending.c_str(),"w");if(!f)std::abort();
+    if(std::fprintf(f,"GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=%lld course=%s action=MOVE-right-1.2\\n",
+                    now,course)<1 || std::fclose(f))std::abort();
+    if(std::rename(pending.c_str(),path))std::abort();
+    std::puts("GP_ROUTE_PILOT_REQUEST id=2 command=MOVE right 1.2");
+    std::fflush(stdout);
+    return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 MOVE right 1.2";
   } else if(phase==send_reset) {
     phase=reset_sent;
     std::puts("GP_ROUTE_PILOT_REQUEST id=2 command=RESET");std::fflush(stdout);
@@ -87,7 +104,10 @@ extern "C" void __wrap_gp_u_send(const char *data,int size) {
   if(!data || size<1 || data[size-1]!='\0')return;
   const long long now=std::llround(wb_robot_get_time()*1000);
   if(phase==first_takeoff_sent && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK")) {
-    takeoff=now;phase=wait_safety_land;persist();
+    takeoff=now;
+    phase=std::getenv("GP_ROUTE_PILOT_NEGATIVE_OUT")
+          ?send_negative_move:wait_safety_land;
+    persist();
     std::printf("GP_ROUTE_PILOT_ACK id=1 time_ms=%lld\n",now);std::fflush(stdout);
   } else if(phase==wait_safety_land && !std::strcmp(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK")) {
     land=now;phase=send_reset;persist();

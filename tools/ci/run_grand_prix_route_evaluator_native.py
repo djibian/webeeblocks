@@ -87,7 +87,8 @@ def check_native(data):
 def run_case(home, env, mode, index=5, *, profile_policy=None):
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
-                    'classroom-switch', 'classroom-switch-invalid'):
+                    'classroom-switch', 'classroom-switch-invalid',
+                    'flight-course-negative'):
         raise RuntimeError('unknown native evaluator probe mode')
     if mode in ('session-benchmark', 'flight-window'):
         if profile_policy not in ('historical-continuous-v1', 'classroom-static-v1'):
@@ -109,7 +110,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         (project / 'worlds').mkdir()
         controllers = project / 'controllers'
         controllers.mkdir()
-        if mode not in ('flight-reset', 'flight-window'):
+        if mode not in ('flight-reset', 'flight-window', 'flight-course-negative'):
             (controllers / 'grand_prix_route_flight').symlink_to(ROOT / 'controllers/grand_prix_route_flight', target_is_directory=True)
         else:
             flight = controllers / 'grand_prix_route_flight'
@@ -171,6 +172,8 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
             GP_ROUTE_EVALUATOR_INDEX=str(index))
         if mode in ('session-benchmark', 'flight-window'):
             environment['GP_ROUTE_PROFILE_POLICY'] = profile_policy
+        if mode == 'flight-course-negative':
+            environment['GP_ROUTE_PILOT_NEGATIVE_OUT'] = str(case / 'negative-request.txt')
         if mode in ('classroom-switch', 'classroom-switch-invalid'):
             environment['GP_ROUTE_SWITCH_WORLD'] = str(switched_world)
             environment['GP_ROUTE_SWITCH_INDEX'] = '0'
@@ -187,7 +190,7 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                 # Bound the flight/LAND/RESET wall budget using this actual
                 # R2025a pace; retain idle's 120 s, all native assertions,
                 # 8-ms sampling and the 210000-ms mission deadline.
-                status = process.wait(timeout=420 if mode in ('flight-reset', 'flight-window') else 120)
+                status = process.wait(timeout=420 if mode in ('flight-reset', 'flight-window', 'flight-course-negative') else 120)
                 if status != 0:
                     raise RuntimeError('native evaluator Webots failed: ' + str(log))
         finally:
@@ -202,7 +205,9 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
         text = log.read_text(errors='replace')
         data = json.loads(record.read_text()) if record.is_file() else None
         classroom = mode.startswith('classroom-')
-        expected_claim = ('native-classroom-world-switch-invalid-rejection-v1'
+        expected_claim = ('native-route-evaluator-real-lateral-course-negative-v1'
+                          if mode == 'flight-course-negative' else
+                          'native-classroom-world-switch-invalid-rejection-v1'
                           if mode == 'classroom-switch-invalid' else
                           'native-classroom-world-switch-attestation-v1'
                           if mode == 'classroom-switch' else
@@ -215,6 +220,46 @@ def run_case(home, env, mode, index=5, *, profile_policy=None):
                           else CLAIM if mode == 'idle' else FLIGHT_CLAIM)
         if type(data) is not dict or data.get('claim') != expected_claim:
             raise RuntimeError('native evaluator probe mode/claim mismatch')
+        if mode == 'flight-course-negative':
+            _check_ready(data.get('ready'))
+            negative = ('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 '
+                        'oracle=grand-prix-route-v2 status=not-achieved')
+            outcome = data.get('pilot_outcome')
+            ready = data['ready']['time_ms']
+            start = data.get('start_ms')
+            ack = data.get('takeoff_ack_ms')
+            airborne = data.get('airborne_ms')
+            request = data.get('negative_request_ms')
+            rejected = data.get('rejected_ms')
+            failed = data.get('pilot_failed_ms')
+            if (data.get('configuration') != course.identifier or
+                    data.get('webots') != 'R2025a' or data.get('timestep_ms') != 8 or
+                    data.get('phase') != 'native-dynamic-negative' or
+                    data.get('native_pilot') is not True or
+                    data.get('no_pupil_program') is not True or
+                    data.get('reason') not in
+                        ('course-boundary', 'envelope-contact', 'low-outside-zone') or
+                    data.get('scene_checks') != 1 or
+                    data.get('oracle_result') != 'not-achieved' or
+                    type(outcome) is not str or not outcome.startswith(negative) or
+                    type(data.get('terminal_witness')) is not str or
+                    not data['terminal_witness'].startswith('GP_ROUTE_TERMINAL_V1 attempt=1 ') or
+                    any(type(v) is not int or v < 0 or v % 8
+                        for v in (start, ack, airborne, request, rejected, failed)) or
+                    not ready <= start <= ack <= airborne <= request < rejected <= failed or
+                    type(data.get('airborne_z')) not in (float, int) or
+                    not .20 <= data['airborne_z'] <= 1.165):
+                raise RuntimeError('native lateral dynamic negative provenance invalid')
+            expected_command = (
+                f'GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms={request} '
+                f'course={course.identifier} action=MOVE-right-1.2\\n')
+            if (not (case / 'negative-request.txt').is_file() or
+                    (case / 'negative-request.txt').read_text() != expected_command or
+                    text.splitlines().count('GP_ROUTE_PILOT_REQUEST id=2 command=MOVE right 1.2') != 1 or
+                    text.splitlines().count('GP_ROUTE_PILOT_REQUEST id=1 command=TAKEOFF') != 1 or
+                    text.splitlines().count(f'GP_ROUTE_PILOT_ACK id=1 time_ms={ack}') != 1 or
+                    text.splitlines().count(f'GP_U_ADMISSION attempt=1 start_ms={start}') != 1):
+                raise RuntimeError('native lateral MOVE / TAKEOFF source evidence invalid')
         if mode == 'flight-window':
             _check_ready(data.get('ready'))
             streams = data.get('streams')
@@ -546,6 +591,11 @@ def run_native(home, env):
         json.dumps(summary, sort_keys=True, indent=2) + '\n')
     print('PASS 3 matched native R2025a A/B session pairs; no GUI/FPS/Windows claim',
           flush=True)
+
+    # Native dynamic refutation, NOT a teleported Supervisor scene mutation:
+    # the genuine pilot executes an intentionally off-course MOVE after TAKEOFF.
+    # The native oracle must fail and the pilot must publish its own negative.
+    run_case(home, env, 'flight-course-negative', 5)
 
     # One bounded real native airborne A/B pair, with identical C pilot
     # stimulus and without changing policy, PID, or mission oracles.

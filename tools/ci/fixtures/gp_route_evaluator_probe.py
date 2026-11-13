@@ -29,7 +29,8 @@ def witness():
     mode = os.environ['GP_ROUTE_EVALUATOR_MODE']
     if mode not in ('idle', 'flight-reset', 'classroom-startup', 'classroom-invalid',
                     'paired-benchmark', 'session-benchmark', 'flight-window',
-                    'classroom-switch', 'classroom-switch-invalid'):
+                    'classroom-switch', 'classroom-switch-invalid',
+                    'flight-course-negative'):
         raise RuntimeError('unknown native evaluator probe mode')
     ack_path = Path(os.environ['GP_ROUTE_PILOT_ACK_OUT'])
     ready_path = Path(os.environ['GP_ROUTE_PILOT_NATIVE_READY_OUT'])
@@ -372,6 +373,8 @@ def witness():
                     configuration=course.identifier, webots='R2025a', timestep_ms=8)
     if mode == 'flight-window':
         evidence['claim'] = 'native-route-evaluator-real-airborne-window-v1'
+    if mode == 'flight-course-negative':
+        evidence['claim'] = 'native-route-evaluator-real-lateral-course-negative-v1'
     phase = 'waiting'
     wall_started = time.monotonic()
     restored_ticks = 0
@@ -497,6 +500,94 @@ def witness():
                 finish()
                 return
         raise RuntimeError('real native airborne measurement incomplete')
+
+    if mode == 'flight-course-negative':
+        # Only a standard WWI MOVE is injected into the REAL native C pilot.
+        # Geometry, sensor outputs, pose, PID, oracle and safety authority are
+        # never modified. One bounded native counterexample, not twelve flights.
+        if policy != SCENE_POLICY_CLASSROOM_STATIC or scene_checks[0] != 1:
+            raise RuntimeError('native dynamic negative needs one static attestation')
+        negative_path = output.with_name('negative-request.txt')
+        stage = 'ready'
+        terminal_ms = None
+        for _ in range(5400):
+            if robot.step(8) == -1:
+                raise RuntimeError('native dynamic negative Webots interrupted')
+            evaluator.tick()
+            now = round(robot.getTime() * 1000)
+            description = robot.getSelf().getField('description').getSFString()
+            if stage == 'ready':
+                if evaluator.phase == 'ready':
+                    evidence['ready'] = ready_record(now)
+                    if evaluator._context is None or evaluator._context.attempt != 1:
+                        raise RuntimeError('native dynamic negative lost fresh attempt')
+                    cue_takeoff(1, now)
+                    stage = 'airborne'
+                continue
+            acks = json.loads(ack_path.read_text()) if ack_path.is_file() else {}
+            if stage == 'airborne':
+                if evaluator.phase in ('failed', 'authority-revoked'):
+                    raise RuntimeError('native negative failed before verified flight')
+                if acks.get('takeoff_ack_ms', -1) < 0 or evaluator.phase != 'active':
+                    continue
+                sample = evaluator.observation
+                if (sample is None or sample.kinematics.position[2] < .20 or
+                        not description.startswith('GP_ROUTE_ALIVE_V1 attempt=1 ') or
+                        sample.time_ms != now or
+                        not 0 <= now - sample.flight.time_ms <= 32):
+                    continue
+                evidence['start_ms'] = evaluator._start_ms
+                evidence['takeoff_ack_ms'] = acks['takeoff_ack_ms']
+                evidence['airborne_ms'] = now
+                evidence['airborne_z'] = sample.kinematics.position[2]
+                stage = 'await-oracle-negative'
+            if stage == 'await-oracle-negative':
+                if evaluator.phase in ('failed', 'authority-revoked'):
+                    if not negative_path.is_file():
+                        raise RuntimeError('negative occurred without the real pilot MOVE')
+                    command = negative_path.read_text()
+                    prefix = ('GP_ROUTE_PILOT_NEGATIVE_REQUEST_V1 time_ms=')
+                    suffix = (' course=' + course.identifier +
+                              ' action=MOVE-right-1.2\\n')
+                    if not command.startswith(prefix) or not command.endswith(suffix):
+                        raise RuntimeError('native lateral command evidence corrupted')
+                    request_ms = int(command[len(prefix):-len(suffix)])
+                    if (request_ms % 8 or
+                            not evidence['start_ms'] <= evidence['takeoff_ack_ms'] <=
+                            request_ms < now):
+                        raise RuntimeError('native lateral request ordering invalid')
+                    reason = evaluator.last_error
+                    if reason not in ('course-boundary', 'envelope-contact',
+                                      'low-outside-zone'):
+                        raise RuntimeError('oracle did not reject native off-course motion: ' +
+                                           str(reason))
+                    if (evaluator._active is None or evaluator._active.result is None or
+                            evaluator._active.result.reason != reason or
+                            evaluator._positive_written or scene_checks[0] != 1 or
+                            not description.startswith('GP_ROUTE_TERMINAL_V1 attempt=1 ')):
+                        raise RuntimeError('native dynamic failure/terminal witness missing')
+                    evidence.update(reason=reason, negative_request_ms=request_ms,
+                        rejected_ms=now, scene_checks=scene_checks[0],
+                        terminal_witness=description,
+                        oracle_result=evaluator._active.result.status)
+                    terminal_ms = now
+                    stage = 'await-pilot-negative'
+            if stage == 'await-pilot-negative':
+                vehicle = evaluator._vehicle.getField('customData').getSFString()
+                negative = ('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 '
+                            'oracle=grand-prix-route-v2 status=not-achieved')
+                if vehicle.startswith(negative) and (len(vehicle) == len(negative) or
+                         vehicle[len(negative)] == ' '):
+                    if now < terminal_ms or scene_checks[0] != 1:
+                        raise RuntimeError('native negative witness temporal mismatch')
+                    evidence.update(phase='native-dynamic-negative',
+                        native_pilot=True, no_pupil_program=True,
+                        pilot_outcome=vehicle, pilot_failed_ms=now,
+                        aircraft_altitude_at_failure_m=(
+                            evaluator.observation.kinematics.position[2]))
+                    finish()
+                    return
+        raise RuntimeError('real native lateral oracle negative incomplete')
 
     while True:
         step_started = time.monotonic()
