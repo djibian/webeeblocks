@@ -886,6 +886,10 @@ jobs:
               chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
               python3 /workspace/tools/ci/test_pause_wwi_evidence.py
               python3 /workspace/tools/ci/run_webots_pause_wwi_probe.py
+              # Actual route flight and evaluator, real Blockly Robot Window,
+              # step-debug PAUSE/RESUME, native frozen clock, STOP and RESET.
+              # Deliberately fail the required Runtime suite if unproven.
+              python3 /workspace/tools/ci/run_grand_prix_route_pause_product_native.py
             '
 
       - name: Prepare fixed Color LED render proof
