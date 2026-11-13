@@ -273,7 +273,7 @@ async function proveRouteTechnicalDiagnostics() {
  * or an oracle. The same four ordinary Runtime states must remain authoritative. */
 async function proveRouteLiveClock() {
   const events = new Map(), timers = new Map();
-  let nextInterval = 1, backend = null, reads = 0;
+  let nextInterval = 1, backend = null, reads = 0, nonceCounter = 0;
   const span = {id: null, textContent: '', style: {},
     setAttribute(key, value) { this[key] = value; }};
   const panel = {children: [], style: {}, appendChild(el) {this.children.push(el);}};
@@ -288,7 +288,8 @@ async function proveRouteLiveClock() {
     addEventListener(name, listener) {events.set(name, listener);},
     setInterval(fn, ms) {assert.equal(ms, 1000); const id = nextInterval++;timers.set(id, fn);return id;},
     clearInterval(id) {timers.delete(id);},
-    Promise
+    Promise,
+    crypto: {getRandomValues(bytes) {bytes.fill(++nonceCounter % 256); return bytes;}}
   };
   context.window = context;
   Object.defineProperty(context, 'runtimeBackend', {get() {return backend;}, set(value) {backend = value;}});
@@ -337,7 +338,73 @@ async function proveRouteLiveClock() {
   change('ARRÊTÉ');
   assert.equal(timers.size, 0);
   assert.equal(panel.children.length, 1, 'clock must not duplicate after reset');
-  console.log('PASS native ELAPSED Grand Prix route clock: onset, samples, stale suppression, reset/stop, bounded polling');
+  // A route-only, browser-nonce-bound native event must update each simulated
+  // second independently of the 1000 ms wall fallback. No other attempt or
+  // older STOP/RESET nonce can update the latest mission display.
+  const sent = [];
+  backend = {ready: true, robotWindow: {send(message) {sent.push(message);}},
+    readElapsedTime() {return Promise.reject(new Error('not-admitted'));}};
+  change('PRÊT');
+  change('EXÉCUTION');await flush();
+  const subscription = sent[sent.length - 1];
+  assert(/^GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce=[0-9a-f]{32}$/.test(subscription),
+    'clock subscription missing unpredictable session nonce');
+  const nonce = subscription.slice(-32);
+  const notify = raw => events.get('webeeblocks-route-native-clock')({detail: {raw}});
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=2');
+  assert.equal(span.textContent, '00min 00s / 03min 30s',
+    'unbound native clock event accepted');
+  notify('GP_ROUTE_CLOCK_V1 ACK nonce=' + nonce + ' attempt=7');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=2');
+  assert.equal(span.textContent, '00min 02s / 03min 30s',
+    'native simulated second not displayed promptly');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=8 seconds=3');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=ffffffffffffffffffffffffffffffff attempt=7 seconds=3');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=1');
+  assert.equal(span.textContent, '00min 02s / 03min 30s',
+    'stale/cross-attempt or regressing clock event accepted');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=60');
+  assert.equal(span.textContent, '01min 00s / 03min 30s',
+    'simulated minute rollover did not reach pinned clock');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=210');
+  assert.equal(span.textContent, '03min 30s / 03min 30s',
+    'exact native 210 s boundary did not reach pinned clock');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=211');
+  assert.equal(span.textContent, '03min 30s / 03min 30s',
+    'out-of-bounds time from native clock accepted');
+  change('PRÊT');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=61');
+  assert.equal(span.textContent, '00min 00s / 03min 30s',
+    'old native clock after RESET changed current display');
+  change('EXÉCUTION');await flush();
+  assert.notEqual(sent[sent.length - 1], subscription,
+    'new attempt reused an earlier session nonce');
+  notify('GP_ROUTE_CLOCK_V1 ACK nonce=' + nonce + ' attempt=7');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + nonce + ' attempt=7 seconds=62');
+  assert.equal(span.textContent, '00min 00s / 03min 30s',
+    'old native ACK/TICK contaminated the new attempt');
+  change('ARRÊTÉ');
+  // Adversarial race: a fallback ELAPSED request starts before the native ACK.
+  // Its late (but valid) time must not overwrite the authoritative TICK once
+  // the native stream has taken over the display for the same run.
+  let releaseFallback = null;
+  backend = {ready:true, robotWindow:{send(message) {sent.push(message);}},
+    readElapsedTime() {return new Promise(resolve => {releaseFallback = resolve;});}};
+  change('PRÊT');
+  change('EXÉCUTION');await flush();
+  assert.equal(typeof releaseFallback, 'function', 'missing in-flight ELAPSED request');
+  const lastSubscribe = sent[sent.length - 1];
+  assert(/^GP_ROUTE_CLOCK_V1 SUBSCRIBE nonce=[0-9a-f]{32}$/.test(lastSubscribe));
+  const lastNonce = lastSubscribe.slice(-32);
+  notify('GP_ROUTE_CLOCK_V1 ACK nonce=' + lastNonce + ' attempt=9');
+  notify('GP_ROUTE_CLOCK_V1 TICK nonce=' + lastNonce + ' attempt=9 seconds=10');
+  assert.equal(span.textContent, '00min 10s / 03min 30s',
+    'bound native simulated-second TICK was not displayed');
+  releaseFallback(120.75);await flush();
+  assert.equal(span.textContent, '00min 10s / 03min 30s',
+    'in-flight wall-polled fallback overwrote an already bound native tick');
+  change('ARRÊTÉ');
+  console.log('PASS native route clock: simulated-second pushes, 59→60, nonce/attempt binding, STOP/RESET, late fallback exclusion, no wall extrapolation');
 }
 
 run(false);
