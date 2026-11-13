@@ -1,0 +1,63 @@
+DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {
+  children [
+    # Activity 2: visual markers are non-colliding Pose nodes. The three Solids below
+    # are the ONLY activity obstacle colliders; no invisible goal trigger.
+    Pose { translation 0 0 0.002 children [
+      Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.9 }
+        geometry Box { size 0.18 0.30 0.004 } }
+      # An independent native C scene oracle; no Python or shared runtime edit.
+      # Nest in this existing Pose: the 21 direct children stay unchanged.
+      Robot {
+        name "Progression altitude native evaluator"
+        controller "progression_altitude_v1"
+        supervisor TRUE
+        synchronization TRUE
+      }
+    ] }
+    Pose { translation 1.35 0 0.002 children [
+      Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.9 }
+        geometry Box { size 0.34 0.34 0.004 } }
+    ] }
+    # Four-by-four checkerboard inside the green arrival border.
+    Pose { translation 1.237500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.312500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.387500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.462500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.237500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.312500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.387500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.462500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.237500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.312500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.387500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.462500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.237500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.312500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.387500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    Pose { translation 1.462500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 1 } geometry Box { size 0.075 0.075 0.0002 } } ] }
+    # Barrier top=0.62 m: nominal 0.45 m takeoff cannot clear it without ascent.
+    DEF ACTIVITY2_LOW_BARRIER Solid {
+      translation 0.62 0 0.31
+      name "Activity 2 visible low barrier"
+      children [ Shape { appearance PBRAppearance { baseColor 0.85 0.16 0.12 roughness 0.8 }
+        geometry Box { size 0.12 0.84 0.62 } } ]
+      boundingObject Box { size 0.12 0.84 0.62 }
+    }
+    # Side-wall inner faces at +/-0.47 m. The 0.05 m side gap to the
+    # barrier is narrower than a 0.09 m craft envelope; no lateral shortcut.
+    DEF ACTIVITY2_LEFT_WALL Solid {
+      translation 0.68 0.51 0.425
+      name "Activity 2 left corridor wall"
+      children [ Shape { appearance PBRAppearance { baseColor 0.35 0.48 0.60 roughness 0.8 }
+        geometry Box { size 1.65 0.08 0.85 } } ]
+      boundingObject Box { size 1.65 0.08 0.85 }
+    }
+    DEF ACTIVITY2_RIGHT_WALL Solid {
+      translation 0.68 -0.51 0.425
+      name "Activity 2 right corridor wall"
+      children [ Shape { appearance PBRAppearance { baseColor 0.35 0.48 0.60 roughness 0.8 }
+        geometry Box { size 1.65 0.08 0.85 } } ]
+      boundingObject Box { size 1.65 0.08 0.85 }
+    }
+  ]
+}
