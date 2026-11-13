@@ -120,8 +120,16 @@ class NativeSequence3D(unittest.TestCase):
             self.assertNotIn(forbidden, source)
         self.assertIn("C_SOURCES = progression_sequence_3d.c", makefile)
         self.assertIn("mktemp -d /tmp/wb-a1-native-", runner)
+        # Webots R2025a Makefile.include computes BUILD_TYPE from the parent
+        # folder name. A random /tmp basename would build lib*.so instead of
+        # the expected executable, even with all the right source files.
+        self.assertIn('proof_root=$(mktemp -d /tmp/wb-a1-native-', runner)
+        self.assertIn('proof_dir=\\"$proof_root/controllers/progression_sequence_3d\\"', runner)
+        self.assertIn('mkdir -p \\"$proof_dir\\"', runner)
+        self.assertNotIn('proof_dir=$(mktemp -d /tmp/wb-a1-native-', runner)
         self.assertIn("cp Makefile progression_sequence_3d.c sequence_core.h", runner)
         self.assertIn('make -C \\"$proof_dir\\"', runner)
+        self.assertIn('test -s \\"$proof_dir/progression_sequence_3d\\"', runner)
         self.assertNotIn('"make clean && make && test -s progression_sequence_3d"', runner)
         self.assertIn("test_progression_sequence_3d_native.py", runner)
 
