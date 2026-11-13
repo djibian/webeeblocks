@@ -300,10 +300,11 @@
     // A profile declares its scene; an unknown activity must never silently
     // fall back to the obstacle-filled legacy scene.
     var scene = profile && profile.runtime && profile.runtime.scene;
-    // Explicitly staged school scene token. The native flight controller
-    // remains authoritative: the original physical runtime refuses altitude
-    // and only the separately compiled classroom selector may acknowledge it.
-    if (scene !== 'sequence-v1' && scene !== 'legacy-v1' && scene !== 'altitude-v1')
+    // Explicitly staged school scene tokens, never inferred from activity IDs.
+    // Native scene admission remains authoritative: the physical runtime
+    // refuses altitude/orientation; only the school selector may ACK them.
+    if (scene !== 'sequence-v1' && scene !== 'legacy-v1' &&
+        scene !== 'altitude-v1' && scene !== 'orientation-v1')
       return Promise.reject(new RuntimeV2BackendError('SCENE_UNAVAILABLE'));
     if (this.sceneIdentity === scene) return Promise.resolve();
     this.sceneIdentity = null; // An unknown import outcome must be reconstructed.
