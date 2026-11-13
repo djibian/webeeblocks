@@ -26,6 +26,13 @@
       throw new Error('Runtime v2 RobotWindow transport unavailable');
     this.robotWindow = robotWindow;
     this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
+    // Strict opt-in only for the Grand Prix Route simulation: one native
+    // TAKEOFF took 52.319 s wall time in real R2025a while its reply was
+    // still in flight. Keep ADMISSION, STOP, RESET, LAND, mission outcome,
+    // all other commands and the physical backend at the existing budget.
+    // Never retry an ambiguously timed-out effect.
+    this.routeTakeoffTimeoutMs = options && options.simulationAdmission === true &&
+      options.routeTakeoffTimeoutMs === 90000 ? 90000 : null;
     // World evaluators settle in simulation time. A separate 2 s wall budget
     // incorrectly rejected valid negative results on a slower classroom PC.
     // Keep the same bounded observation budget as other backend operations;
@@ -109,7 +116,8 @@
       sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       parts = parts.concat([sceneNonce]);
     }
-    var requestTimeout = this.timeoutMs;
+    var requestTimeout = parts[0] === 'TAKEOFF' && this.routeTakeoffTimeoutMs !== null
+      ? this.routeTakeoffTimeoutMs : this.timeoutMs;
     if (waitMs !== undefined) {
       if (!Number.isFinite(waitMs) || waitMs <= 0)
         return Promise.reject(new RuntimeV2BackendError('ADMISSION_UNAVAILABLE'));
