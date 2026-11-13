@@ -41,6 +41,13 @@ Node evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group",
  "DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }",true,6};
 Node sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false,18};
 Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,21};
+Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
+Node orientOrigin{"","Pose","",false,2};
+Node orientGlyph{"","Shape","",false,0};
+Node orientObserver{"","Robot","",false,0};
+std::string orientController="progression_orientation_3d";
+std::string orientName="Progression orientation 3D evaluator";
+int orientSupervisor=1,orientSynchronization=1;
 Node barrier{"ACTIVITY2_LOW_BARRIER","Solid","",false,0};
 Node left{"ACTIVITY2_LEFT_WALL","Solid","",false,0};
 Node right{"ACTIVITY2_RIGHT_WALL","Solid","",false,0};
@@ -49,7 +56,7 @@ Node leftBox{"","Box","",true,0};
 Node rightBox{"","Box","",true,0};
 double barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
 double barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
-std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&barrier,&left,&right};
+std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&orientScene,&barrier,&left,&right};
 int rootChildren=0, position=0, orientation=0;
 double pos[3]={-2,-2,2},rot[4]={0,0,1,1};
 double colliderIdentity[9]={1,0,0,0,1,0,0,0,1};
@@ -73,13 +80,20 @@ extern "C" void wb_supervisor_node_remove(void*n){
  Node*p=static_cast<Node*>(n);assert(p->alive);p->alive=false;
  removals.push_back(p->def);
  if(p==&altitude){barrier.alive=left.alive=right.alive=false;}
+ if(p==&orientScene){orientOrigin.alive=orientGlyph.alive=orientObserver.alive=false;}
 }
 extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
  if(n==&root && !std::strcmp(field,"children"))return &rootChildren;
  if(n==&viewpoint && !std::strcmp(field,"position"))return &position;
  if(n==&viewpoint && !std::strcmp(field,"orientation"))return &orientation;
  Node*p=static_cast<Node*>(n);
- if(!std::strcmp(field,"children")&&p->type=="Group")return &p->count;
+ if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin))return &p->count;
+ if(p==&orientObserver){
+  if(!std::strcmp(field,"controller"))return &orientController;
+  if(!std::strcmp(field,"name"))return &orientName;
+  if(!std::strcmp(field,"supervisor"))return &orientSupervisor;
+  if(!std::strcmp(field,"synchronization"))return &orientSynchronization;
+ }
  if(!std::strcmp(field,"boundingObject")) {
   if(p==&barrier)return missingBounds?nullptr:&barrierBox;
   if(p==&left)return &leftBox;
@@ -107,7 +121,19 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*f,int index){
   }
   return nullptr;
  }
+ if(f==&orientScene.count)
+  return index==0 ? (orientOrigin.alive?&orientOrigin:nullptr)
+      : index>0&&index<orientScene.count?&viewpoint:nullptr;
+ if(f==&orientOrigin.count)
+  return index==0 ? (orientGlyph.alive?&orientGlyph:nullptr)
+      : index==1&&orientObserver.alive?&orientObserver:nullptr;
  return index>=0&&index<*static_cast<int*>(f)?&viewpoint:nullptr;
+}
+extern "C" const char* wb_supervisor_field_get_sf_string(void*f){
+ return static_cast<std::string*>(f)->c_str();
+}
+extern "C" int wb_supervisor_field_get_sf_bool(void*f){
+ return *static_cast<int*>(f);
 }
 extern "C" const double* wb_supervisor_field_get_sf_vec3f(void*f){
  if(f==barrierSize)return barrierSize;
@@ -132,7 +158,19 @@ extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double*p){std::memc
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double*p){std::memcpy(rot,p,sizeof(rot));}
 extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char*data){
  const std::string src=data;
- if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
+ if(src.find("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {")!=std::string::npos){
+  orientScene.alive=true;orientScene.count=partial?23:24;
+  orientOrigin.alive=orientGlyph.alive=orientObserver.alive=true;
+  // The 24-child count remains 24 if a nested observer is replaced by Shape.
+  // Never infer a real Robot from a controller string in an WBO comment.
+  orientObserver.type=src.find("      Robot {")!=std::string::npos?"Robot":"Shape";
+  orientController=src.find("controller \"unexpected\"")!=std::string::npos
+    ?"unexpected":"progression_orientation_3d";
+  orientName=src.find("name \"Wrong evaluator\"")!=std::string::npos
+    ?"Wrong evaluator":"Progression orientation 3D evaluator";
+  orientSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
+  orientSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
+ } else if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
   altitude.alive=true;altitude.count=partial?20:21;
   barrier.alive=true;left.alive=true;right.alive=!missingCollider;
  } else if(src.find("DEF WEBEEBLOCKS_LEGACY_SCENE Group {")!=std::string::npos){
@@ -158,6 +196,42 @@ int main(int argc,char**argv){
  assert(!webeeblocks_select_activity_scene(""));
  assert(!webeeblocks_select_activity_scene(nullptr));
  assert(removals.empty());
+ if(mode.rfind("orientation-",0)==0){
+  if(mode=="orientation-missing" || mode=="orientation-malformed"){
+   assert(!webeeblocks_select_activity_scene("orientation-v1"));
+   assert(removals.empty() && legacy.alive && evaluators.alive);
+   assert(webeeblocks_activity_scene_ready());
+   std::cout<<"PASS school orientation fail-closed before removal\n";
+   return 0;
+  }
+  partial=mode=="orientation-partial";
+  const bool orientValid=mode=="orientation-valid";
+  assert(bool(webeeblocks_select_activity_scene("orientation-v1"))==orientValid);
+  assert(orientScene.alive && !legacy.alive && !evaluators.alive);
+  assert(bool(webeeblocks_activity_scene_ready())==orientValid);
+  assert(!altitude.alive && !sequence.alive);
+  assert(webeeblocks_select_activity_scene("legacy-v1"));
+  assert(webeeblocks_activity_scene_ready());
+  assert(legacy.alive && evaluators.alive && !orientScene.alive);
+  assert(pos[0]==-2);
+  if(orientValid){
+   assert(webeeblocks_select_activity_scene("sequence-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(webeeblocks_select_activity_scene("orientation-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(!sequence.alive && !legacy.alive);
+   orientScene.count=23;
+   assert(!webeeblocks_activity_scene_ready());
+   // A stale same-scene identity must be rejected, then a fresh versioned
+   // import may repair it; no false READY survives the damaged live group.
+   assert(webeeblocks_select_activity_scene("orientation-v1"));
+   assert(webeeblocks_activity_scene_ready());
+   assert(webeeblocks_select_activity_scene("legacy-v1"));
+   assert(webeeblocks_activity_scene_ready());
+  }
+  std::cout<<"PASS school orientation selector: "<<mode<<"\n";
+  return 0;
+ }
  if(mode=="missing" || mode=="malformed"){
   assert(!webeeblocks_select_activity_scene("altitude-v1"));
   assert(webeeblocks_activity_scene_ready());
@@ -206,6 +280,10 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn("classroom_scene.cpp", mk)
         self.assertNotIn(" activity_scene.cpp", mk)
         self.assertIn("altitude-v1", cpp)
+        self.assertIn("orientation-v1", cpp)
+        self.assertIn("kOrientationSceneChildren = 24", cpp)
+        self.assertIn("WEBEEBLOCKS_ORIENTATION_SCENE", cpp)
+        self.assertNotIn('"orientation-v1"', phys)
         self.assertIn("kAltitudeSceneChildren = 21", cpp)
         self.assertIn("WEBEEBLOCKS_ALTITUDE_SCENE", cpp)
         self.assertNotIn('"altitude-v1"', phys)
@@ -242,7 +320,9 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                     "void wb_supervisor_node_remove(WbNodeRef);\n"
                     "WbNodeRef wb_supervisor_field_get_sf_node(WbFieldRef);\n"
                     "const double *wb_supervisor_node_get_position(WbNodeRef);\n"
-                    "const double *wb_supervisor_node_get_orientation(WbNodeRef);"
+                    "const double *wb_supervisor_node_get_orientation(WbNodeRef);\n"
+                    "const char *wb_supervisor_field_get_sf_string(WbFieldRef);\n"
+                    "int wb_supervisor_field_get_sf_bool(WbFieldRef);"
                 ))
             scenes=root/"worlds/scenes"
             scenes.mkdir(parents=True)
@@ -261,6 +341,27 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             built=subprocess.run(cmd,text=True,stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,timeout=45)
             self.assertEqual(built.returncode,0,built.stdout)
+            authentic=(ROOT/"worlds/scenes/orientation-v1.wbo").read_text(encoding="utf-8")
+            real_observer = (
+                '      Robot {\n'
+                '        name "Progression orientation 3D evaluator"\n'
+                '        controller "progression_orientation_3d"\n'
+                '        supervisor TRUE\n'
+                '        synchronization TRUE\n'
+                '      }'
+            )
+            self.assertEqual(authentic.count(real_observer),1)
+            # The exact counterexample from independent NO_GO: same 24 direct
+            # children and literal controller text, but no actual Robot.
+            fake_comment=authentic.replace(
+                real_observer,
+                '      Shape { geometry Box { size 0.01 0.01 0.01 } }\n'
+                '      # controller "progression_orientation_3d"',
+                1)
+            self.assertEqual(fake_comment.count('      Robot {'),0)
+            self.assertEqual(fake_comment.count('controller "progression_orientation_3d"'),1)
+            self.assertEqual(fake_comment.count('    Pose { translation '),
+                             authentic.count('    Pose { translation '))
             cases={
                 "missing":None,
                 "malformed":"DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] }",
@@ -272,10 +373,26 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                 "wrong-box-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
                 "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
+                "orientation-missing": None,
+                "orientation-malformed": 'DEF WEBEEBLOCKS_ORIENTATION_SCENE Group { children [] }',
+                "orientation-valid": authentic,
+                "orientation-partial": authentic,
+                "orientation-comment-only": fake_comment,
+                "orientation-wrong-controller": authentic.replace(
+                    'controller "progression_orientation_3d"',
+                    'controller "unexpected"',1)
+                    + '\n# controller "progression_orientation_3d"\n',
+                "orientation-wrong-name": authentic.replace(
+                    'name "Progression orientation 3D evaluator"',
+                    'name "Wrong evaluator"',1),
+                "orientation-not-supervisor": authentic.replace(
+                    'supervisor TRUE','supervisor FALSE',1),
+                "orientation-not-synchronized": authentic.replace(
+                    'synchronization TRUE','synchronization FALSE',1),
             }
             for name,scene in cases.items():
                 with self.subTest(case=name):
-                    target=scenes/"altitude-v1.wbo"
+                    target=scenes/("orientation-v1.wbo" if name.startswith("orientation-") else "altitude-v1.wbo")
                     if target.exists():target.unlink()
                     if scene is not None:target.write_text(scene)
                     run=subprocess.run([str(out),str(root),name],

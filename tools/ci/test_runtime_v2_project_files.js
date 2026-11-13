@@ -125,11 +125,26 @@ async function proveScenePreparation() {
   await preparingAltitude;
   assert.strictEqual(backend.sceneIdentity, 'altitude-v1');
 
+  // The orientation vocabulary is staged, but no pupil profile selects it.
+  // Even a legacy OK must not attest the world: only an exact native scene ACK.
+  const stagedOrientation = JSON.parse(JSON.stringify(sequence));
+  stagedOrientation.runtime.scene = 'orientation-v1';
+  assert.strictEqual(Profiles.validateProfile(stagedOrientation, Activities.BLOCK_CATALOG), true);
+  assert(!Activities.DOCUMENT.activities.some(p => p.runtime.scene === 'orientation-v1'));
+  const preparingOrientation = backend.prepareActivity(stagedOrientation);
+  assert.match(messages.at(-1), / REQUEST 3 SCENE orientation-v1 [0-9a-f]{64}$/);
+  assert.strictEqual(backend.sceneIdentity, null, 'orientation claimed before native ACK');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
+  assert.strictEqual(backend.sceneIdentity, null, 'legacy OK authenticated orientation');
+  backend.handleMessage(sceneAck(backend, 3));
+  await preparingOrientation;
+  assert.strictEqual(backend.sceneIdentity, 'orientation-v1');
+
   const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
   await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
   backend.simulationStopped = true;
   await assert.rejects(() => backend.prepareActivity(sequence), e => e.code === 'USER_STOPPED');
-  assert.strictEqual(messages.length, 2);
+  assert.strictEqual(messages.length, 3);
 
   const sent = [];
   const racing = new WwiBackend({send:m=>sent.push(m)}, {simulationScenes:true,simulationReset:true,timeoutMs:1000});

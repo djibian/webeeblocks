@@ -11,6 +11,37 @@ GitHub commits, PRs, checks, reviews, issues and evidence describe live executio
 state. Do not duplicate agent/session state, WIP counters, ownership or queues
 here.
 
+## Owner decision — 2026-11-12: trusted classroom scene, no per-step static revalidation
+
+The Grand Prix classroom simulator is **not** an anti-tamper/anti-cheat service.
+After full independent native attestation of the instantiated world **before
+READY**, the canonical physical route is trusted to remain static until the
+activity/world is explicitly reloaded. A native evaluator restart or new world
+incarnation must re-attest. Normal RESET keeps the same static geometry.
+
+Product direction: remove repeated static graph exports, Floor and collider
+readbacks from every 8-ms observation; retain live kinematics, contacts, sensor
+provenance, collision/swept-geometry mission oracle, native attempt and liveness
+checks, independent STOP/RESET/LAND/deadline, and all real-flight gates.
+Direct deliberate editing of the Webots scene during an attempt is **unsupported
+and not detected by the classroom mode**. It invalidates the evidentiary value
+of the attempt; do not claim tamper-proof integrity.
+
+**Qualification, not an automatic release:** test initial malformed-world
+rejection, world/evaluator reincarnation, normal RESET and negative flight
+oracles, the 12 routes, and reproducible paired native/Windows performance.
+The historical continuous checker remains an engineering comparison path.
+No Ready/merge without independent V5 review and observed evidence.
+
+**Active performance path — [#914](https://github.com/djibian/webeeblocks/issues/914) is authoritative (owner update 2026-11-12):**
+
+1. Qualify the [#970](https://github.com/djibian/webeeblocks/pull/970) Draft on the **exact integrated HEAD**: canonical/malformed world attestation before READY, new evaluator and re-attestation after `worldLoad()`, intact real native pilot, 8-ms physics, negative dynamic oracles, 12 routes, RESET, independent LAND/deadline, full safety and independent V5 review. Native geometry-only teleport witnesses are **not** successful pupil missions.
+2. Compare the initial-only classroom policy with the historical continuous checker under the same Webots engine, host, course and flight phase. Preserve raw `step(8)`, `tick()`, complete wall-cycle quantiles and physical trajectories. A headless speed result is not Windows GUI acceptance.
+3. **Only native Webots 3D rendering at 100% resolution:** measure its supported `WorldInfo.FPS` caps **60 / 30 / 25** in Run/Real-time using matched viewport, camera, machine, course and ordinary Blockly program. Record actual on-screen FPS, sim/wall throughput, p99/max native step latency and editor controls; do not claim FPS from the requested cap alone. The separate WebGL view, pose IPC and asynchronous render separation from [#967](https://github.com/djibian/webeeblocks/pull/967) / [#912](https://github.com/djibian/webeeblocks/issues/912) are **closed/abandoned by explicit owner decision**, without merge.
+4. Qualify a complete portable **Windows** Grand Prix with the ordinary Blockly UI on the owner's old personal laptop (never the school network), target ≥0.95× stabilized sim/wall, unchanged physical 8 ms, 100% native 3D view, 25–30 FPS visibly measured and p99 step/cycle ≤25 ms (max target ≤80 ms). Preserve STOP/RESET/LAND, file Open/Save, native negative oracles and the existing V5 human checkpoint. These are goals, not presumptive PASS values.
+
+**Retired research (evidence preserved, not product dependencies):** compact native frame/mutation branches #910/#911/#913/#922/#923/#946, cached visual reads #966, WREN framebuffer scaling #938, anti-mutation confinement #968 and separate passive graphics #967/#912. Never restore the abandoned anti-cheat or separate-render requirements to obtain a green throughput figure.
+
 ## Owner priority update — 2026-11-03: Grand Prix Linux for teacher-led Blockly design
 
 The [owner's explicit decision on #587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6598600569) **supersedes the fixed-size U/always-left-turn assumptions** below.
