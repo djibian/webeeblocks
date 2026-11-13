@@ -11,6 +11,27 @@ activity -> Blockly -> AST -> preflight -> interpreter -> backend
 Never weaken a safety rule or oracle to obtain a green result. Real Crazyflie
 flight and publication remain human decisions.
 
+The owner-approved Grand Prix *classroom simulation* assumes a canonical, trusted
+static world for the duration of an activity, after full native startup
+attestation. Deliberate in-flight GUI/Supervisor scene editing is outside this
+pedagogical trust model; the product does not certify anti-tampering. This is an
+explicit change in scope, **not** permission to weaken flight dynamics, sensors,
+collisions, mission oracles, native identity/clock/liveness, STOP/RESET/LAND,
+or any independent real-Crazyflie authorization or hardware safety gate.
+Document and test the distinction; a Draft is not qualified for release.
+For this performance effort, #914 is the current authoritative delivery
+entry point and #970 is the Draft startup-attestation experiment. The only
+active graphics experiment is the native Webots R2025a 3D viewport at full
+resolution, comparing WorldInfo.FPS caps 60/30/25 while retaining 8-ms native
+physics, sensors and the ordinary Blockly interface. The independent WebGL
+view/IPC/asynchronous rendering proposals #967/#912 were explicitly abandoned
+and closed without product integration on 2026-11-12; do not reopen them
+without a new owner decision. Historic compact-frame/revision work
+#910/#911/#913 and PRs #922/#923/#946, visual caching #966 and WREN
+render-scale experiments #938 remain evidence, not active architecture
+dependencies. Do not remove dynamic oracle checks, degrade the visible
+resolution or infer a Windows product PASS from Linux benchmarks.
+
 ## 1 — Stateless Controllers
 
 Controller executions are independent, re-entrant and disposable. The state of
