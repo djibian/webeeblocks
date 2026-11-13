@@ -257,6 +257,8 @@ def main() -> int:
         ["python3", "tools/ci/test_land_contact_summary.py"],
         [sys.executable, "tools/ci/test_classroom_altitude_smoke_world.py"],
         [sys.executable, "tools/ci/test_classroom_orientation_smoke_world.py"],
+        [sys.executable, "tools/ci/test_classroom_altitude_scene_ack.py"],
+        ["node", "--check", "plugins/robot_windows/altitude_scene_ack_probe/altitude_scene_ack_probe.js"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
@@ -439,6 +441,7 @@ python3 /workspace/tools/ci/run_land_contact_regression.py \
   --case idle-stop \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/idle-stop-response
+# Configure native Robot Window BEFORE the scene-ACK witness.
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \
@@ -446,6 +449,10 @@ printf "%s\n" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
+# This additional witness is school-only; never a program / flight PASS.
+if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  python3 /workspace/tools/ci/run_classroom_altitude_scene_ack.py
+fi
 python3 /workspace/tools/ci/runtime_wwi_event_server.py \
   --output /workspace/ci-artifacts/progression-sequence-mission/browser-events.jsonl &
 server=$!
