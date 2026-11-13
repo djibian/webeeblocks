@@ -17,9 +17,9 @@
     new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); }),
     new Promise(function(resolve) { setTimeout(resolve, 100); })
   ]); }
-  async function until(test) {
+  async function until(test, label) {
     for (var i = 0; i < 150; i++) { if (test()) return; await new Promise(function(resolve) { setTimeout(resolve, 50); }); }
-    throw new Error('Blockly workspace did not initialize');
+    throw new Error('Timed out waiting for ' + (label || 'Blockly workspace initialization') + ' during ' + lastPhase);
   }
   try {
     var frame = element(document, 'editor');
@@ -182,9 +182,35 @@
           assert(clock.textContent === '00min 00s / 03min 30s',
             'Grand Prix clock has wrong initial display');
           var realBackend = gpWin.runtimeBackend;
-          gpWin.runtimeBackend = {ready:true, readElapsedTime:function() { return Promise.resolve(62.9); }};
+          // The UI must work without a native TICK subscription: this is the
+          // explicitly retained ELAPSED fallback. Count actual calls/responses
+          // instead of blaming an already initialized Blockly workspace.
+          var fallbackClockCalls = 0, fallbackClockReturns = 0;
+          gpWin.runtimeBackend = {ready:true, readElapsedTime:function() {
+            fallbackClockCalls += 1;
+            return Promise.resolve(62.9).then(function(value) {
+              fallbackClockReturns += 1;
+              return value;
+            });
+          }};
+          phase('Grand Prix Route fallback ELAPSED from native Webots');
           gpWin.dispatchEvent(new gpWin.CustomEvent('webeeblocks-runtime-v2', {detail:{state:'EXÉCUTION'}}));
-          await until(function() { return clock.textContent === '01min 02s / 03min 30s'; });
+          try {
+            await until(function() { return clock.textContent === '01min 02s / 03min 30s'; },
+              'native ELAPSED fallback showing 01min 02s');
+          } catch (clockError) {
+            throw new Error(clockError.message + ': ' + JSON.stringify({
+              fallbackClockCalls:fallbackClockCalls, fallbackClockReturns:fallbackClockReturns,
+              currentClock:clock.textContent,
+              runtimeState:gpDoc.getElementById('runtimeState') &&
+                gpDoc.getElementById('runtimeState').textContent,
+              backendReady:!!(gpWin.runtimeBackend && gpWin.runtimeBackend.ready),
+              observationVisible:!gpInspector.hidden,
+              webotsClockNode:!!gpDoc.getElementById('grandPrixElapsedClock')
+            }));
+          }
+          assert(fallbackClockCalls >= 1 && fallbackClockReturns >= 1,
+            'Grand Prix fallback UI displayed an expected value without a native ELAPSED response');
           assert(clock.textContent === '01min 02s / 03min 30s',
             'Grand Prix clock extrapolated instead of reading simulated seconds');
           gpWin.dispatchEvent(new gpWin.CustomEvent('webeeblocks-runtime-v2', {detail:{state:'PRÊT'}}));
