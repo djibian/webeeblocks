@@ -1,126 +1,156 @@
 #!/usr/bin/env python3
-"""Behavioral unit tests for Activity 3's independent scene-local oracle.
-
-Pure Python proofs cannot establish actual Webots R2025a body orientation,
-supervisor activation, native scene selection, RESET, or student acceptance.
-"""
-import importlib.util
-import math
+"""Native C, not Python-emulated, adversarial tests for Activity 3."""
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[2]
-PATH = ROOT / "controllers/progression_orientation_3d/progression_orientation_3d.py"
-spec = importlib.util.spec_from_file_location("progression_orientation_3d", PATH)
-oracle = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(oracle)
+ROOT=Path(__file__).resolve().parents[2]
+NATIVE=ROOT/"controllers/progression_orientation_3d"
+CORE=NATIVE/"orientation_core.h"
+SOURCE=NATIVE/"progression_orientation_3d.c"
+SCENE=ROOT/"worlds/scenes/orientation-v1.wbo"
+MAKEFILE=NATIVE/"Makefile"
+
+DRIVER=r"""
+#include "orientation_core.h"
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+
+static wb_orient_verdict step(wb_orient_mission*m,double t,double x,double y,
+                              double z,double yaw,double vx,int completed){
+ wb_orient_sample s={.time=t,.x=x,.y=y,.z=z,.yaw=yaw,.vx=vx,.vy=0,.vz=0,
+                     .completed=completed};
+ return wb_orient_sample_mission(m,&s);
+}
+static void route(wb_orient_mission*m) {
+ assert(step(m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m->stage==1 && m->airborne);
+ assert(step(m,2,.45,-.45,.79,0,0,0)==WB_ORIENT_WAIT);
+ assert(m->stage==2);
+ assert(step(m,3,.90,-.45,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m->stage==3);
+}
+int main(void) {
+ wb_orient_mission m;
+ wb_orient_reset(&m,1,0);
+ assert(step(&m,0,0,0,0,0,0,0)==WB_ORIENT_WAIT);
+ route(&m);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_ACHIEVED);
+ assert(step(&m,5,5,5,5,0,0,0)==WB_ORIENT_ACHIEVED);
+ // RESET does not inherit achievement, stage, flight or completion.
+ wb_orient_reset(&m,2,0);
+ assert(!m.stage && !m.airborne && !m.completion_seen);
+ assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // Wrong cap at first beacon, with otherwise valid location.
+ wb_orient_reset(&m,3,0);
+ assert(step(&m,1,.45,0,.63,0,0,0)==WB_ORIENT_WAIT && m.stage==0);
+ assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // Wrong order cannot satisfy A-B-C.
+ wb_orient_reset(&m,4,0);
+ assert(step(&m,1,.45,-.45,.79,0,0,0)==WB_ORIENT_WAIT && m.stage==0);
+ assert(step(&m,2,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,3,.9,-.45,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==1);
+ assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // Constant height fails B.
+ wb_orient_reset(&m,5,0);
+ assert(step(&m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,2,.45,-.45,.63,0,0,0)==WB_ORIENT_WAIT && m.stage==1);
+ assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // Moving landing, hovering over arrival or landing elsewhere cannot pass.
+ for (int kind=0;kind<3;++kind) {
+  wb_orient_reset(&m,(unsigned long long)kind+6,0);
+  route(&m);
+  double x=kind==2?1.2:.9;
+  double z=kind==1?.4:.03;
+  double vx=kind==0?.5:0;
+  assert(step(&m,4,x,-.9,z,0,vx,1)==WB_ORIENT_WAIT);
+  assert(step(&m,6,x,-.9,z,0,vx,0)==WB_ORIENT_NOT_ACHIEVED);
+ }
+ // Invalid orientation/observations are fail-closed, not success.
+ wb_orient_reset(&m,9,0);
+ route(&m);
+ assert(step(&m,4,.9,-.9,.03,NAN,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ const double identity[]={1,0,0,0,1,0,0,0,1};
+ const double turn[]={0,1,0,-1,0,0,0,0,1};
+ const double invalid[]={NAN,0,0,0,1,0,0,0,1};
+ double yaw=123;
+ assert(wb_orient_yaw(identity,&yaw) && fabs(yaw)<1e-9);
+ assert(wb_orient_yaw(turn,&yaw) && fabs(yaw+WB_ORIENT_PI/2)<1e-9);
+ assert(!wb_orient_yaw(invalid,&yaw));
+ assert(!wb_orient_yaw(NULL,&yaw));
+ assert(wb_orient_angular_error(WB_ORIENT_PI,-WB_ORIENT_PI)<1e-9);
+ puts("PASS native Activity 3: heading, order, height, landing, fresh attempt");
+ return 0;
+}
+"""
 
 
-def sample_sequence(attempt, *, yaw_a=-math.pi/2, z_b=0.79, ordered=True):
-    if ordered:
-        points = [
-            ([0.45, 0, 0.63], yaw_a),
-            ([0.45, -0.45, z_b], 0),
-            ([0.90, -0.45, 0.63], -math.pi/2),
-        ]
-    else:
-        points = [
-            ([0.45, -0.45, z_b], 0),
-            ([0.45, 0, 0.63], yaw_a),
-            ([0.90, -0.45, 0.63], -math.pi/2),
-        ]
-    for now, (position, yaw) in enumerate(points, 1):
-        attempt.sample(float(now), position, yaw, [0, 0, 0], completed=False)
+class NativeActivity3Oracle(unittest.TestCase):
+    def test_compiled_real_c_oracle_and_negatives(self):
+        cc=shutil.which("cc")
+        self.assertIsNotNone(cc,"C compiler required, cannot skip")
+        with tempfile.TemporaryDirectory(prefix="wb-orientation-native-") as tmp:
+            source=Path(tmp)/"test.c"
+            target=Path(tmp)/"test"
+            source.write_text(DRIVER,encoding="utf-8")
+            build=subprocess.run([cc,"-std=c11","-Wall","-Wextra","-Werror",
+                                  "-pedantic","-I",str(NATIVE),str(source),
+                                  "-lm","-o",str(target)],
+                                 text=True,capture_output=True,timeout=30)
+            self.assertEqual(build.returncode,0,build.stdout+build.stderr)
+            result=subprocess.run([str(target)],text=True,
+                                  capture_output=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn("PASS native Activity 3",result.stdout)
+
+    def test_3d_scene_and_c_constants_agree(self):
+        scene=SCENE.read_text(encoding="utf8")
+        core=CORE.read_text(encoding="utf8")
+        self.assertIn("#define WB_ORIENT_CHILDREN 24",core)
+        self.assertIn("#define WB_ORIENT_LAND_X 0.90",core)
+        self.assertIn("#define WB_ORIENT_LAND_Y -0.90",core)
+        self.assertEqual(scene.count("    Pose { translation "),24)
+        for label,coords,angle in (
+            ("A",(.45,0,.63),-1.570796),
+            ("B",(.45,-.45,.79),0),
+            ("C",(.90,-.45,.63),-1.570796),
+        ):
+            mark=re.search(rf"# CHECKPOINT {label}:[^\n]*\n\s*Pose \{{ translation "
+                           rf"(-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+)",scene)
+            arrow=re.search(rf"# DIRECTION {label}:[^\n]*\n\s*Pose \{{ translation "
+                            rf"(-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+) "
+                            rf"rotation 0 0 1 (-?[0-9.]+)",scene)
+            self.assertIsNotNone(mark)
+            self.assertIsNotNone(arrow)
+            self.assertEqual(tuple(map(float,mark.groups())),coords)
+            self.assertAlmostEqual(float(arrow.group(4)),angle,places=5)
+
+    def test_scene_only_native_executable_has_no_program_authority(self):
+        src=SOURCE.read_text(encoding="utf8")
+        mk=MAKEFILE.read_text(encoding="utf8")
+        scene=SCENE.read_text(encoding="utf8")
+        self.assertIn("C_SOURCES = progression_orientation_3d.c",mk)
+        self.assertNotIn("crazyflie_runtime_v2",mk)
+        for name in ("wb_supervisor_node_get_orientation",
+                     "wb_orient_sample_mission",
+                     "WB_ORIENT_ORACLE",
+                     "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu",
+                     "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=%llu oracle=%s",
+                     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+                     "identity > last_identity"):
+            self.assertIn(name,src)
+        self.assertIn('controller "progression_orientation_3d"',scene)
+        self.assertEqual(scene.count(" Robot {"),1)
+        self.assertNotIn("wb_robot_set_mode",src)
+        self.assertNotIn("allowedStatementKinds",src)
+        self.assertNotIn("Blockly",src)
+        self.assertNotIn("Py_Initialize",src)
 
 
-class OrientationOracleUnitTests(unittest.TestCase):
-    def test_protocol_exact_attempt_and_oracle(self):
-        self.assertEqual(oracle.parse_attempt("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 11"), 11)
-        for value in ("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 0",
-                      "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 01",
-                      "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 11 trailing",
-                      "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 -1"):
-            self.assertIsNone(oracle.parse_attempt(value))
-        valid = ("WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=11 oracle="
-                 + oracle.ORACLE)
-        self.assertTrue(oracle.parse_completion(valid, 11))
-        self.assertFalse(oracle.parse_completion(valid, 10))
-        self.assertFalse(oracle.parse_completion(valid + " suffix", 11))
-        self.assertFalse(oracle.parse_completion(valid.replace(oracle.ORACLE, "progression-sequence-v1"), 11))
-
-    def test_actual_orientation_matrix_yaw_and_wrapping(self):
-        identity = [1, 0, 0, 0, 1, 0, 0, 0, 1]
-        quarter = [0, 1, 0, -1, 0, 0, 0, 0, 1]
-        self.assertAlmostEqual(oracle.yaw_from_orientation(identity), 0)
-        self.assertAlmostEqual(oracle.yaw_from_orientation(quarter), -math.pi/2)
-        self.assertIsNone(oracle.yaw_from_orientation(None))
-        self.assertIsNone(oracle.yaw_from_orientation([0] * 9))
-        self.assertIsNone(oracle.yaw_from_orientation([float("nan")] * 9))
-        self.assertAlmostEqual(oracle.wrapped_error(math.pi, -math.pi), 0)
-
-    def test_real_airborne_then_ordered_3d_and_heading_then_stable_landing(self):
-        a = oracle.Attempt(9, 0)
-        self.assertIsNone(a.sample(0, [0, 0, 0.0], 0, [0, 0, 0], False))
-        sample_sequence(a)
-        self.assertEqual(a.stage, 3)
-        self.assertTrue(a.airborne)
-        self.assertEqual(a.sample(4, [0.9, -0.9, 0.035], 0, [0, 0, 0], True), "achieved")
-        self.assertEqual(a.sample(5, [50, 50, 10], 0, [0, 0, 0], False), "achieved")
-
-    def test_wrong_headings_or_wrong_order_cannot_pass(self):
-        for name, settings in {
-            "no-turn-at-A": {"yaw_a": 0},
-            "wrong-order": {"ordered": False},
-            "wrong-height-at-B": {"z_b": 0.63},
-        }.items():
-            with self.subTest(name=name):
-                a = oracle.Attempt(11, 0)
-                sample_sequence(a, **settings)
-                self.assertLess(a.stage, 3)
-                self.assertEqual(a.sample(4, [0.9, -0.9, 0.03], 0, [0, 0, 0], True), "not-achieved")
-
-    def test_no_flight_or_moving_or_not_landed_cannot_pass(self):
-        for name, mode in {"no-flight": "no-flight",
-                           "moving": "moving",
-                           "too-high": "too-high",
-                           "outside-pad": "outside-pad"}.items():
-            with self.subTest(name=name):
-                a = oracle.Attempt(5, 0)
-                if mode != "no-flight":
-                    sample_sequence(a)
-                position = ([0.9, -0.9, 0.03] if mode != "too-high" else [0.9, -0.9, 0.4])
-                if mode == "outside-pad":
-                    position[0] = 1.10
-                velocity = [0.4, 0, 0] if mode == "moving" else [0, 0, 0]
-                result_at_completion = a.sample(4, position, 0, velocity, True)
-                if mode == "no-flight":
-                    self.assertEqual(result_at_completion, "not-achieved")
-                else:
-                    self.assertIsNone(result_at_completion)
-                self.assertEqual(a.sample(6, position, 0, velocity, False), "not-achieved")
-
-    def test_unavailable_orientation_after_completion_fails_closed(self):
-        a = oracle.Attempt(2, 0)
-        sample_sequence(a)
-        self.assertEqual(a.sample(4, [0.9, -0.9, 0.03], None, [0, 0, 0], True), "not-achieved")
-        self.assertEqual(a.sample(5, [0.9, -0.9, 0.03], 0, [0, 0, 0], False), "not-achieved")
-
-    def test_world_and_oracle_consist_on_waypoints_and_yaw(self):
-        scene = (ROOT / "worlds/scenes/orientation-v1.wbo").read_text(encoding="utf8")
-        checkpoint = re.compile(r"# CHECKPOINT ([ABC]):[^\n]*\n\s*Pose \{ translation "
-                                r"(-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+)")
-        direction = re.compile(r"# DIRECTION ([ABC]):[^\n]*\n\s*Pose \{ translation "
-                               r"(-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+) rotation 0 0 1 (-?[0-9.]+)")
-        found = dict((m[1], tuple(map(float, m.groups()[1:]))) for m in checkpoint.finditer(scene))
-        headings = dict((m[1], float(m[5])) for m in direction.finditer(scene))
-        self.assertEqual(len(found), 3)
-        self.assertEqual(len(headings), 3)
-        for index, label in enumerate("ABC"):
-            self.assertEqual(found[label], oracle.CHECKPOINTS[index][:3])
-            self.assertAlmostEqual(headings[label], oracle.CHECKPOINTS[index][3], places=5)
-        self.assertEqual(scene.count("    Pose { translation "), oracle.SCENE_CHILDREN)
-
-
-if __name__ == "__main__":
+if __name__=="__main__":
     unittest.main()
