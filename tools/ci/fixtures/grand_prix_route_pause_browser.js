@@ -26,6 +26,7 @@
   let resumeCount=0;
   let nativePauseCount=0;
   let nativeResumeCount=0;
+  let takeoffRequestId=null;
   window.addEventListener('webeeblocks-debug-paused', function() {
     pauseCount++;
     record('UI_PAUSED',pauseCount);
@@ -45,8 +46,26 @@
        window.runtimeProfile.id!=='progression-grand-prix-route-v2')
       throw Error('ROUTE_NATIVE_DEBUG_NOT_BOUND');
     const backend=window.runtimeBackend;
+    const realSend=backend.robotWindow.send.bind(backend.robotWindow);
+    backend.robotWindow.send=function(message) {
+      const m=typeof message==='string' &&
+        /^WEBEEBLOCKS_RUNTIME_V2 REQUEST ([1-9][0-9]*) TAKEOFF(?:\s|$)/.exec(message);
+      if(m) {
+        takeoffRequestId=Number(m[1]);
+        record('TAKEOFF_REQUEST_SENT', {id:takeoffRequestId,
+          pendingBeforeSend:!!backend.pending[takeoffRequestId]});
+      }
+      return realSend(message);
+    };
     const original=backend.handleMessage.bind(backend);
     backend.handleMessage=function(message) {
+      const reply=typeof message==='string' &&
+        /^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([1-9][0-9]*) (OK|ERR\b.*)/.exec(message);
+      if(reply && Number(reply[1])===takeoffRequestId) {
+        record('TAKEOFF_NATIVE_RESPONSE_RECEIVED', {id:takeoffRequestId,
+          raw:message.slice(0,240),pendingAtArrival:!!backend.pending[takeoffRequestId],
+          runtimeRunning:window.runtimeRunning===true});
+      }
       if(typeof message==='string' && message.indexOf('GP_ROUTE_PAUSE_V1 ')===0) {
         const m=/^GP_ROUTE_PAUSE_V1 (PAUSED|RESUMED) nonce=([0-9a-f]{32}) attempt=([1-9][0-9]*) seq=([1-9][0-9]*)$/.exec(message);
         if(!m) record('NATIVE_MALFORMED_ACK',message);
@@ -84,8 +103,32 @@
     await until(()=>nativeResumeCount===1 && resumeCount===1,65000,
       'FIRST_NATIVE_POSITIVE_STEP_RESUME_MISSING');
     record('BEFORE_TAKEOFF_RESUMED');
-    await until(()=>pauseCount===2 && nativePauseCount===2,300000,
-      'INFLIGHT_NATIVE_PAUSE_NOT_ACKED');
+    // The 35 s UI request budget is separate from the 210 s Webots mission
+    // clock. If the interpreter fails, retain a short observation window for
+    // any *late* native TAKEOFF ACK before refusing the missing second pause.
+    let terminalSince=null;
+    await until(()=>{
+      if(pauseCount===2 && nativePauseCount===2)return true;
+      if(window.runtimeRunning!==true){
+        if(terminalSince===null){
+          terminalSince=Date.now();
+          record('PROGRAM_ENDED_BEFORE_SECOND_PAUSE', {
+            runtimeState:document.getElementById('runtimeState').textContent,
+            debugState:document.getElementById('debugState').textContent,
+            requestId:takeoffRequestId,
+            requestPending:takeoffRequestId!==null && !!backend.pending[takeoffRequestId],
+            nativePauseCount,nativeResumeCount});
+        }
+        if(Date.now()-terminalSince>=22000){
+          record('TAKEOFF_ACK_DIAGNOSTIC_CLOSED', {
+            requestId:takeoffRequestId,
+            requestPending:takeoffRequestId!==null && !!backend.pending[takeoffRequestId],
+            runtimeState:document.getElementById('runtimeState').textContent});
+          throw Error('PROGRAM_ENDED_WITHOUT_SECOND_NATIVE_PAUSE');
+        }
+      }
+      return false;
+    },90000,'INFLIGHT_NATIVE_PAUSE_NOT_ACKED');
     const elapsedA=await backend.readElapsedTime();
     record('FROZEN_CLOCK_START',elapsedA);
     await delay(1600);
