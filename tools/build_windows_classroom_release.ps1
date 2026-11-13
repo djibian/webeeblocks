@@ -62,6 +62,9 @@ foreach ($requiredTool in @($make, $gcc)) {
 if ($LASTEXITCODE -ne 0) { throw 'Runtime v2 asset preparation failed.' }
 
 $controllerDir = Join-Path $repoRoot 'controllers\crazyflie_runtime_v2'
+# A separate native observer is mandatory for the portable Activity 1 archive.
+# The same exact R2025a toolchain builds it without touching the flight exe.
+$sequenceObserverDir = Join-Path $repoRoot 'controllers\progression_sequence_3d'
 $oldWebotsHome = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 try {
@@ -75,6 +78,16 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Webots R2025a controller build failed with exit code $LASTEXITCODE."
   }
+  # Do not ship the .py fallback: a Windows archive must start the native C
+  # observer without requiring python.exe in PATH or Webots preferences.
+  & $make -C $sequenceObserverDir clean
+  if ($LASTEXITCODE -ne 0) {
+    throw "Webots R2025a Activity 1 observer clean failed with exit code $LASTEXITCODE."
+  }
+  & $make -C $sequenceObserverDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "Webots R2025a Activity 1 observer build failed with exit code $LASTEXITCODE."
+  }
 }
 finally {
   $env:WEBOTS_HOME = $oldWebotsHome
@@ -83,6 +96,10 @@ finally {
 $controllerBinary = Join-Path $controllerDir 'crazyflie_runtime_v2.exe'
 if (-not (Test-Path -LiteralPath $controllerBinary -PathType Leaf) -or (Get-Item $controllerBinary).Length -le 0) {
   throw 'The official Webots Windows build produced no controller executable.'
+}
+$observerBinary = Join-Path $sequenceObserverDir 'progression_sequence_3d.exe'
+if (-not (Test-Path -LiteralPath $observerBinary -PathType Leaf) -or (Get-Item $observerBinary).Length -le 0) {
+  throw 'The official Webots Windows build produced no Activity 1 native supervisor executable.'
 }
 
 # Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
@@ -265,11 +282,10 @@ WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw6
 QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins
 '@
 Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
-# Activity 1 uses a scene-local supervisor: Webots must find its actual
-# controller script in the exact autonomous release, not only the scene asset.
-Copy-RequiredFile `
-  (Join-Path $repoRoot 'controllers\progression_sequence_3d\progression_sequence_3d.py') `
-  (Join-Path $packageDir 'controllers\progression_sequence_3d\progression_sequence_3d.py')
+# Activity 1 is evaluated by a *separate* Webots C supervisor, compiled above
+# from the exact sources. Never package a Python fallback or require a system
+# interpreter on old Windows classroom machines.
+Copy-RequiredFile $observerBinary (Join-Path $packageDir 'controllers\progression_sequence_3d\progression_sequence_3d.exe')
 
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
