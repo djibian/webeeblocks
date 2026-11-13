@@ -4,7 +4,8 @@
 The launcher keeps the real Crazyflie PROTO, its sensors and physics, but
 selects the isolated school flight process and a read-only WWI test page.
 Unlike the startup-only test, no altitude scene is preloaded: Webots must
-receive SCENE altitude-v1 and import it before the evaluator can start.
+receive SCENE altitude-v1 and SCENE orientation-v1, and import each scene
+before either dedicated evaluator can start.
 """
 from pathlib import Path
 import argparse
@@ -26,6 +27,7 @@ def compose(start: str) -> str:
         start.count('controller "crazyflie_runtime_v2"') != 2 or
         start.count('window "blockly_v2"') != 1 or
         "DEF WEBEEBLOCKS_ALTITUDE_SCENE" in start or
+        "DEF WEBEEBLOCKS_ORIENTATION_SCENE" in start or
         "DEF WEBEEBLOCKS_LEGACY_SCENE" in start):
         raise ValueError("ambiguous classroom source or preloaded scene")
     prefix, divider, evaluator = start.partition(BOUNDARY)
@@ -42,6 +44,7 @@ def compose(start: str) -> str:
         'controller "crazyflie_runtime_v2"' in created or
         "Progression sequence evaluator" in created or
         "DEF WEBEEBLOCKS_ALTITUDE_SCENE" in created or
+        "DEF WEBEEBLOCKS_ORIENTATION_SCENE" in created or
         'window "altitude_scene_ack_probe"' not in created):
         raise ValueError("native scene probe could preload evaluator or change craft")
     return created
