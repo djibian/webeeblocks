@@ -70,14 +70,14 @@ jobs:
           if ($actual -ne '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7') {
             throw "Pinned Webots R2025a installer mismatch: $actual"
           }
-          $home = Join-Path $env:ProgramFiles 'Webots'
-          if (-not (Test-Path -LiteralPath (Join-Path $home 'msys64\mingw64\bin\webots.exe'))) {
+          $webotsInstallRoot = Join-Path $env:ProgramFiles 'Webots'
+          if (-not (Test-Path -LiteralPath (Join-Path $webotsInstallRoot 'msys64\mingw64\bin\webots.exe'))) {
             $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
             if ($p.ExitCode -ne 0) { throw "Webots install failed: $($p.ExitCode)" }
           }
-          $version = (& (Join-Path $home 'msys64\mingw64\bin\webots.exe') --version | Out-String).Trim()
+          $version = (& (Join-Path $webotsInstallRoot 'msys64\mingw64\bin\webots.exe') --version | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') { throw "Wrong native engine: $version" }
-          "WEBOTS_HOME=$home" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WEBOTS_HOME=$webotsInstallRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Reuse official Windows classroom dependency closure
         shell: pwsh
