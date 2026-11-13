@@ -11,8 +11,10 @@ import re
 ORACLE = "progression-sequence-3d-v1"
 TARGET_X = 0.35
 TARGET_Y = 0.28
-TARGET_X_TOLERANCE = 0.09
-TARGET_Y_TOLERANCE = 0.12
+# Pad 0.28 x 0.34 m, conservative craft half-span 0.09 m.
+# Keep entire craft within the target (not just its center).
+TARGET_X_TOLERANCE = 0.05
+TARGET_Y_TOLERANCE = 0.08
 AIRBORNE_DELTA = 0.20
 LANDED_DELTA = 0.07
 MAX_LANDING_SPEED = 0.12
