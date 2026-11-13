@@ -18,6 +18,54 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/native-pause'
 
 
+def capture_x11_window_evidence(process_group):
+    """Observe X11 window titles without clicking, or bypassing dialogs.
+
+    xvfb-run owns the DISPLAY/XAUTHORITY in its child environment. Inspect
+    only these two keys; never persist /proc/*/environ or other secrets.
+    """
+    evidence = ['X11_WINDOW_PROBE_V1']
+    found = False
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            pid = int(entry.name)
+            if os.getpgid(pid) != process_group:
+                continue
+            comm = (entry / 'comm').read_text(encoding='utf-8').strip()
+            if comm not in ('webots-bin', 'webots'):
+                continue
+            raw = (entry / 'environ').read_bytes().split(b'\0')
+            variables = {}
+            for item in raw:
+                if item.startswith((b'DISPLAY=', b'XAUTHORITY=')):
+                    key, value = item.split(b'=', 1)
+                    variables[key.decode('ascii')] = value.decode('utf-8', 'replace')
+            if 'DISPLAY' not in variables:
+                continue
+            found = True
+            evidence.append('process=' + comm + ' display=' + variables['DISPLAY'])
+            probe_env = os.environ.copy()
+            probe_env.update(variables)
+            if shutil.which('xwininfo') is None:
+                evidence.append('xwininfo=missing (x11-utils prerequisite)')
+                continue
+            result = subprocess.run(['xwininfo', '-root', '-tree'],
+                                    env=probe_env, capture_output=True,
+                                    text=True, timeout=3, check=False)
+            evidence.append('xwininfo_returncode=' + str(result.returncode))
+            evidence.append(result.stdout[-16000:])
+            evidence.append(result.stderr[-2000:])
+            break
+        except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired):
+            continue
+    if not found:
+        evidence.append('webots-display=unavailable')
+    (OUT / 'x11-windows-at-deadline.txt').write_text(
+        '\n'.join(evidence) + '\n', encoding='utf-8')
+
+
 def run():
     home = Path(os.environ.get('WEBOTS_HOME', '/usr/local/webots'))
     version = (home / 'resources/version.txt').read_text().strip()
@@ -92,6 +140,9 @@ def run():
                         break
                     if time.monotonic() >= deadline:
                         timed_out = True
+                        # Inspect modal/window state before Xvfb shutdown;
+                        # this does not dismiss dialogs or manufacture a PASS.
+                        capture_x11_window_evidence(proc.pid)
                         # Capture live process names before Xvfb is stopped.
                         try:
                             snapshot = subprocess.run(
