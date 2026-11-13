@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Witness real R2025a native SCENE/SCENE_OK without a pupil profile or flight.
+"""Witness real R2025a altitude/orientation SCENE/SCENE_OK without pupil flight.
 
 Runs only inside the already prepared/pinned Webots CI container. Browser
 messages are a test-only source; the classroom C++ scene selector remains the
@@ -32,6 +32,9 @@ REQUIRED = (
     "ALTITUDE_SCENE_ACK",
     "LEGACY_SCENE_RESTORED",
     "ALTITUDE_SCENE_REATTACHED",
+    "ORIENTATION_SCENE_ACK",
+    "LEGACY_AFTER_ORIENTATION_RESTORED",
+    "ORIENTATION_SCENE_REATTACHED",
     "NATIVE_SCENE_ACK_TEST_COMPLETE",
 )
 
@@ -97,13 +100,18 @@ def run() -> int:
             "WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1 "
             "oracle=progression-altitude-3d-v1"
         )
+        orientation_ready_marker = (
+            "WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 "
+            "oracle=progression-orientation-3d-v1"
+        )
         while time.monotonic() < deadline:
             complete = any(e["event"] == "NATIVE_SCENE_ACK_TEST_COMPLETE" for e in EVENTS)
-            # Native scene import can ACK before Webots schedules the new
-            # scene-local evaluator. Never kill Webots after a browser-only
-            # completion unless BOTH independent native READY events exist.
+            # A scene ACK can precede the corresponding Webots evaluator
+            # startup. Both independently imported evaluators must each start
+            # twice, including after legacy restoration, before teardown.
             ready_twice = complete and output.exists() and (
                 output.read_text(encoding="utf-8", errors="replace").count(ready_marker) >= 2
+                and output.read_text(encoding="utf-8", errors="replace").count(orientation_ready_marker) >= 2
             )
             if ready_twice:
                 break
@@ -144,20 +152,26 @@ def run() -> int:
         encoding="utf-8")
     missing = [name for name in REQUIRED if found.count(name) != 1]
     fatal = ("WEBEEBLOCKS_ALTITUDE_FATAL" in transcript or
+             "WEBEEBLOCKS_ORIENTATION_3D_FATAL" in transcript or
+             "WEBEEBLOCKS_ORIENTATION_3D_ERROR" in transcript or
              "WEBEEBLOCKS_RUNTIME_V2 FATAL" in transcript)
     # Two successive imports genuinely start the scene-local evaluator twice.
     two_evaluators = transcript.count(
         "WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1 oracle=progression-altitude-3d-v1") >= 2
+    two_orientations = transcript.count(
+        "WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 oracle=progression-orientation-3d-v1") >= 2
     flight_ready = "WEBEEBLOCKS_RUNTIME_V2 READY" in transcript
-    if missing or "WINDOW_ERROR" in found or fatal or not two_evaluators or not flight_ready or not browser_launched:
+    if (missing or "WINDOW_ERROR" in found or fatal or not two_evaluators
+            or not two_orientations or not flight_ready or not browser_launched):
         print("FAIL native altitude SCENE/ACK witness: " +
               json.dumps({"missing":missing, "events":EVENTS,
                           "browser_launched":browser_launched,
-                          "fatal":fatal, "evaluator_ready_twice":two_evaluators,
+                          "fatal":fatal, "altitude_ready_twice":two_evaluators,
+                          "orientation_ready_twice":two_orientations,
                           "flight_ready":flight_ready}), file=sys.stderr)
         print(transcript[-8000:], file=sys.stderr)
         return 1
-    print("PASS real R2025a SCENE altitude-v1 ACK, legacy restoration and two native evaluator starts")
+    print("PASS real R2025a SCENE altitude-v1/orientation-v1 ACK, legacy restoration and two native starts per evaluator")
     return 0
 
 

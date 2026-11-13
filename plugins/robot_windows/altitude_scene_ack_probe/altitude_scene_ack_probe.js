@@ -76,7 +76,18 @@ window.addEventListener('unhandledrejection', event => {
     const againNonce = nonce();
     await request('SCENE altitude-v1 ' + againNonce, 'SCENE_OK ' + againNonce);
     await report('ALTITUDE_SCENE_REATTACHED', {scene:'altitude-v1', nonce_correlated:true});
-    await report('NATIVE_SCENE_ACK_TEST_COMPLETE', {selected:2, legacy:1, negative:2});
+    // The separate classroom selector must also import orientation-v1 and
+    // genuinely start its own native evaluator, not only echo a browser ACK.
+    const orientationNonce = nonce();
+    await request('SCENE orientation-v1 ' + orientationNonce, 'SCENE_OK ' + orientationNonce);
+    await report('ORIENTATION_SCENE_ACK', {scene:'orientation-v1', nonce_correlated:true});
+    const orientationLegacyNonce = nonce();
+    await request('SCENE legacy-v1 ' + orientationLegacyNonce, 'SCENE_OK ' + orientationLegacyNonce);
+    await report('LEGACY_AFTER_ORIENTATION_RESTORED', {scene:'legacy-v1', nonce_correlated:true});
+    const orientationAgainNonce = nonce();
+    await request('SCENE orientation-v1 ' + orientationAgainNonce, 'SCENE_OK ' + orientationAgainNonce);
+    await report('ORIENTATION_SCENE_REATTACHED', {scene:'orientation-v1', nonce_correlated:true});
+    await report('NATIVE_SCENE_ACK_TEST_COMPLETE', {selected:4, legacy:2, negative:2});
   } catch (error) {
     await report('WINDOW_ERROR', {message:error && error.message ? error.message : String(error)});
   }
