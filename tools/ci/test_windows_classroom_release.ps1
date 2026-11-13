@@ -91,7 +91,7 @@ $required = @(
   'WINDOWS-ACCEPTANCE.md',
   'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe',
   'controllers\crazyflie_runtime_v2\runtime.ini',
-  'controllers\progression_sequence_3d\progression_sequence_3d.py',
+  'controllers\progression_sequence_3d\progression_sequence_3d.exe',
   "${robotWindowRelative}\${robotWindowName}.html",
   "${robotWindowRelative}\vendor\VERSION",
   "${robotWindowRelative}\vendor\blockly_compressed.js",
@@ -122,10 +122,13 @@ Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $ver
 $worldPath = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
 $worldText = Get-Content -LiteralPath $worldPath -Raw
 $releaseRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$observerRelative = 'controllers\progression_sequence_3d\progression_sequence_3d.py'
+$observerRelative = 'controllers\progression_sequence_3d\progression_sequence_3d.exe'
 $observerSource = Join-Path $releaseRepo $observerRelative
 $observerPackaged = Join-Path $testRoot $observerRelative
-Assert-Release ((Get-FileHash -LiteralPath $observerSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $observerPackaged -Algorithm SHA256).Hash) 'Packaged Activity 1 supervisor differs from its source controller.'
+Assert-Release ((Get-FileHash -LiteralPath $observerSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $observerPackaged -Algorithm SHA256).Hash) 'Packaged Activity 1 native supervisor differs from the freshly built Webots executable.'
+$observerBytes = [System.IO.File]::ReadAllBytes($observerPackaged)
+Assert-Release ($observerBytes.Length -gt 2 -and $observerBytes[0] -eq 0x4d -and $observerBytes[1] -eq 0x5a) 'Activity 1 observer is not a Windows PE executable.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_sequence_3d\progression_sequence_3d.py') -PathType Leaf)) 'Windows release still depends on an Activity 1 Python observer.'
 $sceneText = Get-Content -LiteralPath $scenePackaged -Raw
 Assert-Release ($sceneText -match 'controller "progression_sequence_3d"\s+supervisor TRUE') 'Packaged scene does not bind its isolated observer.'
 Assert-Release ($worldText.Contains('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {')) 'Release must open the typed neutral classroom world.'
@@ -353,4 +356,62 @@ finally {
   $env:PATH = $oldPath
 }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, cache-isolated, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
+# Probe the exact extracted second native controller independently of the
+# flight runtime. A missing dependent DLL must fail before libController's IPC
+# message; this does not substitute for a Webots scene/flight acceptance test.
+$observerStdout = Join-Path $env:RUNNER_TEMP 'webeeblocks-observer.stdout.log'
+$observerStderr = Join-Path $env:RUNNER_TEMP 'webeeblocks-observer.stderr.log'
+Remove-Item -LiteralPath $observerStdout, $observerStderr -Force -ErrorAction SilentlyContinue
+$oldWebotsHome = $env:WEBOTS_HOME
+$oldControllerUrl = $env:WEBOTS_CONTROLLER_URL
+$oldPath = $env:PATH
+$observerProcess = $null
+try {
+  $env:WEBOTS_HOME = $WebotsHome
+  $env:WEBOTS_CONTROLLER_URL = 'ipc://65535'
+  $env:PATH = @(
+    (Join-Path $WebotsHome 'lib\controller'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin\cpp'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin'),
+    (Join-Path $env:SystemRoot 'System32'),
+    $env:SystemRoot
+  ) -join ';'
+  $observerProcess = Start-Process `
+    -FilePath $observerPackaged `
+    -WorkingDirectory (Split-Path $observerPackaged -Parent) `
+    -RedirectStandardOutput $observerStdout `
+    -RedirectStandardError $observerStderr `
+    -PassThru
+  $observerEnteredController = $false
+  $deadline = [DateTime]::UtcNow.AddSeconds(8)
+  do {
+    Start-Sleep -Milliseconds 250
+    $stderr = if (Test-Path -LiteralPath $observerStderr) { Get-Content -LiteralPath $observerStderr -Raw } else { '' }
+    if ($stderr -match 'Cannot connect to Webots instance') {
+      $observerEnteredController = $true
+      break
+    }
+    $observerProcess.Refresh()
+    if ($observerProcess.HasExited) { break }
+  } while ([DateTime]::UtcNow -lt $deadline)
+  if (-not $observerEnteredController) {
+    $observerProcess.Refresh()
+    $exitDetail = if ($observerProcess.HasExited) { "exit=$($observerProcess.ExitCode)" } else { 'timeout' }
+    $stdout = if (Test-Path -LiteralPath $observerStdout) { Get-Content -LiteralPath $observerStdout -Raw } else { '<no stdout>' }
+    $stderr = if (Test-Path -LiteralPath $observerStderr) { Get-Content -LiteralPath $observerStderr -Raw } else { '<no stderr>' }
+    throw "Packaged Activity 1 observer failed to enter libController ($exitDetail).`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+  }
+}
+finally {
+  if ($null -ne $observerProcess) {
+    $observerProcess.Refresh()
+    if (-not $observerProcess.HasExited) {
+      Stop-Process -Id $observerProcess.Id -Force -ErrorAction SilentlyContinue
+      $observerProcess.WaitForExit()
+    }
+  }
+  $env:WEBOTS_HOME = $oldWebotsHome
+  $env:WEBOTS_CONTROLLER_URL = $oldControllerUrl
+  $env:PATH = $oldPath
+}
+Write-Host "PASS: Windows classroom archive is checksummed, path-safe and contains two independently built/loadable native Webots R2025a controllers with no Activity 1 Python dependency ($($manifestEntries.Count) files)."
