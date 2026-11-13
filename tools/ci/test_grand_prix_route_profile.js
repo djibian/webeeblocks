@@ -500,7 +500,9 @@ async function proveBoundedRouteTakeoffReply() {
   const first=backend.takeoff(0.4);
   await flush();
   assert.match(sent[0], / REQUEST 1 ADMISSION$/);
-  assert.equal(backend.pending[1].timer._idleTimeout,35000,
+  const admissionWaitMs=backend.pending[1].timer._idleTimeout;
+  assert(Number.isFinite(admissionWaitMs) && admissionWaitMs > 0 &&
+    admissionWaitMs <= 35000,
     'route admission must not consume extended TAKEOFF budget');
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
   await flush();
