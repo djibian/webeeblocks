@@ -185,6 +185,17 @@ def launch_script(text):
         "$env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $PSScriptRoot 'runtime\\python'\n"
         "$world = Join-Path $PSScriptRoot (('worlds\\grand_prix_route_v2_{0:D2}_fps{1}.wbt' -f $index, $fpsText))")
     text = replace_once(text, old, new)
+    # The .cmd invokes Windows PowerShell 5.1, where Get-Content -Raw
+    # decodes UTF-8-without-BOM world files using the system ANSI codepage.
+    # Native scene attestation compares the copied UTF-8 text byte-equivalently.
+    # Decode both canonical scene/perspective explicitly, without relaxing
+    # the existing copy comparison or native identity gate.
+    text = replace_once(text,
+        "$worldText = Get-Content -LiteralPath $world -Raw",
+        "$worldText = [IO.File]::ReadAllText($world, [Text.Encoding]::UTF8)")
+    text = replace_once(text,
+        "$worldPerspectiveText = Get-Content -LiteralPath $worldPerspective -Raw",
+        "$worldPerspectiveText = [IO.File]::ReadAllText($worldPerspective, [Text.Encoding]::UTF8)")
     text = replace_once(text, '$worldText -match \'"(?:https?|webots)://\'',
                         '$worldText -match \'"https?://\'')
     text = replace_once(text, "(blockly_v2_[0-9a-f]{16})", "(grand_prix_route_v2)")

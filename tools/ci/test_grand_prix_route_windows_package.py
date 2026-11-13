@@ -94,6 +94,9 @@ def verify(root):
             "WEBEEBLOCKS_GP_FPS" not in launcher or
             "WEBEEBLOCKS_GP_INDEX" not in launcher or
             "GetRelativePath(" in launcher or
+            "$worldText = [IO.File]::ReadAllText($world, [Text.Encoding]::UTF8)" not in launcher or
+            "$worldPerspectiveText = [IO.File]::ReadAllText($worldPerspective, [Text.Encoding]::UTF8)" not in launcher or
+            "$worldText = Get-Content" in launcher or
             "GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK" not in launcher or
             "Stop-WebeeBlocksLocalServer -Server $testServer" not in launcher):
         raise ValueError("Windows launcher not routed to isolated static identity")

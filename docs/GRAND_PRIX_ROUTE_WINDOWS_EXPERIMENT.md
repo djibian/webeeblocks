@@ -37,7 +37,7 @@ pilote ou les oracles. Ne pas activer d'options de rendu dégradé.
 ## Vérification de compatibilité du lanceur
 
 Le double-clic sur \`Lancer-Grand-Prix.cmd\` utilise le **Windows PowerShell
-5.1 natif**, sans installer PowerShell 7. La CI exécute le véritable mode
+5.1 natif**, sans installer PowerShell 7. La lecture des mondes et perspectives est forcée en UTF-8, y compris sous Windows PowerShell 5.1, afin de conserver les noms accentués et la comparaison d'intégrité stricte des fichiers copiés. La CI exécute le véritable mode
 \`-ValidateOnly\` dans PowerShell 5.1 : copie de session isolée, écriture de
 la perspective native, réécriture HTML/HTTP local, présence du Python embarqué
 et nettoyage. Ce contrôle ne lance ni Webots graphique ni Chrome, et ne
