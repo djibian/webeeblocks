@@ -38,20 +38,30 @@ socket.onopen=async()=>{
   await backend.waitUntilReady();out('second-ready',true);
   await backend.takeoff(.4);out('second-takeoff',true);
   // Deliberately fly too low outside an H band: a native fail is expected.
-  let rejected=null;
-  try{
-   await backend.move('forward',1.5);
-   out('dynamic-move-completed',true);
-  }catch(error){rejected=error.code||String(error);out('dynamic-rejected',rejected);}
+  let nativeRefusal=null;
+  try {
+    await backend.move('forward',1.5);
+    out('dynamic-move-completed',true);
+  } catch(error) {
+    out('dynamic-command-error',{code:error.code||null,message:String(error)});
+  }
   const evaluation={type:'mission-state-v1',oracle:'grand-prix-route-v2'};
-  try{
-   await backend.probeActivityMissionFailure(evaluation);
-   const state=await backend.readActivityOutcome(evaluation);
-   out('dynamic-outcome',state);
-   if(state && state.status==='not-achieved') rejected='native-not-achieved';
-  }catch(error){out('dynamic-outcome-error',error.code||String(error));}
-  // A positive path through an unsafe attempted crossing is forbidden.
-  if(!rejected)throw new Error('Missing native dynamic rejection of low outside band');
+  try {
+    await backend.probeActivityMissionFailure(evaluation);
+    const state=await backend.readActivityOutcome(evaluation);
+    out('dynamic-outcome',state);
+    const reasons=['envelope-contact','course-boundary','altitude','low-outside-zone',
+                   'wrong-landing','time-limit'];
+    if(state&&state.status==='not-achieved'&&reasons.includes(state.reason))
+      nativeRefusal=state.reason;
+  } catch(error) {
+    out('dynamic-outcome-error',{code:error.code||null,message:String(error)});
+  }
+  // A timeout, generic controller refusal or transport error cannot establish
+  // the native physical/dynamic oracle. Require a concrete terminal reason.
+  if(!nativeRefusal)
+    throw new Error('Real native route dynamic oracle refusal not established');
+  out('dynamic-refusal-confirmed',nativeRefusal);
   out('native-sequence-completed',true);
   finish(0);
  }catch(error){out('error',{code:error.code||null,message:String(error)});finish(1);}

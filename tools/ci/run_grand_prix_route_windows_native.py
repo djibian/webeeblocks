@@ -72,10 +72,8 @@ def run_one(package, home, root, index):
                   "native-sequence-completed")
         if any(classes.count(label)!=1 for label in expected):
             raise RuntimeError(f"Missing exactly-once native route events: {index}, {classes!r}")
-        if not ("dynamic-rejected" in classes or
-                any(x["event"]=="dynamic-outcome" and
-                    x["data"].get("status")=="not-achieved" for x in evidence)):
-            raise RuntimeError("No native dynamic mission refusal")
+        if classes.count("dynamic-refusal-confirmed") != 1:
+            raise RuntimeError("No distinct native dynamic-oracle refusal")
         logs=read(folder/"webots.stdout.log")+"\n"+read(folder/"webots.stderr.log")
         if "Traceback (most recent call last)" in logs or any(
                 line.startswith("ERROR:") for line in logs.splitlines()):
