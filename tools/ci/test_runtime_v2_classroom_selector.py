@@ -187,7 +187,10 @@ int main(int argc,char**argv){
    assert(!sequence.alive && !legacy.alive);
    orientScene.count=23;
    assert(!webeeblocks_activity_scene_ready());
-   assert(!webeeblocks_select_activity_scene("orientation-v1"));
+   // A stale same-scene identity must be rejected, then a fresh versioned
+   // import may repair it; no false READY survives the damaged live group.
+   assert(webeeblocks_select_activity_scene("orientation-v1"));
+   assert(webeeblocks_activity_scene_ready());
    assert(webeeblocks_select_activity_scene("legacy-v1"));
    assert(webeeblocks_activity_scene_ready());
   }
