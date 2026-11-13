@@ -125,6 +125,23 @@ class NativeSequence3D(unittest.TestCase):
         self.assertNotIn('"make clean && make && test -s progression_sequence_3d"', runner)
         self.assertIn("test_progression_sequence_3d_native.py", runner)
 
+    def test_windows_release_builds_native_observer_without_python_dependency(self):
+        builder = (ROOT / "tools/build_windows_classroom_release.ps1").read_text(
+            encoding="utf8")
+        validator = (ROOT / "tools/ci/test_windows_classroom_release.ps1").read_text(
+            encoding="utf8")
+        self.assertIn("$sequenceObserverDir = Join-Path $repoRoot", builder)
+        self.assertIn("& $make -C $sequenceObserverDir clean", builder)
+        self.assertIn("& $make -C $sequenceObserverDir", builder)
+        self.assertIn("progression_sequence_3d.exe", builder)
+        self.assertIn("Copy-RequiredFile $observerBinary", builder)
+        self.assertNotIn("Copy-RequiredFile `\n  (Join-Path $repoRoot 'controllers\\progression_sequence_3d\\progression_sequence_3d.py')", builder)
+        self.assertIn("controllers\\progression_sequence_3d\\progression_sequence_3d.exe", validator)
+        self.assertIn("$observerBytes[0] -eq 0x4d", validator)
+        self.assertIn("$observerBytes[1] -eq 0x5a", validator)
+        self.assertIn("Cannot connect to Webots instance", validator)
+        self.assertIn("Windows release still depends on an Activity 1 Python observer.", validator)
+
     def test_oracle_constants_match_real_pad_and_python_reference(self):
         header = CORE.read_text(encoding="utf8")
         scene = SCENE.read_text(encoding="utf8")
