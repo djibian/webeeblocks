@@ -141,7 +141,12 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
   throw error;
  }
  const backend=new OriginalBackend(robotWindow,
-   Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
+   // An acknowledged physical TAKEOFF may complete after 35 s wall-clock on
+   // slower R2025a hosts. This is NOT the 210 s simulated mission deadline.
+   // Only this simulated route opts into the bounded 90 s TAKEOFF response
+   // window; STOP/RESET/LAND, admission and real flight remain unchanged.
+   Object.assign({},options,{simulationScenes:false,simulationAdmission:true,
+     routeTakeoffTimeoutMs:90000}));
  // Only this simulated Grand Prix host recognizes read-only clock notifications.
  // They are never Runtime v2 responses, commands, mission outcomes or flight data.
  if (backend && typeof backend.handleMessage==='function') {
