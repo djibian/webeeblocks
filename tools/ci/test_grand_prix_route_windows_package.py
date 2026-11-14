@@ -1,0 +1,189 @@
+"""Fail-closed inspection of the extracted variable GP Windows delivery.
+
+Static verification is NOT native Windows/Webots admission, GUI or teacher PASS.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import sys
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from tools.grand_prix.route_courses_v2 import reference_course
+from tools.grand_prix.package_windows_u import verified_files, digest
+
+PR970 = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
+
+
+def verify(root):
+    root = Path(root).resolve(strict=True)
+    files = verified_files(root)
+    metadata = json.loads((root / "COMPOSITION.json").read_text(encoding="utf-8"))
+    if (metadata.get("dependency_sha") != PR970 or
+            metadata.get("scene_policy") != "classroom-static-v1" or
+            metadata.get("webots") != "R2025a" or
+            metadata.get("webots_source_sha") != "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b" or
+            metadata.get("blockly") != "13.2.1" or
+            metadata.get("source_sha") != (root / "SOURCE_SHA").read_text().strip() or
+            (root / "PR970_SHA").read_text().strip() != PR970):
+        raise ValueError("Source provenance or #970 dependency mismatch")
+    worlds = sorted((root / "worlds").glob("*.wbt"))
+    if len(worlds) != 12:
+        raise ValueError("Exactly 12 canonical 20-FPS base worlds required")
+    profile = json.loads((root / "Activites/08-grand-prix-variable.wbb").read_text(encoding="utf-8"))
+    if (profile["format"] != "webeeblocks-project" or
+            profile["activity"]["id"] != "progression-grand-prix-route-v2"):
+        raise ValueError("Unexpected pupil project/activity identity")
+    ids = json.loads((root / "COURSES.json").read_text(encoding="utf-8"))
+    if ids.get("course_ids") != [reference_course(i).identifier for i in range(12)]:
+        raise ValueError("Host-only course inventory mismatch")
+    if (ids.get("fps") != [20] or ids.get("fps_min") != 1 or
+            ids.get("fps_max") != 60 or ids.get("fps_step") != 1 or
+            ids.get("fps_default") != 20 or ids.get("physics_step_ms") != 8):
+        raise ValueError("Physics/render policy corrupted")
+    expected = set()
+    for i in range(12):
+        for fps in (20,):
+            stem = f"grand_prix_route_v2_{i:02d}_fps{fps}"
+            expected.add(stem + ".wbt")
+            path = root / "worlds" / (stem + ".wbt")
+            scene = path.read_text(encoding="utf-8")
+            identifier = reference_course(i).identifier
+            if (scene.count('controller "grand_prix_route_flight"') != 1 or
+                    scene.count('controller "grand_prix_route_evaluator"') != 1 or
+                    scene.count('window "grand_prix_route_v2"') != 1 or
+                    scene.count(f'controllerArgs [ "{identifier}" ]') != 2 or
+                    scene.count('basicTimeStep 8') != 1 or
+                    scene.count(f'FPS {fps} ') != 1 or
+                    scene.count("Floor {") != 1 or
+                    re.search(r'"(?:https?|webots)://', scene) or
+                    any(scene.count(f'EXTERNPROTO "../protos/{proto}.proto"') != 1
+                        for proto in ("Crazyflie", "Floor", "TexturedBackground",
+                                      "TexturedBackgroundLight"))):
+                raise ValueError("Canonical scene contract mismatch: " + stem)
+            if not (root / "worlds" / ("." + stem + ".wbproj")).is_file():
+                raise ValueError("Native R2025a project perspective missing")
+    for name in ("Crazyflie", "Floor", "Parquetry", "TexturedBackground", "TexturedBackgroundLight"):
+        if not (root / "protos" / (name + ".proto")).is_file():
+            raise ValueError("Offline native R2025a PROTO absent: " + name)
+    for direction in ("back", "bottom", "front", "left", "right", "top"):
+        for ext in ("jpg", "hdr"):
+            if not (root / "protos/textures/cubic" / f"mountains_{direction}.{ext}").is_file():
+                raise ValueError("Offline native original skybox texture missing")
+    for kind in ("base_color", "roughness", "normal", "occlusion"):
+        if not (root / "protos/textures/parquetry" / f"chequered_parquetry_{kind}.jpg").is_file():
+            raise ValueError("Native Floor appearance texture missing")
+    if {p.name for p in worlds} != expected:
+        raise ValueError("Unexpected route worlds")
+    if not (root / "controllers/grand_prix_route_flight/grand_prix_route_flight.exe").is_file():
+        raise ValueError("Real compiled Windows flight binary missing")
+    if not (root / "controllers/grand_prix_route_evaluator/grand_prix_route_evaluator.py").is_file():
+        raise ValueError("Native evaluator bootstrap missing")
+    if "SCENE_POLICY_CLASSROOM_STATIC" not in (root / "tools/grand_prix/evaluator_publisher_v2.py").read_text():
+        raise ValueError("Static policy not shipped")
+    route_ui = root / "plugins/robot_windows/grand_prix_route_v2"
+    if not (route_ui / "setup.js").is_file():
+        raise ValueError("Blockly variable profile missing")
+    html = (route_ui / "grand_prix_route_v2.html").read_text(encoding="utf-8")
+    js = (route_ui / "fps_settings.js").read_text(encoding="utf-8")
+    css = (route_ui / "fps_settings.css").read_text(encoding="utf-8")
+    setup = (route_ui / "setup.js").read_text(encoding="utf-8")
+    if (html.count('id="gpFpsSlider"') != 1 or
+            html.count('id="gpFpsToggle"') != 1 or
+            'min="1" max="60" step="1" value="20" disabled' not in html or
+            'src="fps_settings.js"' not in html or
+            'href="fps_settings.css"' not in html or
+            'GP_ROUTE_FPS_V1 ' not in setup or
+            'GP_ROUTE_FPS_V1 ' not in js or
+            "state !== 'PRÊT'" not in js or
+            'window.runtimeRunning === true' not in js or
+            '#gpFpsPanel[hidden]' not in css):
+        raise ValueError("Accessible grounded-only FPS UI missing/inconsistent")
+    # UI regression observed by the owner at half-window width (~688 px):
+    # #primaryActions is a scrollable strip in the generic Blockly CSS.
+    # A popover nested inside it is clipped and its gear can scroll away.
+    # The Grand Prix-only control must be a direct header sibling, while its
+    # 1..60 slider and native flight lock semantics remain unchanged.
+    actions_start = html.index('id="primaryActions"')
+    actions_end = html.index("</div>", actions_start)
+    gear_start = html.index('id="gpFpsControl"')
+    header_end = html.index("</header>", actions_end)
+    if not (actions_start < actions_end < gear_start < header_end):
+        raise ValueError("FPS control must be outside scrollable primaryActions")
+    if (html.count('id="gpFpsControl"') != 1 or
+            'grid-template-areas: "activity fps" "actions actions";' not in css or
+            '#primaryActions {\n    grid-area: actions;' not in css or
+            'flex-wrap: wrap;\n    overflow: visible;' not in css or
+            '#gpFpsControl { grid-area: fps; justify-self: end;' not in css):
+        raise ValueError("Half-window FPS control is not pinned outside scrolling actions")
+    if not (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").is_file():
+        raise ValueError("Blockly version asset missing")
+    if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":
+        raise ValueError("Wrong Blockly build")
+    # The slider lives in the shipped Blockly web page, not a WinForms
+    # dialog. This entrypoint only preserves a bounded initial -Fps override.
+    batch = (root / "Lancer-Grand-Prix.cmd").read_text(encoding="utf-8")
+    if "powershell.exe -STA -NoProfile" not in batch:
+        raise ValueError("Windows PowerShell launcher entrypoint changed")
+    front = (root / "Lancer-Grand-Prix.ps1").read_text(encoding="utf-8-sig")
+    if ("[ValidateRange(1,60)][int]$Fps=20" not in front or
+            "$env:WEBEEBLOCKS_GP_FPS=[string]$Fps" not in front or
+            "$form.ShowDialog()" in front or
+            "System.Windows.Forms.Form" in front):
+        raise ValueError("FPS must be selected by the embedded web UI, not WinForms")
+    launcher = (root / "Launch-WebeeBlocks.ps1").read_text(encoding="utf-8-sig")
+    if ("grand_prix_route_v2" not in launcher or
+            "._gp_route_session_" not in launcher or
+            "WEBEEBLOCKS_GP_FPS" not in launcher or
+            "WEBEEBLOCKS_GP_INDEX" not in launcher or
+            "FPS 20" not in launcher or
+            "RequestedFps -lt 1" not in launcher or
+            "RequestedFps -gt 60" not in launcher or
+            "FPS ' + $RequestedFps" not in launcher or
+            " -RequestedFps ([int]$fpsText)" not in launcher or
+            "GetRelativePath(" in launcher or
+            "$worldText = [IO.File]::ReadAllText($world, [Text.Encoding]::UTF8)" not in launcher or
+            "$worldPerspectiveText = [IO.File]::ReadAllText($worldPerspective, [Text.Encoding]::UTF8)" not in launcher or
+            "$worldText = Get-Content" in launcher or
+            "GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK" not in launcher or
+            "Stop-WebeeBlocksLocalServer -Server $testServer" not in launcher):
+        raise ValueError("Windows launcher not routed to isolated static identity")
+    if any("grand_prix_u" in x.lower() for x in expected):
+        raise ValueError("Historical U geometry leaked into delivery")
+    return dict(source_sha=metadata["source_sha"], dependency_sha=PR970,
+                file_count=len(files), worlds=len(worlds), sha256_manifest=digest(root / "MANIFEST.sha256"),
+                modes=[20], slider_range=[1, 60], slider_step=1, native_status="UNPROVEN", gui_status="UNPROVEN")
+
+
+def verify_zip(archive, output):
+    archive, output = Path(archive).resolve(strict=True), Path(output).resolve()
+    if output.exists():
+        raise ValueError("Extract only into a fresh directory")
+    with zipfile.ZipFile(archive) as zf:
+        names = zf.namelist()
+        if not names or len(names) != len(set(names)):
+            raise ValueError("Empty or duplicate ZIP entries")
+        if any(not re.fullmatch(r"[A-Za-z0-9_.\-/ ]+", name) or
+               name.startswith(("/", "../")) or "/../" in name or
+               "\\" in name for name in names):
+            raise ValueError("Unsafe ZIP entry")
+        for member in zf.infolist():
+            if member.is_dir() or ((member.external_attr >> 16) & 0o170000) == 0o120000:
+                raise ValueError("Directory/symlink ZIP entry refused")
+        zf.extractall(output)
+    return verify(output)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--extract-to", type=Path, required=True)
+    args = parser.parse_args()
+    print(json.dumps(verify_zip(args.archive, args.extract_to), indent=2))
+
+
+if __name__ == "__main__":
+    main()
