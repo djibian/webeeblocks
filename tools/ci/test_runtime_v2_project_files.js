@@ -823,6 +823,12 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   const nodes=[takeoff,speed,forward1,climb,forward2,land];
   for(let i=0;i<nodes.length-1;i++)
     nodes[i].nextConnection.connect(nodes[i+1].previousConnection);
+  // In the real activity chooser, profile-specific FieldNumber constraints are
+  // installed before pupils edit speed. The generic block rounds at 0.1 m/s;
+  // Activity 2 explicitly permits 0.01 so the witnessed 0.14 is representable.
+  ActivityContract.applyFieldBounds(profile,w);
+  speed.setFieldValue('0.14','SPEED');
+  assert.strictEqual(Number(speed.getFieldValue('SPEED')),0.14);
   const compiled=ast(w,profile);
   assert.deepStrictEqual(compiled.program,[
     {kind:'takeoff',height_m:0.45},{kind:'set_speed',speed_m_s:0.14},
