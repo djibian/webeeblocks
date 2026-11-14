@@ -14,6 +14,8 @@ on:
       - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
       - 'controllers/crazyflie_classroom_v2/decision_h_scene_gate.h'
       - 'plugins/robot_windows/decision_h_pupil_probe/**'
+      - 'plugins/robot_windows/decision_h_blind_probe/**'
+      - 'tools/ci/run_classroom_decision_h_blind.py'
       - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
       - 'tools/ci/prepare_classroom_decision_h_pupil.py'
       - 'tools/ci/run_classroom_decision_h_pupil.py'
@@ -47,7 +49,7 @@ jobs:
           python3 -m unittest tools.ci.test_progression_decision_h_selector tools.ci.test_runtime_v2_classroom_selector
       - name: Validate real Blockly A4 pupil fixture JS/Python and its fail-closed protocol
         run: |
-          python3 -m unittest tools.ci.test_progression_decision_h_pupil
+          python3 -m unittest tools.ci.test_progression_decision_h_pupil tools.ci.test_progression_decision_h_blind
       - name: Build school-only C++ selector against actual Webots R2025a SDK
         run: |
           docker run --rm \
@@ -124,6 +126,8 @@ jobs:
               mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-decision-h-blockly
               printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
               python3 tools/ci/run_classroom_decision_h_pupil.py
+              export WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-decision-h-blind
+              python3 tools/ci/run_classroom_decision_h_blind.py
             '
       - name: Preserve A4 same .wbb native pupil flight evidence
         if: always()
@@ -131,6 +135,13 @@ jobs:
         with:
           name: a4-draft-r2025a-same-wbb-pupil
           path: ci-artifacts/progression-decision-h-blockly/
+          if-no-files-found: warn
+      - name: Preserve native blind-path rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-blind-path-adversaries
+          path: ci-artifacts/progression-decision-h-blind/
           if-no-files-found: warn
       - name: Retain exact native witnesses including failures
         if: always()
