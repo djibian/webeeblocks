@@ -177,6 +177,27 @@ class Tests(unittest.TestCase):
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
+    def test_evaluator_campaign_envelope_does_not_truncate_sixth_native_flight(self):
+        # CI #43640756100: the sixth 8-ms airborne window was started after
+        # ~900 s of preceding mandatory proofs; its ACK appeared 2 s before
+        # the overall 900-s kill (exit 124), not after a 420-s per-case hang.
+        # Keep the outer budget separate from physics and native safety guards.
+        root = Path(__file__).resolve().parents[2]
+        entry = (root / "tools/ci/run_grand_prix_u_geometry.py").read_text()
+        runner = (root / "tools/ci/run_grand_prix_route_evaluator_native.py").read_text()
+        self.assertIn(
+            "timeout -k 5s 1350s xvfb-run -a python3 -u "
+            "tools/ci/run_grand_prix_u_geometry.py --native --evaluator-only", entry)
+        self.assertIn(
+            "subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1400)",
+            entry)
+        self.assertIn(
+            "process.wait(timeout=420 if mode in "
+            "('flight-reset', 'flight-window', 'flight-course-negative', 'flight-vertical-preflight') else 120)",
+            runner)
+        self.assertIn("flight_orders = (policies, policies[::-1], policies)", runner)
+        self.assertIn("for pair_number, pair_order in enumerate(flight_orders, start=1):", runner)
+
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
             with self.assertRaises(ValueError): generate(seed)
