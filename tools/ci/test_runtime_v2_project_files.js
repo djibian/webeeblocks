@@ -854,6 +854,27 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   const original=transport.state.currentText;
   assert.strictEqual(ProjectFiles.parseProject(original).activity.id,profile.id);
   assert.strictEqual(transport.state.writes.length,1);
+  // A saved speed must not be silently rounded or coerced during Open.
+  // Keep the file boundary fail-closed for malformed field precision/range.
+  const boundary={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  for(const badSpeed of [0.125,0.3]){
+    const malformed=JSON.parse(original);
+    let changedCount=0;
+    function setMalformedSpeed(value){
+      if(Array.isArray(value)){value.forEach(setMalformedSpeed);return;}
+      if(!value||typeof value!=='object')return;
+      if(value.type==='webeeblocks_v2_speed'&&value.fields&&
+          Object.prototype.hasOwnProperty.call(value.fields,'SPEED')){
+        value.fields.SPEED=badSpeed;changedCount++;
+      }
+      Object.keys(value).forEach(key=>setMalformedSpeed(value[key]));
+    }
+    setMalformedSpeed(malformed.workspace);
+    assert.strictEqual(changedCount,1,'one serialized speed command must be found');
+    assert.throws(()=>ProjectFiles.validateProjectText(JSON.stringify(malformed),profile,boundary),
+      /Activity 2 serialized speed outside profile bounds or step/);
+  }
   forward2.getInputTargetBlock('DISTANCE').setFieldValue('0.9','NUM');
   transport.state.openText=original;
   await manager.open();
