@@ -531,7 +531,6 @@ int main(){
  std::printf("GP_ROUTE_CAPTURED %s|%s\n",request.c_str(),sample.c_str());
  admit();now=212.112;gp_route_observe_native(now,1,0,ranges);assert(sample.empty());
  assert(gp_u_deadline(now,0)==1); // snapshot publication cannot rescue exact expiry
-}
  // Prove the compiled route-only FPS guard with a deferred Supervisor fake.
  // These tests do not simulate rendering and do not replace real Webots CI.
  {
@@ -589,6 +588,7 @@ int main(){
   assert(gp_u_filter_raw("GP_ROUTE_FPS_V1 GET nonce=invalid")==0);
   assert(reply.empty()); // Noncanonical nonce never grants an API operation.
  }
+}
 ''')
             binary = base / 'test'
             subprocess.run([
