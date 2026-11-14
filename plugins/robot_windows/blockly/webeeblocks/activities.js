@@ -42,26 +42,26 @@
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
           visible: true,
-          title: '1 — Livrer le colis',
-          mission: 'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.'
+          title: '1 — Prendre son envol en 3D',
+          mission: 'Depuis la zone bleue, rejoins le damier vert décalé et pose le drone entièrement dessus, immobile. Tu peux régler la hauteur de décollage et les distances de déplacement.'
         },
-        pedagogy: { objective: 'Construire et comprendre une séquence ordonnée d’actions.' },
+        pedagogy: { objective: 'Transférer une séquence connue en 2D au vol 3D : repérer deux axes horizontaux, régler une altitude de décollage simple et les distances, sans condition ni boucle.' },
         toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
         parameterBounds: {},
-        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward' ] } },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
         hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
         timer: { enabled: false },
-        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-v1' },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-3d-v1' },
         runtime: {
           scene: 'sequence-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
           rangeDirections: [  ],
-          moveDirections: [ 'forward' ],
+          moveDirections: [ 'forward', 'left' ],
           verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': { min: 0.5, max: 0.5 },
-            'move.distance_m': { min: 0.1, max: 0.1 }
+            'takeoff.height_m': { min: 0.4, max: 0.8 },
+            'move.distance_m': { min: 0.1, max: 0.5 }
           }
         }
       },

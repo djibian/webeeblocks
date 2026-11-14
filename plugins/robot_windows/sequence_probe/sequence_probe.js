@@ -63,8 +63,8 @@ async function flyCanonicalSequence(backend) {
   const after = await backend.readElapsedTime();
   if (after - start < 0.5 || after - start > 1.5) throw new Error('wrong Webots wait/elapsed time relationship');
   await report('ELAPSED_TIME_WEBOTS', {start:start, after:after});
-  await backend.move('forward', 0.1);
-  await backend.move('forward', 0.1);
+  await backend.move('forward', 0.35);
+  await backend.move('left', 0.28);
   await backend.land();
   try { await backend.readElapsedTime(); throw new Error('time available after land'); }
   catch (error) { if (error.code !== 'TIME_UNAVAILABLE') throw error; }
@@ -117,7 +117,7 @@ window.addEventListener('unhandledrejection', function(event) {
         throw new Error('reattachment did not acknowledge one native scene request: ' + JSON.stringify(requests));
       await report(event, {scene:scene, requests:requests.length});
     }
-    const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
+    const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-3d-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
     if (window.WebeeBlocksNeutralStartupProbe === true) {
       try {
@@ -153,11 +153,22 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, evaluation, 'SEQUENCE_SECOND_RESET_FRESH');
 
+    // A correct forward distance alone cannot land on the offset checkerboard.
     await backend.takeoff(0.5);
-    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.35);
     await backend.land();
+    await backend.completeActivityMission(evaluation);
+    const forwardOnly = await waitForOutcome(backend, evaluation, 'not-achieved', 8000);
+    await report('SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED', forwardOnly);
+
+    await resetAndProveFresh(backend, evaluation, 'SEQUENCE_THIRD_RESET_FRESH');
+
+    // A second valid trajectory must remain a SINGLE takeoff-to-land attempt.
+    // Two short forward moves test compositional commands without a second flight.
     await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
+    await backend.move('forward', 0.25);
+    await backend.move('left', 0.28);
     await backend.land();
     await backend.completeActivityMission(evaluation);
     const alternative = await waitForOutcome(backend, evaluation, 'achieved', 8000);
@@ -166,6 +177,7 @@ window.addEventListener('unhandledrejection', function(event) {
       canonical:achieved.status,
       repeat:repeat.status,
       negative:notAchieved.status,
+      forwardOnly:forwardOnly.status,
       alternative:alternative.status
     });
 

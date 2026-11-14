@@ -464,7 +464,7 @@ def main():
     vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
     c.click(vol_rect); time.sleep(.15)
     field_flyout=c.eval(PROFILE_FIELD_FLYOUT)
-    expected_values=['forward']
+    expected_values=['forward','left']
     flyout_values=[option['value'] for option in field_flyout['options']]
     if flyout_values != expected_values:
         raise RuntimeError('first observable product flyout was not profile-restricted: '+json.dumps(field_flyout,ensure_ascii=False))
