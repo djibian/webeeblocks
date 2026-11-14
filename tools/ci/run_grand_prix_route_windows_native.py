@@ -69,7 +69,7 @@ int main() {
 def run_one(package, home, root, index):
     folder = root / f"route-{index:02d}"
     folder.mkdir()
-    file = package / f"worlds/grand_prix_route_v2_{index:02d}_fps60.wbt"
+    file = package / f"worlds/grand_prix_route_v2_{index:02d}_fps20.wbt"
     engine = home / "msys64/mingw64/bin/webots-bin.exe"
     node = shutil.which("node")
     if not engine.is_file() or not node:

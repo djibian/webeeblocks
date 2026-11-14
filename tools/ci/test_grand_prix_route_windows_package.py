@@ -40,11 +40,11 @@ def verify(root):
     ids = json.loads((root / "COURSES.json").read_text(encoding="utf-8"))
     if ids.get("course_ids") != [reference_course(i).identifier for i in range(12)]:
         raise ValueError("Host-only course inventory mismatch")
-    if ids.get("fps") != [60, 30, 25] or ids.get("physics_step_ms") != 8:
+    if ids.get("fps") != [15, 20, 25] or ids.get("physics_step_ms") != 8:
         raise ValueError("Physics/render policy corrupted")
     expected = set()
     for i in range(12):
-        for fps in (60, 30, 25):
+        for fps in (15, 20, 25):
             stem = f"grand_prix_route_v2_{i:02d}_fps{fps}"
             expected.add(stem + ".wbt")
             path = root / "worlds" / (stem + ".wbt")
@@ -88,11 +88,18 @@ def verify(root):
         raise ValueError("Blockly version asset missing")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":
         raise ValueError("Wrong Blockly build")
+    front = (root / "Lancer-Grand-Prix.ps1").read_text(encoding="utf-8-sig")
+    if ("[ValidateSet(15,20,25)][int]$Fps=20" not in front or
+            "^(?:15|20|25)$" not in front or
+            "^(?:60|30|25)$" in front):
+        raise ValueError("GUI FPS selector not restricted to 15/20/25")
     launcher = (root / "Launch-WebeeBlocks.ps1").read_text(encoding="utf-8-sig")
     if ("grand_prix_route_v2" not in launcher or
             "._gp_route_session_" not in launcher or
             "WEBEEBLOCKS_GP_FPS" not in launcher or
             "WEBEEBLOCKS_GP_INDEX" not in launcher or
+            "FPS (15|20|25)" not in launcher or
+            "FPS (25|30|60)" in launcher or
             "GetRelativePath(" in launcher or
             "$worldText = [IO.File]::ReadAllText($world, [Text.Encoding]::UTF8)" not in launcher or
             "$worldPerspectiveText = [IO.File]::ReadAllText($worldPerspective, [Text.Encoding]::UTF8)" not in launcher or
@@ -104,7 +111,7 @@ def verify(root):
         raise ValueError("Historical U geometry leaked into delivery")
     return dict(source_sha=metadata["source_sha"], dependency_sha=PR970,
                 file_count=len(files), worlds=len(worlds), sha256_manifest=digest(root / "MANIFEST.sha256"),
-                modes=[25, 30, 60], native_status="UNPROVEN", gui_status="UNPROVEN")
+                modes=[15, 20, 25], native_status="UNPROVEN", gui_status="UNPROVEN")
 
 
 def verify_zip(archive, output):

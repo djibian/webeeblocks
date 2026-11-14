@@ -18,11 +18,10 @@ sys.path.insert(0, str(ROOT))
 from tools.grand_prix.package_windows_u import verified_files, digest, replace_once
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
-from tools.grand_prix.launch_linux import configure_render_fps
 
 PR970_SHA = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
 NAME = "WebeeBlocks-Grand-Prix-Variable-Windows-R2025a"
-FPS = (60, 30, 25)
+FPS = (15, 20, 25)
 WEBOTS_SOURCE_SHA = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
 
 
@@ -140,9 +139,24 @@ def stage_native_webots_protos(output, classroom, webots_source):
                 cubic / file)
 
 
+def configure_windows_route_fps(scene, fps):
+    """Compose only native viewport FPS for the Windows 15/20/25 A/B trial.
+
+    The shared Linux/historical composer and all 8-ms physics stay unchanged.
+    """
+    if type(fps) is not int or fps not in FPS:
+        raise ValueError("Unsupported experimental Windows Grand Prix FPS")
+    anchor = ("DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo { "
+              "basicTimeStep 8 randomSeed 1 ")
+    if (scene.count(anchor) != 1 or scene.count("WorldInfo {") != 1 or
+            " FPS " in scene.split("}", 1)[0]):
+        raise RuntimeError("Unexpected native WorldInfo; refusing FPS composition")
+    return scene.replace(anchor, anchor + f"FPS {fps} ", 1)
+
+
 def route_world(course_index, fps):
     course = reference_course(course_index)
-    scene = configure_render_fps(active_course_world(course), fps)
+    scene = configure_windows_route_fps(active_course_world(course), fps)
     # Keep every original PROTO node and its geometry. Only bind imports to
     # pinned, verified local R2025a copies, instead of absent installer projects.
     external = {
@@ -177,9 +191,9 @@ def launch_script(text):
     old = "$world = Join-Path $PSScriptRoot 'worlds\\crazyflie_runtime_v2.wbt'"
     new = (
         "$indexText = if ($env:WEBEEBLOCKS_GP_INDEX) { $env:WEBEEBLOCKS_GP_INDEX } else { '5' }\n"
-        "$fpsText = if ($env:WEBEEBLOCKS_GP_FPS) { $env:WEBEEBLOCKS_GP_FPS } else { '60' }\n"
-        "if ($indexText -cnotmatch '^(?:[0-9]|10|11)$' -or $fpsText -cnotmatch '^(?:25|30|60)$') {\n"
-        "  throw 'Configuration Grand Prix ou FPS incorrects : index 0..11, FPS 25/30/60.'\n"
+        "$fpsText = if ($env:WEBEEBLOCKS_GP_FPS) { $env:WEBEEBLOCKS_GP_FPS } else { '20' }\n"
+        "if ($indexText -cnotmatch '^(?:[0-9]|10|11)$' -or $fpsText -cnotmatch '^(?:15|20|25)$') {\n"
+        "  throw 'Configuration Grand Prix ou FPS incorrects : index 0..11, FPS 15/20/25.'\n"
         "}\n"
         "$index = [int]$indexText\n"
         "$env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $PSScriptRoot 'runtime\\python'\n"
@@ -286,7 +300,7 @@ if ($ValidateOnly) {
   # checking the world text would miss unsupported .NET methods in the GUI path.
   if ($worldText -cnotmatch 'window "grand_prix_route_v2"' -or
       $worldText -cnotmatch 'basicTimeStep 8' -or
-      $worldText -cnotmatch 'FPS (25|30|60)' -or
+      $worldText -cnotmatch 'FPS (15|20|25)' -or
       $worldText -cnotmatch 'controller "grand_prix_route_evaluator"') {
     throw 'Scene Grand Prix variable incomplete.'
   }

@@ -62,6 +62,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Python source check failed' }
           python -m unittest tools.ci.test_grand_prix_route_windows_epoch
           if ($LASTEXITCODE -ne 0) { throw 'Fail-closed Windows route CNG composer tests failed' }
+          python -m unittest tools.ci.test_grand_prix_route_windows_fps
+          if ($LASTEXITCODE -ne 0) { throw 'Experimental 15/20/25 FPS isolation contract failed' }
           node --check tools/ci/grand_prix_route_windows_node_probe.js
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"
@@ -121,7 +123,7 @@ jobs:
           python tools/ci/test_grand_prix_route_windows_package.py --archive 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a.zip' --extract-to 'ci-artifacts/EXTRACTED variable route with spaces'
           if ($LASTEXITCODE -ne 0) { throw 'Extracted product inventory failed' }
           $env:WEBEEBLOCKS_GP_INDEX = '5'
-          $env:WEBEEBLOCKS_GP_FPS = '30'
+          $env:WEBEEBLOCKS_GP_FPS = '20'
           # .cmd launches Windows PowerShell 5.1, not pwsh 7. Exercise the real
           # isolated session creation, HTML dependency rewriting, and cleanup.
           & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED variable route with spaces/Launch-WebeeBlocks.ps1' -WebotsHome $env:WEBOTS_HOME -ValidateOnly

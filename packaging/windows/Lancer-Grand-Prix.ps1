@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
  [int]$Index=-1,
- [ValidateSet(25,30,60)][int]$Fps=60
+ [ValidateSet(15,20,25)][int]$Fps=20
 )
 $ErrorActionPreference='Stop'
 $indexValue=$Index
@@ -12,9 +12,9 @@ if ($indexValue -lt 0) {
   $indexValue=[int]$raw
 }
 if (-not $PSBoundParameters.ContainsKey('Fps')) {
-  $raw=Read-Host 'FPS natifs Webots (60, 30, 25, Entree = 60)'
-  if ([string]::IsNullOrWhiteSpace($raw)) { $raw='60' }
-  if ($raw -cnotmatch '^(?:60|30|25)$') { throw 'FPS invalides.' }
+  $raw=Read-Host 'FPS natifs Webots (15, 20, 25, Entree = 20)'
+  if ([string]::IsNullOrWhiteSpace($raw)) { $raw='20' }
+  if ($raw -cnotmatch '^(?:15|20|25)$') { throw 'FPS invalides.' }
   $Fps=[int]$raw
 }
 $env:WEBEEBLOCKS_GP_INDEX=[string]$indexValue

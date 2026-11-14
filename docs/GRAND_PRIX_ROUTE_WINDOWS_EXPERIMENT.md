@@ -5,7 +5,7 @@ Ce ZIP est indépendant du Grand Prix U historique. Il contient Blockly 13.2.1,
 le vrai pilote natif grand_prix_route_flight, le vrai évaluateur
 grand_prix_route_evaluator sous la politique de scène classroom-static-v1
 de la PR #970, les douze parcours canoniques et trois fréquences
-d'affichage Webots natives. Il n'autorise aucun vol réel.
+d'affichage Webots natives (15, 20 et 25 FPS), choisies pour l'essai apparié. Il n'autorise aucun vol réel.
 
 ## Installation et intégrité
 
@@ -22,9 +22,9 @@ ni Internet pour l'usage normal sur le poste Windows.
 3. Vérifier SOURCE_SHA, PR970_SHA, COMPOSITION.json, COURSES.json et
    MANIFEST.sha256 avant l'essai.
 4. Fermer toute autre instance Webots, puis lancer Lancer-Grand-Prix.cmd.
-   Choisir un parcours **0 à 11**, puis **60, 30 ou 25 FPS**. Valeurs par
-   défaut : parcours 5, fréquence native 60 FPS.
-   Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 30,
+   Choisir un parcours **0 à 11**, puis **15, 20 ou 25 FPS**. Valeurs par
+   défaut : parcours 5, fréquence native 20 FPS.
+   Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 20,
    ou définir WEBEEBLOCKS_GP_INDEX et WEBEEBLOCKS_GP_FPS puis utiliser
    Launch-WebeeBlocks.cmd.
 
@@ -72,7 +72,7 @@ existant windows_host_inventory.ps1 peut aider sur un checkout Git ;
 ne jamais publier d'identifiants personnels.
 
 Ordre : parcours **5, puis 0 et 11**, puis les douze configurations en
-conservant le même programme .wbb. Pour chaque monde : **60 → 30 → 25 FPS**,
+conservant le même programme .wbb. Pour chaque monde : **15 → 20 → 25 FPS**,
 caméra, fenêtre et résolution native **100 %** identiques, mode Real-time.
 Si possible **trois essais appariés alternés** par configuration, sans changer
 le programme, les capteurs ni la géométrie. Relever séparément chargement et
@@ -83,6 +83,16 @@ vol stabilisé :
 - Blockly PRÊT, Pas à pas, Continuer, STOP, RESET, deuxième décollage ;
 - Save As, Save, Open du **même .wbb**, capteurs et changement de parcours ;
 - verdicts natifs, déclenchement des oracles, LAND à 210 s et éventuels gels.
+
+Retour humain initial (14/11/2026) sur Lenovo Intel HD Graphics 4000,
+pendant un vrai vol Blockly complet et avec une mission terminée avec succès :
+plafond 25 FPS = 0,85×, 30 FPS = 0,70×, 60 FPS = 0,35× ; fluidité jugée
+« Fluide » dans les trois cas. Les produits plafond × vitesse sont proches
+de 21 images/s : indice d'un coût lié au rendu et à sa synchronisation,
+**pas une mesure directe des FPS affichés** ni une preuve du goulot GPU.
+La variante 15/20/25 vise à tester l'hypothèse ~1× à 20 FPS. Comparer
+la même caméra, résolution, géométrie, programme et vol sur le même hôte ;
+ne pas extrapoler un succès à tous les parcours ou réglages.
 
 Seuils **indicatifs et non éliminatoires isolément** selon #914 :
 vitesse ≥0,95×, 25–30 FPS réellement visibles, p99 ≤25 ms et
