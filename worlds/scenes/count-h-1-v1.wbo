@@ -1,0 +1,53 @@
+# Activity 6: exactly 1 actual open H crossings on one straight axis.
+# The terminal landing cannot encode the count; observe and remember crossings.
+# Future native oracle must verify unique directed crossings, low-flight bands,
+# body clearance, contact-free pose and count-dependent landing across variants.
+DEF WEBEEBLOCKS_COUNT_1_SCENE Group {
+ children [
+  Pose { translation -1.40 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } } ] } # blue start
+  # Visible lateral limits, no collider: crossing constraints belong to the oracle.
+  Pose { translation 0.10 0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 3.40 0.012 0.004 } } ] }
+  Pose { translation 0.10 -0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 3.40 0.012 0.004 } } ] }
+  Pose { translation 1.48 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 1
+  Pose { translation 1.420000 -0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.48 0.550 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 2
+  Pose { translation 1.420000 0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.48 -0.550 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 3
+  Pose { translation 1.420000 -0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation -0.850 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
+  DEF ACTIVITY6_1_H_1_LEFT Solid {
+    translation -0.850 0.300 0.50
+    name "ACTIVITY6_1_H_1_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY6_1_H_1_RIGHT Solid {
+    translation -0.850 -0.300 0.50
+    name "ACTIVITY6_1_H_1_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY6_1_H_1_BAR Solid {
+    translation -0.850 0 0.74
+    name "ACTIVITY6_1_H_1_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.57 0.24 } } ]
+    boundingObject Box { size 0.07 0.57 0.24 }
+  }
+# A single terminal marker is in the same position on all variants.
+  DEF ACTIVITY6_1_TERMINAL Solid {
+    translation 1.86 0 0.55
+    name "ACTIVITY6_1_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.06 1.48 1.10 } } ]
+    boundingObject Box { size 0.06 1.48 1.10 }
+  }
+ ]
+}
