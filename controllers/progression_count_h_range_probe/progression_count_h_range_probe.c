@@ -81,6 +81,67 @@ int main(void) {
            variant, pad, range, world[0], world[1], world[2]);
     fflush(stdout);
   }
+  /* Native *geometric* collision sweep only. The supervisor explicitly
+   * positions the unmodified Crazyflie PROTO at 20-mm steps. No motors
+   * act, so a PASS does NOT prove actual commanded flight or stability.
+   * Test all red H arches and the cyan terminal screen at low altitude,
+   * then translate sideways to each landing zone. */
+  int safe_samples = 0;
+  const double low_z = 0.40;
+  for (int i = 0; i <= 144 + 28 * 2; ++i) {
+    double xyz[3] = {1.48, 0.0, low_z};
+    if (i <= 144) {
+      xyz[0] = -1.40 + 0.02 * i;
+    } else if (i <= 172) {
+      xyz[1] = 0.55 * (i - 144) / 28.0;
+    } else {
+      xyz[1] = -0.55 * (i - 172) / 28.0;
+    }
+    wb_supervisor_field_set_sf_vec3f(pos, xyz);
+    wb_supervisor_field_set_sf_rotation(rot, facing);
+    wb_supervisor_node_reset_physics(self);
+    if (wb_robot_step(step) < 0)
+      return invalid("native physics sweep step failed");
+    const double *actual = wb_supervisor_node_get_position(self);
+    int contact_count = -1;
+    const WbContactPoint *contacts =
+      wb_supervisor_node_get_contact_points(self, &contact_count, true);
+    if (!actual || !isfinite(actual[0]) || !isfinite(actual[1]) ||
+        !isfinite(actual[2]) || fabs(actual[0] - xyz[0]) > 0.035 ||
+        fabs(actual[1] - xyz[1]) > 0.035 ||
+        fabs(actual[2] - xyz[2]) > 0.045 ||
+        contact_count < 0 || (contact_count > 0 && !contacts)) {
+      return invalid("unattested swept pose/contact observation");
+    }
+    if (contact_count != 0) {
+      fprintf(stderr,
+              "WEBEEBLOCKS_COUNT_H_BACK_FATAL sweep_contact variant=%d "
+              "i=%d count=%d x=%.6f y=%.6f z=%.6f\n",
+              variant, i, contact_count, actual[0], actual[1], actual[2]);
+      fflush(stderr);
+      wb_robot_cleanup();
+      return 2;
+    }
+    ++safe_samples;
+  }
+
+  /* Positive adversarial calibration: deliberately overlap the first
+   * genuine red H top bar. If the native engine/contact API sees nothing,
+   * the preceding zero-contact claims are not trustworthy. */
+  const double collision_pose[3] = {-0.850, 0.0, 0.740};
+  wb_supervisor_field_set_sf_vec3f(pos, collision_pose);
+  wb_supervisor_field_set_sf_rotation(rot, facing);
+  wb_supervisor_node_reset_physics(self);
+  if (wb_robot_step(step) < 0)
+    return invalid("contact control step unavailable");
+  int control_contacts = -1;
+  const WbContactPoint *control =
+    wb_supervisor_node_get_contact_points(self, &control_contacts, true);
+  if (control_contacts <= 0 || !control)
+    return invalid("contact detector failed deliberate H-bar intersection");
+  printf("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d "
+         "control_contacts=%d low_z=%.3f\n",
+         variant, safe_samples, control_contacts, low_z);
   fflush(stdout);
   wb_robot_cleanup();
   return 0;

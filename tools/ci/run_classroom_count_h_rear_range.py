@@ -104,6 +104,13 @@ def run_one(n):
             project.unlink()
     txt=log.read_text(encoding="utf-8",errors="replace")
     findings=pattern.findall(txt)
+    sweep=re.findall(r"WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=(\d) "
+                     r"samples=(\d+) control_contacts=(\d+) low_z=([0-9.]+)",txt)
+    if (len(sweep)!=1 or sweep[0][0]!=str(n) or
+        int(sweep[0][1])!=201 or int(sweep[0][2])<1 or
+        abs(float(sweep[0][3])-0.40)>.001):
+        raise AssertionError("native contact sweep and positive collision calibration failed: "+str(log))
+    print(f"A6_CONTACT_SWEEP_NATIVE_OK n={n} samples={sweep[0][1]} control_contacts={sweep[0][2]}",flush=True)
     if (len(findings)!=3 or any(row[0]!=str(n) or row[1]!=str(i)
                                  for i,row in enumerate(findings)) or
         "WEBEEBLOCKS_COUNT_H_BACK_FATAL" in txt or

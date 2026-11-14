@@ -37,6 +37,23 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertIn("for pad in range(len(PADS)):", runner)
         self.assertIn("max(values)-min(values) > .025", runner)
 
+    def test_real_contact_sweep_and_positive_control_cannot_be_silenced(self):
+        source=(diagnostic.ROOT /
+                "controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        self.assertIn("wb_supervisor_node_get_contact_points", source)
+        self.assertIn("for (int i = 0; i <= 144 + 28 * 2; ++i)", source)
+        self.assertIn("return invalid(\"contact detector failed deliberate H-bar intersection\")", source)
+        self.assertIn("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d", source)
+        self.assertNotIn("WEBEEBLOCKS_COUNT_H_SWEEP_PASS", source.split(
+            "wb_supervisor_node_get_contact_points", 1)[0])
+        runner=(diagnostic.ROOT /
+                "tools/ci/run_classroom_count_h_rear_range.py").read_text(
+                    encoding="utf-8")
+        self.assertIn("int(sweep[0][1])!=201", runner)
+        self.assertIn("int(sweep[0][2])<1", runner)
+        self.assertIn("A6_CONTACT_SWEEP_NATIVE_OK", runner)
+
     def test_refuse_unknown_scene_or_corrupted_start(self):
         for n in (0,4,-1,'1'):
             with self.subTest(variant=n),self.assertRaises(ValueError):
