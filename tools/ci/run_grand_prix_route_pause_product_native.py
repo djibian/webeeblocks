@@ -487,12 +487,15 @@ def main():
         raise RuntimeError('real Chrome / Xvfb Robot Window unavailable')
     OUT.mkdir(parents=True, exist_ok=True)
     for name in ('result.json','browser-launch.log','browser-stdout.log',
-                 'webots.log','qt-preflight.log','robot-window-http-preflight.json'):
+                 'webots.log','qt-preflight.log','robot-window-http-preflight.json',
+                 'browser-main.pid','browser-terminated.json'):
         (OUT/name).unlink(missing_ok=True)
     compiled = compile_native(home)
     server, journal = trace_server()
     process = browser_process = None
     browser_stdout = None
+    lost_browser_pid = None
+    lost_browser_wall = None
     try:
         # The temporary world, Webots profiles and Chrome caches MUST outlive
         # their writers. Register process teardown *after* entering the temp
@@ -581,7 +584,39 @@ def main():
                     current = events(journal)
                     if any(item['stage']=='FAIL' for item in current):
                         raise RuntimeError('real product browser reported FAIL')
-                    if any(item['stage']=='PASS' for item in current):
+                    if WINDOW_LOSS_MODE:
+                        if any(item['stage']=='NATIVE_WINDOW_LOSS_READY' for item in current):
+                            if (sum(e['stage']=='NATIVE_PAUSED' for e in current)!=2 or
+                                sum(e['stage']=='NATIVE_RESUMED' for e in current)!=1 or
+                                any(e['stage']=='PASS' for e in current)):
+                                raise RuntimeError('real lost-window checkpoint not native PAUSED in flight')
+                            lost_browser_pid = terminate_actual_robot_window()
+                            lost_browser_wall = time.monotonic()
+                            # The real 15s wall watchdog must exit PAUSE and
+                            # command LAND without intervention by the browser.
+                            forced_deadline = lost_browser_wall + 35
+                            while time.monotonic() < forced_deadline:
+                                if process.poll() is not None:
+                                    raise RuntimeError('Webots exited after Chrome was killed')
+                                if 'GP_U_DEADLINE ' in log.read_text(errors='replace'):
+                                    break
+                                time.sleep(.2)
+                            else:
+                                raise RuntimeError('native lost-window independent LAND did not start within 35s')
+                            landed_deadline = lost_browser_wall + 95
+                            while time.monotonic() < landed_deadline:
+                                if process.poll() is not None:
+                                    raise RuntimeError('Webots stopped before window-loss touchdown')
+                                transcript = log.read_text(errors='replace')
+                                if ('GP_U_LAND_GROUND_READY ' in transcript and
+                                    'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1' in transcript and
+                                    'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK' in transcript):
+                                    break
+                                time.sleep(.2)
+                            else:
+                                raise RuntimeError('true native window-loss touchdown not confirmed')
+                            break
+                    elif any(item['stage']=='PASS' for item in current):
                         break
                     if (not any(item['stage']=='REAL_UI_READY' for item in current)
                         and time.monotonic() > ui_deadline):
@@ -599,13 +634,26 @@ def main():
                 if not (OUT/'browser-launch.log').is_file() or \
                    (OUT/'browser-launch.log').stat().st_size == 0:
                     raise RuntimeError('real Grand Prix Chrome Robot Window never launched')
-            verify(OUT/'webots.log',journal,compiled,OUT/'world.wbt')
+            if WINDOW_LOSS_MODE:
+                if lost_browser_pid is None or lost_browser_wall is None:
+                    raise RuntimeError('real browser never terminated in native negative probe')
+                verify_actual_window_loss(OUT/'webots.log',journal,compiled,
+                                          OUT/'world.wbt',lost_browser_pid,lost_browser_wall)
+            else:
+                verify(OUT/'webots.log',journal,compiled,OUT/'world.wbt')
     finally:
         # By this point ExitStack has retired Chrome and Webots and removed
         # their private directory. The trace server remains a separate owner.
         server.shutdown()
+        server.server_close()
     return 0
 
 
 if __name__ == '__main__':
+    # Two independent live Webots R2025a runs: successful debugger journey,
+    # then browser process termination during a *new* admitted flight. Both
+    # have separate fsynced artifacts; neither can make the other pass.
+    main()
+    WINDOW_LOSS_MODE = True
+    OUT = ROOT / 'ci-artifacts/runtime-v2-webots/product-native-pause-window-loss'
     raise SystemExit(main())
