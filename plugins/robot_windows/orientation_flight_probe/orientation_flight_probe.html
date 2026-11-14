@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>CI — vol natif orientation 3D, activité 3</title>
+  <script>
+    window.WB_ORIENT_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event:'ORIENT_HTML_LOADED',wall_ms:Date.now()})
+    }).catch(e=>console.error('ORIENT_BOOTSTRAP_FAILED',e));
+  </script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="orientation_flight_probe.js"></script></body>
+</html>
