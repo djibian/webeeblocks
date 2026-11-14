@@ -44,6 +44,18 @@ class BlindNativeControls(unittest.TestCase):
         self.assertIn("wwi_backend.js",html)
         self.assertIn("A4_BLIND_HTML_LOADED",html)
 
+    def test_draft_and_canonical_runtime_protect_both_native_witnesses(self):
+        for workflow in ('.github/workflows/ci-progression-a4-draft.yml',
+                         '.github/workflows/ci-runtime.yml'):
+            content=(ROOT/workflow).read_text(encoding='utf-8')
+            self.assertIn('python3 tools/ci/run_classroom_decision_h_pupil.py',content)
+            self.assertIn('python3 tools/ci/run_classroom_decision_h_blind.py',content)
+            self.assertIn('A4_PUPIL_EXIT=$pupil_status A4_BLIND_EXIT=$blind_status',content)
+            self.assertIn('test "$pupil_status" -eq 0',content)
+            self.assertIn('test "$blind_status" -eq 0',content)
+            self.assertIn('ci-artifacts/progression-decision-h-blind/',content)
+            self.assertIn('if: always()',content)
+
     def test_native_runner_requires_two_actual_wrong_scene_refusals(self):
         src=RUN.read_text(encoding='utf-8')
         ast.parse(src,filename=str(RUN))
