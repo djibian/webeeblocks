@@ -93,6 +93,23 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("manual_browser_no_html_event",native)
         self.assertIn("browser_only_proven_by_launch_and_events",native)
 
+    def test_ci_browser_preparation_is_the_verified_a3_native_preparation(self):
+        workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
+        reference=(ROOT/"tools/ci/run_classroom_neutral_start.py").read_text()
+        for requirement in (
+            "python3 /workspace/tools/test_prepare_webots_apt.py",
+            "python3 /workspace/tools/prepare_webots_apt.py",
+            "apt-get update >/dev/null",
+            "wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null",
+            "chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh",
+            '"browser=/workspace/tools/ci/webots_runtime_v2_browser.sh"',
+            '"newBrowserWindow=false"',
+        ):
+            self.assertIn(requirement,workflow)
+            self.assertIn(requirement,reference)
+        self.assertIn("run_classroom_count_h_motor_flight.py",workflow)
+
     def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
         school=(ROOT/"controllers/progression_count_h_school_pilot/runtime.ini").read_bytes()
         reference=(ROOT/"controllers/crazyflie_classroom_v2/runtime.ini").read_bytes()
