@@ -34,6 +34,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare pinned Blockly 13.2.1 assets for real A4 pupil
+        run: ./tools/prepare_runtime_v2.sh
       - name: Execute source geometry and compiled C mission adversaries
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle
@@ -103,10 +108,23 @@ jobs:
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-decision-h-blockly \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_pupil.py'
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-decision-h-blockly
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 tools/ci/run_classroom_decision_h_pupil.py
+            '
       - name: Preserve A4 same .wbb native pupil flight evidence
         if: always()
         uses: actions/upload-artifact@v4

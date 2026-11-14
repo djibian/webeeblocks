@@ -86,7 +86,8 @@ class PupilA4Tests(unittest.TestCase):
                   "outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",
                   'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front'):
             self.assertIn(t,run)
-        self.assertIn('WBEEBLOCKS_DECISION',run) if False else None
+        self.assertIn('browser bootstrap missing after 45s',run)
+        self.assertIn("browser_log=ARTIFACT/'browser-launch.log'",run)
         self.assertNotIn('set_sf_vec3f',run)
         self.assertNotIn('wb_motor_set_',run)
 

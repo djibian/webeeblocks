@@ -56,11 +56,17 @@ def run()->int:
              '--stdout','--stderr','--batch','--mode=realtime',str(world.WORLD)],
             cwd=str(world.ROOT),stdout=output,stderr=subprocess.STDOUT,
             env=env,start_new_session=True)
-        deadline=time.monotonic()+525
+        started=time.monotonic()
+        deadline=started+525
         while time.monotonic()<deadline:
             events=[e.get('event') for e in ack.EVENTS]
             if ('A4_PUPIL_TEST_COMPLETE' in events or
                 'A4_PUPIL_ERROR' in events or process.poll() is not None):
+                break
+            # The browser is mandatory, and native readiness alone is not it.
+            if time.monotonic()-started>45 and 'A4_PUPIL_HTML_LOADED' not in events:
+                print('A4_PUPIL_FATAL browser bootstrap missing after 45s',
+                      file=sys.stderr,flush=True)
                 break
             time.sleep(.25)
     finally:
@@ -131,11 +137,8 @@ def run()->int:
         r'WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE forward distance=([0-9.]+) stop=1',text)
     vertical=re.findall(
         r'WEBEEBLOCKS_RUNTIME_V2 TRACE VERTICAL (up|down) distance=([0-9.]+) stop=1',text)
-    browser_log=ARTIFACT.parent/'progression-sequence-mission/browser-launch.log'
-    # The existing native Chromium launch probe uses the historical artifact
-    # directory, not this test's directory. Read it as diagnostic only.
-    if not browser_log.exists():
-        browser_log=world.ROOT/'ci-artifacts/progression-sequence-mission/browser-launch.log'
+    # The pinned native launcher writes here, never read A3's stale log.
+    browser_log=ARTIFACT/'browser-launch.log'
     browser_text=browser_log.read_text(encoding='utf-8',errors='replace') if browser_log.exists() else ''
     browser_ok=('BROWSER_LAUNCHED args=' in browser_text and
                 'decision_h_pupil_probe.html' in browser_text)
