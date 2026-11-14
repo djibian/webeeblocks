@@ -11,6 +11,8 @@ on:
       - '.github/workflows/ci-progression-a4-draft.yml'
       - '.github/workflows/ci-runtime.yml'
       - 'controllers/progression_decision_h_v1/**'
+      - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
+      - 'controllers/crazyflie_classroom_v2/decision_h_scene_gate.h'
       - 'worlds/scenes/decision-h-*.wbo'
       - 'tools/ci/run_classroom_decision_h_native_start.py'
       - 'tools/ci/test_progression_decision_h_*.py'
@@ -31,6 +33,16 @@ jobs:
       - name: Execute source geometry and compiled C mission adversaries
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle
+      - name: Falsify A4 school scene selector and existing school contracts
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_selector tools.ci.test_runtime_v2_classroom_selector
+      - name: Build school-only C++ selector against actual Webots R2025a SDK
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_classroom_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
       - name: Build the separate observer with actual Webots R2025a headers
         run: |
           docker run --rm \

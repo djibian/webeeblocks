@@ -96,6 +96,7 @@ jobs:
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene
           python3 -m unittest tools.ci.test_progression_decision_h_oracle
+          python3 -m unittest tools.ci.test_progression_decision_h_selector
       - name: Compile independent A4 Webots observer against actual R2025a headers
         run: |
           docker run --rm \
