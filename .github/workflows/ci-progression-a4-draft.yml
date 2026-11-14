@@ -1,0 +1,56 @@
+# Temporary, non-decision witness for the A4 Draft. Does NOT supply CI Gate.
+# The full canonical Runtime/Webots/Windows suites and independent V5 review
+# remain obligatory on an exact Ready HEAD. No real-flight capability is touched.
+name: A4 Draft R2025a native witness
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a4-draft.yml'
+      - '.github/workflows/ci-runtime.yml'
+      - 'controllers/progression_decision_h_v1/**'
+      - 'worlds/scenes/decision-h-*.wbo'
+      - 'tools/ci/run_classroom_decision_h_native_start.py'
+      - 'tools/ci/test_progression_decision_h_*.py'
+
+permissions:
+  contents: read
+
+jobs:
+  a4-native-draft-only:
+    name: A4 native R2025a diagnostic (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Execute source geometry and compiled C mission adversaries
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle
+      - name: Build the separate observer with actual Webots R2025a headers
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_v1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Require real scene A/B READY and malformed H refusal
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_native_start.py'
+      - name: Retain exact native witnesses including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-startup-evidence
+          path: ci-artifacts/progression-decision-h-native-start/
+          if-no-files-found: warn
