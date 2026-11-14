@@ -13,6 +13,10 @@ on:
       - 'controllers/progression_decision_h_v1/**'
       - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
       - 'controllers/crazyflie_classroom_v2/decision_h_scene_gate.h'
+      - 'plugins/robot_windows/decision_h_pupil_probe/**'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'tools/ci/prepare_classroom_decision_h_pupil.py'
+      - 'tools/ci/run_classroom_decision_h_pupil.py'
       - 'worlds/scenes/decision-h-*.wbo'
       - 'tools/ci/run_classroom_decision_h_native_start.py'
       - 'tools/ci/test_progression_decision_h_*.py'
@@ -36,6 +40,9 @@ jobs:
       - name: Falsify A4 school scene selector and existing school contracts
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_selector tools.ci.test_runtime_v2_classroom_selector
+      - name: Validate real Blockly A4 pupil fixture JS/Python and its fail-closed protocol
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_pupil
       - name: Build school-only C++ selector against actual Webots R2025a SDK
         run: |
           docker run --rm \
@@ -91,6 +98,22 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
+      - name: Execute same actual Blockly project on A then B in R2025a
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_pupil.py'
+      - name: Preserve A4 same .wbb native pupil flight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-same-wbb-pupil
+          path: ci-artifacts/progression-decision-h-blockly/
+          if-no-files-found: warn
       - name: Retain exact native witnesses including failures
         if: always()
         uses: actions/upload-artifact@v4
