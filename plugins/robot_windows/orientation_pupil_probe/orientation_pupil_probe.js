@@ -69,23 +69,28 @@ function a3BuildWorkspace(profile){
   function turn(dir){const b=block('webeeblocks_v2_turn');b.setFieldValue(dir,'DIRECTION');b.setFieldValue('90','ANGLE');return b;}
   const takeoff=block('webeeblocks_v2_takeoff');a3MotionNumber(takeoff,'HEIGHT',0.63);
   const speed=block('webeeblocks_v2_speed');
-  // A genuinely repeated movement on the first leg, not a loop of count 1.
+  // A genuine six-command recurrent geometric motif: first traversal
+  // reaches A/B, second traversal reaches C and the pad. This is not a
+  // cosmetic repeat of two halves of a single forward instruction.
   const repeat=block('controls_repeat_ext');
   const count=block('math_number');count.setFieldValue('2','NUM');
   repeat.getInput('TIMES').connection.connect(count.outputConnection);
-  const halfStep=move(0.225);
-  repeat.getInput('DO').connection.connect(halfStep.previousConnection);
-  const statements=[
-    takeoff,speed,repeat,turn('right'),vertical('up',0.16),move(0.45),
-    turn('left'),vertical('down',0.16),move(0.45),turn('right'),
-    move(0.45),block('webeeblocks_v2_land')
+  const motif=[
+    move(0.45),turn('right'),vertical('up',0.16),move(0.45),
+    turn('left'),vertical('down',0.16)
   ];
+  repeat.getInput('DO').connection.connect(motif[0].previousConnection);
+  for(let i=0;i<motif.length-1;i++)
+    motif[i].nextConnection.connect(motif[i+1].previousConnection);
+  const statements=[takeoff,speed,repeat,block('webeeblocks_v2_land')];
   for(let i=0;i<statements.length-1;i++)
     statements[i].nextConnection.connect(statements[i+1].previousConnection);
   WebeeBlocksActivityContract.applyFieldBounds(profile,ws);
-  speed.setFieldValue('0.12','SPEED');
-  if(Number(speed.getFieldValue('SPEED'))!==0.12)
-    a3Fail('speed 0.12 rounded away from valid profile value');
+  // Blockly's generic speed field loads at 0.1 precision. Use an exact
+  // representable value, rather than silently losing 0.12 during .wbb Open.
+  speed.setFieldValue('0.10','SPEED');
+  if(Number(speed.getFieldValue('SPEED'))!==0.10)
+    a3Fail('speed 0.10 rounded away from valid profile value');
   return ws;
 }
 async function a3Outcome(backend){
@@ -122,9 +127,12 @@ window.addEventListener('unhandledrejection',e=>a3Report('A3_PUPIL_ERROR',{messa
     };
     const original=WebeeBlocksSemanticAst.compileWorkspace(source);
     WebeeBlocksActivityContract.preflightAst(profile,original);
-    if(original.program.length!==12||original.program[2].kind!=='repeat'||
-       original.program[2].count!==2||original.program[2].body.length!==1)
-      a3Fail('bounded repetition did not compile as expected');
+    if(original.program.length!==4||original.program[2].kind!=='repeat'||
+       original.program[2].count!==2||original.program[2].body.length!==6)
+      a3Fail('six-command recurring motif did not compile as repeat(2)');
+    if(JSON.stringify(original.program[2].body.map(s=>s.kind))!==
+        JSON.stringify(['move','turn','vertical','move','turn','vertical']))
+      a3Fail('loop body does not preserve actual 3D trajectory pattern');
     const text=WebeeBlocksProjectFiles.encodeProject(profile,source,opts);
     const parsed=WebeeBlocksProjectFiles.validateProjectText(text,profile,opts);
     reopened=new Blockly.Workspace();
@@ -137,7 +145,9 @@ window.addEventListener('unhandledrejection',e=>a3Report('A3_PUPIL_ERROR',{messa
     const actual=WebeeBlocksSemanticAst.compileWorkspace(reopened);
     if(JSON.stringify(original)!==JSON.stringify(actual)||
        parsed.project.activity.id!==profile.id)
-      a3Fail('Activity 3 .wbb roundtrip changed semantic AST');
+      a3Fail('Activity 3 .wbb roundtrip changed semantic AST: before='+
+        JSON.stringify(original.program).slice(0,900)+' after='+
+        JSON.stringify(actual.program).slice(0,900));
     await a3Report('A3_PUPIL_BLOCKLY_ROUNDTRIP',{
       id:profile.id,statements:actual.program.length,
       repeat:actual.program[2],bytes:text.length

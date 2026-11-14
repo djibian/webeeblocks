@@ -99,16 +99,19 @@ def run()->int:
     valid=(
         not missing and ordered and names.count('A3_PUPIL_ERROR')==0 and
         native is not None and browser and
-        isinstance(roundtrip,dict) and roundtrip.get('statements')==12 and
+        isinstance(roundtrip,dict) and roundtrip.get('statements')==4 and
         isinstance(roundtrip.get('repeat'),dict) and
         roundtrip['repeat'].get('kind')=='repeat' and roundtrip['repeat'].get('count')==2 and
+        [step.get('kind') for step in roundtrip['repeat'].get('body',[])] ==
+        ['move','turn','vertical','move','turn','vertical'] and
         isinstance(completed,dict) and completed.get('same_wbb') is True and
         completed.get('status')=='achieved' and
         'WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 oracle=progression-orientation-3d-v1' in txt and
-        responses==[str(n) for n in range(1,15)] and
-        moves==['0.225000000','0.225000000','0.450000000','0.450000000','0.450000000'] and
-        turns==['-90.000000000','90.000000000','-90.000000000'] and
-        vertical==[('up','0.160000000'),('down','0.160000000')] and
+        responses==[str(n) for n in range(1,17)] and
+        moves==['0.450000000'] * 4 and
+        turns==['-90.000000000','90.000000000','-90.000000000','90.000000000'] and
+        vertical==[('up','0.160000000'),('down','0.160000000'),
+                   ('up','0.160000000'),('down','0.160000000')] and
         'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in txt and
         'WEBEEBLOCKS_ORIENTATION_3D_FATAL' not in txt and
         'ERROR:' not in txt
@@ -125,7 +128,7 @@ def run()->int:
         print('FAIL native Blockly Activity 3 pupil path '+json.dumps(summary),file=sys.stderr)
         print(txt[-12000:],file=sys.stderr)
         return 1
-    print('PASS native R2025a Activity 3: Blockly repeat(2), .wbb roundtrip, AST/preflight/interpreter, three 3D checkpoints, full LAND and independent C achieved',flush=True)
+    print('PASS native R2025a Activity 3: six-action motif repeated twice, .wbb roundtrip, AST/preflight/interpreter, three ordered 3D checkpoints, full LAND and independent C achieved',flush=True)
     return 0
 
 if __name__=='__main__':

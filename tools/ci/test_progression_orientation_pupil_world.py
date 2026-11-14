@@ -53,6 +53,11 @@ class OrientationPupilWorldTests(unittest.TestCase):
             "new Blockly.Workspace()","block('controls_repeat_ext')",
             "repeat.getInput('TIMES')","repeat.getInput('DO')",
             "count.setFieldValue('2','NUM')",
+            "const motif=[",
+            "move(0.45),turn('right'),vertical('up',0.16),move(0.45)",
+            "turn('left'),vertical('down',0.16)",
+            "original.program[2].body.length!==6",
+            "speed.setFieldValue('0.10','SPEED')",
             "a3MotionNumber(takeoff,'HEIGHT',0.63)",
             "vertical('up',0.16)","vertical('down',0.16)",
             "turn('right')","turn('left')",
@@ -76,8 +81,12 @@ class OrientationPupilWorldTests(unittest.TestCase):
 
     def test_native_c_verdict_and_sequence_are_necessary_not_browser_events(self):
         self.assertIn('status=achieved checkpoints=3',self.runner)
-        self.assertIn('responses==[str(n) for n in range(1,15)]',self.runner)
-        self.assertIn("moves==['0.225000000','0.225000000'",self.runner)
+        self.assertIn('responses==[str(n) for n in range(1,17)]',self.runner)
+        self.assertIn("moves==['0.450000000'] * 4",self.runner)
+        self.assertIn("'90.000000000','-90.000000000','90.000000000'",self.runner)
+        self.assertIn("roundtrip['repeat'].get('body',[])",self.runner)
+        self.assertNotIn("move(0.225)",self.js)
+        self.assertNotIn("speed.setFieldValue('0.12','SPEED')",self.js)
         self.assertIn("native is not None and browser",self.runner)
         self.assertIn("'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in txt",self.runner)
         self.assertIn("python3 /workspace/tools/ci/run_classroom_orientation_flight.py",self.wrapper)
