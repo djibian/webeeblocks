@@ -129,12 +129,35 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
+      - name: Compile independent A4 real-scene selector probe
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_scene_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Prove live A-B-A imported scenes and native evaluator restarts
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_scene_selector.py'
       - name: Preserve A4 R2025a startup/refusal transcripts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: progression-decision-h-native-start
           path: ci-artifacts/progression-decision-h-native-start/
+          if-no-files-found: warn
+      - name: Preserve A4 live scene selector A-B-A witness
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progression-decision-h-native-selector
+          path: ci-artifacts/progression-decision-h-scene-selector/
           if-no-files-found: warn
       - name: Preserve real A/B Multi-ranger observations
         if: always()

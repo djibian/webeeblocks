@@ -262,5 +262,24 @@ class DecisionHSelectorTests(unittest.TestCase):
                       "supervisor", "synchronization", "WorldInfo"):
             self.assertIn(token,guard)
 
+    def test_selector_native_witness_is_real_and_safe(self):
+        source = (ROOT / "controllers/progression_decision_h_scene_probe/progression_decision_h_scene_probe.cpp").read_text(encoding="utf-8")
+        make = (ROOT / "controllers/progression_decision_h_scene_probe/Makefile").read_text(encoding="utf-8")
+        runner = (ROOT / "tools/ci/run_classroom_decision_h_scene_selector.py").read_text(encoding="utf-8")
+        self.assertIn("CXX_SOURCES = progression_decision_h_scene_probe.cpp", make)
+        self.assertIn("../crazyflie_classroom_v2/classroom_scene.cpp", make)
+        self.assertIn("webeeblocks_select_activity_scene(\"decision-h-a-v1\")", source)
+        self.assertIn("webeeblocks_select_activity_scene(\"decision-h-b-v1\")", source)
+        self.assertIn("webeeblocks_activity_scene_ready()", source)
+        self.assertIn("WEBEEBLOCKS_A4_SCENE_SELECTOR_NATIVE_PASS", source)
+        self.assertIn("WEBEEBLOCKS_DECISION_H_READY", runner)
+        self.assertIn("refusing to overwrite native selector witness files", runner)
+        self.assertIn("refusing to delete a modified test world", runner)
+        self.assertIn("A4_SELECTOR_NATIVE_PASS", runner)
+        for forbidden in ("wb_motor_set_", "wb_supervisor_node_set_velocity",
+                          "crazyflie_runtime_v2/crazyflie_runtime_v2.c"):
+            self.assertNotIn(forbidden, source)
+            self.assertNotIn(forbidden, make)
+
 if __name__ == "__main__":
     unittest.main()
