@@ -106,17 +106,17 @@ def verify(root):
         raise ValueError("Blockly version asset missing")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":
         raise ValueError("Wrong Blockly build")
+    # The slider lives in the shipped Blockly web page, not a WinForms
+    # dialog. This entrypoint only preserves a bounded initial -Fps override.
     batch = (root / "Lancer-Grand-Prix.cmd").read_text(encoding="utf-8")
     if "powershell.exe -STA -NoProfile" not in batch:
-        raise ValueError("Windows GUI FPS selector not launched in STA")
+        raise ValueError("Windows PowerShell launcher entrypoint changed")
     front = (root / "Lancer-Grand-Prix.ps1").read_text(encoding="utf-8-sig")
     if ("[ValidateRange(1,60)][int]$Fps=20" not in front or
-            "$track.Minimum = 1" not in front or
-            "$track.Maximum = 60" not in front or
-            "$track.SmallChange = 1" not in front or
-            "$track.Value = 20" not in front or
-            "$form.ShowDialog()" not in front):
-        raise ValueError("GUI FPS slider does not span 1..60 with step 1/default 20")
+            "$env:WEBEEBLOCKS_GP_FPS=[string]$Fps" not in front or
+            "$form.ShowDialog()" in front or
+            "System.Windows.Forms.Form" in front):
+        raise ValueError("FPS must be selected by the embedded web UI, not WinForms")
     launcher = (root / "Launch-WebeeBlocks.ps1").read_text(encoding="utf-8-sig")
     if ("grand_prix_route_v2" not in launcher or
             "._gp_route_session_" not in launcher or

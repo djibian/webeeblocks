@@ -65,6 +65,46 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
 
+    def test_activity2_native_windows_payload_is_complete(self) -> None:
+        # Scene and separately compiled C supervisor must reach the distributed
+        # school-only Windows package without touching the physical runtime.
+        packager = (ROOT / "tools" / "build_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        witness = (ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        native = ROOT / "controllers" / "progression_altitude_v1"
+        self.assertTrue((native / "Makefile").exists())
+        self.assertTrue((native / "progression_altitude_v1.c").exists())
+        for mandatory in (
+            "$altitudeObserverDir = Join-Path $repoRoot 'controllers\\progression_altitude_v1'",
+            "& $make -C $altitudeObserverDir clean",
+            "& $make -C $altitudeObserverDir",
+            "progression_altitude_v1.exe",
+            "Copy-RequiredFile $altitudeObserverBinary",
+            "'altitude-v1.wbo'",
+        ):
+            self.assertIn(mandatory, packager)
+        for mandatory in (
+            "'controllers\\progression_altitude_v1\\progression_altitude_v1.exe'",
+            "'worlds\\scenes\\altitude-v1.wbo'",
+            "Packaged Activity 2 scene differs from the native-tested source asset.",
+            "Packaged Activity 2 native supervisor differs from the exact Webots build.",
+            "Activity 2 observer is not a Windows PE executable.",
+            "progression_altitude_v1.py",
+            "altitudeObserverProcess",
+            "altitudeObserverEnteredController",
+            "Cannot connect to Webots instance",
+            "all four PE/IPC load witnesses",
+        ):
+            self.assertIn(mandatory, witness)
+        scene = (ROOT / "worlds" / "scenes" / "altitude-v1.wbo").read_text(
+            encoding="utf-8")
+        self.assertIn('controller "progression_altitude_v1"', scene)
+        self.assertIn("DEF ACTIVITY2_START_CANOPY Solid", scene)
+        self.assertNotIn("progression_altitude_v1", (
+            ROOT / "controllers" / "crazyflie_runtime_v2" / "Makefile"
+        ).read_text(encoding="utf-8"))
+
     def test_progression_starters_are_shipped_as_non_target_templates(self) -> None:
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
