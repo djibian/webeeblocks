@@ -18,6 +18,8 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Draft-only A6 C/source witness: no flight/native physics, gate or merge authority.
+    "ci-progression-a6-draft.yml": {"a6-core-draft-only"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -72,6 +74,34 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_activity6_draft_witness_is_scoped_and_non_decision(self):
+        workflow = (WORKFLOWS / "ci-progression-a6-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertTrue(workflow.startswith(
+            "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only"})
+        for required in (
+            "  pull_request:\n",
+            "  types: [opened, synchronize, reopened]\n",
+            "  paths:\n",
+            "permissions:\n  contents: read\n",
+            "if: github.event.pull_request.draft == true",
+            "ref: ${{ github.event.pull_request.head.sha }}",
+            "persist-credentials: false",
+            "tools.ci.test_progression_count_h_scene",
+            "tools.ci.test_progression_count_h_oracle",
+            "tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision",
+            "set -euo pipefail",
+        ):
+            self.assertIn(required, workflow)
+        for forbidden in (
+            "\n  push:", "\n  schedule:", "\n  workflow_call:",
+            "continue-on-error: true", "contents: write", "checks: write",
+            "pull-requests: write", "issues: write", "actions: write",
+            "name: CI Gate\n", "if: false",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
     def test_inventory_rejects_extra_or_missing_workflows(self):
         with tempfile.TemporaryDirectory() as temp:
