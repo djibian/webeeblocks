@@ -17,7 +17,7 @@ bool saved = false;
 // Never derive a trusted count from possibly damaged live scene content.
 constexpr int kLegacySceneChildren = 32;
 constexpr int kLegacyEvaluatorChildren = 6;
-constexpr int kAltitudeSceneChildren = 21;  // 18 markers, 3 physical colliders.
+constexpr int kAltitudeSceneChildren = 22;  // 18 markers, 4 physical colliders.
 constexpr int kOrientationSceneChildren = 24;  // Native observer and markers.
 constexpr int kSequenceSceneChildren = 18;  // Native observer inside first Pose.
 double oldPosition[3];
@@ -64,6 +64,7 @@ bool altitudeColliders() {
     double size[3];
   };
   const Expected colliders[] = {
+    {"ACTIVITY2_START_CANOPY", {0.0, 0.0, 0.70}, {0.34, 0.86, 0.08}},
     {"ACTIVITY2_LOW_BARRIER", {0.62, 0.0, 0.31}, {0.12, 0.84, 0.62}},
     {"ACTIVITY2_LEFT_WALL", {0.68, 0.51, 0.425}, {1.65, 0.08, 0.85}},
     {"ACTIVITY2_RIGHT_WALL", {0.68, -0.51, 0.425}, {1.65, 0.08, 0.85}}

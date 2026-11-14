@@ -69,10 +69,16 @@ int main(void) {
   const double ground[3] = {0, 0, 0};
   const double bar[3] = {0.62, 0, 0.4};
   const double wall[3] = {0.68, 0.51, 0.4};
+  const double canopy[3] = {0, 0, 0.66};
+  const double canopy_side[3] = {0, 0.43, 0.70};
+  const double outside_canopy[3] = {0.26, 0, 0.70};
   const double invalid[3] = {NAN, 0, 0};
   assert(wb_alt_obstacle_point(ground) == 0);
   assert(wb_alt_obstacle_point(bar) == 1);
   assert(wb_alt_obstacle_point(wall) == 1);
+  assert(wb_alt_obstacle_point(canopy) == 1);
+  assert(wb_alt_obstacle_point(canopy_side) == 1);
+  assert(wb_alt_obstacle_point(outside_canopy) == 0);
   assert(wb_alt_obstacle_point(invalid) == -1);
   normal_takeoff(&m, 4);
   assert(step(&m, 1.1, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
@@ -160,7 +166,7 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn('controller "progression_altitude_v1"', scene)
         self.assertIn("supervisor TRUE", scene)
         self.assertEqual(scene.count(" Robot {"), 1)
-        self.assertEqual(scene.count(" Solid {"), 3)
+        self.assertEqual(scene.count(" Solid {"), 4)
         self.assertNotIn("Py_Initialize", src)
         self.assertNotIn("python.exe", src)
         # Do not reject the explanatory comment "No ... Blockly inspection";
@@ -196,6 +202,10 @@ class NativeAltitudeContract(unittest.TestCase):
             self.assertAlmostEqual(tolerance, 0.08)
         self.assertIn("Pose { translation 1.35 0 0.002", text)
         self.assertIn("DEF ACTIVITY2_LOW_BARRIER Solid", text)
+        self.assertIn("DEF ACTIVITY2_START_CANOPY Solid", text)
+        self.assertIn("boundingObject Box { size 0.34 0.86 0.08 }", text)
+        self.assertIn("WB_ALT_CANOPY_BOTTOM 0.66", core)
+        self.assertIn("WB_ALT_CANOPY_TOP 0.74", core)
 
 
 if __name__ == "__main__":

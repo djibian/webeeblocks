@@ -24,6 +24,14 @@
 #define WB_ALT_BARRIER_HALF_Y 0.42
 #define WB_ALT_BARRIER_TOP 0.62
 #define WB_ALT_CRAFT_CLEARANCE 0.09
+/* Fixed visible start canopy: undersurface 0.66 m, upper face 0.74 m.
+ * A high takeoff must cause an actual contact; there is no AST restriction.
+ */
+#define WB_ALT_CANOPY_X 0.0
+#define WB_ALT_CANOPY_HALF_X 0.17
+#define WB_ALT_CANOPY_HALF_Y 0.43
+#define WB_ALT_CANOPY_BOTTOM 0.66
+#define WB_ALT_CANOPY_TOP 0.74
 #define WB_ALT_SETTLE_SEC 1.5
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
@@ -77,6 +85,11 @@ static inline int wb_alt_obstacle_point(const double p[3]) {
   if (!p || !isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2]))
     return -1;
   const double epsilon = 0.004;
+  if (fabs(p[0] - WB_ALT_CANOPY_X) <= WB_ALT_CANOPY_HALF_X + epsilon &&
+      fabs(p[1]) <= WB_ALT_CANOPY_HALF_Y + epsilon &&
+      p[2] >= WB_ALT_CANOPY_BOTTOM - epsilon &&
+      p[2] <= WB_ALT_CANOPY_TOP + epsilon)
+    return 1;
   if (fabs(p[0] - 0.62) <= 0.06 + epsilon &&
       fabs(p[1]) <= 0.42 + epsilon &&
       p[2] >= -epsilon && p[2] <= 0.62 + epsilon)
