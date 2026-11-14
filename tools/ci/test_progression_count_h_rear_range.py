@@ -53,7 +53,7 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertNotIn("collision_pose", source)
         self.assertNotIn("wb_supervisor_node_get_contact_points(self, &contact_count, true)", source)
         self.assertIn("for (int i = 0; i <= 144 + 28 * 2; ++i)", source)
-        self.assertIn("return invalid(\"contact detector failed deliberate H-bar intersection\")", source)
+        self.assertIn("return invalid(\"no real H-bar contact from gravity-driven positive control\")", source)
         self.assertIn("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d", source)
         self.assertNotIn("WEBEEBLOCKS_COUNT_H_SWEEP_PASS", source.split(
             "wb_supervisor_node_get_contact_points", 1)[0])
