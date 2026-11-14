@@ -153,8 +153,8 @@
   function loadWorkspaceWithProfile(profile, state, workspace, options) {
     requireDependencies(options);
     options.Blockly.serialization.workspaces.load(state, workspace);
-    options.activityContract.applyFieldBounds(profile, workspace);
     if (profile.id !== 'progression-altitude-v1') return workspace;
+    options.activityContract.applyFieldBounds(profile, workspace);
     var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
       profile.parameterBounds.webeeblocks_v2_speed.SPEED;
     if (!limits || limits.step !== 0.01)
@@ -308,6 +308,7 @@
       options.setProfile(saved.profile);
       options.workspace.clear();
       loadWorkspaceWithProfile(saved.profile, saved.workspace, options.workspace, dependencies());
+      options.activityContract.applyFieldBounds(saved.profile, options.workspace);
     }
     async function releaseTarget(handle) {
       if (!handle || typeof options.transport.release !== 'function') return;
@@ -321,6 +322,7 @@
         options.setProfile(validated.profile);
         options.workspace.clear();
         loadWorkspaceWithProfile(validated.profile, validated.project.workspace, options.workspace, dependencies());
+        options.activityContract.applyFieldBounds(validated.profile, options.workspace);
         options.activityContract.preflightWorkspace(validated.profile, options.workspace);
         validateWorkspaceFields(validated.profile, options.workspace);
         if (validated.ast) {
