@@ -49,6 +49,8 @@ def run():
     observer.EVENTS.clear()
     server=None; proc=None; output=None
     ready_since=None; http_diagnosis=None; early_browser_refusal=False
+    manual_browser=None; browser_output=None; manual_started_at=None
+    browser_auto_seen=False; manual_external_window=False
     try:
         for path in (
             world.ROOT/"controllers/progression_count_h_school_pilot/progression_count_h_school_pilot",
@@ -80,10 +82,39 @@ def run():
                 launched=(browserlog.is_file() and
                           "count_h_flight_probe.html" in browserlog.read_text(
                               encoding="utf-8",errors="replace"))
+                if launched and manual_started_at is None:
+                    browser_auto_seen=True
                 if not launched and http_diagnosis is None and (
                         time.monotonic()-ready_since>=8):
                     http_diagnosis=diagnose_webots_window_http()
-                if not launched and time.monotonic()-ready_since>=60:
+                # A CI-initiated browser is not evidence of product autolaunch.
+                # Only native WWI, motor PID and the C oracle can prove flight.
+                if not launched and not manual_external_window and (
+                        time.monotonic()-ready_since>=10) and http_diagnosis:
+                    target=HTTP_PROBE_PATHS[0]
+                    if http_diagnosis.get(target,{}).get("status")==200:
+                        page=("http://localhost:1234"+target+
+                              "?name=Crazyflie%20WebeeBlocks")
+                        browser_output=(ARTIFACT/"manual-browser.log").open(
+                            "w",encoding="utf-8")
+                        manual_browser=subprocess.Popen(
+                            ["/workspace/tools/ci/webots_runtime_v2_browser.sh",page],
+                            cwd=world.ROOT,env=env,stdout=browser_output,
+                            stderr=subprocess.STDOUT,start_new_session=True)
+                        manual_started_at=time.monotonic()
+                        manual_external_window=True
+                        print("WEBEEBLOCKS_A6_MOTOR_WINDOW_MANUAL_CI "
+                              "http_status=200 product_autolaunch=false",flush=True)
+                if (manual_started_at is not None and
+                    "A6_HTML_LOADED" not in seen and
+                    time.monotonic()-manual_started_at>=35):
+                    early_browser_refusal=True
+                    print("WEBEEBLOCKS_A6_MOTOR_WINDOW_REFUSED "
+                          "reason=manual_browser_no_html_event seconds=35",
+                          flush=True)
+                    break
+                if not launched and manual_started_at is None and (
+                        time.monotonic()-ready_since>=60):
                     early_browser_refusal=True
                     print("WEBEEBLOCKS_A6_MOTOR_WINDOW_REFUSED "
                           "reason=browser_missing_after_native_READY "
@@ -98,6 +129,14 @@ def run():
                 break
             time.sleep(.25)
     finally:
+        if manual_browser is not None and manual_browser.poll() is None:
+            os.killpg(manual_browser.pid,signal.SIGTERM)
+            try: manual_browser.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(manual_browser.pid,signal.SIGKILL)
+                manual_browser.wait(timeout=5)
+        if browser_output is not None:
+            browser_output.close()
         if proc is not None and proc.poll() is None:
             os.killpg(proc.pid,signal.SIGTERM)
             try:proc.wait(timeout=8)
@@ -117,6 +156,8 @@ def run():
                 "ready_seen":ready_since is not None,
                 "early_browser_refusal":early_browser_refusal,
                 "http_resources":http_diagnosis,
+                "manual_external_window":manual_external_window,
+                "product_autolaunch_seen":browser_auto_seen,
                 "browser_only_proven_by_launch_and_events":True,
             },indent=2,sort_keys=True)+"\n",encoding="utf-8")
         world.cleanup()
@@ -153,6 +194,8 @@ def run():
         "pass":bool(succeeded),"real_motorized_flight":bool(true_flight),
         "not_pupil_wbb_or_product_scene_qualification":True,
         "not_real_crazyflie_qualification":True,
+        "product_window_autolaunch_qualified":False,
+        "manual_external_window":manual_external_window,
         "events":events,"missing":missing,"ordered":bool(ordered),
         "native_command_acks":responses,"moves":moves,"browser":bool(browser)
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")

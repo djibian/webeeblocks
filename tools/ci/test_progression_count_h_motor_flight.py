@@ -85,6 +85,12 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("browser_only_proven_by_launch_and_events",native)
         self.assertIn("time.monotonic()-ready_since>=60",native)
         self.assertIn("diagnose_webots_window_http()",native)
+        self.assertIn("WEBEEBLOCKS_A6_MOTOR_WINDOW_MANUAL_CI",native)
+        self.assertIn("manual_external_window",native)
+        self.assertIn('"product_window_autolaunch_qualified":False',native)
+        self.assertIn('get("status")==200',native)
+        self.assertIn("manual_browser_no_html_event",native)
+        self.assertIn("browser_only_proven_by_launch_and_events",native)
 
     def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
         school=(ROOT/"controllers/progression_count_h_school_pilot/runtime.ini").read_bytes()
