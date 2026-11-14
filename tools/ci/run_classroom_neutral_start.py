@@ -23,7 +23,9 @@ def main()->int:
         return old.returncode
     for command in (
         [sys.executable,'tools/ci/test_progression_orientation_flight_world.py'],
+        [sys.executable,'tools/ci/test_progression_orientation_pupil_world.py'],
         ['node','--check','plugins/robot_windows/orientation_flight_probe/orientation_flight_probe.js'],
+        ['node','--check','plugins/robot_windows/orientation_pupil_probe/orientation_pupil_probe.js'],
     ):
         check=subprocess.run(command,cwd=ROOT,check=False)
         if check.returncode:
@@ -45,6 +47,7 @@ mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-neutral-s
 printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
 python3 /workspace/tools/ci/run_classroom_orientation_flight.py
+python3 /workspace/tools/ci/run_classroom_orientation_pupil.py
 '''
     return subprocess.run([
         'docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true',
