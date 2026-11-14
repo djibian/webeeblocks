@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CI-only Activity 2 canopy flight falsification</title>
+  <script>
+    fetch('http://127.0.0.1:8765/event', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event:'CANOPY_HTML_LOADED',wall_ms:Date.now()})
+    }).catch(error => console.error('CANOPY_HTML_BOOTSTRAP_FAILED', error));
+  </script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="altitude_canopy_probe.js"></script></body>
+</html>

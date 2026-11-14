@@ -507,6 +507,11 @@ printf "%s\n" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
+# Distinct, observable Webots canopy mission: intentionally experimental.
+# This is a raw backend command test, not proof of a Blockly pupil program.
+if [ "WB_CANOPY_NATIVE_FLIGHT_ENABLED" = "1" ]; then
+  python3 /workspace/tools/ci/run_classroom_altitude_canopy.py
+fi
 # This additional witness is school-only; never a program / flight PASS.
 if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
   python3 /workspace/tools/ci/run_classroom_altitude_scene_ack.py
@@ -519,6 +524,7 @@ sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
         inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
+        inner = inner.replace('WB_CANOPY_NATIVE_FLIGHT_ENABLED', '1' if NEUTRAL_START else '0')
         inner = inner.replace('WB_ORIENTATION_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
