@@ -255,9 +255,12 @@ def main():
               "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
               # Independent native campaigns: U/L/H geometry retains its
               # historical 1350 s container cap. Evaluator READY/revocation
-              # and flight/LAND/RESET have their own mandatory Runtime job
-              # (900 s cap), without changing any per-case native timeout.
-              + ('timeout -k 5s 900s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --evaluator-only'
+              # and flight/LAND/RESET have their own mandatory Runtime job.
+              # R2025a #999 Ready 43640756100: six A/B flights, fifth ends
+              # near the old 900 s envelope and sixth ACK occurs ~2 s before
+              # the global kill (exit 124). Preserve six flights and the 420 s
+              # per-Webots bound; 1350 s leaves a complete last-case window.
+              + ('timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --evaluator-only'
                  if args.evaluator_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
                  if args.full_matrix_only else
