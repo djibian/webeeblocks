@@ -19,6 +19,7 @@ AIRBORNE_DELTA = 0.20
 LANDED_DELTA = 0.07
 MAX_LANDING_SPEED = 0.12
 SETTLE_TIMEOUT = 1.5
+LAND_DWELL = 0.25  # continuous simulated seconds of stable full-pad pose
 
 ATTEMPT = re.compile(r"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ([1-9][0-9]*)")
 COMPLETION = re.compile(
@@ -45,6 +46,7 @@ class Attempt:
         self.origin_z = origin_z
         self.airborne = False
         self.completed_at = None
+        self.stable_since = None
         self.result = None
 
     def sample(self, now, position, velocity, completed):
@@ -71,8 +73,13 @@ class Attempt:
         stationary = math.hypot(vx, vy) <= MAX_LANDING_SPEED and abs(vz) <= MAX_LANDING_SPEED
         in_pad = abs(x - TARGET_X) <= TARGET_X_TOLERANCE and abs(y - TARGET_Y) <= TARGET_Y_TOLERANCE
         if self.airborne and landed and stationary and in_pad:
-            self.result = "achieved"
-        elif now - self.completed_at >= SETTLE_TIMEOUT:
+            if self.stable_since is None:
+                self.stable_since = now
+            if now - self.stable_since >= LAND_DWELL:
+                self.result = "achieved"
+        else:
+            self.stable_since = None
+        if self.result is None and now - self.completed_at >= SETTLE_TIMEOUT:
             self.result = "not-achieved"
         return self.result
 
