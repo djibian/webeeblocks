@@ -390,6 +390,36 @@ def classify_post_abort_evaluator_close(lines, land_index, land_time_ms, ground_
     return 'invalid-native-observation-after-native-LAND'
 
 
+def test_post_abort_evaluator_classifier_adversarial():
+    """Fail-closed negative mutation witnesses, also executed in real CI."""
+    land = 'GP_U_DEADLINE time_ms=20288 command=LAND interrupted_id=-1'
+    close = ("GP_ROUTE_EVALUATOR_CLOSED attempt=1 time_ms=20296 "
+             "reason=invalid-native-observation "
+             "detail='ValueError: inactive flight observation context'")
+    ground = 'GP_U_LAND_GROUND_READY t=24.256000000 window=1.600000000'
+    valid = ['GP_U_ADMISSION attempt=1 start_ms=15520', land, close, ground]
+    expected = 'invalid-native-observation-after-native-LAND'
+    if classify_post_abort_evaluator_close(valid, 1, 20288, 3) != expected:
+        raise RuntimeError('realistic post-abort evaluator close is not attributed')
+    if classify_post_abort_evaluator_close(valid[:2] + [ground], 1, 20288, 2) is not None:
+        raise RuntimeError('absence of a post-abort close incorrectly classified')
+    mutations = [
+        valid[:2] + [close.replace('attempt=1', 'attempt=2'), ground],
+        valid[:2] + [close.replace('invalid-native-observation', 'altitude'), ground],
+        valid[:2] + [close.replace('time_ms=20296', 'time_ms=20328'), ground],
+        [close, land, 'GP_U_ADMISSION attempt=1 start_ms=15520', ground],
+        valid[:3] + [close, ground],
+    ]
+    for case in mutations:
+        try:
+            classify_post_abort_evaluator_close(
+                case, 1, 20288, next(i for i, x in enumerate(case)
+                                      if x.startswith('GP_U_LAND_GROUND_READY ')))
+        except RuntimeError:
+            continue
+        raise RuntimeError('post-abort evaluator classifier accepted an adversarial trace')
+
+
 def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wall_s):
     """A real killed Chrome must release native Webots PAUSE and force LAND."""
     items = events(journal)
@@ -419,6 +449,7 @@ def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wal
 
     native = log_path.read_text(errors='replace')
     lines = native.splitlines()
+    test_post_abort_evaluator_classifier_adversarial()
     if 'Segmentation fault' in native or \
        any(marker in native for marker in (
             'GP_ROUTE_SAFETY_LAND ', 'WEBEEBLOCKS_RUNTIME_V2 TRACE RESET')):
