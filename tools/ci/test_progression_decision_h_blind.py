@@ -49,6 +49,7 @@ class BlindNativeControls(unittest.TestCase):
         ast.parse(src,filename=str(RUN))
         for token in (
           "prepare_classroom_decision_h_pupil as pupil",
+          "pupil.compose(pupil.ack.SOURCE.read_text(encoding='utf-8'))",
           "run_classroom_altitude_scene_ack as ack",
           'window "decision_h_blind_probe"',
           "WORLD=ROOT/'worlds/ci_classroom_decision_h_blind.wbt'",

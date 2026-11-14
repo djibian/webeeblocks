@@ -28,7 +28,7 @@ ARTIFACT=ROOT/'ci-artifacts/progression-decision-h-blind'
 MARKER='# WEBEEBLOCKS_A4_BLIND_NATIVE_NEGATIVE_CI_ONLY'
 
 def world_text()->str:
-    base=pupil.compose(ack.SOURCE.read_text(encoding='utf-8'))
+    base=pupil.compose(pupil.ack.SOURCE.read_text(encoding='utf-8'))
     if base.count('window "decision_h_pupil_probe"')!=1 or base.count(pupil.MARKER)!=1:
         raise ValueError('invalid original school classroom identity')
     text=base.replace('window "decision_h_pupil_probe"',
