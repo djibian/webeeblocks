@@ -102,6 +102,23 @@ def verify(root):
             'window.runtimeRunning === true' not in js or
             '#gpFpsPanel[hidden]' not in css):
         raise ValueError("Accessible grounded-only FPS UI missing/inconsistent")
+    # UI regression observed by the owner at half-window width (~688 px):
+    # #primaryActions is a scrollable strip in the generic Blockly CSS.
+    # A popover nested inside it is clipped and its gear can scroll away.
+    # The Grand Prix-only control must be a direct header sibling, while its
+    # 1..60 slider and native flight lock semantics remain unchanged.
+    actions_start = html.index('id="primaryActions"')
+    actions_end = html.index("</div>", actions_start)
+    gear_start = html.index('id="gpFpsControl"')
+    header_end = html.index("</header>", actions_end)
+    if not (actions_start < actions_end < gear_start < header_end):
+        raise ValueError("FPS control must be outside scrollable primaryActions")
+    if (html.count('id="gpFpsControl"') != 1 or
+            'grid-template-areas: "activity fps" "actions actions";' not in css or
+            '#primaryActions {\n    grid-area: actions;' not in css or
+            'flex-wrap: wrap;\n    overflow: visible;' not in css or
+            '#gpFpsControl { grid-area: fps; justify-self: end;' not in css):
+        raise ValueError("Half-window FPS control is not pinned outside scrolling actions")
     if not (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").is_file():
         raise ValueError("Blockly version asset missing")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":

@@ -1,6 +1,6 @@
 /* Grand Prix-only 3D rendering preference: no Blockly toolbox/layout mutations. */
 header:has(#gpFpsControl) { z-index: 30; } /* Keep the popover above the Blockly toolbar. */
-#gpFpsControl { position: relative; display: inline-block; vertical-align: middle; margin-left: 4px; }
+#gpFpsControl { position: relative; flex: 0 0 auto; margin-left: 4px; }
 #gpFpsToggle {
   min-width: 36px; min-height: 36px; padding: 4px 7px;
   background: transparent; color: #64748b; font-size: 21px; line-height: 1;
@@ -20,4 +20,30 @@ header:has(#gpFpsControl) { z-index: 30; } /* Keep the popover above the Blockly
 #gpFpsSlider:disabled { opacity: .42; cursor: not-allowed; filter: grayscale(1); }
 #gpFpsStatus { color: #667585; font-size: 12px; line-height: 1.35; min-height: 32px; }
 #gpFpsControl[data-locked="true"] #gpFpsValue { color: #94a3b8; }
-@media(max-width:600px) { #gpFpsPanel { width: 230px; } }
+
+/* On half-screen Windows, ordinary action buttons may require multiple rows.
+ * The FPS control must NOT live inside the horizontally scrolling actions
+ * strip, otherwise its popover is clipped or only reachable by scrolling. */
+@media (max-width: 850px) {
+  header:has(#gpFpsControl) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "activity fps" "actions actions";
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 8px;
+    overflow: visible;
+  }
+  #activityCopy { grid-area: activity; min-width: 0; }
+  #primaryActions {
+    grid-area: actions;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  #gpFpsControl { grid-area: fps; justify-self: end; margin: 0; }
+}
+@media (max-width: 600px) {
+  #gpFpsPanel { width: 230px; }
+}

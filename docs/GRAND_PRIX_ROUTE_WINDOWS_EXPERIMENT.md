@@ -29,6 +29,12 @@ ni Internet pour l'usage normal sur le poste Windows.
    dentée en haut à droite** pour ouvrir le curseur **1 à 60 FPS** par pas de 1.
    Le curseur est désactivé pendant un vol et jusqu'au retour à **PRÊT**
    après RESET. Le réglage est confirmé par le contrôleur natif au sol.
+   **Fenêtre étroite (moitié d'écran, environ 688 px) :** l'icône reste
+   accessible dans l'angle supérieur droit, indépendamment des commandes
+   du projet. Ces dernières passent sur plusieurs lignes plutôt que de
+   masquer le panneau FPS dans leur conteneur à défilement. Vérifier aussi
+   à 400–600 px que le panneau est entièrement visible, y compris lorsque
+   l'exécution est en cours (curseur grisé).
    Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 20 (aucune fenêtre de sélection
    si -Fps est fourni),
    ou définir WEBEEBLOCKS_GP_INDEX et WEBEEBLOCKS_GP_FPS puis utiliser
