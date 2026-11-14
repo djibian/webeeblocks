@@ -18,6 +18,8 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Independent Draft-only Windows evidence; no CI Gate or release authority.
+    "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -72,6 +74,35 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_windows_variable_grand_prix_workflow_is_non_decision_and_pinned(self):
+        workflow = (WORKFLOWS / "grand-prix-variable-windows.yml").read_text(encoding="utf-8")
+        self.assertTrue(workflow.startswith(
+            "name: Experimental Windows Variable Grand Prix (non-decision)\n"))
+        self.assertEqual(job_ids(workflow), {"windows-variable-route-experimental"})
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertNotIn("\n  schedule:", workflow)
+        self.assertIn("permissions:\n  contents: read\n", workflow)
+        for forbidden in ("contents: write", "actions: write", "pull-requests: write",
+                          "issues: write", "checks: write", "name: CI Gate\n",
+                          "continue-on-error: true", "exit 0 # ignore"):
+            self.assertNotIn(forbidden, workflow)
+        for must in (
+            "runs-on: windows-2022",
+            "name: Windows R2025a real product (Draft evidence only)",
+            "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+            "persist-credentials: false",
+            "ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+            "python tools/ci/test_grand_prix_route_windows_package.py",
+            "python tools/ci/run_grand_prix_route_windows_native.py",
+            "grand-prix-variable-windows-experimental-r2025a",
+            "grand-prix-variable-windows-native-r2025a",
+        ):
+            self.assertIn(must, workflow)
+        self.assertEqual(workflow.count("if: always()"), 2)
+        self.assertEqual(workflow.count("if-no-files-found: warn"), 2)
 
     def test_inventory_rejects_extra_or_missing_workflows(self):
         with tempfile.TemporaryDirectory() as temp:

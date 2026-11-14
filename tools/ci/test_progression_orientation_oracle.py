@@ -56,6 +56,26 @@ int main(void) {
  assert(step(&m,3,.9,-.45,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
  assert(m.stage==1);
  assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // This would have passed the old 0.085 m tolerance at every waypoint:
+ // altitude=0.71 lies in BOTH A/C and B accepted bands. The approved
+ // learning sequence must require genuine vertical motion, not an AST shape.
+ assert(2 * WB_ORIENT_Z_TOL < 0.79 - 0.63);
+ wb_orient_reset(&m,11,0);
+ assert(step(&m,1,.45,0,.71,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,2,.45,-.45,.71,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,3,.90,-.45,.71,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage<3);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // The tighter bands still accept a small, physically observable error
+ // around each waypoint; the correct ascent/descent remains achievable.
+ wb_orient_reset(&m,12,0);
+ assert(step(&m,1,.45,0,.68,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==1);
+ assert(step(&m,2,.45,-.45,.74,0,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==2);
+ assert(step(&m,3,.90,-.45,.68,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==3);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_ACHIEVED);
  // Constant height fails B.
  wb_orient_reset(&m,5,0);
  assert(step(&m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
