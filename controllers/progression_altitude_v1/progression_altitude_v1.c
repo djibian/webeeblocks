@@ -51,7 +51,7 @@ static int verify_scene(void) {
   /* Exact cardinality: 18 visual Poses, 4 native solid obstacles.
    * The evaluator Robot is nested in the first Pose to preserve the 22-count.
    */
-  if (!children || wb_supervisor_field_get_count(children) != 22
+  if (!children || wb_supervisor_field_get_count(children) != 22)
     return 0;
   for (int i = 0; i != 22; ++i)
     if (!wb_supervisor_field_get_mf_node(children, i))
