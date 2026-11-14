@@ -43,39 +43,44 @@ int main(void) {
   if(!self||!pos||!rot||!back)
     return invalid("missing supervisor pose or genuine rear range sensor");
 
-  /* Identical common landing position, with ray crossing the H top-bar band.
-   * This diagnostic deliberately makes no airborne/landing claim. */
-  const double pose[3]={1.48,0.0,0.750};
-  const double facing[4]={0.0,0.0,1.0,0.0};
-  wb_supervisor_field_set_sf_vec3f(pos,pose);
-  wb_supervisor_field_set_sf_rotation(rot,facing);
-  wb_supervisor_node_reset_physics(self);
-  wb_distance_sensor_enable(back,step);
-  if(wb_robot_step(step)<0)
-    return invalid("native sensor sample unavailable after enabling");
+  /* Probe ALL three possible pads in each world, before any pupil program.
+   * The rear ray must see the same cyan finish ribbon independent of count.
+   * The body remains parked (no flight or obstacle crossing is certified).
+   */
+  const double pad_y[] = {0.0, 0.55, -0.55};
+  const double facing[] = {0.0, 0.0, 1.0, 0.0};
+  wb_distance_sensor_enable(back, step);
+  for (int pad = 0; pad < 3; ++pad) {
+    const double pose[] = {1.48, pad_y[pad], 0.750};
+    wb_supervisor_field_set_sf_vec3f(pos, pose);
+    wb_supervisor_field_set_sf_rotation(rot, facing);
+    wb_supervisor_node_reset_physics(self);
+    if (wb_robot_step(step) < 0)
+      return invalid("native sensor sample unavailable after enabling");
+    const double *world = wb_supervisor_node_get_position(self);
+    const double range = wb_distance_sensor_get_value(back) / 1000.0;
+    if (!world || !isfinite(world[0]) || !isfinite(world[1]) ||
+        !isfinite(world[2]) || !isfinite(range) ||
+        fabs(world[0] - pose[0]) > 0.035 ||
+        fabs(world[1] - pose[1]) > 0.035 ||
+        fabs(world[2] - pose[2]) > 0.045 || range < 0 ||
+        range > 2.001)
+      return invalid("stale, nonfinite or displaced rear sample");
 
-  const double *world=wb_supervisor_node_get_position(self);
-  const double range=wb_distance_sensor_get_value(back)/1000.0;
-  if(!world||!isfinite(world[0])||!isfinite(world[1])||
-     !isfinite(world[2])||!isfinite(range)||
-     fabs(world[0]-pose[0])>.035||fabs(world[1])>.035||
-     fabs(world[2]-pose[2])>.045||range<0||range>2.001)
-    return invalid("stale, nonfinite or displaced rear sample");
-
-  const int disclosed=
-    (variant==1&&range>=1.85&&range<=2.001)||
-    (variant==2&&range>=1.20&&range<=1.70)||
-    (variant==3&&range>=0.35&&range<=0.80);
-  if(!disclosed) {
-    fprintf(stderr,"WEBEEBLOCKS_COUNT_H_BACK_FATAL unexpected n=%d range_m=%.9f\n",
-            variant,range);
-    fflush(stderr);
-    wb_robot_cleanup();
-    return 2;
+    /* Genuine rear ray must now intersect the terminal band. This is
+     * deliberately NOT a test of passage feasibility or variable use. */
+    if (range < 0.12 || range > 0.31) {
+      fprintf(stderr, "WEBEEBLOCKS_COUNT_H_BACK_FATAL unmasked variant=%d "
+              "pad=%d range_m=%.9f\n", variant, pad, range);
+      fflush(stderr);
+      wb_robot_cleanup();
+      return 2;
+    }
+    printf("WEBEEBLOCKS_COUNT_H_BACK_MASKED variant=%d pad=%d "
+           "range_m=%.9f pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
+           variant, pad, range, world[0], world[1], world[2]);
+    fflush(stdout);
   }
-  printf("WEBEEBLOCKS_COUNT_H_BACK_OBSERVED variant=%d range_m=%.9f "
-         "pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
-         variant,range,world[0],world[1],world[2]);
   fflush(stdout);
   wb_robot_cleanup();
   return 0;

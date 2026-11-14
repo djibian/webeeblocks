@@ -22,6 +22,21 @@ class CountHRearRangeWorldTests(unittest.TestCase):
             self.assertEqual(world.count(f'DEF ACTIVITY6_{n}_FINISH_SCREEN Solid'),1)
             self.assertEqual(world.count(diagnostic.MARKER),1)
 
+    def test_native_observer_probes_all_three_pads_not_legacy_single_ray(self):
+        source=(diagnostic.ROOT /
+                "controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        self.assertIn("for (int pad = 0; pad < 3; ++pad)", source)
+        self.assertIn("WEBEEBLOCKS_COUNT_H_BACK_MASKED variant=%d pad=%d", source)
+        self.assertNotIn("const int disclosed=", source)
+        self.assertNotIn("WEBEEBLOCKS_COUNT_H_BACK_OBSERVED", source)
+        runner=(diagnostic.ROOT /
+                "tools/ci/run_classroom_count_h_rear_range.py").read_text(
+                    encoding="utf-8")
+        self.assertIn("len(findings)!=3", runner)
+        self.assertIn("for pad in range(len(PADS)):", runner)
+        self.assertIn("max(values)-min(values) > .025", runner)
+
     def test_refuse_unknown_scene_or_corrupted_start(self):
         for n in (0,4,-1,'1'):
             with self.subTest(variant=n),self.assertRaises(ValueError):
