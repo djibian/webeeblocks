@@ -528,7 +528,7 @@ def main():
                 browser = folder / 'browser-window-loss-wrapper.sh'
                 browser.write_text(
                     '#!/usr/bin/env bash\nset -euo pipefail\n'
-                    'printf "%s\\n" "$" > "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-main.pid"\n'
+                    'printf "%s\\n" "$$" > "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-main.pid"\n'
                     'exec "' + str(BROWSER) + '" "$@"\n')
                 browser.chmod(0o700)
             proc = subprocess.run(['/usr/bin/python3','-c',QT_SETTINGS,str(browser)],
