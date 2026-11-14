@@ -133,37 +133,41 @@ int main(void) {
     ++safe_samples;
   }
 
-  /* Keep the sensor test independent of the motor controller. Force
-   * overlap with the actual H top bar three times and require real contact
-   * points on the craft or the static bar, not assumed geometry. */
-  const double collision_pose[3] = {-0.850, 0.0, 0.740};
+  /* Positive physics calibration with gravitational fall (not teleportation
+   * into an overlap). Motors are OFF and no pupil code runs. Release the
+   * original dynamic Crazyflie PROTO over the actual H top bar.
+   * Require contacts on that H specifically; a floor contact cannot prove it. */
+  const double release_pose[3] = {-0.850, 0.0, 1.280};
+  wb_supervisor_field_set_sf_vec3f(pos, release_pose);
+  wb_supervisor_field_set_sf_rotation(rot, facing);
+  wb_supervisor_node_reset_physics(self);
   int control_contacts = 0;
-  for (int k = 0; k < 3; ++k) {
-    wb_supervisor_field_set_sf_vec3f(pos, collision_pose);
-    wb_supervisor_field_set_sf_rotation(rot, facing);
-    wb_supervisor_node_reset_physics(self);
+  for (int k = 0; k < 80; ++k) {
     if (wb_robot_step(step) < 0)
-      return invalid("contact control step unavailable");
+      return invalid("gravity calibration native physics step failed");
     int self_contacts = -1, bar_contacts = -1;
     const WbContactPoint *body_points =
       wb_supervisor_node_get_contact_points(self, true, &self_contacts);
     const WbContactPoint *bar_points =
       wb_supervisor_node_get_contact_points(first_bar, false, &bar_contacts);
     const double *observed = wb_supervisor_node_get_position(self);
+    const double *velocity = wb_supervisor_node_get_velocity(self);
     if (self_contacts < 0 || bar_contacts < 0 ||
         (self_contacts > 0 && !body_points) ||
-        (bar_contacts > 0 && !bar_points) || !observed)
-      return invalid("contact control observation unavailable");
-    if (self_contacts > control_contacts) control_contacts = self_contacts;
+        (bar_contacts > 0 && !bar_points) || !observed || !velocity ||
+        !isfinite(observed[2]) || !isfinite(velocity[2]))
+      return invalid("gravity contact calibration missing physical observation");
     if (bar_contacts > control_contacts) control_contacts = bar_contacts;
-    printf("WEBEEBLOCKS_COUNT_H_CONTACT_CONTROL variant=%d k=%d "
-           "body=%d bar=%d x=%.6f y=%.6f z=%.6f\n",
-           variant, k, self_contacts, bar_contacts,
-           observed[0], observed[1], observed[2]);
-    fflush(stdout);
+    if ((k % 5) == 0 || bar_contacts > 0) {
+      printf("WEBEEBLOCKS_COUNT_H_CONTACT_CONTROL variant=%d k=%d "
+             "body=%d bar=%d x=%.6f y=%.6f z=%.6f vz=%.6f\n",
+             variant, k, self_contacts, bar_contacts, observed[0],
+             observed[1], observed[2], velocity[2]);
+      fflush(stdout);
+    }
   }
   if (control_contacts <= 0)
-    return invalid("contact detector failed deliberate H-bar intersection");
+    return invalid("no real H-bar contact from gravity-driven positive control");
   printf("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d "
          "control_contacts=%d low_z=%.3f\n",
          variant, safe_samples, control_contacts, low_z);
