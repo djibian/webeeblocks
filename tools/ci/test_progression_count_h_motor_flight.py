@@ -62,6 +62,9 @@ class CountHMotorFlightTests(unittest.TestCase):
                 self.assertIn("screen_seen=1",source)
             else:
                 self.assertIn(fragment,source)
+        self.assertIn("origin[2]<0.012||origin[2]>0.075",source)
+        self.assertIn("hypot(start_velocity[0],start_velocity[1])>.12",source)
+        self.assertNotIn("origin[2]<0.025",source)
         self.assertIn("wb_supervisor_node_get_field(solid",adapter)
         self.assertIn("wb_supervisor_field_import_mf_node_from_string",adapter)
         self.assertIn("DEF WEBEEBLOCKS_A6_MOTOR_OBSERVER Robot",adapter)

@@ -69,9 +69,18 @@ int main(void) {
     return fail("source cannot attest native collider geometry");
   WbNodeRef craft=find_craft();
   const double *origin=craft?wb_supervisor_node_get_position(craft):NULL;
-  if(!origin||fabs(origin[0]+1.40)>.025||fabs(origin[1])>.025||
-     origin[2]<0.025||origin[2]>0.11)
-    return fail("motor flight did not start at authentic blue zone");
+  const double *start_velocity=craft?wb_supervisor_node_get_velocity(craft):NULL;
+  /* The authentic R2025a Crazyflie has a 0.030 m high cylinder collider:
+   * its settled centre on Floor is z~0.015 m, not the 0.055 m spawn pose.
+   * Accept only the bounded resting/initial zone and a stationary craft. */
+  if(!origin||!start_velocity||!isfinite(origin[2])||
+     fabs(origin[0]+1.40)>.025||fabs(origin[1])>.025||
+     origin[2]<0.012||origin[2]>0.075||
+     !isfinite(start_velocity[0])||!isfinite(start_velocity[1])||
+     !isfinite(start_velocity[2])||
+     hypot(start_velocity[0],start_velocity[1])>.12||
+     fabs(start_velocity[2])>.12)
+    return fail("motor flight did not start at authentic stationary blue zone");
   const double origin_z=origin[2];
   wb_count_mission m={0};
   wb_count_reset(&m,1,1,origin_z);
