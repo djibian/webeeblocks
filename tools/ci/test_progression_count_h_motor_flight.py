@@ -80,6 +80,11 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn('"WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt',native)
         self.assertIn('env["WEBEEBLOCKS_CI_ARTIFACT_DIR"]=str(ARTIFACT)',native)
         self.assertIn('timeout","-k","5s","390s"',native)
+        self.assertIn("WEBEEBLOCKS_A6_MOTOR_WINDOW_REFUSED",native)
+        self.assertIn("robot-window-http-diagnostic.json",native)
+        self.assertIn("browser_only_proven_by_launch_and_events",native)
+        self.assertIn("time.monotonic()-ready_since>=60",native)
+        self.assertIn("diagnose_webots_window_http()",native)
 
     def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
         school=(ROOT/"controllers/progression_count_h_school_pilot/runtime.ini").read_bytes()

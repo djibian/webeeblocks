@@ -9,11 +9,36 @@ import subprocess
 import sys
 import threading
 import time
+import http.client
 
 import prepare_classroom_count_h_motor_flight as world
 import run_classroom_altitude_scene_ack as observer
 
 ARTIFACT=world.ARTIFACT
+# Read-only HTTP probe to a candidate local Webots resource endpoint.
+# Connection refusal or HTTP 404 is diagnostic; no availability is presumed.
+# An HTTP 200 alone is never evidence that the Robot Window actually opened.
+HTTP_PROBE_PATHS=(
+    "/robot_windows/count_h_flight_probe/count_h_flight_probe.html",
+    "/robot_windows/orientation_flight_probe/orientation_flight_probe.html",
+)
+
+def diagnose_webots_window_http():
+    observed={}
+    for path in HTTP_PROBE_PATHS:
+        conn=http.client.HTTPConnection("127.0.0.1",1234,timeout=2)
+        try:
+            conn.request("GET",path)
+            resp=conn.getresponse()
+            observed[path]={"status":resp.status,
+                            "content_type":resp.getheader("Content-Type")}
+            resp.read()
+        except (OSError,TimeoutError,http.client.HTTPException) as error:
+            observed[path]={"error_type":type(error).__name__}
+        finally:
+            conn.close()
+    return observed
+
 REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
           "A6_SCENE_ACK","A6_TAKEOFF","A6_CORRIDOR_DONE",
           "A6_LANDED","A6_TEST_COMPLETE")
@@ -23,6 +48,7 @@ def run():
     log=ARTIFACT/"webots.log"
     observer.EVENTS.clear()
     server=None; proc=None; output=None
+    ready_since=None; http_diagnosis=None; early_browser_refusal=False
     try:
         for path in (
             world.ROOT/"controllers/progression_count_h_school_pilot/progression_count_h_school_pilot",
@@ -47,6 +73,22 @@ def run():
         while time.monotonic()<end:
             seen=[entry.get("event") for entry in observer.EVENTS]
             txt=log.read_text(encoding="utf-8",errors="replace")
+            if ("WEBEEBLOCKS_RUNTIME_V2 READY" in txt and ready_since is None):
+                ready_since=time.monotonic()
+            if ready_since is not None:
+                browserlog=ARTIFACT/"browser-launch.log"
+                launched=(browserlog.is_file() and
+                          "count_h_flight_probe.html" in browserlog.read_text(
+                              encoding="utf-8",errors="replace"))
+                if not launched and http_diagnosis is None and (
+                        time.monotonic()-ready_since>=8):
+                    http_diagnosis=diagnose_webots_window_http()
+                if not launched and time.monotonic()-ready_since>=60:
+                    early_browser_refusal=True
+                    print("WEBEEBLOCKS_A6_MOTOR_WINDOW_REFUSED "
+                          "reason=browser_missing_after_native_READY "
+                          "seconds=60",flush=True)
+                    break
             if (("A6_TEST_COMPLETE" in seen and
                  "WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved" in txt)
                 or "A6_ERROR" in seen
@@ -69,6 +111,14 @@ def run():
         (ARTIFACT/"events.json").write_text(
             json.dumps(observer.EVENTS,indent=2,sort_keys=True)+"\n",
             encoding="utf-8")
+        (ARTIFACT/"robot-window-http-diagnostic.json").write_text(
+            json.dumps({
+                "schema":"webeeblocks-a6-window-http-diag-v1",
+                "ready_seen":ready_since is not None,
+                "early_browser_refusal":early_browser_refusal,
+                "http_resources":http_diagnosis,
+                "browser_only_proven_by_launch_and_events":True,
+            },indent=2,sort_keys=True)+"\n",encoding="utf-8")
         world.cleanup()
 
     txt=log.read_text(encoding="utf-8",errors="replace")
