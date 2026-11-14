@@ -122,6 +122,12 @@ class WorkflowTests(unittest.TestCase):
             "persist-credentials: false",
             "tools.ci.test_progression_count_h_scene",
             "tools.ci.test_progression_count_h_oracle",
+            "tools.ci.test_progression_count_h_rear_range",
+            "cyberbotics/webots:R2025a-ubuntu22.04",
+            "make clean; make",
+            "tools/ci/run_classroom_count_h_rear_range.py",
+            "if: always()",
+            "ci-artifacts/progression-count-h-rear-range/",
             "tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision",
             "set -euo pipefail",
         ):

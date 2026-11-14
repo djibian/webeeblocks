@@ -23,7 +23,7 @@ jobs:
     name: A6 compiled C oracle and real WBO source checks (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +35,31 @@ jobs:
           cc --version | head -n 1
           python3 -m unittest -v \
             tools.ci.test_progression_count_h_scene \
-            tools.ci.test_progression_count_h_oracle
+            tools.ci.test_progression_count_h_oracle \
+            tools.ci.test_progression_count_h_rear_range
       - name: Require Draft witness remains outside integration gates
         run: |
           python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision
+      - name: Compile real Webots R2025a rear-range negative observer
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_count_h_range_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Observe the three physical rear rays at identical landing pose
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_count_h_rear_range.py'
+      - name: Preserve negative native evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-draft-rear-range-negative-evidence
+          path: ci-artifacts/progression-count-h-rear-range/
+          if-no-files-found: warn
