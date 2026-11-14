@@ -50,6 +50,14 @@ int main(void) {
   const double pad_y[] = {0.0, 0.55, -0.55};
   const double facing[] = {0.0, 0.0, 1.0, 0.0};
   wb_distance_sensor_enable(back, step);
+  /* Track both genuine physical colliders before the experiment.
+   * An all-zero contact stream cannot qualify a collision-free path. */
+  char gate_def[80];
+  snprintf(gate_def, sizeof gate_def, "ACTIVITY6_%d_H_1_BAR", variant);
+  WbNodeRef first_bar = wb_supervisor_node_get_from_def(gate_def);
+  if (!first_bar) return invalid("missing calibration H bar");
+  wb_supervisor_node_enable_contact_points_tracking(self, step, true);
+  wb_supervisor_node_enable_contact_points_tracking(first_bar, step, false);
   for (int pad = 0; pad < 3; ++pad) {
     const double pose[] = {1.48, pad_y[pad], 0.750};
     wb_supervisor_field_set_sf_vec3f(pos, pose);
@@ -125,19 +133,36 @@ int main(void) {
     ++safe_samples;
   }
 
-  /* Positive adversarial calibration: deliberately overlap the first
-   * genuine red H top bar. If the native engine/contact API sees nothing,
-   * the preceding zero-contact claims are not trustworthy. */
+  /* Keep the sensor test independent of the motor controller. Force
+   * overlap with the actual H top bar three times and require real contact
+   * points on the craft or the static bar, not assumed geometry. */
   const double collision_pose[3] = {-0.850, 0.0, 0.740};
-  wb_supervisor_field_set_sf_vec3f(pos, collision_pose);
-  wb_supervisor_field_set_sf_rotation(rot, facing);
-  wb_supervisor_node_reset_physics(self);
-  if (wb_robot_step(step) < 0)
-    return invalid("contact control step unavailable");
-  int control_contacts = -1;
-  const WbContactPoint *control =
-    wb_supervisor_node_get_contact_points(self, true, &control_contacts);
-  if (control_contacts <= 0 || !control)
+  int control_contacts = 0;
+  for (int k = 0; k < 3; ++k) {
+    wb_supervisor_field_set_sf_vec3f(pos, collision_pose);
+    wb_supervisor_field_set_sf_rotation(rot, facing);
+    wb_supervisor_node_reset_physics(self);
+    if (wb_robot_step(step) < 0)
+      return invalid("contact control step unavailable");
+    int self_contacts = -1, bar_contacts = -1;
+    const WbContactPoint *body_points =
+      wb_supervisor_node_get_contact_points(self, true, &self_contacts);
+    const WbContactPoint *bar_points =
+      wb_supervisor_node_get_contact_points(first_bar, false, &bar_contacts);
+    const double *observed = wb_supervisor_node_get_position(self);
+    if (self_contacts < 0 || bar_contacts < 0 ||
+        (self_contacts > 0 && !body_points) ||
+        (bar_contacts > 0 && !bar_points) || !observed)
+      return invalid("contact control observation unavailable");
+    if (self_contacts > control_contacts) control_contacts = self_contacts;
+    if (bar_contacts > control_contacts) control_contacts = bar_contacts;
+    printf("WEBEEBLOCKS_COUNT_H_CONTACT_CONTROL variant=%d k=%d "
+           "body=%d bar=%d x=%.6f y=%.6f z=%.6f\n",
+           variant, k, self_contacts, bar_contacts,
+           observed[0], observed[1], observed[2]);
+    fflush(stdout);
+  }
+  if (control_contacts <= 0)
     return invalid("contact detector failed deliberate H-bar intersection");
   printf("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d "
          "control_contacts=%d low_z=%.3f\n",
