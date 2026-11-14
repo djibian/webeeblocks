@@ -6,7 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENES = [ROOT / f"worlds/scenes/count-h-{n}-v1.wbo" for n in (1, 2, 3)]
-EXPECTED_GATES = {1: [0.10], 2: [-0.50, 0.55], 3: [-0.85, 0.00, 0.85]}
+EXPECTED_GATES = {1: [-0.85], 2: [-0.85, 0.00], 3: [-0.85, 0.00, 0.85]}
 TARGET_Y = {"1": 0.0, "2": 0.55, "3": -0.55}
 
 
@@ -62,6 +62,24 @@ class CountingSceneTests(unittest.TestCase):
                 self.assertEqual(actual_x, EXPECTED_GATES[n])
                 # Separate low-flight bands for gates within the same world.
                 self.assertTrue(all(b-a > .40 for a,b in zip(actual_x,actual_x[1:])))
+
+    def test_shared_prefix_prevents_count_leak_at_departure(self):
+        # In the same physical start pose, every first visible H must be
+        # indistinguishable by a single front range reading. After one
+        # crossing, the 2/3-H variants share their second bar as well.
+        self.assertEqual(EXPECTED_GATES[1], EXPECTED_GATES[2][:1])
+        self.assertEqual(EXPECTED_GATES[2], EXPECTED_GATES[3][:2])
+        first_ranges = []
+        for n, path in zip((1, 2, 3), SCENES):
+            scene = path.read_text(encoding="utf-8")
+            bar = collider(scene, f"ACTIVITY6_{n}_H_1_BAR")
+            self.assertAlmostEqual(bar[2] - bar[5] / 2, 0.62)
+            self.assertAlmostEqual(bar[2] + bar[5] / 2, 0.86)
+            # z=0.75 is inside the physical bar; this is geometric only.
+            first_ranges.append(bar[0] - bar[3] / 2 - (-1.40))
+        self.assertEqual(len(set(first_ranges)), 1)
+        self.assertAlmostEqual(first_ranges[0], 0.515)
+        # This is NOT a native Multi-ranger or counting-behavior PASS.
 
     def test_same_terminal_geometry_makes_all_fixed_landing_choices_inadequate(self):
         # This is a design property, not a native success-oracle assertion.

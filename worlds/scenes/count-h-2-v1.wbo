@@ -23,40 +23,40 @@ DEF WEBEEBLOCKS_COUNT_2_SCENE Group {
   Pose { translation 1.420000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
   Pose { translation 1.540000 -0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
   Pose { translation 1.540000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
-  Pose { translation -0.500 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
+  Pose { translation -0.850 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
   DEF ACTIVITY6_2_H_1_LEFT Solid {
-    translation -0.500 0.300 0.50
+    translation -0.850 0.300 0.50
     name "ACTIVITY6_2_H_1_LEFT"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
     boundingObject Box { size 0.07 0.065 1.00 }
   }
   DEF ACTIVITY6_2_H_1_RIGHT Solid {
-    translation -0.500 -0.300 0.50
+    translation -0.850 -0.300 0.50
     name "ACTIVITY6_2_H_1_RIGHT"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
     boundingObject Box { size 0.07 0.065 1.00 }
   }
   DEF ACTIVITY6_2_H_1_BAR Solid {
-    translation -0.500 0 0.74
+    translation -0.850 0 0.74
     name "ACTIVITY6_2_H_1_BAR"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.57 0.24 } } ]
     boundingObject Box { size 0.07 0.57 0.24 }
   }
-  Pose { translation 0.550 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
+  Pose { translation 0.000 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
   DEF ACTIVITY6_2_H_2_LEFT Solid {
-    translation 0.550 0.300 0.50
+    translation 0.000 0.300 0.50
     name "ACTIVITY6_2_H_2_LEFT"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
     boundingObject Box { size 0.07 0.065 1.00 }
   }
   DEF ACTIVITY6_2_H_2_RIGHT Solid {
-    translation 0.550 -0.300 0.50
+    translation 0.000 -0.300 0.50
     name "ACTIVITY6_2_H_2_RIGHT"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
     boundingObject Box { size 0.07 0.065 1.00 }
   }
   DEF ACTIVITY6_2_H_2_BAR Solid {
-    translation 0.550 0 0.74
+    translation 0.000 0 0.74
     name "ACTIVITY6_2_H_2_BAR"
     children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.57 0.24 } } ]
     boundingObject Box { size 0.07 0.57 0.24 }
