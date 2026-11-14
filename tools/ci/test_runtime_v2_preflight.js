@@ -284,6 +284,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   const definitions = {
     webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
+    webeeblocks_v2_vertical: {init() { this.fields = {DIRECTION:dropdown([['monter','up'],['descendre','down']])}; }},
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
     math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
   };
@@ -325,11 +326,17 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert(!flyoutArithmetic.getField('OP').getOptions(false).some(option => option[1] === 'POWER'), 'student arithmetic flyout must not expose POWER');
 
+  const altitudeFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1', Activities.BLOCK_CATALOG);
+  controller.setProfile(altitudeFlyoutProfile, flyoutWorkspace);
+  const flyoutVertical = flyoutWorkspace.newBlock('webeeblocks_v2_vertical');
+  assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up']);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
+  assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up','down']);
 
   controller.setProfile(genericProfile, null);
   const workspace = new FakeWorkspace(false);

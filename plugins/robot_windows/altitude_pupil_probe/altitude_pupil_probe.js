@@ -88,7 +88,7 @@ window.addEventListener('unhandledrejection',e=>pupilReport('PUPIL_ERROR',{messa
     const text=WebeeBlocksProjectFiles.encodeProject(p.profile,source,opts);
     const validated=WebeeBlocksProjectFiles.validateProjectText(text,p.profile,opts);
     reopened=new Blockly.Workspace();
-    Blockly.serialization.workspaces.load(validated.project.workspace,reopened);
+    WebeeBlocksProjectFiles.loadWorkspaceWithProfile(p.profile,validated.project.workspace,reopened,opts);
     const actual=WebeeBlocksSemanticAst.compileWorkspace(reopened);
     if(JSON.stringify(original)!==JSON.stringify(actual) ||
        validated.project.activity.id!==p.profile.id ||
