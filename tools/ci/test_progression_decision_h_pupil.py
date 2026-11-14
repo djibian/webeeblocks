@@ -33,6 +33,10 @@ class PupilA4Tests(unittest.TestCase):
         js=JS.read_text(encoding='utf-8')
         self.assertIn('WB_A4_PUPIL_BOOTSTRAP',html)
         self.assertIn('decision_h_pupil_probe.js',html)
+        profiles=(ROOT/'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js').read_text(encoding='utf-8')
+        for scene in ('decision-h-a-v1','decision-h-b-v1'):
+            self.assertIn("profile.runtime.scene !== '"+scene+"'",profiles)
+        self.assertIn("fail('runtime.scene must be sequence-v1",profiles)
         for resource in ('blockly_compressed.js','blocks_compressed.js',
                          'semantic_ast.js','interpreter.js','activity_contract.js',
                          'project_files.js','wwi_backend.js'):
