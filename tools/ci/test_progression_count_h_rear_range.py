@@ -42,7 +42,7 @@ class CountHRearRangeWorldTests(unittest.TestCase):
                 "controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")
         self.assertIn("wb_supervisor_node_get_contact_points(self, true, &contact_count)", source)
-        self.assertIn("wb_supervisor_node_get_contact_points(self, true, &control_contacts)", source)
+        self.assertIn("wb_supervisor_node_get_contact_points(self, true, &self_contacts)", source)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking(self, step, true)", source)
         self.assertIn("wb_supervisor_node_get_contact_points(first_bar, false, &bar_contacts)", source)
         self.assertIn("WEBEEBLOCKS_COUNT_H_CONTACT_CONTROL variant=%d k=%d", source)
