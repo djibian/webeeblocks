@@ -364,6 +364,32 @@ def terminate_actual_robot_window():
     return pid
 
 
+def classify_post_abort_evaluator_close(lines, land_index, land_time_ms, ground_index):
+    """Permit only a revocation AFTER a native watchdog-driven LAND decision.
+
+    The evaluator must never be allowed to authorize an aborted mission.
+    Once the native pilot retires the flight, its subsequent observation can
+    find an inactive flight context. Any unrelated, early or repeated closure
+    remains a hard failure of this real Chrome-kill integration proof.
+    """
+    closes = [(i, line) for i, line in enumerate(lines)
+              if line.startswith('GP_ROUTE_EVALUATOR_CLOSED ')]
+    if not closes:
+        return None
+    if len(closes) != 1:
+        raise RuntimeError('duplicate native evaluator closure after Chrome loss')
+    index, line = closes[0]
+    match = re.fullmatch(
+        r"GP_ROUTE_EVALUATOR_CLOSED attempt=1 time_ms=([1-9][0-9]*) "
+        r"reason=invalid-native-observation "
+        r"detail='ValueError: inactive flight observation context'", line)
+    if (match is None or
+            not land_index < index < ground_index or
+            not 0 < int(match.group(1)) - land_time_ms <= 32):
+        raise RuntimeError('unattributed or pre-LAND evaluator closure after Chrome loss')
+    return 'invalid-native-observation-after-native-LAND'
+
+
 def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wall_s):
     """A real killed Chrome must release native Webots PAUSE and force LAND."""
     items = events(journal)
@@ -394,9 +420,9 @@ def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wal
     native = log_path.read_text(errors='replace')
     lines = native.splitlines()
     if 'Segmentation fault' in native or \
-       any(marker in native for marker in ('GP_ROUTE_EVALUATOR_CLOSED ',
+       any(marker in native for marker in (
             'GP_ROUTE_SAFETY_LAND ', 'WEBEEBLOCKS_RUNTIME_V2 TRACE RESET')):
-        raise RuntimeError('window loss contaminated by crash, oracle or RESET')
+        raise RuntimeError('window loss contaminated by crash, safety LAND or RESET')
     admission = [re.fullmatch(r'GP_U_ADMISSION attempt=1 start_ms=(\d+)', line)
                  for line in lines if line.startswith('GP_U_ADMISSION ')]
     forced = [(i, re.fullmatch(
@@ -417,6 +443,8 @@ def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wal
     failed_at = int(forced[0][1].group(1))
     if not 0 < failed_at - admitted < 15000:
         raise RuntimeError('lost-browser LAND not before native low-flight oracle window')
+    post_abort_close = classify_post_abort_evaluator_close(
+        lines, forced[0][0], failed_at, ground[0])
     report = {
         'schema': 'gp-route-native-window-loss-e2e-r2025a-v1',
         'status': 'NATIVE_LOST_REAL_CHROME_FAIL_CLOSED_PASS',
@@ -431,6 +459,8 @@ def verify_actual_window_loss(log_path, journal, compiled, world, pid, abort_wal
         'event_sha256': sha(journal),
         'flight_binary_sha256': compiled['product_binary_sha256'],
         'negative_mission_oracle': None,
+        'post_abort_evaluator_close': post_abort_close,
+        'mission_abort_reason': 'lost-browser-watchdog',
         'grand_prix_mission_success_claimed': False,
         'product_safety_relaxation': False, 'physical_flight_authorized': False
     }
