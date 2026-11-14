@@ -109,12 +109,8 @@ async function proveScenePreparation() {
   }
   assert.strictEqual(messages.length, 1, 'invalid profile triggered native scene import');
 
-  // Stage only the transport contract for the new school scene. No student
-  // catalog profile has switched yet, and the physically locked controller
-  // will independently reject this token. A correlated native ACK remains
-  // mandatory before this frontend may claim the new scene is loaded.
-  const stagedAltitude = JSON.parse(JSON.stringify(sequence));
-  stagedAltitude.runtime.scene = 'altitude-v1';
+  // The new school profile must still receive a nonce-bound native SCENE_OK.
+  const stagedAltitude = activityProfile('progression-altitude-v1');
   assert.strictEqual(Profiles.validateProfile(stagedAltitude, Activities.BLOCK_CATALOG), true);
   const preparingAltitude = backend.prepareActivity(stagedAltitude);
   assert.match(messages.at(-1), / REQUEST 2 SCENE altitude-v1 [0-9a-f]{64}$/);

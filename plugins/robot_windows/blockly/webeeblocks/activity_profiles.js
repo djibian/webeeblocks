@@ -32,6 +32,8 @@
     if (!isObject(profile)) fail('profile must be an object');
     requireString(profile.id, 'id');
     requireString(profile.world, 'world');
+    if (profile.starterVisible !== undefined && typeof profile.starterVisible !== 'boolean')
+      fail('starterVisible must be a boolean');
     if (!isObject(profile.brief) || typeof profile.brief.visible !== 'boolean') fail('brief.visible must be a boolean');
     if (profile.brief.visible) {
       requireString(profile.brief.title, 'brief.title');
@@ -96,8 +98,8 @@
     // Dedicated worlds (including archived experiment profiles) do not select
     // a managed scene. If supplied, however, the native scene token is strict.
     // Altitude and orientation are explicitly declared classroom-only scenes.
-    // No catalog profile selects either yet. The physically locked runtime
-    // independently refuses these tokens; never infer a scene from an activity ID.
+    // Only the school starter may select altitude. Orientation is staged.
+    // The physically locked runtime refuses both: never infer from activity ID.
     if (profile.runtime.scene !== undefined &&
         profile.runtime.scene !== 'sequence-v1' &&
         profile.runtime.scene !== 'legacy-v1' &&
