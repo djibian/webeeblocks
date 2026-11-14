@@ -1,0 +1,84 @@
+# Mini Grand Prix L: EXACTLY one open H, a right-angle corner,
+# one physically CLOSED final H and ONE landing pad; no hidden activity ID.
+# A single ordinary .wbb must succeed on both L and R with real range sensors.
+DEF WEBEEBLOCKS_MINI_GP_L_SCENE Group {
+ children [
+  Pose { translation -1.40 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.84 } geometry Box { size 0.18 0.30 0.004 } } ] } # start
+  Pose { translation -0.750 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.84 } geometry Box { size 0.46 0.48 0.004 } } ] } # open-H low flight band
+  Pose { translation 0.200 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.11 0.70 0.82 roughness 0.84 } geometry Box { size 0.20 0.20 0.004 } } ] } # turn marker
+  Pose { translation 0.200 0.950 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.84 } geometry Box { size 0.32 0.32 0.004 } } ] } # only arrival zone
+  Pose { translation 0.104000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.104000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.104000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.104000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.168000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.168000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.168000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.168000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.232000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.232000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.232000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.232000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.296000 0.854000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.296000 0.918000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.296000 0.982000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+  Pose { translation 0.296000 1.046000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.84 } geometry Box { size 0.064 0.064 0.004 } } ] } # checker
+# Open H: a 0.620m under-traverse clearance, physical red colliders.
+  DEF ACTIVITY7_L_OPEN_LEFT Solid {
+    translation -0.750 0.300 0.50
+    name "ACTIVITY7_L_OPEN_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY7_L_OPEN_RIGHT Solid {
+    translation -0.750 -0.300 0.50
+    name "ACTIVITY7_L_OPEN_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY7_L_OPEN_BAR Solid {
+    translation -0.750 0 0.74
+    name "ACTIVITY7_L_OPEN_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.57 0.24 } } ]
+    boundingObject Box { size 0.07 0.57 0.24 }
+  }
+# Corner L: a sensed front face and one blocked side, not a magic turn.
+  DEF ACTIVITY7_L_CORNER_FRONT Solid {
+    translation 0.420 0 0.55
+    name "ACTIVITY7_L_CORNER_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.08 0.64 1.10 } } ]
+    boundingObject Box { size 0.08 0.64 1.10 }
+  }
+  DEF ACTIVITY7_L_CORNER_SIDE Solid {
+    translation 0.200 -0.320 0.55
+    name "ACTIVITY7_L_CORNER_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.48 0.08 1.10 } } ]
+    boundingObject Box { size 0.48 0.08 1.10 }
+  }
+# Closed H: physical wall from floor to 1.30m, no legal low crossing.
+  DEF ACTIVITY7_L_CLOSED_LEFT Solid {
+    translation -0.100 1.420 0.65
+    name "ACTIVITY7_L_CLOSED_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.065 0.08 1.30 } } ]
+    boundingObject Box { size 0.065 0.08 1.30 }
+  }
+  DEF ACTIVITY7_L_CLOSED_RIGHT Solid {
+    translation 0.500 1.420 0.65
+    name "ACTIVITY7_L_CLOSED_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.065 0.08 1.30 } } ]
+    boundingObject Box { size 0.065 0.08 1.30 }
+  }
+  DEF ACTIVITY7_L_CLOSED_BAR Solid {
+    translation 0.200 1.420 0.90
+    name "ACTIVITY7_L_CLOSED_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.57 0.08 0.30 } } ]
+    boundingObject Box { size 0.57 0.08 0.30 }
+  }
+  DEF ACTIVITY7_L_CLOSED_PANEL Solid {
+    translation 0.200 1.420 0.65
+    name "ACTIVITY7_L_CLOSED_PANEL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.54 0.18 0.18 roughness 0.70 } geometry Box { size 0.57 0.08 1.30 } } ]
+    boundingObject Box { size 0.57 0.08 1.30 }
+  }
+ ]
+}
