@@ -49,6 +49,7 @@ python3 /workspace/tools/ci/run_classroom_orientation_flight.py
     return subprocess.run([
         'docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true',
         '-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true',
+        '-e','WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-neutral-start',
         '-v',str(ROOT)+':/workspace','-w','/workspace',
         IMAGE,'bash','-lc',script
     ],cwd=ROOT,check=False).returncode
