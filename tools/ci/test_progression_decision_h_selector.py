@@ -169,6 +169,11 @@ int main() {
   Scene a=create('a');
   Scene b=create('b');
   assert(valid('a') && valid('b'));
+  // Each variant independently rejects a corrupt physical obstacle.
+  b.boxes[3]->size[2]+=.02;
+  assert(valid('a') && !valid('b'));
+  b.boxes[3]->size[2]-=.02;
+  assert(valid('a') && valid('b'));
   a.observer->controller="wrong";
   assert(!valid('a') && valid('b'));
   a.observer->controller="progression_decision_h_v1";
