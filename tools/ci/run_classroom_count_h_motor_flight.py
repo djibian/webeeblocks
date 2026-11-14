@@ -181,8 +181,8 @@ def run():
     browser="BROWSER_LAUNCHED args=" in launched and "count_h_flight_probe.html" in launched
     succeeded=(not missing and ordered and events.count("A6_ERROR")==0
                and true_flight is not None and int(true_flight[1])>100
-               and responses==[str(i) for i in range(1,11)]
-               and moves==["0.480000000"]*6
+               and responses==[str(i) for i in range(1,12)]
+               and moves==["0.480000000"]*6+["0.120000000"]
                and "WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant=1 native_colliders=5" in txt
                and "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt
                and "LAND_TOUCHDOWN" in txt and browser

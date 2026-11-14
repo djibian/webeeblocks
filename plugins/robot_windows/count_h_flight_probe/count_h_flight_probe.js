@@ -32,8 +32,13 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     await backend.setSpeed(0.20);
     await backend.takeoff(0.40);
     await report('A6_TAKEOFF',{height_m:.40});
+    // A native pilot MOVE returns when it is within 0.03 m of its target.
+    // After six 0.48 m relative moves the measured touchdown was x=1.359920,
+    // outside the untouched target x=1.480 +/- 0.060. Correct the program,
+    // never the real contact/mission oracle or runtime tolerances.
     for(let i=0;i<6;i++)await backend.move('forward',0.48);
-    await report('A6_CORRIDOR_DONE',{moves:6,distance_m:2.88});
+    await backend.move('forward',0.12);
+    await report('A6_CORRIDOR_DONE',{moves:7,distance_m:3.00});
     await backend.land();
     await report('A6_LANDED',{nativeReply:true});
     await report('A6_TEST_COMPLETE',{testOnly:true});
