@@ -801,7 +801,80 @@ async function proveVariableProfileRealBlocklyRoundTrip() {
   reopenedWorkspace.dispose();
 }
 
+// Real Blockly 13 profile and project-file boundary for the new school A2.
+// Native Webots collision/success remains a distinct independent CI witness.
+async function proveAltitudeBlocklyProjectRoundTrip(){
+  const profile=activityProfile('progression-altitude-v1');
+  const w=new Blockly.Workspace();
+  const takeoff=w.newBlock('webeeblocks_v2_takeoff');
+  const speed=w.newBlock('webeeblocks_v2_speed');
+  const forward1=w.newBlock('webeeblocks_v2_move');
+  const climb=w.newBlock('webeeblocks_v2_vertical');
+  const forward2=w.newBlock('webeeblocks_v2_move');
+  const land=w.newBlock('webeeblocks_v2_land');
+  setMotionNumber(takeoff,'HEIGHT',0.45);
+  speed.setFieldValue('0.14','SPEED');
+  forward1.setFieldValue('forward','DIRECTION');
+  setMotionNumber(forward1,'DISTANCE',0.32);
+  climb.setFieldValue('up','DIRECTION');
+  setMotionNumber(climb,'DISTANCE',0.36);
+  forward2.setFieldValue('forward','DIRECTION');
+  setMotionNumber(forward2,'DISTANCE',1.03);
+  const nodes=[takeoff,speed,forward1,climb,forward2,land];
+  for(let i=0;i<nodes.length-1;i++)
+    nodes[i].nextConnection.connect(nodes[i+1].previousConnection);
+  const compiled=ast(w,profile);
+  assert.deepStrictEqual(compiled.program,[
+    {kind:'takeoff',height_m:0.45},{kind:'set_speed',speed_m_s:0.14},
+    {kind:'move',direction:'forward',distance_m:0.32},
+    {kind:'vertical',direction:'up',distance_m:0.36},
+    {kind:'move',direction:'forward',distance_m:1.03},{kind:'land'}
+  ]);
+  const state={value:profile},transport=memoryTransport(),manager=managerFor(w,state,transport);
+  assert.strictEqual(manager.hasCurrentTarget(),false);
+  await assert.rejects(manager.save(),/no current file/);
+  await manager.saveAs('altitude-eleve');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  const original=transport.state.currentText;
+  assert.strictEqual(ProjectFiles.parseProject(original).activity.id,profile.id);
+  assert.strictEqual(transport.state.writes.length,1);
+  forward2.getInputTargetBlock('DISTANCE').setFieldValue('0.9','NUM');
+  transport.state.openText=original;
+  await manager.open();
+  assert.deepStrictEqual(ast(w,state.value),compiled,'real Blockly A2 Save As/Open AST drift');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  assert.strictEqual(transport.state.writes.length,1,'Open caused hidden Save');
+  const newForward=w.getBlocksByType('webeeblocks_v2_move',false).find(
+    b=>Math.abs(Number(b.getInputTargetBlock('DISTANCE').getFieldValue('NUM'))-1.03)<1e-8);
+  assert(newForward,'A2 second move missing after Open');
+  newForward.getInputTargetBlock('DISTANCE').setFieldValue('1.0','NUM');
+  const changed=ast(w,state.value);
+  await manager.save();
+  const saved=transport.state.currentText;
+  assert.strictEqual(transport.state.writes.at(-1).kind,'save');
+  transport.state.openText=saved;
+  await manager.open();
+  assert.deepStrictEqual(ast(w,state.value),changed,'real Blockly A2 same-file Save/Open drift');
+  // Old pupils' precise-movement project must remain reopenable; no silent
+  // remapping to altitude-v1, even after the new starter is displayed.
+  transport.state.openText=ProjectFiles.createStarterText('progression-precise-movement-v1');
+  await manager.open();
+  assert.strictEqual(state.value.id,'progression-precise-movement-v1');
+  assert.strictEqual(state.value.runtime.scene,'legacy-v1');
+  assert.strictEqual(state.value.evaluation.oracle,'progression-precise-movement-v1');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  assert.strictEqual(transport.state.writes.length,2,'old project Open was auto-saved');
+  // New starter is a fresh template without a Save target.
+  await manager.openTemplateText('progression-altitude-v1.wbb',
+    ProjectFiles.createStarterText('progression-altitude-v1'));
+  assert.strictEqual(state.value.id,profile.id);
+  assert.strictEqual(manager.hasCurrentTarget(),false);
+  await assert.rejects(manager.save(),/no current file/);
+  w.dispose();
+}
+
 (async function() {
+  await proveAltitudeBlocklyProjectRoundTrip();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
