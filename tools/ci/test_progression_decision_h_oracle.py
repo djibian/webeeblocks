@@ -15,6 +15,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CORE_DIR = ROOT / 'controllers/progression_decision_h_v1'
 CORE = CORE_DIR / 'decision_core.h'
+OBSERVER = CORE_DIR / 'progression_decision_h_v1.c'
+MAKEFILE = CORE_DIR / 'Makefile'
 
 DRIVER = r'''
 #include "decision_core.h"
@@ -149,6 +151,25 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('wb_dh_sample_mission', content)
         self.assertNotIn('radio_link', content)
         self.assertNotIn('#include <webots/', content)
+        observer = OBSERVER.read_text(encoding='utf-8')
+        makefile = MAKEFILE.read_text(encoding='utf-8')
+        self.assertIn('C_SOURCES = progression_decision_h_v1.c', makefile)
+        self.assertIn('resources/Makefile.include', makefile)
+        self.assertIn('WB_DH_CHILDREN 29', observer)
+        self.assertIn('verify_scene(&scene)', observer)
+        self.assertIn('valid_observer(group)', observer)
+        self.assertIn('wb_supervisor_node_get_contact_points', observer)
+        self.assertIn('wb_supervisor_node_enable_contact_points_tracking', observer)
+        self.assertIn('wb_dh_sample_mission(&mission, &sample)', observer)
+        self.assertIn('parse_attempt(data, &attempt)', observer)
+        self.assertIn('parse_completion(data, mission.attempt)', observer)
+        self.assertIn('WEBEEBLOCKS_DECISION_H_FATAL', observer)
+        self.assertIn('WEBEEBLOCKS_DECISION_H_READY', observer)
+        self.assertIn('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1', observer)
+        for forbidden in ('wb_motor_set_', 'wb_supervisor_node_set_velocity',
+                          'radio_link', 'crazyflie_runtime_v2/Makefile'):
+            self.assertNotIn(forbidden, observer)
+
 
 if __name__ == '__main__':
     unittest.main()

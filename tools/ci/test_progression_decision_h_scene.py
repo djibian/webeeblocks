@@ -133,7 +133,11 @@ class DecisionHSceneTests(unittest.TestCase):
             for obstacle in (hbar, hleft, curb, wall):
                 self.assertGreater(blind_height - CRAFT_MARGIN, upper(obstacle))
             # This is a test of an UNRESOLVED physical bypass, not success.
-            self.assertNotIn("Robot {", scene)
+            self.assertEqual(scene.count("Robot {"), 1)
+            self.assertIn('controller "progression_decision_h_v1"', scene)
+            self.assertIn('name "Progression decision H native evaluator"', scene)
+            self.assertEqual(scene.count("supervisor TRUE"), 1)
+            self.assertEqual(scene.count("synchronization TRUE"), 1)
             self.assertNotIn("Supervisor {", scene)
             self.assertNotIn("DistanceSensor {", scene)
             self.assertNotIn("Receiver {", scene)

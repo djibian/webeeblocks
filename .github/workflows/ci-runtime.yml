@@ -96,6 +96,13 @@ jobs:
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene
           python3 -m unittest tools.ci.test_progression_decision_h_oracle
+      - name: Compile independent A4 Webots observer against actual R2025a headers
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_v1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make'
       - name: Prepare product Blockly 13.2.1 assets
         run: bash ./tools/prepare_runtime_v2.sh
       - name: Check product JavaScript syntax

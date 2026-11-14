@@ -4,7 +4,15 @@
 # Native contact/range, pupil program and independent oracle remain UNPROVEN.
 DEF WEBEEBLOCKS_DECISION_A_SCENE Group {
  children [
-  Pose { translation 0 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } } ] } # start
+  Pose { translation 0 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } }
+    # This real Webots Robot independently attests mission/contacts.
+    Robot {
+      name "Progression decision H native evaluator"
+      controller "progression_decision_h_v1"
+      supervisor TRUE
+      synchronization TRUE
+    }
+  ] } # start
   Pose { translation 0.20 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.15 0.18 0.004 } } ] } # decision point
   Pose { translation 1.75 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.34 0.34 0.004 } } ] } # target
   Pose { translation 0.750 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # marked low-flight band
