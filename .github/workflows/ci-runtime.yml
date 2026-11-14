@@ -103,6 +103,22 @@ jobs:
             -w /workspace/controllers/progression_decision_h_v1 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'make clean && make'
+      - name: Attest A4 native scene startup A/B and reject mutated H
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'python3 tools/ci/run_classroom_decision_h_native_start.py'
+      - name: Preserve A4 R2025a startup/refusal transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progression-decision-h-native-start
+          path: ci-artifacts/progression-decision-h-native-start/
+          if-no-files-found: warn
       - name: Prepare product Blockly 13.2.1 assets
         run: bash ./tools/prepare_runtime_v2.sh
       - name: Check product JavaScript syntax
