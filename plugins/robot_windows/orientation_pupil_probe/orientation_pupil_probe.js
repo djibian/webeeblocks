@@ -128,8 +128,12 @@ window.addEventListener('unhandledrejection',e=>a3Report('A3_PUPIL_ERROR',{messa
     const text=WebeeBlocksProjectFiles.encodeProject(profile,source,opts);
     const parsed=WebeeBlocksProjectFiles.validateProjectText(text,profile,opts);
     reopened=new Blockly.Workspace();
-    WebeeBlocksProjectFiles.loadWorkspaceWithProfile(
-      profile,parsed.project.workspace,reopened,opts);
+    // Replay the project's real, public Blockly serialization API. The
+    // project validator has already loaded and preflighted these exact bytes
+    // into a temporary workspace. No private file-manager helper exists.
+    Blockly.serialization.workspaces.load(parsed.project.workspace,reopened);
+    WebeeBlocksActivityContract.applyFieldBounds(profile,reopened);
+    WebeeBlocksActivityContract.preflightWorkspace(profile,reopened);
     const actual=WebeeBlocksSemanticAst.compileWorkspace(reopened);
     if(JSON.stringify(original)!==JSON.stringify(actual)||
        parsed.project.activity.id!==profile.id)
