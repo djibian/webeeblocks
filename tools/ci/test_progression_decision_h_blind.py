@@ -50,7 +50,7 @@ class BlindNativeControls(unittest.TestCase):
         for token in (
           "prepare_classroom_decision_h_pupil as pupil",
           "run_classroom_altitude_scene_ack as ack",
-          "'decision_h_blind_probe'",
+          'window "decision_h_blind_probe"',
           "WORLD=ROOT/'worlds/ci_classroom_decision_h_blind.wbt'",
           "refusing to overwrite existing blind-native world",
           "refusing to delete changed blind-native world",
