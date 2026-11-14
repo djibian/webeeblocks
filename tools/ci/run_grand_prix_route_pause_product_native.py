@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / 'tools/ci'))
 from runtime_v2_outcome_assets import prepare as prepare_pinned_assets
 
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/product-native-pause'
+WINDOW_LOSS_MODE = False  # Test-only second actual R2025a/Chrome run.
 FIXTURE = ROOT / 'tools/ci/fixtures/grand_prix_route_pause_browser.js'
 HTML = ROOT / 'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'
 BROWSER = ROOT / 'tools/ci/webots_runtime_v2_browser.sh'
@@ -137,10 +138,11 @@ def prepare_project(folder, port):
     (route / 'grand_prix_route_v2.html').write_text(original.replace(
         '</body>', '<script src="grand_prix_pause_browser_probe.js"></script>\n</body>'))
     driver = FIXTURE.read_text()
-    if driver.count('__TRACE_PORT__') != 1:
-        raise RuntimeError('unbound test-only loopback trace port')
+    if driver.count('__TRACE_PORT__') != 1 or driver.count('__WINDOW_LOSS_MODE__') != 1:
+        raise RuntimeError('unbound test-only loopback trace port / native loss mode')
     (route / 'grand_prix_pause_browser_probe.js').write_text(
-        driver.replace('__TRACE_PORT__', str(port)))
+        driver.replace('__TRACE_PORT__', str(port)).replace(
+            '__WINDOW_LOSS_MODE__', 'true' if WINDOW_LOSS_MODE else 'false'))
     world = project / 'worlds/route.wbt'
     world.write_text(active_course_world(reference_course(5)).replace(
         'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/', 'webots://'))
@@ -413,7 +415,18 @@ def main():
                 dest = folder / part
                 dest.mkdir(mode=0o700)
                 env[key] = str(dest)
-            proc = subprocess.run(['/usr/bin/python3','-c',QT_SETTINGS,str(BROWSER)],
+            browser = BROWSER
+            if WINDOW_LOSS_MODE:
+                # Webots spawns the REAL Robot Window. A temporary wrapper
+                # records its PID before exec; the host later terminates that
+                # exact Chrome process, never the simulator or a fake WWI.
+                browser = folder / 'browser-window-loss-wrapper.sh'
+                browser.write_text(
+                    '#!/usr/bin/env bash\nset -euo pipefail\n'
+                    'printf "%s\\n" "$" > "$WEBEEBLOCKS_CI_ARTIFACT_DIR/browser-main.pid"\n'
+                    'exec "' + str(BROWSER) + '" "$@"\n')
+                browser.chmod(0o700)
+            proc = subprocess.run(['/usr/bin/python3','-c',QT_SETTINGS,str(browser)],
                                   cwd=ROOT,env=env,text=True,capture_output=True,
                                   timeout=12,check=False)
             (OUT/'qt-preflight.log').write_text(proc.stdout + proc.stderr)
@@ -452,7 +465,7 @@ def main():
                 if not (OUT/'browser-launch.log').is_file():
                     browser_stdout = (OUT/'browser-stdout.log').open('w')
                     browser_process = subprocess.Popen(
-                        [str(BROWSER), route_url], cwd=project, env=env,
+                        [str(browser), route_url], cwd=project, env=env,
                         stdout=browser_stdout, stderr=subprocess.STDOUT,
                         start_new_session=True)
                 ui_deadline = time.monotonic() + 95
