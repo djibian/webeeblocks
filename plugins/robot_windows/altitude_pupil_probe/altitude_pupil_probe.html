@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>CI — élève activité 2, Blockly et altitude réelle Webots</title>
+  <script>
+    fetch('http://127.0.0.1:8765/event',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event:'PUPIL_HTML_LOADED',wall_ms:Date.now()})
+    }).catch(e=>console.error('PUPIL_BOOTSTRAP_FAILED',e));
+  </script>
+  <script src="../blockly_v2/vendor/blockly_compressed.js"></script>
+  <script src="../blockly_v2/vendor/blocks_compressed.js"></script>
+  <script src="../blockly_v2/vendor/msg/fr.js"></script>
+  <script src="../blockly/webeeblocks/crazyflie_v2.js"></script>
+  <script src="../blockly/webeeblocks/activity_profiles.js"></script>
+  <script src="../blockly/webeeblocks/activities.js"></script>
+  <script src="../blockly/webeeblocks/semantic_ast.js"></script>
+  <script src="../blockly/webeeblocks/interpreter.js"></script>
+  <script src="../blockly/webeeblocks/activity_contract.js"></script>
+  <script src="../blockly/webeeblocks/project_files.js"></script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="altitude_pupil_probe.js"></script></body>
+</html>
