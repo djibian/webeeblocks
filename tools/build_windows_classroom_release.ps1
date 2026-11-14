@@ -436,7 +436,7 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'legacy-scene-v1.wbo''altitude-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "worlds\scenes\$scene") `
     (Join-Path $packageDir "worlds\scenes\$scene")
