@@ -31,8 +31,8 @@ class CountingSceneTests(unittest.TestCase):
                 self.assertIn(f"DEF WEBEEBLOCKS_COUNT_{n}_SCENE Group", src)
                 self.assertNotIn("Robot {", src)
                 self.assertNotIn("TouchSensor", src)
-                self.assertEqual(src.count(" Solid {"), 3 * n + 1)
-                self.assertEqual(src.count("boundingObject Box"), 3 * n + 1)
+                self.assertEqual(src.count(" Solid {"), 3 * n + 2)
+                self.assertEqual(src.count("boundingObject Box"), 3 * n + 2)
                 self.assertEqual(src.count("0.0042 children"), 12)
                 self.assertIn("Pose { translation -1.40 0 0.002", src)
                 self.assertIn("Pose { translation 0.10 0.385 0.002", src)
@@ -43,6 +43,16 @@ class CountingSceneTests(unittest.TestCase):
                     self.assertIn(f"Pose {{ translation 1.48 {y:.3f} 0.002", src)
                 terminal = collider(src, f"ACTIVITY6_{n}_TERMINAL")
                 self.assertEqual(terminal, (1.86, 0.0, 0.55, .06, 1.48, 1.10))
+                # This cyan terminal sight-screen is not a red H to count.
+                # Its real collider sits beyond every H and permits low passage.
+                screen = collider(src, f"ACTIVITY6_{n}_FINISH_SCREEN")
+                self.assertEqual(screen, (1.235, 0.0, 0.76, .07, 1.48, .24))
+                self.assertAlmostEqual(screen[2] - screen[5] / 2, 0.64)
+                self.assertGreater(screen[0], EXPECTED_GATES[n][-1] + 0.30)
+                self.assertLess(screen[0], 1.48 - 0.20)
+                self.assertIn("baseColor 0.05 0.76 0.70", src)
+                # The screen is a physically distinct finish ribbon; the
+                # actual count remains exactly n red three-part H arches.
                 actual_x = []
                 for i, gate_x in enumerate(EXPECTED_GATES[n], 1):
                     key = f"ACTIVITY6_{n}_H_{i}"

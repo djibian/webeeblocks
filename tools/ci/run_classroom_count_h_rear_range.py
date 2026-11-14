@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Measure, rather than guess, rear-range leakage at the A6 landing position.
+"""Physically falsify the old A6 rear-range leak after terminal masking.
 
 The same authentic Webots R2025a Crazyflie PROTO is placed at the same pose
-in three disposable original-collider scenes, with a test-only sensor
-controller. This is a NEGATIVE PEDAGOGICAL WITNESS, not a flight PASS.
+at all three pads in each of three worlds, with a test-only controller.
+The test checks physical ray masking, NOT pupil coding or flight success.
 """
 from pathlib import Path
 import hashlib
@@ -19,8 +19,9 @@ ROOT=classroom.ROOT
 ARTIFACTS=ROOT/"ci-artifacts/progression-count-h-rear-range"
 MARKER="# WEBEEBLOCKS_A6_REAR_RANGE_NEGATIVE_CI_ONLY"
 PROJECT_TEXT="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
-EXPECTED={1:(1.85,2.001),2:(1.20,1.70),3:(0.35,0.80)}
-TOKEN="WEBEEBLOCKS_COUNT_H_BACK_OBSERVED"
+EXPECTED={1:(0.12,0.31),2:(0.12,0.31),3:(0.12,0.31)}
+PADS=(0.0,0.55,-0.55)
+TOKEN="WEBEEBLOCKS_COUNT_H_BACK_MASKED"
 
 
 def compose(n,source=None):
@@ -33,8 +34,9 @@ def compose(n,source=None):
     if (base.count('controller "crazyflie_classroom_v2"')!=1 or
         base.count('window "altitude_scene_ack_probe"')!=1 or
         scene.count(f"DEF WEBEEBLOCKS_COUNT_{n}_SCENE Group")!=1 or
-        scene.count(" Solid {")!=3*n+1 or
-        scene.count("boundingObject Box")!=3*n+1 or
+        scene.count(f"DEF ACTIVITY6_{n}_FINISH_SCREEN Solid")!=1 or
+        scene.count(" Solid {")!=3*n+2 or
+        scene.count("boundingObject Box")!=3*n+2 or
         "Robot {" in scene or
         any(f"DEF WEBEEBLOCKS_COUNT_{other}_SCENE Group" in scene
             for other in EXPECTED if other!=n)):
@@ -62,9 +64,9 @@ def run_one(n):
           hashlib.sha256(body.encode("utf-8")).hexdigest(),flush=True)
     proc=None
     pattern=re.compile(
-        r"WEBEEBLOCKS_COUNT_H_BACK_OBSERVED variant=(\d) "
+        r"WEBEEBLOCKS_COUNT_H_BACK_MASKED variant=(\d) pad=(\d) "
         r"range_m=([0-9.]+) pose_x=([0-9.]+) "
-        r"pose_y=([0-9.]+) pose_z=([0-9.]+)")
+        r"pose_y=(-?[0-9.]+) pose_z=([0-9.]+)")
     try:
         world.write_text(body,encoding="utf-8")
         project.write_text(PROJECT_TEXT,encoding="utf-8")
@@ -102,41 +104,53 @@ def run_one(n):
             project.unlink()
     txt=log.read_text(encoding="utf-8",errors="replace")
     findings=pattern.findall(txt)
-    if (len(findings)!=1 or findings[0][0]!=str(n) or
+    if (len(findings)!=3 or any(row[0]!=str(n) or row[1]!=str(i)
+                                 for i,row in enumerate(findings)) or
         "WEBEEBLOCKS_COUNT_H_BACK_FATAL" in txt or
         "WEBEEBLOCKS_COUNT_H_RESULT" in txt):
-        raise AssertionError("native rear range not observed: "+str(log))
-    reading=float(findings[0][1])
-    xyz=tuple(map(float,findings[0][2:]))
+        raise AssertionError("three native rear rays not observed: "+str(log))
+    readings=[]
+    coordinates=[]
     low,high=EXPECTED[n]
-    if (not low<=reading<=high or
-        abs(xyz[0]-1.48)>.035 or abs(xyz[1])>.035 or
-        abs(xyz[2]-.75)>.045):
-        raise AssertionError("native rear sensor pose/distance inconsistent: "+str(log))
-    print(f"A6_BACK_RANGE_REAL_OBSERVED n={n} meters={reading:.9f}",flush=True)
-    return reading,xyz
+    for i,row in enumerate(findings):
+        reading=float(row[2])
+        xyz=tuple(map(float,row[3:]))
+        if (not low<=reading<=high or
+            abs(xyz[0]-1.48)>.035 or abs(xyz[1]-PADS[i])>.035 or
+            abs(xyz[2]-.75)>.045):
+            raise AssertionError("rear sensor not masked at pad: "+str(log))
+        readings.append(reading)
+        coordinates.append(xyz)
+        print(f"A6_BACK_RANGE_MASKED n={n} pad={i} meters={reading:.9f}",flush=True)
+    return readings,coordinates
 
 
 def main():
     observations={n:run_one(n) for n in EXPECTED}
-    readings=[observations[n][0] for n in EXPECTED]
-    poses=[observations[n][1] for n in EXPECTED]
-    if (readings[0]-readings[1]<=.20 or
-        readings[1]-readings[2]<=.20 or
-        any(abs(left-right)>.02 for row in poses[1:]
-            for left,right in zip(row,poses[0]))):
-        raise AssertionError("back-range counting leak not independently distinguished")
+    all_values=[]
+    for pad in range(len(PADS)):
+        values=[observations[n][0][pad] for n in EXPECTED]
+        poses=[observations[n][1][pad] for n in EXPECTED]
+        if (max(values)-min(values) > .025 or
+            any(abs(left-right)>.02 for row in poses[1:]
+                for left,right in zip(row,poses[0]))):
+            raise AssertionError(
+                f"count information still leaks at terminal pad {pad}: {values}")
+        all_values.append(values)
     payload={
-        "schema":"webeeblocks-a6-negative-rear-range-v1",
-        "native_leak_observed":True,
+        "schema":"webeeblocks-a6-terminal-rear-range-mask-v1",
+        "native_rear_mask_observed":True,
+        "not_an_information_security_proof":True,
         "not_a_pedagogical_or_flight_pass":True,
-        "variants":[{"count":n,"range_m":observations[n][0],
-                     "pose_xyz":list(observations[n][1])} for n in EXPECTED]
+        "variants":[{"count":n,"pad_readings_m":observations[n][0],
+                     "pad_poses_xyz":[list(x) for x in observations[n][1]]}
+                    for n in EXPECTED]
     }
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
     (ARTIFACTS/"summary.json").write_text(
         json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    print("A6_BACK_RANGE_NATIVE_LEAK_CONFIRMED counts=1,2,3 same_pose=true",flush=True)
+    print("A6_BACK_RANGE_NATIVE_MASK_CONFIRMED "
+          "counts=1,2,3 pads=0,+0.55,-0.55 same_pose_per_pad=true",flush=True)
 
 
 if __name__=="__main__":

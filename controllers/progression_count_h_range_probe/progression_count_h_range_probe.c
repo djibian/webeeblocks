@@ -1,7 +1,7 @@
-/* Negative, CI-only Webots R2025a witness: detect A6 counting leakage by
- * actual range_back from a real Crazyflie PROTO at the common landing zone.
+/* CI-only Webots R2025a physical falsification of the A6 terminal mask.
+ * Sample real Crazyflie range_back at all 3 pads in all 3 count variants.
  * No motors, Blockly, mission authority, or physical-flight binary linkage.
- * A PASS means the flaw is reproducible, NOT the activity is acceptable.
+ * A PASS only proves terminal masking at the tested poses, NOT pupil success.
  */
 #include <webots/robot.h>
 #include <webots/supervisor.h>
