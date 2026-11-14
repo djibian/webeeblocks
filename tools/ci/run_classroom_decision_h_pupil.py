@@ -148,9 +148,9 @@ def run()->int:
            outcomes==[('A','1','achieved','4'),('B','2','achieved','4')] and
            len(rays)==2 and 0.3<=rays[0]<=0.85 and 0.9<=rays[1]<=1.35 and
            moves==['0.200000000','0.750000000','0.800000000']*2 and
-           vertical==[('up','0.250000000'),('down','0.250000000'),
-                      ('up','0.350000000'),('up','0.250000000'),
-                      ('up','0.100000000'),('down','0.350000000')] and
+           vertical==[('up','0.250000000'),('down','0.350000000'),
+                      ('up','0.500000000'),('up','0.250000000'),
+                      ('up','0.100000000'),('down','0.450000000')] and
            text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.500000000 stop=1')==2 and
            text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1')==2 and
            text.count('WEBEEBLOCKS_DECISION_H_READY scene=decision-h-a-v1')>=1 and

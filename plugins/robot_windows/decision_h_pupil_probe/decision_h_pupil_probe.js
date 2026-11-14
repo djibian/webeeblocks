@@ -42,7 +42,7 @@ function a4Profile(letter){
       astBounds:{
         'takeoff.height_m':{min:0.50,max:0.50},
         'move.distance_m':{min:0.1,max:0.8},
-        'vertical.distance_m':{min:0.1,max:0.35},
+        'vertical.distance_m':{min:0.1,max:0.50},
         'set_speed.speed_m_s':{min:0.1,max:0.1}
       }
     }
@@ -104,8 +104,8 @@ function a4Workspace(){
   decision.getInput('IF0').connection.connect(comparison.outputConnection);
   // Near H in A => low then high; near threshold in B => high then low.
   // Station x=.95 is beyond the first collision envelope and before second.
-  const near=[vertical('down',0.25),move(0.75),vertical('up',0.35)];
-  const far=[vertical('up',0.10),move(0.75),vertical('down',0.35)];
+  const near=[vertical('down',0.35),move(0.75),vertical('up',0.50)];
+  const far=[vertical('up',0.10),move(0.75),vertical('down',0.45)];
   a4Chain(near);a4Chain(far);
   decision.getInput('DO0').connection.connect(near[0].previousConnection);
   decision.getInput('ELSE').connection.connect(far[0].previousConnection);
