@@ -65,6 +65,11 @@ window.addEventListener('unhandledrejection',e=>pupilReport('PUPIL_ERROR',{messa
 (async()=>{
   let source=null,reopened=null;
   try{
+    // Require the HTML bootstrap event to complete before announcing JS start;
+    // asynchronous fetch ordering is not a valid native failure witness.
+    if(!window.WB_PUPIL_BOOTSTRAP)pupilFail('missing pupil HTML bootstrap');
+    const bootstrapResponse=await window.WB_PUPIL_BOOTSTRAP;
+    if(!bootstrapResponse||!bootstrapResponse.ok)pupilFail('HTML observer refused bootstrap');
     await pupilReport('PUPIL_JS_STARTED',{kind:'Blockly13-native-R2025a'});
     const p=pupilBuild();source=p.workspace;
     const opts={

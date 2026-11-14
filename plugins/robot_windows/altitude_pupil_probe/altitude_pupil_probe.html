@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>CI — élève activité 2, Blockly et altitude réelle Webots</title>
   <script>
-    fetch('http://127.0.0.1:8765/event',{
+    window.WB_PUPIL_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({event:'PUPIL_HTML_LOADED',wall_ms:Date.now()})
     }).catch(e=>console.error('PUPIL_BOOTSTRAP_FAILED',e));
