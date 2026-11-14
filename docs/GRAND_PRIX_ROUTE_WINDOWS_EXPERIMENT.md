@@ -119,6 +119,10 @@ choisir 15 puis 23 FPS **au sol**, observer la confirmation native, lancer
 le programme complet et vérifier le curseur grisé (également lorsque
 l'exécution est interrompue en Pas à pas), la réussite et la fluidité.
 Après arrêt et RESET, tester à nouveau 20 FPS sans recharger Blockly.
+Le Supervisor diffère les écritures : la confirmation APPLIED n'est envoyée
+qu'après un **nouveau pas Webots**, jamais lors d'une autre itération de
+la même boucle de messages, et après lecture de la valeur effective.
+Une réponse non confirmée entraîne une nouvelle lecture, pas un SET aveugle.
 Aucune validation graphique n'est déduite du run CI sans GUI.
 
 Un réglage très bas, par exemple 1–5 FPS, peut rendre les mouvements

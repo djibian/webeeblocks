@@ -33,6 +33,7 @@ long long routeClockLastSecond=-1;
 // change the one WorldInfo.FPS field. A pending change is verified next tick.
 std::string routeFpsPendingNonce;
 int routeFpsPendingValue=0;
+double routeFpsPendingAt=-1.0;
 WbFieldRef routeFpsField() {
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD");
   const char *kind=world?wb_supervisor_node_get_type_name(world):nullptr;
@@ -372,18 +373,32 @@ extern "C" void gp_u_reset_complete(void) {
 extern "C" void gp_u_file_idle(int idle) {
   fileIdle=idle!=0;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
-  // The Supervisor setter is postponed until the next native step.
-  // Publish the result only after a later 8-ms step and field readback.
+  // The file-broker loop can call gp_u_file_idle() more than once WITHIN
+  // the same robot step. Supervisor SET is deferred: no readback/ACK before
+  // native simulation time has advanced. Wait for a subsequent actual step.
   if(!routeFpsPendingNonce.empty()) {
-    WbFieldRef fps=routeFpsField();
-    const double observed=fps?wb_supervisor_field_get_sf_float(fps):NAN;
-    if(fileIdle && begin<0 && !expired && std::isfinite(observed) &&
-       observed==routeFpsPendingValue)
-      routeFpsReplyValue("APPLIED",routeFpsPendingNonce,routeFpsPendingValue);
-    else
-      routeFpsReply("REFUSED",routeFpsPendingNonce,"reason","UNCONFIRMED");
-    routeFpsPendingNonce.clear();
-    routeFpsPendingValue=0;
+    const double now=wb_robot_get_time();
+    if(std::isfinite(now) && now>routeFpsPendingAt) {
+      WbFieldRef fps=routeFpsField();
+      const double observed=fps?wb_supervisor_field_get_sf_float(fps):NAN;
+      bool terminal=false;
+      if(!fileIdle || begin>=0 || expired) {
+        routeFpsReply("REFUSED",routeFpsPendingNonce,"reason","UNCONFIRMED");
+        terminal=true;
+      } else if(std::isfinite(observed) && observed==routeFpsPendingValue) {
+        routeFpsReplyValue("APPLIED",routeFpsPendingNonce,routeFpsPendingValue);
+        terminal=true;
+      } else if(now-routeFpsPendingAt>=0.25) {
+        // Bounded reconciliation; UNKNOWN is not an assured failed write.
+        routeFpsReply("REFUSED",routeFpsPendingNonce,"reason","UNCONFIRMED");
+        terminal=true;
+      }
+      if(terminal) {
+        routeFpsPendingNonce.clear();
+        routeFpsPendingValue=0;
+        routeFpsPendingAt=-1.0;
+      }
+    }
   }
   if(begin<0) {if(fileIdle)challengeRoute();else clearRouteEpoch();}
 #endif
@@ -459,8 +474,14 @@ extern "C" int gp_u_filter_raw(const char *message) {
       routeFpsReplyValue("APPLIED",token,requested);
       return 0;
     }
+    const double at=wb_robot_get_time();
+    if(!std::isfinite(at) || at<0) {
+      routeFpsReply("REFUSED",token,"reason","WORLD_UNAVAILABLE");
+      return 0;
+    }
     routeFpsPendingNonce=token;
     routeFpsPendingValue=requested;
+    routeFpsPendingAt=at;
     wb_supervisor_field_set_sf_float(field,static_cast<double>(requested));
     return 0;
   }
