@@ -189,11 +189,25 @@ static int parse_completion(const char *text, unsigned long long attempt) {
 static int obstacle_contact(WbNodeRef craft) {
   int count = -1;
   const WbContactPoint *points = wb_supervisor_node_get_contact_points(craft, true, &count);
-  if (count < 0 || (count > 0 && !points)) return -1;
+  if (count < 0 || (count > 0 && !points)) {
+    printf("WEBEEBLOCKS_DECISION_H_CONTACT_UNAVAILABLE count=%d pointer=%d\n",
+           count, points != NULL);
+    fflush(stdout);
+    return -1;
+  }
   for (int i = 0; i < count; ++i) {
     const double *p = points[i].point;
-    if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2])) return -1;
-    if (fabs(p[2]) > 0.025) return 1;
+    if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2])) {
+      printf("WEBEEBLOCKS_DECISION_H_CONTACT_NONFINITE index=%d\n", i);
+      fflush(stdout);
+      return -1;
+    }
+    if (fabs(p[2]) > 0.025) {
+      printf("WEBEEBLOCKS_DECISION_H_CONTACT_NONFLOOR x=%.9f y=%.9f z=%.9f\n",
+             p[0], p[1], p[2]);
+      fflush(stdout);
+      return 1;
+    }
   }
   return 0;
 }
@@ -258,8 +272,27 @@ int main(void) {
       sample.x = position[0]; sample.y = position[1]; sample.z = position[2];
       sample.vx = velocity[0]; sample.vy = velocity[1]; sample.vz = velocity[2];
     }
-    if (wb_dh_sample_mission(&mission, &sample) != WB_DH_WAIT)
+    if (mission.last_time < 0.0) {
+      printf("WEBEEBLOCKS_DECISION_H_FIRST_SAMPLE attempt=%llu time=%.9f "
+             "xyz=%.9f,%.9f,%.9f velocity=%.9f,%.9f,%.9f "
+             "contact=%d completed=%d origin_z=%.9f\n",
+             mission.attempt, sample.time, sample.x, sample.y, sample.z,
+             sample.vx, sample.vy, sample.vz, sample.obstacle_contact,
+             sample.completed, origin_z);
+      fflush(stdout);
+    }
+    if (wb_dh_sample_mission(&mission, &sample) != WB_DH_WAIT) {
+      printf("WEBEEBLOCKS_DECISION_H_VERDICT_SAMPLE attempt=%llu "
+             "time=%.9f xyz=%.9f,%.9f,%.9f "
+             "velocity=%.9f,%.9f,%.9f contact=%d completed=%d "
+             "stage=%u airborne=%d verdict=%d\n",
+             mission.attempt, sample.time, sample.x, sample.y, sample.z,
+             sample.vx, sample.vy, sample.vz, sample.obstacle_contact,
+             sample.completed, mission.stage, mission.airborne,
+             (int)mission.verdict);
+      fflush(stdout);
       publish(channel, &mission);
+    }
   }
   wb_robot_cleanup();
   return 0;
