@@ -176,6 +176,20 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertNotIn("wb_robot_set_mode", src)
         self.assertTrue(CORE.is_file())
 
+    def test_canopy_witness_submits_real_completion_after_landing(self):
+        # The first real R2025a canopy run proved the upper collision and
+        # completed all low-flight commands, but could never publish achieved
+        # because the test-only WWI probe omitted its mission COMPLETE.
+        source = (ROOT / "plugins/robot_windows/altitude_canopy_probe/"
+                  "altitude_canopy_probe.js").read_text(encoding="utf-8")
+        completion = "await backend.completeActivityMission(ORACLE);"
+        self.assertEqual(source.count(completion), 1)
+        self.assertLess(source.index("await backend.land();"), source.index(completion))
+        self.assertLess(source.index(completion),
+                        source.index("await outcome(backend,'achieved',80000);"))
+        self.assertIn("await backend.prepareActivity(PROFILE);", source)
+        self.assertIn("await backend.resetSimulation();", source)
+
     def test_scene_does_not_drift_from_native_constants(self):
         text = SCENE.read_text(encoding="utf-8")
         core = CORE.read_text(encoding="utf-8")

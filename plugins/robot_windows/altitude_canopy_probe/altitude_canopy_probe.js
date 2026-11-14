@@ -75,6 +75,9 @@ window.addEventListener('unhandledrejection', e => report('CANOPY_ERROR',{messag
     await report('CANOPY_ASCENDED_AFTER_CLEARANCE',{step:'up',distance:0.36});
     await backend.move('forward',1.03);
     await backend.land();
+    // A successful physical landing is not a mission verdict until the
+    // student Runtime submits its attempt-bound completion to the C oracle.
+    await backend.completeActivityMission(ORACLE);
     await outcome(backend,'achieved',80000);
     await report('CANOPY_LOW_CLIMB_ACHIEVED',{status:'achieved'});
 
