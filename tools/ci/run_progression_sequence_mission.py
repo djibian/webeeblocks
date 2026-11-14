@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,6 +18,28 @@ TEMP_WORLD = ROOT / "worlds" / "ci_progression_sequence.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_sequence.wbproj"
 
 
+def prepare_progression_world(source_world: str, *, neutral: bool) -> str:
+    """Prepare only the declared Robot Window and school-only flight role.
+
+    The neutral classroom proof must exercise the same real school controller
+    as the Windows ZIP. The historical world must preserve its original pilot.
+    """
+    probe = "sequence_neutral_probe" if neutral else "sequence_probe"
+    if source_world.count('window "blockly_v2"') != 1:
+        raise ValueError("ambiguous source Robot Window identity")
+    prepared = source_world.replace('window "blockly_v2"', f'window "{probe}"', 1)
+    if neutral:
+        craft = re.compile(
+            r'(?m)(^\s*name "Crazyflie WebeeBlocks"\r?\n\s*controller )"crazyflie_runtime_v2"'
+        )
+        prepared, count = craft.subn(r'\g<1>"crazyflie_classroom_v2"', prepared)
+        if count != 1:
+            raise ValueError("expected exactly one pupil Crazyflie controller")
+        if prepared.count('controller "crazyflie_classroom_v2"') != 1:
+            raise ValueError("school-only controller role ambiguous")
+    return prepared
+
+
 def native_context(world_name: str, source_world: str, prepared_world: str, *, neutral: bool) -> dict:
     """Archive input identities, not a claim of identical ODE contact dynamics.
 
@@ -28,10 +51,8 @@ def native_context(world_name: str, source_world: str, prepared_world: str, *, n
         raise ValueError('unknown progression world')
     if neutral != (world_name == 'crazyflie_classroom_start.wbt'):
         raise ValueError('progression context mode/world mismatch')
-    window = 'sequence_neutral_probe' if neutral else 'sequence_probe'
-    if source_world.count('window "blockly_v2"') != 1 or prepared_world != source_world.replace(
-            'window "blockly_v2"', f'window "{window}"', 1):
-        raise ValueError('prepared progression world does not match the source')
+    if prepared_world != prepare_progression_world(source_world, neutral=neutral):
+        raise ValueError('prepared progression world does not match exact source roles')
     digest = lambda text: hashlib.sha256(text.encode('utf-8')).hexdigest()
     return {
         'schema': 'progression-native-source-context-v1',
@@ -149,6 +170,7 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
         ('  double reset_max_stable = 0.0;',
          '  double reset_max_stable = 0.0;\n'
          '  unsigned long sequence_ci_land_samples = 0;\n'
+         '  unsigned long sequence_ci_land_step_samples = 0;\n'
          '  unsigned long sequence_ci_move_samples = 0;'),
         # CI-only paired clocks for the already-active MOVE: never change
         # simulated deadlines, student behavior, response codes or oracles.
@@ -156,6 +178,17 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
          '        command = CMD_MOVE;\n'
          '        sequence_ci_move_samples = 0;\n'
          '        stable_since = -1.0;'),
+        # Read-only, bounded sample after wb_robot_step has *returned* during
+        # LAND. When a LAND response times out, absence of this marker after
+        # a POST_CONTACT marker separates a blocked Webots step from a blocked
+        # contact read; this is not a mission clock or a new acceptance oracle.
+        ('    const double now = wb_robot_get_time();',
+         '    const double now = wb_robot_get_time();\n'
+         '    if (command == CMD_LAND && sequence_ci_land_step_samples++ % 32 == 0) {\n'
+         '      printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id=%d t=%.9f wall_ms=%lld monotonic_ms=%lld\\n",\n'
+         '             active_id, now, sequence_ci_wall_ms(), sequence_ci_monotonic_ms());\n'
+         '      fflush(stdout);\n'
+         '    }'),
         ('    if (command != CMD_IDLE && command != CMD_RESET &&',
          '    if (command == CMD_MOVE && sequence_ci_move_samples++ % 128 == 0) {\n'
          '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld monotonic_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
@@ -169,6 +202,7 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
         ('        command = CMD_LAND;\n        stable_since = -1.0;',
          '        command = CMD_LAND;\n'
          '        sequence_ci_land_samples = 0;\n'
+         '        sequence_ci_land_step_samples = 0;\n'
          '        stable_since = -1.0;'),
         ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
          '      wb_motor_set_velocity(m4, motor_power(power.m4));\n'
@@ -182,6 +216,8 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
          '               motor_power(power.m4));\n'
          '        fflush(stdout);\n'
          '        sequence_ci_native_land(active_id, now, self_node);\n'
+         '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id=%d t=%.9f\\n", active_id, now);\n'
+         '        fflush(stdout);\n'
          '      }\n'
          '      if (command == CMD_LAND)\n'
          '        ++sequence_ci_land_samples;'),
@@ -257,6 +293,10 @@ def main() -> int:
         ["python3", "tools/ci/test_land_contact_summary.py"],
         [sys.executable, "tools/ci/test_classroom_altitude_smoke_world.py"],
         [sys.executable, "tools/ci/test_classroom_orientation_smoke_world.py"],
+        [sys.executable, "tools/ci/test_classroom_altitude_scene_ack.py"],
+        ["node", "--check", "plugins/robot_windows/altitude_scene_ack_probe/altitude_scene_ack_probe.js"],
+        [sys.executable, "tools/ci/test_progression_sequence_3d_native.py"],
+        ["python3", "tools/ci/test_progression_sequence_3d_oracle.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
@@ -285,8 +325,10 @@ def main() -> int:
     for marker in markers:
         if marker not in source_world:
             return fail(f"missing progression world marker: {marker}")
-    probe = 'sequence_neutral_probe' if NEUTRAL_START else 'sequence_probe'
-    prepared_world = source_world.replace('window "blockly_v2"', f'window "{probe}"', 1)
+    try:
+        prepared_world = prepare_progression_world(source_world, neutral=NEUTRAL_START)
+    except ValueError as exc:
+        return fail("progression preparation denied: " + str(exc))
     TEMP_WORLD.write_text(prepared_world, encoding="utf-8")
     TEMP_PROJECT.write_text(
         "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
@@ -301,6 +343,24 @@ def main() -> int:
         pull = run(["docker", "pull", WEBOTS_IMAGE], capture=True)
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
+
+        # Real Webots R2025a C API compile of the *separate* Activity 1
+        # supervisor. Compile in an isolated temp dir, never into the actual
+        # scene controller folder: the active Python oracle stays unchanged.
+        # This is not a startup, ACK or student-flight proof.
+        native_sequence_build = run([
+            "docker", "run", "--rm",
+            "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/progression_sequence_3d",
+            WEBOTS_IMAGE,
+            "bash", "-lc",
+            "set -e; proof_root=$(mktemp -d /tmp/wb-a1-native-XXXXXX); trap 'rm -rf \"$proof_root\"' EXIT; proof_dir=\"$proof_root/controllers/progression_sequence_3d\"; mkdir -p \"$proof_dir\"; cp Makefile progression_sequence_3d.c sequence_core.h \"$proof_dir\"; make -C \"$proof_dir\" clean && make -C \"$proof_dir\" && test -s \"$proof_dir/progression_sequence_3d\"",
+        ], capture=True)
+        (ARTIFACT_ROOT / "activity1-native-build.log").write_text(
+            native_sequence_build.stdout or "", encoding="utf-8")
+        if native_sequence_build.returncode:
+            return fail("Activity 1 full native R2025a controller build failed",
+                        (native_sequence_build.stdout or "")[-6000:])
 
         controller = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
         original = controller.read_bytes()
@@ -322,7 +382,7 @@ def main() -> int:
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace/controllers/crazyflie_runtime_v2",
             WEBOTS_IMAGE,
-            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2",
+            "bash", "-lc", "make -C ../progression_altitude_v1 clean && make -C ../progression_altitude_v1 && make -C ../progression_orientation_3d clean && make -C ../progression_orientation_3d && test -s ../progression_orientation_3d/progression_orientation_3d && make -C ../crazyflie_classroom_v2 clean && make -C ../crazyflie_classroom_v2 && test -s ../crazyflie_classroom_v2/crazyflie_classroom_v2 && make -C ../progression_sequence_3d clean && make -C ../progression_sequence_3d && test -s ../progression_sequence_3d/progression_sequence_3d",
         ], capture=True)
         (ARTIFACT_ROOT / "classroom-original-build.log").write_text(
             classroom_built.stdout or "", encoding="utf-8")
@@ -439,6 +499,7 @@ python3 /workspace/tools/ci/run_land_contact_regression.py \
   --case idle-stop \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/idle-stop-response
+# Configure native Robot Window BEFORE the scene-ACK witness.
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \
@@ -446,6 +507,15 @@ printf "%s\n" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
+# Distinct, observable Webots canopy mission: intentionally experimental.
+# This is a raw backend command test, not proof of a Blockly pupil program.
+if [ "WB_CANOPY_NATIVE_FLIGHT_ENABLED" = "1" ]; then
+  python3 /workspace/tools/ci/run_classroom_altitude_canopy.py
+fi
+# This additional witness is school-only; never a program / flight PASS.
+if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
+  python3 /workspace/tools/ci/run_classroom_altitude_scene_ack.py
+fi
 python3 /workspace/tools/ci/runtime_wwi_event_server.py \
   --output /workspace/ci-artifacts/progression-sequence-mission/browser-events.jsonl &
 server=$!
@@ -454,6 +524,7 @@ sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
         inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
+        inner = inner.replace('WB_CANOPY_NATIVE_FLIGHT_ENABLED', '1' if NEUTRAL_START else '0')
         inner = inner.replace('WB_ORIENTATION_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
@@ -481,8 +552,23 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
             return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-14000:])
-        if NEUTRAL_START and webots_log.count('WEBEEBLOCKS_SEQUENCE_CI_STARTUP legacy=0 evaluators=0 sequence=0') != 1:
-            return fail('neutral launch did not prove absence of preloaded native scenarios', webots_log[-14000:])
+        # The school-only flight binary does not carry the temporary legacy
+        # diagnostic marker. Refuse preloaded scenes in the prepared world;
+        # the exact browser SCENE_UNAVAILABLE refusal is checked below.
+        if NEUTRAL_START and (
+            "DEF WEBEEBLOCKS_LEGACY_SCENE" in prepared_world or
+            "DEF WEBEEBLOCKS_SEQUENCE_SCENE" in prepared_world
+        ):
+            return fail("neutral world contained a preloaded scenario")
+        # The Python oracle deliberately has no such line. A shared READY or
+        # RESULT message can never prove the native executable was selected.
+        native_c_marker = (
+            "WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY "
+            "oracle=progression-sequence-3d-v1 scene=sequence-v1"
+        )
+        if native_c_marker not in webots_log:
+            return fail("Activity 1 real Webots mission did not launch native C observer",
+                        webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
@@ -510,6 +596,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "SEQUENCE_REPEAT_RESET_FRESH",
             "SEQUENCE_NOT_ACHIEVED",
             "SEQUENCE_SECOND_RESET_FRESH",
+            "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED",
+            "SEQUENCE_THIRD_RESET_FRESH",
             "SEQUENCE_ALTERNATIVE_ACHIEVED",
             "SEQUENCE_MISSION_TEST_COMPLETE",
             "ELAPSED_TIME_WEBOTS",
@@ -549,7 +637,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
                      "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
             if details[name] != {"status": "achieved"}:
                 return fail(f"unexpected achieved event {name}: {details[name]}")
-        for name in ("SEQUENCE_NOT_ACHIEVED", "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
+        for name in ("SEQUENCE_NOT_ACHIEVED", "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED",
+                     "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
                      "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
             if details[name] != {"status": "not-achieved"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
@@ -558,12 +647,14 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         }:
             return fail(f"unexpected collision event: {details['PRECISE_COLLISION_NOT_ACHIEVED']}")
         for name in ("SEQUENCE_RESET_FRESH", "SEQUENCE_REPEAT_RESET_FRESH", "SEQUENCE_SECOND_RESET_FRESH",
+                     "SEQUENCE_THIRD_RESET_FRESH",
                      "PRECISE_INITIAL_RESET_FRESH", "PRECISE_RESET_FRESH", "PRECISE_UNDERSHOOT_RESET_FRESH",
                      "PRECISE_OVERSHOOT_RESET_FRESH", "PRECISE_LATERAL_RESET_FRESH", "PRECISE_COLLISION_RESET_FRESH"):
             if details[name] != {"code": "OUTCOME_UNAVAILABLE"}:
                 return fail(f"outcome survived reset at {name}: {details[name]}")
         if details["SEQUENCE_MISSION_TEST_COMPLETE"] != {
-            "canonical": "achieved", "repeat": "achieved", "negative": "not-achieved", "alternative": "achieved"
+            "canonical": "achieved", "repeat": "achieved", "negative": "not-achieved",
+            "forwardOnly": "not-achieved", "alternative": "achieved"
         }:
             return fail(f"unexpected sequence mission summary: {details['SEQUENCE_MISSION_TEST_COMPLETE']}")
         if details["PRECISE_MISSION_TEST_COMPLETE"] != {
@@ -573,17 +664,19 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             return fail(f"unexpected precise mission summary: {details['PRECISE_MISSION_TEST_COMPLETE']}")
 
         for marker in (
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved",
-            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=4 status=achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=5 status=achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_READY target_x=0.350 target_y=0.280",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=1 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=2 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=3 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=4 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=5 status=achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=7 status=not-achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=8 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_COLLISION attempt=9",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=9 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=achieved",
+            "WEBEEBLOCKS_PRECISE_COLLISION attempt=10",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=11 status=achieved",
         ):
             if marker not in webots_log:
                 return fail(f"missing Webots progression marker: {marker}", webots_log[-14000:])

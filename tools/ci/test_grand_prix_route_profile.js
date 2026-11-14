@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/activities');
 const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
 const Projects = require('../../plugins/robot_windows/blockly/webeeblocks/project_files');
+const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend');
 
 const variable = fs.readFileSync('plugins/robot_windows/grand_prix_route_v2/setup.js', 'utf8');
 const historical = fs.readFileSync('plugins/robot_windows/grand_prix_u/setup.js', 'utf8');
@@ -48,7 +49,13 @@ function run(loops) {
     'retain existing AST/preflight bounds and runtime policy');
   assert.equal(JSON.stringify(profile.parameterBounds), JSON.stringify(u.profile.parameterBounds));
   assert.equal(JSON.stringify(profile.fieldOptions), JSON.stringify(u.profile.fieldOptions));
-  assert.equal(new a.context.WebeeBlocksWwiBackend({}, {}).options.simulationScenes, false);
+  const routeOptions = new a.context.WebeeBlocksWwiBackend({}, {}).options;
+  assert.equal(routeOptions.simulationScenes, false);
+  assert.equal(routeOptions.simulationAdmission, true);
+  assert.equal(routeOptions.routeTakeoffTimeoutMs, 90000,
+    'only the Grand Prix Route opt-in permits a bounded late native TAKEOFF response');
+  assert.equal(new u.context.WebeeBlocksWwiBackend({}, {}).options.routeTakeoffTimeoutMs, undefined,
+    'historical Grand Prix U must not inherit the route-only timeout');
   // The actual Windows GUI has served wwi_backend.js at the HTTP 200 URL for
   // activity_contract.js. A backend READY is not proof of an executable AST.
   const wrongAsset = load(variable, catalog);
@@ -407,6 +414,171 @@ async function proveRouteLiveClock() {
   console.log('PASS native route clock: simulated-second pushes, 59→60, nonce/attempt binding, STOP/RESET, late fallback exclusion, no wall extrapolation');
 }
 
+
+async function proveRouteOnlyNativePauseBrowser() {
+  // Browser-only adversarial test of the exact opt-in hooks. No flight source,
+  // physics clock or native Webots success is inferred from these fakes.
+  const sent = [], original = {create(_workspace, callbacks) {return callbacks;}};
+  const catalog = Object.assign({}, Activities.BLOCK_CATALOG);
+  const context = {
+    WebeeBlocksActivities:{BLOCK_CATALOG:catalog,DOCUMENT:Activities.DOCUMENT},
+    WebeeBlocksRuntimeOutcome:{classify:()=>null},
+    WebeeBlocksActivityContract:{execute(){},preflightWorkspace(){},applyFieldBounds(){}},
+    Blockly:{inject(_element,options){return options;}},
+    WebeeBlocksWwiBackend:function(_rw,_options) {
+      this.ready=true;
+      this.robotWindow={send(message){sent.push(message);}};
+      this.stopSimulation=async function(){sent.push('NATIVE_STOP');};
+      this.handleMessage=function(){return false;};
+    },
+    WebeeBlocksExecutionObserver:original,
+    setTimeout,clearTimeout,setInterval,clearInterval
+  };
+  context.window=context;
+  vm.runInNewContext(variable,context);
+  let currentNonce='a'.repeat(32),currentAttempt=4;
+  context.WebeeBlocksRouteClockBinding=()=>({nonce:currentNonce,attempt:currentAttempt});
+  const backend=new context.WebeeBlocksWwiBackend({},{});
+  context.runtimeBackend=backend;
+  const observer=context.WebeeBlocksExecutionObserver.create({},{onBegin(){},onFinish(){}});
+  observer.onBegin({enabled:true});
+  const pause=observer.beforePause();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 PAUSE nonce='+currentNonce+' attempt=4 seq=1');
+  let resolved=false;pause.then(()=>{resolved=true;});
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+currentNonce+
+    ' attempt=4 seq=2');
+  await Promise.resolve();
+  assert.equal(resolved,false,'wrong sequence released the paused browser');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+currentNonce+
+    ' attempt=4 seq=1');
+  await pause;
+  const resume=observer.beforeResume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 RESUME nonce='+currentNonce+' attempt=4 seq=1');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 RESUMED nonce='+currentNonce+
+    ' attempt=5 seq=1');
+  let resumed=false;resume.then(()=>{resumed=true;});
+  await Promise.resolve();
+  assert.equal(resumed,false,'another attempt released the browser');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 RESUMED nonce='+currentNonce+
+    ' attempt=4 seq=1');
+  await resume;
+  observer.onFinish();
+  currentNonce='b'.repeat(32);currentAttempt=5;
+  observer.onBegin({enabled:true});
+  const next=observer.beforePause();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sent.pop(),
+    'GP_ROUTE_PAUSE_V1 PAUSE nonce='+currentNonce+' attempt=5 seq=1');
+  backend.handleMessage('GP_ROUTE_PAUSE_V1 PAUSED nonce='+'a'.repeat(32)+
+    ' attempt=4 seq=1');
+  let stale=false;next.then(()=>{stale=true;},()=>{});
+  await Promise.resolve();
+  assert.equal(stale,false,'stale ACK crossed the RESET/browser epoch');
+  observer.onFinish();
+  await assert.rejects(next,/PAUSE_NATIVE_CANCELLED/);
+  observer.onBegin({enabled:false});
+  await assert.rejects(observer.beforePause(),/PAUSE_NATIVE_NOT_READY/);
+  observer.onFinish();
+  console.log('PASS route-only browser native PAUSE: ACK fences, wrong seq, old attempt, STOP cancellation and no opt-in');
+}
+
+async function proveBoundedRouteTakeoffReply() {
+  // Native R2025a executed TAKEOFF for 52.319 s wall-clock while the default
+  // 35 s pending promise expired. Test only the explicit TAKEOFF wall budget:
+  // native 210 s simulation safety, oracle, STOP and RESET remain independent.
+  const sent=[];
+  const backend=new WwiBackend({send: message=>sent.push(message)}, {
+    timeoutMs:35000, routeTakeoffTimeoutMs:90000,
+    simulationAdmission:true, simulationStop:true, simulationReset:true
+  });
+  backend.ready=true;
+  const flush=()=>new Promise(resolve=>setImmediate(resolve));
+  const first=backend.takeoff(0.4);
+  await flush();
+  assert.match(sent[0], / REQUEST 1 ADMISSION$/);
+  const admissionWaitMs=backend.pending[1].timer._idleTimeout;
+  assert(Number.isFinite(admissionWaitMs) && admissionWaitMs > 0 &&
+    admissionWaitMs <= 35000,
+    'route admission must not consume extended TAKEOFF budget');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
+  await flush();
+  assert.match(sent[1], / REQUEST 2 TAKEOFF 0\.40000000000000002$/);
+  assert.equal(backend.pending[2].timer._idleTimeout,90000,
+    'only the native effect ACK waits for the measured slow Webots takeoff');
+
+  const cancelled=assert.rejects(first, error=>error && error.code==='RESET_CANCELLED');
+  const reset=backend.resetSimulation();
+  await cancelled;
+  assert.match(sent[2], / REQUEST 3 RESET$/);
+  assert.equal(backend.pending[3].timer._idleTimeout,35000,
+    'RESET safety postconditions must retain the original timeout');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK');
+  assert(backend.pending[3], 'stale TAKEOFF ACK unexpectedly finalized RESET');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
+  await reset;
+
+  const second=backend.takeoff(0.4);
+  await flush();
+  assert.match(sent[3], / REQUEST 4 ADMISSION$/);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 VALUE 1');
+  await flush();
+  assert.match(sent[4], / REQUEST 5 TAKEOFF /);
+  assert.equal(backend.pending[5].timer._idleTimeout,90000);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 OK');
+  await second;
+  assert.equal(sent.filter(x=>/ TAKEOFF /.test(x)).length,2,
+    'takeoff must be sent exactly once for each separately authorized attempt');
+
+  const stop=backend.stopSimulation();
+  assert.match(sent[5], / REQUEST 6 STOP$/);
+  assert.equal(backend.pending[6].timer._idleTimeout,35000,
+    'STOP must not inherit the route TAKEOFF response budget');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 OK');
+  await stop;
+
+  for (const opts of [
+    {timeoutMs:35000,routeTakeoffTimeoutMs:90000},
+    {timeoutMs:35000,simulationAdmission:false,routeTakeoffTimeoutMs:90000},
+    {timeoutMs:35000,simulationAdmission:true,routeTakeoffTimeoutMs:90001},
+    {timeoutMs:35000,simulationAdmission:true,routeTakeoffTimeoutMs:Infinity}
+  ]) {
+    const messages=[];
+    const generic=new WwiBackend({send:message=>messages.push(message)},opts);
+    // An admitted simulation may not issue TAKEOFF before a *real* positive
+    // ADMISSION reply. The negative-option test must exercise that preflight
+    // rather than incorrectly expect immediate TAKEOFF on a not-ready backend.
+    generic.ready=true;
+    const flight=generic.takeoff(.4);
+    let takeoffId=1;
+    if(generic.capabilities.simulationAdmission===true) {
+      await flush();
+      assert.match(messages[0], / REQUEST 1 ADMISSION$/);
+      assert(generic.pending[1], 'missing required admission request');
+      const remainingMs=generic.pending[1].timer._idleTimeout;
+      assert(Number.isFinite(remainingMs) && remainingMs>0 && remainingMs<=35000,
+        'generic admission inherited the route-only 90s effect timeout');
+      assert.equal(messages.filter(x=>/ TAKEOFF /.test(x)).length,0,
+        'generic TAKEOFF emitted before positive native admission');
+      generic.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
+      await flush();
+      takeoffId=2;
+    }
+    assert.match(messages.at(-1),new RegExp(' REQUEST '+takeoffId+' TAKEOFF '));
+    assert(generic.pending[takeoffId], 'missing actual TAKEOFF pending request');
+    assert.equal(generic.pending[takeoffId].timer._idleTimeout,35000,
+      'generic/physical/noncanonical backend unexpectedly received extended timeout');
+    generic.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+takeoffId+' OK');
+    await flight;
+    assert.equal(messages.filter(x=>/ TAKEOFF /.test(x)).length,1,
+      'generic backend retried or skipped the only native TAKEOFF request');
+  }
+  console.log('PASS route-only 90s TAKEOFF ACK: exact admission, stale/reset rejection, STOP 35s, no physical/generic opt-in, no replay');
+}
+
 run(false);
 run(true);
 for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveAs',
@@ -416,6 +588,6 @@ for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveA
 assert(html.includes('src="setup.js"'));
 assert(html.includes('../blockly_v2/main.js'));
 assert(!html.includes('grand_prix_u'));
-Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock()]).then(() => {
+Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock(), proveRouteOnlyNativePauseBrowser(), proveBoundedRouteTakeoffReply()]).then(() => {
   console.log('PASS isolated Grand Prix variable profile: stable .wbb world, generic blocks, unfinished same-file Save/Open across host routes');
 }).catch(error => { console.error(error); process.exitCode = 1; });

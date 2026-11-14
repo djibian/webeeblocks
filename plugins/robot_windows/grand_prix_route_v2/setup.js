@@ -17,6 +17,117 @@ window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,
 window.WebeeBlocksInitialActivityId=profile.id;
 const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
+
+// Route-only pedagogical native freeze. This script is loaded solely by the
+// simulated Grand Prix Robot Window; the real-Crazyflie UI never imports it.
+// The native flight controller verifies the same clock nonce/attempt itself.
+const routeNativePause=(function(){
+  let generation=0,step=0,active=null,pending=null,heartbeat=null,enabled=false;
+  function cancelled(){return new Error('PAUSE_NATIVE_CANCELLED');}
+  function cancel(){
+    ++generation;active=null;enabled=false;
+    if(heartbeat!==null){clearInterval(heartbeat);heartbeat=null;}
+    if(pending){clearTimeout(pending.timer);pending.reject(cancelled());pending=null;}
+  }
+  function begin(value){cancel();enabled=value===true;step=0;}
+  function send(raw){
+    const backend=window.runtimeBackend;
+    if(!backend||!backend.ready||!backend.robotWindow||
+       typeof backend.robotWindow.send!=='function')
+      throw new Error('PAUSE_NATIVE_BACKEND_UNAVAILABLE');
+    backend.robotWindow.send('GP_ROUTE_PAUSE_V1 '+raw);
+  }
+  function requestAck(op,identity,seq){
+    const gen=generation;
+    return new Promise(function(resolve,reject){
+      if(pending){reject(new Error('PAUSE_NATIVE_OVERLAP'));return;}
+      const expected=(op==='PAUSE'?'PAUSED':'RESUMED');
+      const timer=setTimeout(function(){
+        if(pending&&pending.gen===gen){
+          pending=null;reject(new Error('PAUSE_NATIVE_ACK_TIMEOUT'));
+        }
+      },35000);
+      pending={gen,expected,identity,seq,resolve,reject,timer};
+      try{send(op+' nonce='+identity.nonce+' attempt='+identity.attempt+' seq='+seq);}
+      catch(error){clearTimeout(timer);pending=null;reject(error);}
+    });
+  }
+  async function binding(){
+    const gen=generation,deadline=Date.now()+35000;
+    while(gen===generation&&enabled&&Date.now()<deadline){
+      const getter=window.WebeeBlocksRouteClockBinding;
+      const info=typeof getter==='function'?getter():null;
+      if(info&&/^[0-9a-f]{32}$/.test(info.nonce)&&
+         Number.isSafeInteger(info.attempt)&&info.attempt>0)return info;
+      await new Promise(function(done){setTimeout(done,40);});
+    }
+    throw new Error('PAUSE_NATIVE_CLOCK_EPOCH_UNAVAILABLE');
+  }
+  async function pause(){
+    if(!enabled||active)throw new Error('PAUSE_NATIVE_NOT_READY');
+    const gen=generation,identity=await binding();
+    if(gen!==generation||!enabled)throw cancelled();
+    const seq=++step;
+    await requestAck('PAUSE',identity,seq);
+    if(gen!==generation)throw cancelled();
+    active={nonce:identity.nonce,attempt:identity.attempt,seq};
+    heartbeat=setInterval(function(){
+      if(!active||gen!==generation)return;
+      try{send('PING nonce='+active.nonce+' attempt='+active.attempt+
+               ' seq='+active.seq);}
+      catch(error){ /* Native 15s wall-clock loss aborts safely. */ }
+    },1000);
+  }
+  async function resume(){
+    if(!enabled||!active)throw new Error('PAUSE_NATIVE_NOT_PAUSED');
+    const identity=active,gen=generation;
+    if(heartbeat!==null){clearInterval(heartbeat);heartbeat=null;}
+    await requestAck('RESUME',identity,identity.seq);
+    if(gen!==generation)throw cancelled();
+    active=null;
+  }
+  function receive(raw){
+    const m=/^GP_ROUTE_PAUSE_V1 (PAUSED|RESUMED) nonce=([0-9a-f]{32}) attempt=([1-9][0-9]*) seq=([1-9][0-9]*)$/.exec(raw);
+    if(!m||!pending||pending.gen!==generation)return;
+    const a=Number(m[3]),s=Number(m[4]);
+    if(m[1]!==pending.expected||m[2]!==pending.identity.nonce||
+       !Number.isSafeInteger(a)||a!==pending.identity.attempt||
+       !Number.isSafeInteger(s)||s!==pending.seq)return;
+    const p=pending;pending=null;clearTimeout(p.timer);p.resolve();
+  }
+  return {begin,cancel,pause,resume,receive};
+})();
+if(window.WebeeBlocksExecutionObserver &&
+   typeof window.WebeeBlocksExecutionObserver.create==='function'){
+  const originalCreate=window.WebeeBlocksExecutionObserver.create;
+  window.WebeeBlocksExecutionObserver.create=function(workspace,callbacks){
+    const previousBegin=callbacks.onBegin,previousFinish=callbacks.onFinish;
+    callbacks.onBegin=function(event){
+      routeNativePause.begin(event&&event.enabled===true);
+      if(typeof previousBegin==='function')previousBegin(event);
+    };
+    callbacks.onFinish=function(event){
+      routeNativePause.cancel();
+      if(typeof previousFinish==='function')previousFinish(event);
+    };
+    async function safely(callback){
+      try{return await callback();}
+      catch(error){
+        // Lost native ACK must never allow a next Blockly effect. An ordinary
+        // native STOP is always prioritized even while the simulator is PAUSED.
+        const backend=window.runtimeBackend;
+        if(backend&&backend.ready&&typeof backend.stopSimulation==='function'){
+          try{await backend.stopSimulation();}catch(ignored){}
+        }
+        throw error;
+      }
+    }
+    callbacks.beforePause=function(){return safely(function(){return routeNativePause.pause();});};
+    callbacks.beforeResume=function(){return safely(function(){return routeNativePause.resume();});};
+    return originalCreate(workspace,callbacks);
+  };
+}
+
 const OriginalBackend=WebeeBlocksWwiBackend;
 window.WebeeBlocksWwiBackend=function(robotWindow,options){
  // A stale localhost cache can serve another 200/JS asset in place of
@@ -30,12 +141,20 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
   throw error;
  }
  const backend=new OriginalBackend(robotWindow,
-   Object.assign({},options,{simulationScenes:false,simulationAdmission:true}));
+   // An acknowledged physical TAKEOFF may complete after 35 s wall-clock on
+   // slower R2025a hosts. This is NOT the 210 s simulated mission deadline.
+   // Only this simulated route opts into the bounded 90 s TAKEOFF response
+   // window; STOP/RESET/LAND, admission and real flight remain unchanged.
+   Object.assign({},options,{simulationScenes:false,simulationAdmission:true,
+     routeTakeoffTimeoutMs:90000}));
  // Only this simulated Grand Prix host recognizes read-only clock notifications.
  // They are never Runtime v2 responses, commands, mission outcomes or flight data.
  if (backend && typeof backend.handleMessage==='function') {
   const receive=backend.handleMessage.bind(backend);
   backend.handleMessage=function(message) {
+   if(typeof message==='string' && message.indexOf('GP_ROUTE_PAUSE_V1 ')===0){
+    routeNativePause.receive(message);return true;
+   }
    if (typeof message==='string' && message.indexOf('GP_ROUTE_FPS_V1 ')===0) {
     window.dispatchEvent(new CustomEvent('webeeblocks-gp-fps-response',{detail:{raw:message}}));
     return true;
@@ -84,6 +203,10 @@ if (typeof window.addEventListener === 'function') {
   // Per-run unpredictable nonce: a delayed notification from an earlier
   // STOP/RESET/attempt must never be attached to a new student run.
   var clockNonce = null, clockAttempt = null;
+  window.WebeeBlocksRouteClockBinding=function(){
+    if(!running||clockAttempt===null||!clockNonce)return null;
+    return {nonce:clockNonce,attempt:clockAttempt};
+  };
   function newNonce() {
     if (!window.crypto || typeof window.crypto.getRandomValues!=='function') return null;
     var raw=new Uint8Array(16);window.crypto.getRandomValues(raw);

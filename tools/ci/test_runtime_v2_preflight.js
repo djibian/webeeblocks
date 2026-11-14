@@ -189,7 +189,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(!p1.hardware.includes('multi-ranger-deck'));
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
-  assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
+  assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(pPrecision.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(pPrecision.runtime.moveDirections, ['forward','left']);
   assert.deepStrictEqual(p2.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
@@ -298,7 +298,7 @@ function proveProgressionProfilesAndFieldOptions() {
   controller.setProfile(p1, null);
   const flyoutWorkspace = new FakeWorkspace(true);
   const flyoutMove = flyoutWorkspace.newBlock('webeeblocks_v2_move');
-  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
   const callsBeforeNoop = flyoutMove.getField('DIRECTION').setOptionsCalls;
   controller.applyWorkspace(flyoutWorkspace);
   assert.strictEqual(flyoutMove.getField('DIRECTION').setOptionsCalls, callsBeforeNoop,
@@ -327,16 +327,16 @@ function proveProgressionProfilesAndFieldOptions() {
   controller.setProfile(genericProfile, null);
   const workspace = new FakeWorkspace(false);
   const move = workspace.newBlock('webeeblocks_v2_move');
-  move.getField('DIRECTION').setValue('left');
+  move.getField('DIRECTION').setValue('back');
   controller.setProfile(p1, workspace);
-  assert.strictEqual(move.getField('DIRECTION').getValue(), 'left',
+  assert.strictEqual(move.getField('DIRECTION').getValue(), 'back',
     'profile filtering must not silently rewrite an existing student program');
   assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right'],
     'an incompatible existing block must keep its generic menu until the student corrects it');
 
   const preservedWorkspace = {
     getAllBlocks() {
-      return [{type:'webeeblocks_v2_move', getField(name) { return name === 'DIRECTION' ? {getValue:() => 'left'} : null; }}];
+      return [{type:'webeeblocks_v2_move', getField(name) { return name === 'DIRECTION' ? {getValue:() => 'back'} : null; }}];
     }
   };
   assert.throws(() => ActivityContract.preflightWorkspace(p1, preservedWorkspace), /field option forbidden by profile/,

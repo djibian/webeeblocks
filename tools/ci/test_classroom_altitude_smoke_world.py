@@ -29,12 +29,12 @@ class NativeAltitudeSmokeWorld(unittest.TestCase):
         self.assertNotIn('window "blockly_v2"', prepared)
         self.assertNotIn("WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN", prepared)
         self.assertNotIn("WEBEEBLOCKS_LEGACY_SCENE", prepared)
-        for name in ("ACTIVITY2_LOW_BARRIER", "ACTIVITY2_LEFT_WALL",
+        for name in ("ACTIVITY2_START_CANOPY", "ACTIVITY2_LOW_BARRIER", "ACTIVITY2_LEFT_WALL",
                      "ACTIVITY2_RIGHT_WALL"):
             self.assertIn(f"DEF {name} Solid", prepared)
         # Source content is untouched: no change to flight physics / drone PROTO.
         self.assertEqual(self.start.count('controller "crazyflie_runtime_v2"'), 2)
-        self.assertEqual(self.scene.count(" Solid {"), 3)
+        self.assertEqual(self.scene.count(" Solid {"), 4)
 
     def test_wrong_world_identity_or_missing_native_controller_is_refused(self):
         variants = (
