@@ -48,24 +48,27 @@ static int verify_scene(void) {
   if (!scene || strcmp(wb_supervisor_node_get_type_name(scene), "Group") != 0)
     return 0;
   WbFieldRef children = wb_supervisor_node_get_field(scene, "children");
-  /* Exact cardinality: 18 visual Poses, 3 native solid obstacles.
-   * The evaluator Robot is nested in the first Pose to preserve the 21-count.
+  /* Exact cardinality: 18 visual Poses, 4 native solid obstacles.
+   * The evaluator Robot is nested in the first Pose to preserve the 22-count.
    */
-  if (!children || wb_supervisor_field_get_count(children) != 21)
+  if (!children || wb_supervisor_field_get_count(children) != 22)
     return 0;
-  for (int i = 0; i != 21; ++i)
+  for (int i = 0; i != 22; ++i)
     if (!wb_supervisor_field_get_mf_node(children, i))
       return 0;
   if (wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") ||
       wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE"))
     return 0;
 
+  const double canopy_pos[3] = {0.0, 0.0, 0.70};
+  const double canopy_size[3] = {0.34, 0.86, 0.08};
   const double barrier_pos[3] = {0.62, 0.0, 0.31};
   const double barrier_size[3] = {0.12, 0.84, 0.62};
   const double left_pos[3] = {0.68, 0.51, 0.425};
   const double right_pos[3] = {0.68, -0.51, 0.425};
   const double wall_size[3] = {1.65, 0.08, 0.85};
-  return assert_box("ACTIVITY2_LOW_BARRIER", barrier_pos, barrier_size) &&
+  return assert_box("ACTIVITY2_START_CANOPY", canopy_pos, canopy_size) &&
+         assert_box("ACTIVITY2_LOW_BARRIER", barrier_pos, barrier_size) &&
          assert_box("ACTIVITY2_LEFT_WALL", left_pos, wall_size) &&
          assert_box("ACTIVITY2_RIGHT_WALL", right_pos, wall_size);
 }

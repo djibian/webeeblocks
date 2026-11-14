@@ -17,8 +17,9 @@ bool saved = false;
 // Never derive a trusted count from possibly damaged live scene content.
 constexpr int kLegacySceneChildren = 32;
 constexpr int kLegacyEvaluatorChildren = 6;
-constexpr int kAltitudeSceneChildren = 21;  // 18 markers, 3 physical colliders.
+constexpr int kAltitudeSceneChildren = 22;  // 18 markers, 4 physical colliders.
 constexpr int kOrientationSceneChildren = 24;  // Native observer and markers.
+constexpr int kSequenceSceneChildren = 18;  // Native observer inside first Pose.
 double oldPosition[3];
 double oldOrientation[4];
 
@@ -63,6 +64,7 @@ bool altitudeColliders() {
     double size[3];
   };
   const Expected colliders[] = {
+    {"ACTIVITY2_START_CANOPY", {0.0, 0.0, 0.70}, {0.34, 0.86, 0.08}},
     {"ACTIVITY2_LOW_BARRIER", {0.62, 0.0, 0.31}, {0.12, 0.84, 0.62}},
     {"ACTIVITY2_LEFT_WALL", {0.68, 0.51, 0.425}, {1.65, 0.08, 0.85}},
     {"ACTIVITY2_RIGHT_WALL", {0.68, -0.51, 0.425}, {1.65, 0.08, 0.85}}
@@ -99,6 +101,63 @@ bool altitudeColliders() {
   }
   return true;
 }
+// The Activity 1 evaluator is a real nested Webots Robot. The visible
+// checkerboard can retain all 18 direct children after an observer is removed:
+// never authorize SCENE_OK merely from the Group count or a WBO comment.
+// Unlike a textual controller token or a correct 22-child collider group,
+// this native Robot identity is required before an altitude SCENE_OK.
+bool altitudeObserver() {
+  WbNodeRef scene = wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE");
+  WbFieldRef children = scene ? wb_supervisor_node_get_field(scene, "children") : nullptr;
+  if (!children || wb_supervisor_field_get_count(children) != kAltitudeSceneChildren)
+    return false;
+  WbNodeRef first = wb_supervisor_field_get_mf_node(children, 0);
+  const char *firstType = first ? wb_supervisor_node_get_type_name(first) : nullptr;
+  if (!firstType || std::strcmp(firstType, "Pose")) return false;
+  WbFieldRef nested = wb_supervisor_node_get_field(first, "children");
+  if (!nested || wb_supervisor_field_get_count(nested) != 2) return false;
+  WbNodeRef observer = wb_supervisor_field_get_mf_node(nested, 1);
+  const char *type = observer ? wb_supervisor_node_get_type_name(observer) : nullptr;
+  if (!type || std::strcmp(type, "Robot")) return false;
+  WbFieldRef controllerField = wb_supervisor_node_get_field(observer, "controller");
+  WbFieldRef nameField = wb_supervisor_node_get_field(observer, "name");
+  WbFieldRef supervisorField = wb_supervisor_node_get_field(observer, "supervisor");
+  WbFieldRef syncField = wb_supervisor_node_get_field(observer, "synchronization");
+  if (!controllerField || !nameField || !supervisorField || !syncField) return false;
+  const char *controller = wb_supervisor_field_get_sf_string(controllerField);
+  const char *name = wb_supervisor_field_get_sf_string(nameField);
+  return controller && name &&
+    !std::strcmp(controller, "progression_altitude_v1") &&
+    !std::strcmp(name, "Progression altitude native evaluator") &&
+    wb_supervisor_field_get_sf_bool(supervisorField) &&
+    wb_supervisor_field_get_sf_bool(syncField);
+}
+bool sequenceObserver() {
+  WbNodeRef scene = wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE");
+  WbFieldRef children = scene ? wb_supervisor_node_get_field(scene, "children") : nullptr;
+  if (!children || wb_supervisor_field_get_count(children) != kSequenceSceneChildren)
+    return false;
+  WbNodeRef first = wb_supervisor_field_get_mf_node(children, 0);
+  const char *firstType = first ? wb_supervisor_node_get_type_name(first) : nullptr;
+  if (!firstType || std::strcmp(firstType, "Pose")) return false;
+  WbFieldRef nested = wb_supervisor_node_get_field(first, "children");
+  if (!nested || wb_supervisor_field_get_count(nested) != 2) return false;
+  WbNodeRef observer = wb_supervisor_field_get_mf_node(nested, 1);
+  const char *type = observer ? wb_supervisor_node_get_type_name(observer) : nullptr;
+  if (!type || std::strcmp(type, "Robot")) return false;
+  WbFieldRef controllerField = wb_supervisor_node_get_field(observer, "controller");
+  WbFieldRef nameField = wb_supervisor_node_get_field(observer, "name");
+  WbFieldRef supervisorField = wb_supervisor_node_get_field(observer, "supervisor");
+  WbFieldRef syncField = wb_supervisor_node_get_field(observer, "synchronization");
+  if (!controllerField || !nameField || !supervisorField || !syncField) return false;
+  const char *controller = wb_supervisor_field_get_sf_string(controllerField);
+  const char *name = wb_supervisor_field_get_sf_string(nameField);
+  return controller && name &&
+    !std::strcmp(controller, "progression_sequence_3d") &&
+    !std::strcmp(name, "Progression sequence 3D evaluator") &&
+    wb_supervisor_field_get_sf_bool(supervisorField) &&
+    wb_supervisor_field_get_sf_bool(syncField);
+}
 // Attest the *imported Webots nodes*, not an occurrence of controller text in
 // the WBO (which can survive inside a comment without any running observer).
 // In orientation-v1, the only mission observer is the second child of the
@@ -131,7 +190,8 @@ bool orientationObserver() {
 }
 bool liveSelection() {
   if (selected == "sequence-v1")
-    return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", 18) &&
+    return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", kSequenceSceneChildren) &&
+      sequenceObserver() &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
@@ -145,6 +205,7 @@ bool liveSelection() {
   if (selected == "altitude-v1")
     return completeGroup("WEBEEBLOCKS_ALTITUDE_SCENE", kAltitudeSceneChildren) &&
       altitudeColliders() &&
+      altitudeObserver() &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
@@ -241,7 +302,13 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   std::string nextScene;
   if (std::strcmp(scene, "sequence-v1") == 0) {
     nextScene = sceneFile("sequence-v1.wbo");
-    if (nextScene.empty()) return 0;
+    // Fail before removing a former scenario when the versioned scene is
+    // missing or cannot even name its own nested observer. The *real* imported
+    // Robot identity is checked below; text alone cannot authorize READY.
+    if (nextScene.empty() ||
+        nextScene.find("DEF WEBEEBLOCKS_SEQUENCE_SCENE Group {") != 0 ||
+        nextScene.find("controller \"progression_sequence_3d\"") == std::string::npos)
+      return 0;
   } else if (std::strcmp(scene, "altitude-v1") == 0) {
     nextScene = sceneFile("altitude-v1.wbo");
     // Refuse before destructive mutation: verify a structurally typed,
@@ -275,8 +342,14 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   }
   if (std::strcmp(scene, "sequence-v1") == 0) {
     wb_supervisor_field_import_mf_node_from_string(children, -1, nextScene.c_str());
-    // Two delivery markers and sixteen checkerboard tiles are required.
-    ready = completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", 18);
+    // Two markers and sixteen checkerboard tiles are not enough: require
+    // the real, correctly configured nested mission observer as well.
+    ready = completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", kSequenceSceneChildren) &&
+      sequenceObserver() &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
     const double p[] = {-0.9, -1.1, 1.1};
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
@@ -286,6 +359,7 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     ready = liveSelection() ||
       (completeGroup("WEBEEBLOCKS_ALTITUDE_SCENE", kAltitudeSceneChildren) &&
        altitudeColliders() &&
+      altitudeObserver() &&
        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE"));

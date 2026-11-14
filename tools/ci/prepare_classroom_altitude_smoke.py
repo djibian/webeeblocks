@@ -39,8 +39,8 @@ def compose(start: str, scene: str) -> str:
         not scene.startswith("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {") or
         scene.count('controller "progression_altitude_v1"') != 1 or
         scene.count(" Robot {") != 1 or
-        scene.count(" Solid {") != 3 or
-        scene.count("boundingObject Box") != 3 or
+        scene.count(" Solid {") != 4 or
+        scene.count("boundingObject Box") != 4 or
         scene.count(" Pose {") != 18
     ):
         raise ValueError("invalid isolated altitude native scene identity")

@@ -53,7 +53,7 @@ const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-moveme
 const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
 assert.strictEqual(p1.world, initialProfile.world);
 assert.strictEqual(p2.world, initialProfile.world);
-assert.strictEqual(p1.brief.title, '1 — Livrer le colis');
+assert.strictEqual(p1.brief.title, '1 — Prendre son envol en 3D');
 assert.strictEqual(p2.brief.title, '2 — Livrer le colis fragile');
 assert.strictEqual(p2.brief.mission,
   'Un colis fragile doit être déposé sur la petite zone de livraison située à gauche du couloir. Fais terminer le drone posé et immobile entièrement dans cette zone, sans toucher l’obstacle rouge.');
@@ -115,32 +115,60 @@ assert.match(preciseEvaluatorSource, /collision_seen[\s\S]*precise_publish_outco
   'red-obstacle contact must remain an observable terminal mission failure even if Runtime fail-safe interrupts normal completion');
 assert.doesNotMatch(preciseEvaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/);
 
-const sequencePad = worldSource.match(
-  /translation (0\.25) 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
-assert.ok(sequencePad, 'Activity 1 visible receiving pad must remain explicit');
+const sequenceSceneSource = fs.readFileSync(path.join(ROOT, 'worlds/scenes/sequence-v1.wbo'), 'utf8');
+const sequenceEvaluatorSource = fs.readFileSync(path.join(ROOT, 'controllers/progression_sequence_3d/progression_sequence_3d.py'), 'utf8');
+const lockedSequenceEvaluatorSource = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_sequence_evaluator.c'), 'utf8');
+assert.match(lockedSequenceEvaluatorSource, /#define SEQUENCE_TARGET_X 0\.25/,
+  'hash-locked shared physical controller must retain the historical evaluator');
+assert.match(sequenceEvaluatorSource, /ORACLE = "progression-sequence-3d-v1"/);
+assert.match(sequenceSceneSource, /controller "progression_sequence_3d"[\s\S]*?supervisor TRUE/);
+assert.match(sequenceEvaluatorSource, /from controller import Supervisor/);
+assert.match(sequenceEvaluatorSource, /getVelocity\(\)/);
+assert.doesNotMatch(sequenceEvaluatorSource, /Blockly|workspace|allowedStatementKinds/);
+const sequencePad = sequenceSceneSource.match(
+  /Pose \{ translation (0\.35) (0\.28) 0\.002[^\n]*baseColor 0\.10 0\.72 0\.28[^\n]*geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
+assert.ok(sequencePad, 'Activity 1 green receiving pad must be loaded from the actual isolated scene');
 const sequencePadX = Number(sequencePad[1]);
-const sequencePadW = Number(sequencePad[2]);
-const sequencePadD = Number(sequencePad[3]);
+const sequencePadY = Number(sequencePad[2]);
+const sequencePadW = Number(sequencePad[3]);
+const sequencePadD = Number(sequencePad[4]);
+assert.strictEqual((sequenceSceneSource.match(/Pose \{ translation [^\n]+ 0\.0042 children/g) || []).length, 16,
+  'Activity 1 checkerboard must contain all sixteen visible squares');
+assert.doesNotMatch(sequenceSceneSource, /boundingObject|Solid\s*\{/,
+  'Activity 1 checkerboard cannot introduce a hidden physical obstacle');
 
 const precisePad = worldSource.match(
   /WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN[\s\S]*?translation (0\.30) (0\.40) 0\.002[\s\S]*?baseColor 0\.92 0\.72 0\.10[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
-assert.ok(precisePad, 'Activity 2 small visible delivery zone must remain explicit');
+assert.ok(precisePad, 'Historical Activity 2 target must remain unchanged on legacy scene');
 const precisePadX = Number(precisePad[1]);
 const precisePadY = Number(precisePad[2]);
 const precisePadW = Number(precisePad[3]);
 const precisePadD = Number(precisePad[4]);
 assert.ok(precisePadW < sequencePadW && precisePadD < sequencePadD,
-  'Activity 2 target must be materially smaller than Activity 1 target');
-const sequenceYMax = sequencePadD / 2;
-const preciseYMin = precisePadY - precisePadD / 2;
-assert.ok(preciseYMin > sequenceYMax,
-  'Activity 2 visible target must be disjoint from the Activity 1 receiving pad');
+  'historical precision target remains materially smaller');
+assert.ok(sequencePadX > sequencePadW / 2 + 0.05 && sequencePadY > sequencePadD / 2 + 0.05,
+  'neither a pure-forward nor a pure-lateral strategy may achieve the offset Activity 1 landing');
 
 function numberDefine(source, name) {
   const match = source.match(new RegExp('#define ' + name + ' ([0-9.]+)'));
   assert.ok(match, 'missing evaluator constant ' + name);
   return Number(match[1]);
 }
+function pythonNumber(source, name) {
+  const match = source.match(new RegExp('^' + name + ' = ([0-9.]+)$', 'm'));
+  assert.ok(match, 'missing isolated scene-oracle constant ' + name);
+  return Number(match[1]);
+}
+const sequenceX = pythonNumber(sequenceEvaluatorSource, 'TARGET_X');
+const sequenceY = pythonNumber(sequenceEvaluatorSource, 'TARGET_Y');
+const sequenceXTolerance = pythonNumber(sequenceEvaluatorSource, 'TARGET_X_TOLERANCE');
+const sequenceYTolerance = pythonNumber(sequenceEvaluatorSource, 'TARGET_Y_TOLERANCE');
+assert.strictEqual(sequenceX, sequencePadX);
+assert.strictEqual(sequenceY, sequencePadY);
+assert.ok(Math.abs(sequenceXTolerance - (sequencePadW / 2 - 0.09)) < 1e-12,
+  'landing must keep the complete drone inside the visible X extent');
+assert.ok(Math.abs(sequenceYTolerance - (sequencePadD / 2 - 0.09)) < 1e-12,
+  'landing must keep the complete drone inside the visible Y extent');
 const preciseX = numberDefine(preciseEvaluatorSource, 'PRECISE_TARGET_X');
 const preciseY = numberDefine(preciseEvaluatorSource, 'PRECISE_TARGET_Y');
 const preciseXTol = numberDefine(preciseEvaluatorSource, 'PRECISE_TARGET_X_TOLERANCE');
@@ -161,6 +189,7 @@ assert.ok(preciseXTol >= 0.06 && preciseYTol >= 0.06,
   'precision target must retain comfortable deterministic landing margin rather than become a simulator-noise lesson');
 
 const sequenceProbeSource = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
+assert.match(sequenceProbeSource, /SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED/);
 assert.match(sequenceProbeSource, /PRECISE_UNDERSHOOT_NOT_ACHIEVED/);
 assert.match(sequenceProbeSource, /PRECISE_OVERSHOOT_NOT_ACHIEVED/);
 assert.match(sequenceProbeSource, /PRECISE_LATERAL_NOT_ACHIEVED/);
