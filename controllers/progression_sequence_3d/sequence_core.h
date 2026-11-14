@@ -21,6 +21,8 @@
 #define WB_SEQ_LAND_HEIGHT 0.07
 #define WB_SEQ_MAX_SPEED 0.12
 #define WB_SEQ_SETTLE 1.5
+/* Sustained native pose/velocity, not an instantaneous slow sample. */
+#define WB_SEQ_LAND_DWELL 0.25
 
 typedef enum {
   WB_SEQ_WAIT = 0,
@@ -37,6 +39,8 @@ typedef struct {
   unsigned long long attempt;
   double origin_z;
   double completion_at;
+  double stable_since;
+  int stable_since_valid;
   int airborne;
   int completion_seen;
   wb_seq_verdict result;
@@ -79,9 +83,19 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
                          fabs(s->vz) <= WB_SEQ_MAX_SPEED;
   const int on_pad = fabs(s->x - WB_SEQ_X) <= WB_SEQ_X_TOL &&
                      fabs(s->y - WB_SEQ_Y) <= WB_SEQ_Y_TOL;
-  if (m->airborne && landed && stationary && on_pad)
-    m->result = WB_SEQ_ACHIEVED;
-  else if (s->time - m->completion_at >= WB_SEQ_SETTLE)
+  if (m->airborne && landed && stationary && on_pad) {
+    if (!m->stable_since_valid) {
+      m->stable_since = s->time;
+      m->stable_since_valid = 1;
+    }
+    if (s->time - m->stable_since >= WB_SEQ_LAND_DWELL)
+      m->result = WB_SEQ_ACHIEVED;
+  } else {
+    /* Any renewed movement or loss of full-pad containment resets the dwell. */
+    m->stable_since_valid = 0;
+  }
+  if (m->result == WB_SEQ_WAIT &&
+      s->time - m->completion_at >= WB_SEQ_SETTLE)
     m->result = WB_SEQ_NOT_ACHIEVED;
   return m->result;
 }
