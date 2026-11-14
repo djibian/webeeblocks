@@ -30,10 +30,12 @@ class Sequence3DOracleTests(unittest.TestCase):
         attempt = oracle.Attempt(11, 0.0)
         self.assertIsNone(attempt.sample(1.0, [0.0, 0.0, 0.5], [0, 0, 0], completed=False))
         self.assertIsNone(attempt.sample(5.0, [0.35, 0.28, 0.02], [0, 0, 0], completed=False))
-        self.assertEqual(
-            attempt.sample(5.1, [0.35, 0.28, 0.02], [0, 0, 0], completed=True),
-            "achieved",
-        )
+        self.assertIsNone(attempt.sample(
+            5.1, [0.35, 0.28, 0.02], [0, 0, 0], completed=True))
+        self.assertIsNone(attempt.sample(
+            5.34, [0.35, 0.28, 0.02], [0, 0, 0], completed=False))
+        self.assertEqual(attempt.sample(
+            5.36, [0.35, 0.28, 0.02], [0, 0, 0], completed=False), "achieved")
         self.assertEqual(attempt.sample(99.0, [0, 0, 5], [0, 0, 10], True), "achieved")
 
     def test_forward_only_lateral_only_no_flight_moving_and_near_edge_fail(self):
@@ -61,10 +63,37 @@ class Sequence3DOracleTests(unittest.TestCase):
     def test_legitimate_slightly_off_center_3d_landing_still_succeeds(self):
         attempt = oracle.Attempt(20, 0.0)
         self.assertIsNone(attempt.sample(1.0, [0, 0, 0.50], [0, 0, 0], False))
+        self.assertIsNone(attempt.sample(3.0, [0.39, 0.34, 0.02], [0, 0, 0], True))
+        self.assertIsNone(attempt.sample(3.24, [0.39, 0.34, 0.02], [0, 0, 0], False))
         self.assertEqual(
-            attempt.sample(3.0, [0.39, 0.34, 0.02], [0, 0, 0], True),
-            "achieved",
-        )
+            attempt.sample(3.26, [0.39, 0.34, 0.02], [0, 0, 0], False), "achieved")
+
+    def test_landing_dwell_resets_after_motion_and_pad_exit(self):
+        attempt = oracle.Attempt(21, 0.0)
+        pose = [0.35, 0.28, 0.02]
+        still = [0.0, 0.0, 0.0]
+        self.assertIsNone(attempt.sample(1.0, [0, 0, 0.5], still, False))
+        self.assertIsNone(attempt.sample(2.0, pose, still, True))
+        self.assertIsNone(attempt.sample(2.20, pose, still, False))
+        self.assertIsNone(attempt.sample(2.23, pose, [0.3, 0, 0], False))
+        self.assertIsNone(attempt.sample(2.32, pose, still, False))
+        self.assertIsNone(attempt.sample(2.56, pose, still, False))
+        self.assertEqual(attempt.sample(2.58, pose, still, False), "achieved")
+
+        attempt = oracle.Attempt(22, 0.0)
+        self.assertIsNone(attempt.sample(1.0, [0, 0, 0.5], still, False))
+        self.assertIsNone(attempt.sample(2.0, pose, still, True))
+        self.assertIsNone(attempt.sample(2.15, [0.43, 0.28, 0.02], still, False))
+        self.assertIsNone(attempt.sample(2.20, pose, still, False))
+        self.assertIsNone(attempt.sample(2.43, pose, still, False))
+        self.assertEqual(attempt.sample(2.46, pose, still, False), "achieved")
+
+        attempt = oracle.Attempt(23, 0.0)
+        self.assertIsNone(attempt.sample(1.0, [0, 0, 0.5], still, False))
+        self.assertIsNone(attempt.sample(2.0, pose, still, True))
+        self.assertEqual(attempt.sample(3.6, [0.43, 0.28, 0.02], still, False),
+                         "not-achieved")
+        self.assertEqual(attempt.sample(3.7, pose, still, False), "not-achieved")
 
     def test_oracle_pad_margin_matches_scene_geometry_and_drone_span(self):
         scene = (ROOT / "worlds/scenes/sequence-v1.wbo").read_text(encoding="utf-8")
