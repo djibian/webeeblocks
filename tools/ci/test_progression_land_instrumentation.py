@@ -6,7 +6,7 @@ import unittest
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_progression_sequence_mission import ROOT, instrument_position, native_context, WEBOTS_IMAGE
+from tools.ci.run_progression_sequence_mission import ROOT, instrument_position, native_context, prepare_progression_world, WEBOTS_IMAGE
 
 SOURCE = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
 
@@ -21,14 +21,16 @@ class LandInstrumentationTests(unittest.TestCase):
         # Global declaration plus per-LAND reset: every new LAND logs its first
         # commanded motor sample, including subsequent runs after RESET.
         self.assertEqual(self.instrumented.count("sequence_ci_land_samples = 0;"), 2)
+        self.assertIn("sequence_ci_land_samples % 16 == 0", self.instrumented)
+        self.assertIn("++sequence_ci_land_samples;", self.instrumented)
+        self.assertEqual(self.instrumented.count("sequence_ci_land_step_samples = 0;"), 2)
         self.assertIn(
             "command = CMD_LAND;\n"
             "        sequence_ci_land_samples = 0;\n"
+            "        sequence_ci_land_step_samples = 0;\n"
             "        stable_since = -1.0;",
             self.instrumented,
         )
-        self.assertIn("sequence_ci_land_samples % 16 == 0", self.instrumented)
-        self.assertIn("++sequence_ci_land_samples;", self.instrumented)
 
     def test_observation_after_all_four_unchanged_motor_calls(self):
         p = self.instrumented
@@ -56,9 +58,17 @@ class LandInstrumentationTests(unittest.TestCase):
         self.assertEqual(p.count("sequence_ci_native_land(active_id, now, self_node);"), 1)
         self.assertIn(
             "sequence_ci_native_land(active_id, now, self_node);\n"
-            "      }\n"
-            "      if (command == CMD_LAND)",
+            '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id=%d t=%.9f',
             p,
+        )
+        self.assertLess(
+            p.index("sequence_ci_native_land(active_id, now, self_node);"),
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="),
+        )
+        self.assertLess(
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="),
+            p.index("      if (command == CMD_LAND)\n"
+                    "        ++sequence_ci_land_samples;"),
         )
         self.assertLess(
             p.index("wb_motor_set_velocity(m4, motor_power(power.m4));"),
@@ -106,11 +116,29 @@ class LandInstrumentationTests(unittest.TestCase):
             "active_id, now, now - action_start, sequence_ci_wall_ms(), "
             "sequence_ci_monotonic_ms(), x, y, z,", p,
         )
-        self.assertEqual(p.count("sequence_ci_monotonic_ms()"), 1)
+        # A second monotonic sample explicitly witnesses the first native
+        # Webots step *after* a LAND contact read, not a new timeout.
+        self.assertEqual(p.count("sequence_ci_monotonic_ms()"), 2)
         self.assertEqual(p.count("sequence_ci_move_samples++ % 128 == 0"), 1)
         self.assertNotIn("sequence_ci_monotonic_ms", self.original)
         self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
         self.assertEqual(self.original.count("#define ACTION_TIMEOUT 25.0"), 1)
+
+    def test_land_contact_vs_step_witness_is_bounded_and_read_only(self):
+        p = self.instrumented
+        self.assertEqual(p.count("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT id="), 1)
+        self.assertEqual(p.count("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id="), 1)
+        self.assertIn("sequence_ci_land_step_samples++ % 32 == 0", p)
+        self.assertIn("if (command == CMD_LAND && sequence_ci_land_step_samples++", p)
+        self.assertIn("active_id, now, sequence_ci_wall_ms(), sequence_ci_monotonic_ms()", p)
+        self.assertLess(
+            p.index("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP id="),
+            p.index("if (command != CMD_IDLE && command != CMD_RESET &&"),
+        )
+        self.assertNotIn("WEBEEBLOCKS_SEQUENCE_CI_LAND_POST_CONTACT", self.original)
+        self.assertNotIn("WEBEEBLOCKS_SEQUENCE_CI_LAND_NEXT_STEP", self.original)
+        self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
+        self.assertEqual(p.count("#define RESET_TIMEOUT 5.0"), 1)
 
     def test_move_probe_guard_fails_closed(self):
         changed = self.original.replace(
@@ -174,10 +202,17 @@ class NativeContextTests(unittest.TestCase):
     """Inputs are reproducible; identical contact dynamics are not asserted."""
 
     def setUp(self):
-        self.source = 'WorldInfo { basicTimeStep 8 }\\nRobot { window "blockly_v2" }\\n'
+        self.source = (
+            'WorldInfo { basicTimeStep 8 }\n'
+            'Robot { window "blockly_v2" }\n'
+            'Robot {\n'
+            '  name "Crazyflie WebeeBlocks"\n'
+            '  controller "crazyflie_runtime_v2"\n'
+            '}\n'
+        )
 
     def test_neutral_world_source_and_prepared_digests_are_distinct(self):
-        prepared = self.source.replace('window "blockly_v2"', 'window "sequence_neutral_probe"')
+        prepared = prepare_progression_world(self.source, neutral=True)
         context = native_context('crazyflie_classroom_start.wbt', self.source, prepared, neutral=True)
         sha = lambda s: hashlib.sha256(s.encode('utf-8')).hexdigest()
         self.assertEqual(context['world_source_sha256'], sha(self.source))
@@ -198,7 +233,7 @@ class NativeContextTests(unittest.TestCase):
             native_context('missing.wbt', self.source, legacy, neutral=False)
 
     def test_source_mutation_or_unrelated_prepared_world_fails_closed(self):
-        neutral = self.source.replace('window "blockly_v2"', 'window "sequence_neutral_probe"')
+        neutral = prepare_progression_world(self.source, neutral=True)
         with self.assertRaises(ValueError):
             native_context('crazyflie_classroom_start.wbt', self.source, neutral+'changed', neutral=True)
         with self.assertRaises(ValueError):
@@ -206,6 +241,30 @@ class NativeContextTests(unittest.TestCase):
                 'window "blockly_v2"', 'window "sequence_probe"'), neutral, neutral=True)
         with self.assertRaises(ValueError):
             native_context('crazyflie_classroom_start.wbt', self.source, self.source, neutral=True)
+
+    def test_school_role_is_exact_and_native_manifest_cannot_lie(self):
+        neutral = prepare_progression_world(self.source, neutral=True)
+        self.assertEqual(neutral.count('controller "crazyflie_classroom_v2"'), 1)
+        self.assertEqual(neutral.count('controller "crazyflie_runtime_v2"'), 0)
+        self.assertIn('window "sequence_neutral_probe"', neutral)
+        legacy = prepare_progression_world(self.source, neutral=False)
+        self.assertEqual(legacy.count('controller "crazyflie_runtime_v2"'), 1)
+        self.assertEqual(legacy.count('controller "crazyflie_classroom_v2"'), 0)
+        self.assertIn('window "sequence_probe"', legacy)
+        with self.assertRaisesRegex(ValueError, "expected exactly one pupil Crazyflie"):
+            prepare_progression_world(self.source.replace(
+                'controller "crazyflie_runtime_v2"', 'controller "malformed"', 1),
+                neutral=True)
+        with self.assertRaisesRegex(ValueError, "prepared progression world"):
+            native_context('crazyflie_classroom_start.wbt', self.source,
+                           neutral.replace('crazyflie_classroom_v2',
+                                           'crazyflie_runtime_v2'),
+                           neutral=True)
+        with self.assertRaisesRegex(ValueError, "expected exactly one pupil Crazyflie"):
+            prepare_progression_world(
+                self.source + 'Robot {\n  name "Crazyflie WebeeBlocks"\n'
+                '  controller "crazyflie_runtime_v2"\n}\n',
+                neutral=True)
 
     def test_runner_writes_manifest_before_docker_launch(self):
         source = (ROOT / 'tools/ci/run_progression_sequence_mission.py').read_text(encoding='utf-8')
