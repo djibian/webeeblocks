@@ -14,7 +14,12 @@
 #define WB_ORIENT_PI 3.14159265358979323846
 #define WB_ORIENT_WAYPOINTS 3
 #define WB_ORIENT_XY_TOL 0.105
-#define WB_ORIENT_Z_TOL 0.085
+/* A/C (0.63 m) and B (0.79 m) must have disjoint accepted altitude
+ * bands: 2 * 0.06 < 0.16. Otherwise a constant-height flight at 0.71 m
+ * passes all three beacons despite the intended vertical learning.
+ * This is a purely native pose criterion, never an AST block requirement.
+ */
+#define WB_ORIENT_Z_TOL 0.060
 #define WB_ORIENT_YAW_TOL 0.20
 #define WB_ORIENT_LAND_X 0.90
 #define WB_ORIENT_LAND_Y -0.90
