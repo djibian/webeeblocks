@@ -31,8 +31,8 @@ def verify(root):
             (root / "PR970_SHA").read_text().strip() != PR970):
         raise ValueError("Source provenance or #970 dependency mismatch")
     worlds = sorted((root / "worlds").glob("*.wbt"))
-    if len(worlds) != 36:
-        raise ValueError("Exactly 12 canonical routes x 3 FPS worlds required")
+    if len(worlds) != 12:
+        raise ValueError("Exactly 12 canonical 20-FPS base worlds required")
     profile = json.loads((root / "Activites/08-grand-prix-variable.wbb").read_text(encoding="utf-8"))
     if (profile["format"] != "webeeblocks-project" or
             profile["activity"]["id"] != "progression-grand-prix-route-v2"):
@@ -40,11 +40,13 @@ def verify(root):
     ids = json.loads((root / "COURSES.json").read_text(encoding="utf-8"))
     if ids.get("course_ids") != [reference_course(i).identifier for i in range(12)]:
         raise ValueError("Host-only course inventory mismatch")
-    if ids.get("fps") != [15, 20, 25] or ids.get("physics_step_ms") != 8:
+    if (ids.get("fps") != [20] or ids.get("fps_min") != 1 or
+            ids.get("fps_max") != 60 or ids.get("fps_step") != 1 or
+            ids.get("fps_default") != 20 or ids.get("physics_step_ms") != 8):
         raise ValueError("Physics/render policy corrupted")
     expected = set()
     for i in range(12):
-        for fps in (15, 20, 25):
+        for fps in (20,):
             stem = f"grand_prix_route_v2_{i:02d}_fps{fps}"
             expected.add(stem + ".wbt")
             path = root / "worlds" / (stem + ".wbt")
@@ -88,18 +90,27 @@ def verify(root):
         raise ValueError("Blockly version asset missing")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":
         raise ValueError("Wrong Blockly build")
+    batch = (root / "Lancer-Grand-Prix.cmd").read_text(encoding="utf-8")
+    if "powershell.exe -STA -NoProfile" not in batch:
+        raise ValueError("Windows GUI FPS selector not launched in STA")
     front = (root / "Lancer-Grand-Prix.ps1").read_text(encoding="utf-8-sig")
-    if ("[ValidateSet(15,20,25)][int]$Fps=20" not in front or
-            "^(?:15|20|25)$" not in front or
-            "^(?:60|30|25)$" in front):
-        raise ValueError("GUI FPS selector not restricted to 15/20/25")
+    if ("[ValidateRange(1,60)][int]$Fps=20" not in front or
+            "$track.Minimum = 1" not in front or
+            "$track.Maximum = 60" not in front or
+            "$track.SmallChange = 1" not in front or
+            "$track.Value = 20" not in front or
+            "$form.ShowDialog()" not in front):
+        raise ValueError("GUI FPS slider does not span 1..60 with step 1/default 20")
     launcher = (root / "Launch-WebeeBlocks.ps1").read_text(encoding="utf-8-sig")
     if ("grand_prix_route_v2" not in launcher or
             "._gp_route_session_" not in launcher or
             "WEBEEBLOCKS_GP_FPS" not in launcher or
             "WEBEEBLOCKS_GP_INDEX" not in launcher or
-            "FPS (15|20|25)" not in launcher or
-            "FPS (25|30|60)" in launcher or
+            "FPS 20" not in launcher or
+            "RequestedFps -lt 1" not in launcher or
+            "RequestedFps -gt 60" not in launcher or
+            "FPS ' + $RequestedFps" not in launcher or
+            " -RequestedFps ([int]$fpsText)" not in launcher or
             "GetRelativePath(" in launcher or
             "$worldText = [IO.File]::ReadAllText($world, [Text.Encoding]::UTF8)" not in launcher or
             "$worldPerspectiveText = [IO.File]::ReadAllText($worldPerspective, [Text.Encoding]::UTF8)" not in launcher or
@@ -111,7 +122,7 @@ def verify(root):
         raise ValueError("Historical U geometry leaked into delivery")
     return dict(source_sha=metadata["source_sha"], dependency_sha=PR970,
                 file_count=len(files), worlds=len(worlds), sha256_manifest=digest(root / "MANIFEST.sha256"),
-                modes=[15, 20, 25], native_status="UNPROVEN", gui_status="UNPROVEN")
+                modes=[20], slider_range=[1, 60], slider_step=1, native_status="UNPROVEN", gui_status="UNPROVEN")
 
 
 def verify_zip(archive, output):

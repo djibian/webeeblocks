@@ -58,12 +58,12 @@ jobs:
       - name: Check sources and canonical 12-course selectors
         shell: pwsh
         run: |
-          python -m py_compile tools/grand_prix/package_windows_route.py tools/ci/test_grand_prix_route_windows_package.py tools/ci/run_grand_prix_route_windows_native.py packaging/windows/grand_prix_route_evaluator_bootstrap.py tools/grand_prix/route_windows_epoch.py tools/grand_prix/prepare_route_runtime.py tools/ci/test_grand_prix_route_windows_epoch.py
+          python -m py_compile tools/grand_prix/package_windows_route.py tools/ci/test_grand_prix_route_windows_fps.py tools/ci/test_grand_prix_route_windows_package.py tools/ci/run_grand_prix_route_windows_native.py packaging/windows/grand_prix_route_evaluator_bootstrap.py tools/grand_prix/route_windows_epoch.py tools/grand_prix/prepare_route_runtime.py tools/ci/test_grand_prix_route_windows_epoch.py
           if ($LASTEXITCODE -ne 0) { throw 'Python source check failed' }
           python -m unittest tools.ci.test_grand_prix_route_windows_epoch
           if ($LASTEXITCODE -ne 0) { throw 'Fail-closed Windows route CNG composer tests failed' }
           python -m unittest tools.ci.test_grand_prix_route_windows_fps
-          if ($LASTEXITCODE -ne 0) { throw 'Experimental 15/20/25 FPS isolation contract failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Native 1..60 FPS selector isolation contract failed' }
           node --check tools/ci/grand_prix_route_windows_node_probe.js
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"
@@ -111,7 +111,7 @@ jobs:
           ./tools/grand_prix/build_windows_evaluator.ps1 -OutputDirectory 'ci-artifacts/windows-python'
           if ($LASTEXITCODE -ne 0) { throw 'Python support build failed' }
 
-      - name: Compose 12 real variable worlds x 3 native FPS
+      - name: Compose 12 canonical 20-FPS worlds and bounded per-session selector
         shell: pwsh
         run: |
           python tools/grand_prix/package_windows_route.py --classroom 'ci-artifacts/windows-classroom/WebeeBlocks-Windows-R2025a' --python-support 'ci-artifacts/windows-python/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a' --webots-home $env:WEBOTS_HOME --webots-source '.ci-webots-r2025a' --output 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a'
@@ -123,11 +123,20 @@ jobs:
           python tools/ci/test_grand_prix_route_windows_package.py --archive 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a.zip' --extract-to 'ci-artifacts/EXTRACTED variable route with spaces'
           if ($LASTEXITCODE -ne 0) { throw 'Extracted product inventory failed' }
           $env:WEBEEBLOCKS_GP_INDEX = '5'
+          # The real .cmd uses Windows PowerShell 5.1. Check the real isolated
+          # world/session staging at the default and both boundary slider values.
+          foreach ($cap in @(1, 20, 60)) {
+            $env:WEBEEBLOCKS_GP_FPS = [string]$cap
+            & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED variable route with spaces/Launch-WebeeBlocks.ps1' -WebotsHome $env:WEBOTS_HOME -ValidateOnly
+            if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 FPS=$cap isolated session staging failed" }
+          }
           $env:WEBEEBLOCKS_GP_FPS = '20'
-          # .cmd launches Windows PowerShell 5.1, not pwsh 7. Exercise the real
-          # isolated session creation, HTML dependency rewriting, and cleanup.
-          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED variable route with spaces/Launch-WebeeBlocks.ps1' -WebotsHome $env:WEBOTS_HOME -ValidateOnly
-          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 extracted session staging failed' }
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'ci-artifacts/EXTRACTED variable route with spaces/Lancer-Grand-Prix.ps1').Path,
+            [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -ne 0) { throw 'Windows Grand Prix slider PowerShell script syntax failed' }
 
       - uses: actions/cache@v4
         with:

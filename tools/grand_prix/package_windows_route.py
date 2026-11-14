@@ -21,7 +21,10 @@ from tools.grand_prix.route_courses_v2 import reference_course
 
 PR970_SHA = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
 NAME = "WebeeBlocks-Grand-Prix-Variable-Windows-R2025a"
-FPS = (15, 20, 25)
+DEFAULT_FPS = 20
+FPS_MIN = 1
+FPS_MAX = 60
+FPS = (DEFAULT_FPS,)  # only pre-attested base worlds; FPS variants are isolated at launch
 WEBOTS_SOURCE_SHA = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
 
 
@@ -140,11 +143,11 @@ def stage_native_webots_protos(output, classroom, webots_source):
 
 
 def configure_windows_route_fps(scene, fps):
-    """Compose only native viewport FPS for the Windows 15/20/25 A/B trial.
+    """Compose only native viewport FPS for the Windows 1..60 slider trial.
 
     The shared Linux/historical composer and all 8-ms physics stay unchanged.
     """
-    if type(fps) is not int or fps not in FPS:
+    if type(fps) is not int or fps < FPS_MIN or fps > FPS_MAX:
         raise ValueError("Unsupported experimental Windows Grand Prix FPS")
     anchor = ("DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo { "
               "basicTimeStep 8 randomSeed 1 ")
@@ -192,12 +195,12 @@ def launch_script(text):
     new = (
         "$indexText = if ($env:WEBEEBLOCKS_GP_INDEX) { $env:WEBEEBLOCKS_GP_INDEX } else { '5' }\n"
         "$fpsText = if ($env:WEBEEBLOCKS_GP_FPS) { $env:WEBEEBLOCKS_GP_FPS } else { '20' }\n"
-        "if ($indexText -cnotmatch '^(?:[0-9]|10|11)$' -or $fpsText -cnotmatch '^(?:15|20|25)$') {\n"
-        "  throw 'Configuration Grand Prix ou FPS incorrects : index 0..11, FPS 15/20/25.'\n"
+        "if ($indexText -cnotmatch '^(?:[0-9]|10|11)$' -or $fpsText -cnotmatch '^(?:[1-9]|[1-5][0-9]|60)$') {\n"
+        "  throw 'Configuration Grand Prix ou FPS incorrects : index 0..11, FPS 1..60.'\n"
         "}\n"
         "$index = [int]$indexText\n"
         "$env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $PSScriptRoot 'runtime\\python'\n"
-        "$world = Join-Path $PSScriptRoot (('worlds\\grand_prix_route_v2_{0:D2}_fps{1}.wbt' -f $index, $fpsText))")
+        "$world = Join-Path $PSScriptRoot (('worlds\\grand_prix_route_v2_{0:D2}_fps20.wbt' -f $index))")
     text = replace_once(text, old, new)
     # The .cmd invokes Windows PowerShell 5.1, where Get-Content -Raw
     # decodes UTF-8-without-BOM world files using the system ANSI codepage.
@@ -220,7 +223,7 @@ def launch_script(text):
     # installed project (not a modified main-world or shared HTML) per launch.
     replacement = r"""
 function New-WebeeBlocksRobotWindowSession {
-  param($RobotWindow, [string]$WorldText, [string]$PerspectivePath)
+  param($RobotWindow, [string]$WorldText, [string]$PerspectivePath, [int]$RequestedFps)
   $token = [Guid]::NewGuid().ToString('N').Substring(0, 12)
   $staging = Join-Path $PSScriptRoot ("._gp_route_session_" + $PID + "_" + $token)
   if (Test-Path -LiteralPath $staging) { throw 'Session deja existante.' }
@@ -248,6 +251,38 @@ function New-WebeeBlocksRobotWindowSession {
     if ($contents -cne $WorldText -or
         [regex]::Matches($contents, 'window "grand_prix_route_v2"').Count -ne 1) {
       throw 'Scene/identite native modifiee dans la session.'
+    }
+    # Check the packaged canonical scene first. Mutate the sole FPS field
+    # only in this isolated session, before native Webots attestation/READY.
+    if ($RequestedFps -lt 1 -or $RequestedFps -gt 60) {
+      throw 'FPS de session hors plage 1..60.'
+    }
+    $anchor = 'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo { basicTimeStep 8 randomSeed 1 FPS 20 '
+    if ([regex]::Matches($contents, [regex]::Escape($anchor)).Count -ne 1 -or
+        [regex]::Matches($contents, 'WorldInfo \{').Count -ne 1) {
+      throw 'WorldInfo canonique inattendu : modification FPS refusee.'
+    }
+    $replacement = $anchor.Replace(' FPS 20 ', (' FPS ' + $RequestedFps + ' '))
+    $adjusted = $contents.Replace($anchor, $replacement)
+    if ($RequestedFps -ne 20) {
+      $originalName = [IO.Path]::GetFileName($sessionWorld)
+      if (-not $originalName.EndsWith('_fps20.wbt', [StringComparison]::Ordinal)) {
+        throw 'Nom du monde canonique inattendu.'
+      }
+      $name = $originalName.Substring(0, $originalName.Length - 6) + $RequestedFps + '.wbt'
+      $targetWorld = Join-Path (Split-Path -Parent $sessionWorld) $name
+      $targetPerspective = Join-Path (Split-Path -Parent $sessionPerspective) ('.' + [IO.Path]::GetFileNameWithoutExtension($name) + '.wbproj')
+      if ((Test-Path -LiteralPath $targetWorld) -or (Test-Path -LiteralPath $targetPerspective)) {
+        throw 'Fichier FPS de session deja present.'
+      }
+      [IO.File]::WriteAllText($targetWorld, $adjusted, [Text.UTF8Encoding]::new($false))
+      Copy-Item -LiteralPath $sessionPerspective -Destination $targetPerspective
+      $sessionWorld = $targetWorld
+      $sessionPerspective = $targetPerspective
+    }
+    if ([IO.File]::ReadAllText($sessionWorld, [Text.Encoding]::UTF8) -cne $adjusted -or
+        [regex]::Matches($adjusted, 'FPS ' + [regex]::Escape([string]$RequestedFps) + ' ').Count -ne 1) {
+      throw 'Modification FPS strictement bornee non verifiee.'
     }
     $view = [IO.File]::ReadAllText($sessionPerspective, [Text.Encoding]::UTF8)
     $clean = [regex]::Replace($view,
@@ -300,7 +335,7 @@ if ($ValidateOnly) {
   # checking the world text would miss unsupported .NET methods in the GUI path.
   if ($worldText -cnotmatch 'window "grand_prix_route_v2"' -or
       $worldText -cnotmatch 'basicTimeStep 8' -or
-      $worldText -cnotmatch 'FPS (15|20|25)' -or
+      $worldText -cnotmatch 'FPS 20' -or
       $worldText -cnotmatch 'controller "grand_prix_route_evaluator"') {
     throw 'Scene Grand Prix variable incomplete.'
   }
@@ -308,8 +343,13 @@ if ($ValidateOnly) {
   $testSession = $null
   try {
     $testServer = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
-    $testSession = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective
+    $testSession = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective -RequestedFps ([int]$fpsText)
     Set-WebeeBlocksSessionHtml -Session $testSession -Port $testServer.Port | Out-Null
+    $stagedWorldText = [IO.File]::ReadAllText($testSession.World, [Text.Encoding]::UTF8)
+    if ($stagedWorldText -cnotmatch ('FPS ' + [regex]::Escape([string]$fpsText) + ' ') -or
+        [IO.Path]::GetFileName($testSession.World) -cnotmatch ('_fps' + [regex]::Escape([string]$fpsText) + '\.wbt$')) {
+      throw 'FPS natifs de session incorrects.'
+    }
     if (-not (Test-Path -LiteralPath $testSession.World -PathType Leaf) -or
         -not (Test-Path -LiteralPath $testSession.Html -PathType Leaf) -or
         -not (Test-Path -LiteralPath $testSession.Perspective -PathType Leaf) -or
@@ -331,6 +371,10 @@ if ($ValidateOnly) {
 
 """
     text = text[:start] + replacement + text[end:]
+    # The ordinary GUI path must use the same bounded preflight staging.
+    text = replace_once(text,
+        "  $session = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective",
+        "  $session = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective -RequestedFps ([int]$fpsText)")
     # The actual embedded interpreter must be in the isolated session root.
     text = replace_once(text, "  $webotsProcess = Start-Process -FilePath $webots",
         "  $env:WEBEEBLOCKS_GP_PYTHON_DIR = Join-Path $session.Staging 'runtime\\python'\n"
@@ -387,7 +431,7 @@ def compose(classroom, evaluated, webots_home, webots_source, output):
     launch.write_text(launch_script(launch.read_text(encoding="utf-8-sig")),
                       encoding="utf-8-sig")
     (output / "Lancer-Grand-Prix.cmd").write_text(
-        '@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Grand-Prix.ps1"\r\n'
+        '@echo off\r\npowershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Grand-Prix.ps1"\r\n'
         'exit /b %ERRORLEVEL%\r\n', encoding="utf-8")
     shutil.copyfile(ROOT / "packaging/windows/Lancer-Grand-Prix.ps1",
                     output / "Lancer-Grand-Prix.ps1")
@@ -404,7 +448,9 @@ def compose(classroom, evaluated, webots_home, webots_source, output):
     (output / "PR970_SHA").write_text(PR970_SHA + "\n", encoding="utf-8")
     (output / "COURSES.json").write_text(json.dumps({
         "profile": "progression-grand-prix-route-v2",
-        "course_ids": course_ids, "fps": list(FPS), "physics_step_ms": 8
+        "course_ids": course_ids, "fps": list(FPS),
+        "fps_default": DEFAULT_FPS, "fps_min": FPS_MIN, "fps_max": FPS_MAX,
+        "fps_step": 1, "fps_session_only": True, "physics_step_ms": 8
     }, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(ROOT / "docs/GRAND_PRIX_ROUTE_WINDOWS_EXPERIMENT.md",
                     output / "README-WINDOWS.md")

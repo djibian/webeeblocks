@@ -4,8 +4,10 @@
 Ce ZIP est indépendant du Grand Prix U historique. Il contient Blockly 13.2.1,
 le vrai pilote natif grand_prix_route_flight, le vrai évaluateur
 grand_prix_route_evaluator sous la politique de scène classroom-static-v1
-de la PR #970, les douze parcours canoniques et trois fréquences
-d'affichage Webots natives (15, 20 et 25 FPS), choisies pour l'essai apparié. Il n'autorise aucun vol réel.
+de la PR #970, les douze parcours canoniques et un seul monde physique de référence par
+parcours (20 FPS). Au lancement, seul le plafond graphique est remplacé dans
+une copie de session isolée, pour choisir chaque valeur entière de 1 à 60 FPS.
+L'exécution Webots effectue ensuite une nouvelle attestation native complète. Il n'autorise aucun vol réel.
 
 ## Installation et intégrité
 
@@ -22,14 +24,21 @@ ni Internet pour l'usage normal sur le poste Windows.
 3. Vérifier SOURCE_SHA, PR970_SHA, COMPOSITION.json, COURSES.json et
    MANIFEST.sha256 avant l'essai.
 4. Fermer toute autre instance Webots, puis lancer Lancer-Grand-Prix.cmd.
-   Choisir un parcours **0 à 11**, puis **15, 20 ou 25 FPS**. Valeurs par
-   défaut : parcours 5, fréquence native 20 FPS.
-   Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 20,
+   Choisir un parcours **0 à 11**, puis utiliser le **curseur 1–60 FPS**
+   (pas de 1 FPS, réglage initial **20 FPS**) dans la fenêtre Windows.
+   Valeurs par défaut : parcours 5, rendu Webots 20 FPS.
+   Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 20 (aucune fenêtre de sélection
+   si -Fps est fourni),
    ou définir WEBEEBLOCKS_GP_INDEX et WEBEEBLOCKS_GP_FPS puis utiliser
    Launch-WebeeBlocks.cmd.
 
 **Attention :** le choix des FPS fixe seulement le plafond de rafraîchissement
-3D WorldInfo.FPS en mode Webots « Real-time ». Il ne constitue pas
+3D WorldInfo.FPS en mode Webots « Real-time ». La seule mutation contrôlée
+   se produit dans une copie temporaire **avant le démarrage de Webots**.
+   Aucun changement en plein vol ni accès à ce champ depuis Blockly.
+   Le paquet de référence ne contient que 12 mondes fixes à 20 FPS ; les
+   autres réglages sont matérialisés à la demande puis complètement éliminés
+   à la fermeture de Webots. Il ne constitue pas
 une mesure des FPS effectivement affichés et **ne change jamais**
 basicTimeStep 8 ms, la résolution 100 %, la physique, les capteurs, le
 pilote ou les oracles. Ne pas activer d'options de rendu dégradé.
@@ -90,9 +99,17 @@ plafond 25 FPS = 0,85×, 30 FPS = 0,70×, 60 FPS = 0,35× ; fluidité jugée
 « Fluide » dans les trois cas. Les produits plafond × vitesse sont proches
 de 21 images/s : indice d'un coût lié au rendu et à sa synchronisation,
 **pas une mesure directe des FPS affichés** ni une preuve du goulot GPU.
-La variante 15/20/25 vise à tester l'hypothèse ~1× à 20 FPS. Comparer
+Le curseur 1..60 permet le libre choix du plafond. Les mesures humaines
+plus récentes sur Lenovo 15 FPS : environ 0,95×, 20 FPS : environ 0,80×,
+25 FPS : environ 0,70× sont des estimations visuelles **fluctuantes pendant
+le vol**, et non des quantiles instrumentés. Comparer
 la même caméra, résolution, géométrie, programme et vol sur le même hôte ;
 ne pas extrapoler un succès à tous les parcours ou réglages.
+
+Un réglage très bas, par exemple 1–5 FPS, peut rendre les mouvements
+visuellement illisibles même si la physique tourne correctement. Ce curseur
+est un outil expérimental et ne garantit pas 1×. Il n'est **pas adaptatif**
+pendant le vol : cela exigerait une qualification séparée.
 
 Seuils **indicatifs et non éliminatoires isolément** selon #914 :
 vitesse ≥0,95×, 25–30 FPS réellement visibles, p99 ≤25 ms et
