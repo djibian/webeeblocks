@@ -69,6 +69,9 @@ def run()->int:
     success=re.search(
         r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=achieved\b[^\n]*\bairborne=1\b[^\n]*\bcrossed=1\b[^\n]*\bcontact=0\b[^\n]*\bcompletion=1\b',txt)
     messages=re.findall(r'WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (?:OK|SCENE_OK [0-9a-f]{64})',txt)
+    # Seven acknowledged requests: SCENE then six pupil actions. COMPLETE
+    # signals the evaluator through native state and has no WWI ACK.
+    # Check exact sequence, not an arbitrary lower-bound response count.
     request_count=len(messages)
     browser_dir=ARTIFACT.parent
     launch_file=browser_dir/'browser-launch.log'
@@ -76,7 +79,8 @@ def run()->int:
     valid_launch='BROWSER_LAUNCHED args=' in launch and 'altitude_pupil_probe.html' in launch
     valid=('WEBEEBLOCKS_ALTITUDE_READY scene=altitude-v1 oracle=progression-altitude-3d-v1' in txt and
         ' SCENE_OK ' in txt and
-        success is not None and request_count>=8 and valid_launch and event_order and
+        success is not None and messages==[str(n) for n in range(1,8)] and
+        valid_launch and event_order and
         'PUPIL_ERROR' not in names and
         'WEBEEBLOCKS_ALTITUDE_FATAL' not in txt and
         'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in txt and
