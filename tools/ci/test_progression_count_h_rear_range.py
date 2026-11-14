@@ -41,7 +41,9 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         source=(diagnostic.ROOT /
                 "controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")
-        self.assertIn("wb_supervisor_node_get_contact_points", source)
+        self.assertIn("wb_supervisor_node_get_contact_points(self, true, &contact_count)", source)
+        self.assertIn("wb_supervisor_node_get_contact_points(self, true, &control_contacts)", source)
+        self.assertNotIn("wb_supervisor_node_get_contact_points(self, &contact_count, true)", source)
         self.assertIn("for (int i = 0; i <= 144 + 28 * 2; ++i)", source)
         self.assertIn("return invalid(\"contact detector failed deliberate H-bar intersection\")", source)
         self.assertIn("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d", source)

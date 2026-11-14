@@ -105,7 +105,7 @@ int main(void) {
     const double *actual = wb_supervisor_node_get_position(self);
     int contact_count = -1;
     const WbContactPoint *contacts =
-      wb_supervisor_node_get_contact_points(self, &contact_count, true);
+      wb_supervisor_node_get_contact_points(self, true, &contact_count);
     if (!actual || !isfinite(actual[0]) || !isfinite(actual[1]) ||
         !isfinite(actual[2]) || fabs(actual[0] - xyz[0]) > 0.035 ||
         fabs(actual[1] - xyz[1]) > 0.035 ||
@@ -136,7 +136,7 @@ int main(void) {
     return invalid("contact control step unavailable");
   int control_contacts = -1;
   const WbContactPoint *control =
-    wb_supervisor_node_get_contact_points(self, &control_contacts, true);
+    wb_supervisor_node_get_contact_points(self, true, &control_contacts);
   if (control_contacts <= 0 || !control)
     return invalid("contact detector failed deliberate H-bar intersection");
   printf("WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=%d samples=%d "
