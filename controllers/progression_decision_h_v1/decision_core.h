@@ -27,6 +27,9 @@
 #define WB_DH_LAND_Z 0.070
 #define WB_DH_LAND_MAX_SPEED 0.120
 #define WB_DH_SETTLE_SEC 1.500
+/* An instant at the target is not an immobile landing. Preserve enough
+ * consecutive physical samples to exclude an in-motion crossing. */
+#define WB_DH_LAND_DWELL_SEC 0.250
 #define WB_DH_MAX_Z 1.100
 
 typedef enum {
@@ -52,7 +55,7 @@ typedef struct {
 typedef struct {
   unsigned long long attempt;
   wb_dh_scene scene;
-  double origin_z, completion_at, last_time;
+  double origin_z, completion_at, last_time, landed_since;
   unsigned stage; /* 0 before first, 1 inside first, 2 cleared first,
                    * 3 inside second, 4 cleared both. */
   int airborne, before_first, before_second, completion_seen;
@@ -67,6 +70,7 @@ static inline void wb_dh_reset(wb_dh_mission *m, unsigned long long attempt,
   m->scene = scene;
   m->origin_z = origin_z;
   m->last_time = -1.0;
+  m->landed_since = -1.0;
 }
 
 static inline int wb_dh_valid_sample(const wb_dh_sample *s) {
@@ -167,9 +171,17 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   const int whole_craft_on_pad =
     fabs(s->x - WB_DH_LAND_X) <= WB_DH_LAND_TOL &&
     fabs(s->y - WB_DH_LAND_Y) <= WB_DH_LAND_TOL;
-  if (landed && still && whole_craft_on_pad)
-    m->verdict = WB_DH_ACHIEVED;
-  else if (s->time - m->completion_at >= WB_DH_SETTLE_SEC)
+  if (landed && still && whole_craft_on_pad) {
+    if (m->landed_since < 0.0)
+      m->landed_since = s->time;
+    if (s->time - m->landed_since >= WB_DH_LAND_DWELL_SEC)
+      m->verdict = WB_DH_ACHIEVED;
+  } else {
+    /* Any excursion, vertical drift or renewed motion restarts the dwell. */
+    m->landed_since = -1.0;
+  }
+  if (m->verdict == WB_DH_WAIT &&
+      s->time - m->completion_at >= WB_DH_SETTLE_SEC)
     m->verdict = WB_DH_NOT_ACHIEVED;
   return m->verdict;
 }

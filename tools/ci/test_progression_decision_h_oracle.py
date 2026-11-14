@@ -63,13 +63,17 @@ static void completed_route(wb_dh_mission *m, int attempt, wb_dh_scene scene) {
 int main(void) {
   wb_dh_mission m;
   completed_route(&m,1,WB_DH_SCENE_A);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_ACHIEVED);
+  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8.125,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
   assert(tick(&m,9,5,5,5,99,-1,1)==WB_DH_ACHIEVED); // immutable terminal
   completed_route(&m,2,WB_DH_SCENE_B);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_ACHIEVED);
+  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
   // RESET must clear all mission stages/markers and not inherit a PASS.
   wb_dh_reset(&m,3,WB_DH_SCENE_A,.035);
   assert(!m.stage&&!m.airborne&&!m.before_first&&!m.completion_seen);
+  assert(m.landed_since == -1.0);
   assert(tick(&m,0,1.75,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
   // Wrong blind constant altitude: near gate is H in A, raised threshold in B.
   takeoff(&m,4,WB_DH_SCENE_A);
@@ -111,6 +115,27 @@ int main(void) {
     assert(tick(&m,8,x,y,z,vx,0,1)==WB_DH_WAIT);
     assert(tick(&m,10,x,y,z,vx,0,0)==WB_DH_NOT_ACHIEVED);
   }
+  // An instantaneous valid landing sample must never earn a mission PASS.
+  completed_route(&m,26,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8.18,1.75,.20,.035,0,0,0)==WB_DH_WAIT);
+  assert(m.landed_since == -1.0); // the whole craft left the pad
+  assert(tick(&m,8.25,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.45,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.51,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  // A late arrival with less than the required continuous dwell fails.
+  completed_route(&m,27,WB_DH_SCENE_B);
+  assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.39,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.51,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+  // A valid landing that develops motion must restart its dwell clock.
+  completed_route(&m,28,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8.16,1.75,0,.035,.30,0,0)==WB_DH_WAIT);
+  assert(m.landed_since == -1.0);
+  assert(tick(&m,8.30,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.50,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.57,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
   // Wrong chronology, unknown observations, invalid scene, repeated timestamp.
   takeoff(&m,30,WB_DH_SCENE_A);
   assert(tick(&m,1,.2,0,.75,0,0,0)==WB_DH_NOT_ACHIEVED);
@@ -151,6 +176,9 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_ORACLE "progression-decision-h-v1"', content)
         self.assertIn('WB_DH_SCENE_A', content)
         self.assertIn('WB_DH_SCENE_B', content)
+        self.assertIn('WB_DH_LAND_DWELL_SEC 0.250', content)
+        self.assertIn('m->landed_since = -1.0', content)
+        self.assertIn('s->time - m->landed_since >= WB_DH_LAND_DWELL_SEC', content)
         self.assertIn('wb_dh_sample_mission', content)
         self.assertNotIn('radio_link', content)
         self.assertNotIn('#include <webots/', content)
