@@ -23,14 +23,20 @@ class VariableNativeAdmissionTests(unittest.TestCase):
             (base / 'webots/plugins/robot_window').mkdir(parents=True)
             (base / 'webots/robot.h').write_text(
                 'extern "C" double wb_robot_get_time();\n'
+                'extern "C" double wb_robot_get_basic_time_step();\n'
                 'extern "C" void wb_robot_wwi_send_text(const char*);\n'
                 'extern "C" int wb_robot_step(int);\n'
                 'extern "C" const char* wb_robot_wwi_receive_text();\n')
             (base / 'webots/plugins/robot_window/default.h').write_text('')
             (base / 'webots/supervisor.h').write_text('''typedef void* WbNodeRef; typedef void* WbFieldRef;
+#define WB_SF_FLOAT 1
 extern "C" WbNodeRef wb_supervisor_node_get_from_def(const char*);
 extern "C" WbNodeRef wb_supervisor_node_get_self();
+extern "C" const char* wb_supervisor_node_get_type_name(WbNodeRef);
 extern "C" WbFieldRef wb_supervisor_node_get_field(WbNodeRef,const char*);
+extern "C" int wb_supervisor_field_get_type(WbFieldRef);
+extern "C" double wb_supervisor_field_get_sf_float(WbFieldRef);
+extern "C" void wb_supervisor_field_set_sf_float(WbFieldRef,double);
 extern "C" void wb_supervisor_field_set_sf_string(WbFieldRef,const char*);
 extern "C" const char* wb_supervisor_field_get_sf_string(WbFieldRef);
 extern "C" int wb_supervisor_field_get_count(WbFieldRef);
@@ -54,6 +60,11 @@ extern "C" int wb_supervisor_simulation_get_mode();
 std::string vehicle, request, evidence, config, reply, sample;
 const std::string canonical="gp-route-v2-L2000-2500-3000-TGD-s17-H2";
 int argsCount=1; double now=2.112; bool present=true, description=true;
+// The WorldInfo.FPS fake mimics Webots' deferred write between actual steps.
+int worldMarker=0,worldFieldType=WB_SF_FLOAT;
+bool worldAvailable=true;
+double worldFps=20,stagedFps=std::numeric_limits<double>::quiet_NaN();
+double stagedAt=-1,basicStep=8;
 int simMode=WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME,zeroSteps=0;
 bool loseBrowserOnPauseAck=false;
 extern "C" int gp_route_test_pause_watchdog_after_ms(int);
@@ -61,6 +72,7 @@ extern "C" void gp_route_test_age_pause_heartbeat_ms(int);
 std::deque<std::string> messages;std::string delivered;
 std::vector<std::string> sent;
 extern "C" double wb_robot_get_time(){return now;}
+extern "C" double wb_robot_get_basic_time_step(){return basicStep;}
 extern "C" void wb_robot_wwi_send_text(const char* s){
  reply=s;sent.push_back(s);
  if(loseBrowserOnPauseAck && !std::strncmp(s,"GP_ROUTE_PAUSE_V1 PAUSED ",25)){
@@ -73,10 +85,17 @@ extern "C" void wb_supervisor_simulation_set_mode(int mode){simMode=mode;}
 extern "C" int wb_supervisor_simulation_get_mode(){return simMode;}
 extern "C" void* wb_supervisor_node_get_self(){return &vehicle;}
 extern "C" void* wb_supervisor_node_get_from_def(const char* def){
+ if(!std::strcmp(def,"WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD"))
+  return worldAvailable?&worldMarker:nullptr;
  assert(!std::strcmp(def,"GP_ROUTE_EVALUATOR"));return present?&request:nullptr;
 }
+extern "C" const char* wb_supervisor_node_get_type_name(void* node){
+ return node==&worldMarker?"WorldInfo":"Other";
+}
 extern "C" void* wb_supervisor_node_get_field(void* node,const char* field){
- if(node==&vehicle){
+ if(node==&worldMarker){
+  if(!std::strcmp(field,"FPS"))return &worldFps;
+ }else if(node==&vehicle){
   if(!std::strcmp(field,"customData"))return &vehicle;
   if(!std::strcmp(field,"controllerArgs"))return &config;
  }else if(node==&request){
@@ -85,6 +104,23 @@ extern "C" void* wb_supervisor_node_get_field(void* node,const char* field){
   if(!std::strcmp(field,"description"))return description?&evidence:nullptr;
  }
  return nullptr;
+}
+extern "C" int wb_supervisor_field_get_type(void* f){
+ return f==&worldFps?worldFieldType:0;
+}
+extern "C" double wb_supervisor_field_get_sf_float(void* f){
+ assert(f==&worldFps);
+ if(std::isfinite(stagedFps) && std::isfinite(now) && now>stagedAt){
+  worldFps=stagedFps;
+  stagedFps=std::numeric_limits<double>::quiet_NaN();
+  stagedAt=-1;
+ }
+ return worldFps;
+}
+extern "C" void wb_supervisor_field_set_sf_float(void* f,double value){
+ assert(f==&worldFps && value>=1 && value<=60 && std::isfinite(value));
+ assert(!std::isfinite(stagedFps)); // No overlapping native field mutation.
+ stagedFps=value;stagedAt=now;
 }
 extern "C" const char* wb_supervisor_field_get_sf_string(void* f){return static_cast<std::string*>(f)->c_str();}
 extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* value){
@@ -495,6 +531,63 @@ int main(){
  std::printf("GP_ROUTE_CAPTURED %s|%s\n",request.c_str(),sample.c_str());
  admit();now=212.112;gp_route_observe_native(now,1,0,ranges);assert(sample.empty());
  assert(gp_u_deadline(now,0)==1); // snapshot publication cannot rescue exact expiry
+ // Prove the compiled route-only FPS guard with a deferred Supervisor fake.
+ // These tests do not simulate rendering and do not replace real Webots CI.
+ {
+  const std::string nonce(32,'f');
+  const std::string get="GP_ROUTE_FPS_V1 GET nonce="+nonce;
+  const std::string set17="GP_ROUTE_FPS_V1 SET fps=17 nonce="+nonce;
+  fresh();ready();assert(worldFps==20 && basicStep==8);
+  assert(gp_u_filter_raw(get.c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 CURRENT nonce="+nonce+" fps=20");
+  assert(gp_u_filter_raw(("GP_ROUTE_FPS_V1 SET fps=61 nonce="+nonce).c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 REFUSED nonce="+nonce+" reason=INVALID");
+  reply.clear();
+  assert(gp_u_filter_raw(set17.c_str())==0);
+  assert(reply.empty() && worldFps==20 && std::isfinite(stagedFps));
+  gp_u_file_idle(1); // Same native step: no premature confirmation.
+  assert(reply.empty() && worldFps==20);
+  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 TAKEOFF")==0);
+  assert(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 55 ERR BUSY");
+  reply.clear();now+=0.008;
+  gp_u_file_idle(1);
+  assert(reply=="GP_ROUTE_FPS_V1 APPLIED nonce="+nonce+" fps=17");
+  assert(worldFps==17 && !std::isfinite(stagedFps));
+  assert(gp_u_filter_raw(get.c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 CURRENT nonce="+nonce+" fps=17");
+
+  admit();reply.clear();
+  assert(gp_u_filter_raw(("GP_ROUTE_FPS_V1 SET fps=18 nonce="+nonce).c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 REFUSED nonce="+nonce+" reason=BUSY");
+  assert(worldFps==17 && !std::isfinite(stagedFps));
+  gp_u_reset_complete();
+
+  // Test both permitted extremes and return to 20, retaining 8-ms physics.
+  for(int wanted:{1,60,20}){
+   fresh();ready();reply.clear();
+   const std::string set="GP_ROUTE_FPS_V1 SET fps="+std::to_string(wanted)+" nonce="+nonce;
+   assert(gp_u_filter_raw(set.c_str())==0);
+   assert(reply.empty() && std::isfinite(stagedFps));
+   gp_u_file_idle(1);assert(reply.empty());
+   now+=0.008;gp_u_file_idle(1);
+   assert(reply=="GP_ROUTE_FPS_V1 APPLIED nonce="+nonce+
+          " fps="+std::to_string(wanted));
+   assert(worldFps==wanted && !std::isfinite(stagedFps));
+  }
+
+  fresh();ready();worldAvailable=false;reply.clear();
+  assert(gp_u_filter_raw(get.c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 REFUSED nonce="+nonce+" reason=WORLD_UNAVAILABLE");
+  worldAvailable=true;basicStep=16;reply.clear();
+  assert(gp_u_filter_raw(get.c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 REFUSED nonce="+nonce+" reason=WORLD_UNAVAILABLE");
+  basicStep=8;worldFieldType=0;reply.clear();
+  assert(gp_u_filter_raw(get.c_str())==0);
+  assert(reply=="GP_ROUTE_FPS_V1 REFUSED nonce="+nonce+" reason=WORLD_UNAVAILABLE");
+  worldFieldType=WB_SF_FLOAT;reply.clear();
+  assert(gp_u_filter_raw("GP_ROUTE_FPS_V1 GET nonce=invalid")==0);
+  assert(reply.empty()); // Noncanonical nonce never grants an API operation.
+ }
 }
 ''')
             binary = base / 'test'
