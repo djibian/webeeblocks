@@ -94,7 +94,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "altitudeObserverProcess",
             "altitudeObserverEnteredController",
             "Cannot connect to Webots instance",
-            "all four PE/IPC load witnesses",
+            "all five PE/IPC load witnesses",
         ):
             self.assertIn(mandatory, witness)
         scene = (ROOT / "worlds" / "scenes" / "altitude-v1.wbo").read_text(
@@ -102,6 +102,46 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn('controller "progression_altitude_v1"', scene)
         self.assertIn("DEF ACTIVITY2_START_CANOPY Solid", scene)
         self.assertNotIn("progression_altitude_v1", (
+            ROOT / "controllers" / "crazyflie_runtime_v2" / "Makefile"
+        ).read_text(encoding="utf-8"))
+
+    def test_activity3_native_windows_payload_is_complete(self) -> None:
+        # This is a new school-only observer and scene, not an activation
+        # of the Activity 3 pupil profile or a qualification for physical flight.
+        packager = (ROOT / "tools" / "build_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        witness = (ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        native = ROOT / "controllers" / "progression_orientation_3d"
+        self.assertTrue((native / "Makefile").exists())
+        self.assertTrue((native / "progression_orientation_3d.c").exists())
+        for mandatory in (
+            "$orientationObserverDir = Join-Path $repoRoot 'controllers\\progression_orientation_3d'",
+            "& $make -C $orientationObserverDir clean",
+            "& $make -C $orientationObserverDir",
+            "progression_orientation_3d.exe",
+            "Copy-RequiredFile $orientationObserverBinary",
+            "'orientation-v1.wbo'",
+        ):
+            self.assertIn(mandatory, packager)
+        for mandatory in (
+            "'controllers\\progression_orientation_3d\\progression_orientation_3d.exe'",
+            "'worlds\\scenes\\orientation-v1.wbo'",
+            "Activity 3 scene does not match native-tested source.",
+            "Activity 3 native supervisor differs from the freshly built Webots executable.",
+            "Activity 3 supervisor is not a Windows PE executable.",
+            "progression_orientation_3d.py",
+            "orientationObserverProcess",
+            "orientationObserverEnteredController",
+            "Cannot connect to Webots instance",
+            "all five PE/IPC load witnesses",
+        ):
+            self.assertIn(mandatory, witness)
+        scene = (ROOT / "worlds" / "scenes" / "orientation-v1.wbo").read_text(
+            encoding="utf-8")
+        self.assertIn('controller "progression_orientation_3d"', scene)
+        self.assertIn("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group", scene)
+        self.assertNotIn("progression_orientation_3d", (
             ROOT / "controllers" / "crazyflie_runtime_v2" / "Makefile"
         ).read_text(encoding="utf-8"))
 
