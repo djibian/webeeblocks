@@ -55,6 +55,8 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertIn("int(sweep[0][1])!=201", runner)
         self.assertIn("int(sweep[0][2])<1", runner)
         self.assertIn("A6_CONTACT_SWEEP_NATIVE_OK", runner)
+        self.assertIn('TOKEN="WEBEEBLOCKS_COUNT_H_SWEEP_PASS"', runner)
+        self.assertNotIn('TOKEN="WEBEEBLOCKS_COUNT_H_BACK_MASKED"', runner)
 
     def test_refuse_unknown_scene_or_corrupted_start(self):
         for n in (0,4,-1,'1'):

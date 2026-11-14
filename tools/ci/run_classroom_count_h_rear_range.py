@@ -21,7 +21,7 @@ MARKER="# WEBEEBLOCKS_A6_REAR_RANGE_NEGATIVE_CI_ONLY"
 PROJECT_TEXT="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 EXPECTED={1:(0.12,0.31),2:(0.12,0.31),3:(0.12,0.31)}
 PADS=(0.0,0.55,-0.55)
-TOKEN="WEBEEBLOCKS_COUNT_H_BACK_MASKED"
+TOKEN="WEBEEBLOCKS_COUNT_H_SWEEP_PASS"
 
 
 def compose(n,source=None):
