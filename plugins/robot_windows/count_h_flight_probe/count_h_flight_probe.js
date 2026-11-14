@@ -1,0 +1,43 @@
+'use strict';
+// CI physical-feasibility probe only: no Blockly, no pupil .wbb,
+// no product A6 SCENE registry or real-Crazyflie capability assertion.
+// Standard WebeeBlocks runtime-v2 commands drive actual PID/motors.
+let chain=Promise.resolve();
+function report(event,detail) {
+  chain=chain.then(()=>fetch('http://127.0.0.1:8765/event',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({event,detail:detail||null,wall_ms:Date.now()})
+  }).then(r=>{if(!r.ok)throw new Error('observer rejected '+event);}));
+  return chain;
+}
+window.addEventListener('error', e=>report('A6_ERROR',{message:String(e.message)}));
+window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:String(e.reason)}));
+(async()=>{
+  try {
+    const response=await window.WB_A6_BOOTSTRAP;
+    if(!response||!response.ok)throw new Error('HTML bootstrap not acknowledged');
+    await report('A6_JS_STARTED',{mode:'native-motor-no-Blockly'});
+    const module=await import('../blockly_v2/webots/RobotWindow.js');
+    const bridge=new module.default();
+    const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
+      {simulationScenes:true,timeoutMs:60000});
+    bridge.receive=s=>backend.handleMessage(String(s));
+    await backend.waitUntilReady();
+    await report('A6_RUNTIME_READY',{native:true});
+    // Private test request: the product backend intentionally does NOT list
+    // A6 among admitted activity profiles. This does NOT qualify that missing
+    // product scene integration; only our isolated CI adapter accepts it.
+    await backend._request(['SCENE','count-h-1-v1']);
+    await report('A6_SCENE_ACK',{diagnosticOnly:true,variant:1});
+    await backend.setSpeed(0.20);
+    await backend.takeoff(0.40);
+    await report('A6_TAKEOFF',{height_m:.40});
+    for(let i=0;i<6;i++)await backend.move('forward',0.48);
+    await report('A6_CORRIDOR_DONE',{moves:6,distance_m:2.88});
+    await backend.land();
+    await report('A6_LANDED',{nativeReply:true});
+    await report('A6_TEST_COMPLETE',{testOnly:true});
+  }catch(error){
+    await report('A6_ERROR',{message:String(error&&(error.stack||error.message)||error)});
+  }
+})();

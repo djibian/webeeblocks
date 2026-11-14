@@ -1,7 +1,8 @@
 # Non-decision evidence for the Activity 6 Draft's independent C oracle.
-# Source world contracts and synthetic compiled native C behavior ONLY.
-# Neither actual Webots R2025a sensor/flight physics nor pupil Blockly
-# nor a V5 Ready/CI Gate approval is certified by this workflow.
+# Tests native Webots R2025a sensor/contact and a diagnostic n=1 motor
+# flight using the authentic PID with a test-only isolated scene adapter.
+# Does NOT certify Blockly, an A6 product scene profile, 2/3 H flights,
+# pupil mission, hardware, V5 Ready approval or integration CI Gate.
 name: Activity 6 Draft C mission witness
 
 on:
@@ -36,7 +37,8 @@ jobs:
           python3 -m unittest -v \
             tools.ci.test_progression_count_h_scene \
             tools.ci.test_progression_count_h_oracle \
-            tools.ci.test_progression_count_h_rear_range
+            tools.ci.test_progression_count_h_rear_range \
+            tools.ci.test_progression_count_h_motor_flight
       - name: Require Draft witness remains outside integration gates
         run: |
           python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision
@@ -62,4 +64,28 @@ jobs:
         with:
           name: a6-draft-rear-range-negative-evidence
           path: ci-artifacts/progression-count-h-rear-range/
+          if-no-files-found: warn
+      # The first n=1 physical pilot is a test-only scene adapter around the
+      # actual product runtime/PID. No pupil A6 profile or oracle is claimed.
+      - name: Build authentic motor-runtime flight and independent native observer
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; cd controllers/progression_count_h_school_pilot; make clean; make; cd /workspace/controllers/progression_count_h_flight_observer; make clean; make'
+      - name: Fly one H and cyan terminal with real R2025a PID and native contact oracle
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_count_h_motor_flight.py'
+      - name: Preserve A6 motorized physical witness even when it fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-draft-motor-flight-native-evidence
+          path: ci-artifacts/progression-count-h-motor/
           if-no-files-found: warn

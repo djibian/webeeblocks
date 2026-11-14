@@ -1,0 +1,154 @@
+/* A6 single-variant diagnostic: genuine, motor-driven Webots R2025a flight.
+ * Separate observer Robot: does not command flight, read pupil JS or AST,
+ * or publish a product mission verdict. Only a CI physical witness.
+ * Product Grand Prix and real Crazyflie safety binaries are not linked.
+ */
+#include "../progression_count_h_v1/count_core.h"
+#include <webots/robot.h>
+#include <webots/supervisor.h>
+#include <webots/contact_point.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+static WbNodeRef find_craft(void) {
+  WbNodeRef root=wb_supervisor_node_get_root();
+  WbFieldRef children=root?wb_supervisor_node_get_field(root,"children"):NULL;
+  WbNodeRef craft=NULL;
+  if(!children)return NULL;
+  for(int i=0;i<wb_supervisor_field_get_count(children);++i) {
+    WbNodeRef node=wb_supervisor_field_get_mf_node(children,i);
+    WbFieldRef name=node?wb_supervisor_node_get_field(node,"name"):NULL;
+    const char *actual=name?wb_supervisor_field_get_sf_string(name):NULL;
+    if(actual&&!strcmp(actual,"Crazyflie WebeeBlocks")) {
+      if(craft)return NULL;
+      craft=node;
+    }
+  }
+  return craft;
+}
+static int box(const char *def,double x,double y,double z,
+               double sx,double sy,double sz,WbNodeRef *result) {
+  WbNodeRef solid=wb_supervisor_node_get_from_def(def);
+  if(!solid||strcmp(wb_supervisor_node_get_type_name(solid),"Solid"))return 0;
+  const double *p=wb_supervisor_node_get_position(solid);
+  WbFieldRef ref=wb_supervisor_node_get_field(solid,"boundingObject");
+  WbNodeRef geom=ref?wb_supervisor_field_get_sf_node(ref):NULL;
+  if(!p||!geom||strcmp(wb_supervisor_node_get_type_name(geom),"Box"))return 0;
+  WbFieldRef size=wb_supervisor_node_get_field(geom,"size");
+  const double *s=size?wb_supervisor_field_get_sf_vec3f(size):NULL;
+  const double a[]={x,y,z},b[]={sx,sy,sz};
+  if(!s)return 0;
+  for(int i=0;i<3;++i)
+    if(!isfinite(p[i])||fabs(p[i]-a[i])>.000001||
+       !isfinite(s[i])||fabs(s[i]-b[i])>.000001)return 0;
+  *result=solid;
+  return 1;
+}
+static int fail(const char *reason) {
+  fprintf(stderr,"WEBEEBLOCKS_A6_MOTOR_FATAL %s\n",reason);
+  fflush(stderr);
+  wb_robot_cleanup();
+  return 2;
+}
+int main(void) {
+  wb_robot_init();
+  const int step=(int)wb_robot_get_basic_time_step();
+  if(step<8||step>64||strcmp(wb_robot_get_name(),"A6 independent motor-flight observer"))
+    return fail("observer identity/timestep");
+  if(!wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_1_SCENE")||
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_2_SCENE")||
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_3_SCENE"))
+    return fail("scene ambiguity");
+  WbNodeRef obstacle[5]={0};
+  if(!box("ACTIVITY6_1_H_1_LEFT",-.85,.30,.50,.07,.065,1.0,&obstacle[0])||
+     !box("ACTIVITY6_1_H_1_RIGHT",-.85,-.30,.50,.07,.065,1.0,&obstacle[1])||
+     !box("ACTIVITY6_1_H_1_BAR",-.85,0,.74,.07,.57,.24,&obstacle[2])||
+     !box("ACTIVITY6_1_FINISH_SCREEN",1.235,0,.76,.07,1.48,.24,&obstacle[3])||
+     !box("ACTIVITY6_1_TERMINAL",1.86,0,.55,.06,1.48,1.10,&obstacle[4]))
+    return fail("source cannot attest native collider geometry");
+  WbNodeRef craft=find_craft();
+  const double *origin=craft?wb_supervisor_node_get_position(craft):NULL;
+  if(!origin||fabs(origin[0]+1.40)>.025||fabs(origin[1])>.025||
+     origin[2]<0.025||origin[2]>0.11)
+    return fail("motor flight did not start at authentic blue zone");
+  const double origin_z=origin[2];
+  wb_count_mission m={0};
+  wb_count_reset(&m,1,1,origin_z);
+  for(int i=0;i<5;++i)
+    wb_supervisor_node_enable_contact_points_tracking(obstacle[i],step,false);
+  double last_x=-1.4,last_y=0,last_z=origin_z;
+  int previous=0, reported_cross=0, screen_seen=0, observations=0;
+  printf("WEBEEBLOCKS_A6_MOTOR_READY n=1 origin_z=%.9f colliders=5\n",origin_z);
+  fflush(stdout);
+  while(wb_robot_step(step)!=-1) {
+    const double *pos=wb_supervisor_node_get_position(craft);
+    const double *velocity=wb_supervisor_node_get_velocity(craft);
+    if(!pos||!velocity)return fail("missing native motor flight kinematics");
+    wb_count_sample sample={0};
+    sample.time=wb_robot_get_time();
+    sample.x=pos[0]; sample.y=pos[1]; sample.z=pos[2];
+    sample.vx=velocity[0];sample.vy=velocity[1];sample.vz=velocity[2];
+    if(!wb_count_valid_sample(&(wb_count_sample){.time=sample.time,
+       .x=sample.x,.y=sample.y,.z=sample.z,.vx=sample.vx,
+       .vy=sample.vy,.vz=sample.vz,.obstacle_contact=0,.completed=0}))
+      return fail("nonfinite native flight observation");
+    if(previous&&
+       (fabs(pos[0]-last_x)>.075||fabs(pos[1]-last_y)>.075||
+        fabs(pos[2]-last_z)>.100))
+      return fail("unphysical supervisor pose discontinuity");
+    last_x=pos[0];last_y=pos[1];last_z=pos[2];previous=1;
+    ++observations;
+    if(sample.time>145.0)return fail("bounded native motor flight timeout");
+    for(int i=0;i<5;++i) {
+      int n=-1;
+      const WbContactPoint *points=
+        wb_supervisor_node_get_contact_points(obstacle[i],false,&n);
+      if(n<0||(n>0&&!points))return fail("missing native collision evidence");
+      if(n) {
+        fprintf(stderr,"WEBEEBLOCKS_A6_MOTOR_FATAL physical_contact collider=%d "
+                       "count=%d x=%.6f y=%.6f z=%.6f\n",
+                       i,n,sample.x,sample.y,sample.z);
+        fflush(stderr);
+        wb_robot_cleanup();
+        return 2;
+      }
+    }
+    if(fabs(sample.x-1.235)<=.03 && sample.x>0 &&
+       fabs(sample.y)<=.10 && sample.z<=.53)screen_seen=1;
+    /* Physical near-ground pose, not JS source or client completion claim.
+     * The ordinary pilot's LAND command is checked separately in the log. */
+    const int pad=(fabs(sample.x-1.48)<=.060 &&
+                   fabs(sample.y)<=.060 &&
+                   sample.z-origin_z<=WB_COUNT_LAND_Z &&
+                   hypot(sample.vx,sample.vy)<=WB_COUNT_LAND_MAX_SPEED &&
+                   fabs(sample.vz)<=WB_COUNT_LAND_MAX_SPEED);
+    sample.completed=pad?1:0;
+    sample.obstacle_contact=0;
+    wb_count_verdict result=wb_count_sample_mission(&m,&sample);
+    if(m.crossed==1&&!reported_cross) {
+      printf("WEBEEBLOCKS_A6_MOTOR_CROSSED n=1 x=%.6f z=%.6f time=%.3f\n",
+             sample.x,sample.z,sample.time);
+      fflush(stdout);reported_cross=1;
+    }
+    if(result==WB_COUNT_NOT_ACHIEVED)return fail("native behavioral oracle rejected flight");
+    if(result==WB_COUNT_ACHIEVED) {
+      if(!screen_seen||!reported_cross||observations<20)
+        return fail("native flight lacks credible full corridor passage");
+      printf("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
+             "crossed=%u screen=%d observations=%d "
+             "x=%.6f y=%.6f z=%.6f\n",
+             m.crossed,screen_seen,observations,sample.x,sample.y,sample.z);
+      fflush(stdout);
+      wb_robot_cleanup();
+      return 0;
+    }
+    if(observations%100==0) {
+      printf("WEBEEBLOCKS_A6_MOTOR_TRACE time=%.3f x=%.6f y=%.6f "
+             "z=%.6f vx=%.6f crossed=%u\n",
+             sample.time,sample.x,sample.y,sample.z,sample.vx,m.crossed);
+      fflush(stdout);
+    }
+  }
+  return fail("native Webots terminated before flight result");
+}
