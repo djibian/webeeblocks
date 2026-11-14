@@ -75,6 +75,15 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn('env["WEBEEBLOCKS_CI_ARTIFACT_DIR"]=str(ARTIFACT)',native)
         self.assertIn('timeout","-k","5s","390s"',native)
 
+    def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
+        school=(ROOT/"controllers/progression_count_h_school_pilot/runtime.ini").read_bytes()
+        reference=(ROOT/"controllers/crazyflie_classroom_v2/runtime.ini").read_bytes()
+        physical=(ROOT/"controllers/crazyflie_runtime_v2/runtime.ini").read_bytes()
+        self.assertEqual(school,reference)
+        self.assertEqual(school,physical)
+        self.assertIn(b"WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots",school)
+        self.assertIn(b"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins",school)
+
     def test_native_build_reuses_existing_pid_without_physical_product_mutation(self):
         make=(ROOT/"controllers/progression_count_h_school_pilot/Makefile").read_text()
         self.assertIn("../crazyflie_runtime_v2/crazyflie_runtime_v2.c",make)
