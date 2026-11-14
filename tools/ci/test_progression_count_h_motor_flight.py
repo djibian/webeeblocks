@@ -86,6 +86,7 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("time.monotonic()-ready_since>=60",native)
         self.assertIn("diagnose_webots_window_http()",native)
         self.assertIn("WEBEEBLOCKS_A6_MOTOR_WINDOW_MANUAL_CI",native)
+        self.assertIn('["bash","/workspace/tools/ci/webots_runtime_v2_browser.sh",page]',native)
         self.assertIn("manual_external_window",native)
         self.assertIn('"product_window_autolaunch_qualified":False',native)
         self.assertIn('get("status")==200',native)

@@ -98,7 +98,7 @@ def run():
                         browser_output=(ARTIFACT/"manual-browser.log").open(
                             "w",encoding="utf-8")
                         manual_browser=subprocess.Popen(
-                            ["/workspace/tools/ci/webots_runtime_v2_browser.sh",page],
+                            ["bash","/workspace/tools/ci/webots_runtime_v2_browser.sh",page],
                             cwd=world.ROOT,env=env,stdout=browser_output,
                             stderr=subprocess.STDOUT,start_new_session=True)
                         manual_started_at=time.monotonic()
