@@ -118,7 +118,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
 
         expected = {
             "01-sequence.wbb": "progression-sequence-v1",
-            "02-precise-movement.wbb": "progression-precise-movement-v1",
+            "02-altitude.wbb": "progression-altitude-v1",
             "03-repeat.wbb": "progression-repeat-v1",
             "04-simple-decision.wbb": "progression-simple-decision-v1",
             "05-reactive.wbb": "progression-reactive-v1",
@@ -131,7 +131,24 @@ class WindowsReleaseContractTests(unittest.TestCase):
         for filename, activity_id in expected.items():
             project = json.loads((starter_dir / filename).read_text(encoding="utf-8"))
             self.assertEqual(project["activity"]["id"], activity_id)
+            if filename == "02-altitude.wbb":
+                self.assertEqual(project["format"], "webeeblocks-project")
+                self.assertEqual(project["version"], 1)
+                self.assertEqual(project["activity"]["semantics"], "webeeblocks-ast-v1")
+                self.assertEqual(project["workspace"], {
+                    "blocks": {"languageVersion": 0, "blocks": []}
+                })
 
+        archived = ROOT / "activities" / "historique" / "02-precise-movement.wbb"
+        self.assertTrue(archived.is_file())
+        historical = json.loads(archived.read_text(encoding="utf-8"))
+        self.assertEqual(historical["activity"]["id"], "progression-precise-movement-v1")
+        self.assertIn("$historySource = Join-Path $repoRoot 'activities\\historique\\02-precise-movement.wbb'", packager)
+        self.assertIn("$historyTarget = Join-Path $packageDir 'Activites\\Historique\\02-precise-movement.wbb'", packager)
+        self.assertIn("Copy-RequiredFile $historySource $historyTarget", packager)
+        self.assertIn("'Activites\\Historique\\02-precise-movement.wbb'", (
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8"))
         self.assertIn("$progressionSource = Join-Path $repoRoot 'activities\\progression'", packager)
         self.assertIn("Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name", packager)
         self.assertIn("$progressionTarget = Join-Path $packageDir 'Activites'", packager)

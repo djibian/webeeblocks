@@ -127,7 +127,7 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
 function proveProgressionStarterFiles() {
   const expected = [
     ['01-sequence.wbb', 'progression-sequence-v1'],
-    ['02-precise-movement.wbb', 'progression-precise-movement-v1'],
+    ['02-altitude.wbb', 'progression-altitude-v1'],
     ['03-repeat.wbb', 'progression-repeat-v1'],
     ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
@@ -144,6 +144,13 @@ function proveProgressionStarterFiles() {
     assert.strictEqual(project.activity.id, activityId, filename + ' must target its numbered progression profile');
     assert.strictEqual(project.activity.semantics, 'webeeblocks-ast-v1', filename);
   }
+  const historicalPath = path.resolve(__dirname, '../../activities/historique/02-precise-movement.wbb');
+  const historical = JSON.parse(fs.readFileSync(historicalPath, 'utf8'));
+  assert.strictEqual(historical.activity.id, 'progression-precise-movement-v1',
+    'historical Activity 2 identity must survive retirement from the active spine');
+  const archivedProfile=Profiles.resolveById(Activities.DOCUMENT, historical.activity.id, Activities.BLOCK_CATALOG);
+  assert.strictEqual(archivedProfile.starterVisible, false);
+  assert.strictEqual(archivedProfile.runtime.scene, 'legacy-v1');
 }
 
 function proveProgressionProfilesAndFieldOptions() {
@@ -277,6 +284,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   const definitions = {
     webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
+    webeeblocks_v2_vertical: {init() { this.fields = {DIRECTION:dropdown([['monter','up'],['descendre','down']])}; }},
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
     math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
   };
@@ -318,11 +326,17 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert(!flyoutArithmetic.getField('OP').getOptions(false).some(option => option[1] === 'POWER'), 'student arithmetic flyout must not expose POWER');
 
+  const altitudeFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1', Activities.BLOCK_CATALOG);
+  controller.setProfile(altitudeFlyoutProfile, flyoutWorkspace);
+  const flyoutVertical = flyoutWorkspace.newBlock('webeeblocks_v2_vertical');
+  assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up']);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
+  assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up','down']);
 
   controller.setProfile(genericProfile, null);
   const workspace = new FakeWorkspace(false);

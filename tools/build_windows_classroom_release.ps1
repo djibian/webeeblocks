@@ -210,6 +210,11 @@ $progressionTarget = Join-Path $packageDir 'Activites'
 foreach ($starter in $progressionStarters) {
   Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
 }
+# Archived original Activity 2 remains distributed separately for historical
+# .wbb projects; it must never create an ambiguous second active #02 starter.
+$historySource = Join-Path $repoRoot 'activities\historique\02-precise-movement.wbb'
+$historyTarget = Join-Path $packageDir 'Activites\Historique\02-precise-movement.wbb'
+Copy-RequiredFile $historySource $historyTarget
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'

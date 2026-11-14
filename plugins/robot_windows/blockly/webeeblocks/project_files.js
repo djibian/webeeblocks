@@ -145,6 +145,49 @@
     return true;
   }
 
+
+  // Blockly's generic SPEED field has a 0.1 precision and rounds saved
+  // Activity 2 values (e.g. 0.14) before profile bounds can be applied.
+  // Restore only exact, authorized Activity 2 values after normal load.
+  // Other profiles, including the Grand Prix, retain their existing semantics.
+  function loadWorkspaceWithProfile(profile, state, workspace, options) {
+    requireDependencies(options);
+    options.Blockly.serialization.workspaces.load(state, workspace);
+    if (profile.id !== 'progression-altitude-v1') return workspace;
+    options.activityContract.applyFieldBounds(profile, workspace);
+    var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
+      profile.parameterBounds.webeeblocks_v2_speed.SPEED;
+    if (!limits || limits.step !== 0.01)
+      fail('Activity 2 speed constraints unavailable');
+    var seen = Object.create(null);
+    function visit(value) {
+      if (Array.isArray(value)) { value.forEach(visit); return; }
+      if (!isObject(value)) return;
+      if (value.type === 'webeeblocks_v2_speed' && isObject(value.fields) &&
+          Object.prototype.hasOwnProperty.call(value.fields, 'SPEED')) {
+        if (typeof value.id !== 'string' || !value.id || seen[value.id])
+          fail('invalid Activity 2 speed block identity');
+        seen[value.id] = true;
+        var requested = value.fields.SPEED;
+        if (typeof requested !== 'number' || !Number.isFinite(requested) ||
+            requested < limits.min || requested > limits.max ||
+            Math.abs((requested - limits.min) / limits.step -
+              Math.round((requested - limits.min) / limits.step)) > 1e-7)
+          fail('Activity 2 serialized speed outside profile bounds or step');
+        var block = typeof workspace.getBlockById === 'function' && workspace.getBlockById(value.id);
+        var field = block && block.type === 'webeeblocks_v2_speed' && block.getField('SPEED');
+        if (!field || typeof field.setValue !== 'function' || typeof field.getValue !== 'function')
+          fail('Activity 2 speed block missing after load');
+        field.setValue(requested);
+        if (Number(field.getValue()) !== requested)
+          fail('Activity 2 speed precision changed during Open');
+      }
+      Object.keys(value).forEach(function(key) { visit(value[key]); });
+    }
+    visit(state);
+    return workspace;
+  }
+
   function validateProjectText(text, currentProfile, options) {
     requireDependencies(options);
     var project = parseProject(text);
@@ -155,7 +198,7 @@
 
     var temporary = new options.Blockly.Workspace();
     try {
-      options.Blockly.serialization.workspaces.load(project.workspace, temporary);
+      loadWorkspaceWithProfile(profile, project.workspace, temporary, options);
       options.activityContract.preflightWorkspace(profile, temporary);
       validateWorkspaceFields(profile, temporary);
       var ast = optionalAst(profile, temporary, options);
@@ -264,7 +307,7 @@
     function restore(saved) {
       options.setProfile(saved.profile);
       options.workspace.clear();
-      options.Blockly.serialization.workspaces.load(saved.workspace, options.workspace);
+      loadWorkspaceWithProfile(saved.profile, saved.workspace, options.workspace, dependencies());
       options.activityContract.applyFieldBounds(saved.profile, options.workspace);
     }
     async function releaseTarget(handle) {
@@ -278,7 +321,7 @@
       try {
         options.setProfile(validated.profile);
         options.workspace.clear();
-        options.Blockly.serialization.workspaces.load(validated.project.workspace, options.workspace);
+        loadWorkspaceWithProfile(validated.profile, validated.project.workspace, options.workspace, dependencies());
         options.activityContract.applyFieldBounds(validated.profile, options.workspace);
         options.activityContract.preflightWorkspace(validated.profile, options.workspace);
         validateWorkspaceFields(validated.profile, options.workspace);
@@ -397,6 +440,7 @@
     createStarterText: createStarterText,
     parseProject: parseProject,
     validateProjectText: validateProjectText,
+    loadWorkspaceWithProfile: loadWorkspaceWithProfile,
     createBrowserTransport: createBrowserTransport,
     createManager: createManager
   };
