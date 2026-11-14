@@ -84,8 +84,24 @@ def verify(root):
         raise ValueError("Native evaluator bootstrap missing")
     if "SCENE_POLICY_CLASSROOM_STATIC" not in (root / "tools/grand_prix/evaluator_publisher_v2.py").read_text():
         raise ValueError("Static policy not shipped")
-    if not (root / "plugins/robot_windows/grand_prix_route_v2/setup.js").is_file():
+    route_ui = root / "plugins/robot_windows/grand_prix_route_v2"
+    if not (route_ui / "setup.js").is_file():
         raise ValueError("Blockly variable profile missing")
+    html = (route_ui / "grand_prix_route_v2.html").read_text(encoding="utf-8")
+    js = (route_ui / "fps_settings.js").read_text(encoding="utf-8")
+    css = (route_ui / "fps_settings.css").read_text(encoding="utf-8")
+    setup = (route_ui / "setup.js").read_text(encoding="utf-8")
+    if (html.count('id="gpFpsSlider"') != 1 or
+            html.count('id="gpFpsToggle"') != 1 or
+            'min="1" max="60" step="1" value="20" disabled' not in html or
+            'src="fps_settings.js"' not in html or
+            'href="fps_settings.css"' not in html or
+            'GP_ROUTE_FPS_V1 ' not in setup or
+            'GP_ROUTE_FPS_V1 ' not in js or
+            "state !== 'PRÊT'" not in js or
+            'window.runtimeRunning === true' not in js or
+            '#gpFpsPanel[hidden]' not in css):
+        raise ValueError("Accessible grounded-only FPS UI missing/inconsistent")
     if not (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").is_file():
         raise ValueError("Blockly version asset missing")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":

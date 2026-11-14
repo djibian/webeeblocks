@@ -36,6 +36,10 @@ window.WebeeBlocksWwiBackend=function(robotWindow,options){
  if (backend && typeof backend.handleMessage==='function') {
   const receive=backend.handleMessage.bind(backend);
   backend.handleMessage=function(message) {
+   if (typeof message==='string' && message.indexOf('GP_ROUTE_FPS_V1 ')===0) {
+    window.dispatchEvent(new CustomEvent('webeeblocks-gp-fps-response',{detail:{raw:message}}));
+    return true;
+   }
    if (typeof message==='string' && message.indexOf('GP_ROUTE_CLOCK_V1 ')===0) {
     window.dispatchEvent(new CustomEvent('webeeblocks-route-native-clock',{detail:{raw:message}}));
     return true;

@@ -413,7 +413,7 @@ def compose(classroom, evaluated, webots_home, webots_source, output):
     old_html.unlink(missing_ok=True)
     target_window = windows / "grand_prix_route_v2"
     target_window.mkdir()
-    for name in ("grand_prix_route_v2.html", "setup.js"):
+    for name in ("grand_prix_route_v2.html", "setup.js", "fps_settings.js", "fps_settings.css"):
         shutil.copyfile(ROOT / "plugins/robot_windows/grand_prix_route_v2" / name,
                         target_window / name)
     worlds = output / "worlds"

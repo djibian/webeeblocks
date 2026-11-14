@@ -64,6 +64,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Fail-closed Windows route CNG composer tests failed' }
           python -m unittest tools.ci.test_grand_prix_route_windows_fps
           if ($LASTEXITCODE -ne 0) { throw 'Native 1..60 FPS selector isolation contract failed' }
+          node --check plugins/robot_windows/grand_prix_route_v2/fps_settings.js
+          if ($LASTEXITCODE -ne 0) { throw 'FPS UI JS invalid' }
+          node tools/ci/test_grand_prix_route_fps_ui.js
+          if ($LASTEXITCODE -ne 0) { throw 'Grand Prix FPS UI state/nonce tests failed' }
           node --check tools/ci/grand_prix_route_windows_node_probe.js
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"

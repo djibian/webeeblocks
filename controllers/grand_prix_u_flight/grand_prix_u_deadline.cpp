@@ -28,6 +28,34 @@ bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
 // Route-only, non-authoritative clock stream, bound to one private browser nonce.
 std::string routeClockNonce;
 long long routeClockLastSecond=-1;
+// This is a graphical preference, not a flight/AST/mission command.
+// Only the flight Supervisor, while physically idle on the ground, can
+// change the one WorldInfo.FPS field. A pending change is verified next tick.
+std::string routeFpsPendingNonce;
+int routeFpsPendingValue=0;
+WbFieldRef routeFpsField() {
+  WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD");
+  const char *kind=world?wb_supervisor_node_get_type_name(world):nullptr;
+  if(!kind || std::strcmp(kind,"WorldInfo"))return nullptr;
+  WbFieldRef field=wb_supervisor_node_get_field(world,"FPS");
+  if(!field || wb_supervisor_field_get_type(field)!=WB_SF_FLOAT ||
+     wb_robot_get_basic_time_step()!=8.0)return nullptr;
+  return field;
+}
+bool routeFpsNonce(const std::string& token) {
+  return token.size()==32 && std::all_of(token.begin(),token.end(),
+    [](char ch){return (ch>='0'&&ch<='9')||(ch>='a'&&ch<='f');});
+}
+void routeFpsReply(const char *result,const std::string& token,const char *key,const char *value) {
+  char reply[160];
+  std::snprintf(reply,sizeof(reply),"GP_ROUTE_FPS_V1 %s nonce=%s %s=%s",
+    result,token.c_str(),key,value);
+  wb_robot_wwi_send_text(reply);
+}
+void routeFpsReplyValue(const char *result,const std::string& token,int value) {
+  char valueText[16];std::snprintf(valueText,sizeof(valueText),"%d",value);
+  routeFpsReply(result,token,"fps",valueText);
+}
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -344,6 +372,19 @@ extern "C" void gp_u_reset_complete(void) {
 extern "C" void gp_u_file_idle(int idle) {
   fileIdle=idle!=0;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // The Supervisor setter is postponed until the next native step.
+  // Publish the result only after a later 8-ms step and field readback.
+  if(!routeFpsPendingNonce.empty()) {
+    WbFieldRef fps=routeFpsField();
+    const double observed=fps?wb_supervisor_field_get_sf_float(fps):NAN;
+    if(fileIdle && begin<0 && !expired && std::isfinite(observed) &&
+       observed==routeFpsPendingValue)
+      routeFpsReplyValue("APPLIED",routeFpsPendingNonce,routeFpsPendingValue);
+    else
+      routeFpsReply("REFUSED",routeFpsPendingNonce,"reason","UNCONFIRMED");
+    routeFpsPendingNonce.clear();
+    routeFpsPendingValue=0;
+  }
   if(begin<0) {if(fileIdle)challengeRoute();else clearRouteEpoch();}
 #endif
 }
@@ -371,6 +412,77 @@ extern "C" int gp_u_filter_raw(const char *message) {
     return 0;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  // Dedicated graphical preference, never a Blockly/AST command. Native
+  // grounding and flight-attempt state remain authoritative even if the
+  // browser is modified or sends a stale request during TAKEOFF/STOP.
+  const std::string fpsPrefix="GP_ROUTE_FPS_V1 ";
+  if(message && !std::strncmp(message,fpsPrefix.c_str(),fpsPrefix.size())) {
+    const std::string request=message+fpsPrefix.size();
+    const auto pos=request.find(" nonce=");
+    if(pos==std::string::npos)return 0;
+    const std::string token=request.substr(pos+7);
+    if(!routeFpsNonce(token))return 0;
+    const std::string action=request.substr(0,pos);
+    if(action=="GET") {
+      WbFieldRef field=routeFpsField();
+      const double current=field?wb_supervisor_field_get_sf_float(field):NAN;
+      if(std::isfinite(current) && current>=1 && current<=60 &&
+         current==std::floor(current))
+        routeFpsReplyValue("CURRENT",token,static_cast<int>(current));
+      else
+        routeFpsReply("REFUSED",token,"reason","WORLD_UNAVAILABLE");
+      return 0;
+    }
+    const std::string setPrefix="SET fps=";
+    int requested=0;
+    if(action.compare(0,setPrefix.size(),setPrefix)!=0 ||
+       !canonicalNumber(action.substr(setPrefix.size()),requested) ||
+       requested<1 || requested>60) {
+      routeFpsReply("REFUSED",token,"reason","INVALID");
+      return 0;
+    }
+    if(!routeFpsPendingNonce.empty() || !fileIdle || begin>=0 || expired) {
+      routeFpsReply("REFUSED",token,"reason","BUSY");
+      return 0;
+    }
+    WbFieldRef field=routeFpsField();
+    if(!field) {
+      routeFpsReply("REFUSED",token,"reason","WORLD_UNAVAILABLE");
+      return 0;
+    }
+    const double current=wb_supervisor_field_get_sf_float(field);
+    if(!std::isfinite(current) || current<1 || current>60) {
+      routeFpsReply("REFUSED",token,"reason","WORLD_UNAVAILABLE");
+      return 0;
+    }
+    if(current==requested) {
+      routeFpsReplyValue("APPLIED",token,requested);
+      return 0;
+    }
+    routeFpsPendingNonce=token;
+    routeFpsPendingValue=requested;
+    wb_supervisor_field_set_sf_float(field,static_cast<double>(requested));
+    return 0;
+  }
+  // A new TAKEOFF is forbidden while a requested render change has yet to
+  // pass its native next-step readback; never grant flight during uncertainty.
+  if(!routeFpsPendingNonce.empty() && message) {
+    int requestId=0;
+    const std::string takeoffPrefix="WEBEEBLOCKS_RUNTIME_V2 REQUEST ";
+    if(!std::strncmp(message,takeoffPrefix.c_str(),takeoffPrefix.size())) {
+      const std::string request=message+takeoffPrefix.size();
+      const auto space=request.find(' ');
+      if(space!=std::string::npos && request.substr(space)==" TAKEOFF" ) {
+        if(canonicalNumber(request.substr(0,space),requestId) && requestId>0) {
+          char reply[128];
+          std::snprintf(reply,sizeof(reply),
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR BUSY",requestId);
+          wb_robot_wwi_send_text(reply);
+        }
+        return 0;
+      }
+    }
+  }
   // The browser can bind an opaque nonce for read-only simulated clock ticks.
   // Strictly route-mode, one currently evidenced attempt/epoch; never an
   // actuator, mission oracle, admission, real-flight or RESET channel.

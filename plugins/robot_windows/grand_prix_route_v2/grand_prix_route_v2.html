@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../blockly_v2/execution_observer.css">
   <link rel="stylesheet" href="../blockly_v2/project_files.css">
   <link rel="stylesheet" href="../blockly_v2/classroom_fixes.css">
+  <link rel="stylesheet" href="fps_settings.css">
   <script src="../blockly_v2/vendor/blockly_compressed.js"></script>
   <script src="../blockly_v2/vendor/blocks_compressed.js"></script>
   <script src="../blockly_v2/vendor/msg/fr.js"></script>
@@ -43,6 +44,14 @@
       <button id="projectSaveAs" type="button">Enregistrer sous</button>
       <button id="resetSimulation" type="button" hidden disabled>Réinitialiser</button>
       <button id="submit" type="button" aria-label="Lancer le vol" disabled>Lancer le vol</button>
+      <div id="gpFpsControl">
+        <button id="gpFpsToggle" type="button" title="Réglage du rendu 3D" aria-label="Régler la fréquence d'affichage" aria-controls="gpFpsPanel" aria-expanded="false">&#9881;</button>
+        <div id="gpFpsPanel" role="group" aria-label="Fréquence de rendu 3D" hidden>
+          <label for="gpFpsSlider">Affichage 3D <strong id="gpFpsValue">20 FPS</strong></label>
+          <input id="gpFpsSlider" type="range" min="1" max="60" step="1" value="20" disabled>
+          <p id="gpFpsStatus" role="status" aria-live="polite">Connexion au simulateur…</p>
+        </div>
+      </div>
     </div>
   </header>
   <section id="statusPanel" aria-live="polite">
@@ -94,6 +103,7 @@
     </nav>
   </main>
   <script src="setup.js"></script>
+  <script src="fps_settings.js"></script>
 <script src="../blockly_v2/main.js"></script>
   <script src="../blockly_v2/physical_preflight_runtime.js"></script>
   <script src="../blockly_v2/classroom_fixes.js"></script>

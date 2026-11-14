@@ -114,8 +114,9 @@ def run_one(package, home, root, index):
             raise RuntimeError(f"Real native Grand Prix route trial failed: {index} / {result.returncode}")
         evidence=[json.loads(line) for line in read(folder/"events.jsonl").splitlines()]
         classes=[item["event"] for item in evidence]
-        expected=("runtime-ready","first-takeoff","first-land",
-                  "reset-complete","second-ready","second-takeoff",
+        expected=("runtime-ready","fps-initial","fps-ground-applied",
+                  "first-takeoff","fps-inflight-refused","first-land",
+                  "reset-complete","fps-restored","second-ready","second-takeoff",
                   "native-sequence-completed")
         if any(classes.count(label)!=1 for label in expected):
             raise RuntimeError(f"Missing exactly-once native route events: {index}, {classes!r}")

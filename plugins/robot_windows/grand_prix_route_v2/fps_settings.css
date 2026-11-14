@@ -1,0 +1,23 @@
+/* Grand Prix-only 3D rendering preference: no Blockly toolbox/layout mutations. */
+header:has(#gpFpsControl) { z-index: 30; } /* Keep the popover above the Blockly toolbar. */
+#gpFpsControl { position: relative; display: inline-block; vertical-align: middle; margin-left: 4px; }
+#gpFpsToggle {
+  min-width: 36px; min-height: 36px; padding: 4px 7px;
+  background: transparent; color: #64748b; font-size: 21px; line-height: 1;
+  border-color: transparent;
+}
+#gpFpsToggle:hover, #gpFpsToggle[aria-expanded="true"] { background: #edf3f7; border-color: #d8e0e9; }
+#gpFpsPanel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 7000;
+  width: 250px; max-width: calc(100vw - 24px); padding: 13px 14px;
+  background: #fff; border: 1px solid #c8d2dd; border-radius: 11px;
+  box-shadow: 0 8px 25px rgba(38, 51, 66, .18); text-align: left;
+}
+#gpFpsPanel[hidden] { display: none; }
+#gpFpsPanel label { display: flex; justify-content: space-between; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; }
+#gpFpsValue { font-size: 13px; font-variant-numeric: tabular-nums; color: #176879; white-space: nowrap; }
+#gpFpsSlider { display: block; width: 100%; margin: 12px 0 8px; cursor: pointer; accent-color: #167f91; }
+#gpFpsSlider:disabled { opacity: .42; cursor: not-allowed; filter: grayscale(1); }
+#gpFpsStatus { color: #667585; font-size: 12px; line-height: 1.35; min-height: 32px; }
+#gpFpsControl[data-locked="true"] #gpFpsValue { color: #94a3b8; }
+@media(max-width:600px) { #gpFpsPanel { width: 230px; } }

@@ -24,18 +24,26 @@ ni Internet pour l'usage normal sur le poste Windows.
 3. Vérifier SOURCE_SHA, PR970_SHA, COMPOSITION.json, COURSES.json et
    MANIFEST.sha256 avant l'essai.
 4. Fermer toute autre instance Webots, puis lancer Lancer-Grand-Prix.cmd.
-   Choisir un parcours **0 à 11**, puis utiliser le **curseur 1–60 FPS**
-   (pas de 1 FPS, réglage initial **20 FPS**) dans la fenêtre Windows.
-   Valeurs par défaut : parcours 5, rendu Webots 20 FPS.
+   Choisir un parcours **0 à 11** : la simulation démarre à **20 FPS** par
+   défaut. Dans la page WebeeBlocks/Blockly, cliquer sur la **petite roue
+   dentée en haut à droite** pour ouvrir le curseur **1 à 60 FPS** par pas de 1.
+   Le curseur est désactivé pendant un vol et jusqu'au retour à **PRÊT**
+   après RESET. Le réglage est confirmé par le contrôleur natif au sol.
    Alternative PowerShell : lancer Lancer-Grand-Prix.ps1 -Index 5 -Fps 20 (aucune fenêtre de sélection
    si -Fps est fourni),
    ou définir WEBEEBLOCKS_GP_INDEX et WEBEEBLOCKS_GP_FPS puis utiliser
    Launch-WebeeBlocks.cmd.
 
 **Attention :** le choix des FPS fixe seulement le plafond de rafraîchissement
-3D WorldInfo.FPS en mode Webots « Real-time ». La seule mutation contrôlée
-   se produit dans une copie temporaire **avant le démarrage de Webots**.
-   Aucun changement en plein vol ni accès à ce champ depuis Blockly.
+3D WorldInfo.FPS en mode Webots « Real-time ». La configuration initiale
+   éventuelle est appliquée dans une copie de session **avant Webots**.
+   Ensuite, la commande `GP_ROUTE_FPS_V1` (Grand Prix uniquement) ne peut
+   modifier que le champ natif `WorldInfo.FPS`, lorsque le contrôleur natif
+   constate un état stable au sol et **aucune tentative active**.
+   Pendant le vol, le contrôleur refuse toute demande même si le navigateur
+   a été modifié. La réponse est corrélée par nonce et vérifiée après le
+   pas natif suivant, avant d'annoncer l'application. Le programme Blockly
+   n'obtient aucun accès à la scène physique.
    Le paquet de référence ne contient que 12 mondes fixes à 20 FPS ; les
    autres réglages sont matérialisés à la demande puis complètement éliminés
    à la fermeture de Webots. Il ne constitue pas
@@ -105,6 +113,13 @@ plus récentes sur Lenovo 15 FPS : environ 0,95×, 20 FPS : environ 0,80×,
 le vol**, et non des quantiles instrumentés. Comparer
 la même caméra, résolution, géométrie, programme et vol sur le même hôte ;
 ne pas extrapoler un succès à tous les parcours ou réglages.
+
+**Test de l'interface intégrée :** ouvrir/fermer la petite roue dentée,
+choisir 15 puis 23 FPS **au sol**, observer la confirmation native, lancer
+le programme complet et vérifier le curseur grisé (également lorsque
+l'exécution est interrompue en Pas à pas), la réussite et la fluidité.
+Après arrêt et RESET, tester à nouveau 20 FPS sans recharger Blockly.
+Aucune validation graphique n'est déduite du run CI sans GUI.
 
 Un réglage très bas, par exemple 1–5 FPS, peut rendre les mouvements
 visuellement illisibles même si la physique tourne correctement. Ce curseur
