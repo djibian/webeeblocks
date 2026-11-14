@@ -1,6 +1,7 @@
 // CI-only A6 motor-flight admission. Never part of the physical or pupil
 // product. Flight/PID/STOP/LAND still use untouched runtime-v2 C sources.
-// This adapter only allows ONE preloaded and independently checked n=1 world.
+// This adapter admits ONE preloaded n=1 scene and then imports a separate
+// native observer ONLY after the genuine Crazyflie Robot Window is active.
 // A product A6 selector, Blockly solution and genuine mission oracle are NOT
 // supplied by this test-only file.
 #include "../crazyflie_runtime_v2/activity_scene.h"
@@ -12,6 +13,27 @@
 
 namespace {
 bool admitted = false;
+// CI-only independent observer; no native flight program lives in it.
+// Do not preload a second Robot at startup: Webots must open the authentic
+// Crazyflie Robot Window before the SCENE request creates this observer.
+constexpr const char *kObserver =
+    "DEF WEBEEBLOCKS_A6_MOTOR_OBSERVER Robot { "
+    "name \"A6 independent motor-flight observer\" "
+    "controller \"progression_count_h_flight_observer\" "
+    "supervisor TRUE synchronization TRUE }";
+bool realObserver() {
+  WbNodeRef node=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A6_MOTOR_OBSERVER");
+  if(!node||std::strcmp(wb_supervisor_node_get_type_name(node),"Robot"))return false;
+  WbFieldRef name=wb_supervisor_node_get_field(node,"name");
+  WbFieldRef controller=wb_supervisor_node_get_field(node,"controller");
+  WbFieldRef supervisor=wb_supervisor_node_get_field(node,"supervisor");
+  const char *n=name?wb_supervisor_field_get_sf_string(name):nullptr;
+  const char *c=controller?wb_supervisor_field_get_sf_string(controller):nullptr;
+  return n&&c&&supervisor&&
+    !std::strcmp(n,"A6 independent motor-flight observer")&&
+    !std::strcmp(c,"progression_count_h_flight_observer")&&
+    wb_supervisor_field_get_sf_bool(supervisor);
+}
 bool approx(double a, double b) { return std::isfinite(a) && std::fabs(a-b)<0.000001; }
 
 bool box(const char *def, double x, double y, double z,
@@ -51,14 +73,26 @@ bool actual_scene() {
 }
 }
 extern "C" int webeeblocks_select_activity_scene(const char *scene) {
-  admitted=scene&&std::strcmp(scene,"count-h-1-v1")==0&&actual_scene();
-  if(!admitted)
+  if(!scene||std::strcmp(scene,"count-h-1-v1")||!actual_scene()) {
+    admitted=false;
     std::fprintf(stderr,"WEBEEBLOCKS_A6_FLIGHT_SCENE_FATAL scene admission refused\n");
+    std::fflush(stderr);
+    return 0;
+  }
+  if(!realObserver()) {
+    WbNodeRef root=wb_supervisor_node_get_root();
+    WbFieldRef children=root?wb_supervisor_node_get_field(root,"children"):nullptr;
+    if(!children) return 0;
+    wb_supervisor_field_import_mf_node_from_string(children,-1,kObserver);
+  }
+  admitted=realObserver();
+  if(!admitted)
+    std::fprintf(stderr,"WEBEEBLOCKS_A6_FLIGHT_SCENE_FATAL independent native observer refused\n");
   else
     std::fprintf(stdout,"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant=1 native_colliders=5\n");
   std::fflush(admitted?stdout:stderr);
   return admitted?1:0;
 }
 extern "C" int webeeblocks_activity_scene_ready(void) {
-  return admitted&&actual_scene()?1:0;
+  return admitted&&actual_scene()&&realObserver()?1:0;
 }

@@ -13,7 +13,10 @@ class CountHMotorFlightTests(unittest.TestCase):
         w=motor.compose()
         self.assertEqual(w.count(motor.MARKER),1)
         self.assertEqual(w.count('controller "progression_count_h_school_pilot"'),1)
-        self.assertEqual(w.count('controller "progression_count_h_flight_observer"'),1)
+        # At Webots startup there must be exactly ONE Robot. The independent
+        # observer is created only by the first accepted SCENE request.
+        self.assertEqual(w.count('controller "progression_count_h_flight_observer"'),0)
+        self.assertEqual(w.count('Robot {'),0)
         self.assertEqual(w.count('window "count_h_flight_probe"'),1)
         self.assertEqual(w.count('translation -1.40 0 0.055'),1)
         self.assertEqual(w.count('DEF WEBEEBLOCKS_COUNT_1_SCENE Group'),1)
@@ -60,6 +63,9 @@ class CountHMotorFlightTests(unittest.TestCase):
             else:
                 self.assertIn(fragment,source)
         self.assertIn("wb_supervisor_node_get_field(solid",adapter)
+        self.assertIn("wb_supervisor_field_import_mf_node_from_string",adapter)
+        self.assertIn("DEF WEBEEBLOCKS_A6_MOTOR_OBSERVER Robot",adapter)
+        self.assertIn("realObserver()",adapter)
         self.assertIn('strcmp(scene,"count-h-1-v1")',adapter)
         self.assertIn("wb_supervisor_field_get_count(children)!=24",adapter)
         self.assertIn("simulationScenes:true",browser)

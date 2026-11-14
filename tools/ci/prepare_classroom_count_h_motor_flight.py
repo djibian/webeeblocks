@@ -17,14 +17,6 @@ ARTIFACT=ROOT/"ci-artifacts/progression-count-h-motor"
 MARKER="# WEBEEBLOCKS_COUNT_H_MOTOR_CI_ONLY"
 PROJECT_BYTES="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 SCENE=ROOT/"worlds/scenes/count-h-1-v1.wbo"
-OBSERVER='''Robot {
-  name "A6 independent motor-flight observer"
-  controller "progression_count_h_flight_observer"
-  supervisor TRUE
-  synchronization TRUE
-}
-'''
-
 def compose(start=None,scene=None):
     source=SOURCE.read_text(encoding="utf-8") if start is None else start
     world=classroom.compose(source)
@@ -47,9 +39,12 @@ def compose(start=None,scene=None):
     world=world.replace('window "altitude_scene_ack_probe"',
                         'window "count_h_flight_probe"')
     world=world.replace(classroom.MARKER,MARKER)
-    output=world.rstrip()+"\n"+body.rstrip()+"\n"+OBSERVER
+    # A second Robot at initial Webots startup can steal Robot Window focus.
+    # Import the independent observer after the sole Crazyflie window starts.
+    output=world.rstrip()+"\n"+body.rstrip()+"\n"
     if (output.count('controller "progression_count_h_school_pilot"')!=1 or
-        output.count('controller "progression_count_h_flight_observer"')!=1 or
+        output.count('controller "progression_count_h_flight_observer"')!=0 or
+        output.count('controller "progression_count_h_school_pilot"')!=1 or
         output.count('window "count_h_flight_probe"')!=1 or
         output.count(MARKER)!=1 or
         'controller "crazyflie_runtime_v2"' in output or
@@ -73,7 +68,8 @@ def cleanup():
     if WORLD.exists():
         data=WORLD.read_text(encoding="utf-8")
         if data.count(MARKER)!=1 or data.count(
-            'controller "progression_count_h_flight_observer"')!=1:
+            'controller "progression_count_h_school_pilot"')!=1 or (
+                'controller "progression_count_h_flight_observer"' in data):
             raise ValueError("refuse cleanup altered native A6 world")
         WORLD.unlink()
     if PROJECT.exists():
