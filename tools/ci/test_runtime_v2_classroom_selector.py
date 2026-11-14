@@ -46,7 +46,13 @@ Node seqObserver{"","Robot","",false,0};
 std::string seqController="progression_sequence_3d";
 std::string seqName="Progression sequence 3D evaluator";
 int seqSupervisor=1,seqSynchronization=1;
-Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,21};
+Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,22};
+Node altOrigin{"","Pose","",false,2};
+Node altGlyph{"","Shape","",false,0};
+Node altObserver{"","Robot","",false,0};
+std::string altController="progression_altitude_v1";
+std::string altName="Progression altitude native evaluator";
+int altSupervisor=1,altSynchronization=1;
 Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
 Node orientOrigin{"","Pose","",false,2};
 Node orientGlyph{"","Shape","",false,0};
@@ -54,22 +60,25 @@ Node orientObserver{"","Robot","",false,0};
 std::string orientController="progression_orientation_3d";
 std::string orientName="Progression orientation 3D evaluator";
 int orientSupervisor=1,orientSynchronization=1;
+Node canopy{"ACTIVITY2_START_CANOPY","Solid","",false,0};
 Node barrier{"ACTIVITY2_LOW_BARRIER","Solid","",false,0};
 Node left{"ACTIVITY2_LEFT_WALL","Solid","",false,0};
 Node right{"ACTIVITY2_RIGHT_WALL","Solid","",false,0};
+Node canopyBox{"","Box","",true,0};
 Node barrierBox{"","Box","",true,0};
 Node leftBox{"","Box","",true,0};
 Node rightBox{"","Box","",true,0};
-double barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
-double barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
-std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&orientScene,&barrier,&left,&right};
+double canopyPosition[3]={0.0,0.0,0.70},barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
+double canopySize[3]={0.34,0.86,0.08},barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
+std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&orientScene,&canopy,&barrier,&left,&right};
 int rootChildren=0, position=0, orientation=0;
 double pos[3]={-2,-2,2},rot[4]={0,0,1,1};
 double colliderIdentity[9]={1,0,0,0,1,0,0,0,1};
 double colliderTurned[9]={0,-1,0,1,0,0,0,0,1};
 std::string project;
-bool partial=false,missingCollider=false;
+bool partial=false,missingCollider=false,missingCanopy=false;
 bool missingBounds=false,badShape=false,badPosition=false,badDimensions=false,badRotation=false;
+bool missingCanopyBounds=false,badCanopyShape=false,badCanopyPosition=false,badCanopySize=false;
 std::vector<std::string> removals;
 extern "C" const char* wb_robot_get_project_path(void){return project.c_str();}
 extern "C" void* wb_supervisor_node_get_root(void){return &root;}
@@ -85,7 +94,7 @@ extern "C" const char* wb_supervisor_node_export_string(void*n){return static_ca
 extern "C" void wb_supervisor_node_remove(void*n){
  Node*p=static_cast<Node*>(n);assert(p->alive);p->alive=false;
  removals.push_back(p->def);
- if(p==&altitude){barrier.alive=left.alive=right.alive=false;}
+ if(p==&altitude){canopy.alive=barrier.alive=left.alive=right.alive=false;altOrigin.alive=altGlyph.alive=altObserver.alive=false;}
  if(p==&sequence){seqOrigin.alive=seqGlyph.alive=seqObserver.alive=false;}
  if(p==&orientScene){orientOrigin.alive=orientGlyph.alive=orientObserver.alive=false;}
 }
@@ -94,7 +103,13 @@ extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
  if(n==&viewpoint && !std::strcmp(field,"position"))return &position;
  if(n==&viewpoint && !std::strcmp(field,"orientation"))return &orientation;
  Node*p=static_cast<Node*>(n);
- if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin||p==&seqOrigin))return &p->count;
+ if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin||p==&seqOrigin||p==&altOrigin))return &p->count;
+ if(p==&altObserver){
+  if(!std::strcmp(field,"controller"))return &altController;
+  if(!std::strcmp(field,"name"))return &altName;
+  if(!std::strcmp(field,"supervisor"))return &altSupervisor;
+  if(!std::strcmp(field,"synchronization"))return &altSynchronization;
+ }
  if(p==&seqObserver){
   if(!std::strcmp(field,"controller"))return &seqController;
   if(!std::strcmp(field,"name"))return &seqName;
@@ -108,11 +123,13 @@ extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
   if(!std::strcmp(field,"synchronization"))return &orientSynchronization;
  }
  if(!std::strcmp(field,"boundingObject")) {
+  if(p==&canopy)return missingCanopyBounds?nullptr:&canopyBox;
   if(p==&barrier)return missingBounds?nullptr:&barrierBox;
   if(p==&left)return &leftBox;
   if(p==&right)return &rightBox;
  }
  if(!std::strcmp(field,"size")) {
+  if(p==&canopyBox)return canopySize;
   if(p==&barrierBox)return barrierSize;
   if(p==&leftBox)return leftSize;
   if(p==&rightBox)return rightSize;
@@ -134,6 +151,12 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*f,int index){
   }
   return nullptr;
  }
+ if(f==&altitude.count)
+  return index==0 ? (altOrigin.alive?&altOrigin:nullptr)
+      : index>0&&index<altitude.count?&viewpoint:nullptr;
+ if(f==&altOrigin.count)
+  return index==0 ? (altGlyph.alive?&altGlyph:nullptr)
+      : index==1&&altObserver.alive?&altObserver:nullptr;
  if(f==&sequence.count)
   return index==0 ? (seqOrigin.alive?&seqOrigin:nullptr)
       : index>0&&index<sequence.count?&viewpoint:nullptr;
@@ -155,6 +178,7 @@ extern "C" int wb_supervisor_field_get_sf_bool(void*f){
  return *static_cast<int*>(f);
 }
 extern "C" const double* wb_supervisor_field_get_sf_vec3f(void*f){
+ if(f==canopySize)return canopySize;
  if(f==barrierSize)return barrierSize;
  if(f==leftSize)return leftSize;
  if(f==rightSize)return rightSize;
@@ -162,6 +186,7 @@ extern "C" const double* wb_supervisor_field_get_sf_vec3f(void*f){
 }
 extern "C" void* wb_supervisor_field_get_sf_node(void*f){return f;}
 extern "C" const double* wb_supervisor_node_get_position(void*n){
+ if(n==&canopy)return canopyPosition;
  if(n==&barrier)return barrierPosition;
  if(n==&left)return leftPosition;
  if(n==&right)return rightPosition;
@@ -169,7 +194,7 @@ extern "C" const double* wb_supervisor_node_get_position(void*n){
 }
 extern "C" const double* wb_supervisor_node_get_orientation(void*n){
  if(n==&right && badRotation)return colliderTurned;
- if(n==&barrier || n==&left || n==&right)return colliderIdentity;
+ if(n==&canopy || n==&barrier || n==&left || n==&right)return colliderIdentity;
  return nullptr;
 }
 extern "C" const double* wb_supervisor_field_get_sf_rotation(void*){return rot;}
@@ -190,7 +215,17 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
   orientSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
   orientSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
  } else if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
-  altitude.alive=true;altitude.count=partial?20:21;
+  altitude.alive=true;altitude.count=partial?21:22;
+  altOrigin.alive=altGlyph.alive=altObserver.alive=true;
+  // Only an actual native Robot, not a controller string in a comment.
+  altObserver.type=src.find("      Robot {")!=std::string::npos?"Robot":"Shape";
+  altController=src.find("controller \"unexpected\"")!=std::string::npos
+    ?"unexpected":"progression_altitude_v1";
+  altName=src.find("name \"Wrong evaluator\"")!=std::string::npos
+    ?"Wrong evaluator":"Progression altitude native evaluator";
+  altSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
+  altSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
+  canopy.alive=!missingCanopy;
   barrier.alive=true;left.alive=true;right.alive=!missingCollider;
  } else if(src.find("DEF WEBEEBLOCKS_LEGACY_SCENE Group {")!=std::string::npos){
   legacy.alive=true;
@@ -212,11 +247,19 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
 }
 int main(int argc,char**argv){
  assert(argc==3);project=argv[1];std::string mode=argv[2];
+ missingCanopy=mode=="missing-canopy";
+ missingCanopyBounds=mode=="missing-canopy-bounds";
+ badCanopyShape=mode=="wrong-canopy-box-type";
+ badCanopyPosition=mode=="wrong-canopy-position";
+ badCanopySize=mode=="wrong-canopy-size";
  missingBounds=mode=="missing-bounds";
  badShape=mode=="wrong-box-type";
  badPosition=mode=="wrong-box-position";
  badDimensions=mode=="wrong-box-size";
  badRotation=mode=="wrong-box-rotation";
+ if(badCanopyShape)canopyBox.type="Sphere";
+ if(badCanopyPosition)canopyPosition[2]=0.91;
+ if(badCanopySize)canopySize[2]=0.18;
  if(badShape)barrierBox.type="Sphere";
  if(badPosition)barrierPosition[0]=0.81;
  if(badDimensions)barrierSize[0]=0.30;
@@ -329,6 +372,13 @@ int main(int argc,char**argv){
   assert(webeeblocks_select_activity_scene("altitude-v1"));
   assert(webeeblocks_activity_scene_ready());
   assert(!legacy.alive && !sequence.alive);
+  // The nested observer is not one of the 22 direct scene children.
+  altObserver.type="Shape";
+  assert(altitude.count==22);
+  assert(!webeeblocks_activity_scene_ready());
+  assert(webeeblocks_select_activity_scene("altitude-v1"));
+  assert(webeeblocks_activity_scene_ready());
+  assert(altObserver.type=="Robot");
  }
  std::cout<<"PASS classroom-only selector: "<<mode<<"\n";
 }
@@ -351,7 +401,10 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn("sequenceObserver() &&", cpp)
         self.assertIn("WEBEEBLOCKS_ORIENTATION_SCENE", cpp)
         self.assertNotIn('"orientation-v1"', phys)
-        self.assertIn("kAltitudeSceneChildren = 21", cpp)
+        self.assertIn("kAltitudeSceneChildren = 22", cpp)
+        self.assertIn("ACTIVITY2_START_CANOPY", cpp)
+        self.assertIn("altitudeObserver()", cpp)
+        self.assertIn("altitudeObserver() &&", cpp)
         self.assertIn("WEBEEBLOCKS_ALTITUDE_SCENE", cpp)
         self.assertNotIn('"altitude-v1"', phys)
         self.assertIn("constexpr int kLegacySceneChildren = 32", cpp)
@@ -448,17 +501,54 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             self.assertEqual(fake_comment.count('controller "progression_orientation_3d"'),1)
             self.assertEqual(fake_comment.count('    Pose { translation '),
                              authentic.count('    Pose { translation '))
+            altitude_authentic=(ROOT/"worlds/scenes/altitude-v1.wbo").read_text(encoding="utf-8")
+            real_altitude_observer=(
+                '      Robot {\n'
+                '        name "Progression altitude native evaluator"\n'
+                '        controller "progression_altitude_v1"\n'
+                '        supervisor TRUE\n'
+                '        synchronization TRUE\n'
+                '      }'
+            )
+            self.assertEqual(altitude_authentic.count(real_altitude_observer),1)
+            altitude_fake_comment=altitude_authentic.replace(
+                real_altitude_observer,
+                '      Shape { geometry Box { size 0.01 0.01 0.01 } }\n'
+                '      # controller "progression_altitude_v1"',
+                1)
+            self.assertEqual(altitude_fake_comment.count('      Robot {'),0)
+            self.assertEqual(altitude_fake_comment.count('controller "progression_altitude_v1"'),1)
+            self.assertEqual(
+                altitude_authentic.count('Pose { translation '),
+                altitude_fake_comment.count('Pose { translation '))
             cases={
                 "missing":None,
                 "malformed":"DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] }",
-                "valid": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "partial": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-collider": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-bounds": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-type": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
+                "valid": altitude_authentic,
+                "partial": altitude_authentic,
+                "missing-collider": altitude_authentic,
+                "missing-canopy": altitude_authentic,
+                "missing-canopy-bounds": altitude_authentic,
+                "wrong-canopy-box-type": altitude_authentic,
+                "wrong-canopy-position": altitude_authentic,
+                "wrong-canopy-size": altitude_authentic,
+                "missing-bounds": altitude_authentic,
+                "wrong-box-type": altitude_authentic,
+                "wrong-box-position": altitude_authentic,
+                "wrong-box-size": altitude_authentic,
+                "wrong-box-rotation": altitude_authentic,
+                "altitude-comment-only": altitude_fake_comment,
+                "altitude-wrong-controller": altitude_authentic.replace(
+                    'controller "progression_altitude_v1"',
+                    'controller "unexpected"',1)
+                    + '\n# controller "progression_altitude_v1"\n',
+                "altitude-wrong-name": altitude_authentic.replace(
+                    'name "Progression altitude native evaluator"',
+                    'name "Wrong evaluator"',1),
+                "altitude-not-supervisor": altitude_authentic.replace(
+                    'supervisor TRUE','supervisor FALSE',1),
+                "altitude-not-synchronized": altitude_authentic.replace(
+                    'synchronization TRUE','synchronization FALSE',1),
                 "sequence-missing": None,
                 "sequence-malformed": "DEF WEBEEBLOCKS_SEQUENCE_SCENE Group { children [] }",
                 "sequence-valid": sequence_authentic,

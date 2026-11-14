@@ -31,12 +31,12 @@ class AltitudeSceneStaticProof(unittest.TestCase):
     def setUp(self):
         self.source = SCENE.read_text(encoding="utf-8")
 
-    def test_isolated_versioned_scene_with_only_three_explicit_colliders(self):
+    def test_isolated_versioned_scene_with_four_explicit_colliders(self):
         self.assertTrue(self.source.startswith("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {"))
         self.assertEqual(self.source.count(" Pose {"), 18)
-        self.assertEqual(self.source.count(" Solid {"), 3)
-        self.assertEqual(self.source.count("boundingObject Box"), 3)
-        for name in ("ACTIVITY2_LOW_BARRIER", "ACTIVITY2_LEFT_WALL", "ACTIVITY2_RIGHT_WALL"):
+        self.assertEqual(self.source.count(" Solid {"), 4)
+        self.assertEqual(self.source.count("boundingObject Box"), 4)
+        for name in ("ACTIVITY2_START_CANOPY", "ACTIVITY2_LOW_BARRIER", "ACTIVITY2_LEFT_WALL", "ACTIVITY2_RIGHT_WALL"):
             self.assertIn(f"DEF {name} Solid", self.source)
         self.assertNotIn("TouchSensor", self.source)
         self.assertEqual(self.source.count(" Robot {"), 1,
@@ -68,6 +68,35 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         self.assertGreater(wall_inner, barrier_outer)
         self.assertLess(wall_inner - barrier_outer, CRAFT_HALF_SPAN_M)
         self.assertGreater(left[5], sz)
+
+    def test_start_canopy_blocks_high_takeoff_but_leaves_a_climb_window(self):
+        canopy = solid(self.source, "ACTIVITY2_START_CANOPY")
+        barrier = solid(self.source, "ACTIVITY2_LOW_BARRIER")
+        left = solid(self.source, "ACTIVITY2_LEFT_WALL")
+        # The learner may launch low under the canopy; a launch at 0.80 m
+        # would intersect its native Box in the departure footprint.
+        cx, cy, cz, w, depth, height = canopy
+        lower = cz - height / 2
+        upper = cz + height / 2
+        self.assertAlmostEqual((cx, cy, cz)[0], 0.0)
+        self.assertAlmostEqual(cy, 0.0)
+        self.assertAlmostEqual(lower, 0.66)
+        self.assertAlmostEqual(upper, 0.74)
+        self.assertGreater(lower - (NOMINAL_TAKEOFF_M + CRAFT_HALF_SPAN_M), 0.08)
+        self.assertLess(lower, 0.80)
+        self.assertGreater(cx + w / 2, 0.0)
+        self.assertGreater(depth / 2, 0.4)
+        # Escape forward first, then ascend *before* entering the barrier
+        # envelope: the interval must be positive, not an AST requirement.
+        canopy_clear_x = cx + w / 2 + CRAFT_HALF_SPAN_M
+        barrier_first_x = barrier[0] - barrier[3] / 2 - CRAFT_HALF_SPAN_M
+        self.assertGreater(barrier_first_x - canopy_clear_x, 0.15)
+        # Lateral detours through the small slit beside the roof must
+        # remain narrower than the conservative footprint.
+        wall_inner = left[1] - left[4] / 2
+        roof_outer = cy + depth / 2
+        self.assertGreater(wall_inner, roof_outer)
+        self.assertLess(wall_inner - roof_outer, CRAFT_HALF_SPAN_M)
 
     def test_start_and_target_are_separate_noncolliding_marks(self):
         self.assertIn("Pose { translation 0 0 0.002", self.source)
