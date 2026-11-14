@@ -245,7 +245,7 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1) ([0-9a-f]{64})$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
         controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
@@ -264,7 +264,8 @@ async function proveSceneReattachment() {
     const selecting=first.prepareActivity(activityProfile(source));
     if(native.requests.length)native.ack(native.requests.at(-1));
     await selecting;
-    assert.strictEqual(native.scene,inverse?'legacy-v1':'sequence-v1');
+    assert.strictEqual(native.scene,activityProfile(source).runtime.scene,
+      'stale runtime scene after historical/new starter selection: '+source);
     const backend=native.attach(); await backend.waitUntilReady();
     assert.strictEqual(backend.sceneIdentity,null,'READY presumed the surviving native scene');
     const workspace=buildWorkspace(0.2), ref={value:Profiles.resolveById(Activities.DOCUMENT,'reactive-obstacle-v2',Activities.BLOCK_CATALOG)};
@@ -281,7 +282,8 @@ async function proveSceneReattachment() {
     await flush();
     assert.strictEqual(native.requests.length,count+1,'reattachment skipped native selection for '+destination);
     const request=native.requests.at(-1);
-    assert.strictEqual(request.scene,inverse?'sequence-v1':'legacy-v1');
+    assert.strictEqual(request.scene,activityProfile(destination).runtime.scene,
+      'wrong exact native scene for selected project '+destination);
     assert.strictEqual(backend.sceneIdentity,null,'unacknowledged scene became known');
     assert.strictEqual(profileChanges,0); assert.strictEqual(applied,false);
     assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace),before);
@@ -1002,6 +1004,12 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
+  const altitudeStarter=fs.readFileSync(path.join(ROOT,'activities/progression/02-altitude.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(altitudeStarter),
+    JSON.parse(ProjectFiles.createStarterText('progression-altitude-v1')),
+    'packaged external student starter differs from the canonical embedded .wbb');
+  assert.strictEqual(activityProfile('progression-altitude-v1').runtime.scene,'altitude-v1');
+  assert.strictEqual(activityProfile('progression-precise-movement-v1').runtime.scene,'legacy-v1');
   await proveScenePreparation();
   await proveSceneReattachment();
   await proveSceneRollback();

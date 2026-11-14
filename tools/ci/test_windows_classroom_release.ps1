@@ -94,6 +94,7 @@ $required = @(
   'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe',
   'controllers\crazyflie_classroom_v2\runtime.ini',
   'controllers\progression_sequence_3d\progression_sequence_3d.exe',
+  'controllers\progression_altitude_v1\progression_altitude_v1.exe',
   "${robotWindowRelative}\${robotWindowName}.html",
   "${robotWindowRelative}\vendor\VERSION",
   "${robotWindowRelative}\vendor\blockly_compressed.js",
@@ -107,6 +108,7 @@ $required = @(
   'protos\textures\fast_helix.png',
   'worlds\crazyflie_runtime_v2.wbt',
   'worlds\scenes\sequence-v1.wbo',
+  'worlds\scenes\altitude-v1.wbo',
   'worlds\scenes\legacy-scene-v1.wbo',
   'worlds\scenes\legacy-evaluators-v1.wbo'
 )
@@ -117,6 +119,9 @@ foreach ($relative in $required) {
 $sceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\sequence-v1.wbo'
 $scenePackaged = Join-Path $testRoot 'worlds\scenes\sequence-v1.wbo'
 Assert-Release ((Get-FileHash -LiteralPath $sceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $scenePackaged -Algorithm SHA256).Hash) 'Packaged Activity 1 scene differs from the exact source asset.'
+$altitudeSceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\altitude-v1.wbo'
+$altitudeScenePackaged = Join-Path $testRoot 'worlds\scenes\altitude-v1.wbo'
+Assert-Release ((Get-FileHash -LiteralPath $altitudeSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $altitudeScenePackaged -Algorithm SHA256).Hash) 'Packaged Activity 2 scene differs from the native-tested source asset.'
 
 $version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
@@ -137,6 +142,13 @@ Assert-Release ((Get-FileHash -LiteralPath $observerSource -Algorithm SHA256).Ha
 $observerBytes = [System.IO.File]::ReadAllBytes($observerPackaged)
 Assert-Release ($observerBytes.Length -gt 2 -and $observerBytes[0] -eq 0x4d -and $observerBytes[1] -eq 0x5a) 'Activity 1 observer is not a Windows PE executable.'
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_sequence_3d\progression_sequence_3d.py') -PathType Leaf)) 'Windows release still depends on an Activity 1 Python observer.'
+$altitudeObserverRelative = 'controllers\progression_altitude_v1\progression_altitude_v1.exe'
+$altitudeObserverSource = Join-Path $releaseRepo $altitudeObserverRelative
+$altitudeObserverPackaged = Join-Path $testRoot $altitudeObserverRelative
+Assert-Release ((Get-FileHash -LiteralPath $altitudeObserverSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $altitudeObserverPackaged -Algorithm SHA256).Hash) 'Packaged Activity 2 native supervisor differs from the exact Webots build.'
+$altitudeObserverBytes = [System.IO.File]::ReadAllBytes($altitudeObserverPackaged)
+Assert-Release ($altitudeObserverBytes.Length -gt 2 -and $altitudeObserverBytes[0] -eq 0x4d -and $altitudeObserverBytes[1] -eq 0x5a) 'Activity 2 observer is not a Windows PE executable.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_altitude_v1\progression_altitude_v1.py') -PathType Leaf)) 'Windows release must not depend on a Python Activity 2 oracle.'
 $schoolSource = Join-Path $releaseRepo 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
 $schoolPackaged = Join-Path $testRoot 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
 Assert-Release ((Get-FileHash -LiteralPath $schoolSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $schoolPackaged -Algorithm SHA256).Hash) 'Packaged school pilot differs from the exact independently built executable.'
@@ -144,6 +156,9 @@ $schoolBytes = [System.IO.File]::ReadAllBytes($schoolPackaged)
 Assert-Release ($schoolBytes.Length -gt 2 -and $schoolBytes[0] -eq 0x4d -and $schoolBytes[1] -eq 0x5a) 'School pilot is not a Windows PE executable.'
 $sceneText = Get-Content -LiteralPath $scenePackaged -Raw
 Assert-Release ($sceneText -match 'controller "progression_sequence_3d"\s+supervisor TRUE') 'Packaged scene does not bind its isolated observer.'
+$altitudeSceneText = Get-Content -LiteralPath $altitudeScenePackaged -Raw
+Assert-Release ($altitudeSceneText -match 'controller "progression_altitude_v1"\s+supervisor TRUE') 'Packaged Activity 2 scene does not bind the native C evaluator.'
+Assert-Release ($altitudeSceneText.Contains('DEF ACTIVITY2_START_CANOPY Solid')) 'Packaged Activity 2 scene lost the real collision roof.'
 Assert-Release ($worldText.Contains('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {')) 'Release must open the typed neutral classroom world.'
 Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_SCENE')) 'Legacy scenario was preloaded before activity selection.'
 Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_EVALUATORS')) 'Legacy evaluators were preloaded before activity selection.'
@@ -438,4 +453,62 @@ finally {
   $env:WEBOTS_CONTROLLER_URL = $oldControllerUrl
   $env:PATH = $oldPath
 }
-Write-Host "PASS: Windows classroom archive has the verified pupil school gate, original evaluator controller, Activity 1 native supervisor, no Python runtime dependency, and all three PE/IPC load witnesses ($($manifestEntries.Count) files)."
+# Probe the exact extracted Activity 2 native controller independently of the
+# flight runtime. A missing dependent DLL must fail before libController's IPC
+# message; this does not substitute for a Webots scene/flight acceptance test.
+$altitudeObserverStdout = Join-Path $env:RUNNER_TEMP 'webeeblocks-altitude-observer.stdout.log'
+$altitudeObserverStderr = Join-Path $env:RUNNER_TEMP 'webeeblocks-altitude-observer.stderr.log'
+Remove-Item -LiteralPath $altitudeObserverStdout, $altitudeObserverStderr -Force -ErrorAction SilentlyContinue
+$oldWebotsHome = $env:WEBOTS_HOME
+$oldControllerUrl = $env:WEBOTS_CONTROLLER_URL
+$oldPath = $env:PATH
+$altitudeObserverProcess = $null
+try {
+  $env:WEBOTS_HOME = $WebotsHome
+  $env:WEBOTS_CONTROLLER_URL = 'ipc://65535'
+  $env:PATH = @(
+    (Join-Path $WebotsHome 'lib\controller'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin\cpp'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin'),
+    (Join-Path $env:SystemRoot 'System32'),
+    $env:SystemRoot
+  ) -join ';'
+  $altitudeObserverProcess = Start-Process `
+    -FilePath $altitudeObserverPackaged `
+    -WorkingDirectory (Split-Path $altitudeObserverPackaged -Parent) `
+    -RedirectStandardOutput $altitudeObserverStdout `
+    -RedirectStandardError $altitudeObserverStderr `
+    -PassThru
+  $altitudeObserverEnteredController = $false
+  $deadline = [DateTime]::UtcNow.AddSeconds(8)
+  do {
+    Start-Sleep -Milliseconds 250
+    $stderr = if (Test-Path -LiteralPath $altitudeObserverStderr) { Get-Content -LiteralPath $altitudeObserverStderr -Raw } else { '' }
+    if ($stderr -match 'Cannot connect to Webots instance') {
+      $altitudeObserverEnteredController = $true
+      break
+    }
+    $altitudeObserverProcess.Refresh()
+    if ($altitudeObserverProcess.HasExited) { break }
+  } while ([DateTime]::UtcNow -lt $deadline)
+  if (-not $altitudeObserverEnteredController) {
+    $altitudeObserverProcess.Refresh()
+    $exitDetail = if ($altitudeObserverProcess.HasExited) { "exit=$($altitudeObserverProcess.ExitCode)" } else { 'timeout' }
+    $stdout = if (Test-Path -LiteralPath $altitudeObserverStdout) { Get-Content -LiteralPath $altitudeObserverStdout -Raw } else { '<no stdout>' }
+    $stderr = if (Test-Path -LiteralPath $altitudeObserverStderr) { Get-Content -LiteralPath $altitudeObserverStderr -Raw } else { '<no stderr>' }
+    throw "Packaged Activity 2 observer failed to enter libController ($exitDetail).`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+  }
+}
+finally {
+  if ($null -ne $altitudeObserverProcess) {
+    $altitudeObserverProcess.Refresh()
+    if (-not $altitudeObserverProcess.HasExited) {
+      Stop-Process -Id $altitudeObserverProcess.Id -Force -ErrorAction SilentlyContinue
+      $altitudeObserverProcess.WaitForExit()
+    }
+  }
+  $env:WEBOTS_HOME = $oldWebotsHome
+  $env:WEBOTS_CONTROLLER_URL = $oldControllerUrl
+  $env:PATH = $oldPath
+}
+Write-Host "PASS: Windows classroom archive has the verified pupil school gate, original evaluator controller, Activity 1 native supervisor, no Python runtime dependency, and all four PE/IPC load witnesses ($($manifestEntries.Count) files)."
