@@ -123,6 +123,9 @@ class WorkflowTests(unittest.TestCase):
             "cyberbotics/webots:R2025a-ubuntu22.04",
             "make clean; make",
             "python3 tools/ci/run_classroom_decision_h_native_start.py",
+            "make clean; make",
+            "python3 tools/ci/run_classroom_decision_h_range.py",
+            "controllers/progression_decision_h_range_probe",
             "if: always()",
             "ci-artifacts/progression-decision-h-native-start/",
         ):

@@ -17,6 +17,9 @@ CORE_DIR = ROOT / 'controllers/progression_decision_h_v1'
 CORE = CORE_DIR / 'decision_core.h'
 OBSERVER = CORE_DIR / 'progression_decision_h_v1.c'
 MAKEFILE = CORE_DIR / 'Makefile'
+RANGE_C = ROOT / 'controllers/progression_decision_h_range_probe/progression_decision_h_range_probe.c'
+RANGE_MAKE = ROOT / 'controllers/progression_decision_h_range_probe/Makefile'
+RANGE_RUN = ROOT / 'tools/ci/run_classroom_decision_h_range.py'
 
 DRIVER = r'''
 #include "decision_core.h"
@@ -166,6 +169,16 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WEBEEBLOCKS_DECISION_H_FATAL', observer)
         self.assertIn('WEBEEBLOCKS_DECISION_H_READY', observer)
         self.assertIn('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1', observer)
+        range_source = RANGE_C.read_text(encoding='utf-8')
+        range_make = RANGE_MAKE.read_text(encoding='utf-8')
+        range_run = RANGE_RUN.read_text(encoding='utf-8')
+        self.assertIn('wb_distance_sensor_get_value(front)', range_source)
+        self.assertIn('wb_supervisor_field_set_sf_vec3f(position_field, pose)', range_source)
+        self.assertIn('C_SOURCES = progression_decision_h_range_probe.c', range_make)
+        self.assertIn('A4_RANGE_REAL_PASS', range_run)
+        self.assertIn('b - a > 0.40', range_run)
+        self.assertNotIn('wb_motor_set_', range_source)
+        self.assertNotIn('wb_supervisor_node_set_velocity', range_source)
         for forbidden in ('wb_motor_set_', 'wb_supervisor_node_set_velocity',
                           'radio_link', 'crazyflie_runtime_v2/Makefile'):
             self.assertNotIn(forbidden, observer)

@@ -47,10 +47,33 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_native_start.py'
+      - name: Build isolated native front-range probe against R2025a headers
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_range_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Read actual A/B front range at identical physical decision pose
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
       - name: Retain exact native witnesses including failures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-startup-evidence
           path: ci-artifacts/progression-decision-h-native-start/
+          if-no-files-found: warn
+      - name: Retain measured A/B front-distance logs including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-real-range
+          path: ci-artifacts/progression-decision-h-range/
           if-no-files-found: warn
