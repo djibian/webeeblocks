@@ -40,7 +40,7 @@ function a4Profile(letter){
       rangeDirections:['front'],moveDirections:['forward'],
       verticalDirections:['up','down'],
       astBounds:{
-        'takeoff.height_m':{min:0.75,max:0.75},
+        'takeoff.height_m':{min:0.50,max:0.50},
         'move.distance_m':{min:0.1,max:0.8},
         'vertical.distance_m':{min:0.1,max:0.35},
         'set_speed.speed_m_s':{min:0.1,max:0.1}
@@ -81,10 +81,11 @@ function a4Workspace(){
     return b;
   }
   const takeoff=block('webeeblocks_v2_takeoff');
-  a4Number(ws,takeoff,'HEIGHT',0.75);
+  a4Number(ws,takeoff,'HEIGHT',0.50);
   const speed=block('webeeblocks_v2_speed');
   speed.setFieldValue('0.1','SPEED');
   a4Assert(Number(speed.getFieldValue('SPEED'))===0.1,'speed field rounded');
+  const initialClimb=vertical('up',0.25);
   const firstMove=move(0.20);
   const decision=block('controls_if');
   a4Assert(typeof decision.updateShape_==='function','Blockly 13 IF mutator missing');
@@ -108,7 +109,7 @@ function a4Workspace(){
   a4Chain(near);a4Chain(far);
   decision.getInput('DO0').connection.connect(near[0].previousConnection);
   decision.getInput('ELSE').connection.connect(far[0].previousConnection);
-  a4Chain([takeoff,speed,firstMove,decision,move(0.80),block('webeeblocks_v2_land')]);
+  a4Chain([takeoff,speed,initialClimb,firstMove,decision,move(0.80),block('webeeblocks_v2_land')]);
   return ws;
 }
 function a4Options(profile){
@@ -149,9 +150,14 @@ window.addEventListener('unhandledrejection',e=>a4Report('A4_PUPIL_ERROR',{messa
     WebeeBlocksActivityContract.applyFieldBounds(profileA,original);
     const originalAst=WebeeBlocksSemanticAst.compileWorkspace(original);
     WebeeBlocksActivityContract.preflightAst(profileA,originalAst);
-    a4Assert(originalAst.program.length===6&&originalAst.program[3].kind==='if',
+    a4Assert(originalAst.program[0].height_m===0.50 &&
+      originalAst.program[2].kind==='vertical' &&
+      originalAst.program[2].direction==='up' &&
+      originalAst.program[2].distance_m===0.25,
+      'safe initial low takeoff and relative altitude advance required');
+    a4Assert(originalAst.program.length===7&&originalAst.program[4].kind==='if',
       'no genuine Blockly condition in pupil program');
-    const condition=originalAst.program[3];
+    const condition=originalAst.program[4];
     a4Assert(condition.condition.kind==='compare'&&
       condition.condition.op==='LT'&&
       condition.condition.left.kind==='range'&&
