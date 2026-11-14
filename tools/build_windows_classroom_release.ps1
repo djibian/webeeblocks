@@ -69,6 +69,7 @@ $schoolControllerDir = Join-Path $repoRoot 'controllers\crazyflie_classroom_v2'
 $sequenceObserverDir = Join-Path $repoRoot 'controllers\progression_sequence_3d'
 # Activity 2 remains simulation-only: compile its independent native C oracle.
 $altitudeObserverDir = Join-Path $repoRoot 'controllers\progression_altitude_v1'
+$orientationObserverDir = Join-Path $repoRoot 'controllers\progression_orientation_3d'
 $oldWebotsHome = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 try {
@@ -110,6 +111,10 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Webots R2025a Activity 2 observer build failed with exit code $LASTEXITCODE."
   }
+  & $make -C $orientationObserverDir clean
+  if ($LASTEXITCODE -ne 0) { throw "Activity 3 native observer clean failed: $LASTEXITCODE" }
+  & $make -C $orientationObserverDir
+  if ($LASTEXITCODE -ne 0) { throw "Activity 3 native observer build failed: $LASTEXITCODE" }
 }
 finally {
   $env:WEBOTS_HOME = $oldWebotsHome
@@ -130,6 +135,10 @@ if (-not (Test-Path -LiteralPath $observerBinary -PathType Leaf) -or (Get-Item $
 $altitudeObserverBinary = Join-Path $altitudeObserverDir 'progression_altitude_v1.exe'
 if (-not (Test-Path -LiteralPath $altitudeObserverBinary -PathType Leaf) -or (Get-Item $altitudeObserverBinary).Length -le 0) {
   throw 'The official Webots Windows build produced no Activity 2 native supervisor executable.'
+}
+$orientationObserverBinary = Join-Path $orientationObserverDir 'progression_orientation_3d.exe'
+if (-not (Test-Path -LiteralPath $orientationObserverBinary -PathType Leaf) -or (Get-Item $orientationObserverBinary).Length -le 0) {
+  throw 'The official Webots Windows build produced no Activity 3 native supervisor executable.'
 }
 
 # Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
@@ -330,6 +339,8 @@ Write-Utf8NoBom (Join-Path $packagedSchoolControllerDir 'runtime.ini') (($runtim
 Copy-RequiredFile $observerBinary (Join-Path $packageDir 'controllers\progression_sequence_3d\progression_sequence_3d.exe')
 # Activity 2 supervisor stays outside the physically hash-locked flight binary.
 Copy-RequiredFile $altitudeObserverBinary (Join-Path $packageDir 'controllers\progression_altitude_v1\progression_altitude_v1.exe')
+# Activity 3 is simulation-only and retains its own native C oracle.
+Copy-RequiredFile $orientationObserverBinary (Join-Path $packageDir 'controllers\progression_orientation_3d\progression_orientation_3d.exe')
 
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
@@ -425,7 +436,7 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'legacy-scene-v1.wbo''altitude-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "worlds\scenes\$scene") `
     (Join-Path $packageDir "worlds\scenes\$scene")
