@@ -46,14 +46,17 @@ suivi par #476 ; ne l’interprétez pas comme une régression du broker Firefox
 ## Démarrer une activité de la progression
 
 L’archive contient le dossier `Activites` avec les huit fichiers `.wbb` de la
-progression pédagogique, numérotés dans l’ordre. L’enseignant peut distribuer
-l’ensemble du dossier ou seulement les activités qu’il souhaite rendre
-disponibles.
+progression pédagogique active, numérotés de 01 à 08. L'ancienne activité
+« 2 — Livrer le colis fragile » reste disponible dans `Activites/Historique` :
+les anciens projets conservent leurs profils, scènes et programmes d’origine.
+L’enseignant peut distribuer tout ou partie des modèles actifs.
 
-Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir le fichier
-`.wbb` voulu dans `Activites`. Le titre, l’objectif, la boîte à outils et les
-contraintes de cette activité sont alors appliqués par le même profil déclaratif
-que dans le produit. Le fichier fourni est utilisé comme **modèle** : il ne
+Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir l’activité
+dans la liste intégrée : le fichier `.wbb` de départ est créé automatiquement,
+sans boîte de dialogue système. Les modèles correspondants restent également
+disponibles dans `Activites` pour une distribution par l’enseignant.
+Le titre, l’objectif, la boîte à outils et les contraintes sont appliqués par
+le profil de l'activité. Le fichier fourni est utilisé comme **modèle** : il ne
 devient pas la cible d’enregistrement de l’élève. Pour conserver son travail,
 l’élève choisit **Enregistrer sous** et crée son propre fichier ; ensuite
 **Enregistrer** réécrit uniquement ce fichier choisi.

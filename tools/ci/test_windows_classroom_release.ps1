@@ -109,6 +109,7 @@ $required = @(
   'worlds\crazyflie_runtime_v2.wbt',
   'worlds\scenes\sequence-v1.wbo',
   'worlds\scenes\altitude-v1.wbo',
+  'Activites\Historique\02-precise-movement.wbb',
   'worlds\scenes\legacy-scene-v1.wbo',
   'worlds\scenes\legacy-evaluators-v1.wbo'
 )
@@ -122,6 +123,9 @@ Assert-Release ((Get-FileHash -LiteralPath $sceneSource -Algorithm SHA256).Hash 
 $altitudeSceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\altitude-v1.wbo'
 $altitudeScenePackaged = Join-Path $testRoot 'worlds\scenes\altitude-v1.wbo'
 Assert-Release ((Get-FileHash -LiteralPath $altitudeSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $altitudeScenePackaged -Algorithm SHA256).Hash) 'Packaged Activity 2 scene differs from the native-tested source asset.'
+$historicalSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\02-precise-movement.wbb'
+$historicalPackaged = Join-Path $testRoot 'Activites\Historique\02-precise-movement.wbb'
+Assert-Release ((Get-FileHash -LiteralPath $historicalSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historicalPackaged -Algorithm SHA256).Hash) 'Packaged archived Activity 2 project was modified.'
 
 $version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"

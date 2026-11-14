@@ -15,6 +15,10 @@ function pupilNumber(block,input,n){
   const child=block.workspace.newBlock('math_number');
   child.setFieldValue(String(n),'NUM');
   block.getInput(input).connection.connect(child.outputConnection);
+  // The real toolbox supplies numeric movement parameters as SHADOWS.
+  // A standalone math_number would be forbidden by the unchanged preflight.
+  child.setShadow(true);
+  if(!child.isShadow())pupilFail('movement number is not a Blockly shadow');
 }
 function pupilBuild(){
   const profile=WebeeBlocksActivityProfiles.resolveById(

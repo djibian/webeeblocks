@@ -825,6 +825,14 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   const nodes=[takeoff,speed,forward1,climb,forward2,land];
   for(let i=0;i<nodes.length-1;i++)
     nodes[i].nextConnection.connect(nodes[i+1].previousConnection);
+  // Numeric inputs of the beginner toolbox are nested SHADOWS, not
+  // separately permitted math_number blocks. Preserve this fail-closed rule.
+  for(const [parent,input] of [[takeoff,'HEIGHT'],[forward1,'DISTANCE'],
+      [climb,'DISTANCE'],[forward2,'DISTANCE']]){
+    const number=parent.getInputTargetBlock(input);
+    number.setShadow(true);
+    assert(number.isShadow());
+  }
   // In the real activity chooser, profile-specific FieldNumber constraints are
   // installed before pupils edit speed. The generic block rounds at 0.1 m/s;
   // Activity 2 explicitly permits 0.01 so the witnessed 0.14 is representable.
@@ -1010,6 +1018,10 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
     'packaged external student starter differs from the canonical embedded .wbb');
   assert.strictEqual(activityProfile('progression-altitude-v1').runtime.scene,'altitude-v1');
   assert.strictEqual(activityProfile('progression-precise-movement-v1').runtime.scene,'legacy-v1');
+  const archived=fs.readFileSync(path.join(ROOT,'activities/historique/02-precise-movement.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(archived),
+    JSON.parse(ProjectFiles.createStarterText('progression-precise-movement-v1')),
+    'historical pupil work must retain its original profile/semantics');
   await proveScenePreparation();
   await proveSceneReattachment();
   await proveSceneRollback();

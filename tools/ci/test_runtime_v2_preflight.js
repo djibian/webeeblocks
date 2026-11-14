@@ -127,7 +127,7 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
 function proveProgressionStarterFiles() {
   const expected = [
     ['01-sequence.wbb', 'progression-sequence-v1'],
-    ['02-precise-movement.wbb', 'progression-precise-movement-v1'],
+    ['02-altitude.wbb', 'progression-altitude-v1'],
     ['03-repeat.wbb', 'progression-repeat-v1'],
     ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
@@ -144,6 +144,13 @@ function proveProgressionStarterFiles() {
     assert.strictEqual(project.activity.id, activityId, filename + ' must target its numbered progression profile');
     assert.strictEqual(project.activity.semantics, 'webeeblocks-ast-v1', filename);
   }
+  const historicalPath = path.resolve(__dirname, '../../activities/historique/02-precise-movement.wbb');
+  const historical = JSON.parse(fs.readFileSync(historicalPath, 'utf8'));
+  assert.strictEqual(historical.activity.id, 'progression-precise-movement-v1',
+    'historical Activity 2 identity must survive retirement from the active spine');
+  const archivedProfile=Profiles.resolveById(Activities.DOCUMENT, historical.activity.id, Activities.BLOCK_CATALOG);
+  assert.strictEqual(archivedProfile.starterVisible, false);
+  assert.strictEqual(archivedProfile.runtime.scene, 'legacy-v1');
 }
 
 function proveProgressionProfilesAndFieldOptions() {
