@@ -7,6 +7,8 @@
 #include <cstring>
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
 #include <algorithm>
+#include <chrono>
+#include <thread>
 #include <charconv>
 #include <random>
 #include <string>
@@ -28,6 +30,47 @@ bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
 // Route-only, non-authoritative clock stream, bound to one private browser nonce.
 std::string routeClockNonce;
 long long routeClockLastSecond=-1;
+// Route-only PAUSE token is the already-bound native clock nonce of this run.
+// No new authority or command is ever exposed to real-flight or legacy U.
+enum class RoutePausePhase { IDLE, REQUESTED, PAUSED, RESUMING };
+RoutePausePhase routePausePhase=RoutePausePhase::IDLE;
+std::string routePauseNonce,routePauseEpoch,routeDeferredStop,routeDeliveredStop;
+unsigned long long routePauseAttempt=0,routePauseSeq=0,routePauseLastSeq=0;
+bool routePauseResume=false;
+double routePauseFrozen=-1.0;
+bool routePauseAbortLanding=false,routePauseAbortAdmission=false;
+std::chrono::steady_clock::time_point routePauseHeartbeat;
+// Browser PINGs every second; a vanished Robot Window must stop a PAUSED
+// in-flight simulator within 15 s of the last actual native heartbeat.
+static bool routePauseHeartbeatLost(std::chrono::steady_clock::time_point now,
+                                   std::chrono::steady_clock::time_point last) {
+  return now-last>=std::chrono::seconds(15);
+}
+#ifdef WEBEEBLOCKS_GP_ROUTE_TEST_HOOKS
+// Compiled only by the deterministic native harness; never in the product.
+extern "C" int gp_route_test_pause_watchdog_after_ms(int elapsedMs) {
+  const auto current=std::chrono::steady_clock::now();
+  return routePauseHeartbeatLost(current,current-std::chrono::milliseconds(elapsedMs))?1:0;
+}
+extern "C" void gp_route_test_age_pause_heartbeat_ms(int elapsedMs) {
+  routePauseHeartbeat=std::chrono::steady_clock::now()-std::chrono::milliseconds(elapsedMs);
+}
+#endif
+void resetRoutePause() {
+  routePausePhase=RoutePausePhase::IDLE;
+  routePauseNonce.clear();routePauseEpoch.clear();routePauseAttempt=0;
+  routePauseSeq=0;routePauseResume=false;routePauseFrozen=-1.0;
+}
+bool currentAttempt(unsigned long long& current);
+bool pauseIdentityCurrent() {
+  if(routePausePhase==RoutePausePhase::IDLE || routePauseNonce.empty() ||
+     routePauseNonce!=routeClockNonce || routeEpoch.empty() ||
+     routeEpoch!=routePauseEpoch || routeAttempt!=routePauseAttempt ||
+     expired || success) return false;
+  if(begin>=0)return attempt==routePauseAttempt;
+  unsigned long long current=0;
+  return fileIdle && currentAttempt(current) && current==routePauseAttempt;
+}
 #else
 constexpr const char *oracleName="grand-prix-u-v1";
 constexpr const char *evaluatorDef="GP_U_EVALUATOR";
@@ -72,6 +115,7 @@ void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
   routeClockNonce.clear();routeClockLastSecond=-1;
+  resetRoutePause();routePauseLastSeq=0;
 }
 void challengeRoute() {
   unsigned long long current=0;std::string config;long long now=0;
@@ -239,7 +283,8 @@ extern "C" void gp_route_observe_native(double now,int controlValid,int ground,c
 extern "C" int gp_u_start(double now) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   unsigned long long current=0;long long observed=0;
-  if(!fileIdle || !routeTime(now,observed) || !currentAttempt(current) ||
+  if(routePauseAbortLanding || routePauseAbortAdmission || !fileIdle ||
+     !routeTime(now,observed) || !currentAttempt(current) ||
      current!=routeAttempt || begin>=0 || !freshRouteEvidence("READY",observed)) {
     expired=true;publish("failed");return 0;
   }
@@ -262,6 +307,14 @@ extern "C" int gp_u_start(double now) {
 }
 extern "C" int gp_u_deadline(double now,int nativeLanded) {
   landed=nativeLanded!=0;
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(routePauseAbortLanding && begin>=0 && !success && !expired) {
+    // A PAUSE transport failure is not a 210-s expiry: it nevertheless
+    // forces the SAME independent native LAND as other safety preemptions.
+    routePauseAbortLanding=false;expired=true;
+    publish("failed");failed_outcome();return 1;
+  }
+#endif
   if(begin<0 || success)return 0;
   if(expired){
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -321,7 +374,170 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
           a==attempt && !std::strcmp(oracle,oracleName) && !std::strcmp(status,"achieved");
   return 0;
 }
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+
+// The only accepted pause identity is the previously acknowledged per-run
+// simulated clock nonce PLUS the native attempt and native route epoch.
+// A delayed previous-attempt PAUSE/RESUME cannot move this simulator.
+static bool routePauseMessage(const char *message) {
+  const std::string prefix="GP_ROUTE_PAUSE_V1 ";
+  if(!message || std::strncmp(message,prefix.c_str(),prefix.size()))return false;
+  const std::string raw(message+prefix.size());
+  if(raw.size()>135)return true;
+  const auto space=raw.find(' ');
+  if(space==std::string::npos)return true;
+  const std::string op=raw.substr(0,space),tail=raw.substr(space+1);
+  const std::string head="nonce=";
+  if(tail.compare(0,head.size(),head)!=0)return true;
+  const auto split=tail.find(" attempt=");
+  const auto last=tail.find(" seq=");
+  if(split!=38 || last==std::string::npos || last<=split+9)return true;
+  const std::string nonce=tail.substr(head.size(),32);
+  const bool validNonce=std::all_of(nonce.begin(),nonce.end(),[](char ch){
+    return (ch>='0'&&ch<='9')||(ch>='a'&&ch<='f');
+  });
+  unsigned long long requestedAttempt=0,seq=0;
+  if(!validNonce || nonce.size()!=32 ||
+     !canonicalNumber(tail.substr(split+9,last-(split+9)),requestedAttempt) ||
+     !canonicalNumber(tail.substr(last+5),seq) || requestedAttempt==0 ||
+     seq==0 || seq>1000000)return true;
+  if(op=="PAUSE") {
+    unsigned long long current=0;
+    const bool correctAttempt=begin>=0 ? attempt==requestedAttempt :
+      (fileIdle && currentAttempt(current) && current==requestedAttempt);
+    if(routePausePhase==RoutePausePhase::IDLE && !expired && !success &&
+       correctAttempt && routeAttempt==requestedAttempt && seq>routePauseLastSeq &&
+       !routeEpoch.empty() && nonce==routeClockNonce) {
+      routePauseNonce=nonce;routePauseEpoch=routeEpoch;
+      routePauseAttempt=requestedAttempt;routePauseSeq=seq;routePauseLastSeq=seq;
+      routePausePhase=RoutePausePhase::REQUESTED;
+      routePauseResume=false;
+    }
+  } else if((op=="RESUME" || op=="PING") &&
+            routePausePhase==RoutePausePhase::PAUSED &&
+            pauseIdentityCurrent() && nonce==routePauseNonce &&
+            requestedAttempt==routePauseAttempt && seq==routePauseSeq) {
+    if(op=="RESUME")routePauseResume=true;
+    else routePauseHeartbeat=std::chrono::steady_clock::now();
+  }
+  return true; // Unknown/malformed commands are never forwarded to flight.
+}
+static void routePauseFailClosed() {
+  // The unchanged deadline handler performs the independent LAND on the next
+  // physical step; the browser does not gain any admission or oracle authority.
+  if(begin>=0 && !success)routePauseAbortLanding=true;
+  else routePauseAbortAdmission=true; // Fresh RESET required before TAKEOFF.
+  resetRoutePause();
+}
+static void routePauseStep() {
+  if(routePausePhase!=RoutePausePhase::REQUESTED)return;
+  if(!pauseIdentityCurrent()) {routePauseFailClosed();return;}
+  const double frozen=wb_robot_get_time();
+  wb_supervisor_simulation_set_mode(WB_SUPERVISOR_SIMULATION_MODE_PAUSE);
+  if(wb_robot_step(0)==-1 ||
+     wb_supervisor_simulation_get_mode()!=WB_SUPERVISOR_SIMULATION_MODE_PAUSE ||
+     wb_robot_get_time()!=frozen) {
+    wb_supervisor_simulation_set_mode(WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+    routePauseFailClosed();return;
+  }
+  routePausePhase=RoutePausePhase::PAUSED;
+  routePauseHeartbeat=std::chrono::steady_clock::now();
+  char ack[200];
+  std::snprintf(ack,sizeof(ack),
+    "GP_ROUTE_PAUSE_V1 PAUSED nonce=%s attempt=%llu seq=%llu",
+    routePauseNonce.c_str(),routePauseAttempt,routePauseSeq);
+  wb_robot_wwi_send_text(ack);
+  bool stopped=false,failed=false;
+  // While Webots is PAUSED only step(0) may service the actual Robot Window.
+  // No positive step, evaluator tick or 210-s clock is advanced here.
+  for(;;) {
+    if(wb_robot_step(0)==-1 ||
+       wb_supervisor_simulation_get_mode()!=WB_SUPERVISOR_SIMULATION_MODE_PAUSE ||
+       wb_robot_get_time()!=frozen || !pauseIdentityCurrent()) {
+      failed=true;break;
+    }
+    for(int i=0;i<64;++i) {
+      // Raw WWI is essential: the shared file broker does NOT invoke
+      // gp_u_filter_raw, and broker outcomes must not execute while frozen.
+      const char *message=wb_robot_wwi_receive_text();
+      if(!message)break;
+      if(routePauseMessage(message))continue;
+      // STOP is the only actuation allowed to break a paused interpreter.
+      // Preserve the exact original message for the unchanged flight parser.
+      int id=0;char command[24]={0},extra[2]={0};
+      if(std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %23s %1s",
+                     &id,command,extra)==2 &&
+         id>0 && !std::strcmp(command,"STOP")) {
+        routeDeferredStop=message;stopped=true;break;
+      }
+      // A clock fallback may read native frozen time without reactivating
+      // any student effect or granting a mission result.
+      if(std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %23s %1s",
+                     &id,command,extra)==2 && id>0 &&
+         !std::strcmp(command,"ELAPSED")) {
+        char reply[200];
+        if(begin>=0 && !expired) {
+          std::snprintf(reply,sizeof(reply),
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d VALUE %.3f",
+            id,(frozen*1000.0-begin)/1000.0);
+        } else {
+          std::snprintf(reply,sizeof(reply),
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR TIME_UNAVAILABLE",id);
+        }
+        wb_robot_wwi_send_text(reply);
+      } else if(id>0) {
+        // Defensive rejection of any attempted motion/RESET during PAUSE.
+        char reply[128];
+        std::snprintf(reply,sizeof(reply),
+          "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR BUSY",id);
+        wb_robot_wwi_send_text(reply);
+      }
+    }
+    if(stopped || routePauseResume)break;
+    if(routePauseHeartbeatLost(std::chrono::steady_clock::now(),routePauseHeartbeat)) {
+      failed=true;break; // Lost Robot Window: unpause, fail closed and trigger native LAND.
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  wb_supervisor_simulation_set_mode(WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME);
+  const bool recovered=wb_robot_step(0)!=-1 &&
+    wb_supervisor_simulation_get_mode()==WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME &&
+    wb_robot_get_time()==frozen;
+  if(!recovered || failed) {routePauseFailClosed();return;}
+  if(stopped)routeClockNonce.clear(); // STOP revokes future PAUSE bindings.
+  if(!stopped) {
+    // Do not acknowledge a simulated RESUME on setMode() or step(0) alone.
+    // The enclosing flight loop must return from its next positive step
+    // and run its ordinary safety/deadline/body before Blockly is released.
+    routePauseFrozen=frozen;
+    routePausePhase=RoutePausePhase::RESUMING;
+    routePauseResume=false;
+  } else {
+    resetRoutePause();
+  }
+}
+static void routePauseAcknowledgePositiveStep() {
+  if(routePausePhase!=RoutePausePhase::RESUMING)return;
+  const double now=wb_robot_get_time();
+  if(!pauseIdentityCurrent() || !std::isfinite(now) ||
+     !std::isfinite(routePauseFrozen) || now<=routePauseFrozen ||
+     wb_supervisor_simulation_get_mode()!=WB_SUPERVISOR_SIMULATION_MODE_REAL_TIME) {
+    routePauseFailClosed();
+    return;
+  }
+  char ack[200];
+  std::snprintf(ack,sizeof(ack),
+    "GP_ROUTE_PAUSE_V1 RESUMED nonce=%s attempt=%llu seq=%llu",
+    routePauseNonce.c_str(),routePauseAttempt,routePauseSeq);
+  wb_robot_wwi_send_text(ack);
+  resetRoutePause();
+}
+#endif
 extern "C" int gp_u_next_step(int normal) {
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  routePauseAcknowledgePositiveStep();
+  routePauseStep();
+#endif
   if(begin<0 || expired || success)return normal;
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   long long observed=0;if(!routeTime(wb_robot_get_time(),observed))return normal;
@@ -334,6 +550,9 @@ extern "C" void gp_u_reset_complete(void) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
   nativeRouteDeadline=false;
   routeClockNonce.clear();routeClockLastSecond=-1;
+  resetRoutePause();routePauseLastSeq=0;
+  routePauseAbortLanding=false;routePauseAbortAdmission=false;
+  routeDeferredStop.clear();routeDeliveredStop.clear();
 #endif
   fileIdle=false; // Only the next native idle/ground observation reopens files.
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
@@ -348,6 +567,9 @@ extern "C" void gp_u_file_idle(int idle) {
 #endif
 }
 extern "C" int gp_u_filter_raw(const char *message) {
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(routePauseMessage(message))return 0;
+#endif
   if(expired && begin>=0) {
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
     failed_outcome(nativeRouteDeadline ? "time-limit" : nullptr);
@@ -383,6 +605,7 @@ extern "C" int gp_u_filter_raw(const char *message) {
     if(valid && !expired && !success && !routeEpoch.empty() &&
        currentAttempt(current) && current==routeAttempt &&
        (begin<0 ? fileIdle : current==attempt)) {
+      if(routeClockNonce!=token)routePauseLastSeq=0;
       routeClockNonce=token;routeClockLastSecond=-1;
       char ack[160];
       std::snprintf(ack,sizeof(ack),
@@ -425,12 +648,24 @@ extern "C" int gp_u_filter_raw(const char *message) {
     wb_robot_wwi_send_text(reply);return 0;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
-  if(begin>=0 && parsed && !std::strcmp(cmd,"STOP"))routeClockNonce.clear();
+  if(parsed && !std::strcmp(cmd,"STOP")) {
+    if(routePausePhase==RoutePausePhase::REQUESTED ||
+       routePausePhase==RoutePausePhase::RESUMING)resetRoutePause();
+    // Do not clear the nonce until PAUSE has actually been resumed and
+    // the deferred native STOP is delivered to the normal flight parser.
+    if(routePausePhase!=RoutePausePhase::PAUSED)routeClockNonce.clear();
+  }
 #endif
   if(begin>=0 && !expired && parsed && !std::strcmp(cmd,"STOP"))publish("failed");
   return 1;
 }
 extern "C" const char *gp_u_receive(void) {
+#ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(!routeDeferredStop.empty()) {
+    routeDeliveredStop.swap(routeDeferredStop);
+    return routeDeliveredStop.c_str();
+  }
+#endif
   return webeeblocks_file_broker_receive_text();
 }
 extern "C" void gp_u_send(const char *data,int size) {
