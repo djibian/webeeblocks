@@ -176,6 +176,21 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertNotIn("wb_robot_set_mode", src)
         self.assertTrue(CORE.is_file())
 
+    def test_canopy_fail_safe_is_exact_and_attempt_ordered(self):
+        # One known high-takeoff collision trips the unmodified safety stop;
+        # any other FATAL, including after RESET, must still fail the runner.
+        source = (ROOT / "tools/ci/run_classroom_altitude_canopy.py").read_text(
+            encoding="utf-8")
+        self.assertIn("native_fatals == [expected_fatal]", source)
+        self.assertIn("all(left < right for left, right in zip(", source)
+        self.assertIn("not high_fail_safe_verified", source)
+        self.assertIn("RESPONSE 2 ERR UNSAFE_OR_TIMEOUT", source)
+        self.assertIn("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET", source)
+        self.assertIn(r"\bcrossed=1\b", source)
+        self.assertIn(r"\bcontact=0\b", source)
+        self.assertIn(r"\bcompletion=1\b", source)
+        self.assertNotIn("'WEBEEBLOCKS_RUNTIME_V2 FATAL' in transcript", source)
+
     def test_canopy_witness_submits_real_completion_after_landing(self):
         # The first real R2025a canopy run proved the upper collision and
         # completed all low-flight commands, but could never publish achieved

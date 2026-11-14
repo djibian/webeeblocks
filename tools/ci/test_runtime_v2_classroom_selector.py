@@ -47,6 +47,12 @@ std::string seqController="progression_sequence_3d";
 std::string seqName="Progression sequence 3D evaluator";
 int seqSupervisor=1,seqSynchronization=1;
 Node altitude{"WEBEEBLOCKS_ALTITUDE_SCENE","Group","",false,22};
+Node altOrigin{"","Pose","",false,2};
+Node altGlyph{"","Shape","",false,0};
+Node altObserver{"","Robot","",false,0};
+std::string altController="progression_altitude_v1";
+std::string altName="Progression altitude native evaluator";
+int altSupervisor=1,altSynchronization=1;
 Node orientScene{"WEBEEBLOCKS_ORIENTATION_SCENE","Group","",false,24};
 Node orientOrigin{"","Pose","",false,2};
 Node orientGlyph{"","Shape","",false,0};
@@ -88,7 +94,7 @@ extern "C" const char* wb_supervisor_node_export_string(void*n){return static_ca
 extern "C" void wb_supervisor_node_remove(void*n){
  Node*p=static_cast<Node*>(n);assert(p->alive);p->alive=false;
  removals.push_back(p->def);
- if(p==&altitude){canopy.alive=barrier.alive=left.alive=right.alive=false;}
+ if(p==&altitude){canopy.alive=barrier.alive=left.alive=right.alive=false;altOrigin.alive=altGlyph.alive=altObserver.alive=false;}
  if(p==&sequence){seqOrigin.alive=seqGlyph.alive=seqObserver.alive=false;}
  if(p==&orientScene){orientOrigin.alive=orientGlyph.alive=orientObserver.alive=false;}
 }
@@ -97,7 +103,13 @@ extern "C" void* wb_supervisor_node_get_field(void*n,const char*field){
  if(n==&viewpoint && !std::strcmp(field,"position"))return &position;
  if(n==&viewpoint && !std::strcmp(field,"orientation"))return &orientation;
  Node*p=static_cast<Node*>(n);
- if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin||p==&seqOrigin))return &p->count;
+ if(!std::strcmp(field,"children")&&(p->type=="Group"||p==&orientOrigin||p==&seqOrigin||p==&altOrigin))return &p->count;
+ if(p==&altObserver){
+  if(!std::strcmp(field,"controller"))return &altController;
+  if(!std::strcmp(field,"name"))return &altName;
+  if(!std::strcmp(field,"supervisor"))return &altSupervisor;
+  if(!std::strcmp(field,"synchronization"))return &altSynchronization;
+ }
  if(p==&seqObserver){
   if(!std::strcmp(field,"controller"))return &seqController;
   if(!std::strcmp(field,"name"))return &seqName;
@@ -139,6 +151,12 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*f,int index){
   }
   return nullptr;
  }
+ if(f==&altitude.count)
+  return index==0 ? (altOrigin.alive?&altOrigin:nullptr)
+      : index>0&&index<altitude.count?&viewpoint:nullptr;
+ if(f==&altOrigin.count)
+  return index==0 ? (altGlyph.alive?&altGlyph:nullptr)
+      : index==1&&altObserver.alive?&altObserver:nullptr;
  if(f==&sequence.count)
   return index==0 ? (seqOrigin.alive?&seqOrigin:nullptr)
       : index>0&&index<sequence.count?&viewpoint:nullptr;
@@ -198,6 +216,15 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
   orientSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
  } else if(src.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {")!=std::string::npos){
   altitude.alive=true;altitude.count=partial?21:22;
+  altOrigin.alive=altGlyph.alive=altObserver.alive=true;
+  // Only an actual native Robot, not a controller string in a comment.
+  altObserver.type=src.find("      Robot {")!=std::string::npos?"Robot":"Shape";
+  altController=src.find("controller \"unexpected\"")!=std::string::npos
+    ?"unexpected":"progression_altitude_v1";
+  altName=src.find("name \"Wrong evaluator\"")!=std::string::npos
+    ?"Wrong evaluator":"Progression altitude native evaluator";
+  altSupervisor=src.find("supervisor FALSE")!=std::string::npos?0:1;
+  altSynchronization=src.find("synchronization FALSE")!=std::string::npos?0:1;
   canopy.alive=!missingCanopy;
   barrier.alive=true;left.alive=true;right.alive=!missingCollider;
  } else if(src.find("DEF WEBEEBLOCKS_LEGACY_SCENE Group {")!=std::string::npos){
@@ -345,6 +372,13 @@ int main(int argc,char**argv){
   assert(webeeblocks_select_activity_scene("altitude-v1"));
   assert(webeeblocks_activity_scene_ready());
   assert(!legacy.alive && !sequence.alive);
+  // The nested observer is not one of the 22 direct scene children.
+  altObserver.type="Shape";
+  assert(altitude.count==22);
+  assert(!webeeblocks_activity_scene_ready());
+  assert(webeeblocks_select_activity_scene("altitude-v1"));
+  assert(webeeblocks_activity_scene_ready());
+  assert(altObserver.type=="Robot");
  }
  std::cout<<"PASS classroom-only selector: "<<mode<<"\n";
 }
@@ -369,6 +403,8 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertNotIn('"orientation-v1"', phys)
         self.assertIn("kAltitudeSceneChildren = 22", cpp)
         self.assertIn("ACTIVITY2_START_CANOPY", cpp)
+        self.assertIn("altitudeObserver()", cpp)
+        self.assertIn("altitudeObserver() &&", cpp)
         self.assertIn("WEBEEBLOCKS_ALTITUDE_SCENE", cpp)
         self.assertNotIn('"altitude-v1"', phys)
         self.assertIn("constexpr int kLegacySceneChildren = 32", cpp)
@@ -465,22 +501,54 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
             self.assertEqual(fake_comment.count('controller "progression_orientation_3d"'),1)
             self.assertEqual(fake_comment.count('    Pose { translation '),
                              authentic.count('    Pose { translation '))
+            altitude_authentic=(ROOT/"worlds/scenes/altitude-v1.wbo").read_text(encoding="utf-8")
+            real_altitude_observer=(
+                '      Robot {\n'
+                '        name "Progression altitude native evaluator"\n'
+                '        controller "progression_altitude_v1"\n'
+                '        supervisor TRUE\n'
+                '        synchronization TRUE\n'
+                '      }'
+            )
+            self.assertEqual(altitude_authentic.count(real_altitude_observer),1)
+            altitude_fake_comment=altitude_authentic.replace(
+                real_altitude_observer,
+                '      Shape { geometry Box { size 0.01 0.01 0.01 } }\n'
+                '      # controller "progression_altitude_v1"',
+                1)
+            self.assertEqual(altitude_fake_comment.count('      Robot {'),0)
+            self.assertEqual(altitude_fake_comment.count('controller "progression_altitude_v1"'),1)
+            self.assertEqual(
+                altitude_authentic.count('Pose { translation '),
+                altitude_fake_comment.count('Pose { translation '))
             cases={
                 "missing":None,
                 "malformed":"DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] }",
-                "valid": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "partial": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-collider": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-canopy": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-canopy-bounds": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-canopy-box-type": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-canopy-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-canopy-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "missing-bounds": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-type": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-position": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-size": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
-                "wrong-box-rotation": 'DEF WEBEEBLOCKS_ALTITUDE_SCENE Group { children [] controller "progression_altitude_v1" }',
+                "valid": altitude_authentic,
+                "partial": altitude_authentic,
+                "missing-collider": altitude_authentic,
+                "missing-canopy": altitude_authentic,
+                "missing-canopy-bounds": altitude_authentic,
+                "wrong-canopy-box-type": altitude_authentic,
+                "wrong-canopy-position": altitude_authentic,
+                "wrong-canopy-size": altitude_authentic,
+                "missing-bounds": altitude_authentic,
+                "wrong-box-type": altitude_authentic,
+                "wrong-box-position": altitude_authentic,
+                "wrong-box-size": altitude_authentic,
+                "wrong-box-rotation": altitude_authentic,
+                "altitude-comment-only": altitude_fake_comment,
+                "altitude-wrong-controller": altitude_authentic.replace(
+                    'controller "progression_altitude_v1"',
+                    'controller "unexpected"',1)
+                    + '\n# controller "progression_altitude_v1"\n',
+                "altitude-wrong-name": altitude_authentic.replace(
+                    'name "Progression altitude native evaluator"',
+                    'name "Wrong evaluator"',1),
+                "altitude-not-supervisor": altitude_authentic.replace(
+                    'supervisor TRUE','supervisor FALSE',1),
+                "altitude-not-synchronized": altitude_authentic.replace(
+                    'synchronization TRUE','synchronization FALSE',1),
                 "sequence-missing": None,
                 "sequence-malformed": "DEF WEBEEBLOCKS_SEQUENCE_SCENE Group { children [] }",
                 "sequence-valid": sequence_authentic,
