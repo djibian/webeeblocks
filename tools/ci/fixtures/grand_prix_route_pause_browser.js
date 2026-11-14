@@ -6,6 +6,9 @@
 (function () {
   'use strict';
   const endpoint = 'http://127.0.0.1:__TRACE_PORT__/trace';
+  // This build-time replacement applies only to the temporary CI page, never
+  // the shipped student UI. The second native run deliberately loses Chrome.
+  const nativeWindowLossProbe = '__WINDOW_LOSS_MODE__' === 'true';
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   function record(stage, value) {
     const event = JSON.stringify({schema:'gp-route-native-pause-browser-v1',
@@ -162,6 +165,18 @@
       }
       return false;
     },90000,'INFLIGHT_NATIVE_PAUSE_NOT_ACKED');
+    if(nativeWindowLossProbe) {
+      // Host CI will terminate the *actual* Chrome process after this fsynced
+      // event. No synthetic STOP, RESUME, PING loss or controller hook is sent.
+      // The native 15s wall-clock watchdog must unpause and LAND independently.
+      record('NATIVE_WINDOW_LOSS_READY', {
+        nativePauseCount,nativeResumeCount,
+        runtimeRunning:window.runtimeRunning===true,
+        paused:window.runtimeDebug.waiter &&
+          window.runtimeDebug.waiter.ready===true
+      });
+      return; // Keep the live native PAUSE and browser heartbeat until killed.
+    }
     const elapsedA=await backend.readElapsedTime();
     record('FROZEN_CLOCK_START',elapsedA);
     await delay(1600);
