@@ -78,7 +78,8 @@ class PupilA7Tests(unittest.TestCase):
                          "statement.then[3].angle_deg===90",
                          "statement.else[4].angle_deg===-90"):
             self.assertIn(required,js)
-        self.assertIn("'takeoff.height_m':{min:0.50,max:0.50}",js)
+        self.assertIn("'takeoff.height_m': { min: 0.50, max: 0.50 }",
+                      ACTIVITIES.read_text(encoding="utf-8"))
         self.assertNotIn("wb_supervisor_",js)
         self.assertNotIn("WB_MINI_ACHIEVED",js)
         profiles=(ROOT/"plugins/robot_windows/blockly/webeeblocks/activity_profiles.js").read_text(encoding="utf-8")
