@@ -211,11 +211,13 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                     self.assertEqual(world.count(low.MARKER),1)
                     self.assertEqual(world.count(" Solid {"),9)
                     self.assertEqual(world.count("boundingObject Box"),9)
-                    self.assertEqual(world.count('controller "<none>"'),1)
+                    self.assertEqual(world.count(
+                        'controller "progression_mini_gp_geometry_probe"'),1)
                     self.assertEqual(world.count(
                         'controller "progression_mini_grand_prix_v1"'),1)
                     self.assertEqual(world.count(
-                        'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"'),1)
+                        f'customData "WEBEEBLOCKS_A7_LOW_CONTACT_{part}_V1"'),1)
+                    self.assertNotIn('customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"',world)
         for args in ((None,"CORNER_FRONT"),("L","OPEN_BAR"),
                      ("Z","CLOSED_PANEL"),("R",None)):
             with self.subTest(invalid=args),self.assertRaises(ValueError):
