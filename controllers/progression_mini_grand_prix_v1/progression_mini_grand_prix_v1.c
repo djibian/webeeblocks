@@ -178,8 +178,12 @@ int main(void) {
   /* The landing oracle requires contiguous 32-ms native observations.
    * Other physics cadences cannot establish a valid 250-ms stable landing.
    * Reject before READY rather than weakening the 40-ms gap guard. */
-  if(step!=32||!attest_scene(&variant)){
-    fprintf(stderr,"WB_MINI_NATIVE_FATAL invalid native scene, colliders, observer or timestep\n");
+  if(step!=32){
+    fprintf(stderr,"WB_MINI_NATIVE_FATAL invalid timestep=%d expected=32\n",step);
+    wb_robot_cleanup();return 2;
+  }
+  if(!attest_scene(&variant)){
+    fprintf(stderr,"WB_MINI_NATIVE_FATAL invalid native scene, colliders or observer\n");
     wb_robot_cleanup();return 2;
   }
   WbNodeRef craft=unique_vehicle();
