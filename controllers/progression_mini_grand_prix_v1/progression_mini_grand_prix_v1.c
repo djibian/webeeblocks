@@ -58,6 +58,9 @@ static int attest_scene(char *variant) {
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE")||
+     /* A4 scenes are now integrated into main: reject mixed mission worlds. */
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE")||
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS"))
     return 0;
