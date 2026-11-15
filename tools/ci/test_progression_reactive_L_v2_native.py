@@ -53,6 +53,9 @@ class NativeObserverContract(unittest.TestCase):
         self.assertIn("m->origin_z>WB_RL2_START_MAX_Z",oracle)
         self.assertIn("start[2]<WB_RL2_START_MIN_Z",code)
         self.assertIn("start[2]>WB_RL2_START_MAX_Z",code)
+        self.assertIn("if(step!=32||!attest_scene(&variant))",code)
+        world=(ROOT/"worlds/crazyflie_classroom_start.wbt").read_text(encoding="utf-8")
+        self.assertIn("basicTimeStep 32",world)
 
     def test_native_observation_never_makes_variant_a_completion_magic(self):
         core=(DIR/"reactive_core_v2.h").read_text(encoding="utf-8")
