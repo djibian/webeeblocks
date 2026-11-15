@@ -67,6 +67,32 @@ static void positive(char v){
   step(&j,j.s.x+1,j.s.y,j.s.z,j.s.yaw,0,1);
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_ACHIEVED);
 }
+/* A late-spawned observer must never treat an airborne craft at z=0.4 m
+ * as a new ground origin. This was a previously untested false-positive. */
+static void raised_origin(char v){
+  journey j;
+  wb_rl2_reset(&j.m,101,v,.400);
+  j.s=(wb_rl2_sample){.time=.1,.x=0,.y=0,.z=.400,.yaw=0};
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
+}
+/* Repeated sparse samples cannot establish 0.25 s uninterrupted landing.
+ * A fresh continuous 80-ms cadence may still establish it afterward. */
+static void sparse_landing(char v){
+  journey j;full_route(&j,v);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=0;i<3;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    j.s.time+=.11; /* 190-ms physical gap: inside MAX_DT but NOT continuous. */
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  for(int i=0;i<3;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_ACHIEVED);
+}
 static void skip_waypoint(char v){
   journey j;begin(&j,v);move(&j,0,0,.5,0);
   step(&j,0,0,.5,0,1,0);
@@ -163,7 +189,8 @@ static void never_completed(char v){
 }
 int main(void){
   for(const char *v="ABC";*v;++v){
-    positive(*v);skip_waypoint(*v);bypass_wall(*v);contact(*v);
+    positive(*v);raised_origin(*v);sparse_landing(*v);
+    skip_waypoint(*v);bypass_wall(*v);contact(*v);
     false_landing(*v);late_pose(*v);replay(*v);side_bypass(*v);
     invalid_sample(*v);wrong_direction(*v);teleport(*v);
     wrong_pad(*v);never_completed(*v);
@@ -172,6 +199,6 @@ int main(void){
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
   wb_rl2_reset(&bad,0,'Z',NAN);
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
-  puts("PASS A5 V2 C oracle: 41 positive/adversarial cases");
+  puts("PASS A5 V2 C oracle: 47 positive/adversarial cases");
   return 0;
 }
