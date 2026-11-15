@@ -145,7 +145,8 @@ int main(void) {
   assert(step(&m, 6.256, 1.35, 0, 0.02, 0.25, 0, 0) == WB_ALT_WAIT);
   assert(!m.stable_since_valid);
   assert(step(&m, 6.264, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 6.264+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 6.520, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
   normal_takeoff(&m, 15);
   assert(!m.stable_since_valid && !m.completion_seen &&
@@ -156,7 +157,8 @@ int main(void) {
   assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.240, 1.35, 0.20, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 7.248, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 7.496, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 7.248+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 7.504, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
   assert(step(&m, 7.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
 
@@ -164,10 +166,39 @@ int main(void) {
   normal_takeoff(&m, 16);
   cross_higher(&m);
   assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
-  assert(step(&m, 7.240, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.244, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 7.244+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 7.500, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
 
-  puts("PASS native altitude C oracle: crossing, sustained landing, terminal deadline, collision, reset, negatives");
+  /* Two well-spaced samples cannot certify an unobserved 250-ms dwell. */
+  normal_takeoff(&m, 17);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.256, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.256)<1e-7);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 6.256+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+
+  /* A backwards time sample is invalid, even with a perfect pad pose. */
+  normal_takeoff(&m, 18);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 5.999, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Mission completion BEFORE the H cannot later earn a passage token. */
+  normal_takeoff(&m, 19);
+  assert(step(&m, 1.100, 0.25, 0, 0.45, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(!m.crossed_barrier);
+  assert(step(&m, 1.200, 0.59, 0, 0.80, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Even a completion pulse ON the first gate centre cannot create a pass. */
+  normal_takeoff(&m, 20);
+  assert(step(&m, 2.000, 0.48, 0, 0.78, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 2.500, 0.59, 0, 0.80, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+
+  puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
 """
