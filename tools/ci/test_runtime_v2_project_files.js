@@ -136,11 +136,34 @@ async function proveScenePreparation() {
   await preparingOrientation;
   assert.strictEqual(backend.sceneIdentity, 'orientation-v1');
 
+  // Public Activity 4: switch scene A -> B with the same activity/project ID.
+  // An old-style OK reply is never a substitute for nonce-scoped SCENE_OK.
+  const pupilDecisionA=activityProfile('progression-decision-h-v1');
+  const pupilDecisionB=JSON.parse(JSON.stringify(pupilDecisionA));
+  pupilDecisionB.runtime.scene='decision-h-b-v1';
+  assert.strictEqual(Profiles.validateProfile(pupilDecisionA,Activities.BLOCK_CATALOG),true);
+  assert.strictEqual(Profiles.validateProfile(pupilDecisionB,Activities.BLOCK_CATALOG),true);
+  const preparingA4A=backend.prepareActivity(pupilDecisionA);
+  assert.match(messages.at(-1),/ REQUEST 4 SCENE decision-h-a-v1 [0-9a-f]{64}$/);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');
+  assert.strictEqual(backend.sceneIdentity,null,'legacy OK authenticated A4 A');
+  backend.handleMessage(sceneAck(backend,4));
+  await preparingA4A;
+  assert.strictEqual(backend.sceneIdentity,'decision-h-a-v1');
+  const preparingA4B=backend.prepareActivity(pupilDecisionB);
+  assert.match(messages.at(-1),/ REQUEST 5 SCENE decision-h-b-v1 [0-9a-f]{64}$/);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 OK');
+  assert.strictEqual(backend.sceneIdentity,null,'legacy OK authenticated A4 B');
+  backend.handleMessage(sceneAck(backend,5));
+  await preparingA4B;
+  assert.strictEqual(backend.sceneIdentity,'decision-h-b-v1');
+
+
   const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
   await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
   backend.simulationStopped = true;
   await assert.rejects(() => backend.prepareActivity(sequence), e => e.code === 'USER_STOPPED');
-  assert.strictEqual(messages.length, 3);
+  assert.strictEqual(messages.length, 5);
 
   const sent = [];
   const racing = new WwiBackend({send:m=>sent.push(m)}, {simulationScenes:true,simulationReset:true,timeoutMs:1000});
@@ -245,7 +268,7 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1|orientation-v1) ([0-9a-f]{64})$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1|orientation-v1|decision-h-a-v1|decision-h-b-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
         controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});

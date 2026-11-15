@@ -160,6 +160,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "01-sequence.wbb": "progression-sequence-v1",
             "02-altitude.wbb": "progression-altitude-v1",
             "03-orientation.wbb": "progression-orientation-3d-v1",
+            "04-observer-decision.wbb": "progression-decision-h-v1",
             "04-simple-decision.wbb": "progression-simple-decision-v1",
             "05-reactive.wbb": "progression-reactive-v1",
             "06-multi-perception.wbb": "progression-combined-decisions-v1",
@@ -171,7 +172,8 @@ class WindowsReleaseContractTests(unittest.TestCase):
         for filename, activity_id in expected.items():
             project = json.loads((starter_dir / filename).read_text(encoding="utf-8"))
             self.assertEqual(project["activity"]["id"], activity_id)
-            if filename in ("02-altitude.wbb", "03-orientation.wbb"):
+            if filename in ("02-altitude.wbb", "03-orientation.wbb",
+                            "04-observer-decision.wbb"):
                 self.assertEqual(project["format"], "webeeblocks-project")
                 self.assertEqual(project["version"], 1)
                 self.assertEqual(project["activity"]["semantics"], "webeeblocks-ast-v1")
