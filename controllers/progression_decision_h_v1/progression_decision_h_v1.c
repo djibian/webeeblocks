@@ -230,7 +230,10 @@ int main(void) {
   wb_robot_init();
   wb_dh_scene scene = 0;
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene(&scene)) {
+  /* The continuous 250-ms landing oracle requires consecutive real 32-ms
+   * observations (max gap 48 ms). Reject incompatible native cadence before
+   * READY, instead of admitting a physically unwinnable mission. */
+  if (step != 32 || !verify_scene(&scene)) {
     fprintf(stderr, "WEBEEBLOCKS_DECISION_H_FATAL invalid scene/observer/colliders\n");
     wb_robot_cleanup();
     return 2;
