@@ -2,7 +2,8 @@
 /* TEST-ONLY A5 v2 whole-algorithm witness, never an activity starter.
  * A real Blockly 13 .wbb, unchanged A/B/C, exercises bounded re-observation
  * and delayed use of historical sensor state AFTER a common 90-degree turn.
- * The sensor's new direction cannot stand in for the saved old observation.
+ * The new front ray after the pivot may recover the old left ray.
+ * Test a genuinely variable-free competing Blockly project as well.
  * This fixture uses MOCK ranges/dynamics only; physical necessity of this
  * memory and real Webots/pupil flight MUST be independently falsified.
  */
@@ -25,9 +26,9 @@ Compiler.installConditionalLoopBounds(Blockly);
 const base=Profiles.resolveById(Activities.DOCUMENT,'progression-reactive-L-v2',Activities.BLOCK_CATALOG);
 const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
   blockCatalog:Activities.BLOCK_CATALOG,semanticAst:Compiler,activityContract:Contract};
-function build(){
+function build(remember=true){
   const w=new Blockly.Workspace();
-  const state=w.getVariableMap().createVariable('observation mémorisée','','a5-v2-memory');
+  const state=remember?w.getVariableMap().createVariable('observation mémorisée','','a5-v2-memory'):null;
   const block=t=>w.newBlock(t);
   const num=x=>{const n=block('math_number');n.setFieldValue(String(x),'NUM');return n;};
   const put=(b,input,e)=>{b.getInput(input).connection.connect(e.outputConnection);return b;};
@@ -52,23 +53,24 @@ function build(){
   const takeoff=block('webeeblocks_v2_takeoff');put(takeoff,'HEIGHT',num(.5));
   const speed=block('webeeblocks_v2_speed');speed.setFieldValue('0.10','SPEED');
   const first=untilWall(),left=turn('left'),second=untilWall();
-  const store=block('variables_set');store.getField('VAR').setValue(state.getId());
-  put(store,'VALUE',range('left'));
+  const store=remember?block('variables_set'):null;
+  if(store){store.getField('VAR').setValue(state.getId());put(store,'VALUE',range('left'));}
   // First preserve the left-looking westward observation while facing north.
   // A common turn then changes the left sensor's physical viewing direction.
-  // Only the historical variable may determine the subsequent branching.
+  // The competing branch uses the current front sensor after rotation.
   const pivot=turn('left');
   const choose=block('controls_if');choose.loadExtraState({elseIfCount:1,hasElse:true});
-  put(choose,'IF0',cmp('LT',get(),num(.6)));
+  put(choose,'IF0',cmp('LT',remember?get():range('front'),num(.6)));
   const a=[turn('right'),turn('right'),move(.78)];link(...a);
   choose.getInput('DO0').connection.connect(a[0].previousConnection);
-  put(choose,'IF1',cmp('GT',get(),num(1.6)));
+  put(choose,'IF1',cmp('GT',remember?get():range('front'),num(1.6)));
   const b=[move(1.42)];link(...b);
   choose.getInput('DO1').connection.connect(b[0].previousConnection);
   const c=[move(1.25),turn('right'),move(.60)];link(...c);
   choose.getInput('ELSE').connection.connect(c[0].previousConnection);
   const land=block('webeeblocks_v2_land');
-  link(takeoff,speed,first,left,second,store,pivot,choose,land);
+  if(remember)link(takeoff,speed,first,left,second,store,pivot,choose,land);
+  else link(takeoff,speed,first,left,second,pivot,choose,land);
   return w;
 }
 function backend(variant){
@@ -98,6 +100,8 @@ function backend(variant){
       if(direction==='front'){
         if(heading===0)return round(.98-x);
         if(heading===90&&x>=.7)return round(1.21-y);
+        if(heading===180&&Math.abs(x-.8)<.02&&Math.abs(y-1)<.02)
+          return {A:.28,B:1.78,C:1.44}[variant];
         throw Error('fixture sampled front in unmodelled stage');
       }
       if(direction==='left'){
@@ -161,6 +165,45 @@ async function main(){
           steps:b.reads.length,final:b.pose()});
       }finally{reopened.dispose();}
     }
+    // Adversarial no-memory version: same trajectories/loops, but the
+    // post-pivot front sensor replaces the older stored left value.
+    const alternative=build(false);
+    let alternativeText,alternativeSha;
+    try {
+      Contract.preflightWorkspace(base,alternative);
+      const alternativeAst=Compiler.compileWorkspace(alternative);
+      Contract.preflightAst(base,alternativeAst);
+      assert.equal(alternativeAst.program.length,8);
+      assert.equal(alternativeAst.program.filter(x=>x.kind==='while').length,2);
+      assert.equal(alternativeAst.program.filter(x=>x.kind==='set_variable').length,0);
+      assert.equal(alternativeAst.program.filter(x=>x.kind==='if').length,1);
+      alternativeText=Files.encodeProject(base,alternative,options);
+      alternativeSha=crypto.createHash('sha256').update(alternativeText).digest('hex');
+      assert.notEqual(alternativeSha,sha);
+      for(const [variant,scene,expect] of [
+        ['A','reactive-L-a-v2',{x:1.58,y:1,heading:0}],
+        ['B','reactive-L-b-v2',{x:-.62,y:1,heading:180}],
+        ['C','reactive-L-c-v2',{x:-.45,y:1.6,heading:90}]
+      ]){
+        const profile=JSON.parse(JSON.stringify(base));profile.runtime.scene=scene;
+        assert.equal(Files.encodeProject(profile,alternative,options),alternativeText);
+        const checked=Files.validateProjectText(alternativeText,profile,options);
+        const reopened=new Blockly.Workspace();
+        try {
+          Blockly.serialization.workspaces.load(checked.project.workspace,reopened);
+          Contract.applyFieldBounds(profile,reopened);
+          const ast=Compiler.compileWorkspace(reopened);
+          assert.deepEqual(ast,alternativeAst);
+          const flight=backend(variant);
+          await Interpreter.run(ast,flight,{motionBounds:profile.runtime.astBounds});
+          assert.deepEqual(flight.pose(),{...expect,airborne:false});
+          assert(flight.reads.some(x=>x[0]==='front'&&x[3]===180),
+            'variable-free decision must measure front after pivot');
+          assert.equal(flight.reads.filter(x=>x[0]==='left').length,0);
+          assert.equal(flight.records.filter(x=>x[0]==='land').length,1);
+        } finally {reopened.dispose();}
+      }
+    } finally {alternative.dispose();}
     // This opt-in CI fixture is the SAME bytes for any subsequently flown
     // variant. Never install it into activities/progression/ or show to pupils.
     if(process.env.WEBEEBLOCKS_A5_WBB_OUTPUT){
@@ -172,8 +215,13 @@ async function main(){
       fs.mkdirSync(path.dirname(file),{recursive:true});
       fs.writeFileSync(file,text,{encoding:'utf8',flag:'wx'});
       if(fs.readFileSync(file,'utf8')!==text)throw Error('fixture write corruption');
+      const rival=path.join(ROOT,'ci-artifacts/progression-reactive-L-v2-pupil/no-memory-witness.wbb');
+      fs.writeFileSync(rival,alternativeText,{encoding:'utf8',flag:'wx'});
+      if(fs.readFileSync(rival,'utf8')!==alternativeText)throw Error('rival fixture corruption');
     }
     console.log('PASS A5 same Blockly .wbb A/B/C with delayed historical range after 90-degree pivot; two reactive loops, MOCK backend only; sha256='+sha);
+    console.log('A5_NO_MEMORY_CHALLENGER_MOCK_PASS front after pivot, zero variables, same A/B/C; sha256='+alternativeSha);
+    console.log(JSON.stringify({no_memory_wbb_sha256:alternativeSha,native_flight:'NOT_TESTED'}));
     console.log(JSON.stringify({wbb_sha256:sha,pupil_flight:'NOT_TESTED',
       didactics:'historical value read AFTER changing sensor frame; physical necessity NOT YET TESTED',readings}));
   }finally{source.dispose();}
