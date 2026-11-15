@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real R2025a startup attestation for the two A4 scenes and a corrupt collider.
+"""Real R2025a A4 startup for both scenes, malformed collider and 64-ms physics.
 
 No pupil program, flight or mocked sensor is run: native READY from the
 independent Webots supervisor is the only positive evidence here.
@@ -20,9 +20,9 @@ MARKER = "# WEBEEBLOCKS_A4_NATIVE_START_CI_ONLY"
 
 
 def compose(case):
-    if case not in ("a", "b", "bad-a"):
+    if case not in ("a", "b", "bad-a", "bad-step-a", "bad-step-b"):
         raise ValueError("unknown case")
-    letter = "a" if case == "bad-a" else case
+    letter = "a" if case == "bad-a" else case.removeprefix("bad-step-")
     base = classroom.compose(classroom.SOURCE.read_text(encoding="utf-8"))
     scene = (ROOT / "worlds/scenes" / ("decision-h-" + letter + "-v1.wbo")).read_text(encoding="utf-8")
     if (base.count('controller "crazyflie_classroom_v2"') != 1 or
@@ -36,6 +36,11 @@ def compose(case):
         if scene.count(before) != 1:
             raise ValueError("unexpected collider for negative proof")
         scene = scene.replace(before, "translation 0.750 0.300 0.55")
+    if case.startswith("bad-step-"):
+        # Change only WorldInfo.basicTimeStep, not any physical collider.
+        if base.count("basicTimeStep 32") != 1 or "basicTimeStep 64" in base:
+            raise ValueError("unexpected native physics step in canonical world")
+        base = base.replace("basicTimeStep 32", "basicTimeStep 64", 1)
     base = base.replace('controller "crazyflie_classroom_v2"', 'controller "<none>"')
     base = base.replace('window "altitude_scene_ack_probe"', 'window ""')
     if ('controller "crazyflie_runtime_v2"' in base or
@@ -46,7 +51,7 @@ def compose(case):
 
 
 def run(case):
-    letter = "a" if case == "bad-a" else case
+    letter = "a" if case == "bad-a" else case.removeprefix("bad-step-")
     world = ROOT / "worlds" / ("ci_classroom_decision_h_" + case + ".wbt")
     project = ROOT / "worlds" / (".ci_classroom_decision_h_" + case + ".wbproj")
     log_path = ARTIFACTS / case / "webots.log"
@@ -96,15 +101,17 @@ def run(case):
                 raise ValueError("refusing to delete modified CI project")
             project.unlink()
     text = log_path.read_text(encoding="utf-8", errors="replace")
-    ok = (text.count(fatal) == 1 and ready not in text) if case == "bad-a" else (
+    negative = case == "bad-a" or case.startswith("bad-step-")
+    ok = (text.count(fatal) == 1 and ready not in text) if negative else (
         text.count(ready) == 1 and "WEBEEBLOCKS_DECISION_H_FATAL" not in text)
-    if not ok or "WEBEEBLOCKS_DECISION_H_RESULT" in text:
+    if (not ok or "WEBEEBLOCKS_DECISION_H_RESULT" in text or
+            (negative and "WEBEEBLOCKS_DECISION_H_ATTEMPT" in text)):
         raise AssertionError("native A4 startup not proved: " + case +
                              " (see " + str(log_path) + ")")
     print("A4_NATIVE_START_OK case=" + case, flush=True)
 
 
 if __name__ == "__main__":
-    for item in ("a", "b", "bad-a"):
+    for item in ("a", "b", "bad-a", "bad-step-a", "bad-step-b"):
         run(item)
-    print("A4_NATIVE_START_PASS cases=a,b,bad-a", flush=True)
+    print("A4_NATIVE_START_PASS cases=a,b,bad-a,bad-step-a,bad-step-b", flush=True)
