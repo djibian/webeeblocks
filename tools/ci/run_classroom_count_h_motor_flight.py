@@ -48,13 +48,22 @@ class A6VariantHandler(observer.Handler):
     mode = "reference"
 
     def do_GET(self):
-        if self.path != "/a6-variant":
+        if self.path == "/a6-private-wbb":
+            project=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+            if (self.mode!="blockly" or not project.is_file() or project.is_symlink()
+                    or project.stat().st_size<100 or project.stat().st_size>1048576):
+                self.send_error(404)
+                return
+            data=project.read_bytes()
+        elif self.path == "/a6-variant":
+            data=json.dumps({"variant":self.variant,"mode":self.mode},
+                            sort_keys=True).encode("utf-8")
+        else:
             self.send_error(404)
             return
-        data=json.dumps({"variant":self.variant,"mode":self.mode},
-                        sort_keys=True).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type","application/json")
+        self.send_header("Cache-Control","no-store")
         self.send_header("Content-Length",str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -65,7 +74,7 @@ REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
 
 def terminal_native_ack_logged(native_log, variant, mode="reference"):
     """Never kill Webots between C physical success and native LAND ACK."""
-    if variant not in (1,2,3) or mode not in ("reference","sensor"):
+    if variant not in (1,2,3) or mode not in ("reference","sensor","blockly"):
         return False
     if f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} " not in native_log:
         return False
@@ -84,12 +93,17 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
 def run(variant=1,mode="reference"):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
-    if mode not in ("reference","sensor"):
+    if mode not in ("reference","sensor","blockly"):
         raise ValueError("invalid bounded A6 pilot mode")
     global ARTIFACT
     ARTIFACT=(world.ARTIFACT/f"n{variant}" if mode=="reference"
-              else world.ARTIFACT/f"sensor-n{variant}")
+              else world.ARTIFACT/f"{mode}-n{variant}")
     ARTIFACT.mkdir(parents=True,exist_ok=True)
+    if mode=="blockly":
+        private=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+        if (not private.is_file() or private.is_symlink() or
+            private.stat().st_size<100 or private.stat().st_size>1048576):
+            raise FileNotFoundError("canonical private Blockly CI witness missing")
     log=ARTIFACT/"webots.log"
     observer.EVENTS.clear()
     server=None; proc=None; output=None
@@ -293,6 +307,7 @@ def run(variant=1,mode="reference"):
                and native_achieved
                and (reference_protocol if mode=="reference"
                     else sensor_protocol)
+               and (mode!="blockly" or events.count("A6_PRIVATE_WBB_REOPENED")==1)
                and f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt
                and "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt
                and "LAND_TOUCHDOWN" in txt and browser
@@ -302,9 +317,14 @@ def run(variant=1,mode="reference"):
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
         "pass":bool(succeeded),"variant":variant,"mode":mode,
-        "sensor_command_program_pass":bool(sensor_protocol if mode=="sensor"
+        "sensor_command_program_pass":bool(sensor_protocol if mode in ("sensor","blockly")
                                           else False),
-        "sensor_reported_count":sensor_count if mode=="sensor" else None,
+        "private_blockly_webots_pass":bool(succeeded and mode=="blockly"),
+        "private_wbb_sha256":(
+            hashlib.sha256((world.ROOT/
+              "ci-artifacts/progression-count-h-private-blockly/a6-private.wbb")
+              .read_bytes()).hexdigest() if mode=="blockly" else None),
+        "sensor_reported_count":sensor_count if mode in ("sensor","blockly") else None,
         "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
         "variant_blind_two_sensor_count_correct":bool(
             dual.get("terminal_detected",False) and dual.get("count")==variant),
@@ -334,6 +354,11 @@ def run(variant=1,mode="reference"):
         print(f"WEBEEBLOCKS_A6_SENSOR_COMMANDS_PASS n={variant} "
               f"count={sensor_count} moves={sensor_steps} "
               "same_test_pilot=true pupil_wbb=UNPROVEN",flush=True)
+    if mode=="blockly":
+        project=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+        print(f"WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS n={variant} "
+              f"count={sensor_count} project_sha256={hashlib.sha256(project.read_bytes()).hexdigest()} "
+              "native_PID=true Blockly13=true pupil_product=UNPROVEN",flush=True)
     print(f"WEBEEBLOCKS_A6_TWO_SENSOR_COUNT_OK native={variant} "
           f"count={dual['count']} terminal={dual['terminal_detected']} "
           "controller=real_motor sensor_only=true pupil_wbb=UNPROVEN",flush=True)
@@ -348,6 +373,6 @@ def run(variant=1,mode="reference"):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
-    parser.add_argument("--mode",choices=("reference","sensor"),default="reference")
+    parser.add_argument("--mode",choices=("reference","sensor","blockly"),default="reference")
     args=parser.parse_args()
     raise SystemExit(run(variant=args.variant,mode=args.mode))
