@@ -13,6 +13,7 @@ on:
       - 'tools/ci/run_classroom_reactive_L_sensor*.py'
       - 'tools/ci/run_classroom_reactive_L_v2_evaluator_attestation.py'
       - 'tools/ci/run_classroom_reactive_L_v2_geometry_mutant.py'
+      - 'tools/ci/run_classroom_reactive_L_v2_foreign_scene.py'
       - 'controllers/progression_reactive_L_v2/**'
       - 'controllers/progression_reactive_L_attempt_probe/**'
       - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
@@ -125,6 +126,15 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_v2_geometry_mutant.py'
+      - name: Refuse official A4/A5 mixed physical worlds before native A5 READY (six cases)
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_v2_foreign_scene.py'
       - name: Compile isolated A5 R2025a attempt-identity protocol driver
         run: |
           docker run --rm \
@@ -179,6 +189,7 @@ jobs:
             ci-artifacts/progression-reactive-L-sensor-v2/
             ci-artifacts/progression-reactive-L-v2-evaluator/
             ci-artifacts/progression-reactive-L-v2-mutant/
+            ci-artifacts/progression-reactive-L-v2-foreign-a4/
             ci-artifacts/progression-reactive-L-v2-attempt/
             ci-artifacts/progression-reactive-L-v2-school-selector/
             ci-artifacts/progression-reactive-L-v2-pupil/
