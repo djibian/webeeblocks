@@ -121,13 +121,13 @@ async function proveScenePreparation() {
   await preparingAltitude;
   assert.strictEqual(backend.sceneIdentity, 'altitude-v1');
 
-  // The orientation vocabulary is staged, but no pupil profile selects it.
-  // Even a legacy OK must not attest the world: only an exact native scene ACK.
-  const stagedOrientation = JSON.parse(JSON.stringify(sequence));
-  stagedOrientation.runtime.scene = 'orientation-v1';
-  assert.strictEqual(Profiles.validateProfile(stagedOrientation, Activities.BLOCK_CATALOG), true);
-  assert(!Activities.DOCUMENT.activities.some(p => p.runtime.scene === 'orientation-v1'));
-  const preparingOrientation = backend.prepareActivity(stagedOrientation);
+  // The real Activity 3 pupil profile must be selected exactly once and
+  // authenticated by a nonce-bound native scene ACK, never by a legacy OK.
+  const pupilOrientation = activityProfile('progression-orientation-3d-v1');
+  assert.strictEqual(Profiles.validateProfile(pupilOrientation, Activities.BLOCK_CATALOG), true);
+  assert.strictEqual(pupilOrientation.runtime.scene, 'orientation-v1');
+  assert.strictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'orientation-v1').length, 1);
+  const preparingOrientation = backend.prepareActivity(pupilOrientation);
   assert.match(messages.at(-1), / REQUEST 3 SCENE orientation-v1 [0-9a-f]{64}$/);
   assert.strictEqual(backend.sceneIdentity, null, 'orientation claimed before native ACK');
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
