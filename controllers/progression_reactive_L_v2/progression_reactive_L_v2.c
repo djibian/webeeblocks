@@ -168,7 +168,9 @@ int main(void){
   wb_robot_init();
   const int step=(int)wb_robot_get_basic_time_step();
   char variant=0;
-  if(step<8||step>64||!attest_scene(&variant)){
+  /* A5 classroom geometry and the independent 48-ms dwell-gap witness
+   * are qualified for an exact 32-ms physics/observer cadence, not 64 ms. */
+  if(step!=32||!attest_scene(&variant)){
     fprintf(stderr,"WEBEEBLOCKS_A5_V2_FATAL native scene geometry/identity\n");
     wb_robot_cleanup();return 2;
   }
