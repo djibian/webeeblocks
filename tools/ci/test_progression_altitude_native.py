@@ -198,6 +198,17 @@ int main(void) {
   assert(step(&m, 2.000, 0.48, 0, 0.78, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 2.500, 0.59, 0, 0.80, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
+  /* Even one omitted 8-ms native tick interrupts the stability trace. */
+  normal_takeoff(&m, 21);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.008, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.024, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.024)<1e-7);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 6.024+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.280, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+
   puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
