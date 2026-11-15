@@ -154,7 +154,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("$miniObserverBinary",packager)
         for name in ("mini-grand-prix-l-v1.wbo","mini-grand-prix-r-v1.wbo"):
             self.assertIn("'"+name+"'",packager)
-            self.assertIn("'controller \"progression_mini_grand_prix_v1\"'",
+            self.assertIn('controller "progression_mini_grand_prix_v1"',
                           (ROOT/"worlds/scenes"/name).read_text(encoding="utf-8"))
             self.assertIn(name,witness)
         self.assertIn("Copy-RequiredFile $miniObserverBinary",packager)
