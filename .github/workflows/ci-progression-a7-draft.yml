@@ -14,6 +14,7 @@ on:
       - 'worlds/scenes/mini-grand-prix-*-v1.wbo'
       - 'tools/ci/test_progression_mini_grand_prix_*'
       - 'tools/ci/run_classroom_mini_gp_geometry.py'
+      - 'tools/ci/run_classroom_mini_gp_native_observer.py'
 
 permissions:
   contents: read
@@ -48,6 +49,14 @@ jobs:
             -w /workspace/controllers/progression_mini_gp_geometry_probe \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_mini_gp_geometry_probe'
+      - name: Compile isolated A7 native pose and contact evaluator on real R2025a
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_grand_prix_v1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_grand_prix_v1'
       - name: Falsify L and R native colliders, contact and range geometry
         run: |
           set -euo pipefail
@@ -58,10 +67,22 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_geometry.py'
+      - name: Refuse one native false-start attempt in each real L and R scene
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_native_observer.py'
       - name: Preserve negative and positive native evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a7-draft-native-geometry-only
-          path: ci-artifacts/progression-mini-gp-geometry/
+          name: a7-draft-native-geometry-and-observer-negative
+          path: |
+            ci-artifacts/progression-mini-gp-geometry/
+            ci-artifacts/progression-mini-gp-native-observer/
           if-no-files-found: warn

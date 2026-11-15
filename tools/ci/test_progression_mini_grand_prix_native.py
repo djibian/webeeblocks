@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/ci"))
 import run_classroom_mini_gp_geometry as witness  # noqa: E402
+import run_classroom_mini_gp_native_observer as observer  # noqa: E402
 
 
 class MiniGrandPrixNativeContract(unittest.TestCase):
@@ -54,6 +55,49 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         self.assertNotIn("wb_motor_set_velocity", native)
         self.assertNotIn("Blockly.", native)
         self.assertNotIn("wb_robot_set_mode", native)
+
+    def test_real_supervisor_requires_correct_native_scene_and_rejects_false_start(self):
+        for letter in "LR":
+            with self.subTest(variant=letter):
+                source = observer.compose(letter)
+                self.assertEqual(source.count(observer.MARKER), 1)
+                self.assertEqual(source.count('controller "progression_mini_grand_prix_v1"'), 1)
+                self.assertEqual(source.count('controller "progression_mini_gp_geometry_probe"'), 1)
+                self.assertEqual(source.count('customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"'), 1)
+                self.assertEqual(source.count("Mini Grand Prix native evaluator"), 1)
+                self.assertEqual(source.count(" Robot {"), 1)
+                self.assertNotIn('controller "crazyflie_runtime_v2"', source)
+                self.assertNotIn('controller "crazyflie_classroom_v2"', source)
+                self.assertEqual(source.count(" Solid {"), 9)
+        for bad in (None, "", "B", "LR", 1):
+            with self.subTest(untrusted=bad), self.assertRaises(ValueError):
+                observer.compose(bad)
+        native = (ROOT / "controllers/progression_mini_grand_prix_v1/"
+                  "progression_mini_grand_prix_v1.c").read_text(encoding="utf-8")
+        for token in ("WB_A7_SCENE_CHILDREN 29", "attest_scene(&variant)",
+                      "solid_at(&check)", "unique_vehicle()",
+                      "wb_supervisor_node_get_contact_points",
+                      "wb_supervisor_node_enable_contact_points_tracking",
+                      "wb_supervisor_node_get_orientation",
+                      "attempt_token(data,&attempt)",
+                      "completed_token(data,mission.attempt)",
+                      "wb_mini_sample_mission(&mission,&sample)",
+                      "WB_MINI_NATIVE_FIRST", "WB_MINI_NATIVE_RESULT",
+                      "WB_MINI_NATIVE_FATAL"):
+            self.assertIn(token, native)
+        for forbidden in ("wb_motor_set_", "wb_supervisor_node_reset_physics",
+                          "radio_link", "Blockly.", "wb_robot_set_mode"):
+            self.assertNotIn(forbidden, native)
+        runner = (ROOT / "tools/ci/run_classroom_mini_gp_native_observer.py").read_text(
+            encoding="utf-8")
+        self.assertIn('"motorized_flight": False', runner)
+        self.assertIn('"pupil_program_tested": False', runner)
+        self.assertIn('"status=achieved" in data', runner)
+        workflow = (ROOT / ".github/workflows/ci-progression-a7-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("run_classroom_mini_gp_native_observer.py", workflow)
+        self.assertIn("test -s progression_mini_grand_prix_v1", workflow)
+        self.assertNotIn("name: CI Gate\n", workflow)
 
 
 if __name__ == "__main__":
