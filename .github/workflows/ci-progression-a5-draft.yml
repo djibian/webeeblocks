@@ -199,7 +199,12 @@ jobs:
       - name: Generate the exact common test-only Blockly project and validate A5 flight source
         run: |
           set -euo pipefail
-          npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+          # Browser assets must be materialized in the mounted workspace;
+          # npm ci alone installs node_modules but not vendor/Blockly JS.
+          ./tools/prepare_runtime_v2.sh
+          test -s plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js
+          test -s plugins/robot_windows/blockly_v2/vendor/blocks_compressed.js
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           WEBEEBLOCKS_A5_WBB_OUTPUT=ci-artifacts/progression-reactive-L-v2-pupil/generic-witness.wbb node tools/ci/test_progression_reactive_L_v2_generic_program.js
           python3 -m unittest -v tools.ci.test_progression_reactive_L_v2_pupil_flight
           node --check plugins/robot_windows/reactive_l_v2_pupil_probe/reactive_l_v2_pupil_probe.js

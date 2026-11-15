@@ -26,6 +26,23 @@ class TestA5PupilFlightStaging(unittest.TestCase):
             with self.subTest(bad=bad),self.assertRaises(ValueError):
                 flight.compose(bad)
 
+    def test_browser_vendor_assets_are_prepared_before_native_launch(self):
+        workflow=(ROOT/".github/workflows/ci-progression-a5-draft.yml").read_text(
+            encoding="utf-8")
+        section=workflow.split("  a5-pupil-flight-draft:",1)[1]
+        self.assertIn("./tools/prepare_runtime_v2.sh",section)
+        self.assertIn("test -s plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js",section)
+        self.assertIn('vendor/VERSION)',section)
+        self.assertLess(section.index("./tools/prepare_runtime_v2.sh"),
+                        section.index("node tools/ci/test_progression_reactive_L_v2_generic_program.js"))
+        self.assertLess(section.index("./tools/prepare_runtime_v2.sh"),
+                        section.index("run_classroom_reactive_L_v2_pupil_flight.py --variant A"))
+        self.assertNotIn("npm ci --prefix plugins/robot_windows/blockly_v2",section)
+        browser=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
+                 "reactive_l_v2_pupil_probe.html").read_text(encoding="utf-8")
+        self.assertIn('src="../blockly_v2/vendor/blockly_compressed.js"',browser)
+        self.assertIn('src="../blockly_v2/vendor/blocks_compressed.js"',browser)
+
     def test_browser_never_invents_native_outcome_or_activity_solution(self):
         js=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
             "reactive_l_v2_pupil_probe.js").read_text(encoding="utf-8")
