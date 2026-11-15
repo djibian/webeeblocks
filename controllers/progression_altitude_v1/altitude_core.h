@@ -33,6 +33,8 @@
 #define WB_ALT_CANOPY_BOTTOM 0.66
 #define WB_ALT_CANOPY_TOP 0.74
 #define WB_ALT_SETTLE_SEC 1.5
+/* Consecutive native simulation time, never a single slow pose sample. */
+#define WB_ALT_LAND_DWELL_SEC 0.250
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
 
@@ -46,6 +48,8 @@ typedef struct {
   unsigned long long attempt;
   double origin_z;
   double completion_at;
+  double stable_since;
+  int stable_since_valid;
   int airborne;
   int before_barrier;
   int inside_barrier;
@@ -156,6 +160,11 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
   }
   if (!m->completion_seen)
     return WB_ALT_WAIT;
+  /* Terminal timeout wins even if the stability window ends at this tick. */
+  if (s->time - m->completion_at >= WB_ALT_SETTLE_SEC) {
+    m->result = WB_ALT_NOT_ACHIEVED;
+    return m->result;
+  }
 
   const int on_pad =
     fabs(x - WB_ALT_TARGET_X) <= WB_ALT_TARGET_X_TOL &&
@@ -165,11 +174,16 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     hypot(s->vx, s->vy) <= WB_ALT_MAX_SPEED && fabs(s->vz) <= WB_ALT_MAX_SPEED;
 
   if (m->airborne && m->crossed_barrier && on_pad && landed && stationary) {
-    m->result = WB_ALT_ACHIEVED;
-    return m->result;
+    if (!m->stable_since_valid) {
+      m->stable_since = s->time;
+      m->stable_since_valid = 1;
+    }
+    if (s->time - m->stable_since >= WB_ALT_LAND_DWELL_SEC)
+      m->result = WB_ALT_ACHIEVED;
+  } else {
+    /* A new movement or partial exit from the pad resets the full dwell. */
+    m->stable_since_valid = 0;
   }
-  if (s->time - m->completion_at >= WB_ALT_SETTLE_SEC)
-    m->result = WB_ALT_NOT_ACHIEVED;
   return m->result;
 }
 
