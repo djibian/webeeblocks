@@ -31,6 +31,15 @@ static int attest_box(const char *def,const wb_rl2_box *box){
   for(int i=0;i<3;++i)
     if(!close_native(pos[i],p[i])||!close_native(size[i],d[i]))
       return 0;
+  /* A rotated Solid preserves both its translation and local Box size, but
+   * changes the world-space collider. Attest the actual native orientation.
+   * This is a startup check for the trusted STATIC classroom scene only. */
+  const double *orientation=wb_supervisor_node_get_orientation(node);
+  if(!orientation)return 0;
+  for(int i=0;i<9;++i){
+    const double expected=(i%4==0)?1.0:0.0;
+    if(!close_native(orientation[i],expected))return 0;
+  }
   return 1;
 }
 static int attest_scene(char *variant){
