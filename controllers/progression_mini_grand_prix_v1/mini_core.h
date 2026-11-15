@@ -11,6 +11,13 @@
 #define WB_MINI_H_Y_TOL 0.175
 #define WB_MINI_H_Z_MAX 0.530
 #define WB_MINI_AIRBORNE 0.200
+/* The very first observed sample must attest the blue start marker; late
+ * attachment near H cannot count as a fresh mission attempt. Webots native
+ * scene/identity validation is still required at the observer boundary. */
+#define WB_MINI_START_X -1.400
+#define WB_MINI_START_XY_TOL 0.080
+#define WB_MINI_START_Z_TOL 0.060
+#define WB_MINI_START_SPEED 0.120
 #define WB_MINI_TURN_TOL 0.150
 #define WB_MINI_YAW_TOL 0.20
 #define WB_MINI_LAND_TOL 0.065
@@ -65,6 +72,19 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
      !isfinite(m->origin_z))return WB_MINI_FAILED;
   if(m->verdict!=WB_MINI_WAIT)return m->verdict;
   if(!wb_mini_valid(s)||s->contact||s->time<=m->last_time||s->time<0) {
+    m->verdict=WB_MINI_FAILED;return m->verdict;
+  }
+  /* A fresh attempt must be observed on the blue marker, on the ground,
+   * approximately stationary and initially facing the first H. This is an
+   * observation precondition, not an inspection of the pupil's algorithm. */
+  if(!m->previous_valid &&
+     (fabs(s->x-WB_MINI_START_X)>WB_MINI_START_XY_TOL||
+      fabs(s->y)>WB_MINI_START_XY_TOL||
+      fabs(s->z-m->origin_z)>WB_MINI_START_Z_TOL||
+      hypot(s->vx,s->vy)>WB_MINI_START_SPEED||
+      fabs(s->vz)>WB_MINI_START_SPEED||
+      wb_mini_yaw_error(s->yaw,0)>WB_MINI_YAW_TOL||
+      s->completed)) {
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
   m->last_time=s->time;

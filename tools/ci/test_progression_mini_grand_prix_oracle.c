@@ -11,12 +11,18 @@ static wb_mini_sample sample(double t,double x,double y,double z,double yaw,int 
   a.time=t;a.x=x;a.y=y;a.z=z;a.yaw=yaw;a.completed=done;
   return a;
 }
+/* Test-only helper: every legitimate fresh attempt begins with one native
+ * observed ground sample at the blue start, not a fake H-entry sample. */
+static void blue_start(wb_mini_mission *m,char v,unsigned long long attempt) {
+  wb_mini_reset(m,attempt,v,.015);
+  wb_mini_sample a=sample(0,-1.40,0,.015,0,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+}
 static void positive(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
-  wb_mini_sample a=sample(0,-1.4,0,.015,0,0);
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(1,-1.4,0,.40,0,0);assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(2,h-.18,0,.40,0,0);assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(3,h,0,.40,0,0);assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(4,h+.18,0,.40,0,0);assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
@@ -31,7 +37,7 @@ static void positive(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
 }
 static void bypass(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
@@ -43,7 +49,7 @@ static void bypass(char v) {
 /* Exact previously reproduced NO_GO: gate centre, retreat upstream,
  * lateral bypass outside the opening, then jump to downstream. */
 static void backtrack_lateral_bypass(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),side=v=='L'?.55:-.55;
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
@@ -64,7 +70,7 @@ static void backtrack_lateral_bypass(char v) {
 /* Both discrete endpoints can lie outside the tight H strip, while the
  * interpolated segment enters its forbidden lateral volume. */
 static void swept_lateral_bypass(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),side=v=='L'?.55:-.55;
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
@@ -78,7 +84,7 @@ static void swept_lateral_bypass(char v) {
 /* Retracing steps is not itself a collision. Re-centering and a legal
  * forward underpass must remain possible for a pupil correcting an error. */
 static void corrected_retry(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
@@ -103,15 +109,57 @@ static void corrected_retry(char v) {
   a=sample(9.26,x,y,.015,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
 }
-static void skip_gate(char v) {
+
+/* First observed sample near a physical obstacle cannot prove a fresh
+ * departure from the blue starting area, even with valid attempt identity. */
+static void absent_blue_start(char v) {
   wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  const double h=wb_mini_h_x(v);
+  wb_mini_sample a=sample(1,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(2,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* Do not accept a spoofed starting sample with wrong pose, vertical state,
+ * motion, yaw, or a prematurely published completion pulse. */
+static void invalid_blue_pose(char v) {
+  wb_mini_mission m;
+  for(int mode=0;mode<7;++mode) {
+    wb_mini_reset(&m,1,v,.015);
+    wb_mini_sample a=sample(0,-1.40,0,.015,0,0);
+    if(mode==0)a.x+=.20;
+    if(mode==1)a.y+=.20;
+    if(mode==2)a.z+=.20;
+    if(mode==3)a.yaw=.45;
+    if(mode==4)a.vx=.30;
+    if(mode==5)a.vz=.30;
+    if(mode==6)a.completed=1;
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+    a=sample(1,-1.40,0,.015,0,0);
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  }
+}
+/* After an invalid first observation, a NEW attempt (not replay on the
+ * old token) may start at the legitimate blue marker and take off. */
+static void fresh_blue_reset(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_sample a=sample(1,wb_mini_h_x(v)-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  blue_start(&m,v,2);
+  assert(m.attempt==2);
+  a=sample(1,-1.40,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+}
+
+static void skip_gate(char v) {
+  wb_mini_mission m;blue_start(&m,v,1);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(2,wb_mini_turn_x(v),0,.40,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
 static void no_turn(char v) {
-  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);wb_mini_sample_mission(&m,&a);
   a=sample(2,h-.18,0,.40,0,0);wb_mini_sample_mission(&m,&a);
@@ -127,13 +175,13 @@ static void contact_and_stale(void) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
   a=sample(2,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
-  wb_mini_reset(&m,2,'L',.015);
+  blue_start(&m,'L',2);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
 static void ready_for_completion(wb_mini_mission *m,char v) {
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v);
-  wb_mini_reset(m,1,v,.015);
+  blue_start(m,v,1);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
   a=sample(2,h-.18,0,.40,0,0);
@@ -205,7 +253,7 @@ static void terminal_timeout(char v) {
 }
 static void completion_before_turn(char v) {
   wb_mini_mission m;
-  wb_mini_reset(&m,1,v,.015);
+  blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);wb_mini_sample_mission(&m,&a);
   a=sample(2,h-.18,0,.40,0,0);wb_mini_sample_mission(&m,&a);
@@ -247,6 +295,9 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  absent_blue_start('L');absent_blue_start('R');
+  invalid_blue_pose('L');invalid_blue_pose('R');
+  fresh_blue_reset('L');fresh_blue_reset('R');
   completion_away_from_pad_y('L');completion_away_from_pad_y('R');
   completion_away_from_pad_x('L');completion_away_from_pad_x('R');
   completion_near_pad_can_settle('L');completion_near_pad_can_settle('R');
@@ -262,6 +313,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: thirty-one positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: thirty-seven positive/adversarial scenarios");
   return 0;
 }
