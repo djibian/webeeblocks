@@ -141,9 +141,12 @@ int main(void) {
   assert(step(&m, 6.240, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 6.248, 1.45, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(!m.stable_since_valid);
-  assert(step(&m, 6.256, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 6.504, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+  /* Even on the correct pad, speed above 0.12 m/s restarts the dwell. */
+  assert(step(&m, 6.256, 1.35, 0, 0.02, 0.25, 0, 0) == WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  assert(step(&m, 6.264, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.520, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
   normal_takeoff(&m, 15);
   assert(!m.stable_since_valid && !m.completion_seen &&
          m.result == WB_ALT_WAIT);
