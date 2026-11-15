@@ -51,6 +51,8 @@ class A4LowContactTests(unittest.TestCase):
             "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %d",
             "WEBEEBLOCKS_DECISION_H_LOW_PHYSICAL variant=%c",
             "WEBEEBLOCKS_DECISION_H_LOW_END variant=%c",
+            "WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=%c",
+            "floor_contacts=%d center_z=%.9f motors=OFF",
         ):
             self.assertIn(token, probe)
         for token in (
@@ -60,6 +62,8 @@ class A4LowContactTests(unittest.TestCase):
             "WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT",
             "WEBEEBLOCKS_DECISION_H_FIRST_SAMPLE attempt=1",
             '"floor_only_first_sample": True',
+            '"native_floor_contacts": int(ground[0][1])',
+            "ground_ok = (len(ground) == 1",
             "floor_only_accepted=true",
             "if not p or not n or len(stop) != 1",
             "no_pupil_flight_or_mission_success_claim",
