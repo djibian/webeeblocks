@@ -48,8 +48,8 @@ class CountingSceneTests(unittest.TestCase):
                     )
                     self.assertIsNotNone(line, (n, side))
                     mark = re.search(
-                        r"Pose \\{ translation (-?[0-9.]+) (-?[0-9.]+) 0\\.002"
-                        r".*?geometry Box \\{ size ([0-9.]+) 0\\.012 0\\.004",
+                        r"Pose \{ translation (-?[0-9.]+) (-?[0-9.]+) 0\.002"
+                        r".*?geometry Box \{ size ([0-9.]+) 0\.012 0\.004",
                         line,
                     )
                     self.assertIsNotNone(mark, (n, side, line))
