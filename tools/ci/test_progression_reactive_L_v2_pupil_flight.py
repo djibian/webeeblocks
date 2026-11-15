@@ -56,6 +56,9 @@ class TestA5PupilFlightStaging(unittest.TestCase):
         self.assertIn('exit "$failed"',pilot)
         self.assertLess(pilot.index('for variant in A B C; do'),pilot.index('A5_NATIVE_SAME_WBB_ABC_PASS'))
         self.assertIn('if: always()',pilot)
+        self.assertIn('for candidate in memory no-memory; do',pilot)
+        self.assertIn('A5_NO_MEMORY_TRIPLE_NATIVE_PASS',pilot)
+        self.assertIn('no-memory-witness.wbb',pilot)
 
     def test_real_native_reset_replays_same_workspace_without_stale_oracle(self):
         js=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
@@ -74,6 +77,9 @@ class TestA5PupilFlightStaging(unittest.TestCase):
         self.assertIn("native_replay_achieved",runner)
         self.assertIn("attempt=2",runner)
         self.assertIn("RESET_REQUIRED",runner)
+        self.assertIn('FIXTURES={"memory":"generic-witness.wbb","no-memory":"no-memory-witness.wbb"}',runner)
+        self.assertIn('wbb.get("state_assignments")==(1 if candidate=="memory" else 0)',runner)
+        self.assertIn('FixtureHandler.noMemory=candidate=="no-memory"',runner)
         self.assertIn("A5_NATIVE_RESET_REPLAY_PASS",workflow)
 
     def test_browser_never_invents_native_outcome_or_activity_solution(self):
@@ -88,6 +94,9 @@ class TestA5PupilFlightStaging(unittest.TestCase):
             "await crypto.subtle.digest('SHA-256',bytes)",
             "base.starterVisible!==false",
             "WebeeBlocksSemanticAst.installConditionalLoopBounds(Blockly)",
+            "workspace.getAllBlocks(false).filter",
+            "variable-free challenger contains a Blockly variable block",
+            "variable_blocks:variableBlocks.length",
         ):self.assertIn(token,js)
         for forbidden in (
             "wb_supervisor_field_set_sf_vec3f",

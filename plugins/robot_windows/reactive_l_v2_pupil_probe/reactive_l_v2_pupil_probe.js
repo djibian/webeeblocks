@@ -65,6 +65,13 @@ window.addEventListener('unhandledrejection',e=>pupilA5Report('A5_PUPIL_ERROR',{
   Blockly.serialization.workspaces.load(validated.project.workspace,workspace);
   WebeeBlocksActivityContract.applyFieldBounds(profile,workspace);
   const ast=WebeeBlocksSemanticAst.compileWorkspace(workspace);
+  // Inspect the reopened genuine Blockly workspace, not only the statement
+  // list. A variables_get inside an expression is not a statement and could
+  // otherwise hide a memory dependency in a purported variable-free witness.
+  const variableBlocks=workspace.getAllBlocks(false).filter(b=>
+    b.type==='variables_set'||b.type==='variables_get'||b.type==='math_change');
+  if(fetched.noMemory&&variableBlocks.length)
+    pupilA5Fail('variable-free challenger contains a Blockly variable block');
   const assignments=fetched.noMemory?0:1;
   if(ast.program.filter(s=>s.kind==='while').length!==2||
      ast.program.filter(s=>s.kind==='set_variable').length!==assignments||
@@ -73,7 +80,7 @@ window.addEventListener('unhandledrejection',e=>pupilA5Report('A5_PUPIL_ERROR',{
    pupilA5Fail('real .wbb had wrong reactive loop/variable/branch AST');
   await pupilA5Report('A5_PUPIL_SAME_WBB_REOPENED',{
    sha256:hash,id:profile.id,variant:fetched.variant,
-   loops:2,state_assignments:assignments,branch_count:1});
+   loops:2,state_assignments:assignments,variable_blocks:variableBlocks.length,branch_count:1});
   const mod=await import('../blockly_v2/webots/RobotWindow.js');
   const bridge=new mod.default();
   const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
