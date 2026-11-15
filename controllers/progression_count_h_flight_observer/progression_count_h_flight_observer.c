@@ -160,6 +160,7 @@ int main(void) {
     const int pad=(fabs(sample.x-1.48)<=.060 &&
                    fabs(sample.y-wb_count_target_y((unsigned)variant))<=.060 &&
                    sample.z-origin_z<=WB_COUNT_LAND_Z &&
+                   sample.z<=WB_COUNT_LAND_ABSOLUTE_Z &&
                    hypot(sample.vx,sample.vy)<=WB_COUNT_LAND_MAX_SPEED &&
                    fabs(sample.vz)<=WB_COUNT_LAND_MAX_SPEED);
     sample.completed=pad?1:0;
