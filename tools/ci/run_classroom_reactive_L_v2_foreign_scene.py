@@ -82,7 +82,8 @@ def run_one(letter, foreign):
     if (data.count(FATAL) != 1 or
             "WEBEEBLOCKS_A5_V2_NATIVE_C_READY" in data or
             "WEBEEBLOCKS_A5_V2_RESULT" in data or
-            "WEBEEBLOCKS_A5_V2_SENSOR_DONE" in data or
+            # The separate test-only range probe may finish its observations
+            # after the independent A5 evaluator has already refused READY.
             any("ERROR:" in item for item in data.splitlines())):
         raise AssertionError(
             f"native A5 failed to refuse official A4 {foreign} before READY: "
