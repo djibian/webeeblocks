@@ -36,7 +36,7 @@ class TestA5PupilFlightStaging(unittest.TestCase):
             "await backend.completeActivityMission(profile.evaluation)",
             "await pupilA5Outcome(backend,profile)",
             "await crypto.subtle.digest('SHA-256',bytes)",
-            "profile.starterVisible!==false",
+            "base.starterVisible!==false",
             "WebeeBlocksSemanticAst.installConditionalLoopBounds(Blockly)",
         ):self.assertIn(token,js)
         for forbidden in (
