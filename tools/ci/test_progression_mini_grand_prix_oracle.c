@@ -162,6 +162,36 @@ static void settle_pulse_and_motion(char v) {
   a=sample(6.66,x,y,.015,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
 }
+/* A trajectory that crossed H and turned cannot claim program COMPLETE
+ * at the corner and then travel the remaining 0.95 m as a settling action. */
+static void completion_away_from_pad_y(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6,x,0,.40,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(6.26,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* The same completion boundary must reject a distant X even if Y is right. */
+static void completion_away_from_pad_x(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6,x+.40,y,.40,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* A small and correctly oriented settling drift after COMPLETE is allowed:
+ * do not over-constrain a child using the native landing PID. */
+static void completion_near_pad_can_settle(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  const double near=y+(v=='L'?-.14:.14);
+  wb_mini_sample a=sample(6,x,near,.015,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.20,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.46,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+}
 static void terminal_timeout(char v) {
   wb_mini_mission m;
   ready_for_completion(&m,v);
@@ -217,6 +247,9 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  completion_away_from_pad_y('L');completion_away_from_pad_y('R');
+  completion_away_from_pad_x('L');completion_away_from_pad_x('R');
+  completion_near_pad_can_settle('L');completion_near_pad_can_settle('R');
   backtrack_lateral_bypass('L');backtrack_lateral_bypass('R');
   swept_lateral_bypass('L');swept_lateral_bypass('R');
   corrected_retry('L');corrected_retry('R');
@@ -229,6 +262,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: twenty-five positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: thirty-one positive/adversarial scenarios");
   return 0;
 }

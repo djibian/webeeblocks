@@ -14,6 +14,10 @@
 #define WB_MINI_TURN_TOL 0.150
 #define WB_MINI_YAW_TOL 0.20
 #define WB_MINI_LAND_TOL 0.065
+/* At completion the craft may still settle, but cannot be an entire leg
+ * away from the landing pad. This is only an admission envelope; success
+ * still needs WB_MINI_LAND_TOL and a continuous physical dwell. */
+#define WB_MINI_COMPLETION_CAPTURE_TOL 0.160
 #define WB_MINI_LAND_Z 0.070
 #define WB_MINI_LAND_SPEED 0.120
 #define WB_MINI_SETTLE 1.5
@@ -140,7 +144,12 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
   if(s->completed && !m->completion_seen) {
     m->completion_seen=1;
     m->completion_at=s->time;
-    if(!m->airborne||!m->crossed||!m->turned) {
+    /* Program completion is a one-shot end-of-flight event. Do not allow
+     * a whole remaining leg to be flown in the 1.5 s settling window.
+     * Reasonable residual drift toward the pad is still admitted. */
+    if(!m->airborne||!m->crossed||!m->turned||
+       fabs(s->x-turn_x)>WB_MINI_COMPLETION_CAPTURE_TOL||
+       fabs(s->y-wb_mini_pad_y(m->variant))>WB_MINI_COMPLETION_CAPTURE_TOL) {
       m->verdict=WB_MINI_FAILED;return m->verdict;
     }
   }
