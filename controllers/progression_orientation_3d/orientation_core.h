@@ -28,6 +28,8 @@
  */
 #define WB_ORIENT_LAND_TOL 0.07
 #define WB_ORIENT_LAND_HEIGHT 0.07
+/* Native Webots floor-contact observation is required as well: height alone
+ * cannot distinguish a landed craft from a motionless 6 cm hover. */
 #define WB_ORIENT_MAX_SPEED 0.12
 #define WB_ORIENT_AIRBORNE 0.20
 #define WB_ORIENT_SETTLE 1.5
@@ -43,6 +45,8 @@ typedef enum {
 typedef struct {
   double time, x, y, z, vx, vy, vz, yaw;
   int completed;
+  /* -1=missing native evidence, 0=no floor contact, 1=ground contact. */
+  int floor_contact;
 } wb_orient_sample;
 
 typedef struct {
@@ -63,7 +67,8 @@ static inline void wb_orient_reset(wb_orient_mission *mission,
 static inline int wb_orient_finite(const wb_orient_sample *s) {
   return s && isfinite(s->time) && isfinite(s->x) && isfinite(s->y) &&
     isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) &&
-    isfinite(s->vz) && isfinite(s->yaw);
+    isfinite(s->vz) && isfinite(s->yaw) &&
+    (s->floor_contact == 0 || s->floor_contact == 1);
 }
 
 /* Webots C orientation matrices are row-major; first column is local +X. */
@@ -125,7 +130,11 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
-  const int landed = (s->z - m->origin_z) <= WB_ORIENT_LAND_HEIGHT;
+  /* A stable low hover is not a landing. The physical contact is observed
+   * independently of the pupil's program or completion marker. */
+  const int landed =
+    (s->z - m->origin_z) <= WB_ORIENT_LAND_HEIGHT &&
+    s->floor_contact == 1;
   const int stationary =
     hypot(s->vx, s->vy) <= WB_ORIENT_MAX_SPEED && fabs(s->vz) <= WB_ORIENT_MAX_SPEED;
   const int on_pad =
