@@ -143,6 +143,18 @@ async function main(){
           steps:b.reads.length,final:b.pose()});
       }finally{reopened.dispose();}
     }
+    // This opt-in CI fixture is the SAME bytes for any subsequently flown
+    // variant. Never install it into activities/progression/ or show to pupils.
+    if(process.env.WEBEEBLOCKS_A5_WBB_OUTPUT){
+      const fs=require('node:fs');
+      const allowed='ci-artifacts/progression-reactive-L-v2-pupil/generic-witness.wbb';
+      if(process.env.WEBEEBLOCKS_A5_WBB_OUTPUT!==allowed)
+        throw Error('refuse unexpected pupil-fixture output path');
+      const file=path.join(ROOT,allowed);
+      fs.mkdirSync(path.dirname(file),{recursive:true});
+      fs.writeFileSync(file,text,{encoding:'utf8',flag:'wx'});
+      if(fs.readFileSync(file,'utf8')!==text)throw Error('fixture write corruption');
+    }
     console.log('PASS A5 real Blockly .wbb serialisation, two reactive while loops, one stored range, common AST across A/B/C, MOCK backend only; sha256='+sha);
     console.log(JSON.stringify({wbb_sha256:sha,pupil_flight:'NOT_TESTED',
       didactics:'functional loop/state syntax, not proof they are necessary',readings}));
