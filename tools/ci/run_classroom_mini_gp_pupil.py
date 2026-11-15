@@ -18,6 +18,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
+import urllib.error
 
 import prepare_classroom_mini_gp_pupil as world
 import run_classroom_altitude_scene_ack as ack
@@ -39,6 +41,9 @@ def run()->int:
     server=None
     process=None
     output=None
+    manual_browser=None
+    browser_origin="webots-auto"
+    browser_probe={}
     try:
         for rel in ('controllers/crazyflie_classroom_v2/crazyflie_classroom_v2',
                     'controllers/progression_mini_grand_prix_v1/progression_mini_grand_prix_v1'):
@@ -58,11 +63,48 @@ def run()->int:
             env=env,start_new_session=True)
         started=time.monotonic()
         deadline=started+525
+        probed=False
         while time.monotonic()<deadline:
             events=[e.get('event') for e in ack.EVENTS]
             if ('A7_PUPIL_TEST_COMPLETE' in events or
                 'A7_PUPIL_ERROR' in events or process.poll() is not None):
                 break
+            # A4's identical runner automatically opens its known robot
+            # window. Probe both URLs if the newly named A7 window remains
+            # absent; this distinguishes absent Webots WWI HTTP service from
+            # a missing/incorrectly registered RobotWindow URL.
+            elapsed=time.monotonic()-started
+            if elapsed>18 and not probed and 'A7_PUPIL_HTML_LOADED' not in events:
+                probed=True
+                for name in ('mini_gp_pupil_probe','decision_h_pupil_probe'):
+                    url=('http://localhost:1234/robot_windows/'+name+'/'+
+                         name+'.html?name=Crazyflie%20WebeeBlocks')
+                    try:
+                        with urllib.request.urlopen(url,timeout=4) as response:
+                            status=response.status
+                            body=response.read(500)
+                        browser_probe[name]={'status':status,'body_length':len(body)}
+                    except (OSError,urllib.error.URLError) as err:
+                        browser_probe[name]={'error':str(err)}
+                (ARTIFACT/'http-probe.json').write_text(
+                    json.dumps(browser_probe,indent=2,sort_keys=True)+'\n',
+                    encoding='utf-8')
+                print('A7_PUPIL_HTTP_PROBE '+json.dumps(browser_probe),flush=True)
+                # Only if the real Webots server actually serves the requested
+                # HTML, launch the same official browser script explicitly.
+                # This is a CI-ONLY fallback, not evidence of normal automatic
+                # robot window opening in the product.
+                if browser_probe.get('mini_gp_pupil_probe',{}).get('status')==200:
+                    browser_origin='explicit-ci-browser'
+                    page=('http://localhost:1234/robot_windows/'
+                          'mini_gp_pupil_probe/mini_gp_pupil_probe.html'
+                          '?name=Crazyflie%20WebeeBlocks')
+                    manual_browser=subprocess.Popen(
+                        ['/workspace/tools/ci/webots_runtime_v2_browser.sh',page],
+                        cwd=str(world.ROOT),env=env,
+                        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                        start_new_session=True)
+                    print('A7_PUPIL_EXPLICIT_CI_BROWSER_STARTED',flush=True)
             # The browser is mandatory, and native readiness alone is not it.
             if time.monotonic()-started>45 and 'A7_PUPIL_HTML_LOADED' not in events:
                 print('A7_PUPIL_FATAL browser bootstrap missing after 45s',
@@ -70,6 +112,14 @@ def run()->int:
                 break
             time.sleep(.25)
     finally:
+        if manual_browser is not None:
+            try: os.killpg(manual_browser.pid,signal.SIGTERM)
+            except ProcessLookupError: pass
+            try: manual_browser.wait(timeout=4)
+            except subprocess.TimeoutExpired:
+                try: os.killpg(manual_browser.pid,signal.SIGKILL)
+                except ProcessLookupError: pass
+                manual_browser.wait(timeout=4)
         if process is not None and process.poll() is None:
             os.killpg(process.pid,signal.SIGTERM)
             try:process.wait(timeout=8)
@@ -140,7 +190,7 @@ def run()->int:
     vertical=re.findall(
         r'WEBEEBLOCKS_RUNTIME_V2 TRACE VERTICAL (up|down) distance=([0-9.]+) stop=1',text)
     turns=re.findall(
-        r'WEBEEBLOCKS_RUNTIME_V2 TRACE TURN angle=([-0-9.]+) stop=1',text)
+        r'WEBEEBLOCKS_RUNTIME_V2 TRACE TURN angle_deg=([-0-9.]+) stop=1',text)
     # Only the pinned native browser launch is relevant; never reuse A7 logs.
     browser_log=ARTIFACT/'browser-launch.log'
     browser_text=browser_log.read_text(encoding='utf-8',errors='replace') if browser_log.exists() else ''
@@ -167,6 +217,7 @@ def run()->int:
              'events_ordered':in_order,'native_outcomes':outcomes,
              'rays_m':rays,'moves':moves,'vertical':vertical,'turns':turns,
              'motorized_flight':valid,'same_pupil_wbb':project_ok and in_order,
+             'browser_start_mode':browser_origin,'http_probe':browser_probe,
              'browser':browser_ok,'one_project':project_ok,
              'project_sha256':hashlib.sha256(project.encode('utf-8')).hexdigest() if project else None,
              'project_bytes':len(project.encode('utf-8')) if project else None,
