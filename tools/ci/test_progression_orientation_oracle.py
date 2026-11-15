@@ -20,11 +20,18 @@ DRIVER=r"""
 #include <math.h>
 #include <stdio.h>
 
+static wb_orient_verdict step_contact(wb_orient_mission*m,double t,double x,double y,
+                                      double z,double yaw,double vx,int completed,
+                                      int floor_contact){
+ wb_orient_sample s={.time=t,.x=x,.y=y,.z=z,.yaw=yaw,.vx=vx,.vy=0,.vz=0,
+                     .completed=completed,.floor_contact=floor_contact};
+ return wb_orient_sample_mission(m,&s);
+}
+/* Most legacy test poses designate a physical floor contact at landing height.
+ * Adversarial cases below specify the independent contact observation directly. */
 static wb_orient_verdict step(wb_orient_mission*m,double t,double x,double y,
                               double z,double yaw,double vx,int completed){
- wb_orient_sample s={.time=t,.x=x,.y=y,.z=z,.yaw=yaw,.vx=vx,.vy=0,.vz=0,
-                     .completed=completed};
- return wb_orient_sample_mission(m,&s);
+ return step_contact(m,t,x,y,z,yaw,vx,completed,z<=.035?1:0);
 }
 static void route(wb_orient_mission*m) {
  assert(step(m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
@@ -113,6 +120,34 @@ int main(void) {
  assert(step(&m,4,1.2,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
  assert(step(&m,5.25,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,5.50,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ // A stationary low hover is NOT a landing, even with a valid route
+ // and a successful pupil completion marker. Contact is independent evidence.
+ wb_orient_reset(&m,17,.035);
+ route(&m);
+ for (int tick=0;tick<=8;++tick) {
+  assert(step_contact(&m,4.0+.032*tick,.90,-.90,.060,0,0,
+                      tick==0,0)==WB_ORIENT_WAIT);
+ }
+ assert(!m.stable_since_valid);
+ assert(step_contact(&m,5.504,.90,-.90,.060,0,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ // Even a z=.030 low hover with no physical contact must fail.
+ wb_orient_reset(&m,18,0);
+ route(&m);
+ for (int tick=0;tick<=8;++tick)
+  assert(step_contact(&m,4.0+.032*tick,.90,-.90,.030,0,0,
+                      tick==0,0)==WB_ORIENT_WAIT);
+ // One true floor contact cannot certify 250ms unless it is sustained.
+ assert(step_contact(&m,4.288,.90,-.90,.030,0,0,0,1)==WB_ORIENT_WAIT);
+ assert(step_contact(&m,4.320,.90,-.90,.030,0,0,0,0)==WB_ORIENT_WAIT);
+ for (int tick=0;tick<=8;++tick) {
+  wb_orient_verdict verdict=step_contact(&m,4.352+.032*tick,
+                                        .90,-.90,.030,0,0,0,1);
+  assert(verdict==(tick==8?WB_ORIENT_ACHIEVED:WB_ORIENT_WAIT));
+ }
+ // An unavailable native observation must fail closed.
+ wb_orient_reset(&m,19,0);
+ route(&m);
+ assert(step_contact(&m,4,.90,-.90,.030,0,0,1,-1)==WB_ORIENT_NOT_ACHIEVED);
  // Constant height fails B.
  wb_orient_reset(&m,5,0);
  assert(step(&m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
@@ -210,6 +245,10 @@ class NativeActivity3Oracle(unittest.TestCase):
         mk=MAKEFILE.read_text(encoding="utf8")
         scene=SCENE.read_text(encoding="utf8")
         self.assertIn("C_SOURCES = progression_orientation_3d.c",mk)
+        self.assertIn("wb_supervisor_node_enable_contact_points_tracking",src)
+        self.assertIn("wb_supervisor_node_get_contact_points",src)
+        self.assertIn("sample.floor_contact = observe_floor_contact(craft)",src)
+        self.assertIn("s->floor_contact == 1",CORE.read_text(encoding="utf8"))
         self.assertNotIn("crazyflie_runtime_v2",mk)
         for name in ("wb_supervisor_node_get_orientation",
                      "wb_orient_sample_mission",
