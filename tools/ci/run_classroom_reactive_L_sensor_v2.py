@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A5 v2 Draft-only sequential genuine Webots R2025a range measurements.
 
-Teleporting the original Crazyflie only proves three actual sensor rays at
+Teleporting the original Crazyflie only proves four actual sensor rays at
 attested locations; it is NOT a flown .wbb, a loop requirement or pupil PASS.
 """
 from pathlib import Path
@@ -112,15 +112,16 @@ def run_one(letter):
             project.unlink()
     txt=log.read_text(encoding="utf-8",errors="replace")
     expression=(r"WEBEEBLOCKS_A5_V2_SENSOR_SAMPLE variant=([ABC]) "
-                r"stage=(origin|junction|second) front_m=([0-9.]+) "
+                r"stage=(origin|junction|second|after-pivot) front_m=([0-9.]+) "
                 r"left_m=([0-9.]+) x=(-?[0-9.]+) y=(-?[0-9.]+) "
                 r"z=(-?[0-9.]+) yaw=(-?[0-9.]+) time=([0-9.]+)")
     hits=re.findall(expression,txt)
     final=re.findall(
         r"WEBEEBLOCKS_A5_V2_SENSOR_DONE variant=([ABC]) first_m=([0-9.]+) "
-        r"second_m=([0-9.]+) third_m=([0-9.]+) test_only=true",txt)
-    expected=[(letter,"origin"),(letter,"junction"),(letter,"second")]
-    if (FATAL in txt or len(hits)!=3 or len(final)!=1 or
+        r"second_m=([0-9.]+) third_m=([0-9.]+) fourth_m=([0-9.]+) test_only=true",txt)
+    expected=[(letter,"origin"),(letter,"junction"),(letter,"second"),
+              (letter,"after-pivot")]
+    if (FATAL in txt or len(hits)!=4 or len(final)!=1 or
         [(v,stage) for v,stage,*_ in hits] != expected or
         final[0][0]!=letter):
         raise AssertionError("missing real v2 observation or fatal: "+str(log))
@@ -130,8 +131,8 @@ def run_one(letter):
         front,left,x,y,z,yaw,t=map(float,row[2:])
         stage=row[1]
         ex=0.0 if stage=="origin" else .8
-        ey=1.0 if stage=="second" else 0.
-        eyaw=math.pi/2 if stage=="second" else 0.
+        ey=1.0 if stage in ("second","after-pivot") else 0.
+        eyaw=math.pi if stage=="after-pivot" else (math.pi/2 if stage=="second" else 0.)
         if (not all(math.isfinite(n) for n in (front,left,x,y,z,yaw,t)) or
             t<=previous_t or abs(x-ex)>.04 or abs(y-ey)>.04 or
             abs(z-.5)>.09 or abs(yaw-eyaw)>.10 or
@@ -139,11 +140,11 @@ def run_one(letter):
             raise AssertionError("untrusted native V2 pose/range: "+str(log))
         previous_t=t
         readings.append(front if stage=="origin" else left)
-    if any(abs(float(final[0][j+1])-readings[j])>1e-6 for j in range(3)):
+    if any(abs(float(final[0][j+1])-readings[j])>1e-6 for j in range(4)):
         raise AssertionError("V2 terminal and staged observations disagree")
     print("A5_V2_REAL_SENSOR_READINGS variant="+letter+
           f" first={readings[0]:.6f} second={readings[1]:.6f} "
-          f"third={readings[2]:.6f}",flush=True)
+          f"third={readings[2]:.6f} after_pivot={readings[3]:.6f}",flush=True)
     return readings
 
 def classify_with_two_fixed_observations(readings):
@@ -170,6 +171,20 @@ def main():
                                  repr(values))
     if len({round(row[2],1) for row in values.values()})!=3:
         raise AssertionError("third real range not discriminative: "+repr(values))
+    # After the COMMON 90-degree pivot, the native left sensor looks south.
+    # It should no longer carry the three distinct westward readings observed
+    # before the turn; the previously stored value is therefore useful in
+    # the demonstration without imposing a variable-block requirement.
+    post=[values[v][3] for v in LETTERS]
+    if not all(math.isfinite(x) and 0.05<x<2.001 for x in post) or (
+        max(post)-min(post)>.08):
+        raise AssertionError("native after-pivot left ray still distinguishes "
+                             "A/B/C or was unavailable: "+repr(values))
+    late_guesses={v:("A" if row[3]<.6 else ("B" if row[3]>1.6 else "C"))
+                  for v,row in values.items()}
+    if all(late_guesses[v]==v for v in LETTERS):
+        raise AssertionError("post-pivot sensor substitution unexpectedly "
+                             "resolves every variant: "+repr(late_guesses))
     # The formerly successful two-reading V1 shortcut is experimentally
     # refuted for V2 without requiring a particular Blockly/AST shape.
     old_guesses={letter:classify_with_two_fixed_observations(row[:2])
@@ -180,21 +195,24 @@ def main():
                              repr(old_guesses))
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
     payload={
-        "schema":"webeeblocks-a5-v2-identical-prefix-native-v1",
-        "method":"original R2025a Crazyflie, native genuine rays at 3 supervised poses",
+        "schema":"webeeblocks-a5-v2-memory-pivot-native-v1",
+        "method":"original R2025a Crazyflie, native rays at 4 attested poses including after-pivot",
         "v2_all_first_two_native_readings_indistinguishable":True,
         "later_third_native_observation_distinguishes_variants":True,
+        "post_pivot_left_readings_no_longer_distinguish_variants":True,
+        "post_pivot_without_memory_predictions":late_guesses,
         "v1_two_measure_classifier_predictions":old_guesses,
         "v1_two_measure_classifier_no_longer_succeeds":True,
         "does_not_prove_drone_flight_or_student_solution":True,
         "does_not_prove_loop_or_variable_necessary":True,
+        "does_not_prove_historical_reobservation_impossible":True,
         "variants":values
     }
     (ARTIFACTS/"summary.json").write_text(
         json.dumps(payload,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print("WEBEEBLOCKS_A5_V2_PREFIX_NATIVE_CONFIRMED "
           "two_original_rays_same=true later_third_ray_differs=true "
-          "flight=NOT_TESTED",flush=True)
+          "post_pivot_left_nondiscriminating=true flight=NOT_TESTED",flush=True)
 
 
 if __name__=="__main__":

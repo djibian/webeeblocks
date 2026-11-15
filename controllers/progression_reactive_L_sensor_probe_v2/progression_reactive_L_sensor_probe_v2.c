@@ -1,4 +1,4 @@
-/* A5 Draft-only Webots R2025a witness: three staged native Multi-ranger readings.
+/* A5 Draft-only Webots R2025a witness: four staged native Multi-ranger readings.
  * Robot is teleported by this test-only Supervisor; motors are never driven.
  * Neither a pupil program nor a physical-flight qualification is implied.
  */
@@ -143,7 +143,7 @@ int main(void) {
   wb_distance_sensor_enable(left,step);
   if (wb_robot_step(step)==-1)
     return fail("no initial genuine sensor frame");
-  double first=0,second=0,third=0;
+  double first=0,second=0,third=0,after_pivot=0;
   if (!observe(self,pos,rot,front,left,step,variant,
                "origin",0,0,0,&first))
     return fail("unattested first native observation");
@@ -154,9 +154,15 @@ int main(void) {
   if (!observe(self,pos,rot,front,left,step,variant,
                "second",.8,1.0,1.5707963267948966,&third))
     return fail("unattested second corner native observation");
+  /* Same x/y after an additional 90-degree turn. The left sensor now
+   * faces global -Y rather than west. Real rays must establish whether the
+   * historic left-range observation is still available after this pivot. */
+  if (!observe(self,pos,rot,front,left,step,variant,
+               "after-pivot",.8,1.0,3.1415926535897932,&after_pivot))
+    return fail("unattested post-pivot native observation");
   printf("WEBEEBLOCKS_A5_V2_SENSOR_DONE variant=%c first_m=%.9f "
-         "second_m=%.9f third_m=%.9f test_only=true\n",
-         variant,first,second,third);
+         "second_m=%.9f third_m=%.9f fourth_m=%.9f test_only=true\n",
+         variant,first,second,third,after_pivot);
   fflush(stdout);
   wb_robot_cleanup();
   return 0;
