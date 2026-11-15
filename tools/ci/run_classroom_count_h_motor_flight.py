@@ -59,6 +59,18 @@ REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
           "A6_SCENE_ACK","A6_TAKEOFF","A6_CORRIDOR_DONE",
           "A6_PAD_SELECTED","A6_LANDED","A6_TEST_COMPLETE")
 
+def terminal_native_ack_logged(native_log, variant):
+    """Never kill Webots between physical achieved and native LAND RESPONSE."""
+    if variant not in (1,2,3):
+        return False
+    final_id=11+(1 if variant!=1 else 0)
+    return (f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} "
+            in native_log and
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in native_log and
+            re.search(rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK$",
+                      native_log) is not None)
+
+
 def run(variant=1):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
@@ -142,7 +154,7 @@ def run(variant=1):
                           "seconds=60",flush=True)
                     break
             if (("A6_TEST_COMPLETE" in seen and
-                 "WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved" in txt)
+                 terminal_native_ack_logged(txt,variant))
                 or "A6_ERROR" in seen
                 or "WEBEEBLOCKS_A6_MOTOR_FATAL" in txt
                 or "WEBEEBLOCKS_RUNTIME_V2 FATAL" in txt

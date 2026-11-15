@@ -53,6 +53,22 @@ class CountHMotorFlightTests(unittest.TestCase):
                 gui.write_text(motor.PROJECT_BYTES,encoding="utf-8")
                 motor.cleanup(artifacts=evidence)
 
+    def test_native_land_ack_must_be_logged_before_simulator_teardown(self):
+        import run_classroom_count_h_motor_flight as native
+        for variant in (1,2,3):
+            final_id=11+(1 if variant!=1 else 0)
+            prefix=f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} crossed={variant}\n"
+            completed="WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+            ack=f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK\n"
+            self.assertFalse(native.terminal_native_ack_logged(prefix,variant))
+            self.assertFalse(native.terminal_native_ack_logged(prefix+completed,variant))
+            self.assertTrue(native.terminal_native_ack_logged(
+                prefix+completed+ack,variant))
+            self.assertFalse(native.terminal_native_ack_logged(
+                prefix+completed+f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id+1} OK\n",
+                variant))
+        self.assertFalse(native.terminal_native_ack_logged("",4))
+
     def test_world_is_authentic_with_single_count_and_independent_observer(self):
         w=motor.compose()
         self.assertEqual(w.count(motor.MARKER),1)
