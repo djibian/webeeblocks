@@ -12,42 +12,17 @@ function a4Report(event,detail){
 }
 function a4Assert(value,message){if(!value)throw Error(message);}
 function a4Profile(letter){
-  const scene='decision-h-'+letter+'-v1';
-  return {
-    id:'ci-decision-h-conditional-v1',
-    world:'worlds/crazyflie_classroom_start.wbt',
-    brief:{visible:true,title:'4 — Observer pour décider',
-      mission:'Observe la distance devant, franchis les obstacles sans collision et atterris sur le damier.'},
-    pedagogy:{objective:'Mesurer une distance, la comparer et adapter la hauteur avec SI/SINON.'},
-    toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_speed',
-      'webeeblocks_v2_move','webeeblocks_v2_vertical',
-      'webeeblocks_v2_range','controls_if','logic_compare',
-      'math_number','webeeblocks_v2_land'],
-    parameterBounds:{
-      webeeblocks_v2_speed:{SPEED:{min:0.1,max:0.1,step:0.1}}
-    },
-    fieldOptions:{
-      webeeblocks_v2_move:{DIRECTION:['forward']},
-      webeeblocks_v2_vertical:{DIRECTION:['up','down']},
-      webeeblocks_v2_range:{DIRECTION:['front']}
-    },
-    hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],
-    timer:{enabled:false},
-    evaluation:{type:'mission-state-v1',oracle:'progression-decision-h-v1'},
-    runtime:{
-      scene,mode:'ast-v1',
-      allowedStatementKinds:['takeoff','set_speed','move','vertical','if','land'],
-      rangeDirections:['front'],moveDirections:['forward'],
-      verticalDirections:['up','down'],
-      astBounds:{
-        'takeoff.height_m':{min:0.50,max:0.50},
-        'move.distance_m':{min:0.1,max:0.8},
-        'vertical.distance_m':{min:0.1,max:0.35},
-        'set_speed.speed_m_s':{min:0.1,max:0.1}
-      }
-    }
-  };
+  // Qualify the actual PUBLIC pupil profile from the product catalog, not a
+  // bespoke CI-only exercise that might diverge from the classroom toolbox.
+  const profile=WebeeBlocksActivities.getProfile('progression-decision-h-v1');
+  a4Assert(profile.id==='progression-decision-h-v1' &&
+    profile.evaluation.oracle==='progression-decision-h-v1' &&
+    profile.runtime.scene==='decision-h-a-v1',
+    'Activity 4 public profile drifted from native scene/oracle');
+  profile.runtime.scene='decision-h-'+letter+'-v1';
+  return profile;
 }
+
 function a4Number(ws, block, socket, value){
   const literal=ws.newBlock('math_number');
   literal.setFieldValue(String(value),'NUM');
@@ -114,7 +89,7 @@ function a4Workspace(){
 }
 function a4Options(profile){
   return {Blockly,profiles:WebeeBlocksActivityProfiles,
-    activitiesDocument:{version:1,activities:[profile]},
+    activitiesDocument:WebeeBlocksActivities.DOCUMENT,
     blockCatalog:WebeeBlocksActivities.BLOCK_CATALOG,
     semanticAst:WebeeBlocksSemanticAst,
     activityContract:WebeeBlocksActivityContract};
@@ -144,6 +119,10 @@ window.addEventListener('unhandledrejection',e=>a4Report('A4_PUPIL_ERROR',{messa
     a4Assert(opened&&opened.ok,'bootstrap refused');
     await a4Report('A4_PUPIL_JS_STARTED',{kind:'Blockly13-real-native-R2025a'});
     const profileA=a4Profile('a'),profileB=a4Profile('b');
+    a4Assert(profileA.id===profileB.id &&
+      profileA.evaluation.oracle===profileB.evaluation.oracle &&
+      profileA.runtime.scene!==profileB.runtime.scene,
+      'A/B must use the same real student project ID and oracle');
     WebeeBlocksActivityProfiles.validateProfile(profileA,WebeeBlocksActivities.BLOCK_CATALOG);
     WebeeBlocksActivityProfiles.validateProfile(profileB,WebeeBlocksActivities.BLOCK_CATALOG);
     original=a4Workspace();

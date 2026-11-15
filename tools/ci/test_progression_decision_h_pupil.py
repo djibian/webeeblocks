@@ -68,6 +68,10 @@ class PupilA4Tests(unittest.TestCase):
             self.assertIn("'"+name+"'",BACKEND.read_text(encoding='utf-8'))
             self.assertNotIn("'"+name+"'",PHYSICAL.read_text(encoding='utf-8'))
         self.assertNotIn("ci-decision-h-conditional-v1",ACTIVITIES.read_text(encoding='utf-8'))
+        self.assertIn("getProfile('progression-decision-h-v1')",js)
+        self.assertIn('activitiesDocument:WebeeBlocksActivities.DOCUMENT',js)
+        self.assertIn("parsed.get('activity',{}).get('id')=='progression-decision-h-v1'",run)
+        self.assertNotIn("id:'ci-decision-h-conditional-v1'",js)
 
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
