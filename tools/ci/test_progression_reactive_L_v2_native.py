@@ -48,6 +48,8 @@ class NativeObserverContract(unittest.TestCase):
         self.assertIn("WB_RL2_LAND_DWELL 0.25",oracle)
         self.assertIn("WB_RL2_LAND_TIMEOUT 1.50",oracle)
         self.assertIn("WB_RL2_LAND_MAX_SAMPLE_GAP 0.048",oracle)
+        self.assertIn("WB_RL2_LAND_ABSOLUTE_Z 0.070",oracle)
+        self.assertIn("s->z<=WB_RL2_LAND_ABSOLUTE_Z",oracle)
         self.assertIn("observation_gap>WB_RL2_LAND_MAX_SAMPLE_GAP",oracle)
         self.assertIn("m->origin_z<WB_RL2_START_MIN_Z",oracle)
         self.assertIn("m->origin_z>WB_RL2_START_MAX_Z",oracle)
