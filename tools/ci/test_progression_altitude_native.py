@@ -212,6 +212,31 @@ int main(void) {
     assert(step(&m, 6.096+0.032*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 6.352, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
 
+
+  /* After a complete valid crossing, a hover 5.5-6.5 cm higher than the
+   * admitted initial altitude must NOT be counted as floor touchdown.
+   * Previously both cases achieved after eight 32-ms intervals. */
+  for (int v=0; v<2; ++v) {
+    const double origin = v==0 ? .035 : .075;
+    const double hover = v==0 ? .090 : .140;
+    wb_alt_reset(&m, 200+v, origin);
+    assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
+    cross_higher(&m);
+    assert(hover-origin <= WB_ALT_MAX_LANDING_Z);
+    assert(hover > WB_ALT_MAX_ABSOLUTE_LANDING_Z);
+    assert(step(&m, 6, 1.35, 0, hover, 0, 0, 1) == WB_ALT_WAIT);
+    for(int i=1;i<=9;++i)
+      assert(step(&m, 6+.032*i, 1.35, 0, hover, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 7.500, 1.35, 0, hover, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+    /* Real grounded landing must remain possible after the same course. */
+    wb_alt_reset(&m, 210+v, origin);
+    assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
+    cross_higher(&m);
+    finish_stably(&m, 6, 1.35, 0, .015);
+  }
+
   puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
@@ -248,6 +273,8 @@ class NativeAltitudeContract(unittest.TestCase):
         core = CORE.read_text(encoding="utf-8")
         self.assertIn("  basicTimeStep 32", world.splitlines())
         self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
+        self.assertIn("#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.07", core)
+        self.assertIn("s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
         scene = SCENE.read_text(encoding="utf-8")
