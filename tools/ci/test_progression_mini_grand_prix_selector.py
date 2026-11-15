@@ -206,6 +206,13 @@ int main() {
   a.boxes[2]->type="Box";
   refs.erase("ACTIVITY7_L_OPEN_LEFT");assert(!valid('L'));
   refs["ACTIVITY7_L_OPEN_LEFT"]=a.solids[0];
+  for(const char* foreign : {"WEBEEBLOCKS_DECISION_A_SCENE",
+                             "WEBEEBLOCKS_DECISION_B_SCENE"}) {
+    add("Group",foreign);
+    assert(!valid('L')&&!valid('R'));
+    refs.erase(foreign);
+    assert(valid('L')&&valid('R'));
+  }
   world->type="Group";assert(!valid('L')&&!valid('R'));
   world->type="WorldInfo";assert(valid('L')&&valid('R'));
   std::cout<<"PASS compiled A7 school scene gate: L/R, 29 children, "

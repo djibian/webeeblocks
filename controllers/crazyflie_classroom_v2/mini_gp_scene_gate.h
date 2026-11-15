@@ -72,6 +72,11 @@ inline bool valid(char variant) {
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   const char *worldType=world?wb_supervisor_node_get_type_name(world):nullptr;
   if(!worldType||std::strcmp(worldType,"WorldInfo"))return false;
+  // Defense in depth: both real A4 families are foreign physical scenes.
+  // A7 geometry alone never authorizes a mixed mission world.
+  if(wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") ||
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE"))
+    return false;
   const char *def=variant=='L'?"WEBEEBLOCKS_MINI_GP_L_SCENE":
                                  "WEBEEBLOCKS_MINI_GP_R_SCENE";
   WbNodeRef group=wb_supervisor_node_get_from_def(def);

@@ -2,7 +2,7 @@
 """A7 Draft: reject physical A4 scene families mixed into the native L/R world.
 
 Each of four real Webots R2025a worlds contains one intact A7 scene and a
-separate A4-identified physical Box. The evaluator must fail BEFORE READY,
+complete genuine A4 world of six physical Solids. The evaluator must fail BEFORE READY,
 not after an accidental collision or a pupil-generated completion marker.
 This is an observer provenance counterexample, NOT a flown pupil program.
 """
@@ -33,21 +33,28 @@ def compose(letter, foreign):
             "WEBEEBLOCKS_DECISION_B_SCENE" in source or MARKER in source):
         raise ValueError("already polluted A7 baseline")
     identity = "WEBEEBLOCKS_DECISION_" + foreign + "_SCENE"
-    # The extra Solid is a genuine physical collider, not a naked DEF alias.
-    # Keep it outside the course; only a native identity guard can reject it.
-    alien = ('DEF ' + identity + ' Group {\n'
-             '  children [\n'
-             '    Solid {\n'
-             '      translation 9 9 0.5\n'
-             '      name "foreign A4 collision fixture"\n'
-             '      children [ Shape { geometry Box { size 0.2 0.2 1.0 } } ]\n'
-             '      boundingObject Box { size 0.2 0.2 1.0 }\n'
-             '    }\n'
-             '  ]\n'
-             '}\n')
+    # Reuse the actual released A4 scene with SIX real colliders. Merely
+    # adding an A4-looking DEF would not prove that the A7 evaluator refuses
+    # a second physically legitimate mission. The extra A4 evaluator is
+    # inactive in this CI-only mutant: only the A7 observer decides admission.
+    alien = (ROOT / "worlds/scenes" /
+             ("decision-h-" + foreign.lower() + "-v1.wbo")).read_text(
+                 encoding="utf-8")
+    a4_controller = 'controller "progression_decision_h_v1"'
+    if (alien.count("DEF " + identity + " Group {") != 1 or
+            alien.count(" Solid {") != 6 or
+            alien.count("boundingObject Box") != 6 or
+            alien.count(a4_controller) != 1 or
+            alien.count('Robot {') != 1):
+        raise ValueError("untrusted genuine A4 physical asset")
+    alien = alien.replace(a4_controller, 'controller "<none>"', 1)
     result = source.rstrip() + "\n" + MARKER + "\n" + alien
     if (result.count("DEF " + identity + " Group {") != 1 or
-            result.count('boundingObject Box { size 0.2 0.2 1.0 }') != 1 or
+            result.count("boundingObject Box") != 15 or
+        result.count(" Solid {") != 15 or
+        result.count('controller "<none>"') != 1 or
+        result.count('controller "progression_mini_grand_prix_v1"') != 1 or
+        result.count('controller "progression_mini_gp_geometry_probe"') != 1 or
             result.count(observer.MARKER) != 1 or result.count(MARKER) != 1):
         raise ValueError("malformed independent A4 contamination")
     return result

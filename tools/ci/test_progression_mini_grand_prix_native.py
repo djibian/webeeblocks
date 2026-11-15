@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "tools/ci"))
 import run_classroom_mini_gp_geometry as witness  # noqa: E402
 import run_classroom_mini_gp_native_observer as observer  # noqa: E402
 import run_classroom_mini_gp_ground_start as ground_start  # noqa: E402
+import run_classroom_mini_gp_foreign_scene as foreign_scene  # noqa: E402
 
 
 class MiniGrandPrixNativeContract(unittest.TestCase):
@@ -123,6 +124,36 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                 school = witness.compose(letter)
                 self.assertNotIn("DEF WEBEEBLOCKS_DECISION_A_SCENE", school)
                 self.assertNotIn("DEF WEBEEBLOCKS_DECISION_B_SCENE", school)
+
+
+    def test_four_native_mixed_worlds_use_real_six_collider_a4_assets(self):
+        for letter in "LR":
+            for a4 in "AB":
+                with self.subTest(a7=letter, a4=a4):
+                    world=foreign_scene.compose(letter,a4)
+                    self.assertEqual(world.count(foreign_scene.MARKER),1)
+                    self.assertEqual(world.count(" Solid {"),15)
+                    self.assertEqual(world.count("boundingObject Box"),15)
+                    self.assertEqual(world.count(
+                        "DEF WEBEEBLOCKS_MINI_GP_"+letter+"_SCENE Group"),1)
+                    self.assertEqual(world.count(
+                        "DEF WEBEEBLOCKS_DECISION_"+a4+"_SCENE Group"),1)
+                    self.assertEqual(world.count(
+                        'controller "progression_mini_grand_prix_v1"'),1)
+                    self.assertEqual(world.count(
+                        'controller "progression_mini_gp_geometry_probe"'),1)
+                    self.assertEqual(world.count('controller "<none>"'),1)
+                    self.assertNotIn("WB_MINI_NATIVE_READY",world)
+                    self.assertNotIn("WB_MINI_NATIVE_RESULT",world)
+        for invalid in ((None,"A"),("L",None),("L","C"),("l","A")):
+            with self.subTest(invalid=invalid),self.assertRaises(ValueError):
+                foreign_scene.compose(*invalid)
+        run=(ROOT/"tools/ci/run_classroom_mini_gp_foreign_scene.py").read_text(
+            encoding="utf-8")
+        self.assertIn("A7_FOREIGN_A4_NATIVE_ALL_REJECTED",run)
+        self.assertIn("data.count(FATAL) != 1",run)
+        self.assertIn('"WB_MINI_NATIVE_READY" in data',run)
+        self.assertIn('"WB_MINI_NATIVE_RESULT" in data',run)
 
     def test_grounded_start_is_a_real_native_observation_not_a_teleport(self):
         for letter in "LR":
