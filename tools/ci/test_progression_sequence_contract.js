@@ -163,12 +163,13 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-repeat-v1' &&
   profile.id !== 'progression-simple-decision-v1' &&
   profile.id !== 'progression-reactive-v1' &&
+  profile.id !== 'progression-reactive-L-v2' &&
   profile.id !== 'progression-combined-decisions-v1' &&
   profile.id !== 'progression-memory-v1' &&
   profile.id !== 'progression-autonomous-strategy-v1');
 assert.strictEqual(remainingProgression.length, 0);
 
-for (const missionProfile of [p1, p2, pAlt, pOrient]) {
+for (const missionProfile of [p1, p2, pAlt, pOrient, pReactiveV2]) {
   const missingMission = JSON.parse(JSON.stringify(missionProfile));
   delete missingMission.brief.mission;
   assert.throws(() => Profiles.validateProfile(missingMission, Activities.BLOCK_CATALOG), /brief\.mission must be a non-empty string/);
