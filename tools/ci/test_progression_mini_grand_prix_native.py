@@ -196,11 +196,19 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         native=(ROOT/"controllers/progression_mini_grand_prix_v1/"
                 "progression_mini_grand_prix_v1.c").read_text(encoding="utf-8")
         self.assertIn("wb_supervisor_node_get_id(obstacle)",native)
-        self.assertIn("points[i].node_id==collider_ids[j]",native)
+        self.assertIn(
+            "wb_supervisor_node_get_contact_points(colliders[j],false,&n)",native)
+        self.assertIn(
+            "wb_supervisor_node_enable_contact_points_tracking(obstacle,step,false)",
+            native)
         self.assertIn("WB_MINI_NATIVE_COLLIDER_CONTACT",native)
-        self.assertIn("sample.contact=native_contact(craft,collider_ids)",native)
-        self.assertLess(native.index("points[i].node_id==collider_ids[j]"),
-                        native.index("if(fabs(p[2])>0.025)return 1;"))
+        self.assertIn("sample.contact=native_contact(craft,colliders)",native)
+        self.assertLess(
+            native.index("wb_supervisor_node_get_contact_points(colliders[j],false,&n)"),
+            native.index("if(fabs(p[2])>0.025)return 1;"))
+        # This was empirically falsified: point.node_id on a queried obstacle
+        # was the obstacle ID (277), not the actual craft ID (59).
+        self.assertNotIn("points[i].node_id==collider_ids[j]",native)
         self.assertLess(native.index("WB_MINI_NATIVE_COLLIDER_CONTACT"),
                         native.index("WB_MINI_NATIVE_FIRST"))
         import run_classroom_mini_gp_low_contact as low
