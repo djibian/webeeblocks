@@ -181,7 +181,7 @@ def run(variant=1):
                 "product_autolaunch_seen":browser_auto_seen,
                 "browser_only_proven_by_launch_and_events":True,
             },indent=2,sort_keys=True)+"\n",encoding="utf-8")
-        world.cleanup()
+        world.cleanup(artifacts=ARTIFACT)
 
     txt=log.read_text(encoding="utf-8",errors="replace")
     events=[x.get("event") for x in observer.EVENTS]

@@ -7,6 +7,7 @@ A6 pupil profile or physical qualification.
 """
 from pathlib import Path
 import hashlib
+import json
 import prepare_classroom_altitude_scene_ack as classroom
 
 ROOT=classroom.ROOT
@@ -69,17 +70,60 @@ def prepare(variant=1):
     print("WEBEEBLOCKS_A6_MOTOR_WORLD_SHA256 "+
           hashlib.sha256(data.encode()).hexdigest(),flush=True)
 
-def cleanup():
+def validate_project_preferences(raw):
+    """Only generated Webots R2025a GUI preferences, never mission authority."""
+    if len(raw)>65536 or not raw:
+        return False
+    try:
+        data=raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    if any(ord(ch)<32 and ch not in "\\n\\r\\t" for ch in data):
+        return False
+    lines=data.splitlines()
+    return (len(lines)>=2 and
+            lines[0]=="Webots Project File version R2025a" and
+            sum(x.strip()=="robotWindow: Crazyflie WebeeBlocks"
+                for x in lines)==1)
+
+
+def cleanup(artifacts=None):
+    # A .wbproj stores UI perspective/preferences; Webots may rewrite it on
+    # close. It is not a world, controller or mission-verdict authority.
+    # Preserve post-run bytes for audit and reject unknown provenance/content.
+    if WORLD.is_symlink() or PROJECT.is_symlink():
+        raise ValueError("refuse cleanup of redirected A6 native test path")
     if WORLD.exists():
         data=WORLD.read_text(encoding="utf-8")
         if data.count(MARKER)!=1 or data.count(
             'controller "progression_count_h_school_pilot"')!=1 or (
                 'controller "progression_count_h_flight_observer"' in data):
             raise ValueError("refuse cleanup altered native A6 world")
+    if PROJECT.exists():
+        raw=PROJECT.read_bytes()
+        original=PROJECT_BYTES.encode("utf-8")
+        altered=raw!=original
+        if altered:
+            if artifacts is not None:
+                evidence=Path(artifacts)
+                evidence.mkdir(parents=True,exist_ok=True)
+                (evidence/"postrun-webots-project.wbproj").write_bytes(raw)
+                (evidence/"postrun-webots-project.json").write_text(
+                    json.dumps({
+                        "schema":"webeeblocks-a6-webots-gui-preferences-v1",
+                        "changed":True,
+                        "sha256_after":hashlib.sha256(raw).hexdigest(),
+                        "sha256_before":hashlib.sha256(original).hexdigest(),
+                        "bytes_after":len(raw),
+                        "is_physics_or_mission_authority":False,
+                        "valid_gui_metadata":validate_project_preferences(raw)
+                    },indent=2,sort_keys=True)+"\\n",encoding="utf-8")
+            if not validate_project_preferences(raw):
+                raise ValueError("refuse cleanup unrecognized native A6 Webots GUI preferences")
+    # Unlink ONLY files created by prepare() after validating paths and content.
+    if WORLD.exists():
         WORLD.unlink()
     if PROJECT.exists():
-        if PROJECT.read_text(encoding="utf-8")!=PROJECT_BYTES:
-            raise ValueError("refuse cleanup altered native A6 Webots project")
         PROJECT.unlink()
 
 if __name__=="__main__":

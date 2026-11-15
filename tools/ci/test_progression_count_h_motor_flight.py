@@ -9,6 +9,50 @@ sys.path.insert(0,str(ROOT/"tools/ci"))
 import prepare_classroom_count_h_motor_flight as motor
 
 class CountHMotorFlightTests(unittest.TestCase):
+    def test_webots_gui_project_cleanup_is_bounded_and_audited(self):
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            generated=folder/"school.wbt"
+            gui=folder/".school.wbproj"
+            evidence=folder/"evidence"
+            with mock.patch.object(motor,"WORLD",generated), mock.patch.object(
+                    motor,"PROJECT",gui):
+                motor.prepare()
+                # Canonical generated files delete without a false alarm.
+                motor.cleanup(artifacts=evidence)
+                self.assertFalse(generated.exists())
+                self.assertFalse(gui.exists())
+                motor.prepare()
+                # Ordinary GUI perspective records may append to .wbproj.
+                gui.write_text(motor.PROJECT_BYTES+"viewpoint: 1 2 3\\n",
+                               encoding="utf-8")
+                motor.cleanup(artifacts=evidence)
+                self.assertFalse(gui.exists())
+                self.assertIn(b"viewpoint: 1 2 3",
+                              (evidence/"postrun-webots-project.wbproj").read_bytes())
+                self.assertTrue(__import__("json").loads(
+                    (evidence/"postrun-webots-project.json").read_text()
+                    )["valid_gui_metadata"])
+                motor.prepare()
+                gui.write_text("UNKNOWN PROJECT\\n",encoding="utf-8")
+                with self.assertRaisesRegex(ValueError,"unrecognized"):
+                    motor.cleanup(artifacts=evidence)
+                self.assertTrue(gui.exists())
+                self.assertTrue(generated.exists())
+                gui.write_text(motor.PROJECT_BYTES,encoding="utf-8")
+                motor.cleanup(artifacts=evidence)
+                motor.prepare()
+                gui.unlink()
+                gui.symlink_to(folder/"untrusted")
+                with self.assertRaisesRegex(ValueError,"redirected"):
+                    motor.cleanup(artifacts=evidence)
+                self.assertTrue(generated.exists())
+                gui.unlink()
+                gui.write_text(motor.PROJECT_BYTES,encoding="utf-8")
+                motor.cleanup(artifacts=evidence)
+
     def test_world_is_authentic_with_single_count_and_independent_observer(self):
         w=motor.compose()
         self.assertEqual(w.count(motor.MARKER),1)
