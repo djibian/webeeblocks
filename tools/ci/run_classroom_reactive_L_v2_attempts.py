@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Three genuine R2025a A5 V2 evaluator attempts and repeatable native failures.
+"""Three genuine R2025a A5 V2 evaluator attempt identities and native failures.
 
 Runs the real scene-local C observer on the original Crazyflie PROTO. The
 test-only probe writes two fresh, premature COMPLETION events to the native
@@ -116,7 +116,7 @@ def run_one(letter):
     evidence=[
         f"WEBEEBLOCKS_A5_V2_ATTEMPT attempt={i}" for i in (1,2)]
     evidence.append(f"WEBEEBLOCKS_A5_V2_ATTEMPT_PROBE_DONE variant={letter} "
-                    "two_real_native_attempts=true fresh_reset=true no_pupil_flight=true")
+                    "two_real_native_attempts=true fresh_attempt_marker=true host_reset=NOT_TESTED no_pupil_flight=true")
     for token in [ready,*expected,*probe,*evidence]:
         if data.count(token)!=1:
             raise AssertionError("missing/duplicate exact native attempt: "+
@@ -129,14 +129,14 @@ def run_one(letter):
         raise AssertionError("A5 native attempt protocol compromised: "+
                              str(log)+" tail="+data[-2500:])
     print(f"A5_V2_REAL_ATTEMPTS variant={letter} first=not-achieved "
-          "fresh_second=not-achieved flight=NOT_TESTED",flush=True)
+          "fresh_second=not-achieved host_reset=NOT_TESTED flight=NOT_TESTED",flush=True)
 
 
 def main():
     for variant in "ABC":
         run_one(variant)
-    print("WEBEEBLOCKS_A5_V2_NATIVE_RESET_NEGATIVE_CONFIRMED "
-          "variants=A_B_C fresh_attempts=2_each pupil_flight=NOT_TESTED",
+    print("WEBEEBLOCKS_A5_V2_NATIVE_ATTEMPT_NEGATIVE_CONFIRMED "
+          "variants=A_B_C fresh_attempts=2_each host_reset=NOT_TESTED pupil_flight=NOT_TESTED",
           flush=True)
 
 
