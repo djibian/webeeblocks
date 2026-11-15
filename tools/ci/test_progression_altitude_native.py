@@ -246,7 +246,7 @@ class NativeAltitudeContract(unittest.TestCase):
         # oracle's evidence gap must allow one (not two) of its 32-ms ticks.
         world = CLASSROOM_WORLD.read_text(encoding="utf-8")
         core = CORE.read_text(encoding="utf-8")
-        self.assertRegex(world, r"(?m)^\\s*basicTimeStep 32\\s*$")
+        self.assertIn("  basicTimeStep 32", world.splitlines())
         self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
