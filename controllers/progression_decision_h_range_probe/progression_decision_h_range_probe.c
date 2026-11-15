@@ -4,6 +4,7 @@
  */
 #include <webots/robot.h>
 #include <webots/supervisor.h>
+#include <webots/contact_point.h>
 #include <webots/distance_sensor.h>
 #include <math.h>
 #include <stdio.h>
