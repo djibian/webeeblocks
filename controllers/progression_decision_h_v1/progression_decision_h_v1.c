@@ -15,6 +15,10 @@
 #define WB_DH_OBSERVER "Progression decision H native evaluator"
 #define WB_DH_CONTROLLER "progression_decision_h_v1"
 #define WB_DH_CHILDREN 29 /* 23 Pose markers + six physical Solid obstacles. */
+#define WB_DH_COLLIDERS 6
+static const char *const WB_DH_COLLIDER_SUFFIXES[WB_DH_COLLIDERS] = {
+  "H_LEFT", "H_RIGHT", "H_BAR", "THRESHOLD", "CORRIDOR_LEFT", "CORRIDOR_RIGHT"
+};
 
 typedef struct {
   const char *def;
@@ -115,9 +119,7 @@ static int verify_scene(wb_dh_scene *variant) {
   const double h_x = v == WB_DH_SCENE_A ? WB_DH_NEAR_X : WB_DH_FAR_X;
   const double curb_x = v == WB_DH_SCENE_A ? WB_DH_FAR_X : WB_DH_NEAR_X;
   const char *prefix = v == WB_DH_SCENE_A ? "ACTIVITY4_A_" : "ACTIVITY4_B_";
-  const char *suffix[] = {
-    "H_LEFT", "H_RIGHT", "H_BAR", "THRESHOLD", "CORRIDOR_LEFT", "CORRIDOR_RIGHT"
-  };
+
   const double positions[6][3] = {
     {h_x, .300, .500}, {h_x, -.300, .500}, {h_x, 0, .740},
     {curb_x, 0, .350}, {.700, .420, .520}, {.700, -.420, .520}
@@ -126,9 +128,9 @@ static int verify_scene(wb_dh_scene *variant) {
     {.070, .065, 1.00}, {.070, .065, 1.00}, {.070, .570, .240},
     {.100, .740, .700}, {1.80, .080, 1.04}, {1.80, .080, 1.04}
   };
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < WB_DH_COLLIDERS; ++i) {
     char def[70];
-    int size = snprintf(def, sizeof(def), "%s%s", prefix, suffix[i]);
+    int size = snprintf(def, sizeof(def), "%s%s", prefix, WB_DH_COLLIDER_SUFFIXES[i]);
     if (size <= 0 || (size_t)size >= sizeof(def)) return 0;
     expected_box e = {0};
     e.def = def;
@@ -182,11 +184,31 @@ static int parse_completion(const char *text, unsigned long long attempt) {
          strcmp(text, canonical) == 0;
 }
 
-/* An unavailable contact point stream is not permission to pass.
- * The only harmless contact in this attested static world is the z=0 floor;
- * every non-floor contact (including unrecognized geometry) is an obstacle.
+/* An unavailable contact stream is not permission to pass.
+ * Official H, threshold and corridor Solids extend to the z=0 floor:
+ * an obstacle contact can have z=0 and must never be filtered by height.
+ * Read all six separately attested physical Solids, as in the R2025a A7
+ * observer. A contact on any of them fails even near the ground.
  */
-static int obstacle_contact(WbNodeRef craft) {
+static int obstacle_contact(WbNodeRef craft,
+                            const WbNodeRef colliders[WB_DH_COLLIDERS]) {
+  for (int j = 0; j < WB_DH_COLLIDERS; ++j) {
+    int n = -1;
+    const WbContactPoint *hits =
+      wb_supervisor_node_get_contact_points(colliders[j], false, &n);
+    if (n < 0 || (n > 0 && !hits)) return -1;
+    for (int i = 0; i < n; ++i) {
+      const double *p = hits[i].point;
+      if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2]))
+        return -1;
+      printf("WEBEEBLOCKS_DECISION_H_NATIVE_COLLIDER_CONTACT type=%s xyz=%.9f,%.9f,%.9f node_id=%d\n",
+             WB_DH_COLLIDER_SUFFIXES[j], p[0], p[1], p[2], hits[i].node_id);
+      fflush(stdout);
+      return 1;
+    }
+  }
+  /* Existing fallback for other non-floor contacts remains fail-closed.
+   * It cannot by itself distinguish unknown contacts touching the floor. */
   int count = -1;
   const WbContactPoint *points = wb_supervisor_node_get_contact_points(craft, true, &count);
   if (count < 0 || (count > 0 && !points)) {
@@ -244,6 +266,21 @@ int main(void) {
     return 2;
   }
   const double origin_z = initial[2];
+  WbNodeRef colliders[WB_DH_COLLIDERS] = {0};
+  const char *prefix = scene == WB_DH_SCENE_A ? "ACTIVITY4_A_" : "ACTIVITY4_B_";
+  for (int i = 0; i < WB_DH_COLLIDERS; ++i) {
+    char def[70];
+    const int n = snprintf(def, sizeof(def), "%s%s",
+                           prefix, WB_DH_COLLIDER_SUFFIXES[i]);
+    colliders[i] = n > 0 && (size_t)n < sizeof(def) ?
+                   wb_supervisor_node_get_from_def(def) : NULL;
+    if (!colliders[i] || wb_supervisor_node_get_id(colliders[i]) <= 0) {
+      fprintf(stderr, "WEBEEBLOCKS_DECISION_H_FATAL missing native collider identity\n");
+      wb_robot_cleanup();
+      return 2;
+    }
+    wb_supervisor_node_enable_contact_points_tracking(colliders[i], step, false);
+  }
   wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_dh_mission mission = {0};
   unsigned long long last_attempt = 0;
@@ -262,7 +299,7 @@ int main(void) {
     if (!last_attempt || mission.verdict != WB_DH_WAIT) continue;
     wb_dh_sample sample = {0};
     sample.time = wb_robot_get_time();
-    sample.obstacle_contact = obstacle_contact(craft);
+    sample.obstacle_contact = obstacle_contact(craft, colliders);
     sample.completed = parse_completion(data, mission.attempt);
     const double *position = wb_supervisor_node_get_position(craft);
     const double *velocity = wb_supervisor_node_get_velocity(craft);
