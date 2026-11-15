@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Contract for the isolated Activity 4 real Blockly/.wbb pupil falsifier.
 
-This is only an experimental product-path witness, not public pupil profile
-publication, Windows acceptance or an independent V5 review.
+This is a CI witness exercising the real public pupil profile, not a human
+Windows acceptance or an independent V5 review.
 """
 from __future__ import annotations
 import ast
@@ -58,10 +58,11 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("a4Number(ws,takeoff,'HEIGHT',0.50)",js)
         self.assertIn("const initialClimb=vertical('up',0.25)",js)
         self.assertIn("a4Chain([takeoff,speed,initialClimb,firstMove",js)
-        self.assertIn("'takeoff.height_m':{min:0.50,max:0.50}",js)
-        self.assertIn("'vertical.distance_m':{min:0.1,max:0.35}",js)
+        catalog=ACTIVITIES.read_text(encoding='utf-8')
+        self.assertIn("'takeoff.height_m': { min: 0.50, max: 0.50 }",catalog)
+        self.assertIn("'vertical.distance_m': { min: 0.1, max: 0.35 }",catalog)
         self.assertIn("const far=[vertical('up',0.10),move(0.75),vertical('down',0.25),vertical('down',0.20)]",js)
-        self.assertIn("toolbox:['webeeblocks_v2_takeoff'",js)
+        self.assertIn("'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed'",catalog)
         self.assertNotIn('WB_DH_ACHIEVED',js)
         self.assertNotIn("wb_supervisor_node_set",js)
         for name in ('decision-h-a-v1','decision-h-b-v1'):
