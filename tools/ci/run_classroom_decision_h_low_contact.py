@@ -119,7 +119,7 @@ def run_one(letter: str) -> dict:
         r"time=[^\n]+ contact=([01-]+) completed=([01])", log)
     ground = re.findall(
         r"WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=([AB]) "
-        r"floor_contacts=(\\d+) center_z=(-?[0-9.]+) motors=OFF", log)
+        r"floor_contacts=(\d+) center_z=(-?[0-9.]+) motors=OFF", log)
     ground_ok = (len(ground) == 1 and ground[0][0] == letter.upper()
                  and int(ground[0][1]) >= 1
                  and 0.0 <= float(ground[0][2]) <= .030)
