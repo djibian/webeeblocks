@@ -136,10 +136,33 @@ jobs:
               for n in 1 2 3; do
                 python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode sensor --variant ${n}
               done
-              # First true Webots/Blockly .wbb motor attempt, ONE variant only.
-              # Same canonical bytes preflighted and re-opened by Blockly above.
+              # The same saved private Blockly .wbb must be reopened and flown
+              # on all three physical H-count worlds, never regenerated per variant.
               python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode blockly --variant 1
+              for n in 2 3; do
+                python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode blockly --variant ${n}
+              done
             '
+      - name: Prove exact same private WBB bytes across three native Blockly flights
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          path = Path("ci-artifacts/progression-count-h-private-blockly/a6-private.wbb")
+          sha = hashlib.sha256(path.read_bytes()).hexdigest()
+          for n in (1, 2, 3):
+              record = json.loads((Path("ci-artifacts/progression-count-h-motor") /
+                                   f"blockly-n{n}" / "summary.json").read_text())
+              assert record["pass"] is True, (n, "physical mission failed")
+              assert record["private_blockly_webots_pass"] is True, (n, "Blockly not physically qualified")
+              assert record["real_motorized_flight"] is True, (n, "native oracle not achieved")
+              assert record["private_wbb_sha256"] == sha, (n, "WBB mutation")
+              assert record["sensor_reported_count"] == n, (n, "wrong number of H")
+              assert record["events"].count("A6_PRIVATE_WBB_REOPENED") == 1, (n, "not re-opened once")
+          print("A6_PRIVATE_SAME_WBB_TRIPLE_NATIVE_PASS sha256=" + sha)
+          PY
       - name: Preserve rotated-H native falsification even on failure
         if: always()
         uses: actions/upload-artifact@v4
