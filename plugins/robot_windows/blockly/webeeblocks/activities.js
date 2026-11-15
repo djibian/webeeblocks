@@ -229,6 +229,57 @@
         }
       },
       {
+        // New classroom Activity 4; native A/B variants share this pupil ID.
+        // The teacher's scene selection is session-only and never stored in .wbb.
+        id: 'progression-decision-h-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '4 — Observer pour décider',
+          mission: 'Deux parcours présentent des obstacles différents. Depuis la zone bleue, rejoins le damier vert en franchissant le passage sans collision puis pose le drone immobile. Ton même programme doit réussir sur les deux parcours.'
+        },
+        pedagogy: {
+          objective: 'Mesurer une distance réelle, comparer une valeur à un seuil et prendre une décision SI/SINON pendant le vol, en réutilisant les mouvements et orientations précédents.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_move', 'webeeblocks_v2_vertical',
+          'webeeblocks_v2_turn', 'controls_repeat_ext',
+          'webeeblocks_v2_range', 'controls_if', 'logic_compare',
+          'math_number', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] },
+          webeeblocks_v2_turn: { DIRECTION: [ 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-decision-h-v1' },
+        runtime: {
+          scene: 'decision-h-a-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'set_speed', 'move', 'vertical', 'turn', 'repeat', 'if', 'land' ],
+          rangeDirections: [ 'front' ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up', 'down' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.50, max: 0.50 },
+            'move.distance_m': { min: 0.1, max: 0.8 },
+            'vertical.distance_m': { min: 0.1, max: 0.35 },
+            'turn.angle_deg_abs': { min: 90, max: 90 },
+            'repeat.count': { min: 1, max: 3 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.1 }
+          }
+        }
+      },
+      {
+        // Historical Activity 4 is still openable by ID but no longer in Start.
+        starterVisible: false,
         id: 'progression-simple-decision-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {

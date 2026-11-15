@@ -29,6 +29,10 @@
     return !!error && (error.name === 'AbortError' || error.code === 20);
   }
 
+  function isDecisionPupilProfile(profile) {
+    return !!profile && profile.id === 'progression-decision-h-v1';
+  }
+
   function renderButtons() {
     var activity = document.getElementById('projectActivity');
     var open = document.getElementById('projectOpen');
@@ -46,6 +50,17 @@
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
+    var variant = document.getElementById('activityVariant');
+    if (variant) {
+      var simulation = typeof runtimeBackend !== 'undefined' && runtimeBackend &&
+        runtimeBackend.capabilities && runtimeBackend.capabilities.simulationScenes === true;
+      var active = !!simulation && isDecisionPupilProfile(runtimeProfile);
+      variant.hidden = !active;
+      variant.disabled = locked || !active || runtimeRunning || runtimeResetPending ||
+        runtimeStopPending || runtimeScenePending;
+      if (active) variant.textContent = runtimeProfile.runtime.scene === 'decision-h-b-v1' ?
+        'Parcours B — changer' : 'Parcours A — changer';
+    }
   }
 
   function setRuntimeLocked(locked) {
@@ -63,7 +78,8 @@
     catch (error) {
       if (!isCancellation(error)) {
         diagnostic(name, error);
-        fileState((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
+        fileState(name === 'variant' ? 'Impossible de changer de parcours' :
+          ((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet'), true);
       }
       return null;
     } finally {
@@ -263,6 +279,25 @@
   }
 
   function bindProjectButtons() {
+    document.getElementById('activityVariant').addEventListener('click', function() {
+      operation('variant', async function() {
+        // Teacher-controlled classroom variation, never program/AST metadata.
+        // Keep the same .wbb ID, workspace and explicit Save/Save As target.
+        if (!isDecisionPupilProfile(runtimeProfile) || !runtimeBackend ||
+            !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
+          throw new Error('variante A4 indisponible');
+        var next = JSON.parse(JSON.stringify(runtimeProfile));
+        next.runtime.scene = runtimeProfile.runtime.scene === 'decision-h-a-v1' ?
+          'decision-h-b-v1' : 'decision-h-a-v1';
+        WebeeBlocksActivityProfiles.validateProfile(next, WebeeBlocksActivities.BLOCK_CATALOG);
+        await prepareProfileScene(next);
+        runtimeProfile = next; // Scene only; project bytes and workspace remain intact.
+        var letter = next.runtime.scene === 'decision-h-b-v1' ? 'B' : 'A';
+        fileState('Parcours ' + letter + ' — projet .wbb inchangé', false);
+        markProjectChanged('Parcours ' + letter + ' prêt');
+        return next.runtime.scene;
+      });
+    });
     document.getElementById('projectActivity').addEventListener('click', function() {
       operation('activity', async function() {
         var profile = await chooseActivityProfile();

@@ -12,11 +12,12 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 12, 'retain both historical profiles while activating A2 and A3');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 13, 'retain historical A4 while activating native A4');
 for (const activity of Activities.DOCUMENT.activities) {
   const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
     activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
-    activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' : 'legacy-v1';
+    activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' :
+    activity.id === 'progression-decision-h-v1' ? 'decision-h-a-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
@@ -67,6 +68,53 @@ const noRepeatAst={version:1,semantics:'webeeblocks-ast-v1',program:[
 ]};
 assert(ActivityContract.preflightAst(pOrient,noRepeatAst),
   'no AST-shape rule may require repeat; only native trajectory decides success');
+
+// A4: one canonical pupil project ID, teacher-selectable native scene outside .wbb.
+const pDecision = Profiles.resolveById(Activities.DOCUMENT, 'progression-decision-h-v1', Activities.BLOCK_CATALOG);
+const pDecisionOld = Profiles.resolveById(Activities.DOCUMENT, 'progression-simple-decision-v1', Activities.BLOCK_CATALOG);
+assert.strictEqual(pDecision.brief.title, '4 — Observer pour décider');
+assert.strictEqual(pDecision.starterVisible, undefined);
+assert.strictEqual(pDecisionOld.starterVisible, false);
+assert.strictEqual(pDecisionOld.runtime.scene, 'legacy-v1');
+assert.strictEqual(pDecision.runtime.scene, 'decision-h-a-v1');
+assert.strictEqual(pDecision.evaluation.oracle, 'progression-decision-h-v1');
+assert.deepStrictEqual(pDecision.runtime.rangeDirections, ['front']);
+assert.deepStrictEqual(pDecision.runtime.allowedStatementKinds,
+  ['takeoff','set_speed','move','vertical','turn','repeat','if','land']);
+assert.deepStrictEqual(pDecision.runtime.astBounds['takeoff.height_m'], {min:0.5,max:0.5});
+assert.deepStrictEqual(pDecision.runtime.astBounds['move.distance_m'], {min:0.1,max:0.8});
+assert.deepStrictEqual(pDecision.runtime.astBounds['vertical.distance_m'], {min:0.1,max:0.35});
+assert(Profiles.validateProfile(pDecision,Activities.BLOCK_CATALOG));
+const pDecisionB=JSON.parse(JSON.stringify(pDecision));
+pDecisionB.runtime.scene='decision-h-b-v1';
+assert(Profiles.validateProfile(pDecisionB,Activities.BLOCK_CATALOG));
+assert.strictEqual(pDecisionB.id,pDecision.id);
+assert.deepStrictEqual(pDecisionB.evaluation,pDecision.evaluation);
+const decisionWorkspace=new Blockly.Workspace();
+const decisionOptions={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+  blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+assert.strictEqual(ProjectFiles.encodeProject(pDecision,decisionWorkspace,decisionOptions),
+  ProjectFiles.encodeProject(pDecisionB,decisionWorkspace,decisionOptions),
+  'the same saved .wbb bytes must work after a teacher A/B scene change');
+decisionWorkspace.dispose();
+const pupilStarter=JSON.parse(fs.readFileSync(path.join(ROOT,'activities/progression/04-observer-decision.wbb'),'utf8'));
+assert.deepStrictEqual(pupilStarter,JSON.parse(ProjectFiles.createStarterText(pDecision.id)),
+  'A4 starter must be empty, with no hidden route algorithm');
+assert.deepStrictEqual(pupilStarter.workspace.blocks.blocks,[]);
+const decisionBlindSyntax={version:1,semantics:'webeeblocks-ast-v1',program:[
+  {kind:'takeoff',height_m:0.50},{kind:'move',direction:'forward',distance_m:0.20},{kind:'land'}]};
+assert(ActivityContract.preflightAst(pDecision,decisionBlindSyntax),
+  'A4 mission may not require the SI/SINON AST shape; native behavior must judge it');
+const variantUi=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8');
+const variantHtml=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/blockly_v2.html'),'utf8');
+assert(variantHtml.includes('id="activityVariant"') && variantHtml.includes('hidden disabled'));
+assert(variantUi.includes("operation('variant'") &&
+  variantUi.includes('await prepareProfileScene(next)') &&
+  variantUi.includes('runtimeProfile = next') &&
+  variantUi.includes("runtimeProfile.runtime.scene === 'decision-h-a-v1'") &&
+  variantUi.includes("isDecisionPupilProfile(runtimeProfile)"),
+  'A4 scene switching must be session-only, guarded, and use native scene ACK');
+assert(!variantUi.includes("next.id ="),'switching scene must not mutate .wbb activity ID');
 
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
@@ -142,6 +190,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-sequence-v1' &&
   profile.id !== 'progression-altitude-v1' &&
   profile.id !== 'progression-orientation-3d-v1' &&
+  profile.id !== 'progression-decision-h-v1' &&
   profile.id !== 'progression-precise-movement-v1' &&
   profile.id !== 'progression-repeat-v1' &&
   profile.id !== 'progression-simple-decision-v1' &&
