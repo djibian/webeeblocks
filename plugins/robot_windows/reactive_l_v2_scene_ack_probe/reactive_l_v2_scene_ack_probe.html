@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>CI uniquement — sélection native A5 v2 A/B/C</title>
+<script>
+window.WB_A5_SCENE_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({event:'A5_SCENE_HTML_LOADED',wall_ms:Date.now()})
+}).then(r=>{if(!r.ok)throw Error('A5 HTML event refused');return {ok:true};});
+</script>
+<script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="reactive_l_v2_scene_ack_probe.js"></script></body>
+</html>
