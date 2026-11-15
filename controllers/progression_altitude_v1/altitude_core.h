@@ -42,6 +42,14 @@
 #define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
+/* Both the descent relative to the native starting pose and the proximity
+ * to the attested z=0 classroom floor are required for an actual landing.
+ * A grounded Crazyflie centre is observed at z≈0.015 m in R2025a; an
+ * upper 0.020 m envelope keeps 5 mm above the observed physical rest
+ * centre in the closely related A4 native R2025a scenes. Verify A2 native
+ * landings independently before Ready. This is
+ * a conservative proximity test, not proof of a native Floor contact. */
+#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.020
 
 typedef enum {
   WB_ALT_WAIT = 0,
@@ -194,7 +202,8 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
   const int on_pad =
     fabs(x - WB_ALT_TARGET_X) <= WB_ALT_TARGET_X_TOL &&
     fabs(y - WB_ALT_TARGET_Y) <= WB_ALT_TARGET_Y_TOL;
-  const int landed = z <= WB_ALT_MAX_LANDING_Z;
+  const int landed = z <= WB_ALT_MAX_LANDING_Z &&
+                     s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z;
   const int stationary =
     hypot(s->vx, s->vy) <= WB_ALT_MAX_SPEED && fabs(s->vz) <= WB_ALT_MAX_SPEED;
 
