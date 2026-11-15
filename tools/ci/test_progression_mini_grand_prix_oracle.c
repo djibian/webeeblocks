@@ -151,6 +151,61 @@ static void fresh_blue_reset(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
 }
 
+
+/* The sample's z-origin_z was formerly enough to make a stationary hover
+ * 40 cm above the actual floor look like touchdown. Native floor is z=0. */
+static void airborne_origin_must_fail(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,.400);
+  const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(0,-1.40,0,.400,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(1,-1.40,0,.620,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(2,h-.18,0,.400,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(3,h,0,.400,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(4,h+.18,0,.400,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(5,x,0,.400,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(6,x,y,.400,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(6.26,x,y,.400,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* A reference below the physical floor is also untrusted, even if its
+ * first sample perfectly agrees with the forged local origin. */
+static void underground_origin_must_fail(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,-.200);
+  wb_mini_sample a=sample(0,-1.40,0,-.200,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(1,-1.40,0,.400,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* Realistic body-rest variations remain admissible after a NEW reset:
+ * offset is relative to the real floor and does not encode scene identity. */
+static void genuine_ground_origin_can_land(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,2,v,.030);
+  const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(0,-1.40,0,.030,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(1,-1.40,0,.420,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(2,h-.18,0,.420,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(3,h,0,.420,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(4,h+.18,0,.420,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(5,x,0,.420,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6,x,y,.030,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.26,x,y,.030,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+}
+
 static void skip_gate(char v) {
   wb_mini_mission m;blue_start(&m,v,1);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
@@ -295,6 +350,9 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  airborne_origin_must_fail('L');airborne_origin_must_fail('R');
+  underground_origin_must_fail('L');underground_origin_must_fail('R');
+  genuine_ground_origin_can_land('L');genuine_ground_origin_can_land('R');
   absent_blue_start('L');absent_blue_start('R');
   invalid_blue_pose('L');invalid_blue_pose('R');
   fresh_blue_reset('L');fresh_blue_reset('R');
@@ -313,6 +371,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: thirty-seven positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: forty-three positive/adversarial scenarios");
   return 0;
 }

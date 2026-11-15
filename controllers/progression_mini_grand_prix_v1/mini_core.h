@@ -14,6 +14,11 @@
 /* The very first observed sample must attest the blue start marker; late
  * attachment near H cannot count as a fresh mission attempt. Webots native
  * scene/identity validation is still required at the observer boundary. */
+/* Native school floor z=0: the Crazyflie body center rests around 0.015m.
+ * This reference is independently bounded, not pupil- or reset-supplied.
+ * A high airborne origin must not turn a hover into a false landing. */
+#define WB_MINI_GROUND_CENTER_Z 0.015
+#define WB_MINI_GROUND_TOL 0.040
 #define WB_MINI_START_X -1.400
 #define WB_MINI_START_XY_TOL 0.080
 #define WB_MINI_START_Z_TOL 0.060
@@ -78,7 +83,9 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
    * approximately stationary and initially facing the first H. This is an
    * observation precondition, not an inspection of the pupil's algorithm. */
   if(!m->previous_valid &&
-     (fabs(s->x-WB_MINI_START_X)>WB_MINI_START_XY_TOL||
+     (fabs(m->origin_z-WB_MINI_GROUND_CENTER_Z)>WB_MINI_GROUND_TOL||
+      fabs(s->z-WB_MINI_GROUND_CENTER_Z)>WB_MINI_GROUND_TOL||
+      fabs(s->x-WB_MINI_START_X)>WB_MINI_START_XY_TOL||
       fabs(s->y)>WB_MINI_START_XY_TOL||
       fabs(s->z-m->origin_z)>WB_MINI_START_Z_TOL||
       hypot(s->vx,s->vy)>WB_MINI_START_SPEED||
@@ -183,6 +190,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
       fabs(s->x-turn_x)<=WB_MINI_LAND_TOL &&
       fabs(s->y-wb_mini_pad_y(m->variant))<=WB_MINI_LAND_TOL &&
       s->z-m->origin_z<=WB_MINI_LAND_Z &&
+      s->z<=WB_MINI_LAND_Z &&
       hypot(s->vx,s->vy)<=WB_MINI_LAND_SPEED &&
       fabs(s->vz)<=WB_MINI_LAND_SPEED;
     if(stable) {
