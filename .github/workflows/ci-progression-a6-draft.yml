@@ -15,6 +15,7 @@ on:
       - 'tools/ci/test_progression_count_h_*.py'
       - 'tools/ci/prepare_classroom_count_h_motor_flight.py'
       - 'tools/ci/run_classroom_count_h_motor_flight.py'
+      - 'tools/ci/run_classroom_count_h_rotation_mutant.py'
       - 'controllers/progression_count_h_school_pilot/**'
       - 'controllers/progression_count_h_flight_observer/**'
       - 'plugins/robot_windows/count_h_flight_probe/**'
@@ -79,6 +80,14 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; cd controllers/progression_count_h_school_pilot; make clean; make; cd /workspace/controllers/progression_count_h_flight_observer; make clean; make'
+      - name: Falsify rotated A6 H in real Webots before native observer READY
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_count_h_rotation_mutant.py'
       - name: Fly 1, 2 and 3 H with real R2025a PID and independent native contact oracle
         run: |
           docker run --rm \
@@ -103,6 +112,13 @@ jobs:
                 python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --variant ${n}
               done
             '
+      - name: Preserve rotated-H native falsification even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-draft-native-rotation-negative
+          path: ci-artifacts/progression-count-h-rotation-mutant/
+          if-no-files-found: warn
       - name: Preserve A6 motorized physical witness even when it fails
         if: always()
         uses: actions/upload-artifact@v4

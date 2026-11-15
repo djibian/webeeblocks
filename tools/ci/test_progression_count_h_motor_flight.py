@@ -51,6 +51,17 @@ class CountHMotorFlightTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 motor.compose(variant=value)
 
+    def test_rotated_native_H_mutant_has_one_physical_change_and_independent_observer(self):
+        import run_classroom_count_h_rotation_mutant as rotation
+        witness=rotation.mutant()
+        self.assertEqual(witness.count(rotation.ROTATION),1)
+        self.assertEqual(witness.count(rotation.MARKER),1)
+        self.assertEqual(witness.count("boundingObject Box"),8)
+        self.assertEqual(witness.count('name "Crazyflie WebeeBlocks"'),1)
+        self.assertEqual(witness.count(rotation.OBSERVER),1)
+        self.assertIn(rotation.FATAL,
+                      (ROOT/"tools/ci/run_classroom_count_h_rotation_mutant.py").read_text())
+
     def test_refuse_missing_native_collider_and_altered_base(self):
         scene=motor.SCENE.read_text(encoding="utf-8")
         base=motor.SOURCE.read_text(encoding="utf-8")
@@ -188,6 +199,7 @@ class CountHMotorFlightTests(unittest.TestCase):
             self.assertIn(requirement,reference)
         self.assertIn("run_classroom_count_h_motor_flight.py",workflow)
         self.assertIn("for n in 1 2 3",workflow)
+        self.assertIn("run_classroom_count_h_rotation_mutant.py",workflow)
         self.assertIn("python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --variant ${n}",workflow)
 
     def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
