@@ -17,6 +17,13 @@
 #define WB_RL2_LAND_Z 0.07
 #define WB_RL2_LAND_SPEED 0.12
 #define WB_RL2_LAND_DWELL 0.25
+/* Native classroom start is on the physical floor, not an arbitrary z offset.
+ * Keep a small tolerance for the Crazyflie's initial physical elevation. */
+#define WB_RL2_START_MIN_Z -0.04
+#define WB_RL2_START_MAX_Z 0.10
+/* An unobserved >100-ms interval cannot count as continuous stable landing.
+ * Native 32-ms sampling and the historical 80-ms C11 fixture both qualify. */
+#define WB_RL2_LAND_MAX_SAMPLE_GAP 0.10
 #define WB_RL2_LAND_TIMEOUT 1.50
 #define WB_RL2_MAX_DT 0.20
 #define WB_RL2_MAX_SPEED 2.0
@@ -143,7 +150,9 @@ static inline int wb_rl2_at_checkpoint(char v,int stage,
 static inline wb_rl2_verdict wb_rl2_sample_mission(
     wb_rl2_mission *m,const wb_rl2_sample *s){
   if(!m||!m->attempt||!wb_rl2_variant(m->variant)||
-     !isfinite(m->origin_z))return WB_RL2_FAILED;
+     !isfinite(m->origin_z)||
+     m->origin_z<WB_RL2_START_MIN_Z||
+     m->origin_z>WB_RL2_START_MAX_Z)return WB_RL2_FAILED;
   if(m->verdict!=WB_RL2_WAIT)return m->verdict;
   if(!wb_rl2_finite(s)||s->contact||
      s->z<m->origin_z-.04||s->z>m->origin_z+.95||
@@ -151,9 +160,14 @@ static inline wb_rl2_verdict wb_rl2_sample_mission(
      fabs(s->vz)>WB_RL2_MAX_SPEED){
     m->verdict=WB_RL2_FAILED;return m->verdict;
   }
+  /* Capture the interval before previous_time is updated below. A skipped
+   * observation cannot silently contribute to stable landing dwell. */
+  const double observation_gap=m->sampled?s->time-m->previous_time:0.0;
   if(!m->sampled){
-    /* The first observation must originate at this attempt's starting pad. */
+    /* The first observation must originate at this attempt's starting pad,
+     * including its absolute ground level, not a redefined flight altitude. */
     if(fabs(s->x)>.15||fabs(s->y)>.15||
+       s->z<WB_RL2_START_MIN_Z||s->z>WB_RL2_START_MAX_Z||
        s->z>m->origin_z+.12||s->completed){
       m->verdict=WB_RL2_FAILED;return m->verdict;
     }
@@ -197,7 +211,8 @@ static inline wb_rl2_verdict wb_rl2_sample_mission(
       fabs(s->y-wb_rl2_pad_y(m->variant))<=WB_RL2_PAD_TOL&&
       wb_rl2_err(s->yaw,wb_rl2_pad_yaw(m->variant))<=WB_RL2_YAW_TOL;
     if(stable){
-      if(!m->stable_since_valid){
+      if(!m->stable_since_valid||
+         observation_gap>WB_RL2_LAND_MAX_SAMPLE_GAP){
         m->stable_since=s->time;m->stable_since_valid=1;
       }
       if(s->time-m->stable_since>=WB_RL2_LAND_DWELL)
