@@ -10,6 +10,7 @@ import run_classroom_mini_gp_geometry as witness  # noqa: E402
 import run_classroom_mini_gp_native_observer as observer  # noqa: E402
 import run_classroom_mini_gp_ground_start as ground_start  # noqa: E402
 import run_classroom_mini_gp_foreign_scene as foreign_scene  # noqa: E402
+import run_classroom_mini_gp_wrong_timestep as wrong_step  # noqa: E402
 
 
 class MiniGrandPrixNativeContract(unittest.TestCase):
@@ -154,6 +155,42 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         self.assertIn("data.count(FATAL) != 1",run)
         self.assertIn('"WB_MINI_NATIVE_READY" in data',run)
         self.assertIn('"WB_MINI_NATIVE_RESULT" in data',run)
+
+    def test_wrong_physics_cadence_is_rejected_before_a7_ready(self):
+        """The 40-ms landing sample gap must not admit a 64-ms native world."""
+        native = (ROOT / "controllers/progression_mini_grand_prix_v1/"
+                  "progression_mini_grand_prix_v1.c").read_text(encoding="utf-8")
+        admission = native.split("int main(void) {", 1)[1].split(
+            "WbNodeRef craft=unique_vehicle();", 1)[0]
+        self.assertIn("if(step!=32)", admission)
+        self.assertIn("WB_MINI_NATIVE_FATAL invalid timestep=%d expected=32", admission)
+        self.assertLess(admission.index("if(step!=32)"),
+                        admission.index("if(!attest_scene(&variant))"))
+        self.assertNotIn("WB_MINI_NATIVE_READY", admission)
+        for letter in "LR":
+            with self.subTest(variant=letter):
+                original = observer.compose(letter)
+                mutant = wrong_step.compose(letter)
+                self.assertEqual(original.count("basicTimeStep 32"), 1)
+                self.assertEqual(mutant.count("basicTimeStep 64"), 1)
+                self.assertEqual(mutant.count(wrong_step.MARKER), 1)
+                self.assertEqual(
+                    mutant.replace("basicTimeStep 64", "basicTimeStep 32").replace(
+                        "\\n" + wrong_step.MARKER + "\\n", "\\n"),
+                    original)
+                self.assertEqual(mutant.count(" Solid {"), 9)
+                self.assertEqual(mutant.count("boundingObject Box"), 9)
+        for invalid in (None, "", "l", "X", 1):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                wrong_step.compose(invalid)
+        runner = (ROOT / "tools/ci/run_classroom_mini_gp_wrong_timestep.py").read_text(
+            encoding="utf-8")
+        self.assertIn("data.count(FATAL) != 1", runner)
+        self.assertIn('"WB_MINI_NATIVE_READY" in data', runner)
+        self.assertIn('"WB_MINI_NATIVE_RESULT" in data', runner)
+        workflow = (ROOT / ".github/workflows/ci-progression-a7-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_wrong_timestep.py", workflow)
 
     def test_grounded_start_is_a_real_native_observation_not_a_teleport(self):
         for letter in "LR":
