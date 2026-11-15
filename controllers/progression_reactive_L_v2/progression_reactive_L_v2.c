@@ -176,7 +176,8 @@ int main(void){
   WbFieldRef channel=craft?wb_supervisor_node_get_field(craft,"customData"):NULL;
   const double *start=craft?wb_supervisor_node_get_position(craft):NULL;
   if(!channel||!start||!isfinite(start[0])||!isfinite(start[1])||
-     fabs(start[0])>.15||fabs(start[1])>.15||!isfinite(start[2])){
+     fabs(start[0])>.15||fabs(start[1])>.15||!isfinite(start[2])||
+     start[2]<WB_RL2_START_MIN_Z||start[2]>WB_RL2_START_MAX_Z){
     fprintf(stderr,"WEBEEBLOCKS_A5_V2_FATAL vehicle identity/initial pose\n");
     wb_robot_cleanup();return 2;
   }
