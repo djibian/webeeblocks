@@ -1,0 +1,71 @@
+# Activity 5 stage-2 experimental variant C, NOT school-catalog-ready.
+# First two genuine range observations are intentionally identical for A/B/C.
+# The pupil must keep sensing along the path; no algorithm is provided.
+# This static scene does NOT attest safe flight or a need for a particular AST.
+DEF WEBEEBLOCKS_REACTIVE_L_V2_C_SCENE Group {
+ children [
+  Pose { translation 0.000 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.200 0.200 0.004 } } ] }
+  Pose { translation 0.800 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 0.800 1.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation -0.450 1.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation -0.450 1.600 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.320 0.320 0.004 } } ] }
+  Pose { translation -0.570 1.480 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.570 1.560 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.570 1.640 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.570 1.720 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.490 1.480 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.490 1.560 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.490 1.640 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.490 1.720 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.410 1.480 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.410 1.560 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.410 1.640 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.410 1.720 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.330 1.480 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.330 1.560 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.330 1.640 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation -0.330 1.720 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  DEF ACTIVITY5_V2_C_L1_FRONT Solid {
+    translation 1.020 0.000 0.550
+    name "ACTIVITY5_V2_C_L1_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.640 1.100 } } ]
+    boundingObject Box { size 0.080 0.640 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_L1_SIDE Solid {
+    translation 0.800 -0.320 0.550
+    name "ACTIVITY5_V2_C_L1_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.480 0.080 1.100 } } ]
+    boundingObject Box { size 0.480 0.080 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_L2_FRONT Solid {
+    translation 0.800 1.250 0.550
+    name "ACTIVITY5_V2_C_L2_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.640 0.080 1.100 } } ]
+    boundingObject Box { size 0.640 0.080 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_L2_SIDE Solid {
+    translation 1.120 1.000 0.550
+    name "ACTIVITY5_V2_C_L2_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.500 1.100 } } ]
+    boundingObject Box { size 0.080 0.500 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_L3_FRONT Solid {
+    translation -0.680 1.000 0.550
+    name "ACTIVITY5_V2_C_L3_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.640 1.100 } } ]
+    boundingObject Box { size 0.080 0.640 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_L3_SIDE Solid {
+    translation -0.450 0.680 0.550
+    name "ACTIVITY5_V2_C_L3_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.480 0.080 1.100 } } ]
+    boundingObject Box { size 0.480 0.080 1.100 }
+  }
+  DEF ACTIVITY5_V2_C_TERMINAL Solid {
+    translation -0.450 1.950 0.550
+    name "ACTIVITY5_V2_C_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.720 0.080 1.100 } } ]
+    boundingObject Box { size 0.720 0.080 1.100 }
+  }
+ ]
+}
