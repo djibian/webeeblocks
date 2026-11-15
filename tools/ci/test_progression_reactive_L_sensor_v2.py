@@ -45,7 +45,7 @@ class A5V2WitnessTests(unittest.TestCase):
         self.assertEqual(set(guesses.values()),{"A"})
         self.assertNotEqual(guesses,{"A":"A","B":"B","C":"C"})
 
-    def test_real_supervisor_4_samples_and_no_motor_or_pupil_algorithm(self):
+    def test_real_supervisor_5_samples_and_no_motor_or_pupil_algorithm(self):
         runner=(ROOT/"tools/ci/run_classroom_reactive_L_sensor_v2.py"
                 ).read_text(encoding="utf-8")
         source=(ROOT/"controllers/progression_reactive_L_sensor_probe_v2/"
@@ -58,7 +58,8 @@ class A5V2WitnessTests(unittest.TestCase):
             "WEBEEBLOCKS_A5_V2_SENSOR_DONE",
             '"second",.8,1.0,1.5707963267948966,&third',
             '"after-pivot",.8,1.0,3.1415926535897932,&after_pivot',
-            "fourth_m=%.9f test_only=true",
+            '"after-rewind",.8,1.0,1.5707963267948966,&after_rewind',
+            "fifth_m=%.9f test_only=true",
         ):self.assertIn(required,source)
         for forbidden in ("wb_motor_set_velocity","wb_motor_set_position",
                           "wb_supervisor_node_set_velocity",
@@ -68,7 +69,11 @@ class A5V2WitnessTests(unittest.TestCase):
         self.assertIn("does_not_prove_loop_or_variable_necessary",runner)
         self.assertIn("post_pivot_left_readings_no_longer_distinguish_variants",runner)
         self.assertIn("does_not_prove_historical_reobservation_impossible",runner)
-        self.assertIn('len(hits)!=4',runner)
+        self.assertIn('len(hits)!=5',runner)
+        self.assertIn('"after_rewind_real_left_readings_recover_historical_values":True',runner)
+        self.assertIn('"historical_readings_recoverable_by_reverse_turn":True',runner)
+        self.assertIn('"reobserving_by_reverse_turn_not_a_motorized_pupil_program":True',runner)
+        self.assertIn('abs(values[v][4]-values[v][2])>.08',runner)
         self.assertIn('max(post)-min(post)>.08',runner)
         self.assertIn("does_not_prove_drone_flight_or_student_solution",runner)
 
