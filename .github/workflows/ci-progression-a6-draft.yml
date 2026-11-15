@@ -15,6 +15,7 @@ on:
       - 'tools/ci/test_progression_count_h_*.py'
       - 'tools/ci/prepare_classroom_count_h_motor_flight.py'
       - 'tools/ci/run_classroom_count_h_motor_flight.py'
+      - 'tools/ci/build_a6_private_blockly_witness.js'
       - 'tools/ci/run_classroom_count_h_rotation_mutant.py'
       - 'controllers/progression_count_h_school_pilot/**'
       - 'controllers/progression_count_h_flight_observer/**'
@@ -49,6 +50,18 @@ jobs:
       - name: Require Draft witness remains outside integration gates
         run: |
           python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision
+      - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
+        run: |
+          set -euo pipefail
+          npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+          node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb
+      - name: Preserve private A6 Blockly artifact for review (never pupil starter)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-draft-private-blockly-roundtrip
+          path: ci-artifacts/progression-count-h-private-blockly/
+          if-no-files-found: warn
       - name: Compile real Webots R2025a rear-range negative observer
         run: |
           docker run --rm \
