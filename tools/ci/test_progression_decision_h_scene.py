@@ -143,5 +143,39 @@ class DecisionHSceneTests(unittest.TestCase):
             self.assertNotIn("Receiver {", scene)
 
 
+    def test_wrong_native_physics_cadence_cannot_admit_a4_scene(self):
+        import ast
+        controller = (ROOT / "controllers/progression_decision_h_v1/"
+                      "progression_decision_h_v1.c").read_text(encoding="utf-8")
+        core = (ROOT / "controllers/progression_decision_h_v1/"
+                "decision_core.h").read_text(encoding="utf-8")
+        runner = (ROOT / "tools/ci/run_classroom_decision_h_native_start.py").read_text(
+            encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/ci-progression-a4-draft.yml").read_text(
+            encoding="utf-8")
+        # 32-ms samples can prove a 250-ms landing dwell under the 48-ms
+        # continuity bound. At 64 ms READY would admit an unwinnable scene.
+        self.assertIn("#define WB_DH_MAX_OBSERVATION_GAP_SEC 0.048", core)
+        self.assertIn("const int step = (int)wb_robot_get_basic_time_step();", controller)
+        admission = controller.split("int main(void) {", 1)[1].split(
+            "WbNodeRef craft = unique_craft();", 1)[0]
+        self.assertIn("if (step != 32 || !verify_scene(&scene))", admission)
+        self.assertIn("WEBEEBLOCKS_DECISION_H_FATAL invalid scene/observer/colliders",
+                      controller)
+        self.assertNotIn("WEBEEBLOCKS_DECISION_H_READY", admission)
+        ast.parse(runner)
+        self.assertIn('"bad-step-a"', runner)
+        self.assertIn('"bad-step-b"', runner)
+        self.assertIn('base.count("basicTimeStep 32") != 1', runner)
+        self.assertIn('base.replace("basicTimeStep 32", "basicTimeStep 64", 1)', runner)
+        self.assertIn('text.count(fatal) == 1 and ready not in text', runner)
+        self.assertIn('negative and "WEBEEBLOCKS_DECISION_H_ATTEMPT" in text',
+                      runner)
+        self.assertIn("run(item)", runner)
+        self.assertIn(
+            "python3 tools/ci/run_classroom_decision_h_native_start.py",
+            workflow)
+
+
 if __name__ == "__main__":
     unittest.main()
