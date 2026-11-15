@@ -10,6 +10,7 @@ const Activities=require(path.join(ROOT,'plugins/robot_windows/blockly/webeebloc
 const Profiles=require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
 const Projects=require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 const src=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8');
+const mainSrc=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/main.js'),'utf8');
 
 function element(){
   return {disabled:false,hidden:false,textContent:'',dataset:{},inert:false,
@@ -72,7 +73,8 @@ async function scenario(startProfileId, options={}){
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
     console:{error(...args){diagnostics.push(args.map(v=>v?.message||String(v)).join(' '))},
       warn(){},log(){}}};
-  new Function(...Object.keys(inputs),src)(...Object.values(inputs));
+  const control=new Function(...Object.keys(inputs),src+
+    '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;}};')(...Object.values(inputs));
   assert(callbacks.load?.length===1,'actual project UI did not subscribe to window load');
   callbacks.load[0]();await flush();
   assert(manager,'real project UI did not initialize its file manager');
@@ -115,6 +117,13 @@ async function scenario(startProfileId, options={}){
     assert.equal(saveWrites,0,'pending outcome wrote a project file');
     assert.equal(manager.bytes(),bytes,'pending outcome altered pupil .wbb');
     assert.equal(diagnostics.length,0,'pending scene click should be ignored, not fail native');
+    // Native adjudication finishes AFTER its terminal status event. Without
+    // the explicit settled notification Blockly would remain read-only.
+    control.setOutcomePending(false);
+    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-outcome-settled'));
+    assert(!editWouldBeBlocked(),'Blockly stayed locked after native verdict settled');
+    assert(!btn.disabled,'scene selector stayed locked after native verdict settled');
+    assert.equal(manager.bytes(),bytes,'settled verdict mutated student project');
     return {kind:'pending-verdict',status:'PASS'};
   }
   assert(!btn.hidden&&!btn.disabled,'A4 toggle must be enabled after native initialization');
@@ -157,6 +166,8 @@ async function scenario(startProfileId, options={}){
   return {kind:'public-A4',status:'PASS',nativeRequests:backendCalls.length};
 }
 (async()=>{
+  assert.match(mainSrc,/runtimeOutcomePending = false;\s*\/\/ The terminal status is emitted before this flag clears; notify the\s*\/\/ project UI so it can restore Blockly editing only after adjudication\.\s*window\.dispatchEvent\(new CustomEvent\('webeeblocks-runtime-v2-outcome-settled'\)\)/,
+    'runProgram finally must notify project UI after native verdict');
   assert.equal(Activities.DOCUMENT.activities.filter(p=>p.id==='progression-decision-h-v1').length,1);
   assert.deepEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&
     p.starterVisible!==false).length,8);

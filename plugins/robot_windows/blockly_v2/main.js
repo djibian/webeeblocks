@@ -615,6 +615,9 @@ async function runProgram() {
     setRuntimeFailure(error, missionFailure);
   } finally {
     runtimeOutcomePending = false;
+    // The terminal status is emitted before this flag clears; notify the
+    // project UI so it can restore Blockly editing only after adjudication.
+    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-outcome-settled'));
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
     updateRuntimeActions();

@@ -377,6 +377,9 @@
     setRuntimeLocked(state === 'EXÉCUTION' || state === 'RÉINITIALISATION');
     if (state === 'PRÉPARATION') setRuntimeLocked(true);
   });
+  // The final status event is sent while the independent native verdict is
+  // still pending. Recompute the editor guard after it has fully settled.
+  window.addEventListener('webeeblocks-runtime-v2-outcome-settled', renderButtons);
 
   window.addEventListener('load', function() {
     (async function() {
