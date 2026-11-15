@@ -1,5 +1,5 @@
 'use strict';
-// Experimental Activity 3 fixture, NOT a selectable pupil profile yet.
+// Activity 3 R2025a native pupil-catalog integration witness (CI only).
 // Real Blockly 13 -> exact .wbb serialization -> preflight -> interpreter ->
 // WWI -> original native school flight -> independent Webots C orientation oracle.
 let a3ReportChain=Promise.resolve();
@@ -21,45 +21,12 @@ function a3MotionNumber(block,input,value){
   if(!number.isShadow())a3Fail('numeric movement literal is not a shadow');
 }
 function a3BuildProfile(){
-  // The approved product vocabulary is exercised without touching the
-  // still-legacy Activity 3 catalogue/starter or concurrent A2 promotion.
-  const profile={
-    id:'ci-orientation-blockly-v1',
-    world:'worlds/crazyflie_classroom_start.wbt',
-    brief:{visible:true,title:'3 — S’orienter et organiser son trajet',
-      mission:'Parcours les balises A, B et C avec le bon cap, puis pose le drone sur le damier.'},
-    pedagogy:{objective:'Coordonner rotation relative, mouvement vertical et répétition bornée.'},
-    toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_speed','webeeblocks_v2_move',
-      'webeeblocks_v2_turn','webeeblocks_v2_vertical','controls_repeat_ext',
-      'math_number','webeeblocks_v2_land'],
-    parameterBounds:{
-      webeeblocks_v2_speed:{SPEED:{min:0.10,max:0.16,step:0.01}},
-      webeeblocks_v2_turn:{ANGLE:{min:90,max:90,step:1}}
-    },
-    fieldOptions:{
-      webeeblocks_v2_move:{DIRECTION:['forward']},
-      webeeblocks_v2_turn:{DIRECTION:['left','right']},
-      webeeblocks_v2_vertical:{DIRECTION:['up','down']}
-    },
-    hardware:['crazyflie-2.1','flow-deck-v2'],
-    timer:{enabled:false},
-    evaluation:{type:'mission-state-v1',oracle:'progression-orientation-3d-v1'},
-    runtime:{
-      scene:'orientation-v1',mode:'ast-v1',
-      allowedStatementKinds:['takeoff','set_speed','move','turn','vertical','repeat','land'],
-      rangeDirections:[],moveDirections:['forward'],verticalDirections:['up','down'],
-      astBounds:{
-        'takeoff.height_m':{min:0.60,max:0.66},
-        'move.distance_m':{min:0.20,max:0.50},
-        'vertical.distance_m':{min:0.10,max:0.20},
-        'turn.angle_deg_abs':{min:90,max:90},
-        'repeat.count':{min:1,max:3},
-        'set_speed.speed_m_s':{min:0.10,max:0.16}
-      }
-    }
-  };
-  WebeeBlocksActivityProfiles.validateProfile(profile,WebeeBlocksActivities.BLOCK_CATALOG);
-  return profile;
+  // Exercise the exact published pupil profile and complete catalog.
+  // This probe remains a CI runner and is never an algorithm supplied to pupils.
+  return WebeeBlocksActivityProfiles.resolveById(
+    WebeeBlocksActivities.DOCUMENT,
+    'progression-orientation-3d-v1',
+    WebeeBlocksActivities.BLOCK_CATALOG);
 }
 function a3BuildWorkspace(profile){
   const ws=new Blockly.Workspace();
@@ -118,7 +85,7 @@ window.addEventListener('unhandledrejection',e=>a3Report('A3_PUPIL_ERROR',{messa
     if(!boot||!boot.ok)a3Fail('HTML observer denied bootstrap');
     await a3Report('A3_PUPIL_JS_STARTED',{kind:'Blockly13-native-R2025a'});
     const profile=a3BuildProfile();
-    const doc={version:1,activities:[profile]}; // test-only, never product catalog
+    const doc=WebeeBlocksActivities.DOCUMENT; // exact public pupil catalogue
     source=a3BuildWorkspace(profile);
     const opts={
       Blockly,profiles:WebeeBlocksActivityProfiles,
