@@ -121,7 +121,10 @@ static void blind_a_turn_on_other_variant(char v){
   move(&j,.8,1,.5,0); /* Replays the A turn instead of sensing the side. */
   int hit=0;
   for(int i=1;i<=30;++i){
-    const double x=.8+.01*i;
+    /* Reach x=.97 in small admissible steps; the next 3-cm segment
+     * intersects the actual wall at x~.99 before corridor-only rejection
+     * can make this an ambiguous negative. 0.03/0.032 < 2 m/s. */
+    const double x=i<=17 ? .8+.01*i : 1.0;
     const int collider=wb_rl2_hits_wall(v,j.s.x,j.s.y,x,1.0);
     step(&j,x,1.,.5,0,0,0);
     const wb_rl2_verdict verdict=wb_rl2_sample_mission(&j.m,&j.s);
