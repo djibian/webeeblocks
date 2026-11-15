@@ -29,7 +29,7 @@ LETTERS="ABC"
 
 
 def compose(letter, source=None, scene=None):
-    if letter not in LETTERS or not isinstance(letter,str) or len(letter)!=1:
+    if not isinstance(letter,str) or len(letter)!=1 or letter not in LETTERS:
         raise ValueError("unknown A5 variant")
     base=classroom.compose(classroom.SOURCE.read_text(encoding="utf-8")
                            if source is None else source)
