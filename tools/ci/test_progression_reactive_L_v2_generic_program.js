@@ -1,8 +1,10 @@
 'use strict';
 /* TEST-ONLY A5 v2 whole-algorithm witness, never an activity starter.
  * A real Blockly 13 .wbb, unchanged A/B/C, exercises bounded re-observation
- * and a first state variable. This fixture uses MOCK ranges/dynamics only.
- * It DOES NOT establish a successful Webots or pupil flight.
+ * and delayed use of historical sensor state AFTER a common 90-degree turn.
+ * The sensor's new direction cannot stand in for the saved old observation.
+ * This fixture uses MOCK ranges/dynamics only; physical necessity of this
+ * memory and real Webots/pupil flight MUST be independently falsified.
  */
 const assert=require('node:assert/strict');
 const path=require('node:path');
@@ -52,17 +54,21 @@ function build(){
   const first=untilWall(),left=turn('left'),second=untilWall();
   const store=block('variables_set');store.getField('VAR').setValue(state.getId());
   put(store,'VALUE',range('left'));
+  // First preserve the left-looking westward observation while facing north.
+  // A common turn then changes the left sensor's physical viewing direction.
+  // Only the historical variable may determine the subsequent branching.
+  const pivot=turn('left');
   const choose=block('controls_if');choose.loadExtraState({elseIfCount:1,hasElse:true});
   put(choose,'IF0',cmp('LT',get(),num(.6)));
-  const a=[turn('right'),move(.78)];link(...a);
+  const a=[turn('right'),turn('right'),move(.78)];link(...a);
   choose.getInput('DO0').connection.connect(a[0].previousConnection);
   put(choose,'IF1',cmp('GT',get(),num(1.6)));
-  const b=[turn('left'),move(1.42)];link(...b);
+  const b=[move(1.42)];link(...b);
   choose.getInput('DO1').connection.connect(b[0].previousConnection);
-  const c=[turn('left'),move(1.25),turn('right'),move(.60)];link(...c);
+  const c=[move(1.25),turn('right'),move(.60)];link(...c);
   choose.getInput('ELSE').connection.connect(c[0].previousConnection);
   const land=block('webeeblocks_v2_land');
-  link(takeoff,speed,first,left,second,store,choose,land);
+  link(takeoff,speed,first,left,second,store,pivot,choose,land);
   return w;
 }
 function backend(variant){
@@ -88,6 +94,7 @@ function backend(variant){
       records.push(['turn',degrees,heading]);},
     async readRange(direction){
       reads.push([direction,round(x),round(y),heading]);
+      records.push(['range',direction,round(x),round(y),heading]);
       if(direction==='front'){
         if(heading===0)return round(.98-x);
         if(heading===90&&x>=.7)return round(1.21-y);
@@ -110,7 +117,7 @@ async function main(){
     Contract.preflightWorkspace(base,source);
     const ast=Compiler.compileWorkspace(source);
     Contract.preflightAst(base,ast);
-    assert.equal(ast.program.length,8);
+    assert.equal(ast.program.length,9);
     assert.equal(ast.program.filter(x=>x.kind==='while').length,2);
     assert.equal(ast.program.filter(x=>x.kind==='set_variable').length,1);
     assert.equal(ast.program.filter(x=>x.kind==='if').length,1);
@@ -138,6 +145,17 @@ async function main(){
         assert.deepEqual(b.pose(),{...expect,airborne:false});
         assert.equal(b.reads.filter(x=>x[0]==='front').length,20);
         assert.equal(b.reads.filter(x=>x[0]==='left').length,1);
+        // The range read is in the old physical frame (north-facing drone
+        // looks west with its left sensor). The decision is deliberately
+        // deferred until the drone has rotated into the new frame.
+        const oldLeft=b.records.findIndex(x=>x[0]==='range'&&x[1]==='left');
+        const pivotTurn=b.records.findIndex((x,i)=>i>oldLeft&&
+          x[0]==='turn'&&x[2]===180);
+        assert(oldLeft>=0&&pivotTurn>oldLeft,
+          'saved observation must precede common orientation change');
+        assert.equal(b.records[oldLeft][4],90);
+        assert.equal(b.reads.filter(x=>x[0]==='left'&&x[3]===180).length,0,
+          'classification may not re-read a now reoriented sensor');
         assert.equal(b.records.filter(x=>x[0]==='land').length,1);
         readings.push({variant,left:{A:.28,B:1.78,C:1.44}[variant],
           steps:b.reads.length,final:b.pose()});
@@ -155,9 +173,9 @@ async function main(){
       fs.writeFileSync(file,text,{encoding:'utf8',flag:'wx'});
       if(fs.readFileSync(file,'utf8')!==text)throw Error('fixture write corruption');
     }
-    console.log('PASS A5 real Blockly .wbb serialisation, two reactive while loops, one stored range, common AST across A/B/C, MOCK backend only; sha256='+sha);
+    console.log('PASS A5 same Blockly .wbb A/B/C with delayed historical range after 90-degree pivot; two reactive loops, MOCK backend only; sha256='+sha);
     console.log(JSON.stringify({wbb_sha256:sha,pupil_flight:'NOT_TESTED',
-      didactics:'functional loop/state syntax, not proof they are necessary',readings}));
+      didactics:'historical value read AFTER changing sensor frame; physical necessity NOT YET TESTED',readings}));
   }finally{source.dispose();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
