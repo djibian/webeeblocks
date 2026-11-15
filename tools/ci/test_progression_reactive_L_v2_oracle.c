@@ -72,6 +72,27 @@ static void false_hover_landing(char v){
   j.s.time=j.m.completion_at+WB_RL2_LAND_TIMEOUT;
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
 }
+/* Full corridor and checkpoint sequence followed by a low sustained hover.
+ * The historical 0.070-m absolute ceiling falsely granted ACHIEVED after
+ * eight 32-ms native intervals at both z=0.030 and 0.060. The later failure
+ * must be due to the deadline, not an unobserved huge dt or blocked route. */
+static void false_low_hover_landing(char v,double hover_z){
+  assert(hover_z==.030||hover_z==.060);
+  journey j;full_route_at(&j,v,.015,hover_z);
+  assert(j.m.stage==wb_rl2_total(v));
+  assert(hover_z<=j.m.origin_z+WB_RL2_LAND_Z);
+  assert(hover_z>WB_RL2_LAND_ABSOLUTE_Z);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=1;i<=46;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  j.s.time=j.m.completion_at+WB_RL2_LAND_TIMEOUT;
+  assert(j.s.time-j.m.previous_time<.048);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
+}
 static void positive(char v){
   journey j;full_route(&j,v);
   step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
@@ -251,7 +272,9 @@ static void never_completed(char v){
 }
 int main(void){
   for(const char *v="ABC";*v;++v){
-    positive(*v);raised_origin(*v);false_hover_landing(*v);sparse_landing(*v);
+    positive(*v);raised_origin(*v);false_hover_landing(*v);
+    false_low_hover_landing(*v,.030);false_low_hover_landing(*v,.060);
+    sparse_landing(*v);
     missed_native_frame(*v);skip_waypoint(*v);bypass_wall(*v);contact(*v);
     false_landing(*v);late_pose(*v);replay(*v);side_bypass(*v);
     invalid_sample(*v);wrong_direction(*v);teleport(*v);

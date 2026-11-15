@@ -17,7 +17,11 @@
 #define WB_RL2_LAND_Z 0.07
 /* Static classroom Floor is z=0; resting Crazyflie centre ~0.015 m.
  * Do not accept a stationary hover just because the initial origin was high. */
-#define WB_RL2_LAND_ABSOLUTE_Z 0.070
+/* Genuine motorized A4 floor placements in R2025a were observed around
+ * z=0.0145-0.0150 m. Allow 5 mm to the grounded body centre rather than
+ * treating a 3/6-cm stationary hover as floor touchdown. The A5 native
+ * motor/scene remains a separate mandatory validation of this bound. */
+#define WB_RL2_LAND_ABSOLUTE_Z 0.020
 #define WB_RL2_LAND_SPEED 0.12
 #define WB_RL2_LAND_DWELL 0.25
 /* Native classroom start is on the physical floor, not an arbitrary z offset.
