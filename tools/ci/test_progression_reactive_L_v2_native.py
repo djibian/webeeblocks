@@ -57,6 +57,29 @@ class NativeObserverContract(unittest.TestCase):
         world=(ROOT/"worlds/crazyflie_classroom_start.wbt").read_text(encoding="utf-8")
         self.assertIn("basicTimeStep 32",world)
 
+    def test_native_oracle_rejects_both_a4_scene_identities(self):
+        source=(DIR/"progression_reactive_L_v2.c").read_text(encoding="utf-8")
+        self.assertEqual(source.count("static int attest_scene(char *variant){"),1)
+        admission=source.split("static int attest_scene(char *variant){",1)[1]
+        admission=admission.split("static WbNodeRef unique_craft(void)",1)[0]
+        for other in ("WEBEEBLOCKS_DECISION_A_SCENE",
+                      "WEBEEBLOCKS_DECISION_B_SCENE"):
+            with self.subTest(foreign=other):
+                self.assertIn(
+                    'wb_supervisor_node_get_from_def("' + other + '")',
+                    admission)
+        # Native physical cases are run in the Draft workflow. Source-only
+        # checks cannot replace Webots R2025a refusal before READY.
+        runner=(ROOT/"tools/ci/run_classroom_reactive_L_v2_foreign_scene.py"
+                ).read_text(encoding="utf-8")
+        for required in ('for v in "ABC" for a4 in "AB"',
+                         'decision-h-{foreign.lower()}-v1.wbo',
+                         'alien.count(" Solid {") != 6',
+                         'data.count(FATAL) != 1',
+                         '"WEBEEBLOCKS_A5_V2_NATIVE_C_READY" in data',
+                         'A5_FOREIGN_A4_ALL_REJECTED'):
+            self.assertIn(required,runner)
+
     def test_native_observation_never_makes_variant_a_completion_magic(self):
         core=(DIR/"reactive_core_v2.h").read_text(encoding="utf-8")
         native=(DIR/"progression_reactive_L_v2.c").read_text(encoding="utf-8")
