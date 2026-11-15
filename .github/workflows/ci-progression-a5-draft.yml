@@ -3,6 +3,9 @@
 name: Activity 5 Draft real Multi-ranger counterexample
 
 on:
+  # Temporary exact-branch testing: remove after V2 native proof is acquired.
+  push:
+    branches: [feat/pedagogy-a5-reactive-L-variants-20261112]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -10,8 +13,8 @@ on:
       - '.github/workflows/ci-progression-a5-draft.yml'
       - 'tools/ci/test_workflow_contract.py'
       - 'tools/ci/test_progression_reactive_L_*.py'
-      - 'tools/ci/run_classroom_reactive_L_sensor.py'
-      - 'controllers/progression_reactive_L_sensor_probe/**'
+      - 'tools/ci/run_classroom_reactive_L_sensor*.py'
+      - 'controllers/progression_reactive_L_sensor_probe*/**'
       - 'worlds/scenes/reactive-L-*.wbo'
 
 permissions:
@@ -19,21 +22,23 @@ permissions:
 
 jobs:
   a5-native-draft-only:
-    name: A5 R2025a two-ray negative witness (not CI Gate)
-    if: github.event.pull_request.draft == true
+    name: A5 R2025a v1/v2 sensor falsification (not CI Gate)
+    if: github.event_name == 'push' || github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Refuse altered A5 source worlds and witness roles
         run: |
           set -euo pipefail
           python3 -m unittest -v \
             tools.ci.test_progression_reactive_L_scene \
-            tools.ci.test_progression_reactive_L_sensor
+            tools.ci.test_progression_reactive_L_sensor \
+            tools.ci.test_progression_reactive_L_v2_scene \
+            tools.ci.test_progression_reactive_L_sensor_v2
           python3 -m unittest -v \
             tools.ci.test_workflow_contract.WorkflowTests.test_activity5_draft_witness_is_non_decision
       - name: Compile original R2025a Crazyflie sensor probe
@@ -52,10 +57,28 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_sensor.py'
+      - name: Compile original R2025a Crazyflie V2 staged sensor probe
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_sensor_probe_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_sensor_probe_v2'
+      - name: Observe genuine three-step V2 ray divergence on A B C
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_sensor_v2.py'
       - name: Preserve independent negative native data
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: a5-draft-real-two-ray-counterexample
-          path: ci-artifacts/progression-reactive-L-sensor/
+          path: |
+            ci-artifacts/progression-reactive-L-sensor/
+            ci-artifacts/progression-reactive-L-sensor-v2/
           if-no-files-found: warn
