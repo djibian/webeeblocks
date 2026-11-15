@@ -66,13 +66,25 @@ int main(void) {
      * Require measured native floor contact, not merely a near-ground pose.
      * No attempt was active while the robot settled. */
     wb_supervisor_node_enable_contact_points_tracking(self,step,true);
-    for(int i=0;i<45;++i)
+    for(int i=0;i<65;++i)
       if(wb_robot_step(step)<0)return invalid("floor preflight interrupted");
     const double *floor_pose=wb_supervisor_node_get_position(self);
     const double *floor_speed=wb_supervisor_node_get_velocity(self);
     int nf=-1;
     const WbContactPoint *floor_points=
         wb_supervisor_node_get_contact_points(self,true,&nf);
+    /* Observe already-read fields, never change contact/physics decisions. */
+    printf("WEBEEBLOCKS_DECISION_H_FLOOR_RAW variant=%c "
+           "pose=%.9f,%.9f,%.9f speed=%.9f,%.9f,%.9f count=%d pointer=%d\n",
+           variant,
+           floor_pose?floor_pose[0]:NAN,
+           floor_pose?floor_pose[1]:NAN,
+           floor_pose?floor_pose[2]:NAN,
+           floor_speed?floor_speed[0]:NAN,
+           floor_speed?floor_speed[1]:NAN,
+           floor_speed?floor_speed[2]:NAN,
+           nf,floor_points!=NULL);
+    fflush(stdout);
     if(!floor_pose||!floor_speed||nf<1||!floor_points||
        fabs(floor_pose[0])>.040||fabs(floor_pose[1])>.040||
        floor_pose[2]<0.0||floor_pose[2]>.030||
