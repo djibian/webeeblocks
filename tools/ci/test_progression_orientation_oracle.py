@@ -39,11 +39,13 @@ int main(void) {
  wb_orient_reset(&m,1,0);
  assert(step(&m,0,0,0,0,0,0,0)==WB_ORIENT_WAIT);
  route(&m);
- assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_ACHIEVED);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.24,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.26,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
  assert(step(&m,5,5,5,5,0,0,0)==WB_ORIENT_ACHIEVED);
  // RESET does not inherit achievement, stage, flight or completion.
  wb_orient_reset(&m,2,0);
- assert(!m.stage && !m.airborne && !m.completion_seen);
+ assert(!m.stage && !m.airborne && !m.completion_seen && !m.stable_since_valid);
  assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
  // Wrong cap at first beacon, with otherwise valid location.
  wb_orient_reset(&m,3,0);
@@ -56,6 +58,61 @@ int main(void) {
  assert(step(&m,3,.9,-.45,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
  assert(m.stage==1);
  assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // This would have passed the old 0.085 m tolerance at every waypoint:
+ // altitude=0.71 lies in BOTH A/C and B accepted bands. The approved
+ // learning sequence must require genuine vertical motion, not an AST shape.
+ assert(2 * WB_ORIENT_Z_TOL < 0.79 - 0.63);
+ wb_orient_reset(&m,11,0);
+ assert(step(&m,1,.45,0,.71,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,2,.45,-.45,.71,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,3,.90,-.45,.71,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage<3);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ // The tighter bands still accept a small, physically observable error
+ // around each waypoint; the correct ascent/descent remains achievable.
+ wb_orient_reset(&m,12,0);
+ assert(step(&m,1,.45,0,.68,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==1);
+ assert(step(&m,2,.45,-.45,.74,0,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==2);
+ assert(step(&m,3,.90,-.45,.68,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
+ assert(m.stage==3);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.24,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.26,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ // A momentary low-speed sample does not pass; movement restarts the dwell.
+ wb_orient_reset(&m,13,0);
+ route(&m);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.20,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.23,.90,-.90,.03,0,.30,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.32,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.56,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.58,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ // Leaving the full-pad area resets the dwell even if velocity is low.
+ wb_orient_reset(&m,14,0);
+ route(&m);
+ assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.15,1.01,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.20,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.43,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.46,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ // Native 8-ms cadence: reaching 250 ms only at completion+1.504 s
+ // cannot grant success after the absolute 1.5-s terminal deadline.
+ wb_orient_reset(&m,15,0);
+ route(&m);
+ assert(step(&m,4,1.2,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,5.240,1.2,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,5.248,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,5.496,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,5.504,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ assert(step(&m,5.512,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ // Exact deadline equality refuses a new success.
+ wb_orient_reset(&m,16,0);
+ route(&m);
+ assert(step(&m,4,1.2,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,5.25,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,5.50,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
  // Constant height fails B.
  wb_orient_reset(&m,5,0);
  assert(step(&m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
@@ -121,6 +178,7 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertIn("#define WB_ORIENT_LAND_X 0.90",core)
         self.assertIn("#define WB_ORIENT_LAND_Y -0.90",core)
         self.assertIn("#define WB_ORIENT_LAND_TOL 0.07",core)
+        self.assertIn("#define WB_ORIENT_LAND_DWELL 0.25",core)
         self.assertIn("geometry Box { size 0.32 0.32 0.004 }",scene)
         self.assertEqual(len(re.findall(r"^    Pose \{ translation ",scene,re.MULTILINE)),24)
         for label,coords,angle in (

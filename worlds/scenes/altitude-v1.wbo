@@ -1,12 +1,12 @@
 DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {
   children [
-    # Activity 2: visual markers are non-colliding Pose nodes. The three Solids below
+    # Activity 2: visual markers are non-colliding Pose nodes. The four Solids below
     # are the ONLY activity obstacle colliders; no invisible goal trigger.
     Pose { translation 0 0 0.002 children [
       Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.9 }
         geometry Box { size 0.18 0.30 0.004 } }
       # An independent native C scene oracle; no Python or shared runtime edit.
-      # Nest in this existing Pose: the 21 direct children stay unchanged.
+      # Nest in this existing Pose: the 22 direct children count includes four colliders.
       Robot {
         name "Progression altitude native evaluator"
         controller "progression_altitude_v1"
@@ -42,6 +42,19 @@ DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {
       children [ Shape { appearance PBRAppearance { baseColor 0.85 0.16 0.12 roughness 0.8 }
         geometry Box { size 0.12 0.84 0.62 } } ]
       boundingObject Box { size 0.12 0.84 0.62 }
+    }
+    # The clearly visible start canopy forbids launching directly above the
+    # barrier (0.80 m). A 0.45-0.50 m takeoff fits underneath (bottom=0.66 m).
+    # Its X face ends at +0.17 m; a 0.09 m craft must move beyond x=0.26
+    # before climbing, while the barrier envelope begins at x=0.47.
+    # At Y=+/-0.43 m the corridor wall begins at +/-0.47 m: the 4 cm
+    # side slit is narrower than the craft's conservative 9 cm half-span.
+    DEF ACTIVITY2_START_CANOPY Solid {
+      translation 0 0 0.70
+      name "Activity 2 visible low start canopy"
+      children [ Shape { appearance PBRAppearance { baseColor 0.93 0.65 0.15 roughness 0.75 }
+        geometry Box { size 0.34 0.86 0.08 } } ]
+      boundingObject Box { size 0.34 0.86 0.08 }
     }
     # Side-wall inner faces at +/-0.47 m. The 0.05 m side gap to the
     # barrier is narrower than a 0.09 m craft envelope; no lateral shortcut.

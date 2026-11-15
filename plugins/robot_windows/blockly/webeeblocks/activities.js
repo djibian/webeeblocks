@@ -42,30 +42,73 @@
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
           visible: true,
-          title: '1 — Livrer le colis',
-          mission: 'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.'
+          title: '1 — Prendre son envol en 3D',
+          mission: 'Depuis la zone bleue, rejoins le damier vert décalé et pose le drone entièrement dessus, immobile. Tu peux régler la hauteur de décollage et les distances de déplacement.'
         },
-        pedagogy: { objective: 'Construire et comprendre une séquence ordonnée d’actions.' },
+        pedagogy: { objective: 'Transférer une séquence connue en 2D au vol 3D : repérer deux axes horizontaux, régler une altitude de décollage simple et les distances, sans condition ni boucle.' },
         toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
         parameterBounds: {},
-        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward' ] } },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
         hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
         timer: { enabled: false },
-        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-v1' },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-3d-v1' },
         runtime: {
           scene: 'sequence-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
           rangeDirections: [  ],
-          moveDirections: [ 'forward' ],
+          moveDirections: [ 'forward', 'left' ],
           verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': { min: 0.5, max: 0.5 },
-            'move.distance_m': { min: 0.1, max: 0.1 }
+            'takeoff.height_m': { min: 0.4, max: 0.8 },
+            'move.distance_m': { min: 0.1, max: 0.5 }
           }
         }
       },
       {
+        // New pupil mission ID. Archived .wbb files keep their old ID and oracle.
+        id: 'progression-altitude-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '2 — Maîtriser l’altitude',
+          mission: 'Depuis la zone bleue sous l’auvent, franchis l’obstacle sans toucher le toit ni les parois, puis pose le drone entièrement sur le damier vert. Tu peux ajuster la hauteur de décollage, les distances et la vitesse.'
+        },
+        pedagogy: {
+          objective: 'Découvrir le déplacement vertical relatif pendant le vol : quitter le départ à basse altitude puis monter pour franchir un obstacle. Le verdict dépend du vol réel simulé, non de la forme du programme.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_move',
+          'webeeblocks_v2_vertical', 'webeeblocks_v2_speed', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.25, step: 0.01 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-altitude-3d-v1' },
+        runtime: {
+          scene: 'altitude-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'vertical', 'set_speed', 'land' ],
+          rangeDirections: [],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.4, max: 0.8 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'vertical.distance_m': { min: 0.1, max: 0.8 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.25 }
+          }
+        }
+      },
+      {
+        // Historical Activity 2 remains loadable with Open but not Start.
+        starterVisible: false,
         id: 'progression-precise-movement-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
@@ -96,6 +139,56 @@
         }
       },
       {
+        // Native A3 scene and oracle are already attested independently.
+        // Leave the student starter empty: no example algorithm or secret state.
+        id: 'progression-orientation-3d-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '3 — S’orienter et organiser son trajet',
+          mission: 'Parcours les balises A, B et C dans l’ordre, en respectant le cap indiqué et les hauteurs du circuit, puis pose le drone entièrement et immobile sur le damier.'
+        },
+        pedagogy: {
+          objective: 'Comprendre la rotation relative et les déplacements dans le repère local, puis identifier un motif de trajet utile à répéter.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_move', 'webeeblocks_v2_turn',
+          'webeeblocks_v2_vertical', 'controls_repeat_ext',
+          'math_number', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.10, max: 0.16, step: 0.01 } },
+          webeeblocks_v2_turn: { ANGLE: { min: 90, max: 90, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_turn: { DIRECTION: [ 'left', 'right' ] },
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-orientation-3d-v1' },
+        runtime: {
+          scene: 'orientation-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'set_speed', 'move', 'turn', 'vertical', 'repeat', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up', 'down' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.60, max: 0.66 },
+            'move.distance_m': { min: 0.20, max: 0.50 },
+            'vertical.distance_m': { min: 0.10, max: 0.20 },
+            'turn.angle_deg_abs': { min: 90, max: 90 },
+            'repeat.count': { min: 1, max: 3 },
+            'set_speed.speed_m_s': { min: 0.10, max: 0.16 }
+          }
+        }
+      },
+      {
+        // Historical Activity 3 must remain reopenable, never displayed as #3.
+        starterVisible: false,
         id: 'progression-repeat-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {

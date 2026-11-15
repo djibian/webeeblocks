@@ -181,6 +181,16 @@
             'Grand Prix clock not pinned with LED');
           assert(clock.textContent === '00min 00s / 03min 30s',
             'Grand Prix clock has wrong initial display');
+          // Blockly workspace initialization precedes the dynamic import of
+          // the genuine Webots RobotWindow/backend. Injecting the fallback
+          // before that import settles lets main.js overwrite the mock and
+          // emit INITIALISATION, cancelling the clock sample spuriously.
+          // Do not wait for runtime READY: this standalone UI test has no
+          // running Webots. Gate only actual backend construction.
+          await until(function() {
+            return gpWin.robotWindow && gpWin.runtimeBackend &&
+              gpWin.runtimeBackend.robotWindow === gpWin.robotWindow;
+          }, 'real Grand Prix RobotWindow/backend construction before ELAPSED fallback');
           var realBackend = gpWin.runtimeBackend;
           // The UI must work without a native TICK subscription: this is the
           // explicitly retained ELAPSED fallback. Count actual calls/responses
