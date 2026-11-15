@@ -16,6 +16,11 @@
 #define WB_A7_CRAFT "Crazyflie WebeeBlocks"
 #define WB_A7_ORACLE "progression-mini-grand-prix-v1"
 #define WB_A7_SCENE_CHILDREN 29
+#define WB_A7_COLLIDERS 9
+static const char *const kA7ColliderNames[WB_A7_COLLIDERS]={
+  "OPEN_LEFT","OPEN_RIGHT","OPEN_BAR","CORNER_FRONT","CORNER_SIDE",
+  "CLOSED_LEFT","CLOSED_RIGHT","CLOSED_BAR","CLOSED_PANEL"
+};
 
 typedef struct {
   const char *name;
@@ -103,13 +108,9 @@ static int attest_scene(char *variant) {
     {"", {turn,side*1.420,.900},{.570,.080,.300}},
     {"", {turn,side*1.420,.650},{.570,.080,1.30}}
   };
-  const char *const names[]={
-    "OPEN_LEFT","OPEN_RIGHT","OPEN_BAR","CORNER_FRONT","CORNER_SIDE",
-    "CLOSED_LEFT","CLOSED_RIGHT","CLOSED_BAR","CLOSED_PANEL"
-  };
   for(int i=0;i<9;++i){
     char def[96];
-    const int n=snprintf(def,sizeof(def),"ACTIVITY7_%c_%s",*variant,names[i]);
+    const int n=snprintf(def,sizeof(def),"ACTIVITY7_%c_%s",*variant,kA7ColliderNames[i]);
     if(n<=0||(size_t)n>=sizeof(def))return 0;
     expected_solid check=expected[i];check.name=def;
     if(!solid_at(&check))return 0;
@@ -145,7 +146,8 @@ static int completed_token(const char *data,unsigned long long attempt) {
     attempt,WB_A7_ORACLE);
   return data&&n>0&&(size_t)n<sizeof(expected)&&!strcmp(expected,data);
 }
-static int native_contact(WbNodeRef craft) {
+static int native_contact(WbNodeRef craft,
+                          const int collider_ids[WB_A7_COLLIDERS]) {
   int count=-1;
   const WbContactPoint *points=
     wb_supervisor_node_get_contact_points(craft,true,&count);
@@ -153,8 +155,19 @@ static int native_contact(WbNodeRef craft) {
   for(int i=0;i<count;++i){
     const double *p=points[i].point;
     if(!isfinite(p[0])||!isfinite(p[1])||!isfinite(p[2]))return -1;
-    /* Floor is allowed during departure/touchdown; only non-floor
-     * collision contacts are obstacle failures. */
+    /* An actual contact with any of this mission's nine attested physical
+     * Solids is a collision even at z=0, where a floor-height heuristic
+     * alone could silently discard it. This relies on the R2025a contact
+     * partner's native node_id, not a pupil-supplied scene/AST token. */
+    for(int j=0;j<WB_A7_COLLIDERS;++j)
+      if(points[i].node_id==collider_ids[j]) {
+        printf("WB_MINI_NATIVE_COLLIDER_CONTACT type=%s z=%.9f node_id=%d\n",
+               kA7ColliderNames[j],p[2],points[i].node_id);
+        fflush(stdout);
+        return 1;
+      }
+    /* Other non-floor contacts still fail closed under the prior rule.
+     * Native floor contacts near z=0 remain valid for touchdown. */
     if(fabs(p[2])>0.025)return 1;
   }
   return 0;
@@ -194,6 +207,19 @@ int main(void) {
     wb_robot_cleanup();return 2;
   }
   const double origin_z=origin[2];
+  int collider_ids[WB_A7_COLLIDERS]={0};
+  for(int i=0;i<WB_A7_COLLIDERS;++i) {
+    char def[96];
+    const int n=snprintf(def,sizeof(def),"ACTIVITY7_%c_%s",
+                         variant,kA7ColliderNames[i]);
+    WbNodeRef obstacle=n>0&&(size_t)n<sizeof(def) ?
+      wb_supervisor_node_get_from_def(def) : NULL;
+    collider_ids[i]=obstacle?wb_supervisor_node_get_id(obstacle):-1;
+    if(collider_ids[i]<=0) {
+      fprintf(stderr,"WB_MINI_NATIVE_FATAL missing collider node identity\n");
+      wb_robot_cleanup();return 2;
+    }
+  }
   wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
   wb_mini_mission mission={0};
   unsigned long long last_attempt=0;
@@ -212,7 +238,7 @@ int main(void) {
     if(!last_attempt||mission.verdict!=WB_MINI_WAIT)continue;
     wb_mini_sample sample={0};
     sample.time=wb_robot_get_time();
-    sample.contact=native_contact(craft);
+    sample.contact=native_contact(craft,collider_ids);
     sample.completed=completed_token(data,mission.attempt);
     const double *p=wb_supervisor_node_get_position(craft);
     const double *v=wb_supervisor_node_get_velocity(craft);
