@@ -1,0 +1,80 @@
+# Activity 4 B: swapped open-H and raised physical threshold.
+# At shared decision x=0.200 and z=0.750, the forward ray sees near/far H.
+# The 4x4 m classroom Floor limits all targets to the physical platform.
+# Native contact/range, pupil program and independent oracle remain UNPROVEN.
+DEF WEBEEBLOCKS_DECISION_B_SCENE Group {
+ children [
+  Pose { translation 0 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } }
+    # This real Webots Robot independently attests mission/contacts.
+    Robot {
+      name "Progression decision H native evaluator"
+      controller "progression_decision_h_v1"
+      supervisor TRUE
+      synchronization TRUE
+    }
+  ] } # start
+  Pose { translation 0.20 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.15 0.18 0.004 } } ] } # decision point
+  Pose { translation 1.75 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.34 0.34 0.004 } } ] } # target
+  Pose { translation 1.350 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # marked low-flight band
+  Pose { translation 1.637500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.637500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.637500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.637500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.712500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.712500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.712500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.712500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.787500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.787500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.787500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.787500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.862500 -0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.862500 -0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.862500 0.037500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+  Pose { translation 1.862500 0.112500 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.075 0.075 0.004 } } ] }
+# The red guides are visual; the future evaluator must enforce corridor limits.
+  Pose { translation 0.70 0.420 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.83 0.16 0.12 roughness 0.88 } geometry Box { size 1.80 0.012 0.004 } } ] } # corridor boundary
+  Pose { translation 0.70 -0.420 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.83 0.16 0.12 roughness 0.88 } geometry Box { size 1.80 0.012 0.004 } } ] } # corridor boundary
+  Pose { translation 0.750 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.86 0.36 0.11 roughness 0.85 } geometry Box { size 0.35 0.74 0.004 } } ] } # raised threshold marker
+# Side posts bound a genuinely open H; upper bar lower face z=0.620 m.
+  DEF ACTIVITY4_B_H_LEFT Solid {
+    translation 1.350 0.300 0.50
+    name "ACTIVITY4_B_H_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY4_B_H_RIGHT Solid {
+    translation 1.350 -0.300 0.50
+    name "ACTIVITY4_B_H_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY4_B_H_BAR Solid {
+    translation 1.350 0 0.74
+    name "ACTIVITY4_B_H_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.7 } geometry Box { size 0.07 0.57 0.24 } } ]
+    boundingObject Box { size 0.07 0.57 0.24 }
+  }
+# Physical floor threshold: top z=0.700, requires clearance from ABOVE.
+  DEF ACTIVITY4_B_THRESHOLD Solid {
+    translation 0.750 0 0.350
+    name "ACTIVITY4_B_THRESHOLD"
+    children [ Shape { appearance PBRAppearance { baseColor 0.86 0.36 0.11 roughness 0.7 } geometry Box { size 0.10 0.74 0.70 } } ]
+    boundingObject Box { size 0.10 0.74 0.70 }
+  }
+  # Collision-enabled side walls; floor guide marks alone allowed sidestepping.
+  # Finite walls still allow high overflight; native oracle MUST require under-H.
+  DEF ACTIVITY4_B_CORRIDOR_LEFT Solid {
+    translation 0.70 0.420 0.520
+    name "ACTIVITY4_B_CORRIDOR_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.83 0.16 0.12 transparency 0.50 roughness 0.8 } geometry Box { size 1.80 0.08 1.04 } } ]
+    boundingObject Box { size 1.80 0.08 1.04 }
+  }
+  DEF ACTIVITY4_B_CORRIDOR_RIGHT Solid {
+    translation 0.70 -0.420 0.520
+    name "ACTIVITY4_B_CORRIDOR_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.83 0.16 0.12 transparency 0.50 roughness 0.8 } geometry Box { size 1.80 0.08 1.04 } } ]
+    boundingObject Box { size 1.80 0.08 1.04 }
+  }
+ ]
+}

@@ -511,6 +511,9 @@ printf "%s\n" \
 # This is a raw backend command test, not proof of a Blockly pupil program.
 if [ "WB_CANOPY_NATIVE_FLIGHT_ENABLED" = "1" ]; then
   python3 /workspace/tools/ci/run_classroom_altitude_canopy.py
+  # Separate actual Blockly 13/.wbb→AST→interpreter witness; both worlds are
+  # isolated and each starts the original school pilot and native C oracle.
+  python3 /workspace/tools/ci/run_classroom_altitude_pupil.py
 fi
 # This additional witness is school-only; never a program / flight PASS.
 if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then

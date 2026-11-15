@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Native R2025a witness of real Blockly Activity 3 AST and 3-beacon flight.
 
-Uses a *test-only* profile: no public Activity 3 product activation, real
-File System Access picker or pupil competence is asserted by this experiment.
+Uses the *actual student catalog profile* and school world, under test-only
+browser orchestration. Real File System Access picker and pupil competence
+remain unproven by this experiment.
 """
 from __future__ import annotations
 
@@ -99,7 +100,9 @@ def run()->int:
     valid=(
         not missing and ordered and names.count('A3_PUPIL_ERROR')==0 and
         native is not None and browser and
-        isinstance(roundtrip,dict) and roundtrip.get('statements')==4 and
+        isinstance(roundtrip,dict) and
+        roundtrip.get('id')=='progression-orientation-3d-v1' and
+        roundtrip.get('statements')==4 and
         isinstance(roundtrip.get('repeat'),dict) and
         roundtrip['repeat'].get('kind')=='repeat' and roundtrip['repeat'].get('count')==2 and
         [step.get('kind') for step in roundtrip['repeat'].get('body',[])] ==
@@ -120,7 +123,8 @@ def run()->int:
         'pass':valid,'missing_events':missing,'ordered':ordered,'browser':browser,
         'native_result':bool(native),'responses':responses,
         'moves':moves,'turns':turns,'vertical':vertical,'events':names,
-        'profile_kind':'CI-only synthetic Blockly 13, not student catalog'
+        'profile_kind':'public pupil catalog profile (CI-only native witness)',
+        'profile_id':roundtrip.get('id') if isinstance(roundtrip,dict) else None
     }
     (ARTIFACT/'summary.json').write_text(
         json.dumps(summary,indent=2,sort_keys=True)+'\n',encoding='utf-8')

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adversarial structural contracts for CI-only Blockly Activity 3 native flight.
+"""Adversarial structural contracts for native pupil-catalog Activity 3 flight.
 
 This static harness never substitutes for the Webots R2025a observed outcome.
 """
@@ -74,10 +74,19 @@ class OrientationPupilWorldTests(unittest.TestCase):
         ):
             with self.subTest(token=token):
                 self.assertIn(token,self.js)
-        self.assertIn("id:'ci-orientation-blockly-v1'",self.js)
-        self.assertIn("const doc={version:1,activities:[profile]}",self.js)
+        self.assertIn("'progression-orientation-3d-v1'",self.js)
+        self.assertIn("WebeeBlocksActivityProfiles.resolveById(",self.js)
+        self.assertIn("const doc=WebeeBlocksActivities.DOCUMENT",self.js)
+        self.assertNotIn("ci-orientation-blockly-v1",self.js)
+        self.assertNotIn("const doc={version:1,activities:[profile]}",self.js)
         self.assertNotIn('WebeeBlocksActivities.DOCUMENT.activities.push(',self.js)
         self.assertNotIn("webeeBlocks_physical",self.js)
+
+    def test_provenance_reports_real_public_catalog_id(self):
+        self.assertIn("roundtrip.get('id')=='progression-orientation-3d-v1'",self.runner)
+        self.assertIn("'profile_id':roundtrip.get('id')",self.runner)
+        self.assertIn("'profile_kind':'public pupil catalog profile (CI-only native witness)'",self.runner)
+        self.assertNotIn('CI-only synthetic Blockly 13, not student catalog',self.runner)
 
     def test_native_c_verdict_and_sequence_are_necessary_not_browser_events(self):
         self.assertIn('status=achieved checkpoints=3',self.runner)

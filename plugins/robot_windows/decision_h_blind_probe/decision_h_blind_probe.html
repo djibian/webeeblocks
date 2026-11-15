@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>CI — A4 contre-épreuve des trajectoires aveugles</title>
+<script>
+window.WB_A4_BLIND_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({event:'A4_BLIND_HTML_LOADED',wall_ms:Date.now()})
+}).catch(error=>console.error('A4 blind bootstrap',error));
+</script>
+<script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body><script src="decision_h_blind_probe.js"></script></body>
+</html>

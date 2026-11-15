@@ -18,6 +18,7 @@ CORE = CONTROLLER / "altitude_core.h"
 SOURCE = CONTROLLER / "progression_altitude_v1.c"
 MAKEFILE = CONTROLLER / "Makefile"
 SCENE = ROOT / "worlds/scenes/altitude-v1.wbo"
+CLASSROOM_WORLD = ROOT / "worlds/crazyflie_classroom_start.wbt"
 
 DRIVER = r"""
 #include "altitude_core.h"
@@ -47,18 +48,26 @@ static void cross_higher(wb_alt_mission *m) {
   assert(step(m, 3.0, 0.81, 0, 0.80, 0, 0, 0) == WB_ALT_WAIT);
   assert(m->crossed_barrier);
 }
+/* Real C oracle: 250 ms across actual 32-ms Webots physics ticks. */
+static void finish_stably(wb_alt_mission *m, double t,
+                          double x, double y, double z) {
+  assert(step(m,t,x,y,z,0,0,1) == WB_ALT_WAIT);
+  for (int i=1; i<=7; ++i)
+    assert(step(m,t+0.032*i,x,y,z,0,0,0) == WB_ALT_WAIT);
+  assert(step(m,t+0.256,x,y,z,0,0,0) == WB_ALT_ACHIEVED);
+}
 int main(void) {
   wb_alt_mission m;
   normal_takeoff(&m, 1);
   cross_higher(&m);
-  assert(step(&m, 6.0, 1.35, 0, 0.015, 0, 0, 1) == WB_ALT_ACHIEVED);
+  finish_stably(&m, 6.0, 1.35, 0, 0.015);
   assert(step(&m, 10.0, 0.0, 0, 1.4, 0, 1, 1) == WB_ALT_ACHIEVED);
   assert(m.result == WB_ALT_ACHIEVED);
 
   /* Re-use of attempt 2 after RESET cannot inherit success. */
   normal_takeoff(&m, 2);
   assert(!m.crossed_barrier && m.result == WB_ALT_WAIT);
-  assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
   assert(step(&m, 6.6, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
   /* Flying below the true physical barrier is terminal failure. */
@@ -101,7 +110,7 @@ int main(void) {
 
   /* Takeoff without a physical crossing cannot certify climbing. */
   normal_takeoff(&m, 9);
-  assert(step(&m, 3.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 3.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
   assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
   /* Candidate cannot pass the wall by sliding around the rail at low height. */
@@ -123,9 +132,87 @@ int main(void) {
   /* A legitimate landing at small but nonzero errors still succeeds. */
   normal_takeoff(&m, 13);
   cross_higher(&m);
-  assert(step(&m, 6.0, 1.41, 0.06, 0.02, 0, 0, 1) == WB_ALT_ACHIEVED);
+  finish_stably(&m, 6.0, 1.41, 0.06, 0.02);
 
-  puts("PASS native altitude C oracle: crossing, landing, collision, reset, negatives");
+  /* Momentary low-speed pose is not a successful landing. Motion interrupts
+   * the dwell; resetting the state after failure requires fresh evidence. */
+  normal_takeoff(&m, 14);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.240, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.248, 1.45, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  /* Even on the correct pad, speed above 0.12 m/s restarts the dwell. */
+  assert(step(&m, 6.256, 1.35, 0, 0.02, 0.25, 0, 0) == WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  assert(step(&m, 6.264, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 6.264+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.520, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+  normal_takeoff(&m, 15);
+  assert(!m.stable_since_valid && !m.completion_seen &&
+         m.result == WB_ALT_WAIT);
+
+  /* Terminal 1.500-s deadline must win against a late 0.256-s dwell. */
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.240, 1.35, 0.20, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.248, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 7.248+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.504, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(step(&m, 7.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Equal-to-deadline is terminal even if dwell has completed then. */
+  normal_takeoff(&m, 16);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.244, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 7.244+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.500, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Two well-spaced samples cannot certify an unobserved 250-ms dwell. */
+  normal_takeoff(&m, 17);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.256, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.256)<1e-7);
+  for (int i=1; i<=31; ++i)
+    assert(step(&m, 6.256+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+
+  /* A backwards time sample is invalid, even with a perfect pad pose. */
+  normal_takeoff(&m, 18);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 5.999, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Mission completion BEFORE the H cannot later earn a passage token. */
+  normal_takeoff(&m, 19);
+  assert(step(&m, 1.100, 0.25, 0, 0.45, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(!m.crossed_barrier);
+  assert(step(&m, 1.200, 0.59, 0, 0.80, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Even a completion pulse ON the first gate centre cannot create a pass. */
+  normal_takeoff(&m, 20);
+  assert(step(&m, 2.000, 0.48, 0, 0.78, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 2.500, 0.59, 0, 0.80, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+
+  /* Missing one native 32-ms tick (64-ms gap) interrupts the dwell.
+   * A normal 32-ms native sample must NOT reset it. */
+  normal_takeoff(&m, 21);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.032, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.000)<1e-7);
+  assert(step(&m, 6.096, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.096)<1e-7);
+  for (int i=1; i<=7; ++i)
+    assert(step(&m, 6.096+0.032*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.352, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+
+  puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
 """
@@ -155,6 +242,12 @@ class NativeAltitudeContract(unittest.TestCase):
             self.assertIn("PASS native altitude C oracle", run.stdout)
 
     def test_isolated_native_executable_never_links_into_physical_runtime(self):
+        # The classroom WorldInfo fixes the simulator cadence, while the C
+        # oracle's evidence gap must allow one (not two) of its 32-ms ticks.
+        world = CLASSROOM_WORLD.read_text(encoding="utf-8")
+        core = CORE.read_text(encoding="utf-8")
+        self.assertIn("  basicTimeStep 32", world.splitlines())
+        self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
         scene = SCENE.read_text(encoding="utf-8")
@@ -204,6 +297,28 @@ class NativeAltitudeContract(unittest.TestCase):
                         source.index("await outcome(backend,'achieved',80000);"))
         self.assertIn("await backend.prepareActivity(PROFILE);", source)
         self.assertIn("await backend.resetSimulation();", source)
+
+    def test_pupil_blockly_webots_witness_is_native_and_distinct(self):
+        # A native shell flight with a fabricated JS profile cannot establish
+        # that the actual pupil Blockly → AST → interpreter path works.
+        pupil = (ROOT / "plugins/robot_windows/altitude_pupil_probe/altitude_pupil_probe.js").read_text(
+            encoding="utf-8")
+        runner = (ROOT / "tools/ci/run_classroom_altitude_pupil.py").read_text(
+            encoding="utf-8")
+        progression = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(
+            encoding="utf-8")
+        self.assertIn("new Blockly.Workspace()", pupil)
+        self.assertIn("WebeeBlocksProjectFiles.encodeProject", pupil)
+        self.assertIn("WebeeBlocksProjectFiles.validateProjectText", pupil)
+        self.assertIn("WebeeBlocksActivityContract.execute(", pupil)
+        self.assertIn("WebeeBlocksInterpreter,backend", pupil)
+        self.assertIn("await backend.completeActivityMission(p.profile.evaluation)", pupil)
+        self.assertIn("await pupilOutcome(backend)", pupil)
+        self.assertIn("PUPIL_NATIVE_ACHIEVED", pupil)
+        self.assertIn("WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=achieved", runner)
+        self.assertIn("contact=0", runner)
+        self.assertIn("python3 /workspace/tools/ci/run_classroom_altitude_canopy.py", progression)
+        self.assertIn("python3 /workspace/tools/ci/run_classroom_altitude_pupil.py", progression)
 
     def test_scene_does_not_drift_from_native_constants(self):
         text = SCENE.read_text(encoding="utf-8")
