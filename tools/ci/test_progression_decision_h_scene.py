@@ -143,5 +143,45 @@ class DecisionHSceneTests(unittest.TestCase):
             self.assertNotIn("Receiver {", scene)
 
 
+    def test_near_floor_real_colliders_are_tracked_independently_of_height(self):
+        # Source-level regression only; positive/negative Webots contact
+        # observations must still qualify this change before Ready.
+        native = (ROOT / "controllers/progression_decision_h_v1/"
+                  "progression_decision_h_v1.c").read_text(encoding="utf-8")
+        kinds = ("H_LEFT", "H_RIGHT", "H_BAR", "THRESHOLD",
+                 "CORRIDOR_LEFT", "CORRIDOR_RIGHT")
+        self.assertIn("#define WB_DH_COLLIDERS 6", native)
+        for name in kinds:
+            self.assertIn(f'"{name}"', native)
+        self.assertIn(
+            "wb_supervisor_node_enable_contact_points_tracking(colliders[i], step, false)",
+            native)
+        self.assertIn("wb_supervisor_node_get_contact_points(colliders[j], false, &n)",
+                      native)
+        self.assertIn("sample.obstacle_contact = obstacle_contact(craft, colliders)",
+                      native)
+        self.assertIn("wb_supervisor_node_get_id(colliders[i]) <= 0", native)
+        self.assertIn("WEBEEBLOCKS_DECISION_H_NATIVE_COLLIDER_CONTACT", native)
+        # A contact at 0 or 1 cm on a genuine Solid must be acted upon
+        # before the craft-only fallback that ignores ordinary floor contact.
+        self.assertLess(
+            native.index("wb_supervisor_node_get_contact_points(colliders[j], false, &n)"),
+            native.index("wb_supervisor_node_get_contact_points(craft, true, &count)"))
+        self.assertLess(
+            native.index("return 1;", native.index(
+                "WEBEEBLOCKS_DECISION_H_NATIVE_COLLIDER_CONTACT")),
+            native.index("if (fabs(p[2]) > 0.025)"))
+        for letter, scene_path in zip("AB", SCENES):
+            with self.subTest(scene=letter):
+                scene = scene_path.read_text(encoding="utf-8")
+                for name in kinds:
+                    box = collider(scene, f"ACTIVITY4_{letter}_{name}")
+                    # The actual floor-touching obstacles are the difficult
+                    # case that a height-only native filter cannot resolve.
+                    if name != "H_BAR":
+                        self.assertAlmostEqual(lower(box), 0.0, places=6)
+
+
+
 if __name__ == "__main__":
     unittest.main()
