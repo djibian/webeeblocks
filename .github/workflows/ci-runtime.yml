@@ -102,6 +102,7 @@ jobs:
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene
           python3 -m unittest tools.ci.test_progression_decision_h_oracle
+          python3 -m unittest tools.ci.test_progression_decision_h_low_contact
           python3 -m unittest tools.ci.test_progression_decision_h_selector
           python3 -m unittest tools.ci.test_progression_decision_h_pupil tools.ci.test_progression_decision_h_blind
       - name: Compile independent A4 Webots observer against actual R2025a headers
@@ -143,6 +144,15 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
+      - name: Refute A4 low-floor collisions with genuine native obstacle contacts A/B
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_low_contact.py'
       - name: Compile independent A4 real-scene selector probe
         run: |
           docker run --rm \
@@ -194,6 +204,13 @@ jobs:
               test "$pupil_status" -eq 0
               test "$blind_status" -eq 0
             '
+      - name: Preserve A4 native low-contact physical proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progression-decision-h-low-contact
+          path: ci-artifacts/progression-decision-h-low-contact/
+          if-no-files-found: error
       - name: Preserve A4 same .wbb native pupil flight evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -348,6 +365,10 @@ jobs:
           node --check tools/ci/test_runtime_v2_project_files.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/ci/test_progression_decision_h_variant_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/ci/test_progression_decision_h_variant_ui.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
@@ -707,8 +728,10 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
           node --check plugins/robot_windows/blockly_v2/project_ui.js
           node --check tools/ci/test_runtime_v2_project_files.js
+          node --check tools/ci/test_progression_decision_h_variant_ui.js
           python3 -m py_compile tools/ci/prepare_runtime_v2_project_files.py
           node tools/ci/test_runtime_v2_project_files.js
+          node tools/ci/test_progression_decision_h_variant_ui.js
           ! grep -REi 'autosave|attemptHistory|scoreHistory|studentIdentity|moodle|cloudSync' \
             plugins/robot_windows/blockly/webeeblocks/project_files.js \
             plugins/robot_windows/blockly_v2/project_ui.js

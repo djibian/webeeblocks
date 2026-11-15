@@ -21,7 +21,7 @@ assert.match(projectUiSource, /workspace\.setIsReadOnly\(runtimeLocked\)/);
 assert.match(projectUiSource, /blocklyDiv\.inert = busy;/);
 assert.doesNotMatch(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
-assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked\) return null;/);
+assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked \|\|\s*\(typeof runtimeOutcomePending !== 'undefined' && runtimeOutcomePending === true\)\)\s*return null;/);
 assert.match(mainSource, /getElementById\('stopSimulation'\)/);
 assert.match(mainSource, /await runtimeBackend\.stopSimulation\(\)/);
 assert.match(controllerSource, /request\.kind == REQUEST_STOP/);
