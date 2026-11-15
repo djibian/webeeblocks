@@ -66,6 +66,7 @@ jobs:
           npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
           node tools/ci/test_progression_sequence_contract.js
           node tools/ci/test_progression_reactive_L_v2_project.js
+          node tools/ci/test_progression_reactive_L_v2_generic_program.js
       - name: Compile original R2025a Crazyflie sensor probe
         run: |
           docker run --rm \
