@@ -312,7 +312,8 @@
     // Native scene admission remains authoritative: the physical runtime
     // refuses altitude/orientation; only the school selector may ACK them.
     if (scene !== 'sequence-v1' && scene !== 'legacy-v1' &&
-        scene !== 'altitude-v1' && scene !== 'orientation-v1')
+        scene !== 'altitude-v1' && scene !== 'orientation-v1' &&
+        scene !== 'decision-h-a-v1' && scene !== 'decision-h-b-v1')
       return Promise.reject(new RuntimeV2BackendError('SCENE_UNAVAILABLE'));
     if (this.sceneIdentity === scene) return Promise.resolve();
     this.sceneIdentity = null; // An unknown import outcome must be reconstructed.

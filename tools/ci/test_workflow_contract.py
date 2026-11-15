@@ -18,7 +18,9 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
-    # Draft A7 evidence is non-decision; preserve exact job inventory checking.
+    # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
+    "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
+    # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
@@ -105,6 +107,38 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(must, workflow)
         self.assertEqual(workflow.count("if: always()"), 2)
         self.assertEqual(workflow.count("if-no-files-found: warn"), 2)
+
+    def test_activity4_draft_witness_is_scoped_and_non_decision(self):
+        workflow = (WORKFLOWS / "ci-progression-a4-draft.yml").read_text(encoding="utf-8")
+        self.assertTrue(workflow.startswith(
+            "# Temporary, non-decision witness for the A4 Draft. Does NOT supply CI Gate."))
+        self.assertEqual(job_ids(workflow), {"a4-native-draft-only"})
+        self.assertIn("  pull_request:\n", workflow)
+        self.assertIn("  types: [opened, synchronize, reopened]\n", workflow)
+        self.assertIn("  paths:\n", workflow)
+        self.assertIn("  contents: read\n", workflow)
+        self.assertIn("if: github.event.pull_request.draft == true", workflow)
+        for required in (
+            "ref: ${{ github.event.pull_request.head.sha }}",
+            "tools.ci.test_progression_decision_h_scene",
+            "tools.ci.test_progression_decision_h_oracle",
+            "cyberbotics/webots:R2025a-ubuntu22.04",
+            "make clean; make",
+            "python3 tools/ci/run_classroom_decision_h_native_start.py",
+            "make clean; make",
+            "python3 tools/ci/run_classroom_decision_h_range.py",
+            "controllers/progression_decision_h_range_probe",
+            "if: always()",
+            "ci-artifacts/progression-decision-h-native-start/",
+        ):
+            self.assertIn(required, workflow)
+        for forbidden in (
+            "\n  push:", "\n  schedule:", "\n  workflow_call:",
+            "continue-on-error: true", "contents: write", "checks: write",
+            "pull-requests: write", "issues: write", "actions: write",
+            "name: CI Gate\n", "if: false",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
     def test_a7_draft_native_geometry_workflow_is_non_decision(self):
         source = (WORKFLOWS / "ci-progression-a7-draft.yml").read_text(encoding="utf-8")

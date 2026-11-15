@@ -29,7 +29,7 @@ for (const activity of Activities.DOCUMENT.activities) {
     const changed = JSON.parse(JSON.stringify(activity));
     changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
-      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1 or orientation-v1/, 'ambiguous scene accepted for ' + activity.id);
+      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1, orientation-v1, decision-h-a-v1 or decision-h-b-v1/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
 
