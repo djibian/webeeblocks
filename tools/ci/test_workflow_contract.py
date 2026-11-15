@@ -18,6 +18,8 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Draft A7 evidence is non-decision; preserve exact job inventory checking.
+    "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -72,6 +74,25 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_a7_draft_native_geometry_workflow_is_non_decision(self):
+        source = (WORKFLOWS / "ci-progression-a7-draft.yml").read_text(encoding="utf-8")
+        self.assertEqual(job_ids(source), {"a7-draft-source-only"})
+        self.assertIn("  pull_request:\n", source)
+        self.assertIn("  types: [opened, synchronize, reopened]\n", source)
+        self.assertNotIn("\n  push:", source)
+        self.assertIn("  contents: read\n", source)
+        self.assertIn("if: github.event.pull_request.draft == true", source)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_oracle", source)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_scene", source)
+        self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", source)
+        self.assertIn("if-no-files-found: warn", source)
+        self.assertNotIn("continue-on-error:", source)
+        self.assertNotIn("name: CI Gate\n", source)
+        self.assertNotIn("pull-requests: write", source)
+        self.assertNotIn("issues: write", source)
 
     def test_inventory_rejects_extra_or_missing_workflows(self):
         with tempfile.TemporaryDirectory() as temp:
