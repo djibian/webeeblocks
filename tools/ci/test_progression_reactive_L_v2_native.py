@@ -28,7 +28,7 @@ class NativeObserverContract(unittest.TestCase):
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle,code)
-        code_without_comments=re.sub(r"/\\*.*?\\*/|//[^\\n]*", "", code, flags=re.S)
+        code_without_comments=re.sub(r"/\*.*?\*/|//[^\n]*", "", code, flags=re.S)
         for forbidden in (
             "wb_supervisor_node_reset_physics",
             "wb_supervisor_field_set_sf_vec3f",
