@@ -18,6 +18,8 @@ static void step(journey *j,double x,double y,double z,
   j->s.time+=dt;j->s.x=x;j->s.y=y;j->s.z=z;j->s.yaw=yaw;
   j->s.vx=(x-old.x)/dt;j->s.vy=(y-old.y)/dt;
   j->s.vz=(z-old.z)/dt;j->s.completed=completed;j->s.contact=contact;
+  /* Synthetic default is not a native contact attestation. */
+  j->s.floor_contact=(z<=WB_RL2_LAND_ABSOLUTE_Z&&contact==0)?1:0;
 }
 static void move(journey *j,double x,double y,double z,double yaw){
   const double d=atan2(sin(yaw-j->s.yaw),cos(yaw-j->s.yaw));
@@ -91,6 +93,45 @@ static void false_low_hover_landing(char v,double hover_z){
   step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
   j.s.time=j.m.completion_at+WB_RL2_LAND_TIMEOUT;
   assert(j.s.time-j.m.previous_time<.048);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
+}
+/* Low stationary hover without native Floor contact is never achieved. */
+static void floating_at_floor_height(char v){
+  journey j;full_route(&j,v);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  j.s.floor_contact=0;
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=0;i<12;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    j.s.floor_contact=0;
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  assert(!j.m.stable_since_valid);
+}
+/* Losing one Floor sample restarts the uninterrupted 250-ms landing dwell. */
+static void interrupted_floor_dwell(char v){
+  journey j;full_route(&j,v);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=0;i<5;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  j.s.floor_contact=0;
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  assert(!j.m.stable_since_valid);
+  for(int i=0;i<8;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_ACHIEVED);
+}
+static void invalid_floor_observation(char v){
+  journey j;begin(&j,v);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  j.s.floor_contact=-1;
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
 }
 static void positive(char v){
@@ -274,6 +315,8 @@ int main(void){
   for(const char *v="ABC";*v;++v){
     positive(*v);raised_origin(*v);false_hover_landing(*v);
     false_low_hover_landing(*v,.030);false_low_hover_landing(*v,.060);
+    floating_at_floor_height(*v);interrupted_floor_dwell(*v);
+    invalid_floor_observation(*v);
     sparse_landing(*v);
     missed_native_frame(*v);skip_waypoint(*v);bypass_wall(*v);contact(*v);
     false_landing(*v);late_pose(*v);replay(*v);side_bypass(*v);
@@ -285,6 +328,6 @@ int main(void){
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
   wb_rl2_reset(&bad,0,'Z',NAN);
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
-  puts("PASS A5 V2 C oracle: 55 positive/adversarial cases");
+  puts("PASS A5 V2 C oracle: floor-contact positive/adversarial cases");
   return 0;
 }

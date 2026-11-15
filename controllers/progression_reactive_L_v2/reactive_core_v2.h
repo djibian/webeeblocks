@@ -40,7 +40,7 @@
 typedef enum {WB_RL2_WAIT=0,WB_RL2_ACHIEVED=1,WB_RL2_FAILED=2} wb_rl2_verdict;
 typedef struct {
   double time,x,y,z,vx,vy,vz,yaw;
-  int contact,completed;
+  int contact,completed,floor_contact;
 } wb_rl2_sample;
 typedef struct {double x,y,z,sx,sy,sz;} wb_rl2_box;
 typedef struct {
@@ -76,7 +76,8 @@ static inline int wb_rl2_finite(const wb_rl2_sample *s){
     isfinite(s->z)&&isfinite(s->vx)&&isfinite(s->vy)&&
     isfinite(s->vz)&&isfinite(s->yaw)&&
     (s->contact==0||s->contact==1)&&
-    (s->completed==0||s->completed==1);
+    (s->completed==0||s->completed==1)&&
+    (s->floor_contact==0||s->floor_contact==1);
 }
 /* Exact box dimensions of the staged v2 worlds. The native adapter must
  * independently attest all instantiated Solids, not trust this table alone.
@@ -215,6 +216,7 @@ static inline wb_rl2_verdict wb_rl2_sample_mission(
     }
     const int stable=s->z<=m->origin_z+WB_RL2_LAND_Z&&
       s->z<=WB_RL2_LAND_ABSOLUTE_Z&&
+      s->floor_contact==1&&
       hypot(s->vx,s->vy)<=WB_RL2_LAND_SPEED&&
       fabs(s->vz)<=WB_RL2_LAND_SPEED&&
       fabs(s->x-wb_rl2_pad_x(m->variant))<=WB_RL2_PAD_TOL&&

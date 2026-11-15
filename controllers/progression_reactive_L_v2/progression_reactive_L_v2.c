@@ -132,19 +132,41 @@ static int parse_completion(const char *value,unsigned long long attempt){
   return value&&len>0&&(size_t)len<sizeof(canonical)&&
          strcmp(value,canonical)==0;
 }
-static int native_obstacles_contact(WbNodeRef craft,double ground){
+/* A5: a hovering vehicle is not grounded. Every attested wall is checked
+ * first, even when its contact happens near z=0. Unknown contacts fail closed.
+ * The static school floor is z=0 and is not an AST-derived signal. */
+static int native_obstacles_contact(WbNodeRef craft,
+                                    const WbNodeRef colliders[7],
+                                    int collider_count,int *floor_contact){
+  if(!craft||!colliders||!floor_contact||
+     collider_count<1||collider_count>7)return -1;
+  *floor_contact=-1;
+  for(int j=0;j<collider_count;++j){
+    if(!colliders[j])return -1;
+    int n=-1;
+    const WbContactPoint *hits=
+      wb_supervisor_node_get_contact_points(colliders[j],false,&n);
+    if(n<0||(n>0&&!hits))return -1;
+    for(int k=0;k<n;++k){
+      const double *xyz=hits[k].point;
+      if(!isfinite(xyz[0])||!isfinite(xyz[1])||
+         !isfinite(xyz[2]))return -1;
+      return 1; /* Any attested obstacle contact, including at floor height. */
+    }
+  }
   int count=-1;
   const WbContactPoint *points=
     wb_supervisor_node_get_contact_points(craft,true,&count);
   if(count<0||(count>0&&!points))return -1;
+  int grounded=0;
   for(int i=0;i<count;++i){
     const double *xyz=points[i].point;
     if(!isfinite(xyz[0])||!isfinite(xyz[1])||
        !isfinite(xyz[2]))return -1;
-    /* Floor touchdown below 12 cm does not cancel valid stable landing.
-     * A high contact is a collision, regardless of how Blockly was built. */
-    if(xyz[2]>ground+.12)return 1;
+    if(fabs(xyz[2])>0.025)return 1;
+    grounded=1;
   }
+  *floor_contact=grounded;
   return 0;
 }
 static int native_yaw(const double orientation[9],double *out){
@@ -187,6 +209,28 @@ int main(void){
     wb_robot_cleanup();return 2;
   }
   const double origin_z=start[2];
+  WbNodeRef colliders[7]={0};
+  const char *suffix[7]={
+    "L1_FRONT","L1_SIDE","L2_FRONT","L2_SIDE",
+    variant=='C'?"L3_FRONT":"TERMINAL","L3_SIDE","TERMINAL"
+  };
+  wb_rl2_box expected_boxes[7];
+  const int collider_count=wb_rl2_boxes(variant,expected_boxes);
+  if(collider_count<1||collider_count>7){
+    fprintf(stderr,"WEBEEBLOCKS_A5_V2_FATAL no collider manifest\n");
+    wb_robot_cleanup();return 2;
+  }
+  for(int j=0;j<collider_count;++j){
+    char def[96];
+    const int n=snprintf(def,sizeof(def),"ACTIVITY5_V2_%c_%s",variant,suffix[j]);
+    colliders[j]=(n>0&&(size_t)n<sizeof(def))
+      ?wb_supervisor_node_get_from_def(def):NULL;
+    if(!colliders[j]||wb_supervisor_node_get_id(colliders[j])<=0){
+      fprintf(stderr,"WEBEEBLOCKS_A5_V2_FATAL missing attested collider\n");
+      wb_robot_cleanup();return 2;
+    }
+    wb_supervisor_node_enable_contact_points_tracking(colliders[j],step,false);
+  }
   wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
   wb_rl2_mission mission={0};unsigned long long last_attempt=0;
   printf("WEBEEBLOCKS_A5_V2_NATIVE_C_READY scene=%c oracle=%s\n",
@@ -207,7 +251,8 @@ int main(void){
     const double *pos=wb_supervisor_node_get_position(craft);
     const double *vel=wb_supervisor_node_get_velocity(craft);
     const double *orientation=wb_supervisor_node_get_orientation(craft);
-    const int contact=native_obstacles_contact(craft,origin_z);
+    const int contact=native_obstacles_contact(craft,colliders,
+                                               collider_count,&s.floor_contact);
     if(!pos||!vel||contact<0||!native_yaw(orientation,&s.yaw)){
       s.x=NAN; /* Real native unknown state is a terminal failure. */
     }else{
