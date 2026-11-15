@@ -22,6 +22,9 @@
 #define WB_COUNT_PAD_X 1.480
 #define WB_COUNT_PAD_TOL 0.060
 #define WB_COUNT_LAND_Z 0.070
+/* Static school Floor is z=0; grounded centre is about z=0.015 m.
+ * Reject a motionless hover even if the observer admitted an elevated origin. */
+#define WB_COUNT_LAND_ABSOLUTE_Z 0.070
 #define WB_COUNT_LAND_MAX_SPEED 0.120
 #define WB_COUNT_SETTLE_SEC 1.500
 /* A passing landing requires consecutive measured stability, not one frame. */
@@ -192,7 +195,8 @@ static inline wb_count_verdict wb_count_sample_mission(
     return m->verdict;
   }
 
-  const int landed = s->z - m->origin_z <= WB_COUNT_LAND_Z;
+  const int landed = s->z - m->origin_z <= WB_COUNT_LAND_Z &&
+                     s->z <= WB_COUNT_LAND_ABSOLUTE_Z;
   const int still = hypot(s->vx, s->vy) <= WB_COUNT_LAND_MAX_SPEED &&
                     fabs(s->vz) <= WB_COUNT_LAND_MAX_SPEED;
   const int whole_craft_on_pad =
