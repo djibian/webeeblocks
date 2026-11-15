@@ -1,0 +1,175 @@
+# Temporary, non-decision witness for the A4 Draft. Does NOT supply CI Gate.
+# The full canonical Runtime/Webots/Windows suites and independent V5 review
+# remain obligatory on an exact Ready HEAD. No real-flight capability is touched.
+name: A4 Draft R2025a native witness
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a4-draft.yml'
+      - '.github/workflows/ci-runtime.yml'
+      - 'controllers/progression_decision_h_v1/**'
+      - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
+      - 'controllers/crazyflie_classroom_v2/decision_h_scene_gate.h'
+      - 'plugins/robot_windows/decision_h_pupil_probe/**'
+      - 'plugins/robot_windows/decision_h_blind_probe/**'
+      - 'tools/ci/run_classroom_decision_h_blind.py'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'tools/ci/prepare_classroom_decision_h_pupil.py'
+      - 'tools/ci/run_classroom_decision_h_pupil.py'
+      - 'worlds/scenes/decision-h-*.wbo'
+      - 'tools/ci/run_classroom_decision_h_native_start.py'
+      - 'tools/ci/test_progression_decision_h_*.py'
+
+permissions:
+  contents: read
+
+jobs:
+  a4-native-draft-only:
+    name: A4 native R2025a diagnostic (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare pinned Blockly 13.2.1 assets for real A4 pupil
+        run: ./tools/prepare_runtime_v2.sh
+      - name: Execute source geometry and compiled C mission adversaries
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle
+      - name: Falsify A4 school scene selector and existing school contracts
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_selector tools.ci.test_runtime_v2_classroom_selector
+      - name: Validate real Blockly A4 pupil fixture JS/Python and its fail-closed protocol
+        run: |
+          python3 -m unittest tools.ci.test_progression_decision_h_pupil tools.ci.test_progression_decision_h_blind
+      - name: Build school-only C++ selector against actual Webots R2025a SDK
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_classroom_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Build the separate observer with actual Webots R2025a headers
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_v1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Require real scene A/B READY and malformed H refusal
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_native_start.py'
+      - name: Compile independent A4 real-scene selector probe
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_scene_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Prove live A-B-A imported scenes and native evaluator restarts
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_scene_selector.py'
+      - name: Build isolated native front-range probe against R2025a headers
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_decision_h_range_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make'
+      - name: Read actual A/B front range at identical physical decision pose
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
+      - name: Execute same actual Blockly project on A then B in R2025a
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-decision-h-blockly \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-decision-h-blockly
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              # The two real native campaigns have independent verdicts.
+              # A slow host must not prevent collection of the blind controls.
+              set +e
+              python3 tools/ci/run_classroom_decision_h_pupil.py
+              pupil_status=$?
+              export WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-decision-h-blind
+              python3 tools/ci/run_classroom_decision_h_blind.py
+              blind_status=$?
+              set -e
+              echo "A4_PUPIL_EXIT=$pupil_status A4_BLIND_EXIT=$blind_status"
+              test "$pupil_status" -eq 0
+              test "$blind_status" -eq 0
+            '
+      - name: Preserve A4 same .wbb native pupil flight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-same-wbb-pupil
+          path: ci-artifacts/progression-decision-h-blockly/
+          if-no-files-found: warn
+      - name: Preserve native blind-path rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-blind-path-adversaries
+          path: ci-artifacts/progression-decision-h-blind/
+          if-no-files-found: warn
+      - name: Retain exact native witnesses including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-startup-evidence
+          path: ci-artifacts/progression-decision-h-native-start/
+          if-no-files-found: warn
+      - name: Preserve native A-B-A scene selector results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-live-selector
+          path: ci-artifacts/progression-decision-h-scene-selector/
+          if-no-files-found: warn
+      - name: Retain measured A/B front-distance logs including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a4-draft-r2025a-real-range
+          path: ci-artifacts/progression-decision-h-range/
+          if-no-files-found: warn
