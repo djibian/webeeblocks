@@ -193,10 +193,10 @@ Assert-Release ($decisionObserverBytes.Length -gt 2 -and $decisionObserverBytes[
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_decision_h_v1\progression_decision_h_v1.py') -PathType Leaf)) 'Windows Activity 4 cannot depend on Python.'
 foreach ($variant in @('a','b')) {
   $sceneFile = "decision-h-$variant-v1.wbo"
-  $sceneSource = Join-Path $releaseRepo "worlds\scenes\$sceneFile"
-  $scenePackaged = Join-Path $testRoot "worlds\scenes\$sceneFile"
-  Assert-Release ((Get-FileHash -LiteralPath $sceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $scenePackaged -Algorithm SHA256).Hash) "Packaged Activity 4 $variant scene differs from native-tested source."
-  $decisionSceneText = Get-Content -LiteralPath $scenePackaged -Raw
+  $decisionSceneSource = Join-Path $releaseRepo "worlds\scenes\$sceneFile"
+  $decisionScenePackaged = Join-Path $testRoot "worlds\scenes\$sceneFile"
+  Assert-Release ((Get-FileHash -LiteralPath $decisionSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $decisionScenePackaged -Algorithm SHA256).Hash) "Packaged Activity 4 $variant scene differs from native-tested source."
+  $decisionSceneText = Get-Content -LiteralPath $decisionScenePackaged -Raw
   Assert-Release ($decisionSceneText.Contains('controller "progression_decision_h_v1"')) "Activity 4 $variant scene missing native C oracle."
 }
 $schoolSource = Join-Path $releaseRepo 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
