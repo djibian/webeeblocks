@@ -17,18 +17,24 @@ int __wrap_wb_robot_step(int duration) {
   const int result=__real_wb_robot_step(duration);
   if(result<0)return result;
   static WbDeviceTag native_up=0;
+  static WbDeviceTag native_front=0;
   static WbDeviceTag native_gps=0;
   if(!native_up)native_up=wb_robot_get_device("range_up");
+  if(!native_front)native_front=wb_robot_get_device("range_front");
   if(!native_gps)native_gps=wb_robot_get_device("gps");
-  if(!native_up||!native_gps)return result;
+  if(!native_up||!native_front||!native_gps)return result;
   const double *pose=wb_gps_get_values(native_gps);
   const double upper=wb_distance_sensor_get_value(native_up)/1000.0;
+  const double front=wb_distance_sensor_get_value(native_front)/1000.0;
   const double now=wb_robot_get_time();
   if(pose&&isfinite(now)&&isfinite(pose[0])&&isfinite(pose[1])&&
-     isfinite(pose[2])&&isfinite(upper)&&upper>=0.0&&upper<=2.001) {
+     isfinite(pose[2])&&isfinite(upper)&&upper>=0.0&&upper<=2.001&&
+     isfinite(front)&&front>=0.0&&front<=2.001) {
+    /* Append front to the existing motor-up transcript. The previous up
+     * record prefix stays stable for earlier physical evidence parsers. */
     printf("WEBEEBLOCKS_A6_UP_MOTOR t=%.6f x=%.9f y=%.9f "
-           "z=%.9f up=%.9f step=%d\n",
-           now,pose[0],pose[1],pose[2],upper,duration);
+           "z=%.9f up=%.9f step=%d front=%.9f\n",
+           now,pose[0],pose[1],pose[2],upper,duration,front);
     /* Flush bounded by 16 physics ticks; the runner also waits for the
      * native final LAND response before ending the Webots process. */
     static unsigned sample_count=0;
