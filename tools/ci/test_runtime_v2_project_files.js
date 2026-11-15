@@ -109,12 +109,8 @@ async function proveScenePreparation() {
   }
   assert.strictEqual(messages.length, 1, 'invalid profile triggered native scene import');
 
-  // Stage only the transport contract for the new school scene. No student
-  // catalog profile has switched yet, and the physically locked controller
-  // will independently reject this token. A correlated native ACK remains
-  // mandatory before this frontend may claim the new scene is loaded.
-  const stagedAltitude = JSON.parse(JSON.stringify(sequence));
-  stagedAltitude.runtime.scene = 'altitude-v1';
+  // The new school profile must still receive a nonce-bound native SCENE_OK.
+  const stagedAltitude = activityProfile('progression-altitude-v1');
   assert.strictEqual(Profiles.validateProfile(stagedAltitude, Activities.BLOCK_CATALOG), true);
   const preparingAltitude = backend.prepareActivity(stagedAltitude);
   assert.match(messages.at(-1), / REQUEST 2 SCENE altitude-v1 [0-9a-f]{64}$/);
@@ -249,7 +245,7 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1) ([0-9a-f]{64})$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
         controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
@@ -268,7 +264,8 @@ async function proveSceneReattachment() {
     const selecting=first.prepareActivity(activityProfile(source));
     if(native.requests.length)native.ack(native.requests.at(-1));
     await selecting;
-    assert.strictEqual(native.scene,inverse?'legacy-v1':'sequence-v1');
+    assert.strictEqual(native.scene,activityProfile(source).runtime.scene,
+      'stale runtime scene after historical/new starter selection: '+source);
     const backend=native.attach(); await backend.waitUntilReady();
     assert.strictEqual(backend.sceneIdentity,null,'READY presumed the surviving native scene');
     const workspace=buildWorkspace(0.2), ref={value:Profiles.resolveById(Activities.DOCUMENT,'reactive-obstacle-v2',Activities.BLOCK_CATALOG)};
@@ -285,7 +282,8 @@ async function proveSceneReattachment() {
     await flush();
     assert.strictEqual(native.requests.length,count+1,'reattachment skipped native selection for '+destination);
     const request=native.requests.at(-1);
-    assert.strictEqual(request.scene,inverse?'sequence-v1':'legacy-v1');
+    assert.strictEqual(request.scene,activityProfile(destination).runtime.scene,
+      'wrong exact native scene for selected project '+destination);
     assert.strictEqual(backend.sceneIdentity,null,'unacknowledged scene became known');
     assert.strictEqual(profileChanges,0); assert.strictEqual(applied,false);
     assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace),before);
@@ -805,7 +803,115 @@ async function proveVariableProfileRealBlocklyRoundTrip() {
   reopenedWorkspace.dispose();
 }
 
+// Real Blockly 13 profile and project-file boundary for the new school A2.
+// Native Webots collision/success remains a distinct independent CI witness.
+async function proveAltitudeBlocklyProjectRoundTrip(){
+  const profile=activityProfile('progression-altitude-v1');
+  const w=new Blockly.Workspace();
+  const takeoff=w.newBlock('webeeblocks_v2_takeoff');
+  const speed=w.newBlock('webeeblocks_v2_speed');
+  const forward1=w.newBlock('webeeblocks_v2_move');
+  const climb=w.newBlock('webeeblocks_v2_vertical');
+  const forward2=w.newBlock('webeeblocks_v2_move');
+  const land=w.newBlock('webeeblocks_v2_land');
+  setMotionNumber(takeoff,'HEIGHT',0.45);
+  speed.setFieldValue('0.14','SPEED');
+  forward1.setFieldValue('forward','DIRECTION');
+  setMotionNumber(forward1,'DISTANCE',0.32);
+  climb.setFieldValue('up','DIRECTION');
+  setMotionNumber(climb,'DISTANCE',0.36);
+  forward2.setFieldValue('forward','DIRECTION');
+  setMotionNumber(forward2,'DISTANCE',1.03);
+  const nodes=[takeoff,speed,forward1,climb,forward2,land];
+  for(let i=0;i<nodes.length-1;i++)
+    nodes[i].nextConnection.connect(nodes[i+1].previousConnection);
+  // Numeric inputs of the beginner toolbox are nested SHADOWS, not
+  // separately permitted math_number blocks. Preserve this fail-closed rule.
+  for(const [parent,input] of [[takeoff,'HEIGHT'],[forward1,'DISTANCE'],
+      [climb,'DISTANCE'],[forward2,'DISTANCE']]){
+    const number=parent.getInputTargetBlock(input);
+    number.setShadow(true);
+    assert(number.isShadow());
+  }
+  // In the real activity chooser, profile-specific FieldNumber constraints are
+  // installed before pupils edit speed. The generic block rounds at 0.1 m/s;
+  // Activity 2 explicitly permits 0.01 so the witnessed 0.14 is representable.
+  ActivityContract.applyFieldBounds(profile,w);
+  speed.setFieldValue('0.14','SPEED');
+  assert.strictEqual(Number(speed.getFieldValue('SPEED')),0.14);
+  const compiled=ast(w,profile);
+  assert.deepStrictEqual(compiled.program,[
+    {kind:'takeoff',height_m:0.45},{kind:'set_speed',speed_m_s:0.14},
+    {kind:'move',direction:'forward',distance_m:0.32},
+    {kind:'vertical',direction:'up',distance_m:0.36},
+    {kind:'move',direction:'forward',distance_m:1.03},{kind:'land'}
+  ]);
+  const state={value:profile},transport=memoryTransport(),manager=managerFor(w,state,transport);
+  assert.strictEqual(manager.hasCurrentTarget(),false);
+  await assert.rejects(manager.save(),/no current file/);
+  await manager.saveAs('altitude-eleve');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  const original=transport.state.currentText;
+  assert.strictEqual(ProjectFiles.parseProject(original).activity.id,profile.id);
+  assert.strictEqual(transport.state.writes.length,1);
+  // A saved speed must not be silently rounded or coerced during Open.
+  // Keep the file boundary fail-closed for malformed field precision/range.
+  const boundary={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  for(const badSpeed of [0.125,0.3]){
+    const malformed=JSON.parse(original);
+    let changedCount=0;
+    function setMalformedSpeed(value){
+      if(Array.isArray(value)){value.forEach(setMalformedSpeed);return;}
+      if(!value||typeof value!=='object')return;
+      if(value.type==='webeeblocks_v2_speed'&&value.fields&&
+          Object.prototype.hasOwnProperty.call(value.fields,'SPEED')){
+        value.fields.SPEED=badSpeed;changedCount++;
+      }
+      Object.keys(value).forEach(key=>setMalformedSpeed(value[key]));
+    }
+    setMalformedSpeed(malformed.workspace);
+    assert.strictEqual(changedCount,1,'one serialized speed command must be found');
+    assert.throws(()=>ProjectFiles.validateProjectText(JSON.stringify(malformed),profile,boundary),
+      /Activity 2 serialized speed outside profile bounds or step/);
+  }
+  forward2.getInputTargetBlock('DISTANCE').setFieldValue('0.9','NUM');
+  transport.state.openText=original;
+  await manager.open();
+  assert.deepStrictEqual(ast(w,state.value),compiled,'real Blockly A2 Save As/Open AST drift');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  assert.strictEqual(transport.state.writes.length,1,'Open caused hidden Save');
+  const newForward=w.getBlocksByType('webeeblocks_v2_move',false).find(
+    b=>Math.abs(Number(b.getInputTargetBlock('DISTANCE').getFieldValue('NUM'))-1.03)<1e-8);
+  assert(newForward,'A2 second move missing after Open');
+  newForward.getInputTargetBlock('DISTANCE').setFieldValue('1.0','NUM');
+  const changed=ast(w,state.value);
+  await manager.save();
+  const saved=transport.state.currentText;
+  assert.strictEqual(transport.state.writes.at(-1).kind,'save');
+  transport.state.openText=saved;
+  await manager.open();
+  assert.deepStrictEqual(ast(w,state.value),changed,'real Blockly A2 same-file Save/Open drift');
+  // Old pupils' precise-movement project must remain reopenable; no silent
+  // remapping to altitude-v1, even after the new starter is displayed.
+  transport.state.openText=ProjectFiles.createStarterText('progression-precise-movement-v1');
+  await manager.open();
+  assert.strictEqual(state.value.id,'progression-precise-movement-v1');
+  assert.strictEqual(state.value.runtime.scene,'legacy-v1');
+  assert.strictEqual(state.value.evaluation.oracle,'progression-precise-movement-v1');
+  assert.strictEqual(manager.hasCurrentTarget(),true);
+  assert.strictEqual(transport.state.writes.length,2,'old project Open was auto-saved');
+  // New starter is a fresh template without a Save target.
+  await manager.openTemplateText('progression-altitude-v1.wbb',
+    ProjectFiles.createStarterText('progression-altitude-v1'));
+  assert.strictEqual(state.value.id,profile.id);
+  assert.strictEqual(manager.hasCurrentTarget(),false);
+  await assert.rejects(manager.save(),/no current file/);
+  w.dispose();
+}
+
 (async function() {
+  await proveAltitudeBlocklyProjectRoundTrip();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
@@ -927,6 +1033,16 @@ async function proveVariableProfileRealBlocklyRoundTrip() {
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
+  const altitudeStarter=fs.readFileSync(path.join(ROOT,'activities/progression/02-altitude.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(altitudeStarter),
+    JSON.parse(ProjectFiles.createStarterText('progression-altitude-v1')),
+    'packaged external student starter differs from the canonical embedded .wbb');
+  assert.strictEqual(activityProfile('progression-altitude-v1').runtime.scene,'altitude-v1');
+  assert.strictEqual(activityProfile('progression-precise-movement-v1').runtime.scene,'legacy-v1');
+  const archived=fs.readFileSync(path.join(ROOT,'activities/historique/02-precise-movement.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(archived),
+    JSON.parse(ProjectFiles.createStarterText('progression-precise-movement-v1')),
+    'historical pupil work must retain its original profile/semantics');
   await proveScenePreparation();
   await proveSceneReattachment();
   await proveSceneRollback();

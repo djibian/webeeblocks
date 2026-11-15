@@ -66,6 +66,49 @@
         }
       },
       {
+        // New pupil mission ID. Archived .wbb files keep their old ID and oracle.
+        id: 'progression-altitude-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '2 — Maîtriser l’altitude',
+          mission: 'Depuis la zone bleue sous l’auvent, franchis l’obstacle sans toucher le toit ni les parois, puis pose le drone entièrement sur le damier vert. Tu peux ajuster la hauteur de décollage, les distances et la vitesse.'
+        },
+        pedagogy: {
+          objective: 'Découvrir le déplacement vertical relatif pendant le vol : quitter le départ à basse altitude puis monter pour franchir un obstacle. Le verdict dépend du vol réel simulé, non de la forme du programme.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_move',
+          'webeeblocks_v2_vertical', 'webeeblocks_v2_speed', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.25, step: 0.01 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-altitude-3d-v1' },
+        runtime: {
+          scene: 'altitude-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'vertical', 'set_speed', 'land' ],
+          rangeDirections: [],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.4, max: 0.8 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'vertical.distance_m': { min: 0.1, max: 0.8 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.25 }
+          }
+        }
+      },
+      {
+        // Historical Activity 2 remains loadable with Open but not Start.
+        starterVisible: false,
         id: 'progression-precise-movement-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
