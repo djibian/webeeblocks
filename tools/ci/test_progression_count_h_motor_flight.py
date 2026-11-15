@@ -102,7 +102,7 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("await backend.move('forward',0.48)",browser)
         self.assertIn("for(let i=0;i<6;i++)",browser)
         self.assertIn("await backend.move('forward',0.12)",browser)
-        self.assertIn("A6_CORRIDOR_DONE',{moves:7,distance_m:3.00}",browser)
+        self.assertIn("A6_CORRIDOR_DONE',{moves:7,distance_m:3.00,variant}",browser)
         self.assertIn("await backend.land()",browser)
         self.assertIn("['SCENE','count-h-'+variant+'-v1']",browser)
         self.assertIn("await backend.move('left',0.55)",browser)
