@@ -204,7 +204,10 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
             "wb_supervisor_node_enable_contact_points_tracking(obstacle,step,false)",
             native)
         self.assertIn("WB_MINI_NATIVE_COLLIDER_CONTACT",native)
-        self.assertIn("sample.contact=native_contact(craft,colliders)",native)
+        self.assertIn("sample.contact=native_contact(craft,colliders,&sample.floor_contact)",native)
+        self.assertIn("s->floor_contact==1",
+                      (ROOT/"controllers/progression_mini_grand_prix_v1/"
+                       "mini_core.h").read_text(encoding="utf-8"))
         self.assertLess(
             native.index("wb_supervisor_node_get_contact_points(colliders[j],false,&n)"),
             native.index("if(fabs(p[2])>0.025)return 1;"))
