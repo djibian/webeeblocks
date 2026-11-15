@@ -106,6 +106,24 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         self.assertIn("test -s progression_mini_grand_prix_v1", workflow)
         self.assertNotIn("name: CI Gate\n", workflow)
 
+    def test_native_a7_observer_rejects_both_merged_a4_scene_families(self):
+        """The native oracle cannot admit A7 with another mission's colliders."""
+        native = (ROOT / "controllers/progression_mini_grand_prix_v1/"
+                  "progression_mini_grand_prix_v1.c").read_text(encoding="utf-8")
+        admission = native.split("static int attest_scene(char *variant) {", 1)[1]
+        admission = admission.split("static WbNodeRef unique_vehicle(void)", 1)[0]
+        for identity in ("WEBEEBLOCKS_DECISION_A_SCENE",
+                         "WEBEEBLOCKS_DECISION_B_SCENE"):
+            with self.subTest(identity=identity):
+                self.assertIn(
+                    'wb_supervisor_node_get_from_def("' + identity + '")',
+                    admission)
+        for letter in "LR":
+            with self.subTest(variant=letter):
+                school = witness.compose(letter)
+                self.assertNotIn("DEF WEBEEBLOCKS_DECISION_A_SCENE", school)
+                self.assertNotIn("DEF WEBEEBLOCKS_DECISION_B_SCENE", school)
+
     def test_grounded_start_is_a_real_native_observation_not_a_teleport(self):
         for letter in "LR":
             with self.subTest(variant=letter):
