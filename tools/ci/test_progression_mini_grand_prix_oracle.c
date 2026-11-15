@@ -208,9 +208,11 @@ static void genuine_ground_origin_can_land(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(5,x,0,.420,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6,x,y,.030,wb_mini_heading(v),1);
+  /* An admissible 3-cm launch variation never widens the final floor
+   * envelope: the final body centre returns to native ground height. */
+  a=sample(6,x,y,.015,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  observed_dwell(&m,6,x,y,.030,wb_mini_heading(v));
+  observed_dwell(&m,6,x,y,.015,wb_mini_heading(v));
 }
 
 static void skip_gate(char v) {
@@ -254,6 +256,23 @@ static void ready_for_completion(wb_mini_mission *m,char v) {
   assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
   a=sample(5,x,0,.40,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+}
+/* A complete correctly flown route cannot end in a no-contact hover just
+ * above the native floor. Run both near-floor and 6-cm negatives in L/R;
+ * 250ms of stable samples must never turn the hover into a success. */
+static void hovering_arrival_must_fail(char v,double z) {
+  wb_mini_mission m;
+  ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  const double yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.0,x,y,z,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  for(int i=1;i<=10;++i) {
+    a=sample(6.0+0.032*i,x,y,z,yaw,0);
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  }
+  a=sample(7.52,x,y,z,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
 static void settle_pulse_and_motion(char v) {
   wb_mini_mission m;
@@ -382,6 +401,10 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  hovering_arrival_must_fail('L',.030);
+  hovering_arrival_must_fail('R',.030);
+  hovering_arrival_must_fail('L',.060);
+  hovering_arrival_must_fail('R',.060);
   no_credit_for_unobserved_gap('L');no_credit_for_unobserved_gap('R');
   missed_native_tick_resets_dwell('L');missed_native_tick_resets_dwell('R');
   airborne_origin_must_fail('L');airborne_origin_must_fail('R');
@@ -405,6 +428,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: forty-seven positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: fifty-one positive/adversarial scenarios");
   return 0;
 }

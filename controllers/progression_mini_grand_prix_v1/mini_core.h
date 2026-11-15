@@ -30,7 +30,11 @@
  * away from the landing pad. This is only an admission envelope; success
  * still needs WB_MINI_LAND_TOL and a continuous physical dwell. */
 #define WB_MINI_COMPLETION_CAPTURE_TOL 0.160
-#define WB_MINI_LAND_Z 0.070
+/* Native floor is z=0; measured Crazyflie body center at rest is about
+ * 0.015 m. The old 0.070 m bound accepted a stationary 0.060 m hover.
+ * Fail closed on a tighter absolute envelope; this is NOT by itself a
+ * Webots floor-contact certificate. Validate genuine native landings. */
+#define WB_MINI_LAND_Z 0.020
 #define WB_MINI_LAND_SPEED 0.120
 #define WB_MINI_SETTLE 1.5
 /* Completion is a one-shot notification; stability must be observed after it. */
