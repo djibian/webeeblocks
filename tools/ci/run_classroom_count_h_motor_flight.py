@@ -14,6 +14,7 @@ import argparse
 
 import prepare_classroom_count_h_motor_flight as world
 from analyze_count_h_up_motor_evidence import attest_up_motor_trace
+from analyze_count_h_dual_motor_sensor import inspect_motor_sensor_count
 import run_classroom_altitude_scene_ack as observer
 
 ARTIFACT=world.ARTIFACT
@@ -234,10 +235,21 @@ def run(variant=1):
         }
     (ARTIFACT/"up-motor-evidence.json").write_text(
         json.dumps(up_motor,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    try:
+        dual=inspect_motor_sensor_count(txt)
+    except ValueError as problem:
+        dual={"schema":"webeeblocks-a6-dual-motor-sensor-v1",
+              "variant_blind_two_sensor_evidence":False,
+              "failure":str(problem),
+              "no_pupil_wbb_or_backtracking_proof":True}
+    (ARTIFACT/"dual-motor-sensor.json").write_text(
+        json.dumps(dual,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     launch=ARTIFACT/"browser-launch.log"
     launched=launch.read_text(encoding="utf-8",errors="replace") if launch.exists() else ""
     browser="BROWSER_LAUNCHED args=" in launched and "count_h_flight_probe.html" in launched
-    succeeded=(up_motor["native_motor_ray_observed"] and
+    succeeded=(dual.get("terminal_detected",False) and
+               dual.get("count")==variant and
+               up_motor["native_motor_ray_observed"] and
                not missing and ordered and events.count("A6_ERROR")==0
                and native_achieved
                and responses==[str(i) for i in range(1,expected_responses+1)]
@@ -252,6 +264,8 @@ def run(variant=1):
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
         "pass":bool(succeeded),"variant":variant,
         "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
+        "variant_blind_two_sensor_count_correct":bool(
+            dual.get("terminal_detected",False) and dual.get("count")==variant),
         "native_up_trace_schema":"webeeblocks-a6-native-up-motor-v1",
         "real_motorized_flight":bool(native_achieved),
         "not_pupil_wbb_or_product_scene_qualification":True,
@@ -263,13 +277,16 @@ def run(variant=1):
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")
     if not succeeded:
         print("A6_MOTOR_FLIGHT_UNPROVEN "+json.dumps({
-            "variant":variant,"up_motor":up_motor,
+            "variant":variant,"up_motor":up_motor,"dual_motor_sensor":dual,
             "missing":missing,"ordered":ordered,"native":bool(native_achieved),
             "responses":responses,"moves":moves,"expected_moves":expected_moves,
             "browser":browser,
             "lastEvents":observer.EVENTS[-4:]}),file=sys.stderr)
         print(txt[-14000:],file=sys.stderr)
         return 1
+    print(f"WEBEEBLOCKS_A6_TWO_SENSOR_COUNT_OK native={variant} "
+          f"count={dual['count']} terminal={dual['terminal_detected']} "
+          "controller=real_motor sensor_only=true pupil_wbb=UNPROVEN",flush=True)
     print(f"WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED n={variant} "
           f"gates={len(up_motor['gates'])} samples={up_motor['total_32ms_samples']} "
           "sensor=authentic_range_up pupil_wbb=UNPROVEN",flush=True)
