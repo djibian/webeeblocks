@@ -135,7 +135,9 @@ def run_one(letter):
         eyaw=math.pi if stage=="after-pivot" else (math.pi/2 if stage=="second" else 0.)
         if (not all(math.isfinite(n) for n in (front,left,x,y,z,yaw,t)) or
             t<=previous_t or abs(x-ex)>.04 or abs(y-ey)>.04 or
-            abs(z-.5)>.09 or abs(yaw-eyaw)>.10 or
+            abs(z-.5)>.09 or
+            abs(math.atan2(math.sin(yaw-eyaw),
+                           math.cos(yaw-eyaw)))>.10 or
             min(front,left)<0 or max(front,left)>2.001):
             raise AssertionError("untrusted native V2 pose/range: "+str(log))
         previous_t=t
