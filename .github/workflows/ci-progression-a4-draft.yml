@@ -43,6 +43,11 @@ jobs:
           node-version: '22'
       - name: Prepare pinned Blockly 13.2.1 assets for real A4 pupil
         run: ./tools/prepare_runtime_v2.sh
+      - name: Refute A4 public variant toggle during pending native verdict
+        run: |
+          node --check plugins/robot_windows/blockly_v2/project_ui.js
+          node --check tools/ci/test_progression_decision_h_variant_ui.js
+          node tools/ci/test_progression_decision_h_variant_ui.js
       - name: Execute source geometry and compiled C mission adversaries
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle

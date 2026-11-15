@@ -129,7 +129,7 @@ function proveProgressionStarterFiles() {
     ['01-sequence.wbb', 'progression-sequence-v1'],
     ['02-altitude.wbb', 'progression-altitude-v1'],
     ['03-orientation.wbb', 'progression-orientation-3d-v1'],
-    ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
+    ['04-observer-decision.wbb', 'progression-decision-h-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
     ['06-multi-perception.wbb', 'progression-combined-decisions-v1'],
     ['07-memory.wbb', 'progression-memory-v1'],
@@ -162,6 +162,18 @@ function proveProgressionStarterFiles() {
   assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_turn.DIRECTION,['left','right']);
   assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_move.DIRECTION,['forward']);
   assert.deepStrictEqual(nativeA3.runtime.verticalDirections,['up','down']);
+
+  // A4 now starts from an empty public project, but legacy project identity
+  // and its scene MUST remain reopenable after this change of active spine.
+  const oldA4 = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../../activities/historique/04-simple-decision.wbb'), 'utf8'));
+  assert.strictEqual(oldA4.activity.id,'progression-simple-decision-v1');
+  const archivedA4=Profiles.resolveById(Activities.DOCUMENT,oldA4.activity.id,Activities.BLOCK_CATALOG);
+  assert.strictEqual(archivedA4.starterVisible,false);
+  assert.strictEqual(archivedA4.runtime.scene,'legacy-v1');
+  const nativeA4=Profiles.resolveById(Activities.DOCUMENT,'progression-decision-h-v1',Activities.BLOCK_CATALOG);
+  assert.strictEqual(nativeA4.runtime.scene,'decision-h-a-v1');
+  assert.strictEqual(nativeA4.evaluation.oracle,'progression-decision-h-v1');
 }
 
 function proveProgressionProfilesAndFieldOptions() {
