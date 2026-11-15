@@ -168,7 +168,10 @@ function build(){
      * The old fixture validated minified bytes but wrote a different
      * pretty-printed file to the native handoff artifact. */
     const text=ProjectFiles.encodeProject(profile,workspace,options);
-    assert.deepStrictEqual(JSON.parse(text),project,
+    /* Blockly.serialization.workspaces.save uses null-prototype maps for
+     * fields/inputs. JSON.parse intentionally reconstructs ordinary objects:
+     * compare canonical JSON content, not in-memory JS prototypes. */
+    assert.equal(JSON.stringify(JSON.parse(text)),JSON.stringify(project),
       'canonical .wbb must encode the exact checked workspace');
     const validated=ProjectFiles.validateProjectText(text,profile,options);
     assert.deepStrictEqual(validated.ast,ast);
