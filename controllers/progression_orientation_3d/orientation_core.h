@@ -35,6 +35,9 @@
 #define WB_ORIENT_SETTLE 1.5
 /* Require a continuous native landing, not a transient low-speed sample. */
 #define WB_ORIENT_LAND_DWELL 0.25
+/* School WorldInfo basicTimeStep=32 ms. Preserve 16 ms scheduling margin,
+ * but a missing 32-ms native sample (64-ms gap) breaks landing evidence. */
+#define WB_ORIENT_MAX_LAND_SAMPLE_GAP 0.048
 
 typedef enum {
   WB_ORIENT_WAIT = 0,
@@ -51,8 +54,8 @@ typedef struct {
 
 typedef struct {
   unsigned long long attempt;
-  double origin_z, completion_at, stable_since;
-  int stable_since_valid;
+  double origin_z, completion_at, stable_since, last_time;
+  int stable_since_valid, sampled;
   int airborne, stage, completion_seen;
   wb_orient_verdict result;
 } wb_orient_mission;
@@ -62,6 +65,7 @@ static inline void wb_orient_reset(wb_orient_mission *mission,
   memset(mission, 0, sizeof(*mission));
   mission->attempt = attempt;
   mission->origin_z = origin_z;
+  mission->last_time = -1.0;
 }
 
 static inline int wb_orient_finite(const wb_orient_sample *s) {
@@ -96,6 +100,15 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
+  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
+    m->result = WB_ORIENT_NOT_ACHIEVED;
+    return m->result;
+  }
+  if (m->completion_seen && m->stable_since_valid && m->sampled &&
+      s->time - m->last_time > WB_ORIENT_MAX_LAND_SAMPLE_GAP)
+    m->stable_since_valid = 0;
+  m->last_time = s->time;
+  m->sampled = 1;
   const double x[] = {0.45, 0.45, 0.90};
   const double y[] = {0.00,-0.45,-0.45};
   const double z[] = {0.63, 0.79, 0.63};
