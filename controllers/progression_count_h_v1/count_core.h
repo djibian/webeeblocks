@@ -26,6 +26,9 @@
 #define WB_COUNT_SETTLE_SEC 1.500
 /* A passing landing requires consecutive measured stability, not one frame. */
 #define WB_COUNT_LAND_DWELL_SEC 0.250
+/* This scene runs Webots at 32 ms. Two consecutive samples may be at most
+ * 48 ms apart: a missed native frame cannot count toward stable landing. */
+#define WB_COUNT_LAND_MAX_SAMPLE_GAP_SEC 0.048
 
 typedef enum {
   WB_COUNT_WAIT = 0,
@@ -134,6 +137,11 @@ static inline wb_count_verdict wb_count_sample_mission(
       }
     }
   }
+  /* A missing native step destroys evidence of continuously observed
+   * stillness. The next valid stationary tick must start a NEW dwell. */
+  if (m->completion_seen && m->stable_since_valid && m->has_last &&
+      s->time - m->last_time > WB_COUNT_LAND_MAX_SAMPLE_GAP_SEC)
+    m->stable_since_valid = 0;
   m->last_time = s->time;
   m->last_x = s->x;
   m->last_y = s->y;

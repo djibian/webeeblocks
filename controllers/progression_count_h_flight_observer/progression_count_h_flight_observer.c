@@ -62,7 +62,7 @@ static int fail(const char *reason) {
 int main(void) {
   wb_robot_init();
   const int step=(int)wb_robot_get_basic_time_step();
-  if(step<8||step>64||strcmp(wb_robot_get_name(),"A6 independent motor-flight observer"))
+  if(step!=32||strcmp(wb_robot_get_name(),"A6 independent motor-flight observer"))
     return fail("observer identity/timestep");
   /* A6 native scene is self-identifying. Exactly one numbered scene is
    * accepted, with every physical Solid checked before any flight verdict. */

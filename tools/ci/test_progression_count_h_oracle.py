@@ -26,12 +26,17 @@ static wb_count_sample s(double t, double x, double y, double z,
   wb_count_sample q={t,x,y,z,speed,0.0,0.0,contact,done};
   return q;
 }
+static wb_count_verdict feed_step(wb_count_mission *m, double *clock,
+                                  double dt,double x,double y,double z,
+                                  double speed,int contact,int done) {
+  *clock += dt;
+  const wb_count_sample q=s(*clock,x,y,z,speed,contact,done);
+  return wb_count_sample_mission(m,&q);
+}
 static wb_count_verdict feed(wb_count_mission *m, double *clock,
                              double x, double y, double z,
                              double speed, int contact, int done) {
-  *clock += 0.10;
-  const wb_count_sample q=s(*clock,x,y,z,speed,contact,done);
-  return wb_count_sample_mission(m,&q);
+  return feed_step(m,clock,0.10,x,y,z,speed,contact,done);
 }
 
 /* Synthetic continuous route; not a claimed physical Crazyflie flight. */
@@ -64,8 +69,11 @@ static wb_count_verdict route(unsigned n, unsigned long long attempt,
    * sustained landing, and subsequent samples need not repeat completion. */
   const wb_count_verdict first=feed(&m,&clock,1.48,destination,0.02,0.0,0,1);
   if(first!=WB_COUNT_WAIT) return first;
-  for(int k=0;k<20;k++) {
-    const wb_count_verdict v=feed(&m,&clock,1.48,destination,0.02,0.0,0,0);
+  /* Preserve each actual 32-ms landing observation, even on wrong pad;
+   * the wrong-pad negative must still reach the 1.5-s deadline. */
+  for(int k=0;k<55;k++) {
+    const wb_count_verdict v=
+      feed_step(&m,&clock,.032,1.48,destination,0.02,0.0,0,0);
     if(v!=WB_COUNT_WAIT) return v;
   }
   return m.verdict;
@@ -148,9 +156,10 @@ static void test_backtrack_corrected_retry_can_succeed(void) {
     const double y=wb_count_target_y(n);
     assert(feed(&m,&clock,1.48,y,.40,0,0,0)==WB_COUNT_WAIT);
     assert(feed(&m,&clock,1.48,y,.02,0,0,1)==WB_COUNT_WAIT);
-    for (int k=0;k<3;k++) {
-      const wb_count_verdict result=feed(&m,&clock,1.48,y,.02,0,0,0);
-      if(k<2)assert(result==WB_COUNT_WAIT);
+    for (int k=0;k<8;k++) {
+      const wb_count_verdict result=
+        feed_step(&m,&clock,.032,1.48,y,.02,0,0,0);
+      if(k<7)assert(result==WB_COUNT_WAIT);
       else assert(result==WB_COUNT_ACHIEVED);
     }
     assert(m.crossed==n && m.verdict==WB_COUNT_ACHIEVED);
@@ -203,60 +212,87 @@ static void test_stable_landing_and_deadline(void) {
     wb_count_mission m;
     const double y=wb_count_target_y(n);
     ready_to_land(&m,n);
-    wb_count_sample a=s(100.000,1.48,y,0.02,0,0,1);
+    wb_count_sample a=s(100.000,1.48,y,.02,0,0,1);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.200,1.48,y,0.02,0,0,0);
+    a=s(100.032,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    /* Movement resets the dwell: 0.25s since completion is not enough. */
-    a=s(100.224,1.48,y,0.02,.35,0,0);
+    /* A moving tick interrupts stability; 250 ms start again later. */
+    a=s(100.064,1.48,y,.02,.35,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.240,1.48,y,0.02,0,0,0);
+    a=s(100.096,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.488,1.48,y,0.02,0,0,0);
-    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.496,1.48,y,0.02,0,0,0);
-    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_ACHIEVED);
-    /* No stale result may leak to a new native attempt. */
+    for(int i=1;i<=8;++i) {
+      a=s(100.096+.032*i,1.48,y,.02,0,0,0);
+      assert(wb_count_sample_mission(&m,&a)==
+             (i<8?WB_COUNT_WAIT:WB_COUNT_ACHIEVED));
+    }
     wb_count_reset(&m,1200+n,n,0.0);
     assert(m.crossed==0 && !m.completion_seen &&
            !m.stable_since_valid && m.verdict==WB_COUNT_WAIT);
-
     ready_to_land(&m,n);
-    a=s(100.000,1.48,y,0.02,0,0,1);
+    a=s(100.000,1.48,y,.02,0,0,1);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.160,1.48,y+0.12,0.02,0,0,0);
+    a=s(100.032,1.48,y+.12,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.200,1.48,y,0.02,0,0,0);
+    a=s(100.064,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.448,1.48,y,0.02,0,0,0);
-    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(100.456,1.48,y,0.02,0,0,0);
-    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_ACHIEVED);
-
-    /* Native 8-ms cadence: dwell completes AFTER deadline = reject. */
+    for(int i=1;i<=8;++i) {
+      a=s(100.064+.032*i,1.48,y,.02,0,0,0);
+      assert(wb_count_sample_mission(&m,&a)==
+             (i<8?WB_COUNT_WAIT:WB_COUNT_ACHIEVED));
+    }
+    /* Deadline takes precedence even if a late tick is stationary. */
     ready_to_land(&m,n);
     a=s(100.000,1.48,0.0,.40,0,0,1);
-    /* For n=1, invalid altitude still proves no stable arrival. */
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
     a=s(101.240,1.48,0.0,.40,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(101.248,1.48,y,0.02,0,0,0);
+    a=s(101.248,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(101.496,1.48,y,0.02,0,0,0);
+    a=s(101.496,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(101.504,1.48,y,0.02,0,0,0);
+    a=s(101.504,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_NOT_ACHIEVED);
-    a=s(101.512,1.48,y,0.02,0,0,0);
+    a=s(101.512,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_NOT_ACHIEVED);
-
-    /* The exact 1.5-second terminal boundary also refuses a new success. */
     ready_to_land(&m,n);
     a=s(100.000,1.48,0.0,.40,0,0,1);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(101.250,1.48,y,0.02,0,0,0);
+    a=s(101.250,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
-    a=s(101.500,1.48,y,0.02,0,0,0);
+    a=s(101.500,1.48,y,.02,0,0,0);
     assert(wb_count_sample_mission(&m,&a)==WB_COUNT_NOT_ACHIEVED);
+  }
+}
+/* Do not treat two poses 260 ms apart as 260 ms of observed stillness.
+ * Replayed samples must be consecutive at the exact 32-ms physics cadence.
+ * Also falsify the loss of just ONE 32-ms Webots frame. */
+static void test_missing_landing_observation_restarts_dwell(void) {
+  for(unsigned n=1;n<=3;++n) {
+    wb_count_mission m;
+    const double y=wb_count_target_y(n);
+    ready_to_land(&m,n);
+    wb_count_sample a=s(100.000,1.48,y,.02,0,0,1);
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    a=s(100.260,1.48,y,.02,0,0,0);
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    assert(fabs(m.stable_since-100.260)<1e-8);
+    for(int i=1;i<=8;++i) {
+      a=s(100.260+.032*i,1.48,y,.02,0,0,0);
+      assert(wb_count_sample_mission(&m,&a)==
+             (i<8?WB_COUNT_WAIT:WB_COUNT_ACHIEVED));
+    }
+    ready_to_land(&m,n);
+    a=s(100.000,1.48,y,.02,0,0,1);
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    a=s(100.064,1.48,y,.02,0,0,0);
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    assert(fabs(m.stable_since-100.064)<1e-8);
+    for(int i=1;i<=8;++i) {
+      a=s(100.064+.032*i,1.48,y,.02,0,0,0);
+      assert(wb_count_sample_mission(&m,&a)==
+             (i<8?WB_COUNT_WAIT:WB_COUNT_ACHIEVED));
+    }
   }
 }
 int main(void) {
@@ -265,6 +301,7 @@ int main(void) {
   test_swept_gate_shortcuts_rejected();
   test_backtrack_corrected_retry_can_succeed();
   test_stable_landing_and_deadline();
+  test_missing_landing_observation_restarts_dwell();
   test_wrong_target_fails();
   test_skip_and_illegal_routes_fail();
   test_invalid_time_and_data();
