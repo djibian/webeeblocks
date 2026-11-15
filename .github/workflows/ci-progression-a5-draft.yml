@@ -201,7 +201,7 @@ jobs:
     name: A5 same Blockly WBB R2025a pupil A B C (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 14
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -232,8 +232,8 @@ jobs:
             -w /workspace/controllers/crazyflie_classroom_v2 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s crazyflie_classroom_v2'
-      - name: Try actual native A5 pupil Blockly A flight on unchanged WBB
-        timeout-minutes: 8
+      - name: Challenge A5 memory with six native Blockly flights on two genuine .wbb
+        timeout-minutes: 20
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -255,8 +255,10 @@ jobs:
               # Try all three worlds with one fixture written once on the host.
               # Preserve all failures rather than short-circuiting B or C.
               failed=0
-              for variant in A B C; do
-                python3 /workspace/tools/ci/run_classroom_reactive_L_v2_pupil_flight.py --variant "$variant" || failed=1
+              for candidate in memory no-memory; do
+                for variant in A B C; do
+                  python3 /workspace/tools/ci/run_classroom_reactive_L_v2_pupil_flight.py --variant "$variant" --candidate "$candidate" || failed=1
+                done
               done
               exit "$failed"'
       - name: Demand identical WBB SHA and native C success in all A B C
@@ -283,6 +285,25 @@ jobs:
                   assert summary.get('replay_event',{}).get('status')=='achieved', 'RESET stale outcome'
                   print('A5_NATIVE_RESET_REPLAY_PASS variant=A same_wbb=true native_attempt=2')
           print('A5_NATIVE_SAME_WBB_ABC_PASS sha256='+sha+' variants=A,B,C')
+          competitor=(root/'no-memory-witness.wbb').read_bytes()
+          competitor_sha=hashlib.sha256(competitor).hexdigest()
+          assert competitor_sha!=sha, 'no-memory and memory fixtures must differ'
+          for variant in 'ABC':
+              summary=json.loads((root/('no-memory-'+variant)/'summary.json').read_text(encoding='utf-8'))
+              assert summary.get('candidate')=='no-memory', 'incorrect native witness identity'
+              assert summary.get('pass') is True, f'{variant}: variable-free native mission failed'
+              assert summary.get('native_achieved')==1, f'{variant}: missing native C verdict'
+              assert summary.get('fixture_sha256')==competitor_sha, f'{variant}: changed challenger WBB'
+              assert summary.get('wbb_event',{}).get('sha256')==competitor_sha, 'challenger reopen wrong bytes'
+              assert summary.get('wbb_event',{}).get('loops')==2, 'reactive loops absent'
+              assert summary.get('wbb_event',{}).get('state_assignments')==0, 'not a zero-variable witness'
+              assert summary.get('completion',{}).get('wbb_sha256')==competitor_sha, 'completed challenger mismatch'
+              if variant=='A':
+                  assert summary.get('native_replay_achieved')==1, 'challenger RESET replay missing'
+                  assert summary.get('reset_event',{}).get('sha256')==competitor_sha, 'RESET changed challenger WBB'
+                  assert summary.get('replay_event',{}).get('sha256')==competitor_sha, 'replay changed challenger WBB'
+                  print('A5_NO_MEMORY_NATIVE_RESET_REPLAY_PASS variant=A same_wbb=true')
+          print('A5_NO_MEMORY_TRIPLE_NATIVE_PASS same_oracle=true front_after_pivot=true variable_blocks=0 sha256='+competitor_sha+' variants=A,B,C')
           PY
       - name: Preserve A5 positive/negative pupil experimental evidence
         if: always()
