@@ -81,9 +81,10 @@ int main(void){
   /* Premature COMPLETE must not be mistaken for achievement. */
   if(!write_and_verify(channel,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1",step))
     return stop("attempt 1 not preserved by native channel");
-  if(!write_and_verify(channel,
-      "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=" ORACLE,step))
-    return stop("premature completion 1 not submitted");
+  /* Completion is a one-step native event: the independent observer may
+   * immediately replace it with the outcome. Never require it to persist. */
+  wb_supervisor_field_set_sf_string(channel,
+      "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=" ORACLE);
   if(!native_outcome(channel,1,step))
     return stop("premature completion 1 not rejected by native evaluator");
   printf(PROBE "_RESULT variant=%c attempt=1 status=not-achieved cause=premature-complete\n",
@@ -97,9 +98,8 @@ int main(void){
   const char *state=wb_supervisor_field_get_sf_string(channel);
   if(!state||strcmp(state,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2")!=0)
     return stop("previous negative outcome leaked into next attempt");
-  if(!write_and_verify(channel,
-      "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=2 oracle=" ORACLE,step))
-    return stop("premature completion 2 not submitted");
+  wb_supervisor_field_set_sf_string(channel,
+      "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=2 oracle=" ORACLE);
   if(!native_outcome(channel,2,step))
     return stop("fresh attempt 2 not rejected independently");
   printf(PROBE "_RESULT variant=%c attempt=2 status=not-achieved cause=premature-complete\n",
