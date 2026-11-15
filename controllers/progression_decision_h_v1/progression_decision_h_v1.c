@@ -15,6 +15,10 @@
 #define WB_DH_OBSERVER "Progression decision H native evaluator"
 #define WB_DH_CONTROLLER "progression_decision_h_v1"
 #define WB_DH_CHILDREN 29 /* 23 Pose markers + six physical Solid obstacles. */
+#define WB_DH_COLLIDERS 6
+static const char *const kDhColliderNames[WB_DH_COLLIDERS] = {
+  "H_LEFT", "H_RIGHT", "H_BAR", "THRESHOLD", "CORRIDOR_LEFT", "CORRIDOR_RIGHT"
+};
 
 typedef struct {
   const char *def;
@@ -186,7 +190,35 @@ static int parse_completion(const char *text, unsigned long long attempt) {
  * The only harmless contact in this attested static world is the z=0 floor;
  * every non-floor contact (including unrecognized geometry) is an obstacle.
  */
-static int obstacle_contact(WbNodeRef craft) {
+static int obstacle_contact(WbNodeRef craft,
+                            const WbNodeRef colliders[WB_DH_COLLIDERS]) {
+  /* The six attested Solid obstacles extend down to the floor. The
+   * Crazyflie's point.z alone does NOT identify the other contacted body:
+   * a collision with a post below z=0.025 was previously hidden as floor.
+   * Query the actual obstacle-side native contact lists first. */
+  for (int j = 0; j < WB_DH_COLLIDERS; ++j) {
+    int n = -1;
+    const WbContactPoint *hits =
+      wb_supervisor_node_get_contact_points(colliders[j], false, &n);
+    if (n < 0 || (n > 0 && !hits)) {
+      printf("WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT_UNAVAILABLE type=%s count=%d\n",
+             kDhColliderNames[j], n);
+      fflush(stdout);
+      return -1;
+    }
+    for (int i = 0; i < n; ++i) {
+      const double *p = hits[i].point;
+      if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2]))
+        return -1;
+      printf("WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT type=%s z=%.9f node_id=%d\n",
+             kDhColliderNames[j], p[2], hits[i].node_id);
+      fflush(stdout);
+      return 1;
+    }
+  }
+  /* Preserve the existing fail-closed response to any unknown high
+   * craft contact. Only actual floor-height contacts with NO attested
+   * collider contact can remain benign during takeoff/landing. */
   int count = -1;
   const WbContactPoint *points = wb_supervisor_node_get_contact_points(craft, true, &count);
   if (count < 0 || (count > 0 && !points)) {
@@ -244,6 +276,21 @@ int main(void) {
     return 2;
   }
   const double origin_z = initial[2];
+  WbNodeRef colliders[WB_DH_COLLIDERS] = {0};
+  const char *prefix = scene == WB_DH_SCENE_A ? "ACTIVITY4_A_" : "ACTIVITY4_B_";
+  for (int j = 0; j < WB_DH_COLLIDERS; ++j) {
+    char def[96];
+    const int n = snprintf(def, sizeof(def), "%s%s", prefix, kDhColliderNames[j]);
+    WbNodeRef obstacle = (n > 0 && (size_t)n < sizeof(def))
+      ? wb_supervisor_node_get_from_def(def) : NULL;
+    if (!obstacle || wb_supervisor_node_get_id(obstacle) <= 0) {
+      fprintf(stderr, "WEBEEBLOCKS_DECISION_H_FATAL missing collider node identity\n");
+      wb_robot_cleanup();
+      return 2;
+    }
+    colliders[j] = obstacle;
+    wb_supervisor_node_enable_contact_points_tracking(obstacle, step, false);
+  }
   wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_dh_mission mission = {0};
   unsigned long long last_attempt = 0;
@@ -262,7 +309,7 @@ int main(void) {
     if (!last_attempt || mission.verdict != WB_DH_WAIT) continue;
     wb_dh_sample sample = {0};
     sample.time = wb_robot_get_time();
-    sample.obstacle_contact = obstacle_contact(craft);
+    sample.obstacle_contact = obstacle_contact(craft, colliders);
     sample.completed = parse_completion(data, mission.attempt);
     const double *position = wb_supervisor_node_get_position(craft);
     const double *velocity = wb_supervisor_node_get_velocity(craft);
