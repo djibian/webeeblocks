@@ -44,6 +44,7 @@ jobs:
             tools.ci.test_progression_count_h_scene \
             tools.ci.test_progression_count_h_oracle \
             tools.ci.test_progression_count_h_rear_range \
+            tools.ci.test_progression_count_h_dual_motor_sensor \
             tools.ci.test_progression_count_h_motor_flight
       - name: Require Draft witness remains outside integration gates
         run: |
