@@ -121,8 +121,41 @@ static void completion_before_turn(char v) {
   a=sample(5,x,0,.40,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+static void yaw_reversal_lateral_slide(char v) {
+  wb_mini_mission m;
+  ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v), y=wb_mini_pad_y(v);
+  /* A single correct corner yaw cannot authorize a subsequent side-slide
+   * after returning to the initial heading. Both variants must refuse. */
+  wb_mini_sample a=sample(5.20,x,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(5.50,x,y*.50,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(6.00,x,y,.015,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+static void late_dwell_boundary(char v) {
+  wb_mini_mission m;
+  ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.000,x,y,.40,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(7.240,x,y,.40,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(7.248,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(7.496,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  /* 0.256 s stable, but 1.504 s after completion: must fail. */
+  a=sample(7.504,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(7.600,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
 int main(void) {
   positive('L');positive('R');
+  yaw_reversal_lateral_slide('L');yaw_reversal_lateral_slide('R');
+  late_dwell_boundary('L');late_dwell_boundary('R');
   settle_pulse_and_motion('L');settle_pulse_and_motion('R');
   terminal_timeout('L');terminal_timeout('R');
   completion_before_turn('L');completion_before_turn('R');
@@ -130,6 +163,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: fifteen positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: nineteen positive/adversarial scenarios");
   return 0;
 }

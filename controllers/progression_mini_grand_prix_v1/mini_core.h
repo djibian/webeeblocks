@@ -89,6 +89,13 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
      fabs(s->y)<=WB_MINI_TURN_TOL&&
      wb_mini_yaw_error(s->yaw,wb_mini_heading(m->variant))<=WB_MINI_YAW_TOL)
     m->turned=1;
+  /* The second leg must preserve the observed 90-degree local heading.
+   * A momentary yaw at the corner followed by a lateral slide is not a turn.
+   * Near-corner adjustments remain free until the second leg begins. */
+  if(m->turned && fabs(s->y)>WB_MINI_TURN_TOL &&
+     wb_mini_yaw_error(s->yaw,wb_mini_heading(m->variant))>WB_MINI_YAW_TOL) {
+    m->verdict=WB_MINI_FAILED;return m->verdict;
+  }
   if(m->crossed && (m->variant=='L'?s->y>1.26:s->y< -1.26)) {
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
@@ -103,6 +110,11 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
     }
   }
   if(m->completion_seen) {
+    /* At the deadline (including equality), failure is terminal.
+     * A completed dwell cannot promote a late sample to success. */
+    if(s->time-m->completion_at>=WB_MINI_SETTLE) {
+      m->verdict=WB_MINI_FAILED;return m->verdict;
+    }
     const int stable =
       fabs(s->x-turn_x)<=WB_MINI_LAND_TOL &&
       fabs(s->y-wb_mini_pad_y(m->variant))<=WB_MINI_LAND_TOL &&
@@ -119,9 +131,6 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
     } else {
       m->stable_since_valid=0;
     }
-    if(m->verdict==WB_MINI_WAIT &&
-       s->time-m->completion_at>=WB_MINI_SETTLE)
-      m->verdict=WB_MINI_FAILED;
   }
   return m->verdict;
 }
