@@ -36,7 +36,7 @@ class TestA5PupilFlightStaging(unittest.TestCase):
         self.assertLess(section.index("./tools/prepare_runtime_v2.sh"),
                         section.index("node tools/ci/test_progression_reactive_L_v2_generic_program.js"))
         self.assertLess(section.index("./tools/prepare_runtime_v2.sh"),
-                        section.index("run_classroom_reactive_L_v2_pupil_flight.py --variant A"))
+                        section.index('run_classroom_reactive_L_v2_pupil_flight.py --variant "$variant"'))
         self.assertNotIn("npm ci --prefix plugins/robot_windows/blockly_v2",section)
         browser=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
                  "reactive_l_v2_pupil_probe.html").read_text(encoding="utf-8")
