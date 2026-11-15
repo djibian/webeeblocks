@@ -35,8 +35,36 @@ class CountingSceneTests(unittest.TestCase):
                 self.assertEqual(src.count("boundingObject Box"), 3 * n + 2)
                 self.assertEqual(src.count("0.0042 children"), 12)
                 self.assertIn("Pose { translation -1.40 0 0.002", src)
-                self.assertIn("Pose { translation 0.10 0.385 0.002", src)
-                self.assertIn("Pose { translation 0.10 -0.385 0.002", src)
+                # A6 is a straight counting corridor *until* the cyan
+                # screen. The route then opens laterally to the three pads
+                # at y=0 / +/-0.55. A red boundary drawn all the way to
+                # x=1.8 would falsely tell pupils to avoid two valid pads.
+                for side in (-1, 1):
+                    line = next(
+                        (entry for entry in src.splitlines()
+                         if "Pose { translation" in entry and
+                         f" {side * 0.385:.3f} 0.002" in entry),
+                        None,
+                    )
+                    self.assertIsNotNone(line, (n, side))
+                    mark = re.search(
+                        r"Pose \\{ translation (-?[0-9.]+) (-?[0-9.]+) 0\\.002"
+                        r".*?geometry Box \\{ size ([0-9.]+) 0\\.012 0\\.004",
+                        line,
+                    )
+                    self.assertIsNotNone(mark, (n, side, line))
+                    centre, lateral, length = map(float, mark.groups())
+                    self.assertAlmostEqual(lateral, side * 0.385)
+                    # Retain the complete visible H-counting corridor.
+                    self.assertAlmostEqual(centre - length / 2, -1.60)
+                    self.assertGreater(
+                        centre + length / 2,
+                        EXPECTED_GATES[n][-1] + 0.035 + 0.090,
+                    )
+                    # End before the real screen collider and before the
+                    # target x=1.48; do not introduce physical Solids.
+                    self.assertLess(centre + length / 2, 1.235 - 0.07 / 2)
+                    self.assertLess(centre + length / 2, 1.48 - 0.30)
                 # All THREE landings are present in every variant. No visual
                 # omission may signal the gate count before crossing.
                 for _id, y in TARGET_Y.items():
