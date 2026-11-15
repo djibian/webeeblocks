@@ -1,0 +1,39 @@
+# Diagnostic-only proof for the Draft Mini Grand Prix (Activity 7).
+# Proves compiled pure-C predicates and source scene structure, NOT native
+# R2025a flight, Blockly pupil delivery, physical hardware or a V5 CI Gate.
+name: Activity 7 Draft C and scene witness
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a7-draft.yml'
+      - 'controllers/progression_mini_grand_prix_v1/**'
+      - 'worlds/scenes/mini-grand-prix-*-v1.wbo'
+      - 'tools/ci/test_progression_mini_grand_prix_*'
+
+permissions:
+  contents: read
+
+jobs:
+  a7-draft-source-only:
+    name: A7 compiled C oracle and two structural scenes (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prove candidate identity and compile adversarial behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "A7_DRAFT_ONLY_SHA=$(git rev-parse HEAD)"
+          cc --version | head -n 1
+          python3 -m unittest -v \
+            tools.ci.test_progression_mini_grand_prix_scene \
+            tools.ci.test_progression_mini_grand_prix_oracle
+          test -z "$(git status --porcelain)"
