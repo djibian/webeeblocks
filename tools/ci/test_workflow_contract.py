@@ -19,7 +19,7 @@ EXPECTED = {
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
     # Draft-only A5 sensor and native-attempt evidence; never CI Gate.
-    "ci-progression-a5-draft.yml": {"a5-native-draft-only"},
+    "ci-progression-a5-draft.yml": {"a5-native-draft-only", "a5-pupil-flight-draft"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
     "ci-runtime.yml": {
