@@ -49,7 +49,7 @@ typedef struct {
   unsigned armed;
   unsigned observed_center;
   int airborne, completion_seen, has_last, stable_since_valid;
-  double origin_z, last_time, last_x, completion_at, stable_since;
+  double origin_z, last_time, last_x, last_y, last_z, completion_at, stable_since;
   wb_count_verdict verdict;
 } wb_count_mission;
 
@@ -105,26 +105,52 @@ static inline wb_count_verdict wb_count_sample_mission(
     m->verdict = WB_COUNT_NOT_ACHIEVED;
     return m->verdict;
   }
-  m->last_time = s->time;
-  m->last_x = s->x;
-  m->has_last = 1;
-  if (s->z >= m->origin_z + 0.200) m->airborne = 1;
-
+  /* Check the swept segment against EVERY physical H, not just the
+   * centre of an observed sample. This is conservative linear interpolation
+   * between native physics frames, not an assumption about the pupil AST. */
   for (unsigned i = 0; i < m->variant; ++i) {
-    const double x = wb_count_gate_x(i);
-    if (fabs(s->x - x) <= WB_COUNT_GATE_ENVELOPE &&
-        (fabs(s->y) > WB_COUNT_MAX_GATE_Y ||
-         s->z > WB_COUNT_MAX_GATE_Z)) {
-      m->verdict = WB_COUNT_NOT_ACHIEVED;
-      return m->verdict;
+    const double gate = wb_count_gate_x(i);
+    double enter = 0.0, leave = 1.0;
+    int intersects = fabs(s->x - gate) <= WB_COUNT_GATE_ENVELOPE;
+    if (m->has_last) {
+      const double dx = s->x - m->last_x;
+      if (fabs(dx) > 1e-12) {
+        const double t0 = (gate - WB_COUNT_GATE_ENVELOPE - m->last_x) / dx;
+        const double t1 = (gate + WB_COUNT_GATE_ENVELOPE - m->last_x) / dx;
+        enter = fmax(0.0, fmin(t0, t1));
+        leave = fmin(1.0, fmax(t0, t1));
+        intersects = enter <= leave;
+      }
+    }
+    if (intersects) {
+      const double ya = m->has_last ? m->last_y + enter * (s->y - m->last_y) : s->y;
+      const double yb = m->has_last ? m->last_y + leave * (s->y - m->last_y) : s->y;
+      const double za = m->has_last ? m->last_z + enter * (s->z - m->last_z) : s->z;
+      const double zb = m->has_last ? m->last_z + leave * (s->z - m->last_z) : s->z;
+      if (fabs(ya) > WB_COUNT_MAX_GATE_Y || fabs(yb) > WB_COUNT_MAX_GATE_Y ||
+          za > WB_COUNT_MAX_GATE_Z || zb > WB_COUNT_MAX_GATE_Z) {
+        m->verdict = WB_COUNT_NOT_ACHIEVED;
+        return m->verdict;
+      }
     }
   }
+  m->last_time = s->time;
+  m->last_x = s->x;
+  m->last_y = s->y;
+  m->last_z = s->z;
+  m->has_last = 1;
+  if (s->z >= m->origin_z + 0.200) m->airborne = 1;
 
   /* The index is advanced only by observed, ordered, directed passages.
    * A jump over a gate without a measured centre never counts as crossing. */
   if (!m->completion_seen && !s->completed && m->airborne &&
       m->crossed < m->variant) {
     const double gate = wb_count_gate_x(m->crossed);
+    /* A centred measurement is not a durable pass token after retreating
+     * upstream. Permit a new correctly observed pass after correction. */
+    if (m->observed_center &&
+        s->x <= gate - WB_COUNT_GATE_ENVELOPE - 0.010)
+      m->observed_center = 0;
     if (s->x <= gate - WB_COUNT_GATE_ENVELOPE - 0.010)
       m->armed = 1;
     if (m->armed && fabs(s->x - gate) <= WB_COUNT_CENTER_TOL &&
