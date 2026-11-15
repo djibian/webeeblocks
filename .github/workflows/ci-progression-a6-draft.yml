@@ -112,9 +112,12 @@ jobs:
               for n in 1 2 3; do
                 python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --variant ${n}
               done
-              # A second, scene-blind CI-only pilot uses actual blocking MOVE
-              # and RANGE requests. First bounded experiment: n=1 only.
-              python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode sensor --variant 1
+              # The SAME variant-blind CI motor/sensor program must genuinely
+              # count H and land on the correct pad in ALL three native scenes.
+              # This still does not claim a pupil .wbb or Save/Open proof.
+              for n in 1 2 3; do
+                python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode sensor --variant ${n}
+              done
             '
       - name: Preserve rotated-H native falsification even on failure
         if: always()

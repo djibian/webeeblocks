@@ -175,6 +175,21 @@ class CountHMotorFlightTests(unittest.TestCase):
                 variant))
         self.assertFalse(native.terminal_native_ack_logged("",4))
 
+    def test_same_sensor_command_pilot_is_exercised_on_all_three_native_worlds(self):
+        workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
+        script=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                "count_h_sensor_only_probe.js").read_text()
+        self.assertIn(
+            "run_classroom_count_h_motor_flight.py --mode sensor --variant ${n}",
+            workflow)
+        self.assertIn("for n in 1 2 3; do",workflow)
+        self.assertEqual(workflow.count(
+            "run_classroom_count_h_motor_flight.py --mode sensor --variant"),1)
+        self.assertNotIn("count-h-",script.split("export async function",1)[1])
+        self.assertNotIn("variant",script.split("export async function",1)[1])
+        self.assertIn("await backend.readRange('up')",script)
+        self.assertIn("await backend.readRange('front')",script)
+
     def test_sensor_command_mode_keeps_its_own_ack_and_artifact_boundary(self):
         import run_classroom_count_h_motor_flight as native
         prefix="WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 crossed=1\n"
