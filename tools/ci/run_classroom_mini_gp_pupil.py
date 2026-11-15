@@ -42,6 +42,7 @@ def run()->int:
     process=None
     output=None
     manual_browser=None
+    manual_log=None
     browser_origin="webots-auto"
     browser_probe={}
     try:
@@ -82,8 +83,11 @@ def run()->int:
                     try:
                         with urllib.request.urlopen(url,timeout=4) as response:
                             status=response.status
-                            body=response.read(500)
-                        browser_probe[name]={'status':status,'body_length':len(body)}
+                            body=response.read(30000)
+                        expected=(b'WB_A7_PUPIL_BOOTSTRAP' if name=='mini_gp_pupil_probe'
+                                  else b'WB_A4_PUPIL_BOOTSTRAP')
+                        browser_probe[name]={'status':status,'body_length':len(body),
+                                             'expected_bootstrap':expected in body}
                     except (OSError,urllib.error.URLError) as err:
                         browser_probe[name]={'error':str(err)}
                 (ARTIFACT/'http-probe.json').write_text(
@@ -94,15 +98,19 @@ def run()->int:
                 # HTML, launch the same official browser script explicitly.
                 # This is a CI-ONLY fallback, not evidence of normal automatic
                 # robot window opening in the product.
-                if browser_probe.get('mini_gp_pupil_probe',{}).get('status')==200:
+                if (browser_probe.get('mini_gp_pupil_probe',{}).get('status')==200 and
+                    browser_probe['mini_gp_pupil_probe'].get('expected_bootstrap')):
                     browser_origin='explicit-ci-browser'
                     page=('http://localhost:1234/robot_windows/'
                           'mini_gp_pupil_probe/mini_gp_pupil_probe.html'
                           '?name=Crazyflie%20WebeeBlocks')
+                    manual_log=(ARTIFACT/'browser-manual-stderr.log').open(
+                        'w',encoding='utf-8')
                     manual_browser=subprocess.Popen(
-                        ['/bin/bash','/workspace/tools/ci/webots_runtime_v2_browser.sh',page],
+                        ['xvfb-run','-a','/bin/bash',
+                         '/workspace/tools/ci/webots_runtime_v2_browser.sh',page],
                         cwd=str(world.ROOT),env=env,
-                        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                        stdout=manual_log,stderr=subprocess.STDOUT,
                         start_new_session=True)
                     print('A7_PUPIL_EXPLICIT_CI_BROWSER_STARTED',flush=True)
             # The browser is mandatory, and native readiness alone is not it.
@@ -120,6 +128,8 @@ def run()->int:
                 try: os.killpg(manual_browser.pid,signal.SIGKILL)
                 except ProcessLookupError: pass
                 manual_browser.wait(timeout=4)
+        if manual_log is not None:
+            manual_log.close()
         if process is not None and process.poll() is None:
             os.killpg(process.pid,signal.SIGTERM)
             try:process.wait(timeout=8)
@@ -134,6 +144,9 @@ def run()->int:
             json.dumps(ack.EVENTS,indent=2,sort_keys=True)+'\n',encoding='utf-8')
         world.cleanup()
 
+    if manual_browser is not None:
+        print('A7_PUPIL_MANUAL_BROWSER_EXIT status='+str(manual_browser.returncode),
+              flush=True)
     text=log_path.read_text(encoding='utf-8',errors='replace')
     events=[e.get('event') for e in ack.EVENTS]
     missing=[event for event in REQUIRED if events.count(event)!=1]
