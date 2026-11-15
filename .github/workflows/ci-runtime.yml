@@ -343,6 +343,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/ci/test_runtime_v2_project_files.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/ci/test_progression_decision_h_variant_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/ci/test_progression_decision_h_variant_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
@@ -701,8 +705,10 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
           node --check plugins/robot_windows/blockly_v2/project_ui.js
           node --check tools/ci/test_runtime_v2_project_files.js
+          node --check tools/ci/test_progression_decision_h_variant_ui.js
           python3 -m py_compile tools/ci/prepare_runtime_v2_project_files.py
           node tools/ci/test_runtime_v2_project_files.js
+          node tools/ci/test_progression_decision_h_variant_ui.js
           ! grep -REi 'autosave|attemptHistory|scoreHistory|studentIdentity|moodle|cloudSync' \
             plugins/robot_windows/blockly/webeeblocks/project_files.js \
             plugins/robot_windows/blockly_v2/project_ui.js
