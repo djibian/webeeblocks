@@ -273,6 +273,64 @@
         }
       },
       {
+        // A5 v2 is independently attested but no pupil .wbb has flown A/B/C.
+        // Keep it OPENABLE for test projects, NEVER in the Start activity list.
+        starterVisible: false,
+        id: 'progression-reactive-L-v2',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '5 — Explorer les passages',
+          mission: 'Rejoins la zone d’arrivée en observant les passages à chaque étape. Les obstacles et le nombre de changements de direction peuvent varier. Termine posé et immobile sur le damier, sans toucher les obstacles.'
+        },
+        pedagogy: {
+          objective: 'Réobserver au cours du trajet avec une boucle bornée et introduire une variable pour mémoriser l’avancement ; construire une stratégie réutilisable sans connaître à l’avance la configuration.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_move', 'webeeblocks_v2_turn',
+          'webeeblocks_v2_range', 'controls_if', 'logic_compare',
+          'controls_repeat_ext', 'controls_whileUntil',
+          'variables_set', 'variables_get', 'math_change',
+          'math_number', 'math_arithmetic', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          math_number: { NUM: { min: 0, max: 8, step: 0.01 } },
+          webeeblocks_v2_speed: { SPEED: { min: 0.10, max: 0.16, step: 0.01 } },
+          webeeblocks_v2_turn: { ANGLE: { min: 90, max: 90, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_turn: { DIRECTION: [ 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-reactive-L-v2' },
+        runtime: {
+          // Default only; trusted classroom selection may choose B or C
+          // without changing the .wbb, Blockly AST or activity id.
+          scene: 'reactive-L-a-v2',
+          mode: 'ast-v1',
+          allowedStatementKinds: [
+            'takeoff', 'set_speed', 'move', 'turn', 'if', 'repeat', 'while',
+            'set_variable', 'land'
+          ],
+          rangeDirections: [ 'front', 'left' ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [],
+          astBounds: {
+            'takeoff.height_m': { min: 0.48, max: 0.65 },
+            'move.distance_m': { min: 0.10, max: 1.50 },
+            'turn.angle_deg_abs': { min: 90, max: 90 },
+            'repeat.count': { min: 1, max: 12 },
+            'while.max_iterations': { min: 1, max: 12 },
+            'set_speed.speed_m_s': { min: 0.10, max: 0.16 }
+          }
+        }
+      },
+      {
         id: 'progression-reactive-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
