@@ -142,11 +142,12 @@ int main(void) {
 
   /* CI-ONLY: proof of a REAL floor start with no teleportation or motors.
    * This branch is entered exclusively by an isolated test world seeded
-   * with attempt=2, not by any pupil program or ordinary geometry run. */
+   * with a preflight token, not by any pupil or ordinary geometry run.
+   * A valid ATTEMPT is released only after 40 actual physics ticks. */
   WbFieldRef test_data=wb_supervisor_node_get_field(craft,"customData");
   const char *ground_token=test_data?
       wb_supervisor_field_get_sf_string(test_data):NULL;
-  if(ground_token&&!strcmp(ground_token,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2")) {
+  if(ground_token&&!strcmp(ground_token,"WEBEEBLOCKS_A7_GROUND_PREFLIGHT_V1")) {
     const double *initial=wb_supervisor_node_get_position(craft);
     if(!initial||fabs(initial[0]+1.400)>.030||
        fabs(initial[1])>.030||initial[2]<-.015||initial[2]>.055)
@@ -161,6 +162,7 @@ int main(void) {
       const WbContactPoint *points=wb_supervisor_node_get_contact_points(craft,true,&n);
       if(!p||!v||n<0||(n>0&&!points)||
          !isfinite(p[0])||!isfinite(p[1])||!isfinite(p[2])||
+         !isfinite(v[0])||!isfinite(v[1])||!isfinite(v[2])||
          fabs(p[0]+1.400)>.050||fabs(p[1])>.050||
          p[2]<-.015||p[2]>.065)
         return fail("ground-control position or contact observation invalid");
@@ -168,6 +170,20 @@ int main(void) {
         if(!isfinite(points[j].point[2])||fabs(points[j].point[2])>.025)
           return fail("ground-control detected non-floor contact");
         ++floor_hits;
+      }
+      if(i==39) {
+        /* The FIRST 32-ms tick moves the unpowered craft as gravity
+         * settles it (about 0.31 m/s vertically). Do not authorize an
+         * attempt from that transient. Wait for native floor contacts,
+         * a low actual velocity and 40 consecutive Webots steps. */
+        if(hypot(v[0],v[1])>.120||fabs(v[2])>.120||
+           floor_hits<1)return fail("ground-control not physically settled");
+        wb_supervisor_field_set_sf_string(
+            test_data,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2");
+        printf("A7_NATIVE_GROUND_TOKEN_RELEASED variant=%c tick=40 "
+               "time=%.9f floor_contacts=%d\n",
+               variant,wb_robot_get_time(),floor_hits);
+        fflush(stdout);
       }
       if(i==47){
         if(hypot(v[0],v[1])>.120||fabs(v[2])>.120||

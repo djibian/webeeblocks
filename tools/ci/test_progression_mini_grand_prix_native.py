@@ -106,7 +106,7 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                 world = ground_start.compose(letter)
                 self.assertEqual(world.count(ground_start.MARKER), 1)
                 self.assertEqual(world.count(
-                    'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"'), 1)
+                    'customData "WEBEEBLOCKS_A7_GROUND_PREFLIGHT_V1"'), 1)
                 self.assertEqual(world.count(
                     '  translation -1.4 0 0.015\n'), 1)
                 self.assertEqual(world.count(
@@ -121,7 +121,9 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         native_probe = (ROOT /
             "controllers/progression_mini_gp_geometry_probe/"
             "progression_mini_gp_geometry_probe.c").read_text(encoding="utf-8")
-        for token in ("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2",
+        for token in ("WEBEEBLOCKS_A7_GROUND_PREFLIGHT_V1",
+                      "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2",
+                      "A7_NATIVE_GROUND_TOKEN_RELEASED",
                       "A7_NATIVE_GROUND_VALID", "floor_hits<1",
                       "ground-control not physically settled"):
             self.assertIn(token, native_probe)
@@ -130,6 +132,7 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                   ).read_text(encoding="utf-8")
         for token in ("WB_MINI_NATIVE_FIRST", "WB_MINI_NATIVE_ATTEMPT",
                       "A7_NATIVE_GROUND_VALID",
+                      "release_t < 1.0", "math.hypot(vx, vy) > .120",
                       '"WB_MINI_NATIVE_RESULT " in text',
                       '\"motorized_flight\": False',
                       '\"pupil_program_tested\": False'):

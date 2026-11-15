@@ -215,9 +215,11 @@ int main(void) {
       sample.yaw=atan2(o[3],o[0]);
     }
     if(!mission.previous_valid){
-      printf("WB_MINI_NATIVE_FIRST variant=%c attempt=%llu time=%.9f x=%.9f y=%.9f z=%.9f contact=%d\n",
+      printf("WB_MINI_NATIVE_FIRST variant=%c attempt=%llu time=%.9f "
+             "x=%.9f y=%.9f z=%.9f contact=%d "
+             "vx=%.9f vy=%.9f vz=%.9f\n",
              variant,mission.attempt,sample.time,sample.x,sample.y,
-             sample.z,sample.contact);
+             sample.z,sample.contact,sample.vx,sample.vy,sample.vz);
       fflush(stdout);
     }
     if(wb_mini_sample_mission(&mission,&sample)!=WB_MINI_WAIT)

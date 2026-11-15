@@ -25,6 +25,7 @@ MARKER = "# WEBEEBLOCKS_A7_NATIVE_GROUND_START_CI_ONLY"
 INITIAL = "Crazyflie {\n"
 ATTEMPT_OLD = 'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"'
 ATTEMPT_NEW = 'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"'
+PREFLIGHT = 'customData "WEBEEBLOCKS_A7_GROUND_PREFLIGHT_V1"'
 PROJECT = observer.PROJECT
 
 
@@ -41,10 +42,11 @@ def compose(letter):
             source.count('controller "progression_mini_grand_prix_v1"') != 1):
         raise ValueError("untrusted starting world or controller pair")
     source = source.replace(INITIAL, INITIAL + "  translation -1.4 0 0.015\n", 1)
-    source = source.replace(ATTEMPT_OLD, ATTEMPT_NEW, 1)
+    source = source.replace(ATTEMPT_OLD, PREFLIGHT, 1)
     source = source.replace(observer.MARKER, MARKER, 1)
     if (source.count(MARKER) != 1 or
-            source.count(ATTEMPT_NEW) != 1 or ATTEMPT_OLD in source or
+            source.count(PREFLIGHT) != 1 or ATTEMPT_OLD in source or
+            ATTEMPT_NEW in source or
             'controller "crazyflie_classroom_v2"' in source or
             'controller "crazyflie_runtime_v2"' in source):
         raise ValueError("native ground witness cannot use shared flight runtime")
@@ -123,12 +125,19 @@ def run_one(letter):
     first = re.findall(
         rf"WB_MINI_NATIVE_FIRST variant={letter} attempt=2 "
         r"time=([0-9.]+) x=(-?[0-9.]+) y=(-?[0-9.]+) "
-        r"z=(-?[0-9.]+) contact=(-?\d+)", text)
+        r"z=(-?[0-9.]+) contact=(-?\d+) "
+        r"vx=(-?[0-9.]+) vy=(-?[0-9.]+) vz=(-?[0-9.]+)", text)
+    release = re.findall(
+        rf"A7_NATIVE_GROUND_TOKEN_RELEASED variant={letter} tick=40 "
+        r"time=([0-9.]+) floor_contacts=(\d+)", text)
     probe = re.findall(
         rf"A7_NATIVE_GROUND_VALID variant={letter} idle_steps=48 "
         r"start_z=([0-9.]+) end_z=([0-9.]+) "
         r"floor_contacts=(\d+) motors=OFF", text)
     if (len(ready) != 1 or len(first) != 1 or len(probe) != 1 or
+            len(release) != 1 or
+            text.index(f"A7_NATIVE_GROUND_TOKEN_RELEASED variant={letter}") >
+                text.index(f"WB_MINI_NATIVE_ATTEMPT variant={letter}") or
             text.count(f"WB_MINI_NATIVE_ATTEMPT variant={letter} attempt=2") != 1 or
             "WB_MINI_NATIVE_RESULT " in text or
             "WB_MINI_NATIVE_FATAL" in text or
@@ -136,13 +145,17 @@ def run_one(letter):
             any("ERROR:" in line for line in text.splitlines())):
         raise AssertionError(f"native positive ground witness not proven: {log}")
     origin, step = float(ready[0][0]), int(ready[0][1])
-    t, x, y, z, contact = first[0]
-    t, x, y, z, contact = float(t), float(x), float(y), float(z), int(contact)
+    t, x, y, z, contact, vx, vy, vz = first[0]
+    t, x, y, z, vx, vy, vz = map(float, (t, x, y, z, vx, vy, vz))
+    contact = int(contact)
+    release_t, release_hits = float(release[0][0]), int(release[0][1])
     start_z, end_z, floor_hits = probe[0]
     start_z, end_z, floor_hits = float(start_z), float(end_z), int(floor_hits)
-    values = (origin, t, x, y, z, start_z, end_z)
+    values = (origin, t, x, y, z, start_z, end_z, vx, vy, vz, release_t)
     if (not all(math.isfinite(v) for v in values) or
-            step != 32 or t < 0 or
+            step != 32 or t < release_t or release_t < 1.0 or
+            release_hits < 1 or
+            math.hypot(vx, vy) > .120 or abs(vz) > .120 or
             not 0 <= origin < .055 or
             abs(x + 1.4) > .08 or abs(y) > .08 or
             abs(z - .015) > .04 or contact != 0 or
@@ -151,10 +164,12 @@ def run_one(letter):
             floor_hits < 1):
         raise AssertionError(f"native grounded attempt not attested: {log}")
     print(f"A7_NATIVE_GROUND_ACCEPTED variant={letter} attempt=2 "
-          f"x={x:.6f} y={y:.6f} z={z:.6f} floor_contacts={floor_hits} "
+          f"x={x:.6f} y={y:.6f} z={z:.6f} vz={vz:.6f} "
+          f"released_at={release_t:.6f} floor_contacts={floor_hits} "
           "mission=WAIT motors=OFF pupil_wbb=UNPROVEN", flush=True)
     return {"variant": letter, "attempt": 2, "native_ground_start": True,
             "first_pose_xyz_m": [x, y, z],
+            "first_vertical_speed_m_s": vz, "release_time_s": release_t,
             "floor_contacts": floor_hits, "mission": "WAIT",
             "motorized_flight": False, "pupil_program_tested": False}
 
