@@ -32,13 +32,18 @@ static void airborne(wb_seq_mission *m, unsigned long long attempt) {
   assert(step(m, 1, 0, 0, 0.50, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(m->airborne);
 }
+static void finish_native_32ms(wb_seq_mission *m, double t,
+                               double x, double y, double z) {
+  assert(step(m,t,x,y,z,0,0,0,1) == WB_SEQ_WAIT);
+  for(int i=1;i<8;++i)
+    assert(step(m,t+.032*i,x,y,z,0,0,0,0) == WB_SEQ_WAIT);
+  assert(step(m,t+.256,x,y,z,0,0,0,0) == WB_SEQ_ACHIEVED);
+}
 int main(void) {
   wb_seq_mission m;
   airborne(&m, 1);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 3, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
-  assert(step(&m, 3.24, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 3.26, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  finish_native_32ms(&m,3,.35,.28,.02);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
 
   /* A complete no-obstacle mission with genuine lift and one-shot
@@ -62,9 +67,27 @@ int main(void) {
     wb_seq_reset(&m,(unsigned long long)(110+k),origin);
     assert(step(&m,0,0,0,origin,0,0,0,0)==WB_SEQ_WAIT);
     assert(step(&m,1,0,0,.50,0,0,0,0)==WB_SEQ_WAIT);
-    assert(step(&m,2,.35,.28,.015,0,0,0,1)==WB_SEQ_WAIT);
-    assert(step(&m,2.256,.35,.28,.015,0,0,0,0)==WB_SEQ_ACHIEVED);
+    finish_native_32ms(&m,2,.35,.28,.015);
   }
+
+  /* A valid-looking pair of samples 256 ms apart is NOT proof of
+   * uninterrupted 250-ms floor stability. Missing one 32-ms native tick
+   * (64-ms gap) must also restart evidence. */
+  airborne(&m,220);
+  assert(step(&m,2,.35,.28,.015,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step(&m,2.256,.35,.28,.015,0,0,0,0)==WB_SEQ_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-2.256)<1e-8);
+  for(int i=1;i<8;++i)
+    assert(step(&m,2.256+.032*i,.35,.28,.015,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.512,.35,.28,.015,0,0,0,0)==WB_SEQ_ACHIEVED);
+  airborne(&m,221);
+  assert(step(&m,2,.35,.28,.015,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step(&m,2.032,.35,.28,.015,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.096,.35,.28,.015,0,0,0,0)==WB_SEQ_WAIT);
+  assert(fabs(m.stable_since-2.096)<1e-8);
+  for(int i=1;i<8;++i)
+    assert(step(&m,2.096+.032*i,.35,.28,.015,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.352,.35,.28,.015,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* A new native attempt never inherits the previous victory. */
   wb_seq_reset(&m, 2, 0);
@@ -83,8 +106,7 @@ int main(void) {
 
   /* Nonzero X and Y displacement well inside full-pad margins still pass. */
   airborne(&m, 5);
-  assert(step(&m, 2, .39, .34, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
-  assert(step(&m, 2.26, .39, .34, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  finish_native_32ms(&m,2,.39,.34,.02);
 
   /* Brief stillness cannot pass: any movement must restart the dwell. */
   airborne(&m, 11);
@@ -92,16 +114,18 @@ int main(void) {
   assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.23, .35, .28, .02, .3, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.32, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.56, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.58, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for(int i=1;i<8;++i)
+    assert(step(&m,2.32+.032*i,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.576,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* A brief on-pad sample followed by a pad exit is not sustained landing. */
   airborne(&m, 12);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
   assert(step(&m, 2.15, .43, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.43, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.46, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for(int i=1;i<8;++i)
+    assert(step(&m,2.20+.032*i,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.456,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* Adversarial 8-ms boundary: landing dwell completes 4 ms too late. */
   airborne(&m, 24);
@@ -254,6 +278,8 @@ class NativeSequence3D(unittest.TestCase):
         self.assertIn('WB_SEQ_ORACLE "progression-sequence-3d-v1"', header)
         self.assertIn("#define WB_SEQ_LAND_ABSOLUTE_Z 0.030", header)
         self.assertIn("s->z <= WB_SEQ_LAND_ABSOLUTE_Z", header)
+        self.assertIn("#define WB_SEQ_MAX_LANDING_SAMPLE_GAP 0.048", header)
+        self.assertIn("s->time - m->last_time > WB_SEQ_MAX_LANDING_SAMPLE_GAP", header)
         self.assertIn("TARGET_X_TOLERANCE = 0.05", python)
         self.assertIn("TARGET_Y_TOLERANCE = 0.08", python)
         self.assertAlmostEqual(0.05 + 0.09, 0.28 / 2)
