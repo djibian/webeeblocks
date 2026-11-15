@@ -265,6 +265,10 @@ static void hovering_arrival_must_fail(char v,double z) {
   ready_for_completion(&m,v);
   const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
   const double yaw=wb_mini_heading(v);
+  /* This hovering arrival still satisfies the unchanged relative descent
+   * tolerance. Only the independent absolute-floor condition must reject. */
+  assert(z-m.origin_z <= WB_MINI_LAND_Z);
+  assert(z > WB_MINI_LAND_ABSOLUTE_Z);
   wb_mini_sample a=sample(6.0,x,y,z,yaw,1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   for(int i=1;i<=10;++i) {
@@ -400,6 +404,8 @@ static void late_dwell_boundary(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
 int main(void) {
+  assert(fabs(WB_MINI_LAND_Z-0.070)<1e-12);
+  assert(fabs(WB_MINI_LAND_ABSOLUTE_Z-0.020)<1e-12);
   positive('L');positive('R');
   hovering_arrival_must_fail('L',.030);
   hovering_arrival_must_fail('R',.030);

@@ -18,6 +18,11 @@ HARNESS = ROOT / "tools/ci/test_progression_mini_grand_prix_oracle.c"
 class MiniGrandPrixCompiledOracle(unittest.TestCase):
     def test_native_c11_compiles_and_rejects_adversarial_routes(self):
         self.assertTrue(ORACLE.is_file(), "missing isolated A7 C oracle")
+        source = ORACLE.read_text(encoding="utf-8")
+        self.assertIn("#define WB_MINI_LAND_Z 0.070", source)
+        self.assertIn("#define WB_MINI_LAND_ABSOLUTE_Z 0.020", source)
+        self.assertIn("s->z-m->origin_z<=WB_MINI_LAND_Z", source)
+        self.assertIn("s->z<=WB_MINI_LAND_ABSOLUTE_Z", source)
         self.assertTrue(HARNESS.is_file(), "missing A7 adversarial C harness")
         compiler = shutil.which("cc")
         self.assertIsNotNone(compiler, "C compiler mandatory for A7 proof")

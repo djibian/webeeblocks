@@ -34,7 +34,11 @@
  * 0.015 m. The old 0.070 m bound accepted a stationary 0.060 m hover.
  * Fail closed on a tighter absolute envelope; this is NOT by itself a
  * Webots floor-contact certificate. Validate genuine native landings. */
-#define WB_MINI_LAND_Z 0.020
+/* Keep the historical relative descent allowance and independently prove
+ * proximity to the actual z=0 classroom floor. A near-ground hover must
+ * not inherit relative freedom as permission to finish above the floor. */
+#define WB_MINI_LAND_Z 0.070
+#define WB_MINI_LAND_ABSOLUTE_Z 0.020
 #define WB_MINI_LAND_SPEED 0.120
 #define WB_MINI_SETTLE 1.5
 /* Completion is a one-shot notification; stability must be observed after it. */
@@ -203,7 +207,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
       fabs(s->x-turn_x)<=WB_MINI_LAND_TOL &&
       fabs(s->y-wb_mini_pad_y(m->variant))<=WB_MINI_LAND_TOL &&
       s->z-m->origin_z<=WB_MINI_LAND_Z &&
-      s->z<=WB_MINI_LAND_Z &&
+      s->z<=WB_MINI_LAND_ABSOLUTE_Z &&
       hypot(s->vx,s->vy)<=WB_MINI_LAND_SPEED &&
       fabs(s->vz)<=WB_MINI_LAND_SPEED;
     if(stable) {
