@@ -47,8 +47,9 @@ int main(void) {
  assert(step(&m,0,0,0,0,0,0,0)==WB_ORIENT_WAIT);
  route(&m);
  assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
- assert(step(&m,4.24,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.26,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.0+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.256,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
  assert(step(&m,5,5,5,5,0,0,0)==WB_ORIENT_ACHIEVED);
  // RESET does not inherit achievement, stage, flight or completion.
  wb_orient_reset(&m,2,0);
@@ -85,8 +86,9 @@ int main(void) {
  assert(step(&m,3,.90,-.45,.68,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
  assert(m.stage==3);
  assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
- assert(step(&m,4.24,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.26,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.0+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.256,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
  // A momentary low-speed sample does not pass; movement restarts the dwell.
  wb_orient_reset(&m,13,0);
  route(&m);
@@ -94,16 +96,18 @@ int main(void) {
  assert(step(&m,4.20,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,4.23,.90,-.90,.03,0,.30,0)==WB_ORIENT_WAIT);
  assert(step(&m,4.32,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.56,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.58,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.32+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.576,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
  // Leaving the full-pad area resets the dwell even if velocity is low.
  wb_orient_reset(&m,14,0);
  route(&m);
  assert(step(&m,4,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
  assert(step(&m,4.15,1.01,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,4.20,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.43,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
- assert(step(&m,4.46,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.20+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.456,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
  // Native 8-ms cadence: reaching 250 ms only at completion+1.504 s
  // cannot grant success after the absolute 1.5-s terminal deadline.
  wb_orient_reset(&m,15,0);
@@ -148,6 +152,31 @@ int main(void) {
  wb_orient_reset(&m,19,0);
  route(&m);
  assert(step_contact(&m,4,.90,-.90,.030,0,0,1,-1)==WB_ORIENT_NOT_ACHIEVED);
+ // Two isolated floor contacts cannot claim 250 ms of continuously
+ // measured landing. A new series of native 32-ms samples is necessary.
+ wb_orient_reset(&m,20,0);
+ route(&m);
+ assert(step(&m,4.000,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.256,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(m.stable_since_valid && fabs(m.stable_since-4.256)<1e-8);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.256+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.512,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ // One missed native tick (64 ms) also invalidates the prior dwell.
+ wb_orient_reset(&m,21,0);
+ route(&m);
+ assert(step(&m,4.000,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,4.032,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.096,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(m.stable_since_valid && fabs(m.stable_since-4.096)<1e-8);
+ for (int tick=1;tick<=7;++tick)
+  assert(step(&m,4.096+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
+ assert(step(&m,4.352,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ // A backwards timestamp must never produce a valid native mission.
+ wb_orient_reset(&m,22,0);
+ route(&m);
+ assert(step(&m,4.000,.90,-.90,.03,0,0,1)==WB_ORIENT_WAIT);
+ assert(step(&m,3.999,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
  // Constant height fails B.
  wb_orient_reset(&m,5,0);
  assert(step(&m,1,.45,0,.63,-WB_ORIENT_PI/2,0,0)==WB_ORIENT_WAIT);
@@ -214,6 +243,7 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertIn("#define WB_ORIENT_LAND_Y -0.90",core)
         self.assertIn("#define WB_ORIENT_LAND_TOL 0.07",core)
         self.assertIn("#define WB_ORIENT_LAND_DWELL 0.25",core)
+        self.assertIn("#define WB_ORIENT_MAX_LAND_SAMPLE_GAP 0.048",core)
         self.assertIn("geometry Box { size 0.32 0.32 0.004 }",scene)
         self.assertEqual(len(re.findall(r"^    Pose \{ translation ",scene,re.MULTILINE)),24)
         for label,coords,angle in (
@@ -247,6 +277,7 @@ class NativeActivity3Oracle(unittest.TestCase):
         self.assertIn("C_SOURCES = progression_orientation_3d.c",mk)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking",src)
         self.assertIn("wb_supervisor_node_get_contact_points",src)
+        self.assertIn("if (step != 32 || !verify_scene())",src)
         self.assertIn("sample.floor_contact = observe_floor_contact(craft)",src)
         self.assertIn("s->floor_contact == 1",CORE.read_text(encoding="utf8"))
         self.assertNotIn("crazyflie_runtime_v2",mk)
