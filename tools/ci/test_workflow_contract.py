@@ -79,8 +79,9 @@ class WorkflowTests(unittest.TestCase):
             "# Temporary non-decision A5 Draft witness. Does NOT provide CI Gate"))
         self.assertEqual(job_ids(workflow),{"a5-native-draft-only"})
         self.assertIn("  pull_request:\n",workflow)
-        self.assertIn("if: github.event.pull_request.draft == true",workflow)
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}",workflow)
+        self.assertIn("  push:\n    branches: [feat/pedagogy-a5-reactive-L-variants-20261112]",workflow)
+        self.assertIn("if: github.event_name == 'push' || github.event.pull_request.draft == true",workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}",workflow)
         self.assertIn("persist-credentials: false",workflow)
         self.assertIn("permissions:\n  contents: read",workflow)
         self.assertIn("python3 tools/ci/run_classroom_reactive_L_sensor.py",workflow)
@@ -92,6 +93,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("tools.ci.test_progression_reactive_L_v2_evaluator_attestation",workflow)
         self.assertIn("tools.ci.test_progression_reactive_L_v2_geometry_mutant",workflow)
         self.assertIn("tools.ci.test_progression_reactive_L_v2_attempts",workflow)
+        self.assertIn("tools.ci.test_progression_reactive_L_v2_school_selector",workflow)
+        self.assertIn("test_progression_reactive_L_v2_selection.js",workflow)
+        self.assertIn("test_runtime_v2_classroom_selector",workflow)
+        self.assertIn("run_classroom_reactive_L_v2_scene_ack.py",workflow)
+        self.assertIn("Build isolated school-only native C++ runtime with A5 staging",workflow)
         self.assertIn("run_classroom_reactive_L_v2_attempts.py",workflow)
         self.assertIn("Compile isolated A5 R2025a attempt-identity protocol driver",workflow)
         self.assertIn("progression_reactive_L_attempt_probe",workflow)
@@ -103,7 +109,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
         self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
         for forbidden in ("name: CI Gate\n","continue-on-error: true",
-                          "  schedule:\n","  push:\n","contents: write",
+                          "  schedule:\n","contents: write",
                           "pull-requests: write","actions: write"):
             self.assertNotIn(forbidden,workflow)
 
