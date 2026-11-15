@@ -164,7 +164,12 @@ function build(){
     const options={Blockly,profiles:Profiles,activitiesDocument:document,
       blockCatalog:Activities.BLOCK_CATALOG,semanticAst:Semantic,
       activityContract:Contract};
-    const text=JSON.stringify(project);
+    /* Validate, replay and emit the very same canonical .wbb BYTES.
+     * The old fixture validated minified bytes but wrote a different
+     * pretty-printed file to the native handoff artifact. */
+    const text=ProjectFiles.encodeProject(profile,workspace,options);
+    assert.deepStrictEqual(JSON.parse(text),project,
+      'canonical .wbb must encode the exact checked workspace');
     const validated=ProjectFiles.validateProjectText(text,profile,options);
     assert.deepStrictEqual(validated.ast,ast);
     const reopened=new Blockly.Workspace();
@@ -238,7 +243,9 @@ async function main(){
   if(process.argv[2]){
     const dest=path.resolve(process.argv[2]);
     fs.mkdirSync(path.dirname(dest),{recursive:true});
-    fs.writeFileSync(dest,JSON.stringify(witness.project,null,2)+'\n');
+    fs.writeFileSync(dest,serialized,{encoding:'utf8',flag:'wx'});
+    assert.equal(fs.readFileSync(dest,'utf8'),serialized,
+      'private WBB artifact differs from the MOCK-qualified exact bytes');
   }
   console.log('WEBEEBLOCKS_A6_PRIVATE_BLOCKLY_ROUNDTRIP_OK '+
     'blockly=13.2.1 same_wbb=1 mock_worlds=1,2,3 '+
