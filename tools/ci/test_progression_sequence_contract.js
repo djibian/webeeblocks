@@ -9,11 +9,13 @@ const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblo
 const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'));
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
+const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 10, 'scene contract must enumerate all activities');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 11, 'archive historical profile while adding altitude');
 for (const activity of Activities.DOCUMENT.activities) {
-  const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+  const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
+    activity.id === 'progression-altitude-v1' ? 'altitude-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
@@ -30,15 +32,11 @@ for (const activity of Activities.DOCUMENT.activities) {
   }
 }
 
-// The explicitly declared altitude-v1 token is supported by the classroom
-// transport contract, but NONE of the existing catalog activities silently
-// activates it. This preserves every original starter and oracle until the
-// separately reviewed Activity 2 profile is qualified.
-assert(!Activities.DOCUMENT.activities.some(profile => profile.runtime.scene === 'altitude-v1'),
-  'unstaged school-only scene was activated in the student catalog');
-const stagedAltitude = JSON.parse(JSON.stringify(Activities.DOCUMENT.activities[1]));
-stagedAltitude.runtime.scene = 'altitude-v1';
-assert.strictEqual(Profiles.validateProfile(stagedAltitude, Activities.BLOCK_CATALOG), true);
+// Exactly one independently attested native school profile selects altitude.
+const pAlt = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1', Activities.BLOCK_CATALOG);
+assert.deepStrictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'altitude-v1').map(p => p.id),[pAlt.id]);
+assert.strictEqual(pAlt.starterVisible, undefined);
+assert.strictEqual(Profiles.validateProfile(pAlt, Activities.BLOCK_CATALOG),true);
 
 // Stage only the orientation transport vocabulary; the Activity 3 starter,
 // toolbox, world and oracle stay untouched until native R2025a qualification.
@@ -53,6 +51,10 @@ const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-moveme
 const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
 assert.strictEqual(p1.world, initialProfile.world);
 assert.strictEqual(p2.world, initialProfile.world);
+assert.strictEqual(pAlt.world, initialProfile.world);
+assert.strictEqual(p2.starterVisible, false);
+assert.strictEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&p.starterVisible!==false).length,8);
+assert.match(fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'), /profile\.starterVisible !== false/);
 assert.strictEqual(p1.brief.title, '1 — Prendre son envol en 3D');
 assert.strictEqual(p2.brief.title, '2 — Livrer le colis fragile');
 assert.strictEqual(p2.brief.mission,
@@ -70,9 +72,53 @@ assert(!p2.parameterBounds.webeeblocks_v2_takeoff && !p2.parameterBounds.webeebl
 assert.deepStrictEqual(p2.runtime.astBounds['takeoff.height_m'], {min:0.5,max:0.5});
 assert.deepStrictEqual(p2.runtime.astBounds['move.distance_m'], {min:0.1,max:0.6});
 
+// Ordinary shared AST pipeline: no AST-shape success oracle is introduced.
+assert.strictEqual(pAlt.brief.title,'2 — Maîtriser l’altitude');
+assert.deepStrictEqual(pAlt.evaluation,{type:'mission-state-v1',oracle:'progression-altitude-3d-v1'});
+assert.deepStrictEqual(pAlt.toolbox,[
+  'webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_vertical',
+  'webeeblocks_v2_speed','webeeblocks_v2_land'
+]);
+assert.deepStrictEqual(pAlt.runtime.allowedStatementKinds,['takeoff','move','vertical','set_speed','land']);
+assert.deepStrictEqual(pAlt.runtime.moveDirections,['forward']);
+assert.deepStrictEqual(pAlt.runtime.verticalDirections,['up']);
+assert.deepStrictEqual(pAlt.runtime.astBounds['takeoff.height_m'],{min:0.4,max:0.8});
+assert.deepStrictEqual(pAlt.runtime.astBounds['move.distance_m'],{min:0.1,max:1.2});
+assert.deepStrictEqual(pAlt.runtime.astBounds['vertical.distance_m'],{min:0.1,max:0.8});
+const altitudeFlight={version:1,semantics:'webeeblocks-ast-v1',program:[
+  {kind:'takeoff',height_m:0.45},{kind:'set_speed',speed_m_s:0.14},
+  {kind:'move',direction:'forward',distance_m:0.32},
+  {kind:'vertical',direction:'up',distance_m:0.36},
+  {kind:'move',direction:'forward',distance_m:1.03},{kind:'land'}
+]};
+assert(ActivityContract.preflightAst(pAlt,altitudeFlight));
+assert(ActivityContract.preflightAst(pAlt,{...altitudeFlight,
+  program:altitudeFlight.program.filter(s=>s.kind!=='vertical')}),
+  'no-climb remains syntax-legal; the native physical mission must reject it');
+for(const [index,field,value] of [[0,'height_m',0.81],[2,'direction','left'],
+    [3,'direction','down'],[3,'distance_m',0.81],[1,'speed_m_s',0.3]]) {
+  const invalid=JSON.parse(JSON.stringify(altitudeFlight));
+  invalid.program[index][field]=value;
+  assert.throws(()=>ActivityContract.preflightAst(pAlt,invalid),/outside profile bounds|unavailable in profile/);
+}
+async function proveAltitudeSharedInterpreter(){
+  const calls=[];
+  const backend={
+    takeoff:async z=>calls.push(['takeoff',z]),setSpeed:async s=>calls.push(['speed',s]),
+    move:async(d,m)=>calls.push(['move',d,m]),
+    vertical:async(d,m)=>calls.push(['vertical',d,m]),land:async()=>calls.push(['land'])
+  };
+  await Interpreter.run(altitudeFlight,backend,{motionBounds:pAlt.runtime.astBounds});
+  assert.deepStrictEqual(calls,[
+    ['takeoff',0.45],['speed',0.14],['move','forward',0.32],
+    ['vertical','up',0.36],['move','forward',1.03],['land']
+  ]);
+}
+
 const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id.startsWith('progression-') &&
   profile.id !== 'progression-sequence-v1' &&
+  profile.id !== 'progression-altitude-v1' &&
   profile.id !== 'progression-precise-movement-v1' &&
   profile.id !== 'progression-repeat-v1' &&
   profile.id !== 'progression-simple-decision-v1' &&
@@ -82,7 +128,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-autonomous-strategy-v1');
 assert.strictEqual(remainingProgression.length, 0);
 
-for (const missionProfile of [p1, p2]) {
+for (const missionProfile of [p1, p2, pAlt]) {
   const missingMission = JSON.parse(JSON.stringify(missionProfile));
   delete missingMission.brief.mission;
   assert.throws(() => Profiles.validateProfile(missingMission, Activities.BLOCK_CATALOG), /brief\.mission must be a non-empty string/);
@@ -298,6 +344,8 @@ async function exerciseEmbeddedStartActivityPath(profile) {
   await exerciseProgressionNativeWallBudget();
   await exerciseEmbeddedStartActivityPath(p1);
   await exerciseEmbeddedStartActivityPath(p2);
+  await exerciseEmbeddedStartActivityPath(pAlt);
+  await proveAltitudeSharedInterpreter();
   console.log('PASS progression Activities 1 and 2 preserve embedded start, mission/pedagogy separation, whole-craft visible precision, disjoint targets, solution-shape independence and complete Activity-2 evidence contract');
 })().catch(error => {
   console.error(error);
