@@ -66,16 +66,33 @@ int main(void) {
      * Require measured native floor contact, not merely a near-ground pose.
      * No attempt was active while the robot settled. */
     wb_supervisor_node_enable_contact_points_tracking(self,step,true);
-    for(int i=0;i<65;++i)
+    int floor_contacts=0;
+    int last_contact_count=-1;
+    /* A grounded body may sleep in ODE after settling: the LAST native
+     * tick alone can have zero contacts. Require real cumulative floor
+     * contact points DURING the entire 65-tick gravity/settling history,
+     * plus a genuinely still near-floor body at the final observation.
+     * A7's established physics preflight uses the same distinction. */
+    for(int tick=0;tick<65;++tick) {
       if(wb_robot_step(step)<0)return invalid("floor preflight interrupted");
+      int nf=-1;
+      const WbContactPoint *floor_points=
+          wb_supervisor_node_get_contact_points(self,true,&nf);
+      if(nf<0||(nf>0&&!floor_points))
+        return invalid("floor contact trace unavailable");
+      last_contact_count=nf;
+      for(int i=0;i<nf;++i) {
+        if(!isfinite(floor_points[i].point[2]) ||
+           fabs(floor_points[i].point[2])>.025)
+          return invalid("nonfloor physical preflight contact");
+        ++floor_contacts;
+      }
+    }
     const double *floor_pose=wb_supervisor_node_get_position(self);
     const double *floor_speed=wb_supervisor_node_get_velocity(self);
-    int nf=-1;
-    const WbContactPoint *floor_points=
-        wb_supervisor_node_get_contact_points(self,true,&nf);
-    /* Observe already-read fields, never change contact/physics decisions. */
     printf("WEBEEBLOCKS_DECISION_H_FLOOR_RAW variant=%c "
-           "pose=%.9f,%.9f,%.9f speed=%.9f,%.9f,%.9f count=%d pointer=%d\n",
+           "pose=%.9f,%.9f,%.9f speed=%.9f,%.9f,%.9f "
+           "last_count=%d cumulative_contacts=%d\n",
            variant,
            floor_pose?floor_pose[0]:NAN,
            floor_pose?floor_pose[1]:NAN,
@@ -83,22 +100,15 @@ int main(void) {
            floor_speed?floor_speed[0]:NAN,
            floor_speed?floor_speed[1]:NAN,
            floor_speed?floor_speed[2]:NAN,
-           nf,floor_points!=NULL);
+           last_contact_count,floor_contacts);
     fflush(stdout);
-    if(!floor_pose||!floor_speed||nf<1||!floor_points||
+    if(!floor_pose||!floor_speed||
        fabs(floor_pose[0])>.040||fabs(floor_pose[1])>.040||
        floor_pose[2]<0.0||floor_pose[2]>.030||
        hypot(floor_speed[0],floor_speed[1])>.120||
        fabs(floor_speed[2])>.120)
       return invalid("floor-only physical sample not settled");
-    int floor_contacts=0;
-    for(int i=0;i<nf;++i) {
-      if(!isfinite(floor_points[i].point[2]) ||
-         fabs(floor_points[i].point[2])>.025)
-        return invalid("nonfloor physical preflight contact");
-      ++floor_contacts;
-    }
-    if(!floor_contacts)return invalid("no actual Floor contacts");
+    if(!floor_contacts)return invalid("no actual Floor contacts during settling");
     printf("WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=%c "
            "floor_contacts=%d center_z=%.9f motors=OFF\n",
            variant,floor_contacts,floor_pose[2]);
