@@ -104,8 +104,11 @@
         profile.runtime.scene !== 'sequence-v1' &&
         profile.runtime.scene !== 'legacy-v1' &&
         profile.runtime.scene !== 'altitude-v1' &&
-        profile.runtime.scene !== 'orientation-v1')
-      fail('runtime.scene must be sequence-v1, legacy-v1, altitude-v1 or orientation-v1');
+        profile.runtime.scene !== 'orientation-v1' &&
+        profile.runtime.scene !== 'reactive-L-a-v2' &&
+        profile.runtime.scene !== 'reactive-L-b-v2' &&
+        profile.runtime.scene !== 'reactive-L-c-v2')
+      fail('runtime.scene must be an explicitly staged native scene token');
     if (profile.runtime.maxSteps !== undefined &&
         (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000))
       fail('runtime.maxSteps outside [1, 20000]');
