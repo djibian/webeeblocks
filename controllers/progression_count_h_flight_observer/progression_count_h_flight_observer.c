@@ -42,6 +42,14 @@ static int box(const char *def,double x,double y,double z,
   for(int i=0;i<3;++i)
     if(!isfinite(p[i])||fabs(p[i]-a[i])>.000001||
        !isfinite(s[i])||fabs(s[i]-b[i])>.000001)return 0;
+  const double *orientation=wb_supervisor_node_get_orientation(solid);
+  if(!orientation)return 0;
+  for(int row=0;row<3;++row)
+    for(int col=0;col<3;++col) {
+      const double expected=row==col?1.0:0.0;
+      const double actual=orientation[3*row+col];
+      if(!isfinite(actual)||fabs(actual-expected)>.000001)return 0;
+    }
   *result=solid;
   return 1;
 }

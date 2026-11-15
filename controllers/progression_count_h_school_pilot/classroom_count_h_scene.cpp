@@ -47,7 +47,14 @@ bool box(const char *def, double x, double y, double z,
   if(!pos||!shape||std::strcmp(wb_supervisor_node_get_type_name(shape),"Box"))return false;
   WbFieldRef size=wb_supervisor_node_get_field(shape,"size");
   const double *actual=size?wb_supervisor_field_get_sf_vec3f(size):nullptr;
-  return actual&&approx(pos[0],x)&&approx(pos[1],y)&&approx(pos[2],z)&&
+  // A rotated wall changes physical collision even with identical local Box.
+  const double *orientation=wb_supervisor_node_get_orientation(solid);
+  if(!actual||!orientation)return false;
+  for(int row=0;row<3;++row)
+    for(int col=0;col<3;++col)
+      if(!approx(orientation[3*row+col],row==col?1.0:0.0))
+        return false;
+  return approx(pos[0],x)&&approx(pos[1],y)&&approx(pos[2],z)&&
          approx(actual[0],sx)&&approx(actual[1],sy)&&approx(actual[2],sz);
 }
 // CI-only admission accepts the three strictly identified classroom scenes.
