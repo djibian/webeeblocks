@@ -60,6 +60,17 @@ static void completed_route(wb_dh_mission *m, int attempt, wb_dh_scene scene) {
   pass_first(m,scene==WB_DH_SCENE_A?.50:.85);
   pass_second(m,scene==WB_DH_SCENE_A?.85:.50);
 }
+/* Reuse the complete physical route with a legitimately admitted
+ * higher initial centre height, not a fabricated isolated pad sample. */
+static void completed_route_with_origin(wb_dh_mission *m, int attempt,
+                                        wb_dh_scene scene, double origin_z) {
+  wb_dh_reset(m,(unsigned long long)attempt,scene,origin_z);
+  assert(tick(m,0,0,0,origin_z,0,0,0)==WB_DH_WAIT);
+  assert(tick(m,1,.2,0,.750,0,0,0)==WB_DH_WAIT);
+  assert(m->airborne && m->before_first && m->stage==0);
+  pass_first(m,scene==WB_DH_SCENE_A?.50:.85);
+  pass_second(m,scene==WB_DH_SCENE_A?.85:.50);
+}
 /* Real R2025a classroom scene has a 32-ms basicTimeStep. A total of
  * eight consecutive native intervals (0.256s) proves the 0.250s dwell. */
 static void finish_stably(wb_dh_mission *m, double t) {
@@ -75,6 +86,31 @@ int main(void) {
   assert(tick(&m,9,5,5,5,99,-1,1)==WB_DH_ACHIEVED); // immutable terminal
   completed_route(&m,2,WB_DH_SCENE_B);
   finish_stably(&m,8.0);
+  /* Refute hovering falsely treated as LAND after the COMPLETE event.
+   * Both variants traverse BOTH physical stations at legal heights; only
+   * the final stationary craft's absolute altitude is invalid. The first
+   * test even starts at the normal origin: z=0.090 is only 55 mm above it.
+   * The second starts legally higher at z=0.075 and hovers at 0.140.
+   * On the old relative-only oracle, either case returned ACHIEVED after
+   * 8 native 32-ms intervals. That is NOT a grounded landing. */
+  for(int v=0;v<2;++v) {
+    const wb_dh_scene scene=v==0?WB_DH_SCENE_A:WB_DH_SCENE_B;
+    for(int kind=0;kind<2;++kind) {
+      const double origin=kind==0?.035:.075;
+      const double hover=kind==0?.090:.140;
+      completed_route_with_origin(&m,200+10*v+kind,scene,origin);
+      assert(hover-origin<=WB_DH_LAND_Z);
+      assert(hover>WB_DH_LAND_ABSOLUTE_Z);
+      for(int i=0;i<=9;++i)
+        assert(tick(&m,8.0+.032*i,1.75,0,hover,0,0,i==0)==WB_DH_WAIT);
+      assert(m.landed_since == -1.0);
+      assert(tick(&m,9.501,1.75,0,hover,0,0,0)==WB_DH_NOT_ACHIEVED);
+      /* An authentic ground landing must still remain admissible after
+       * the same legally started and completed route. */
+      completed_route_with_origin(&m,240+10*v+kind,scene,origin);
+      finish_stably(&m,8.0);
+    }
+  }
   // Neither A nor B may infer 250 ms of observed stillness from two
   // isolated poses 260 ms apart; a fresh continuous 32-ms series may win.
   for(int v=0;v<2;++v) {
@@ -265,6 +301,9 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_SCENE_A', content)
         self.assertIn('WB_DH_SCENE_B', content)
         self.assertIn('WB_DH_LAND_DWELL_SEC 0.250', content)
+        self.assertIn('WB_DH_LAND_ABSOLUTE_Z 0.070', content)
+        self.assertIn('s->z - m->origin_z <= WB_DH_LAND_Z &&', content)
+        self.assertIn('s->z <= WB_DH_LAND_ABSOLUTE_Z', content)
         self.assertIn('WB_DH_MAX_OBSERVATION_GAP_SEC 0.048', content)
         self.assertIn('s->time - m->last_time > WB_DH_MAX_OBSERVATION_GAP_SEC', content)
         self.assertIn('WB_DH_START_XY_TOL 0.080', content)
