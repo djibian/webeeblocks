@@ -188,7 +188,117 @@ bool orientationObserver() {
     wb_supervisor_field_get_sf_bool(supervisorField) &&
     wb_supervisor_field_get_sf_bool(syncField);
 }
+// Staged A5 v2 tokens are only accepted by this school-only process.
+// They are never inferred from the student's .wbb/AST, nor allowed in the
+// hardware-locked runtime. Each token denotes one exact physical variant.
+char reactiveV2Token(const char *name) {
+  if (!name) return 0;
+  if (!std::strcmp(name, "reactive-L-a-v2")) return 'A';
+  if (!std::strcmp(name, "reactive-L-b-v2")) return 'B';
+  if (!std::strcmp(name, "reactive-L-c-v2")) return 'C';
+  return 0;
+}
+bool reactiveV2Present() {
+  return wb_supervisor_node_get_from_def("WEBEEBLOCKS_REACTIVE_L_V2_A_SCENE") ||
+         wb_supervisor_node_get_from_def("WEBEEBLOCKS_REACTIVE_L_V2_B_SCENE") ||
+         wb_supervisor_node_get_from_def("WEBEEBLOCKS_REACTIVE_L_V2_C_SCENE") ||
+         wb_supervisor_node_get_from_def("WEBEEBLOCKS_REACTIVE_L_V2_EVALUATOR");
+}
+struct ReactiveV2Box {
+  const char *suffix;
+  double position[3];
+  double size[3];
+};
+bool reactiveV2Colliders(char variant) {
+  const ReactiveV2Box common[] = {
+    {"L1_FRONT", {1.02, 0.0, .55}, {.08, .64, 1.10}},
+    {"L1_SIDE", {.80, -.32, .55}, {.48, .08, 1.10}},
+    {"L2_FRONT", {.80, 1.25, .55}, {.64, .08, 1.10}},
+    {"L2_SIDE", {variant == 'A' ? .48 : 1.12, 1.0, .55}, {.08, .50, 1.10}}
+  };
+  const ReactiveV2Box extraA[] = {
+    {"TERMINAL", {1.95, 1.0, .55}, {.08, .72, 1.10}}
+  };
+  const ReactiveV2Box extraB[] = {
+    {"TERMINAL", {-1.02, 1.0, .55}, {.08, .72, 1.10}}
+  };
+  const ReactiveV2Box extraC[] = {
+    {"L3_FRONT", {-.68, 1.0, .55}, {.08, .64, 1.10}},
+    {"L3_SIDE", {-.45, .68, .55}, {.48, .08, 1.10}},
+    {"TERMINAL", {-.45, 1.95, .55}, {.72, .08, 1.10}}
+  };
+  if (variant != 'A' && variant != 'B' && variant != 'C') return false;
+  auto verify = [variant](const ReactiveV2Box &expected) -> bool {
+    const std::string def = std::string("ACTIVITY5_V2_") + variant + "_" + expected.suffix;
+    WbNodeRef solid = wb_supervisor_node_get_from_def(def.c_str());
+    const char *kind = solid ? wb_supervisor_node_get_type_name(solid) : nullptr;
+    if (!kind || std::strcmp(kind, "Solid")) return false;
+    const double *position = wb_supervisor_node_get_position(solid);
+    const double *orientation = wb_supervisor_node_get_orientation(solid);
+    WbFieldRef boundary = wb_supervisor_node_get_field(solid, "boundingObject");
+    WbNodeRef box = boundary ? wb_supervisor_field_get_sf_node(boundary) : nullptr;
+    const char *shape = box ? wb_supervisor_node_get_type_name(box) : nullptr;
+    WbFieldRef sizeField = box ? wb_supervisor_node_get_field(box, "size") : nullptr;
+    const double *size = sizeField ? wb_supervisor_field_get_sf_vec3f(sizeField) : nullptr;
+    if (!position || !orientation || !shape || std::strcmp(shape, "Box") || !size)
+      return false;
+    for (int j = 0; j < 3; ++j)
+      if (!std::isfinite(position[j]) || !std::isfinite(size[j]) ||
+          std::fabs(position[j] - expected.position[j]) > .000001 ||
+          std::fabs(size[j] - expected.size[j]) > .000001) return false;
+    for (int j = 0; j < 9; ++j)
+      if (!std::isfinite(orientation[j]) ||
+          std::fabs(orientation[j] - (j % 4 == 0 ? 1.0 : 0.0)) > .000001)
+        return false;
+    return true;
+  };
+  for (const auto &box : common) if (!verify(box)) return false;
+  if (variant == 'C') {
+    for (const auto &box : extraC) if (!verify(box)) return false;
+  } else if (variant == 'A') {
+    for (const auto &box : extraA) if (!verify(box)) return false;
+  } else {
+    for (const auto &box : extraB) if (!verify(box)) return false;
+  }
+  return true;
+}
+bool reactiveV2Observer() {
+  WbNodeRef observer=wb_supervisor_node_get_from_def("WEBEEBLOCKS_REACTIVE_L_V2_EVALUATOR");
+  const char *kind=observer?wb_supervisor_node_get_type_name(observer):nullptr;
+  if(!kind||std::strcmp(kind,"Robot"))return false;
+  WbFieldRef controller=wb_supervisor_node_get_field(observer,"controller");
+  WbFieldRef name=wb_supervisor_node_get_field(observer,"name");
+  WbFieldRef supervisor=wb_supervisor_node_get_field(observer,"supervisor");
+  WbFieldRef sync=wb_supervisor_node_get_field(observer,"synchronization");
+  if(!controller||!name||!supervisor||!sync)return false;
+  const char *c=wb_supervisor_field_get_sf_string(controller);
+  const char *n=wb_supervisor_field_get_sf_string(name);
+  return c&&n&&!std::strcmp(c,"progression_reactive_L_v2")&&
+         !std::strcmp(n,"A5 v2 native evaluator")&&
+         wb_supervisor_field_get_sf_bool(supervisor)&&
+         wb_supervisor_field_get_sf_bool(sync);
+}
+bool reactiveV2Selection(char variant) {
+  if (variant!='A' && variant!='B' && variant!='C') return false;
+  const std::string def=std::string("WEBEEBLOCKS_REACTIVE_L_V2_")+variant+"_SCENE";
+  const int children=variant=='C'?28:25;
+  if(!completeGroup(def.c_str(),children)||!reactiveV2Colliders(variant)||
+     !reactiveV2Observer())return false;
+  for(char v='A';v<='C';++v)
+    if(v!=variant) {
+      const std::string other=std::string("WEBEEBLOCKS_REACTIVE_L_V2_")+v+"_SCENE";
+      if(wb_supervisor_node_get_from_def(other.c_str()))return false;
+    }
+  return !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+}
 bool liveSelection() {
+  if (reactiveV2Token(selected.c_str()))
+    return reactiveV2Selection(reactiveV2Token(selected.c_str()));
+  if (reactiveV2Present()) return false;
   if (selected == "sequence-v1")
     return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", kSequenceSceneChildren) &&
       sequenceObserver() &&
@@ -260,7 +370,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   if (!scene || (std::strcmp(scene, "sequence-v1") &&
                  std::strcmp(scene, "legacy-v1") &&
                  std::strcmp(scene, "altitude-v1") &&
-                 std::strcmp(scene, "orientation-v1"))) return 0;
+                 std::strcmp(scene, "orientation-v1") &&
+                 !reactiveV2Token(scene))) return 0;
   observeWorld();
   ready = ready && liveSelection();
   if (ready && selected == scene) return 1;
@@ -282,7 +393,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
-        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE")) {
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+        !reactiveV2Present()) {
       // A typed, empty classroom launch has no live scenario to export. Its
       // versioned restoration assets remain subject to the same post-import
       // type/count/node checks. An interrupted/partial scene is never empty.
@@ -324,14 +436,30 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         nextScene.find("DEF WEBEEBLOCKS_ORIENTATION_SCENE Group {") != 0 ||
         nextScene.find("controller \"progression_orientation_3d\"") == std::string::npos)
       return 0;
+  } else if (reactiveV2Token(scene)) {
+    const char variant=reactiveV2Token(scene);
+    const std::string file=std::string("reactive-L-")+static_cast<char>('a'+variant-'A')+"-v2.wbo";
+    nextScene=sceneFile(file.c_str());
+    const std::string def=std::string("DEF WEBEEBLOCKS_REACTIVE_L_V2_")+variant+"_SCENE Group {";
+    const size_t begin=nextScene.find(def);
+    // Strip only leading teacher-facing comments; never trust a missing,
+    // duplicated or differently named scene. Native nodes are re-attested.
+    if(begin==std::string::npos || nextScene.find(def,begin+def.size())!=std::string::npos ||
+       nextScene.size()>12000 || nextScene.find("Robot {")!=std::string::npos)
+      return 0;
+    nextScene.erase(0,begin);
   }
   ready = false;
   // Stop controllers before removing any node to which they hold field refs.
+  removeDef("WEBEEBLOCKS_REACTIVE_L_V2_EVALUATOR");
   removeDef("WEBEEBLOCKS_LEGACY_EVALUATORS");
   removeDef("WEBEEBLOCKS_LEGACY_SCENE");
   removeDef("WEBEEBLOCKS_SEQUENCE_SCENE");
   removeDef("WEBEEBLOCKS_ALTITUDE_SCENE");
   removeDef("WEBEEBLOCKS_ORIENTATION_SCENE");
+  removeDef("WEBEEBLOCKS_REACTIVE_L_V2_A_SCENE");
+  removeDef("WEBEEBLOCKS_REACTIVE_L_V2_B_SCENE");
+  removeDef("WEBEEBLOCKS_REACTIVE_L_V2_C_SCENE");
   // Activities 7/8 currently import extra root nodes at evaluator startup.
   // Remove those too; restarting their evaluators recreates them on restoration.
   for (int i = wb_supervisor_field_get_count(children) - 1; i >= 0; --i) {
@@ -379,6 +507,25 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
     wb_supervisor_field_set_sf_rotation(orientation, o);
+  } else if (reactiveV2Token(scene)) {
+    // The scene remains a pure WBO physical/visual asset. Install one native
+    // observer from the trusted school controller, not from a Blockly file.
+    wb_supervisor_field_import_mf_node_from_string(children,-1,nextScene.c_str());
+    if(completeGroup((std::string("WEBEEBLOCKS_REACTIVE_L_V2_")+
+                      reactiveV2Token(scene)+"_SCENE").c_str(),
+                     reactiveV2Token(scene)=='C'?28:25) &&
+       reactiveV2Colliders(reactiveV2Token(scene))) {
+      wb_supervisor_field_import_mf_node_from_string(children,-1,
+        "DEF WEBEEBLOCKS_REACTIVE_L_V2_EVALUATOR Robot {"
+        " translation 0 0 -1 name \"A5 v2 native evaluator\""
+        " controller \"progression_reactive_L_v2\" supervisor TRUE"
+        " synchronization TRUE }");
+    }
+    ready=reactiveV2Selection(reactiveV2Token(scene));
+    const double p[]={-2.0,-2.0,2.2};
+    const double o[]={-.45,.47,.76,1.05};
+    wb_supervisor_field_set_sf_vec3f(position,p);
+    wb_supervisor_field_set_sf_rotation(orientation,o);
   } else {
     wb_supervisor_field_import_mf_node_from_string(children, -1, legacyScene.c_str());
     if (completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren)) {
