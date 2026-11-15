@@ -53,6 +53,10 @@ class A4LowContactTests(unittest.TestCase):
             "WEBEEBLOCKS_DECISION_H_LOW_END variant=%c",
             "WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=%c",
             "floor_contacts=%d center_z=%.9f motors=OFF",
+            "for(int tick=0;tick<65;++tick)",
+            "last_contact_count=nf",
+            "++floor_contacts",
+            "no actual Floor contacts during settling",
         ):
             self.assertIn(token, probe)
         for token in (
