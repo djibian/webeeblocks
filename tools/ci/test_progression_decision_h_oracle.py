@@ -136,6 +136,22 @@ int main(void) {
   assert(tick(&m,8.30,1.75,0,.035,0,0,0)==WB_DH_WAIT);
   assert(tick(&m,8.50,1.75,0,.035,0,0,0)==WB_DH_WAIT);
   assert(tick(&m,8.57,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  // A valid 0.25 s dwell finishing after 1.5 s must NEVER win the race.
+  // At the real 8-ms cadence, first stable sample is 9.248, and a
+  // 9.504 success would be 4 ms beyond the terminal completion deadline.
+  completed_route(&m,29,WB_DH_SCENE_B);
+  assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.240,1.75,.12,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.496,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.504,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,9.512,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+  // At exact 1.500 s, deadline overrides a simultaneous dwell completion.
+  completed_route(&m,33,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.500,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+  // Existing timely success (8.260), motion/pad reset and RESET persist.
   // Wrong chronology, unknown observations, invalid scene, repeated timestamp.
   takeoff(&m,30,WB_DH_SCENE_A);
   assert(tick(&m,1,.2,0,.75,0,0,0)==WB_DH_NOT_ACHIEVED);

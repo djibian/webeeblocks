@@ -164,6 +164,12 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   }
   if (!m->completion_seen)
     return WB_DH_WAIT;
+  /* Never award a newly stable landing at/after the terminal deadline.
+   * Equality belongs to failure, even when 0.250 s dwell also completes. */
+  if (s->time - m->completion_at >= WB_DH_SETTLE_SEC) {
+    m->verdict = WB_DH_NOT_ACHIEVED;
+    return m->verdict;
+  }
 
   const int landed = s->z - m->origin_z <= WB_DH_LAND_Z;
   const int still = hypot(s->vx, s->vy) <= WB_DH_LAND_MAX_SPEED &&
@@ -180,9 +186,6 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
     /* Any excursion, vertical drift or renewed motion restarts the dwell. */
     m->landed_since = -1.0;
   }
-  if (m->verdict == WB_DH_WAIT &&
-      s->time - m->completion_at >= WB_DH_SETTLE_SEC)
-    m->verdict = WB_DH_NOT_ACHIEVED;
   return m->verdict;
 }
 
