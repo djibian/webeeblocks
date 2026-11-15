@@ -27,8 +27,16 @@ async function scenario(startProfileId, options={}){
   const document={body:{dataset:{}},getElementById(id){return elements[id]}};
   class CustomEvent{constructor(type,options){this.type=type;this.detail=options?.detail}}
   const Blockly={};
-  const workspace={state:{blocks:['students work',42]},isReadOnly:()=>false,
-    setIsReadOnly(){}};
+  let readOnly=false;
+  const workspace={state:{blocks:['students work',42]}};
+  if(!options.noReadOnlyApi){
+    workspace.isReadOnly=()=>readOnly;
+    workspace.setIsReadOnly=value=>{readOnly=value===true};
+  }
+  function editWouldBeBlocked(){
+    return (typeof workspace.isReadOnly==='function' && workspace.isReadOnly()) ||
+      elements.blocklyDiv.inert;
+  }
   const backendCalls=[],diagnostics=[];
   let holdAck=false,resolveAck=null,failNext=false,saveWrites=0,clearBreakpoints=0;
   let resetCalls=0;
@@ -71,6 +79,8 @@ async function scenario(startProfileId, options={}){
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
   const bytes=manager.bytes();
+  if(!options.outcomePending)
+    assert(!editWouldBeBlocked(),'pupil must be able to edit while READY');
   const mini=startProfileId==='progression-mini-grand-prix-v1';
   const nextScene=mini?'mini-grand-prix-r-v1':'decision-h-b-v1';
   const firstScene=mini?'mini-grand-prix-l-v1':'decision-h-a-v1';
@@ -94,6 +104,11 @@ async function scenario(startProfileId, options={}){
       'pending native mission outcome must disable A4 scene selection');
     for(const id of ['projectActivity','projectOpen','projectSave','projectSaveAs'])
       assert(elements[id].disabled,'file operation unlocked before mission verdict: '+id);
+    assert(editWouldBeBlocked(),
+      'stale READY unlocked Blockly editing before native verdict');
+    // Model a pupil edit only when the editor actually permits it.
+    if(!editWouldBeBlocked()) workspace.state.blocks.push('unverified edit');
+    assert.equal(manager.bytes(),bytes,'pending verdict allowed a student block edit');
     btn.handlers.click();await flush();
     assert.equal(backendCalls.length,0,'pending outcome switched Webots scene');
     assert.equal(resetCalls,0,'pending outcome issued native RESET');
@@ -106,8 +121,10 @@ async function scenario(startProfileId, options={}){
   assert.match(btn.textContent,firstLabel);
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'EXÉCUTION'}}));
   assert(btn.disabled,'active flight must prevent scene changes');
+  assert(editWouldBeBlocked(),'active flight must prevent Blockly editing');
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'PRÊT'}}));
   assert(!btn.disabled,'completed flight state should re-enable A4 selection');
+  assert(!editWouldBeBlocked(),'editor must unlock after native completion');
 
   // Native SCENE_OK is the linearization point: never show B before ACK.
   holdAck=true;btn.handlers.click();await flush();
@@ -147,7 +164,9 @@ async function scenario(startProfileId, options={}){
   const pending=await scenario('progression-decision-h-v1',{outcomePending:true});
   const mini=await scenario('progression-mini-grand-prix-v1');
   const miniPending=await scenario('progression-mini-grand-prix-v1',{outcomePending:true});
+  const a4Fallback=await scenario('progression-decision-h-v1',{outcomePending:true,noReadOnlyApi:true});
+  const a7Fallback=await scenario('progression-mini-grand-prix-v1',{outcomePending:true,noReadOnlyApi:true});
   const other=await scenario('progression-sequence-v1');
-  console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,other.status,
+  console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,a4Fallback.status,a7Fallback.status,other.status,
     'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});
