@@ -112,6 +112,27 @@ static void missed_native_frame(char v){
   step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_ACHIEVED);
 }
+/* An open-loop policy copied from variant A must not pass B or C.
+ * These are C11 swept physical-collider checks, NOT motorized Webots or
+ * proof that every possible open-loop policy fails. */
+static void blind_a_turn_on_other_variant(char v){
+  assert(v=='B'||v=='C');
+  journey j;prefix(&j,v);
+  move(&j,.8,1,.5,0); /* Replays the A turn instead of sensing the side. */
+  int hit=0;
+  for(int i=1;i<=30;++i){
+    const double x=.8+.01*i;
+    const int collider=wb_rl2_hits_wall(v,j.s.x,j.s.y,x,1.0);
+    step(&j,x,1.,.5,0,0,0);
+    const wb_rl2_verdict verdict=wb_rl2_sample_mission(&j.m,&j.s);
+    if(verdict==WB_RL2_FAILED){
+      assert(collider); /* Physical swept wall, not only an oracle boundary. */
+      hit=1;break;
+    }
+    assert(verdict==WB_RL2_WAIT);
+  }
+  assert(hit&&j.m.verdict==WB_RL2_FAILED);
+}
 static void skip_waypoint(char v){
   journey j;begin(&j,v);move(&j,0,0,.5,0);
   step(&j,0,0,.5,0,1,0);
@@ -216,10 +237,11 @@ int main(void){
     invalid_sample(*v);wrong_direction(*v);teleport(*v);
     wrong_pad(*v);never_completed(*v);
   }
+  for(const char *v="BC";*v;++v)blind_a_turn_on_other_variant(*v);
   wb_rl2_mission bad={0};wb_rl2_sample s={0};
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
   wb_rl2_reset(&bad,0,'Z',NAN);
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
-  puts("PASS A5 V2 C oracle: 50 positive/adversarial cases");
+  puts("PASS A5 V2 C oracle: 52 positive/adversarial cases");
   return 0;
 }
