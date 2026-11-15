@@ -45,9 +45,11 @@
 /* Both the descent relative to the native starting pose and the proximity
  * to the attested z=0 classroom floor are required for an actual landing.
  * A grounded Crazyflie centre is observed at z≈0.015 m in R2025a; an
- * upper 0.030 m envelope keeps modest physical/numerical margin. This is
+ * upper 0.020 m envelope keeps 5 mm above the observed physical rest
+ * centre in the closely related A4 native R2025a scenes. Verify A2 native
+ * landings independently before Ready. This is
  * a conservative proximity test, not proof of a native Floor contact. */
-#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.030
+#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.020
 
 typedef enum {
   WB_ALT_WAIT = 0,
