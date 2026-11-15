@@ -78,6 +78,18 @@ int main(void) {
   assert(step(&m, 2.43, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.46, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
 
+  /* Adversarial 8-ms boundary: landing dwell completes 4 ms too late. */
+  airborne(&m, 24);
+  assert(step(&m, 2.000, .43, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  for (int tick = 1; tick <= 188; ++tick) {
+    const double t = 2.000 + 0.008 * tick;
+    const double x = tick < 156 ? .43 : .35;
+    const wb_seq_verdict verdict = step(&m, t, x, .28, .02, 0, 0, 0, 0);
+    if (tick < 188) assert(verdict == WB_SEQ_WAIT);
+    else assert(verdict == WB_SEQ_NOT_ACHIEVED);
+  }
+  assert(step(&m, 3.512, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
+
   /* One valid sample followed by an invalid pose at deadline must fail. */
   airborne(&m, 13);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);

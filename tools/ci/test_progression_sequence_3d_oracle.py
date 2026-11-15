@@ -95,6 +95,23 @@ class Sequence3DOracleTests(unittest.TestCase):
                          "not-achieved")
         self.assertEqual(attempt.sample(3.7, pose, still, False), "not-achieved")
 
+    def test_eight_ms_landing_dwell_cannot_complete_after_terminal_deadline(self):
+        attempt = oracle.Attempt(24, 0.0)
+        self.assertIsNone(attempt.sample(1.0, [0, 0, 0.5], [0, 0, 0], False))
+        self.assertIsNone(attempt.sample(2.0, [0.43, 0.28, 0.02], [0, 0, 0], True))
+        for tick in range(1, 189):
+            now = 2.0 + 0.008 * tick
+            x = 0.43 if tick < 156 else 0.35
+            verdict = attempt.sample(now, [x, 0.28, 0.02], [0, 0, 0], False)
+            if tick < 188:
+                self.assertIsNone(verdict)
+            else:
+                self.assertEqual(verdict, "not-achieved")
+        self.assertEqual(
+            attempt.sample(3.512, [0.35, 0.28, 0.02], [0, 0, 0], False),
+            "not-achieved",
+        )
+
     def test_oracle_pad_margin_matches_scene_geometry_and_drone_span(self):
         scene = (ROOT / "worlds/scenes/sequence-v1.wbo").read_text(encoding="utf-8")
         self.assertIn("Pose { translation 0.35 0.28 0.002", scene)

@@ -78,6 +78,11 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
     m->completion_at = s->time;
   }
   if (!m->completion_seen) return WB_SEQ_WAIT;
+  /* The post-completion deadline is terminal, even with a perfect pose. */
+  if (s->time - m->completion_at >= WB_SEQ_SETTLE) {
+    m->result = WB_SEQ_NOT_ACHIEVED;
+    return m->result;
+  }
   const int landed = s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT;
   const int stationary = hypot(s->vx, s->vy) <= WB_SEQ_MAX_SPEED &&
                          fabs(s->vz) <= WB_SEQ_MAX_SPEED;
@@ -94,9 +99,6 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
     /* Any renewed movement or loss of full-pad containment resets the dwell. */
     m->stable_since_valid = 0;
   }
-  if (m->result == WB_SEQ_WAIT &&
-      s->time - m->completion_at >= WB_SEQ_SETTLE)
-    m->result = WB_SEQ_NOT_ACHIEVED;
   return m->result;
 }
 

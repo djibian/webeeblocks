@@ -69,6 +69,10 @@ class Attempt:
             self.completed_at = now
         if self.completed_at is None:
             return None
+        # A late stable pose must never overcome the terminal landing deadline.
+        if now - self.completed_at >= SETTLE_TIMEOUT:
+            self.result = "not-achieved"
+            return self.result
         landed = z <= self.origin_z + LANDED_DELTA
         stationary = math.hypot(vx, vy) <= MAX_LANDING_SPEED and abs(vz) <= MAX_LANDING_SPEED
         in_pad = abs(x - TARGET_X) <= TARGET_X_TOLERANCE and abs(y - TARGET_Y) <= TARGET_Y_TOLERANCE
@@ -79,8 +83,6 @@ class Attempt:
                 self.result = "achieved"
         else:
             self.stable_since = None
-        if self.result is None and now - self.completed_at >= SETTLE_TIMEOUT:
-            self.result = "not-achieved"
         return self.result
 
 
