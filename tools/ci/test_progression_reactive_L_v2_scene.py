@@ -93,7 +93,7 @@ class ReactiveLV2Tests(unittest.TestCase):
                 self.assertNotIn("range_front",src)
                 self.assertNotIn("range_left",src)
                 self.assertNotIn("if_then",src)
-                self.assertEqual(src.count("Pose { translation"),(4 if v=="C" else 3)+16)
+                self.assertEqual(src.count("Pose { translation"),(5 if v=="C" else 4)+16)
                 obs[v]=(
                     ray((0,0),(1,0),world),
                     ray((.8,0),(0,1),world),
