@@ -87,6 +87,76 @@ static void test_skip_and_illegal_routes_fail(void) {
   assert(route(1,805,0,0,0,0,0,1,0)==WB_COUNT_NOT_ACHIEVED);
   assert(route(1,806,0,0,0,0,0,0,1)==WB_COUNT_NOT_ACHIEVED);
 }
+/* An H centre observation is not a permanent crossing token.  Every
+ * variant must reject a later sideways bypass after a return upstream. */
+static void test_backtrack_lateral_bypass_rejected(void) {
+  for (unsigned n=1;n<=3;n++) {
+    wb_count_mission m;
+    wb_count_reset(&m,1900+n,n,0.0);
+    double clock=0.0,h=wb_count_gate_x(0);
+    assert(feed(&m,&clock,-1.40,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h-.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(m.observed_center);
+    assert(feed(&m,&clock,h-.30,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(!m.observed_center);
+    assert(feed(&m,&clock,h-.30,.55,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h+.30,.55,.40,0,0,0)==WB_COUNT_NOT_ACHIEVED);
+    assert(m.crossed==0);
+  }
+}
+/* Endpoints can be outside the H strip, but a swept crossing between them
+ * is still unsafe.  Neither a sideways nor high-altitude shortcut may pass. */
+static void test_swept_gate_shortcuts_rejected(void) {
+  for (unsigned n=1;n<=3;n++) for (int kind=0;kind<2;kind++) {
+    wb_count_mission m;
+    wb_count_reset(&m,2000+10*n+kind,n,0.0);
+    double clock=0.0,h=wb_count_gate_x(0);
+    assert(feed(&m,&clock,-1.40,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h-.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h,0,.40,0,0,0)==WB_COUNT_WAIT);
+    if (kind==0)
+      assert(feed(&m,&clock,h+.18,.55,.40,0,0,0)==WB_COUNT_NOT_ACHIEVED);
+    else
+      assert(feed(&m,&clock,h+.18,0,.95,0,0,0)==WB_COUNT_NOT_ACHIEVED);
+    assert(m.crossed==0);
+  }
+}
+/* A failed first approach is correctable: returning upstream, re-centring
+ * and passing every actual H legally must still allow the proper landing. */
+static void test_backtrack_corrected_retry_can_succeed(void) {
+  for (unsigned n=1;n<=3;n++) {
+    wb_count_mission m;
+    wb_count_reset(&m,2100+n,n,0.0);
+    double clock=0.0,h=wb_count_gate_x(0);
+    assert(feed(&m,&clock,-1.40,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h-.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h-.30,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(!m.observed_center);
+    assert(feed(&m,&clock,h-.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,h+.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(m.crossed==1);
+    for (unsigned i=1;i<n;i++) {
+      h=wb_count_gate_x(i);
+      assert(feed(&m,&clock,h-.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+      assert(feed(&m,&clock,h,0,.40,0,0,0)==WB_COUNT_WAIT);
+      assert(feed(&m,&clock,h+.18,0,.40,0,0,0)==WB_COUNT_WAIT);
+      assert(m.crossed==i+1);
+    }
+    const double y=wb_count_target_y(n);
+    assert(feed(&m,&clock,1.48,y,.40,0,0,0)==WB_COUNT_WAIT);
+    assert(feed(&m,&clock,1.48,y,.02,0,0,1)==WB_COUNT_WAIT);
+    for (int k=0;k<3;k++) {
+      const wb_count_verdict result=feed(&m,&clock,1.48,y,.02,0,0,0);
+      if(k<2)assert(result==WB_COUNT_WAIT);
+      else assert(result==WB_COUNT_ACHIEVED);
+    }
+    assert(m.crossed==n && m.verdict==WB_COUNT_ACHIEVED);
+  }
+}
+
 static void test_invalid_time_and_data(void) {
   wb_count_mission m;
   wb_count_reset(&m,23,2,0.0);
@@ -191,6 +261,9 @@ static void test_stable_landing_and_deadline(void) {
 }
 int main(void) {
   test_successes();
+  test_backtrack_lateral_bypass_rejected();
+  test_swept_gate_shortcuts_rejected();
+  test_backtrack_corrected_retry_can_succeed();
   test_stable_landing_and_deadline();
   test_wrong_target_fails();
   test_skip_and_illegal_routes_fail();
