@@ -90,7 +90,10 @@ static int attest_scene(char *variant){
   if(wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE")||
-     wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE"))
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE")||
+     /* A4 is on main: reject another independently evaluated course. */
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE")||
+     wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE"))
     return 0;
   return 1;
 }
