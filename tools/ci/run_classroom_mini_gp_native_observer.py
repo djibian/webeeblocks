@@ -22,14 +22,6 @@ ARTIFACT = ROOT / "ci-artifacts/progression-mini-gp-native-observer"
 PROJECT = "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 MARKER = "# WEBEEBLOCKS_A7_NATIVE_OBSERVER_START_NEGATIVE_CI_ONLY"
 CONTROLLER = 'controller "progression_mini_gp_geometry_probe"'
-FIRST = "] } # start"
-ROBOT = """    Robot {
-      name "Mini Grand Prix native evaluator"
-      controller "progression_mini_grand_prix_v1"
-      supervisor TRUE
-      synchronization TRUE
-    }
-  ] } # start"""
 CRAFT = '  name "Crazyflie WebeeBlocks"\n'
 
 
@@ -37,13 +29,13 @@ def compose(letter):
     if letter not in ("L", "R"):
         raise ValueError("untrusted Mini GP variant")
     source = geometry.compose(letter)
-    if (source.count(FIRST) != 1 or source.count(CONTROLLER) != 1 or
-            source.count(CRAFT) != 1 or
-            "Mini Grand Prix native evaluator" in source or
+    if (source.count(CONTROLLER) != 1 or source.count(CRAFT) != 1 or
+            source.count('controller "progression_mini_grand_prix_v1"') != 1 or
+            source.count('name "Mini Grand Prix native evaluator"') != 1 or
+            source.count(" Robot {") != 1 or
             "WB_MINI_NATIVE_READY" in source or
             "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1" in source):
         raise ValueError("already mutated native baseline")
-    source = source.replace(FIRST, ROBOT, 1)
     source = source.replace(CRAFT,
         CRAFT + '  customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"\n', 1)
     if (source.count('controller "progression_mini_grand_prix_v1"') != 1 or

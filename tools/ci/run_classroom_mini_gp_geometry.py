@@ -40,7 +40,12 @@ def compose(letter, source=None, scene=None):
             'WEBEEBLOCKS_MINI_GP_' in base or
             scene.count(f"DEF WEBEEBLOCKS_MINI_GP_{letter}_SCENE Group") != 1 or
             scene.count(" Solid {") != 9 or scene.count("boundingObject Box") != 9 or
-            "Robot {" in scene or "TouchSensor" in scene or
+            scene.count("Robot {") != 1 or
+            scene.count('name "Mini Grand Prix native evaluator"') != 1 or
+            scene.count('controller "progression_mini_grand_prix_v1"') != 1 or
+            scene.count("supervisor TRUE") != 1 or
+            scene.count("synchronization TRUE") != 1 or
+            "TouchSensor" in scene or
             f"DEF WEBEEBLOCKS_MINI_GP_{'R' if letter == 'L' else 'L'}_SCENE" in scene):
         raise ValueError("unattested or ambiguous classroom/mini-GP source")
     out = (base.replace(BASE_CONTROLLER, PROBE_CONTROLLER, 1)

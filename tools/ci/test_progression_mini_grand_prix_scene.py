@@ -30,7 +30,17 @@ class MiniGrandPrixScenes(unittest.TestCase):
                 self.assertEqual(text.count(" Solid {"), 9)
                 self.assertEqual(text.count("boundingObject Box"), 9)
                 self.assertEqual(text.count("0.0042 children"), 16)
-                self.assertNotIn("Robot {", text)
+                # The independent mission observer is a REAL, uniquely
+                # typed Webots Robot embedded in the blue marker, not merely
+                # injected by a CI fixture or exposed as a Blockly block.
+                self.assertEqual(text.count("Robot {"), 1)
+                self.assertEqual(text.count('name "Mini Grand Prix native evaluator"'), 1)
+                self.assertEqual(text.count('controller "progression_mini_grand_prix_v1"'), 1)
+                self.assertEqual(text.count("supervisor TRUE"), 1)
+                self.assertEqual(text.count("synchronization TRUE"), 1)
+                self.assertRegex(text, r'Pose \{ translation -1\.40 0 0\.002 children \['
+                                            r'[\s\S]*?Robot \{[\s\S]*?'
+                                            r'controller "progression_mini_grand_prix_v1"')
                 self.assertNotIn("TouchSensor", text)
                 self.assertEqual(text.count("# only arrival zone"), 1)
                 self.assertIn("Pose { translation -1.40 0 0.002", text)

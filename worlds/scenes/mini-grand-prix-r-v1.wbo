@@ -3,7 +3,15 @@
 # A single ordinary .wbb must succeed on both L and R with real range sensors.
 DEF WEBEEBLOCKS_MINI_GP_R_SCENE Group {
  children [
-  Pose { translation -1.40 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.84 } geometry Box { size 0.18 0.30 0.004 } } ] } # start
+  Pose { translation -1.40 0 0.002 children [
+    Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.84 } geometry Box { size 0.18 0.30 0.004 } }
+    Robot {
+      name "Mini Grand Prix native evaluator"
+      controller "progression_mini_grand_prix_v1"
+      supervisor TRUE
+      synchronization TRUE
+    }
+  ] } # start
   Pose { translation -0.450 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.84 } geometry Box { size 0.46 0.48 0.004 } } ] } # open-H low flight band
   Pose { translation 0.500 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.11 0.70 0.82 roughness 0.84 } geometry Box { size 0.20 0.20 0.004 } } ] } # turn marker
   Pose { translation 0.500 -0.950 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.84 } geometry Box { size 0.32 0.32 0.004 } } ] } # only arrival zone

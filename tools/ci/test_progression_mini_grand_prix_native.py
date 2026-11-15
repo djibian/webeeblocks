@@ -22,6 +22,7 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
             self.assertNotIn('controller "crazyflie_runtime_v2"', world)
             self.assertNotIn('controller "crazyflie_classroom_v2"', world)
             self.assertEqual(world.count(witness.MARKER), 1)
+            self.assertEqual(world.count(" Robot {"), 1)
             self.assertEqual(world.count(" Solid {"), 9)
             self.assertEqual(world.count("boundingObject Box"), 9)
             self.assertEqual(world.count(f"DEF WEBEEBLOCKS_MINI_GP_{letter}_SCENE Group"), 1)
@@ -34,6 +35,10 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         valid = (ROOT / "worlds/scenes/mini-grand-prix-l-v1.wbo").read_text(encoding="utf-8")
         for corrupt in (valid+valid, valid.replace("boundingObject Box", "geometry Box", 1),
                         valid.replace("ACTIVITY7_L_CLOSED_PANEL Solid", "ACTIVITY7_L_GHOST Solid"),
+                        valid.replace('controller "progression_mini_grand_prix_v1"',
+                                      'controller "crazyflie_runtime_v2"'),
+                        valid.replace("supervisor TRUE", "supervisor FALSE", 1),
+                        valid.replace(" Robot {", " Group {", 1),
                         valid+'\nDEF WEBEEBLOCKS_MINI_GP_R_SCENE Group {}\n'):
             # Replacing the panel label is structurally still 9 colliders,
             # but the exact native C attestation refuses it; the other bad
@@ -67,6 +72,7 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                 self.assertEqual(source.count('customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"'), 1)
                 self.assertEqual(source.count("Mini Grand Prix native evaluator"), 1)
                 self.assertEqual(source.count(" Robot {"), 1)
+                self.assertIn('Pose { translation -1.40 0 0.002 children [\n    Shape', source)
                 self.assertNotIn('controller "crazyflie_runtime_v2"', source)
                 self.assertNotIn('controller "crazyflie_classroom_v2"', source)
                 self.assertEqual(source.count(" Solid {"), 9)
