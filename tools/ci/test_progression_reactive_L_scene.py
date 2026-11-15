@@ -53,7 +53,9 @@ class ReactiveSceneTests(unittest.TestCase):
                 # Front and wrong-side physical boxes must overlap to form L.
                 self.assertLess(abs(side[0] - x), (side[3] + sx) / 2)
                 self.assertLess(abs(side[1] - y), (side[4] + sy) / 2)
-                self.assertGreater(abs(side[1]), sy / 2)
+                # The lateral box is centered exactly on the front wall's edge.
+                # Edge-centred contact, not a disjoint or recessed joint.
+                self.assertAlmostEqual(abs(side[1]), sy / 2)
                 self.assertAlmostEqual(abs(terminal[1]), 1.27)
                 self.assertLess(abs(terminal[1] - side[1]), 1.65)
                 self.assertIn(f"Pose {{ translation {side[0]:.3f} 0 0.002", src)
