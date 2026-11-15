@@ -44,8 +44,10 @@
 #define WB_ALT_MAX_LANDING_Z 0.07
 /* Both the descent relative to the native starting pose and the proximity
  * to the attested z=0 classroom floor are required for an actual landing.
- * A legitimate elevated start must not turn a stationary hover into success. */
-#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.07
+ * A grounded Crazyflie centre is observed at z≈0.015 m in R2025a; an
+ * upper 0.030 m envelope keeps modest physical/numerical margin. This is
+ * a conservative proximity test, not proof of a native Floor contact. */
+#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.030
 
 typedef enum {
   WB_ALT_WAIT = 0,

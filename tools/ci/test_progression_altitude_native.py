@@ -222,12 +222,12 @@ int main(void) {
   assert(step(&m, 6.352, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
 
 
-  /* After a complete valid crossing, a hover 5.5-6.5 cm higher than the
-   * admitted initial altitude must NOT be counted as floor touchdown.
-   * Previously both cases achieved after eight 32-ms intervals. */
-  for (int v=0; v<2; ++v) {
-    const double origin = v==0 ? .035 : .075;
-    const double hover = v==0 ? .090 : .140;
+  /* After a complete valid crossing, a hover above the actual floor with
+   * admissible initial altitude must NOT be counted as floor touchdown.
+   * Include the residual 6-cm hover that a 7-cm absolute bound missed. */
+  for (int v=0; v<3; ++v) {
+    const double origin = v==1 ? .075 : .035;
+    const double hover = v==0 ? .090 : (v==1 ? .140 : .060);
     wb_alt_reset(&m, 200+v, origin);
     assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
     assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
@@ -282,7 +282,7 @@ class NativeAltitudeContract(unittest.TestCase):
         core = CORE.read_text(encoding="utf-8")
         self.assertIn("  basicTimeStep 32", world.splitlines())
         self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
-        self.assertIn("#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.07", core)
+        self.assertIn("#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.030", core)
         self.assertIn("s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
