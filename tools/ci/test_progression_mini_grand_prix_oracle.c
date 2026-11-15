@@ -24,7 +24,10 @@ static void positive(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(6,x,y,.015,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(7.6,x,y,.015,wb_mini_heading(v),1);
+  /* Native program completion is one pulse, NOT a permanent level. */
+  a=sample(6.24,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.26,x,y,.015,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
 }
 static void bypass(char v) {
@@ -65,12 +68,68 @@ static void contact_and_stale(void) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+static void ready_for_completion(wb_mini_mission *m,char v) {
+  const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v);
+  wb_mini_reset(m,1,v,.015);
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+  a=sample(2,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+  a=sample(3,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+  a=sample(4,h+.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+  a=sample(5,x,0,.40,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+}
+static void settle_pulse_and_motion(char v) {
+  wb_mini_mission m;
+  ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(6,x,y,.015,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.20,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.23,x,y,.015,wb_mini_heading(v),0);a.vx=.3;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.40,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.63,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.66,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+}
+static void terminal_timeout(char v) {
+  wb_mini_mission m;
+  ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(6,x,y,.40,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(7.51,x,y,.40,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  a=sample(8,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+static void completion_before_turn(char v) {
+  wb_mini_mission m;
+  wb_mini_reset(&m,1,v,.015);
+  const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v);
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);wb_mini_sample_mission(&m,&a);
+  a=sample(2,h-.18,0,.40,0,0);wb_mini_sample_mission(&m,&a);
+  a=sample(3,h,0,.40,0,0);wb_mini_sample_mission(&m,&a);
+  a=sample(4,h+.18,0,.40,0,0);wb_mini_sample_mission(&m,&a);
+  a=sample(5,x,0,.40,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
 int main(void) {
   positive('L');positive('R');
+  settle_pulse_and_motion('L');settle_pulse_and_motion('R');
+  terminal_timeout('L');terminal_timeout('R');
+  completion_before_turn('L');completion_before_turn('R');
   bypass('L');bypass('R');
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: nine positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: fifteen positive/adversarial scenarios");
   return 0;
 }
