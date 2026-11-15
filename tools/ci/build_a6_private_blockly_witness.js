@@ -184,6 +184,7 @@ function virtualSensorBackend(numberOfH){
   const self={x:-1.4,y:0,z:0,landed:false,
     actions:[],
     capabilities:{actions:['takeoff','move','set_speed','land'],
+      conditionalLoops:true,
       rangeDirections:['up','front'],
       moveDirections:['forward','left','right'],verticalDirections:[]},
     async takeoff(z){this.z=z;this.actions.push('takeoff');},
@@ -214,6 +215,14 @@ async function main(){
   assert(!serialized.includes('count-h-3-v1'));
   assert.equal(serialized.includes('progression-count-h-private-ci-only'),true);
   const pads=[0,.55,-.55];
+  const noLoopCapability=virtualSensorBackend(1);
+  noLoopCapability.capabilities.conditionalLoops=false;
+  await assert.rejects(
+    Interpreter.run(witness.ast,noLoopCapability,{
+      maxSteps:20000,motionBounds:witness.profile.runtime.astBounds}),
+    /conditional loops unavailable on this backend/);
+  assert.equal(noLoopCapability.actions.length,0,
+    'missing capability must refuse BEFORE takeoff');
   for(let n=1;n<=3;n++){
     const backend=virtualSensorBackend(n);
     const result=await Interpreter.run(witness.ast,backend,{maxSteps:20000,
