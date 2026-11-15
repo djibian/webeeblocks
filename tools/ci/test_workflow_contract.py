@@ -18,6 +18,8 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Draft-only A5 native two-ray evidence; no Ready Gate / release authority.
+    "ci-progression-a5-draft.yml": {"a5-native-draft-only"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -68,6 +70,24 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("run_route_observation_native(home,env)", deadlines)
         self.assertIn("run_contact(home, DEFAULT_INDICES)", runner)
         self.assertIn("run_h(home, (5,)", runner)
+
+    def test_activity5_draft_witness_is_non_decision(self):
+        workflow=(WORKFLOWS/"ci-progression-a5-draft.yml").read_text(encoding="utf-8")
+        self.assertTrue(workflow.startswith(
+            "# Temporary non-decision A5 Draft witness. Does NOT provide CI Gate"))
+        self.assertEqual(job_ids(workflow),{"a5-native-draft-only"})
+        self.assertIn("  pull_request:\n",workflow)
+        self.assertIn("if: github.event.pull_request.draft == true",workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}",workflow)
+        self.assertIn("persist-credentials: false",workflow)
+        self.assertIn("permissions:\n  contents: read",workflow)
+        self.assertIn("python3 tools/ci/run_classroom_reactive_L_sensor.py",workflow)
+        self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
+        self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
+        for forbidden in ("name: CI Gate\n","continue-on-error: true",
+                          "  schedule:\n","  push:\n","contents: write",
+                          "pull-requests: write","actions: write"):
+            self.assertNotIn(forbidden,workflow)
 
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
