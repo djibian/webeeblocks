@@ -392,6 +392,11 @@ class CountHCoreTests(unittest.TestCase):
         self.assertNotIn("wb_count_sample_mission(AST", source)
         self.assertIn("WB_COUNT_NOT_ACHIEVED", source)
         self.assertIn("#define WB_COUNT_LAND_DWELL_SEC 0.250", source)
+        self.assertIn("#define WB_COUNT_LAND_ABSOLUTE_Z 0.070", source)
+        self.assertIn("s->z <= WB_COUNT_LAND_ABSOLUTE_Z", source)
+        physical = (ROOT/"controllers/progression_count_h_flight_observer/"
+                    "progression_count_h_flight_observer.c").read_text(encoding="utf-8")
+        self.assertIn("sample.z<=WB_COUNT_LAND_ABSOLUTE_Z", physical)
 
 
 if __name__ == "__main__":
