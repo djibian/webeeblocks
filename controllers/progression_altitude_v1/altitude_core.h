@@ -35,6 +35,8 @@
 #define WB_ALT_SETTLE_SEC 1.5
 /* Consecutive native simulation time, never a single slow pose sample. */
 #define WB_ALT_LAND_DWELL_SEC 0.250
+/* A native 8-ms evaluator cannot certify an unobserved 250-ms interval. */
+#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.050
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
 
@@ -49,7 +51,9 @@ typedef struct {
   double origin_z;
   double completion_at;
   double stable_since;
+  double last_time;
   int stable_since_valid;
+  int sampled;
   int airborne;
   int before_barrier;
   int inside_barrier;
@@ -74,6 +78,7 @@ static inline void wb_alt_reset(wb_alt_mission *m,
   memset(m, 0, sizeof(*m));
   m->attempt = attempt;
   m->origin_z = origin_z;
+  m->last_time = -1.0;
 }
 
 static inline int wb_alt_finite(const wb_alt_sample *s) {
@@ -124,6 +129,17 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
+  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
+    m->result = WB_ALT_NOT_ACHIEVED;
+    return m->result;
+  }
+  /* Missing/late native observations interrupt continuous landing proof.
+   * They never accumulate 250 ms of stability across an unobserved gap. */
+  if (m->sampled && m->completion_seen &&
+      s->time - m->last_time > WB_ALT_MAX_OBSERVATION_GAP_SEC)
+    m->stable_since_valid = 0;
+  m->last_time = s->time;
+  m->sampled = 1;
   if (s->z >= m->origin_z + 0.20)
     m->airborne = 1;
 
@@ -141,22 +157,28 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     return m->result;
   }
 
-  if (x <= WB_ALT_BARRIER_X - WB_ALT_BARRIER_HALF_X - WB_ALT_CRAFT_CLEARANCE)
-    m->before_barrier = 1;
-  if (m->before_barrier && in_barrier_span &&
-      x >= WB_ALT_BARRIER_X - WB_ALT_BARRIER_HALF_X &&
-      fabs(y) <= 0.30 &&
-      z >= WB_ALT_BARRIER_TOP + WB_ALT_CRAFT_CLEARANCE) {
-    m->inside_barrier = 1;
-  }
-  if (m->inside_barrier &&
-      x > WB_ALT_BARRIER_X + WB_ALT_BARRIER_HALF_X + WB_ALT_CRAFT_CLEARANCE &&
-      fabs(y) <= 0.30)
-    m->crossed_barrier = 1;
-
+  /* Completion freezes route progress. An early COMPLETE cannot become
+   * valid by moving past the obstacle during the settling interval. */
   if (s->completed && !m->completion_seen) {
     m->completion_seen = 1;
     m->completion_at = s->time;
+    if (!m->airborne || !m->crossed_barrier) {
+      m->result = WB_ALT_NOT_ACHIEVED;
+      return m->result;
+    }
+  }
+  if (!m->completion_seen) {
+    if (x <= WB_ALT_BARRIER_X - WB_ALT_BARRIER_HALF_X - WB_ALT_CRAFT_CLEARANCE)
+      m->before_barrier = 1;
+    if (m->before_barrier && in_barrier_span &&
+        x >= WB_ALT_BARRIER_X - WB_ALT_BARRIER_HALF_X &&
+        fabs(y) <= 0.30 &&
+        z >= WB_ALT_BARRIER_TOP + WB_ALT_CRAFT_CLEARANCE)
+      m->inside_barrier = 1;
+    if (m->inside_barrier &&
+        x > WB_ALT_BARRIER_X + WB_ALT_BARRIER_HALF_X + WB_ALT_CRAFT_CLEARANCE &&
+        fabs(y) <= 0.30)
+      m->crossed_barrier = 1;
   }
   if (!m->completion_seen)
     return WB_ALT_WAIT;
