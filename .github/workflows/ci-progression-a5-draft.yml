@@ -41,7 +41,8 @@ jobs:
             tools.ci.test_progression_reactive_L_v2_scene \
             tools.ci.test_progression_reactive_L_sensor_v2 \
             tools.ci.test_progression_reactive_L_v2_oracle \
-            tools.ci.test_progression_reactive_L_v2_native
+            tools.ci.test_progression_reactive_L_v2_native \
+            tools.ci.test_progression_reactive_L_v2_evaluator_attestation
           python3 -m unittest -v \
             tools.ci.test_workflow_contract.WorkflowTests.test_activity5_draft_witness_is_non_decision
       - name: Compile original R2025a Crazyflie sensor probe
@@ -83,6 +84,15 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_sensor_v2.py'
+      - name: Attest independent A5 V2 evaluator in three genuine R2025a worlds
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_v2_evaluator_attestation.py'
       - name: Preserve independent negative native data
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,4 +101,5 @@ jobs:
           path: |
             ci-artifacts/progression-reactive-L-sensor/
             ci-artifacts/progression-reactive-L-sensor-v2/
+            ci-artifacts/progression-reactive-L-v2-evaluator/
           if-no-files-found: warn
