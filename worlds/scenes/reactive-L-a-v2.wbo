@@ -1,0 +1,58 @@
+# Activity 5 stage-2 experimental variant A, NOT school-catalog-ready.
+# First two genuine range observations are intentionally identical for A/B/C.
+# The pupil must keep sensing along the path; no algorithm is provided.
+# This static scene does NOT attest safe flight or a need for a particular AST.
+DEF WEBEEBLOCKS_REACTIVE_L_V2_A_SCENE Group {
+ children [
+  Pose { translation 0.000 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.200 0.200 0.004 } } ] }
+  Pose { translation 0.800 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 0.800 1.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 1.580 1.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.320 0.320 0.004 } } ] }
+  Pose { translation 1.460 0.880 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.460 0.960 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.460 1.040 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.460 1.120 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.540 0.880 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.540 0.960 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.540 1.040 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.540 1.120 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.620 0.880 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.620 0.960 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.620 1.040 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.620 1.120 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.700 0.880 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.700 0.960 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.700 1.040 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  Pose { translation 1.700 1.120 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.07 0.07 roughness 0.8 } geometry Box { size 0.080 0.080 0.004 } } ] }
+  DEF ACTIVITY5_V2_A_L1_FRONT Solid {
+    translation 1.020 0.000 0.550
+    name "ACTIVITY5_V2_A_L1_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.640 1.100 } } ]
+    boundingObject Box { size 0.080 0.640 1.100 }
+  }
+  DEF ACTIVITY5_V2_A_L1_SIDE Solid {
+    translation 0.800 -0.320 0.550
+    name "ACTIVITY5_V2_A_L1_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.480 0.080 1.100 } } ]
+    boundingObject Box { size 0.480 0.080 1.100 }
+  }
+  DEF ACTIVITY5_V2_A_L2_FRONT Solid {
+    translation 0.800 1.250 0.550
+    name "ACTIVITY5_V2_A_L2_FRONT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.640 0.080 1.100 } } ]
+    boundingObject Box { size 0.640 0.080 1.100 }
+  }
+  DEF ACTIVITY5_V2_A_L2_SIDE Solid {
+    translation 0.480 1.000 0.550
+    name "ACTIVITY5_V2_A_L2_SIDE"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.500 1.100 } } ]
+    boundingObject Box { size 0.080 0.500 1.100 }
+  }
+  DEF ACTIVITY5_V2_A_TERMINAL Solid {
+    translation 1.950 1.000 0.550
+    name "ACTIVITY5_V2_A_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.720 1.100 } } ]
+    boundingObject Box { size 0.080 0.720 1.100 }
+  }
+ ]
+}
