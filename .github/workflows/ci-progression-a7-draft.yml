@@ -1,7 +1,7 @@
-# Diagnostic-only proof for the Draft Mini Grand Prix (Activity 7).
-# Proves compiled pure-C predicates and source scene structure, NOT native
-# R2025a flight, Blockly pupil delivery, physical hardware or a V5 CI Gate.
-name: Activity 7 Draft C and scene witness
+# Diagnostic ONLY, for Activity 7 Mini Grand Prix Draft: genuine native Webots
+# collider/sensor geometry is checked on two distinct worlds, but no pupil
+# Blockly/motor flight and NO decision-authoritative V5 CI Gate is claimed.
+name: Activity 7 Draft C scene and physical geometry witness
 
 on:
   pull_request:
@@ -10,24 +10,26 @@ on:
     paths:
       - '.github/workflows/ci-progression-a7-draft.yml'
       - 'controllers/progression_mini_grand_prix_v1/**'
+      - 'controllers/progression_mini_gp_geometry_probe/**'
       - 'worlds/scenes/mini-grand-prix-*-v1.wbo'
       - 'tools/ci/test_progression_mini_grand_prix_*'
+      - 'tools/ci/run_classroom_mini_gp_geometry.py'
 
 permissions:
   contents: read
 
 jobs:
   a7-draft-source-only:
-    name: A7 compiled C oracle and two structural scenes (not CI Gate)
+    name: A7 compiled C oracle, scenes and native Webots geometry (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 8
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Prove candidate identity and compile adversarial behavior
+      - name: Verify source candidate and compile adversarial C11 behavior
         shell: bash
         run: |
           set -euo pipefail
@@ -35,5 +37,31 @@ jobs:
           cc --version | head -n 1
           python3 -m unittest -v \
             tools.ci.test_progression_mini_grand_prix_scene \
-            tools.ci.test_progression_mini_grand_prix_oracle
+            tools.ci.test_progression_mini_grand_prix_oracle \
+            tools.ci.test_progression_mini_grand_prix_native
           test -z "$(git status --porcelain)"
+      - name: Compile genuine R2025a C Supervisor probe without motor authority
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_gp_geometry_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_gp_geometry_probe'
+      - name: Falsify L and R native colliders, contact and range geometry
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_geometry.py'
+      - name: Preserve negative and positive native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a7-draft-native-geometry-only
+          path: ci-artifacts/progression-mini-gp-geometry/
+          if-no-files-found: warn
