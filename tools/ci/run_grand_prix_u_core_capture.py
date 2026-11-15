@@ -90,6 +90,40 @@ def cores(directory, executable):
     return sorted(found)
 
 
+def inventory_native_cores(directory, executable):
+    """Record bounded core *metadata* before strict size validation can fail.
+
+    This never opens, hashes, copies or uploads a native core. A zero-byte or
+    oversized Webots core is still a CI failure; recording its exact size and
+    process provenance is a diagnostic, never an acceptance exception.
+    """
+    pattern = re.compile(r'core\.' + re.escape(executable) + r'\.(\d+)\.(\d+)')
+    inventory = []
+    for path in sorted(directory.iterdir()):
+        match = pattern.fullmatch(path.name)
+        if not match:
+            continue
+        if len(inventory) >= 32:
+            raise RuntimeError('too many native cores for bounded inventory')
+        entry = dict(name=path.name, pid=int(match.group(1)),
+                     timestamp=int(match.group(2)))
+        if path.is_symlink():
+            entry.update(kind='symlink', size_bytes=None, size_policy='UNTRUSTED',
+                         attribution=dict(phase='UNPROVEN'))
+        elif path.is_file():
+            size = path.stat().st_size
+            entry.update(kind='regular', size_bytes=size,
+                         size_policy=('EMPTY' if size == 0 else
+                                      'OVERSIZED' if size > CORE_LIMIT else 'IN_BOUNDS'),
+                         attribution=attribute(path))
+        else:
+            entry.update(kind='nonregular', size_bytes=None,
+                         size_policy='UNTRUSTED',
+                         attribution=dict(phase='UNPROVEN'))
+        inventory.append(entry)
+    return inventory
+
+
 def package_versions():
     result = subprocess.run(['dpkg-query', '-W', '-f=${binary:Package}\t${Version}\n'],
                             check=True, capture_output=True, text=True, timeout=10)
@@ -391,6 +425,9 @@ def host_main():
                 finally:
                     retire_container(cid)
             # All kernel routing is restored before installing debugger packages.
+            # Persist metadata BEFORE cores() rejects empty/oversized files;
+            # never let the diagnostic normalize or waive that strict guard.
+            record['native_core_inventory'] = inventory_native_cores(directory, 'webots-bin')
             found = cores(directory, 'webots-bin')
             if len(found) > 1:
                 raise RuntimeError('multiple native cores; exact attribution unproven')
