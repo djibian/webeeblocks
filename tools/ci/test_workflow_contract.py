@@ -30,7 +30,7 @@ EXPECTED = {
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
-        "grand-prix-v2-native-matrix",
+        "grand-prix-v2-native-matrix", "progression-mini-gp-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -230,6 +230,27 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('timeout -k 5s 60s xvfb-run', detour)
         self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
         self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
+
+    def test_activity7_public_native_ready_is_required_and_not_skipped(self):
+        runtime=(WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a7=runtime.split("\n  progression-mini-gp-native:\n",1)[1].split(
+            "\n  runtime-v2-core:\n",1)[0]
+        self.assertIn("name: progression-mini-gp-native",a7)
+        self.assertIn("timeout-minutes: 28",a7)
+        self.assertIn("ref: ${{ inputs.target_sha || github.sha }}",a7)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_oracle",a7)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_pupil",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_low_contact.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_foreign_scene.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_scene_selector.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_pupil.py",a7)
+        self.assertIn("cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",a7)
+        self.assertIn("if-no-files-found: error",a7)
+        for bypass in ("continue-on-error", "if: false",
+                       "if: github.event.pull_request.draft == true",
+                       "|| true", "allow-failure"):
+            self.assertNotIn(bypass,a7)
+        self.assertNotIn("name: CI Gate",a7)
 
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
