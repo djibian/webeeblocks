@@ -23,7 +23,9 @@ DRIVER = r'''
 
 static wb_count_sample s(double t, double x, double y, double z,
                          double speed, int contact, int done) {
-  wb_count_sample q={t,x,y,z,speed,0.0,0.0,contact,done};
+  wb_count_sample q={t,x,y,z,speed,0.0,0.0,contact,done,0};
+  /* Synthetic C11 fixture only; genuine Webots contact is read natively. */
+  q.floor_contact=(z<=WB_COUNT_LAND_ABSOLUTE_Z && contact==0)?1:0;
   return q;
 }
 static wb_count_verdict feed_step(wb_count_mission *m, double *clock,
@@ -326,7 +328,42 @@ static void test_high_origin_false_hover_rejected(void) {
     }
   }
 }
+/* Even after all actual H crossings and COMPLETED, a stationary
+ * low hover without Floor contact cannot earn 250-ms stable landing.
+ * Contact loss during a legal touchdown restarts the dwell. */
+static void test_native_floor_contact_required(void) {
+  for(unsigned n=1;n<=3;++n) {
+    wb_count_mission m;
+    const double y=wb_count_target_y(n);
+    ready_to_land(&m,n);
+    wb_count_sample a=s(100.000,1.48,y,.015,0,0,1);
+    a.floor_contact=0;
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    for(int i=1;i<=9;++i) {
+      a=s(100.000+.032*i,1.48,y,.015,0,0,0);
+      a.floor_contact=0;
+      assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    }
+    assert(!m.stable_since_valid);
+    a=s(101.501,1.48,y,.015,0,0,0);
+    a.floor_contact=0;
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_NOT_ACHIEVED);
+    ready_to_land(&m,n);
+    a=s(100.000,1.48,y,.015,0,0,1);
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    a=s(100.032,1.48,y,.015,0,0,0);
+    a.floor_contact=0;
+    assert(wb_count_sample_mission(&m,&a)==WB_COUNT_WAIT);
+    assert(!m.stable_since_valid);
+    for(int i=0;i<=8;++i) {
+      a=s(100.064+.032*i,1.48,y,.015,0,0,0);
+      assert(wb_count_sample_mission(&m,&a)==
+             (i==8?WB_COUNT_ACHIEVED:WB_COUNT_WAIT));
+    }
+  }
+}
 int main(void) {
+  test_native_floor_contact_required();
   test_high_origin_false_hover_rejected();
   test_successes();
   test_backtrack_lateral_bypass_rejected();
@@ -399,9 +436,13 @@ class CountHCoreTests(unittest.TestCase):
         self.assertIn("#define WB_COUNT_LAND_DWELL_SEC 0.250", source)
         self.assertIn("#define WB_COUNT_LAND_ABSOLUTE_Z 0.020", source)
         self.assertIn("s->z <= WB_COUNT_LAND_ABSOLUTE_Z", source)
+        self.assertIn("s->floor_contact == 1", source)
+        self.assertIn("test_native_floor_contact_required()", DRIVER)
         physical = (ROOT/"controllers/progression_count_h_flight_observer/"
                     "progression_count_h_flight_observer.c").read_text(encoding="utf-8")
         self.assertIn("sample.z<=WB_COUNT_LAND_ABSOLUTE_Z", physical)
+        self.assertIn("wb_supervisor_node_enable_contact_points_tracking(craft,step,true)", physical)
+        self.assertIn("wb_supervisor_node_get_contact_points(craft,true,&craft_count)", physical)
 
 
 if __name__ == "__main__":

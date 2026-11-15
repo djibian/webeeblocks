@@ -50,6 +50,8 @@ typedef struct {
   int obstacle_contact;
   /* Authenticated mission completion, NEVER derived from the pupil AST. */
   int completed;
+  /* -1 invalid, 0 absent, 1 physical Floor contact observed by Supervisor. */
+  int floor_contact;
 } wb_count_sample;
 
 typedef struct {
@@ -88,7 +90,8 @@ static inline int wb_count_valid_sample(const wb_count_sample *s) {
     isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) &&
     isfinite(s->vz) && (s->obstacle_contact == 0 ||
                        s->obstacle_contact == 1) &&
-    (s->completed == 0 || s->completed == 1);
+    (s->completed == 0 || s->completed == 1) &&
+    (s->floor_contact == 0 || s->floor_contact == 1);
 }
 
 /* Call ONCE PER NATIVE PHYSICS OBSERVATION, not from Blockly or JavaScript.
@@ -199,8 +202,10 @@ static inline wb_count_verdict wb_count_sample_mission(
     return m->verdict;
   }
 
+  /* Height is only proximity, not evidence of a physical landing. */
   const int landed = s->z - m->origin_z <= WB_COUNT_LAND_Z &&
-                     s->z <= WB_COUNT_LAND_ABSOLUTE_Z;
+                     s->z <= WB_COUNT_LAND_ABSOLUTE_Z &&
+                     s->floor_contact == 1;
   const int still = hypot(s->vx, s->vy) <= WB_COUNT_LAND_MAX_SPEED &&
                     fabs(s->vz) <= WB_COUNT_LAND_MAX_SPEED;
   const int whole_craft_on_pad =

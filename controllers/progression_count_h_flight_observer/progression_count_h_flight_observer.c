@@ -115,6 +115,7 @@ int main(void) {
   wb_count_reset(&m,1,(unsigned)variant,origin_z);
   for(int i=0;i<collider_count;++i)
     wb_supervisor_node_enable_contact_points_tracking(obstacle[i],step,false);
+  wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
   double last_x=-1.4,last_y=0,last_z=origin_z;
   int previous=0, reported_cross=0, screen_seen=0, observations=0;
   printf("WEBEEBLOCKS_A6_MOTOR_READY n=%d origin_z=%.9f colliders=%d\n",
@@ -130,7 +131,8 @@ int main(void) {
     sample.vx=velocity[0];sample.vy=velocity[1];sample.vz=velocity[2];
     if(!wb_count_valid_sample(&(wb_count_sample){.time=sample.time,
        .x=sample.x,.y=sample.y,.z=sample.z,.vx=sample.vx,
-       .vy=sample.vy,.vz=sample.vz,.obstacle_contact=0,.completed=0}))
+       .vy=sample.vy,.vz=sample.vz,.obstacle_contact=0,.completed=0,
+       .floor_contact=0}))
       return fail("nonfinite native flight observation");
     if(previous&&
        (fabs(pos[0]-last_x)>.075||fabs(pos[1]-last_y)>.075||
@@ -153,6 +155,21 @@ int main(void) {
         return 2;
       }
     }
+    /* All attested obstacle-side contacts were rejected above, including
+     * low z. Query separate physical craft contacts to attest actual Floor. */
+    int craft_count=-1;
+    const WbContactPoint *craft_hits=
+      wb_supervisor_node_get_contact_points(craft,true,&craft_count);
+    if(craft_count<0||(craft_count>0&&!craft_hits))
+      return fail("missing native craft contact evidence");
+    sample.floor_contact=0;
+    for(int i=0;i<craft_count;++i) {
+      const double *pt=craft_hits[i].point;
+      if(!isfinite(pt[0])||!isfinite(pt[1])||!isfinite(pt[2]))
+        return fail("nonfinite native craft contact point");
+      if(fabs(pt[2])<=.025)sample.floor_contact=1;
+      else return fail("unclassified non-Floor craft contact");
+    }
     if(fabs(sample.x-1.235)<=.03 && sample.x>0 &&
        fabs(sample.y)<=.10 && sample.z<=.53)screen_seen=1;
     /* Physical near-ground pose, not JS source or client completion claim.
@@ -173,6 +190,11 @@ int main(void) {
     }
     if(result==WB_COUNT_NOT_ACHIEVED)return fail("native behavioral oracle rejected flight");
     if(result==WB_COUNT_ACHIEVED) {
+      if(sample.floor_contact!=1)
+        return fail("achievement without actual Floor contact");
+      printf("WEBEEBLOCKS_A6_MOTOR_NATIVE_FLOOR_CONTACT n=%d time=%.3f z=%.6f\n",
+             variant,sample.time,sample.z);
+      fflush(stdout);
       if(!screen_seen||reported_cross!=variant||observations<20)
         return fail("native flight lacks credible full corridor passage");
       printf("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=%d "
