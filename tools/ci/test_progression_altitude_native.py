@@ -56,6 +56,15 @@ static void finish_stably(wb_alt_mission *m, double t,
     assert(step(m,t+0.032*i,x,y,z,0,0,0) == WB_ALT_WAIT);
   assert(step(m,t+0.256,x,y,z,0,0,0) == WB_ALT_ACHIEVED);
 }
+/* The higher admitted origin needs absolute corridor altitudes above .80 m:
+ * using the original normal-origin reference z=.78 would fail to clear the
+ * actual barrier, making the negative landing test vacuous. */
+static void cross_higher_from_elevated_start(wb_alt_mission *m) {
+  assert(step(m, 2.0, 0.48, 0, .85, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(m, 2.5, 0.59, 0, .86, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(m, 3.0, 0.81, 0, .86, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m->crossed_barrier);
+}
 int main(void) {
   wb_alt_mission m;
   normal_takeoff(&m, 1);
@@ -222,7 +231,7 @@ int main(void) {
     wb_alt_reset(&m, 200+v, origin);
     assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
     assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
-    cross_higher(&m);
+    cross_higher_from_elevated_start(&m);
     assert(hover-origin <= WB_ALT_MAX_LANDING_Z);
     assert(hover > WB_ALT_MAX_ABSOLUTE_LANDING_Z);
     assert(step(&m, 6, 1.35, 0, hover, 0, 0, 1) == WB_ALT_WAIT);
@@ -233,7 +242,7 @@ int main(void) {
     wb_alt_reset(&m, 210+v, origin);
     assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
     assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
-    cross_higher(&m);
+    cross_higher_from_elevated_start(&m);
     finish_stably(&m, 6, 1.35, 0, .015);
   }
 
