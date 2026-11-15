@@ -159,7 +159,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
         expected = {
             "01-sequence.wbb": "progression-sequence-v1",
             "02-altitude.wbb": "progression-altitude-v1",
-            "03-repeat.wbb": "progression-repeat-v1",
+            "03-orientation.wbb": "progression-orientation-3d-v1",
             "04-simple-decision.wbb": "progression-simple-decision-v1",
             "05-reactive.wbb": "progression-reactive-v1",
             "06-multi-perception.wbb": "progression-combined-decisions-v1",
@@ -171,7 +171,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
         for filename, activity_id in expected.items():
             project = json.loads((starter_dir / filename).read_text(encoding="utf-8"))
             self.assertEqual(project["activity"]["id"], activity_id)
-            if filename == "02-altitude.wbb":
+            if filename in ("02-altitude.wbb", "03-orientation.wbb"):
                 self.assertEqual(project["format"], "webeeblocks-project")
                 self.assertEqual(project["version"], 1)
                 self.assertEqual(project["activity"]["semantics"], "webeeblocks-ast-v1")
@@ -183,6 +183,12 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertTrue(archived.is_file())
         historical = json.loads(archived.read_text(encoding="utf-8"))
         self.assertEqual(historical["activity"]["id"], "progression-precise-movement-v1")
+        historical_a3=ROOT / "activities" / "historique" / "03-repeat.wbb"
+        self.assertTrue(historical_a3.is_file())
+        self.assertEqual(json.loads(historical_a3.read_text(encoding="utf-8"))["activity"]["id"], "progression-repeat-v1")
+        self.assertIn("$history3Source = Join-Path $repoRoot 'activities\\historique\\03-repeat.wbb'",packager)
+        self.assertIn("$history3Target = Join-Path $packageDir 'Activites\\Historique\\03-repeat.wbb'",packager)
+        self.assertIn("Copy-RequiredFile $history3Source $history3Target",packager)
         self.assertIn("$historySource = Join-Path $repoRoot 'activities\\historique\\02-precise-movement.wbb'", packager)
         self.assertIn("$historyTarget = Join-Path $packageDir 'Activites\\Historique\\02-precise-movement.wbb'", packager)
         self.assertIn("Copy-RequiredFile $historySource $historyTarget", packager)

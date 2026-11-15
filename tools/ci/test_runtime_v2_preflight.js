@@ -128,7 +128,7 @@ function proveProgressionStarterFiles() {
   const expected = [
     ['01-sequence.wbb', 'progression-sequence-v1'],
     ['02-altitude.wbb', 'progression-altitude-v1'],
-    ['03-repeat.wbb', 'progression-repeat-v1'],
+    ['03-orientation.wbb', 'progression-orientation-3d-v1'],
     ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
     ['06-multi-perception.wbb', 'progression-combined-decisions-v1'],
@@ -151,6 +151,17 @@ function proveProgressionStarterFiles() {
   const archivedProfile=Profiles.resolveById(Activities.DOCUMENT, historical.activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(archivedProfile.starterVisible, false);
   assert.strictEqual(archivedProfile.runtime.scene, 'legacy-v1');
+  const oldA3 = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../../activities/historique/03-repeat.wbb'), 'utf8'));
+  assert.strictEqual(oldA3.activity.id,'progression-repeat-v1');
+  const archivedA3=Profiles.resolveById(Activities.DOCUMENT,oldA3.activity.id,Activities.BLOCK_CATALOG);
+  assert.strictEqual(archivedA3.starterVisible,false);
+  assert.strictEqual(archivedA3.runtime.scene,'legacy-v1');
+  const nativeA3=Profiles.resolveById(Activities.DOCUMENT,'progression-orientation-3d-v1',Activities.BLOCK_CATALOG);
+  assert.strictEqual(nativeA3.runtime.scene,'orientation-v1');
+  assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_turn.DIRECTION,['left','right']);
+  assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_move.DIRECTION,['forward']);
+  assert.deepStrictEqual(nativeA3.runtime.verticalDirections,['up','down']);
 }
 
 function proveProgressionProfilesAndFieldOptions() {

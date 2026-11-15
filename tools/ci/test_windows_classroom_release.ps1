@@ -112,6 +112,7 @@ $required = @(
   'worlds\scenes\altitude-v1.wbo',
   'worlds\scenes\orientation-v1.wbo',
   'Activites\Historique\02-precise-movement.wbb',
+  'Activites\Historique\03-repeat.wbb',
   'worlds\scenes\legacy-scene-v1.wbo',
   'worlds\scenes\legacy-evaluators-v1.wbo'
 )
@@ -128,6 +129,12 @@ Assert-Release ((Get-FileHash -LiteralPath $altitudeSceneSource -Algorithm SHA25
 $historicalSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\02-precise-movement.wbb'
 $historicalPackaged = Join-Path $testRoot 'Activites\Historique\02-precise-movement.wbb'
 Assert-Release ((Get-FileHash -LiteralPath $historicalSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historicalPackaged -Algorithm SHA256).Hash) 'Packaged archived Activity 2 project was modified.'
+$historical3Source = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\03-repeat.wbb'
+$historical3Packaged = Join-Path $testRoot 'Activites\Historique\03-repeat.wbb'
+Assert-Release ((Get-FileHash -LiteralPath $historical3Source -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historical3Packaged -Algorithm SHA256).Hash) 'Packaged archived Activity 3 project was modified.'
+$orientationStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\03-orientation.wbb') -Raw | ConvertFrom-Json
+Assert-Release ($orientationStarter.activity.id -eq 'progression-orientation-3d-v1') 'Active Activity 3 still maps to the legacy profile.'
+Assert-Release ($orientationStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 3 starter contains an algorithm solution.'
 $orientationSceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\orientation-v1.wbo'
 $orientationScenePackaged = Join-Path $testRoot 'worlds\scenes\orientation-v1.wbo'
 Assert-Release ((Get-FileHash -LiteralPath $orientationSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $orientationScenePackaged -Algorithm SHA256).Hash) 'Activity 3 scene does not match native-tested source.'
