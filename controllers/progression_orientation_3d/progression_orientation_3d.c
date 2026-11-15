@@ -110,7 +110,9 @@ static void publish(WbFieldRef channel, const wb_orient_mission *m) {
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene()) {
+  /* The independent landing oracle is sampled every 32 ms; never admit
+   * a world with an incompatible native clock. */
+  if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_ORIENTATION_3D_FATAL invalid scene identity\n");
     wb_robot_cleanup();
     return 2;
