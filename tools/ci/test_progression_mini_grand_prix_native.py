@@ -192,6 +192,39 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("python3 tools/ci/run_classroom_mini_gp_wrong_timestep.py", workflow)
 
+    def test_near_floor_obstacle_contacts_cannot_be_mistaken_for_floor(self):
+        native=(ROOT/"controllers/progression_mini_grand_prix_v1/"
+                "progression_mini_grand_prix_v1.c").read_text(encoding="utf-8")
+        self.assertIn("wb_supervisor_node_get_id(obstacle)",native)
+        self.assertIn("points[i].node_id==collider_ids[j]",native)
+        self.assertIn("WB_MINI_NATIVE_COLLIDER_CONTACT",native)
+        self.assertIn("sample.contact=native_contact(craft,collider_ids)",native)
+        self.assertLess(native.index("points[i].node_id==collider_ids[j]"),
+                        native.index("if(fabs(p[2])>0.025)return 1;"))
+        self.assertLess(native.index("WB_MINI_NATIVE_COLLIDER_CONTACT"),
+                        native.index("WB_MINI_NATIVE_FIRST"))
+        import run_classroom_mini_gp_low_contact as low
+        for letter in "LR":
+            for part in ("CORNER_FRONT","CLOSED_PANEL"):
+                with self.subTest(letter=letter,part=part):
+                    world=low.compose(letter,part)
+                    self.assertEqual(world.count(low.MARKER),1)
+                    self.assertEqual(world.count(" Solid {"),9)
+                    self.assertEqual(world.count("boundingObject Box"),9)
+                    self.assertEqual(world.count('controller "<none>"'),1)
+                    self.assertEqual(world.count(
+                        'controller "progression_mini_grand_prix_v1"'),1)
+                    self.assertEqual(world.count(
+                        'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1"'),1)
+        for args in ((None,"CORNER_FRONT"),("L","OPEN_BAR"),
+                     ("Z","CLOSED_PANEL"),("R",None)):
+            with self.subTest(invalid=args),self.assertRaises(ValueError):
+                low.compose(*args)
+        wf=(ROOT/".github/workflows/ci-progression-a7-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("run_classroom_mini_gp_low_contact.py",wf)
+        self.assertIn("ci-artifacts/progression-mini-gp-low-contact/",wf)
+
     def test_grounded_start_is_a_real_native_observation_not_a_teleport(self):
         for letter in "LR":
             with self.subTest(variant=letter):
