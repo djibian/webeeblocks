@@ -40,6 +40,69 @@ static void bypass(char v) {
   a=sample(3,h,v=='L'?.55:-.55,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+/* Exact previously reproduced NO_GO: gate centre, retreat upstream,
+ * lateral bypass outside the opening, then jump to downstream. */
+static void backtrack_lateral_bypass(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  const double h=wb_mini_h_x(v),side=v=='L'?.55:-.55;
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(2,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(3,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(m.center_seen);
+  a=sample(4,h-.30,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(!m.center_seen);
+  a=sample(5,h-.30,side,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6,h+.30,side,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(!m.crossed);
+}
+/* Both discrete endpoints can lie outside the tight H strip, while the
+ * interpolated segment enters its forbidden lateral volume. */
+static void swept_lateral_bypass(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  const double h=wb_mini_h_x(v),side=v=='L'?.55:-.55;
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(2,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(3,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(4,h+.18,side,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* Retracing steps is not itself a collision. Re-centering and a legal
+ * forward underpass must remain possible for a pupil correcting an error. */
+static void corrected_retry(char v) {
+  wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
+  const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(2,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(3,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(4,h-.30,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(!m.center_seen);
+  a=sample(5,h-.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6,h,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(7,h+.18,0,.40,0,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(m.crossed);
+  a=sample(8,x,0,.40,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(9,x,y,.015,wb_mini_heading(v),1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(9.26,x,y,.015,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+}
 static void skip_gate(char v) {
   wb_mini_mission m;wb_mini_reset(&m,1,v,.015);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);
@@ -154,6 +217,9 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  backtrack_lateral_bypass('L');backtrack_lateral_bypass('R');
+  swept_lateral_bypass('L');swept_lateral_bypass('R');
+  corrected_retry('L');corrected_retry('R');
   yaw_reversal_lateral_slide('L');yaw_reversal_lateral_slide('R');
   late_dwell_boundary('L');late_dwell_boundary('R');
   settle_pulse_and_motion('L');settle_pulse_and_motion('R');
@@ -163,6 +229,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: nineteen positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: twenty-five positive/adversarial scenarios");
   return 0;
 }

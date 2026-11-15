@@ -28,8 +28,10 @@ typedef struct {
   unsigned long long attempt;
   char variant; /* native-attested L/R, never Blockly-supplied */
   double origin_z,last_time,completion_at,stable_since;
+  /* Previous real sample permits checking the entire swept H strip. */
+  double previous_x,previous_y,previous_z;
   int airborne,armed,center_seen,crossed,turned,completion_seen;
-  int stable_since_valid;
+  int stable_since_valid,previous_valid;
   wb_mini_verdict verdict;
 } wb_mini_mission;
 static inline double wb_mini_h_x(char v) {return v=='L' ? -0.750 : -0.450;}
@@ -64,12 +66,45 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
   m->last_time=s->time;
   if(s->z>=m->origin_z+WB_MINI_AIRBORNE)m->airborne=1;
   const double h=wb_mini_h_x(m->variant);
-  /* Actual samples in the gate envelope must be low and centered;
-   * crossing the X coordinate outside the opening is never a success. */
-  if(!m->crossed&&fabs(s->x-h)<=WB_MINI_H_ENVELOPE &&
-     (fabs(s->y)>WB_MINI_H_Y_TOL||s->z>WB_MINI_H_Z_MAX)) {
-    m->verdict=WB_MINI_FAILED;return m->verdict;
+  /* A sequence of individually legal sample points is insufficient:
+   * the entire LINE SEGMENT through the H's collision envelope must be
+   * centered and low. This excludes a skipped/sideways H crossing between
+   * samples without inspecting the pupil's Blockly or imposing a route AST.
+   * Linear interpolation is conservative at the native observer's steps. */
+  if(!m->crossed) {
+    double a=0.0,b=1.0;
+    int intersects=fabs(s->x-h)<=WB_MINI_H_ENVELOPE;
+    if(m->previous_valid) {
+      const double dx=s->x-m->previous_x;
+      if(fabs(dx)>1e-12) {
+        const double t0=(h-WB_MINI_H_ENVELOPE-m->previous_x)/dx;
+        const double t1=(h+WB_MINI_H_ENVELOPE-m->previous_x)/dx;
+        a=fmax(0.0,fmin(t0,t1));
+        b=fmin(1.0,fmax(t0,t1));
+        intersects=(a<=b);
+      }
+    }
+    if(intersects) {
+      const double ya=m->previous_valid ?
+        m->previous_y+a*(s->y-m->previous_y) : s->y;
+      const double yb=m->previous_valid ?
+        m->previous_y+b*(s->y-m->previous_y) : s->y;
+      const double za=m->previous_valid ?
+        m->previous_z+a*(s->z-m->previous_z) : s->z;
+      const double zb=m->previous_valid ?
+        m->previous_z+b*(s->z-m->previous_z) : s->z;
+      if(fabs(ya)>WB_MINI_H_Y_TOL||fabs(yb)>WB_MINI_H_Y_TOL||
+         za>WB_MINI_H_Z_MAX||zb>WB_MINI_H_Z_MAX) {
+        m->verdict=WB_MINI_FAILED;return m->verdict;
+      }
+    }
   }
+  m->previous_x=s->x;m->previous_y=s->y;m->previous_z=s->z;
+  m->previous_valid=1;
+  /* Reaching the centre is not a token valid forever: an upstream
+   * retreat cancels the unfinished pass, permitting a fresh legal try. */
+  if(!m->crossed&&m->center_seen&&
+     s->x<=h-WB_MINI_H_ENVELOPE-0.01)m->center_seen=0;
   if(!m->crossed && !s->completed && !m->completion_seen) {
     if(s->x<=h-WB_MINI_H_ENVELOPE-0.01 && m->airborne)m->armed=1;
     if(m->armed&&fabs(s->x-h)<=WB_MINI_H_CENTER_TOL&&
