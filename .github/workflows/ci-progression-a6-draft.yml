@@ -54,7 +54,7 @@ jobs:
       - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
         run: |
           set -euo pipefail
-          npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+          bash ./tools/prepare_runtime_v2.sh
           node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb
           # This is only a negative/positive MOCK test of the real sensor-only
           # JS module. True R2025a PID/motor, oracle and same-pupil-WBB
@@ -136,6 +136,9 @@ jobs:
               for n in 1 2 3; do
                 python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode sensor --variant ${n}
               done
+              # First true Webots/Blockly .wbb motor attempt, ONE variant only.
+              # Same canonical bytes preflighted and re-opened by Blockly above.
+              python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode blockly --variant 1
             '
       - name: Preserve rotated-H native falsification even on failure
         if: always()

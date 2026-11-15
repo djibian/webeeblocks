@@ -91,6 +91,37 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn('"mode":self.mode',runner)
         self.assertIn('mode = "reference"',runner)
 
+    def test_private_blockly_webots_pipeline_is_real_and_non_product(self):
+        source=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                "count_h_private_blockly_probe.js").read_text()
+        html=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+              "count_h_flight_probe.html").read_text()
+        runner=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
+        for token in ("WebeeBlocksProjectFiles.validateProjectText",
+                      "Blockly.serialization.workspaces.load",
+                      "WebeeBlocksActivityContract.execute",
+                      "WebeeBlocksInterpreter",
+                      "A6_PRIVATE_WBB_REOPENED",
+                      "backend.readRange(direction)",
+                      "backend.move(direction,distance)"):
+            self.assertIn(token,source)
+        for token in ("project.is_symlink()", 'self.mode!="blockly"',
+                      '"private_wbb_sha256"', '"private_blockly_webots_pass"',
+                      "WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS"):
+            self.assertIn(token,runner)
+        self.assertIn("count_h_private_blockly_probe.js",
+                      (ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                       "count_h_flight_probe.js").read_text())
+        self.assertIn("blockly_compressed.js",html)
+        self.assertIn("project_files.js",html)
+        self.assertIn("--mode blockly --variant 1",workflow)
+        self.assertIn("tools/prepare_runtime_v2.sh",workflow)
+        core=source.split("export async function",1)[1]
+        for forbidden in ("count-h-", "variant", "wb_supervisor_",
+                          "wb_gps_get_values", "SCENE',"):
+            self.assertNotIn(forbidden,core)
+
     def test_native_up_motor_trace_is_school_only_and_single_step(self):
         trace=(ROOT/"controllers/progression_count_h_school_pilot/"
                "a6_native_up_motor_trace.c").read_text(encoding="utf-8")
