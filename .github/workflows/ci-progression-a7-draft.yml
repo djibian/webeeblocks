@@ -23,6 +23,7 @@ on:
       - 'tools/ci/run_classroom_mini_gp_native_observer.py'
       - 'tools/ci/run_classroom_mini_gp_foreign_scene.py'
       - 'tools/ci/run_classroom_mini_gp_wrong_timestep.py'
+      - 'tools/ci/run_classroom_mini_gp_low_contact.py'
       - 'tools/ci/run_classroom_mini_gp_ground_start.py'
       - 'tools/ci/run_classroom_mini_gp_scene_selector.py'
       - 'tools/ci/prepare_classroom_mini_gp_pupil.py'
@@ -114,6 +115,16 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_wrong_timestep.py'
+      - name: Falsify near-floor A7 corner and closed panel contacts on L/R
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_low_contact.py'
       - name: Refuse physical foreign A4 colliders before A7 READY on L/A L/B R/A R/B
         run: |
           set -euo pipefail
@@ -185,6 +196,7 @@ jobs:
             ci-artifacts/progression-mini-gp-native-observer/
             ci-artifacts/progression-mini-gp-foreign-scene/
             ci-artifacts/progression-mini-gp-wrong-timestep/
+            ci-artifacts/progression-mini-gp-low-contact/
             ci-artifacts/progression-mini-gp-ground-start/
             ci-artifacts/progression-mini-gp-scene-selector/
             ci-artifacts/progression-mini-gp-blockly/
