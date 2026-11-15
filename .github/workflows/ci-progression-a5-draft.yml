@@ -1,0 +1,61 @@
+# Temporary non-decision A5 Draft witness. Does NOT provide CI Gate or pupil PASS.
+# Real R2025a sensor readings only; no motorized flight or physical authorization.
+name: Activity 5 Draft real Multi-ranger counterexample
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a5-draft.yml'
+      - 'tools/ci/test_workflow_contract.py'
+      - 'tools/ci/test_progression_reactive_L_*.py'
+      - 'tools/ci/run_classroom_reactive_L_sensor.py'
+      - 'controllers/progression_reactive_L_sensor_probe/**'
+      - 'worlds/scenes/reactive-L-*.wbo'
+
+permissions:
+  contents: read
+
+jobs:
+  a5-native-draft-only:
+    name: A5 R2025a two-ray negative witness (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Refuse altered A5 source worlds and witness roles
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v \
+            tools.ci.test_progression_reactive_L_scene \
+            tools.ci.test_progression_reactive_L_sensor
+          python3 -m unittest -v \
+            tools.ci.test_workflow_contract.WorkflowTests.test_activity5_draft_witness_is_non_decision
+      - name: Compile original R2025a Crazyflie sensor probe
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_sensor_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_sensor_probe'
+      - name: Observe two actual rays on A B C and falsify loop necessity
+        run: |
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_sensor.py'
+      - name: Preserve independent negative native data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-draft-real-two-ray-counterexample
+          path: ci-artifacts/progression-reactive-L-sensor/
+          if-no-files-found: warn
