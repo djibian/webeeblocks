@@ -161,7 +161,6 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "02-altitude.wbb": "progression-altitude-v1",
             "03-orientation.wbb": "progression-orientation-3d-v1",
             "04-observer-decision.wbb": "progression-decision-h-v1",
-            "04-simple-decision.wbb": "progression-simple-decision-v1",
             "05-reactive.wbb": "progression-reactive-v1",
             "06-multi-perception.wbb": "progression-combined-decisions-v1",
             "07-memory.wbb": "progression-memory-v1",
@@ -191,6 +190,14 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("$history3Source = Join-Path $repoRoot 'activities\\historique\\03-repeat.wbb'",packager)
         self.assertIn("$history3Target = Join-Path $packageDir 'Activites\\Historique\\03-repeat.wbb'",packager)
         self.assertIn("Copy-RequiredFile $history3Source $history3Target",packager)
+        historical_a4=ROOT / "activities" / "historique" / "04-simple-decision.wbb"
+        self.assertTrue(historical_a4.is_file())
+        self.assertEqual(json.loads(historical_a4.read_text(encoding="utf-8"))["activity"]["id"],"progression-simple-decision-v1")
+        self.assertIn("$history4Source = Join-Path $repoRoot 'activities\\historique\\04-simple-decision.wbb'",packager)
+        self.assertIn("$history4Target = Join-Path $packageDir 'Activites\\Historique\\04-simple-decision.wbb'",packager)
+        self.assertIn("Copy-RequiredFile $history4Source $history4Target",packager)
+        self.assertIn("'Activites\\Historique\\04-simple-decision.wbb'",(
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(encoding="utf-8"))
         self.assertIn("$historySource = Join-Path $repoRoot 'activities\\historique\\02-precise-movement.wbb'", packager)
         self.assertIn("$historyTarget = Join-Path $packageDir 'Activites\\Historique\\02-precise-movement.wbb'", packager)
         self.assertIn("Copy-RequiredFile $historySource $historyTarget", packager)
@@ -198,6 +205,11 @@ class WindowsReleaseContractTests(unittest.TestCase):
             ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
         ).read_text(encoding="utf-8"))
         self.assertIn("$progressionSource = Join-Path $repoRoot 'activities\\progression'", packager)
+        self.assertIn("$decisionObserverDir = Join-Path $repoRoot 'controllers\\progression_decision_h_v1'",packager)
+        self.assertIn("& $make -C $decisionObserverDir",packager)
+        self.assertIn("progression_decision_h_v1.exe",packager)
+        self.assertIn("'decision-h-a-v1.wbo'",packager)
+        self.assertIn("'decision-h-b-v1.wbo'",packager)
         self.assertIn("Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name", packager)
         self.assertIn("$progressionTarget = Join-Path $packageDir 'Activites'", packager)
         self.assertIn("Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)", packager)

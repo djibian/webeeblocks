@@ -72,6 +72,9 @@ assert(ActivityContract.preflightAst(pOrient,noRepeatAst),
 // A4: one canonical pupil project ID, teacher-selectable native scene outside .wbb.
 const pDecision = Profiles.resolveById(Activities.DOCUMENT, 'progression-decision-h-v1', Activities.BLOCK_CATALOG);
 const pDecisionOld = Profiles.resolveById(Activities.DOCUMENT, 'progression-simple-decision-v1', Activities.BLOCK_CATALOG);
+const oldA4Starter=JSON.parse(fs.readFileSync(path.join(ROOT,'activities/historique/04-simple-decision.wbb'),'utf8'));
+assert.deepStrictEqual(oldA4Starter,JSON.parse(ProjectFiles.createStarterText(pDecisionOld.id)),
+  'Activity 4 historical starter must remain reopenable, but archived');
 assert.strictEqual(pDecision.brief.title, '4 — Observer pour décider');
 assert.strictEqual(pDecision.starterVisible, undefined);
 assert.strictEqual(pDecisionOld.starterVisible, false);

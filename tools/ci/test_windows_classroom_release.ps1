@@ -113,6 +113,11 @@ $required = @(
   'worlds\scenes\orientation-v1.wbo',
   'Activites\Historique\02-precise-movement.wbb',
   'Activites\Historique\03-repeat.wbb',
+  'Activites\Historique\04-simple-decision.wbb',
+  'Activites\04-observer-decision.wbb',
+  'worlds\scenes\decision-h-a-v1.wbo',
+  'worlds\scenes\decision-h-b-v1.wbo',
+  'controllers\progression_decision_h_v1\progression_decision_h_v1.exe',
   'worlds\scenes\legacy-scene-v1.wbo',
   'worlds\scenes\legacy-evaluators-v1.wbo'
 )
@@ -132,6 +137,13 @@ Assert-Release ((Get-FileHash -LiteralPath $historicalSource -Algorithm SHA256).
 $historical3Source = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\03-repeat.wbb'
 $historical3Packaged = Join-Path $testRoot 'Activites\Historique\03-repeat.wbb'
 Assert-Release ((Get-FileHash -LiteralPath $historical3Source -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historical3Packaged -Algorithm SHA256).Hash) 'Packaged archived Activity 3 project was modified.'
+$historical4Source = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\04-simple-decision.wbb'
+$historical4Packaged = Join-Path $testRoot 'Activites\Historique\04-simple-decision.wbb'
+Assert-Release ((Get-FileHash -LiteralPath $historical4Source -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historical4Packaged -Algorithm SHA256).Hash) 'Packaged archived Activity 4 project was modified.'
+$decisionStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\04-observer-decision.wbb') -Raw | ConvertFrom-Json
+Assert-Release ($decisionStarter.activity.id -eq 'progression-decision-h-v1') 'Active Activity 4 unexpectedly maps to legacy profile.'
+Assert-Release ($decisionStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 4 starter contains an algorithm solution.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'Activites\04-simple-decision.wbb') -PathType Leaf)) 'Legacy Activity 4 must not be an active template.'
 $orientationStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\03-orientation.wbb') -Raw | ConvertFrom-Json
 Assert-Release ($orientationStarter.activity.id -eq 'progression-orientation-3d-v1') 'Active Activity 3 still maps to the legacy profile.'
 Assert-Release ($orientationStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 3 starter contains an algorithm solution.'
@@ -172,6 +184,21 @@ Assert-Release ((Get-FileHash -LiteralPath $orientationObserverSource -Algorithm
 $orientationObserverBytes = [System.IO.File]::ReadAllBytes($orientationObserverPackaged)
 Assert-Release ($orientationObserverBytes.Length -gt 2 -and $orientationObserverBytes[0] -eq 0x4d -and $orientationObserverBytes[1] -eq 0x5a) 'Activity 3 supervisor is not a Windows PE executable.'
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_orientation_3d\progression_orientation_3d.py') -PathType Leaf)) 'Windows Activity 3 cannot depend on Python.'
+$decisionObserverRelative = 'controllers\progression_decision_h_v1\progression_decision_h_v1.exe'
+$decisionObserverSource = Join-Path $releaseRepo $decisionObserverRelative
+$decisionObserverPackaged = Join-Path $testRoot $decisionObserverRelative
+Assert-Release ((Get-FileHash -LiteralPath $decisionObserverSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $decisionObserverPackaged -Algorithm SHA256).Hash) 'Packaged Activity 4 native supervisor differs from the freshly compiled R2025a binary.'
+$decisionObserverBytes = [System.IO.File]::ReadAllBytes($decisionObserverPackaged)
+Assert-Release ($decisionObserverBytes.Length -gt 2 -and $decisionObserverBytes[0] -eq 0x4d -and $decisionObserverBytes[1] -eq 0x5a) 'Activity 4 native supervisor is not a Windows PE executable.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_decision_h_v1\progression_decision_h_v1.py') -PathType Leaf)) 'Windows Activity 4 cannot depend on Python.'
+foreach ($variant in @('a','b')) {
+  $sceneFile = "decision-h-$variant-v1.wbo"
+  $sceneSource = Join-Path $releaseRepo "worlds\scenes\$sceneFile"
+  $scenePackaged = Join-Path $testRoot "worlds\scenes\$sceneFile"
+  Assert-Release ((Get-FileHash -LiteralPath $sceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $scenePackaged -Algorithm SHA256).Hash) "Packaged Activity 4 $variant scene differs from native-tested source."
+  $decisionSceneText = Get-Content -LiteralPath $scenePackaged -Raw
+  Assert-Release ($decisionSceneText.Contains('controller "progression_decision_h_v1"')) "Activity 4 $variant scene missing native C oracle."
+}
 $schoolSource = Join-Path $releaseRepo 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
 $schoolPackaged = Join-Path $testRoot 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
 Assert-Release ((Get-FileHash -LiteralPath $schoolSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $schoolPackaged -Algorithm SHA256).Hash) 'Packaged school pilot differs from the exact independently built executable.'
