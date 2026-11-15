@@ -15,6 +15,7 @@ on:
       - 'tools/ci/test_progression_mini_grand_prix_*'
       - 'tools/ci/run_classroom_mini_gp_geometry.py'
       - 'tools/ci/run_classroom_mini_gp_native_observer.py'
+      - 'tools/ci/run_classroom_mini_gp_ground_start.py'
 
 permissions:
   contents: read
@@ -77,6 +78,16 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_native_observer.py'
+      - name: Validate a non-teleported real floor start on both native L and R worlds
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_ground_start.py'
       - name: Preserve negative and positive native evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,4 +96,5 @@ jobs:
           path: |
             ci-artifacts/progression-mini-gp-geometry/
             ci-artifacts/progression-mini-gp-native-observer/
+            ci-artifacts/progression-mini-gp-ground-start/
           if-no-files-found: warn

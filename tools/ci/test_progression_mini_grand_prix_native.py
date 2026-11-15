@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/ci"))
 import run_classroom_mini_gp_geometry as witness  # noqa: E402
 import run_classroom_mini_gp_native_observer as observer  # noqa: E402
+import run_classroom_mini_gp_ground_start as ground_start  # noqa: E402
 
 
 class MiniGrandPrixNativeContract(unittest.TestCase):
@@ -98,6 +99,41 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
         self.assertIn("run_classroom_mini_gp_native_observer.py", workflow)
         self.assertIn("test -s progression_mini_grand_prix_v1", workflow)
         self.assertNotIn("name: CI Gate\n", workflow)
+
+    def test_grounded_start_is_a_real_native_observation_not_a_teleport(self):
+        for letter in "LR":
+            with self.subTest(variant=letter):
+                world = ground_start.compose(letter)
+                self.assertEqual(world.count(ground_start.MARKER), 1)
+                self.assertEqual(world.count(
+                    'customData "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"'), 1)
+                self.assertEqual(world.count(
+                    '  translation -1.4 0 0.015\n'), 1)
+                self.assertEqual(world.count(
+                    'controller "progression_mini_gp_geometry_probe"'), 1)
+                self.assertEqual(world.count(
+                    'controller "progression_mini_grand_prix_v1"'), 1)
+                self.assertNotIn('controller "crazyflie_runtime_v2"', world)
+                self.assertNotIn('controller "crazyflie_classroom_v2"', world)
+        for bad in ("", "B", "LR", None, 7):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                ground_start.compose(bad)
+        native_probe = (ROOT /
+            "controllers/progression_mini_gp_geometry_probe/"
+            "progression_mini_gp_geometry_probe.c").read_text(encoding="utf-8")
+        for token in ("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2",
+                      "A7_NATIVE_GROUND_VALID", "floor_hits<1",
+                      "ground-control not physically settled"):
+            self.assertIn(token, native_probe)
+        self.assertNotIn("wb_motor_set_", native_probe)
+        runner = (ROOT / "tools/ci/run_classroom_mini_gp_ground_start.py"
+                  ).read_text(encoding="utf-8")
+        for token in ("WB_MINI_NATIVE_FIRST", "WB_MINI_NATIVE_ATTEMPT",
+                      "A7_NATIVE_GROUND_VALID",
+                      '"WB_MINI_NATIVE_RESULT " in text',
+                      '\"motorized_flight\": False',
+                      '\"pupil_program_tested\": False'):
+            self.assertIn(token, runner)
 
 
 if __name__ == "__main__":
