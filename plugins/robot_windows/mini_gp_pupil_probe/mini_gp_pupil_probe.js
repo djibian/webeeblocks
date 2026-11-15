@@ -12,39 +12,15 @@ function report(event,detail){
 }
 function check(ok,msg){if(!ok)throw Error(msg);}
 function profile(letter){
-  return{
-    id:'ci-mini-grand-prix-conditional-v1',
-    world:'worlds/ci_classroom_mini_gp_pupil.wbt',
-    brief:{visible:true,title:'7 — Mini Grand Prix',
-      mission:'Franchis le H ouvert, tourne à angle droit et atterris avant le H fermé.'},
-    pedagogy:{objective:'Mesurer, comparer, franchir un obstacle, tourner de 90° et atterrir.'},
-    toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_speed',
-      'webeeblocks_v2_vertical','webeeblocks_v2_move','webeeblocks_v2_turn',
-      'webeeblocks_v2_range','controls_if','logic_compare','math_number',
-      'webeeblocks_v2_land'],
-    parameterBounds:{webeeblocks_v2_speed:{SPEED:{min:0.1,max:0.1,step:0.1}}},
-    fieldOptions:{
-      webeeblocks_v2_vertical:{DIRECTION:['up','down']},
-      webeeblocks_v2_move:{DIRECTION:['forward']},
-      webeeblocks_v2_turn:{DIRECTION:['left','right']},
-      webeeblocks_v2_range:{DIRECTION:['front']}
-    },
-    hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],
-    timer:{enabled:false},
-    evaluation:{type:'mission-state-v1',oracle:'progression-mini-grand-prix-v1'},
-    runtime:{
-      scene:'mini-grand-prix-'+letter+'-v1',mode:'ast-v1',
-      allowedStatementKinds:['takeoff','set_speed','vertical','move','turn','if','land'],
-      rangeDirections:['front'],moveDirections:['forward'],verticalDirections:['up','down'],
-      astBounds:{
-        'takeoff.height_m':{min:0.50,max:0.50},
-        'move.distance_m':{min:0.15,max:0.80},
-        'vertical.distance_m':{min:0.25,max:0.35},
-        'set_speed.speed_m_s':{min:0.1,max:0.1},
-        'turn.angle_deg_abs':{min:90,max:90}
-      }
-    }
-  };
+  // Run the very same public pupil profile and project semantics as the
+  // student interface: only the native scene changes between L and R.
+  const pupil=WebeeBlocksActivities.getProfile('progression-mini-grand-prix-v1');
+  check(pupil.runtime.scene==='mini-grand-prix-l-v1' &&
+    pupil.evaluation.oracle==='progression-mini-grand-prix-v1',
+    'public Mini Grand Prix pupil profile drifted from native oracle');
+  check(letter==='l'||letter==='r','invalid native Mini GP variant');
+  pupil.runtime.scene='mini-grand-prix-'+letter+'-v1';
+  return pupil;
 }
 function number(ws,parent,socket,value){
   const literal=ws.newBlock('math_number');
@@ -111,7 +87,7 @@ function workspace(){
 }
 function options(profile){
   return{Blockly,profiles:WebeeBlocksActivityProfiles,
-    activitiesDocument:{version:1,activities:[profile]},
+    activitiesDocument:WebeeBlocksActivities.DOCUMENT,
     blockCatalog:WebeeBlocksActivities.BLOCK_CATALOG,
     semanticAst:WebeeBlocksSemanticAst,
     activityContract:WebeeBlocksActivityContract};

@@ -86,8 +86,11 @@ class PupilA7Tests(unittest.TestCase):
             self.assertIn("profile.runtime.scene !== '"+scene+"'",profiles)
             self.assertIn("'"+scene+"'",BACKEND.read_text(encoding="utf-8"))
             self.assertNotIn("'"+scene+"'",PHYSICAL.read_text(encoding="utf-8"))
-        self.assertNotIn("ci-mini-grand-prix-conditional-v1",
-                         ACTIVITIES.read_text(encoding="utf-8"))
+        self.assertIn("WebeeBlocksActivities.getProfile('progression-mini-grand-prix-v1')",js)
+        self.assertNotIn("'ci-mini-grand-prix-conditional-v1'",js)
+        self.assertIn("activitiesDocument:WebeeBlocksActivities.DOCUMENT",js)
+        self.assertIn("parsed.get('activity',{}).get('id')=='progression-mini-grand-prix-v1'",
+                      RUN.read_text(encoding="utf-8"))
 
     def test_motor_runner_requires_native_oracle_real_sensors_and_immutable_file(self):
         for path in (PREP,RUN):
