@@ -41,6 +41,15 @@ class CountHMotorFlightTests(unittest.TestCase):
                     altered=synthetic(n).split("\n")
                     del altered[30]
                     attest_up_motor_trace("\n".join(altered),n)
+        # Real R2025a starts with a brief floor-settling physics contact:
+        # z=-0.005 m before takeoff is NOT a low-altitude H passage.
+        first=("WEBEEBLOCKS_A6_UP_MOTOR t=0.000000 x=-1.400000000 "
+               "y=0.000000000 z=-0.005272640 up=0.000272640 step=32")
+        good=attest_up_motor_trace(first+"\n"+synthetic(1),1)
+        self.assertEqual(len(good["gates"]),1)
+        invalid=first.replace("-0.005272640","-0.055272640")
+        with self.assertRaisesRegex(ValueError,"invalid native"):
+            attest_up_motor_trace(invalid+"\n"+synthetic(1),1)
         for n in (0,4,True):
             with self.assertRaisesRegex(ValueError,"invalid bounded"):
                 attest_up_motor_trace(synthetic(1),n)

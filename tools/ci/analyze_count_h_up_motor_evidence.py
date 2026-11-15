@@ -24,7 +24,7 @@ def attest_up_motor_trace(text,variant):
         t,x,y,z,up=map(float,fields[:5])
         step=int(fields[5])
         if (not all(map(math.isfinite,(t,x,y,z,up))) or
-            step!=32 or up<0 or up>2.001 or z<0 or z>2 or
+            step!=32 or up<0 or up>2.001 or z<-.020 or z>2 or
             abs(x)>3.5 or abs(y)>2):
             raise ValueError("invalid native motor-ray sample")
         rows.append((t,x,y,z,up))
