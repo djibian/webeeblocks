@@ -47,11 +47,19 @@ static void cross_higher(wb_alt_mission *m) {
   assert(step(m, 3.0, 0.81, 0, 0.80, 0, 0, 0) == WB_ALT_WAIT);
   assert(m->crossed_barrier);
 }
+/* Real C oracle: 250 ms of continuously observed pose is mandatory. */
+static void finish_stably(wb_alt_mission *m, double t,
+                          double x, double y, double z) {
+  assert(step(m,t,x,y,z,0,0,1) == WB_ALT_WAIT);
+  for (int i=1; i<=31; ++i)
+    assert(step(m,t+0.008*i,x,y,z,0,0,0) == WB_ALT_WAIT);
+  assert(step(m,t+0.256,x,y,z,0,0,0) == WB_ALT_ACHIEVED);
+}
 int main(void) {
   wb_alt_mission m;
   normal_takeoff(&m, 1);
   cross_higher(&m);
-  assert(step(&m, 6.0, 1.35, 0, 0.015, 0, 0, 1) == WB_ALT_ACHIEVED);
+  finish_stably(&m, 6.0, 1.35, 0, 0.015);
   assert(step(&m, 10.0, 0.0, 0, 1.4, 0, 1, 1) == WB_ALT_ACHIEVED);
   assert(m.result == WB_ALT_ACHIEVED);
 
@@ -123,9 +131,40 @@ int main(void) {
   /* A legitimate landing at small but nonzero errors still succeeds. */
   normal_takeoff(&m, 13);
   cross_higher(&m);
-  assert(step(&m, 6.0, 1.41, 0.06, 0.02, 0, 0, 1) == WB_ALT_ACHIEVED);
+  finish_stably(&m, 6.0, 1.41, 0.06, 0.02);
 
-  puts("PASS native altitude C oracle: crossing, landing, collision, reset, negatives");
+  /* Momentary low-speed pose is not a successful landing. Motion interrupts
+   * the dwell; resetting the state after failure requires fresh evidence. */
+  normal_takeoff(&m, 14);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 6.240, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.248, 1.45, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  assert(step(&m, 6.256, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.504, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+  normal_takeoff(&m, 15);
+  assert(!m.stable_since_valid && !m.completion_seen &&
+         m.result == WB_ALT_WAIT);
+
+  /* Terminal 1.500-s deadline must win against a late 0.256-s dwell. */
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.240, 1.35, 0.20, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.248, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.496, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.504, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(step(&m, 7.512, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  /* Equal-to-deadline is terminal even if dwell has completed then. */
+  normal_takeoff(&m, 16);
+  cross_higher(&m);
+  assert(step(&m, 6.000, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 7.240, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 7.500, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+
+  puts("PASS native altitude C oracle: crossing, sustained landing, terminal deadline, collision, reset, negatives");
   return 0;
 }
 """
