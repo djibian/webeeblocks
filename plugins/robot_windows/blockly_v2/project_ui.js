@@ -32,6 +32,16 @@
   function isDecisionPupilProfile(profile) {
     return !!profile && profile.id === 'progression-decision-h-v1';
   }
+  function isMiniGrandPrixPupilProfile(profile) {
+    return !!profile && profile.id === 'progression-mini-grand-prix-v1';
+  }
+  function switchableScenes(profile) {
+    if (isDecisionPupilProfile(profile))
+      return ['decision-h-a-v1','decision-h-b-v1'];
+    if (isMiniGrandPrixPupilProfile(profile))
+      return ['mini-grand-prix-l-v1','mini-grand-prix-r-v1'];
+    return null;
+  }
 
   function renderButtons() {
     var activity = document.getElementById('projectActivity');
@@ -58,12 +68,19 @@
     if (variant) {
       var simulation = typeof runtimeBackend !== 'undefined' && runtimeBackend &&
         runtimeBackend.capabilities && runtimeBackend.capabilities.simulationScenes === true;
-      var active = !!simulation && isDecisionPupilProfile(runtimeProfile);
+      var pair = switchableScenes(runtimeProfile);
+      var active = !!simulation && !!pair && pair.indexOf(runtimeProfile.runtime.scene) >= 0;
       variant.hidden = !active;
       variant.disabled = locked || !active || runtimeRunning || runtimeResetPending ||
         runtimeStopPending || runtimeScenePending;
-      if (active) variant.textContent = runtimeProfile.runtime.scene === 'decision-h-b-v1' ?
-        'Parcours B — changer' : 'Parcours A — changer';
+      if (active) {
+        if (isDecisionPupilProfile(runtimeProfile))
+          variant.textContent = runtimeProfile.runtime.scene === 'decision-h-b-v1' ?
+            'Parcours B — changer' : 'Parcours A — changer';
+        else
+          variant.textContent = runtimeProfile.runtime.scene === 'mini-grand-prix-r-v1' ?
+            'Parcours droite — changer' : 'Parcours gauche — changer';
+      }
     }
   }
 
@@ -291,16 +308,23 @@
       operation('variant', async function() {
         // Teacher-controlled classroom variation, never program/AST metadata.
         // Keep the same .wbb ID, workspace and explicit Save/Save As target.
-        if (!isDecisionPupilProfile(runtimeProfile) || !runtimeBackend ||
-            !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
-          throw new Error('variante A4 indisponible');
+        var pair = switchableScenes(runtimeProfile);
+        if (!pair || pair.indexOf(runtimeProfile.runtime.scene) < 0 ||
+            !runtimeBackend || !runtimeBackend.capabilities ||
+            runtimeBackend.capabilities.simulationScenes !== true)
+          throw new Error('variante de parcours indisponible');
         var next = JSON.parse(JSON.stringify(runtimeProfile));
-        next.runtime.scene = runtimeProfile.runtime.scene === 'decision-h-a-v1' ?
-          'decision-h-b-v1' : 'decision-h-a-v1';
+        next.runtime.scene = isDecisionPupilProfile(runtimeProfile) ?
+          (runtimeProfile.runtime.scene === 'decision-h-a-v1' ?
+            'decision-h-b-v1' : 'decision-h-a-v1') :
+          (runtimeProfile.runtime.scene === 'mini-grand-prix-l-v1' ?
+            'mini-grand-prix-r-v1' : 'mini-grand-prix-l-v1');
         WebeeBlocksActivityProfiles.validateProfile(next, WebeeBlocksActivities.BLOCK_CATALOG);
         await prepareProfileScene(next);
         runtimeProfile = next; // Scene only; project bytes and workspace remain intact.
-        var letter = next.runtime.scene === 'decision-h-b-v1' ? 'B' : 'A';
+        var letter = isDecisionPupilProfile(next) ?
+          (next.runtime.scene === 'decision-h-b-v1' ? 'B' : 'A') :
+          (next.runtime.scene === 'mini-grand-prix-r-v1' ? 'droite' : 'gauche');
         fileState('Parcours ' + letter + ' — projet .wbb inchangé', false);
         markProjectChanged('Parcours ' + letter + ' prêt');
         return next.runtime.scene;
