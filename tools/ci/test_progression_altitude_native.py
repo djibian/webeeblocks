@@ -18,6 +18,7 @@ CORE = CONTROLLER / "altitude_core.h"
 SOURCE = CONTROLLER / "progression_altitude_v1.c"
 MAKEFILE = CONTROLLER / "Makefile"
 SCENE = ROOT / "worlds/scenes/altitude-v1.wbo"
+CLASSROOM_WORLD = ROOT / "worlds/crazyflie_classroom_start.wbt"
 
 DRIVER = r"""
 #include "altitude_core.h"
@@ -47,12 +48,12 @@ static void cross_higher(wb_alt_mission *m) {
   assert(step(m, 3.0, 0.81, 0, 0.80, 0, 0, 0) == WB_ALT_WAIT);
   assert(m->crossed_barrier);
 }
-/* Real C oracle: 250 ms of continuously observed pose is mandatory. */
+/* Real C oracle: 250 ms across actual 32-ms Webots physics ticks. */
 static void finish_stably(wb_alt_mission *m, double t,
                           double x, double y, double z) {
   assert(step(m,t,x,y,z,0,0,1) == WB_ALT_WAIT);
-  for (int i=1; i<=31; ++i)
-    assert(step(m,t+0.008*i,x,y,z,0,0,0) == WB_ALT_WAIT);
+  for (int i=1; i<=7; ++i)
+    assert(step(m,t+0.032*i,x,y,z,0,0,0) == WB_ALT_WAIT);
   assert(step(m,t+0.256,x,y,z,0,0,0) == WB_ALT_ACHIEVED);
 }
 int main(void) {
@@ -198,16 +199,18 @@ int main(void) {
   assert(step(&m, 2.000, 0.48, 0, 0.78, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 2.500, 0.59, 0, 0.80, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
-  /* Even one omitted 8-ms native tick interrupts the stability trace. */
+  /* Missing one native 32-ms tick (64-ms gap) interrupts the dwell.
+   * A normal 32-ms native sample must NOT reset it. */
   normal_takeoff(&m, 21);
   cross_higher(&m);
   assert(step(&m, 6.000, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
-  assert(step(&m, 6.008, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 6.024, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(m.stable_since_valid && fabs(m.stable_since-6.024)<1e-7);
-  for (int i=1; i<=31; ++i)
-    assert(step(&m, 6.024+0.008*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
-  assert(step(&m, 6.280, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
+  assert(step(&m, 6.032, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.000)<1e-7);
+  assert(step(&m, 6.096, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.096)<1e-7);
+  for (int i=1; i<=7; ++i)
+    assert(step(&m, 6.096+0.032*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(&m, 6.352, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
 
   puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
@@ -239,6 +242,12 @@ class NativeAltitudeContract(unittest.TestCase):
             self.assertIn("PASS native altitude C oracle", run.stdout)
 
     def test_isolated_native_executable_never_links_into_physical_runtime(self):
+        # The classroom WorldInfo fixes the simulator cadence, while the C
+        # oracle's evidence gap must allow one (not two) of its 32-ms ticks.
+        world = CLASSROOM_WORLD.read_text(encoding="utf-8")
+        core = CORE.read_text(encoding="utf-8")
+        self.assertRegex(world, r"(?m)^\\s*basicTimeStep 32\\s*$")
+        self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
         scene = SCENE.read_text(encoding="utf-8")
