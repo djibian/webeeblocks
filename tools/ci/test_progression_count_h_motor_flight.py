@@ -180,6 +180,15 @@ class CountHMotorFlightTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 motor.compose(variant=value)
 
+    def test_rotation_negative_preserves_physics_and_bounded_gui_metadata(self):
+        source=(ROOT/"tools/ci/run_classroom_count_h_rotation_mutant.py").read_text()
+        self.assertIn('WORLD.read_text(encoding="utf-8")!=source',source)
+        self.assertIn("rotated physical world modified",source)
+        self.assertIn("native.validate_project_preferences(gui)",source)
+        self.assertIn("postrun-webots-project.wbproj",source)
+        self.assertIn("altered-physical-world.json",source)
+        self.assertIn("unrecognized rotated-test GUI preferences",source)
+
     def test_rotated_native_H_mutant_has_one_physical_change_and_independent_observer(self):
         import run_classroom_count_h_rotation_mutant as rotation
         witness=rotation.mutant()

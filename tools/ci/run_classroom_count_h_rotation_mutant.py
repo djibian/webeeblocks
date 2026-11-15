@@ -7,6 +7,7 @@ observer before any pupil action; a product or pupil pass is never claimed.
 """
 from pathlib import Path
 import hashlib
+import json
 import os
 import signal
 import subprocess
@@ -83,9 +84,32 @@ def run():
                 proc.wait(timeout=5)
         if output is not None:
             output.close()
-        if (WORLD.read_text(encoding="utf-8")!=source or
-            PROJECT.read_text(encoding="utf-8")!=native.PROJECT_BYTES):
-            raise RuntimeError("refuse cleanup of altered native mutant world")
+        if WORLD.is_symlink() or PROJECT.is_symlink():
+            raise RuntimeError("refuse cleanup of redirected mutant test path")
+        if WORLD.read_text(encoding="utf-8")!=source:
+            changed=WORLD.read_bytes()
+            (EVIDENCE/"altered-physical-world.json").write_text(
+                json.dumps({"schema":"a6-rotation-mutant-world-integrity-v1",
+                    "original_sha256":hashlib.sha256(source.encode()).hexdigest(),
+                    "changed_sha256":hashlib.sha256(changed).hexdigest(),
+                    "original_bytes":len(source.encode()),"changed_bytes":len(changed)},
+                    sort_keys=True,indent=2)+"\n",encoding="utf-8")
+            raise RuntimeError("refuse cleanup: rotated physical world modified")
+        gui=PROJECT.read_bytes()
+        original=native.PROJECT_BYTES.encode("utf-8")
+        if gui!=original:
+            (EVIDENCE/"postrun-webots-project.wbproj").write_bytes(gui)
+            allowed=native.validate_project_preferences(gui)
+            (EVIDENCE/"postrun-webots-project.json").write_text(
+                json.dumps({"schema":"a6-rotation-mutant-GUI-preferences-v1",
+                    "sha256_before":hashlib.sha256(original).hexdigest(),
+                    "sha256_after":hashlib.sha256(gui).hexdigest(),
+                    "original_bytes":len(original),"changed_bytes":len(gui),
+                    "valid_gui_metadata":allowed,
+                    "is_physics_or_mission_authority":False},
+                    sort_keys=True,indent=2)+"\n",encoding="utf-8")
+            if not allowed:
+                raise RuntimeError("refuse cleanup: unrecognized rotated-test GUI preferences")
         WORLD.unlink()
         PROJECT.unlink()
     evidence=log.read_text(encoding="utf-8",errors="replace")
