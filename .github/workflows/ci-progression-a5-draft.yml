@@ -66,7 +66,7 @@ jobs:
           npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
           node tools/ci/test_progression_sequence_contract.js
           node tools/ci/test_progression_reactive_L_v2_project.js
-          node tools/ci/test_progression_reactive_L_v2_generic_program.js
+          WEBEEBLOCKS_A5_WBB_OUTPUT=ci-artifacts/progression-reactive-L-v2-pupil/generic-witness.wbb node tools/ci/test_progression_reactive_L_v2_generic_program.js
       - name: Compile original R2025a Crazyflie sensor probe
         run: |
           docker run --rm \
@@ -180,4 +180,5 @@ jobs:
             ci-artifacts/progression-reactive-L-v2-mutant/
             ci-artifacts/progression-reactive-L-v2-attempt/
             ci-artifacts/progression-reactive-L-v2-school-selector/
+            ci-artifacts/progression-reactive-L-v2-pupil/
           if-no-files-found: warn
