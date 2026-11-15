@@ -38,7 +38,7 @@ window.addEventListener('unhandledrejection',e=>pupilA5Report('A5_PUPIL_ERROR',{
    if(!r.ok)pupilA5Fail('test-only common .wbb unavailable');
    return r.json();
   });
-  if(!fetched||!['A','B','C'].includes(fetched.variant)||
+  if(!fetched||typeof fetched.noMemory!=='boolean'||!['A','B','C'].includes(fetched.variant)||
      typeof fetched.wbb!=='string'||!/^[0-9a-f]{64}$/.test(fetched.sha256))
    pupilA5Fail('untrusted variant/.wbb identity in local CI fixture');
   const bytes=new TextEncoder().encode(fetched.wbb);
@@ -65,14 +65,15 @@ window.addEventListener('unhandledrejection',e=>pupilA5Report('A5_PUPIL_ERROR',{
   Blockly.serialization.workspaces.load(validated.project.workspace,workspace);
   WebeeBlocksActivityContract.applyFieldBounds(profile,workspace);
   const ast=WebeeBlocksSemanticAst.compileWorkspace(workspace);
+  const assignments=fetched.noMemory?0:1;
   if(ast.program.filter(s=>s.kind==='while').length!==2||
-     ast.program.filter(s=>s.kind==='set_variable').length!==1||
+     ast.program.filter(s=>s.kind==='set_variable').length!==assignments||
      ast.program.filter(s=>s.kind==='if').length!==1||
      JSON.stringify(ast)!==JSON.stringify(validated.ast))
    pupilA5Fail('real .wbb had wrong reactive loop/variable/branch AST');
   await pupilA5Report('A5_PUPIL_SAME_WBB_REOPENED',{
    sha256:hash,id:profile.id,variant:fetched.variant,
-   loops:2,state_assignments:1,branch_count:1});
+   loops:2,state_assignments:assignments,branch_count:1});
   const mod=await import('../blockly_v2/webots/RobotWindow.js');
   const bridge=new mod.default();
   const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
