@@ -10,12 +10,19 @@ on:
     paths:
       - '.github/workflows/ci-progression-a7-draft.yml'
       - 'controllers/progression_mini_grand_prix_v1/**'
+      - 'controllers/progression_mini_gp_scene_probe/**'
+      - 'controllers/crazyflie_classroom_v2/mini_gp_scene_gate.h'
+      - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
+      - 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'tools/ci/test_progression_sequence_contract.js'
       - 'controllers/progression_mini_gp_geometry_probe/**'
       - 'worlds/scenes/mini-grand-prix-*-v1.wbo'
       - 'tools/ci/test_progression_mini_grand_prix_*'
       - 'tools/ci/run_classroom_mini_gp_geometry.py'
       - 'tools/ci/run_classroom_mini_gp_native_observer.py'
       - 'tools/ci/run_classroom_mini_gp_ground_start.py'
+      - 'tools/ci/run_classroom_mini_gp_scene_selector.py'
 
 permissions:
   contents: read
@@ -40,7 +47,8 @@ jobs:
           python3 -m unittest -v \
             tools.ci.test_progression_mini_grand_prix_scene \
             tools.ci.test_progression_mini_grand_prix_oracle \
-            tools.ci.test_progression_mini_grand_prix_native
+            tools.ci.test_progression_mini_grand_prix_native \
+            tools.ci.test_progression_mini_grand_prix_selector
           test -z "$(git status --porcelain)"
       - name: Compile genuine R2025a C Supervisor probe without motor authority
         run: |
@@ -58,6 +66,14 @@ jobs:
             -w /workspace/controllers/progression_mini_grand_prix_v1 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_mini_grand_prix_v1'
+      - name: Compile genuine R2025a school C++ scene selector with isolated A7 gate
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_gp_scene_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_gp_scene_probe'
       - name: Falsify L and R native colliders, contact and range geometry
         run: |
           set -euo pipefail
@@ -88,6 +104,16 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_ground_start.py'
+      - name: Import and re-import native Mini GP L-R-L with real school selector
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_scene_selector.py'
       - name: Preserve negative and positive native evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,4 +123,5 @@ jobs:
             ci-artifacts/progression-mini-gp-geometry/
             ci-artifacts/progression-mini-gp-native-observer/
             ci-artifacts/progression-mini-gp-ground-start/
+            ci-artifacts/progression-mini-gp-scene-selector/
           if-no-files-found: warn

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <string>
 #include "decision_h_scene_gate.h"
+#include "mini_gp_scene_gate.h"
 
 namespace {
 std::string legacyScene;
@@ -22,6 +23,7 @@ constexpr int kAltitudeSceneChildren = 22;  // 18 markers, 4 physical colliders.
 constexpr int kOrientationSceneChildren = 24;  // Native observer and markers.
 constexpr int kSequenceSceneChildren = 18;  // Native observer inside first Pose.
 constexpr int kDecisionSceneChildren = webeeblocks_a4_gate::kChildren;
+constexpr int kMiniGpSceneChildren = webeeblocks_a7_gate::kChildren;
 double oldPosition[3];
 double oldOrientation[4];
 
@@ -191,6 +193,13 @@ bool orientationObserver() {
     wb_supervisor_field_get_sf_bool(syncField);
 }
 bool liveSelection() {
+  const bool miniL = wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_L_SCENE") != nullptr;
+  const bool miniR = wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE") != nullptr;
+  // A foreign Mini GP group always poisons another selected activity. Two
+  // simultaneous variants are never a valid authorisation to take off.
+  if ((miniL || miniR) &&
+      selected != "mini-grand-prix-l-v1" &&
+      selected != "mini-grand-prix-r-v1") return false;
   if (selected == "sequence-v1")
     return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", kSequenceSceneChildren) &&
       sequenceObserver() &&
@@ -237,6 +246,18 @@ bool liveSelection() {
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+  }
+  if (selected == "mini-grand-prix-l-v1" || selected == "mini-grand-prix-r-v1") {
+    const char variant = selected == "mini-grand-prix-l-v1" ? 'L' : 'R';
+    return (variant == 'L' ? (miniL && !miniR) : (miniR && !miniL)) &&
+      webeeblocks_a7_gate::valid(variant) &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
   }
   // Absence is not identity: an interrupted managed-world import may also
   // leave zero groups. Dedicated worlds opt in through a typed world root.
@@ -285,7 +306,9 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
                  std::strcmp(scene, "altitude-v1") &&
                  std::strcmp(scene, "orientation-v1") &&
                  std::strcmp(scene, "decision-h-a-v1") &&
-                 std::strcmp(scene, "decision-h-b-v1"))) return 0;
+                 std::strcmp(scene, "decision-h-b-v1") &&
+                 std::strcmp(scene, "mini-grand-prix-l-v1") &&
+                 std::strcmp(scene, "mini-grand-prix-r-v1"))) return 0;
   observeWorld();
   ready = ready && liveSelection();
   if (ready && selected == scene) return 1;
@@ -309,7 +332,9 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
-        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE")) {
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_L_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE")) {
       // A typed, empty classroom launch has no live scenario to export. Its
       // versioned restoration assets remain subject to the same post-import
       // type/count/node checks. An interrupted/partial scene is never empty.
@@ -356,6 +381,18 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         nextScene.find(root) == std::string::npos ||
         nextScene.find("controller \"progression_decision_h_v1\"") == std::string::npos)
       return 0;
+  } else if (std::strcmp(scene, "mini-grand-prix-l-v1") == 0 ||
+             std::strcmp(scene, "mini-grand-prix-r-v1") == 0) {
+    const bool isLeft = std::strcmp(scene, "mini-grand-prix-l-v1") == 0;
+    nextScene = sceneFile(isLeft ? "mini-grand-prix-l-v1.wbo" :
+                                  "mini-grand-prix-r-v1.wbo");
+    const char *root = isLeft ? "\nDEF WEBEEBLOCKS_MINI_GP_L_SCENE Group {" :
+                                "\nDEF WEBEEBLOCKS_MINI_GP_R_SCENE Group {";
+    // A typed WBO must contain the only matching native observer before any
+    // destructive import. The post-import native geometry gate decides READY.
+    if (nextScene.empty() || nextScene.find(root) == std::string::npos ||
+        nextScene.find("controller \"progression_mini_grand_prix_v1\"") ==
+          std::string::npos) return 0;
   } else if (std::strcmp(scene, "orientation-v1") == 0) {
     nextScene = sceneFile("orientation-v1.wbo");
     // Fail before destruction when the versioned scene or its native observer
@@ -374,6 +411,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   removeDef("WEBEEBLOCKS_ORIENTATION_SCENE");
   removeDef("WEBEEBLOCKS_DECISION_A_SCENE");
   removeDef("WEBEEBLOCKS_DECISION_B_SCENE");
+  removeDef("WEBEEBLOCKS_MINI_GP_L_SCENE");
+  removeDef("WEBEEBLOCKS_MINI_GP_R_SCENE");
   // Activities 7/8 currently import extra root nodes at evaluator startup.
   // Remove those too; restarting their evaluators recreates them on restoration.
   for (int i = wb_supervisor_field_get_count(children) - 1; i >= 0; --i) {
@@ -426,6 +465,27 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
     const double p[] = {-1.8, -1.6, 1.7};
+    const double o[] = {-0.45, 0.47, 0.76, 1.05};
+    wb_supervisor_field_set_sf_vec3f(position, p);
+    wb_supervisor_field_set_sf_rotation(orientation, o);
+  } else if (std::strcmp(scene, "mini-grand-prix-l-v1") == 0 ||
+             std::strcmp(scene, "mini-grand-prix-r-v1") == 0) {
+    const bool isLeft = std::strcmp(scene, "mini-grand-prix-l-v1") == 0;
+    const char variant = isLeft ? 'L' : 'R';
+    wb_supervisor_field_import_mf_node_from_string(children, -1, nextScene.c_str());
+    ready = webeeblocks_a7_gate::valid(variant) &&
+      completeGroup(isLeft ? "WEBEEBLOCKS_MINI_GP_L_SCENE" :
+                             "WEBEEBLOCKS_MINI_GP_R_SCENE", kMiniGpSceneChildren) &&
+      !wb_supervisor_node_get_from_def(isLeft ?
+        "WEBEEBLOCKS_MINI_GP_R_SCENE" : "WEBEEBLOCKS_MINI_GP_L_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
+    const double p[] = {-2.4, -2.2, 1.9};
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
     wb_supervisor_field_set_sf_rotation(orientation, o);
