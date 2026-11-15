@@ -77,7 +77,7 @@ class WorkflowTests(unittest.TestCase):
         workflow=(WORKFLOWS/"ci-progression-a5-draft.yml").read_text(encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Temporary non-decision A5 Draft witness. Does NOT provide CI Gate"))
-        self.assertEqual(job_ids(workflow),{"a5-native-draft-only"})
+        self.assertEqual(job_ids(workflow),{"a5-native-draft-only","a5-pupil-flight-draft"})
         self.assertIn("  pull_request:\n",workflow)
         self.assertIn("if: github.event.pull_request.draft == true",workflow)
         self.assertIn("ref: ${{ github.event.pull_request.head.sha }}",workflow)
@@ -107,6 +107,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("tools/ci/run_classroom_reactive_L_v2_evaluator_attestation.py",workflow)
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
         self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
+        self.assertIn("a5-draft-student-wbb-native-flight-pilot",workflow)
+        self.assertIn("test_progression_reactive_L_v2_generic_program.js",workflow)
+        self.assertIn("test_progression_reactive_L_v2_pupil_flight",workflow)
+        self.assertIn("run_classroom_reactive_L_v2_pupil_flight.py --variant A",workflow)
+        self.assertIn("WEBEEBLOCKS_A5_WBB_OUTPUT=ci-artifacts/progression-reactive-L-v2-pupil/generic-witness.wbb",workflow)
+        self.assertEqual(workflow.count("if: github.event.pull_request.draft == true"),2)
+        self.assertEqual(workflow.count("persist-credentials: false"),2)
         for forbidden in ("name: CI Gate\n","continue-on-error: true",
                           "  schedule:\n","  push:\n","contents: write",
                           "pull-requests: write","actions: write"):
