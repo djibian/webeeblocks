@@ -66,6 +66,31 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED",source)
         self.assertNotIn("backend.readRange('up')",source)
 
+    def test_private_sensor_probe_does_not_read_scene_variant_or_supervisor(self):
+        source=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                "count_h_sensor_only_probe.js").read_text(encoding="utf-8")
+        page=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+              "count_h_flight_probe.js").read_text(encoding="utf-8")
+        runner=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        for token in ("variant","count-h-","SCENE","Blockly","GPS",
+                      "supervisor","window.","wb_supervisor"):
+            # The standalone pilot has neither world-selection nor
+            # synthetic mission/grading authority.
+            if token in ("Blockly","GPS","supervisor"):
+                self.assertNotIn(token,source.split("export async function",1)[1])
+            else:
+                self.assertNotIn(token,source.split("export async function",1)[1])
+        for token in ("backend.readRange('front')",
+                      "backend.readRange('up')",
+                      "backend.move('forward',0.08)",
+                      "A6_SENSOR_COUNT",
+                      "await backend.land()"):
+            self.assertIn(token,source)
+        self.assertIn("if(mode==='sensor')",page)
+        self.assertIn("await pilot.runSensorOnly(backend,report)",page)
+        self.assertIn('"mode":self.mode',runner)
+        self.assertIn('mode = "reference"',runner)
+
     def test_native_up_motor_trace_is_school_only_and_single_step(self):
         trace=(ROOT/"controllers/progression_count_h_school_pilot/"
                "a6_native_up_motor_trace.c").read_text(encoding="utf-8")

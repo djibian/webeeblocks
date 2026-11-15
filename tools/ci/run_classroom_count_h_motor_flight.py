@@ -45,12 +45,14 @@ def diagnose_webots_window_http():
 class A6VariantHandler(observer.Handler):
     """Only CI launch configuration; native Webots re-attests identity."""
     variant = 1
+    mode = "reference"
 
     def do_GET(self):
         if self.path != "/a6-variant":
             self.send_error(404)
             return
-        data=json.dumps({"variant":self.variant},sort_keys=True).encode("utf-8")
+        data=json.dumps({"variant":self.variant,"mode":self.mode},
+                        sort_keys=True).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type","application/json")
         self.send_header("Content-Length",str(len(data)))

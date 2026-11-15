@@ -19,10 +19,13 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     const configResponse=await fetch('http://127.0.0.1:8765/a6-variant');
     if(!configResponse.ok)throw new Error('A6 CI variant unavailable');
     const config=await configResponse.json();
+    const mode=config&&config.mode;
+    if(mode!=='reference'&&mode!=='sensor')
+      throw new Error('invalid private A6 CI probe mode');
     const variant=config&&config.variant;
     if(!Number.isInteger(variant)||variant<1||variant>3)
       throw new Error('invalid A6 CI native variant');
-    await report('A6_JS_STARTED',{mode:'native-motor-no-Blockly',variant});
+    await report('A6_JS_STARTED',{mode,variant,testOnly:true});
     const module=await import('../blockly_v2/webots/RobotWindow.js');
     const bridge=new module.default();
     const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
@@ -35,6 +38,11 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     // product scene integration; only our isolated CI adapter accepts it.
     await backend._request(['SCENE','count-h-'+variant+'-v1']);
     await report('A6_SCENE_ACK',{diagnosticOnly:true,variant});
+    if(mode==='sensor') {
+      const pilot=await import('./count_h_sensor_only_probe.js');
+      await pilot.runSensorOnly(backend,report);
+      return;
+    }
     await backend.setSpeed(0.20);
     await backend.takeoff(0.40);
     await report('A6_TAKEOFF',{height_m:.40});
