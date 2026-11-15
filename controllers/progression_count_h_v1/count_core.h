@@ -24,7 +24,11 @@
 #define WB_COUNT_LAND_Z 0.070
 /* Static school Floor is z=0; grounded centre is about z=0.015 m.
  * Reject a motionless hover even if the observer admitted an elevated origin. */
-#define WB_COUNT_LAND_ABSOLUTE_Z 0.070
+/* R2025a measurements on the same classroom Crazyflie/floor for A4
+ * report native grounded centre around z=0.0145-0.0150 m. Admit an
+ * additional 5 mm, but not a motionless 3/6-cm hover. The A6 motorized
+ * native observer must independently requalify its own landing height. */
+#define WB_COUNT_LAND_ABSOLUTE_Z 0.020
 #define WB_COUNT_LAND_MAX_SPEED 0.120
 #define WB_COUNT_SETTLE_SEC 1.500
 /* A passing landing requires consecutive measured stability, not one frame. */

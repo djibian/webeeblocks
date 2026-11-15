@@ -295,30 +295,35 @@ static void test_missing_landing_observation_restarts_dwell(void) {
     }
   }
 }
-/* Reproduce an accepted but high initial 7.5-cm origin and a motionless
- * 14-cm hover on the correct pad AFTER all genuine ordered H crossings.
- * A relative-only 7-cm landing predicate would falsely mark this ACHIEVED. */
+/* All 1/2/3 true sequential H crossings then final-pad sustained hover.
+ * Earlier source rejected 14 cm but falsely accepted 3 and 6 cm because
+ * both remain below the old 7-cm absolute ceiling. No syntax check or AST
+ * requirement: even completed=1 cannot override a non-grounded height. */
 static void test_high_origin_false_hover_rejected(void) {
   for(unsigned n=1;n<=3;++n) {
-    wb_count_mission m;
-    wb_count_reset(&m,3000+n,n,.075);
-    double clock=0.0;
     const double target=wb_count_target_y(n);
-    assert(.140-.075 <= WB_COUNT_LAND_Z);
-    assert(.140 > WB_COUNT_LAND_ABSOLUTE_Z);
-    for(int i=0;i<=250;++i) {
-      const double x=-1.40+i*.01152;
-      assert(feed(&m,&clock,x,0,.40,.10,0,0)==WB_COUNT_WAIT);
+    for(int kind=0;kind<3;++kind) {
+      const double origin=kind==0?.075:.015;
+      const double hover=kind==0?.140:(kind==1?.060:.030);
+      wb_count_mission m;
+      wb_count_reset(&m,3000+10*n+kind,n,origin);
+      double clock=0.0;
+      assert(hover-origin <= WB_COUNT_LAND_Z);
+      assert(hover > WB_COUNT_LAND_ABSOLUTE_Z);
+      for(int i=0;i<=250;++i) {
+        const double x=-1.40+i*.01152;
+        assert(feed(&m,&clock,x,0,.40,.10,0,0)==WB_COUNT_WAIT);
+      }
+      for(int i=1;i<=55;++i) {
+        const double y=target*i/55.0;
+        assert(feed(&m,&clock,1.48,y,.40,.10,0,0)==WB_COUNT_WAIT);
+      }
+      assert(m.crossed==n);
+      assert(feed(&m,&clock,1.48,target,hover,0,0,1)==WB_COUNT_WAIT);
+      for(int i=0;i<11;++i)
+        assert(feed_step(&m,&clock,.032,1.48,target,hover,0,0,0)==WB_COUNT_WAIT);
+      assert(feed_step(&m,&clock,1.2,1.48,target,hover,0,0,0)==WB_COUNT_NOT_ACHIEVED);
     }
-    for(int i=1;i<=55;++i) {
-      const double y=target*i/55.0;
-      assert(feed(&m,&clock,1.48,y,.40,.10,0,0)==WB_COUNT_WAIT);
-    }
-    assert(m.crossed==n);
-    assert(feed(&m,&clock,1.48,target,.140,0,0,1)==WB_COUNT_WAIT);
-    for(int i=0;i<11;++i)
-      assert(feed_step(&m,&clock,.032,1.48,target,.140,0,0,0)==WB_COUNT_WAIT);
-    assert(feed_step(&m,&clock,1.2,1.48,target,.140,0,0,0)==WB_COUNT_NOT_ACHIEVED);
   }
 }
 int main(void) {
@@ -392,7 +397,7 @@ class CountHCoreTests(unittest.TestCase):
         self.assertNotIn("wb_count_sample_mission(AST", source)
         self.assertIn("WB_COUNT_NOT_ACHIEVED", source)
         self.assertIn("#define WB_COUNT_LAND_DWELL_SEC 0.250", source)
-        self.assertIn("#define WB_COUNT_LAND_ABSOLUTE_Z 0.070", source)
+        self.assertIn("#define WB_COUNT_LAND_ABSOLUTE_Z 0.020", source)
         self.assertIn("s->z <= WB_COUNT_LAND_ABSOLUTE_Z", source)
         physical = (ROOT/"controllers/progression_count_h_flight_observer/"
                     "progression_count_h_flight_observer.c").read_text(encoding="utf-8")
