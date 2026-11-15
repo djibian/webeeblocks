@@ -95,6 +95,50 @@ class CoreCaptureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'empty'):
                 capture.cores(path, 'webots-bin')
 
+    def test_inventory_records_empty_oversized_and_process_phase_without_waiver(self):
+        # No kernel routing, Docker, debugger, native pilot or raw core reads.
+        # Small fixtures stand in for a 1-GiB core by temporarily reducing
+        # only the test's limit; production CORE_LIMIT stays unchanged.
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            root = Path(tmp)
+            good = root / 'core.webots-bin.10.100'
+            empty = root / 'core.webots-bin.11.101'
+            oversized = root / 'core.webots-bin.12.102'
+            linked = root / 'core.webots-bin.13.103'
+            good.write_bytes(b'fixture')
+            empty.write_bytes(b'')
+            oversized.write_bytes(b'oversized!')
+            linked.symlink_to(good)
+            (root / 'core.unrelated.10.100').write_bytes(b'ignored')
+            with (patch.object(capture, 'CORE_LIMIT', 8),
+                  patch.object(capture, 'attribute',
+                               return_value={'phase': 'AFTER_READY',
+                                             'trial': 'test-only'})):
+                inventory = capture.inventory_native_cores(root, 'webots-bin')
+                self.assertEqual(
+                    [(item['pid'], item['size_bytes'], item['size_policy'])
+                     for item in inventory],
+                    [(10, 7, 'IN_BOUNDS'), (11, 0, 'EMPTY'),
+                     (12, 10, 'OVERSIZED'), (13, None, 'UNTRUSTED')])
+                self.assertEqual(inventory[0]['attribution']['phase'],
+                                 'AFTER_READY')
+                self.assertEqual(inventory[1]['attribution']['phase'],
+                                 'AFTER_READY')
+                self.assertEqual(inventory[2]['attribution']['phase'],
+                                 'AFTER_READY')
+                # The instrumentation must not make the previous strict
+                # rejection of a zero/oversize real core disappear.
+                with self.assertRaisesRegex(RuntimeError, 'empty or oversized'):
+                    capture.cores(root, 'webots-bin')
+
+    def test_host_records_native_inventory_before_strict_core_validation(self):
+        source = (Path(__file__).resolve().parent /
+                  'run_grand_prix_u_core_capture.py').read_text()
+        a = source.index("record['native_core_inventory'] = inventory_native_cores(")
+        b = source.index("found = cores(directory, 'webots-bin')", a)
+        self.assertLess(a, b)
+        self.assertIn('raw_core_uploaded=False', source)
+
     def test_debugger_refuses_mutated_original_sysroot(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
