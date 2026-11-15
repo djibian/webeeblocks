@@ -450,6 +450,36 @@ if [ "WB_ALTITUDE_NATIVE_SMOKE_ENABLED" = "1" ]; then
     exit 1
   }
   echo 'PASS two independent native R2025a controllers started with exact Activity 2 geometry'
+  # Adversarial native admission: 64-ms WorldInfo cannot satisfy the 48-ms
+  # continuity bound of the real landing oracle. Only the temporary CI world
+  # is mutated; the canonical scene and hardware/physical runtime are untouched.
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py prepare
+  python3 - <<'WB_A2_WRONG_STEP'
+from pathlib import Path
+p = Path('/workspace/worlds/ci_classroom_altitude_smoke.wbt')
+world = p.read_text(encoding='utf-8')
+assert world.count('basicTimeStep 32') == 1
+p.write_text(world.replace('basicTimeStep 32', 'basicTimeStep 64', 1), encoding='utf-8')
+WB_A2_WRONG_STEP
+  set +e
+  timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=fast \
+    /workspace/worlds/ci_classroom_altitude_smoke.wbt \
+    > /workspace/ci-artifacts/progression-sequence-mission/altitude-wrong-timestep.log 2>&1
+  wrong_step_status=$?
+  set -e
+  python3 /workspace/tools/ci/prepare_classroom_altitude_smoke.py clean
+  grep -Fq 'WEBEEBLOCKS_ALTITUDE_FATAL invalid scene identity or geometry' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-wrong-timestep.log || {
+    cat /workspace/ci-artifacts/progression-sequence-mission/altitude-wrong-timestep.log
+    echo "FAIL Activity 2 64ms native evaluator did not refuse before READY (exit $wrong_step_status)" >&2
+    exit 1
+  }
+  ! grep -Fq 'WEBEEBLOCKS_ALTITUDE_READY' \
+    /workspace/ci-artifacts/progression-sequence-mission/altitude-wrong-timestep.log || {
+    echo 'FAIL Activity 2 evaluator announced READY on a 64ms world' >&2
+    exit 1
+  }
+  echo "PASS Activity 2 native 64ms timestep rejected before READY (Webots exit $wrong_step_status)"
 fi
 # Independent native loading of the 3D orientation evaluator alongside the
 # school flight controller. No flight, student program or scene selection proof.
