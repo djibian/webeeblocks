@@ -295,6 +295,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   const definitions = {
     webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
+    webeeblocks_v2_turn: {init() { this.fields = {DIRECTION:dropdown([['tourner à gauche','left'],['tourner à droite','right']])}; }},
     webeeblocks_v2_vertical: {init() { this.fields = {DIRECTION:dropdown([['monter','up'],['descendre','down']])}; }},
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
     math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
@@ -342,6 +343,11 @@ function proveProgressionProfilesAndFieldOptions() {
   const flyoutVertical = flyoutWorkspace.newBlock('webeeblocks_v2_vertical');
   assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up']);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  // Activity 3 must expose real ±90° turn controls under the same generic dropdown contract.
+  const orientationFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-orientation-3d-v1', Activities.BLOCK_CATALOG);
+  controller.setProfile(orientationFlyoutProfile, flyoutWorkspace);
+  const flyoutTurn = flyoutWorkspace.newBlock('webeeblocks_v2_turn');
+  assert.deepStrictEqual(flyoutTurn.getField('DIRECTION').getOptions(false).map(option => option[1]), ['left','right']);
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
