@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A6 n=1..3 genuine motor-flight witness (diagnostic, NOT a pupil .wbb PASS)."""
 from __future__ import annotations
+import hashlib
 import json
 import os
 import re
