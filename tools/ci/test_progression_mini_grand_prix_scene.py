@@ -86,8 +86,8 @@ class MiniGrandPrixScenes(unittest.TestCase):
         core = (ROOT / "controllers/progression_mini_grand_prix_v1/mini_core.h").read_text(encoding="utf-8")
         for function, coordinate in (("h_x", 0), ("turn_x", 1), ("pad_y", 2)):
             match = re.search(
-                rf"static inline double wb_mini_{function}\\(char v\\)\\s*\\{{"
-                rf"\\s*return v=='L' \\? (-?[0-9.]+) : (-?[0-9.]+);\\s*\\}}",
+                rf"static inline double wb_mini_{function}\(char v\)\s*\{{"
+                rf"\s*return v=='L' \? (-?[0-9.]+) : (-?[0-9.]+);\s*\}}",
                 core,
             )
             self.assertIsNotNone(match, f"missing transparent C oracle coordinate {function}")
