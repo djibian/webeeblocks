@@ -117,16 +117,24 @@ static int parse_completion(const char *data, unsigned long long attempt) {
   return data && strcmp(data, canonical) == 0;
 }
 
-static int native_contact_observation(WbNodeRef craft) {
+static int native_contact_observation(WbNodeRef craft, int *floor_contact) {
+  if (!floor_contact) return -1;
+  *floor_contact = -1;
   int count = -1;
   const WbContactPoint *points =
     wb_supervisor_node_get_contact_points(craft, true, &count);
   if (count < 0 || (count > 0 && !points))
     return -1;
+  *floor_contact = 0;
   for (int i = 0; i < count; ++i) {
     const int hit = wb_alt_obstacle_point(points[i].point);
     if (hit != 0)
-      return hit;
+      return hit; /* Obstacle collision or malformed observation wins. */
+    /* This classroom scene has only a z=0 floor outside the four
+     * independently attested obstacle colliders. Height alone never
+     * proves landing: use a real Webots contact sample. */
+    if (fabs(points[i].point[2]) <= 0.030)
+      *floor_contact = 1;
   }
   return 0;
 }
@@ -186,7 +194,7 @@ int main(void) {
     const double *velocity = wb_supervisor_node_get_velocity(craft);
     wb_alt_sample sample = {0};
     sample.time = wb_robot_get_time();
-    sample.obstacle_contact = native_contact_observation(craft);
+    sample.obstacle_contact = native_contact_observation(craft, &sample.floor_contact);
     sample.completed = parse_completion(data, mission.attempt);
     if (!position || !velocity) {
       sample.x = NAN;
