@@ -3,9 +3,6 @@
 name: Activity 5 Draft real Multi-ranger counterexample
 
 on:
-  # Branch diagnostic only until compiled C behavioral oracle is attested.
-  push:
-    branches: [feat/pedagogy-a5-reactive-L-variants-20261112]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -14,6 +11,7 @@ on:
       - 'tools/ci/test_workflow_contract.py'
       - 'tools/ci/test_progression_reactive_L_*.py'
       - 'tools/ci/run_classroom_reactive_L_sensor*.py'
+      - 'tools/ci/run_classroom_reactive_L_v2_evaluator_attestation.py'
       - 'controllers/progression_reactive_L_v2/**'
       - 'controllers/progression_reactive_L_sensor_probe*/**'
       - 'worlds/scenes/reactive-L-*.wbo'
@@ -24,13 +22,13 @@ permissions:
 jobs:
   a5-native-draft-only:
     name: A5 R2025a v1/v2 sensor falsification (not CI Gate)
-    if: github.event_name == 'push' || github.event.pull_request.draft == true
+    if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Refuse altered A5 source worlds and witness roles
         run: |
