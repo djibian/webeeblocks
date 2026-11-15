@@ -455,7 +455,9 @@ class CountHCoreTests(unittest.TestCase):
         self.assertIn("test_native_floor_contact_required()", DRIVER)
         physical = (ROOT/"controllers/progression_count_h_flight_observer/"
                     "progression_count_h_flight_observer.c").read_text(encoding="utf-8")
-        self.assertIn("sample.z<=WB_COUNT_LAND_ABSOLUTE_Z", physical)
+        self.assertIn("sample.completed=wb_count_exact_completion(", physical)
+        self.assertNotIn("sample.completed=pad?1:0", physical)
+        self.assertIn("wb_count_exact_completion(valid,1)", DRIVER)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking(craft,step,true)", physical)
         self.assertIn("wb_supervisor_node_get_contact_points(craft,true,&craft_count)", physical)
 

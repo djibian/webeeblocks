@@ -72,7 +72,8 @@ class CountHMotorFlightTests(unittest.TestCase):
         page=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
               "count_h_flight_probe.js").read_text(encoding="utf-8")
         runner=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
-        for token in ("variant","count-h-","SCENE","Blockly","GPS",
+        for token in ("variant","count-h-1-v1","count-h-2-v1",
+                      "count-h-3-v1","SCENE","Blockly","GPS",
                       "supervisor","window.","wb_supervisor"):
             # The standalone pilot has neither world-selection nor
             # synthetic mission/grading authority.
@@ -217,7 +218,9 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("for n in 1 2 3; do",workflow)
         self.assertEqual(workflow.count(
             "run_classroom_count_h_motor_flight.py --mode sensor --variant"),1)
-        self.assertNotIn("count-h-",script.split("export async function",1)[1])
+        for variant in (1, 2, 3):
+            self.assertNotIn(f"count-h-{variant}-v1",
+                             script.split("export async function",1)[1])
         self.assertNotIn("variant",script.split("export async function",1)[1])
         self.assertIn("await backend.readRange('up')",script)
         self.assertIn("await backend.readRange('front')",script)
@@ -408,10 +411,12 @@ class CountHMotorFlightTests(unittest.TestCase):
             self.assertIn(f'"ACTIVITY6_%d_{suffix}"',source)
         self.assertIn("collider_count!=3*variant+2",source)
         self.assertIn("for(int i=0;i<collider_count;++i)",source)
-        self.assertIn("wb_count_target_y((unsigned)variant)",source)
+        # The trusted physical oracle, not the transport-only observer,
+        # remains authoritative for the selected whole-craft landing pad.
+        core=(ROOT/"controllers/progression_count_h_v1/count_core.h").read_text()
+        self.assertIn("wb_count_target_y(m->variant)",core)
         self.assertIn("wb_count_reset(&m,1,(unsigned)variant,origin_z)",source)
         self.assertIn("step!=32",source)
-        core=(ROOT/"controllers/progression_count_h_v1/count_core.h").read_text()
         self.assertIn("WB_COUNT_LAND_MAX_SAMPLE_GAP_SEC 0.048",core)
         self.assertIn("m->stable_since_valid = 0;",core)
         self.assertIn("reported_cross!=variant",source)
