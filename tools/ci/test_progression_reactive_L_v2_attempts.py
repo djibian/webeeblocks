@@ -31,7 +31,7 @@ class A5V2AttemptProtocol(unittest.TestCase):
             with self.subTest(bad=bad),self.assertRaises(ValueError):
                 witness.compose(bad)
 
-    def test_actual_native_reset_contract_and_no_fabricated_flight(self):
+    def test_actual_native_attempt_identity_and_no_fabricated_flight(self):
         core=(ROOT/"controllers/progression_reactive_L_attempt_probe/"
               "progression_reactive_L_attempt_probe.c").read_text(encoding="utf-8")
         runner=(ROOT/"tools/ci/run_classroom_reactive_L_v2_attempts.py"
@@ -43,7 +43,7 @@ class A5V2AttemptProtocol(unittest.TestCase):
             "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1",
             "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=2",
             "status=not-achieved",
-            "fresh_reset=true",
+            "fresh_attempt_marker=true",
         ):self.assertIn(required,core)
         for forbidden in (
             "wb_motor_set_velocity","wb_motor_set_position",
@@ -51,6 +51,7 @@ class A5V2AttemptProtocol(unittest.TestCase):
             "wb_supervisor_node_set_velocity",
             "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=achieved",
         ):self.assertNotIn(forbidden,core)
+        self.assertIn("host_reset=NOT_TESTED",runner)
         self.assertIn("for variant in",runner)
         self.assertIn('for variant in "ABC":',runner)
         self.assertIn('"WEBEEBLOCKS_A5_V2_FATAL" in data',runner)
