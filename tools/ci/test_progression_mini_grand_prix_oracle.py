@@ -23,6 +23,9 @@ class MiniGrandPrixCompiledOracle(unittest.TestCase):
         self.assertIn("#define WB_MINI_LAND_ABSOLUTE_Z 0.020", source)
         self.assertIn("s->z-m->origin_z<=WB_MINI_LAND_Z", source)
         self.assertIn("s->z<=WB_MINI_LAND_ABSOLUTE_Z", source)
+        self.assertIn("s->floor_contact==1", source)
+        self.assertIn("(s->floor_contact==0||s->floor_contact==1)", source)
+        self.assertIn("no_floor_contact_landing_must_fail", HARNESS.read_text(encoding="utf-8"))
         self.assertTrue(HARNESS.is_file(), "missing A7 adversarial C harness")
         compiler = shutil.which("cc")
         self.assertIsNotNone(compiler, "C compiler mandatory for A7 proof")
@@ -44,7 +47,7 @@ class MiniGrandPrixCompiledOracle(unittest.TestCase):
                              "A7 adversarial assertions failed:\n" +
                              executed.stdout + executed.stderr)
             self.assertEqual(executed.stdout.strip(),
-                             "PASS A7 isolated C oracle: fifty-one positive/adversarial scenarios")
+                             "PASS A7 isolated C oracle: fifty-seven positive/adversarial scenarios")
             self.assertEqual(executed.stderr.strip(), "")
 
 

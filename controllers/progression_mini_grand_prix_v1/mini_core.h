@@ -51,6 +51,8 @@ typedef enum { WB_MINI_WAIT=0, WB_MINI_ACHIEVED=1, WB_MINI_FAILED=2 } wb_mini_ve
 typedef struct {
   double time,x,y,z,vx,vy,vz,yaw;
   int contact,completed;
+  /* Independent native floor contact, not an altitude approximation. */
+  int floor_contact;
 } wb_mini_sample;
 typedef struct {
   unsigned long long attempt;
@@ -81,6 +83,7 @@ static inline int wb_mini_valid(const wb_mini_sample *s) {
     isfinite(s->z)&&isfinite(s->vx)&&isfinite(s->vy)&&
     isfinite(s->vz)&&isfinite(s->yaw)&&
     (s->contact==0||s->contact==1)&&
+    (s->floor_contact==0||s->floor_contact==1)&&
     (s->completed==0||s->completed==1);
 }
 static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
@@ -208,6 +211,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
       fabs(s->y-wb_mini_pad_y(m->variant))<=WB_MINI_LAND_TOL &&
       s->z-m->origin_z<=WB_MINI_LAND_Z &&
       s->z<=WB_MINI_LAND_ABSOLUTE_Z &&
+      s->floor_contact==1 &&
       hypot(s->vx,s->vy)<=WB_MINI_LAND_SPEED &&
       fabs(s->vz)<=WB_MINI_LAND_SPEED;
     if(stable) {

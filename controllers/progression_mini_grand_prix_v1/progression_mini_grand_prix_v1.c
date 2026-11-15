@@ -147,7 +147,10 @@ static int completed_token(const char *data,unsigned long long attempt) {
   return data&&n>0&&(size_t)n<sizeof(expected)&&!strcmp(expected,data);
 }
 static int native_contact(WbNodeRef craft,
-                          const WbNodeRef colliders[WB_A7_COLLIDERS]) {
+                          const WbNodeRef colliders[WB_A7_COLLIDERS],
+                          int *floor_contact) {
+  if(!floor_contact)return -1;
+  *floor_contact=0;
   /* R2025a native evidence: point.node_id identifies the node BEING
    * queried, not reliably the partner (the 2026-11-15 low-contact mutant
    * showed obstacle node_id=277 while the craft id was 59). Never infer
@@ -176,6 +179,9 @@ static int native_contact(WbNodeRef craft,
     const double *p=points[i].point;
     if(!isfinite(p[0])||!isfinite(p[1])||!isfinite(p[2]))return -1;
     if(fabs(p[2])>0.025)return 1;
+    /* Groundedness is certified by the real craft contact points only.
+     * The obstacle checks above remain authoritative even for z=0. */
+    *floor_contact=1;
   }
   return 0;
 }
@@ -246,7 +252,7 @@ int main(void) {
     if(!last_attempt||mission.verdict!=WB_MINI_WAIT)continue;
     wb_mini_sample sample={0};
     sample.time=wb_robot_get_time();
-    sample.contact=native_contact(craft,colliders);
+    sample.contact=native_contact(craft,colliders,&sample.floor_contact);
     sample.completed=completed_token(data,mission.attempt);
     const double *p=wb_supervisor_node_get_position(craft);
     const double *v=wb_supervisor_node_get_velocity(craft);

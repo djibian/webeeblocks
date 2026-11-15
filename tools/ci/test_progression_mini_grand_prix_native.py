@@ -88,6 +88,8 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                       "wb_supervisor_node_get_contact_points",
                       "wb_supervisor_node_enable_contact_points_tracking",
                       "wb_supervisor_node_get_orientation",
+                      "sample.contact=native_contact(craft,colliders,&sample.floor_contact)",
+                      "*floor_contact=1",
                       "attempt_token(data,&attempt)",
                       "completed_token(data,mission.attempt)",
                       "wb_mini_sample_mission(&mission,&sample)",

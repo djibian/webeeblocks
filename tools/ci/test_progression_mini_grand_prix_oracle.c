@@ -9,6 +9,9 @@
 static wb_mini_sample sample(double t,double x,double y,double z,double yaw,int done) {
   wb_mini_sample a={0};
   a.time=t;a.x=x;a.y=y;a.z=z;a.yaw=yaw;a.completed=done;
+  /* Test fixture only: positive C11 samples stand for actual contact.
+   * Explicit adversaries below override this to reject near-floor hover. */
+  a.floor_contact=z<=WB_MINI_LAND_ABSOLUTE_Z ? 1 : 0;
   return a;
 }
 /* Test-only helper: every legitimate fresh attempt begins with one native
@@ -403,10 +406,57 @@ static void late_dwell_boundary(char v) {
   a=sample(7.600,x,y,.015,yaw,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+
+/* Complete valid L/R paths followed by an apparent touchdown without any
+ * independently measured floor contact must fail, even at z=0.015. */
+static void no_floor_contact_landing_must_fail(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.0,x,y,.015,yaw,1);a.floor_contact=0;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  for(int i=1;i<=10;++i) {
+    a=sample(6.0+.032*i,x,y,.015,yaw,0);a.floor_contact=0;
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  }
+  a=sample(7.52,x,y,.015,yaw,0);a.floor_contact=0;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
+/* A single missing contact interrupts the 250-ms contiguous landing proof.
+ * Eight new consecutive 32-ms contact observations may then succeed. */
+static void intermittent_floor_contact_restarts_dwell(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.000,x,y,.015,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.032,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.064,x,y,.015,yaw,0);a.floor_contact=0;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(!m.stable_since_valid);
+  a=sample(6.096,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  for(int i=1;i<=7;++i) {
+    a=sample(6.096+.032*i,x,y,.015,yaw,0);
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  }
+  a=sample(6.352,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+}
+/* Absent or invalid native contact data must never authorize success. */
+static void invalid_floor_contact_must_fail(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  wb_mini_sample a=sample(6.0,wb_mini_turn_x(v),wb_mini_pad_y(v),
+                           .015,wb_mini_heading(v),1);
+  a.floor_contact=-1;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+}
 int main(void) {
   assert(fabs(WB_MINI_LAND_Z-0.070)<1e-12);
   assert(fabs(WB_MINI_LAND_ABSOLUTE_Z-0.020)<1e-12);
   positive('L');positive('R');
+  no_floor_contact_landing_must_fail('L');no_floor_contact_landing_must_fail('R');
+  intermittent_floor_contact_restarts_dwell('L');intermittent_floor_contact_restarts_dwell('R');
+  invalid_floor_contact_must_fail('L');invalid_floor_contact_must_fail('R');
   hovering_arrival_must_fail('L',.030);
   hovering_arrival_must_fail('R',.030);
   hovering_arrival_must_fail('L',.060);
@@ -434,6 +484,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: fifty-one positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: fifty-seven positive/adversarial scenarios");
   return 0;
 }
