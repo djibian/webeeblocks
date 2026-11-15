@@ -32,7 +32,7 @@ class Activity5V2NativeCOracle(unittest.TestCase):
             self.assertEqual(executed.returncode,0,
                              "A5 v2 C oracle refuted:\n"+executed.stdout+executed.stderr)
             self.assertEqual(executed.stdout.strip(),
-                             "PASS A5 V2 C oracle: 52 positive/adversarial cases")
+                             "PASS A5 V2 C oracle: 55 positive/adversarial cases")
             self.assertEqual(executed.stderr.strip(), "")
 
 if __name__=="__main__":
