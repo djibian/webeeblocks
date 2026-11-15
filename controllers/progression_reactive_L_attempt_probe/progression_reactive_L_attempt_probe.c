@@ -91,10 +91,11 @@ int main(void){
          variant);
   fflush(stdout);
 
-  /* A fresh increasing attempt must be usable, without a stale outcome. */
+  /* A fresh increasing native attempt identity must be usable without a stale
+   * outcome. This does NOT exercise classroom RESET or world reload. */
   if(!write_and_verify(channel,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2",step))
-    return stop("RESET attempt 2 not preserved");
-  if(!step_n(4,step))return stop("native reset wait failed");
+    return stop("fresh attempt 2 identity not preserved");
+  if(!step_n(4,step))return stop("native attempt rollover wait failed");
   const char *state=wb_supervisor_field_get_sf_string(channel);
   if(!state||strcmp(state,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2")!=0)
     return stop("previous negative outcome leaked into next attempt");
@@ -105,7 +106,7 @@ int main(void){
   printf(PROBE "_RESULT variant=%c attempt=2 status=not-achieved cause=premature-complete\n",
          variant);
   printf(PROBE "_DONE variant=%c two_real_native_attempts=true "
-         "fresh_reset=true no_pupil_flight=true\n",variant);
+         "fresh_attempt_marker=true host_reset=NOT_TESTED no_pupil_flight=true\n",variant);
   fflush(stdout);
   wb_robot_cleanup();
   return 0;
