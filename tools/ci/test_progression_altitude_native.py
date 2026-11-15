@@ -205,6 +205,28 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn("await backend.prepareActivity(PROFILE);", source)
         self.assertIn("await backend.resetSimulation();", source)
 
+    def test_pupil_blockly_webots_witness_is_native_and_distinct(self):
+        # A native shell flight with a fabricated JS profile cannot establish
+        # that the actual pupil Blockly → AST → interpreter path works.
+        pupil = (ROOT / "plugins/robot_windows/altitude_pupil_probe/altitude_pupil_probe.js").read_text(
+            encoding="utf-8")
+        runner = (ROOT / "tools/ci/run_classroom_altitude_pupil.py").read_text(
+            encoding="utf-8")
+        progression = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(
+            encoding="utf-8")
+        self.assertIn("new Blockly.Workspace()", pupil)
+        self.assertIn("WebeeBlocksProjectFiles.encodeProject", pupil)
+        self.assertIn("WebeeBlocksProjectFiles.validateProjectText", pupil)
+        self.assertIn("WebeeBlocksActivityContract.execute(", pupil)
+        self.assertIn("WebeeBlocksInterpreter,backend", pupil)
+        self.assertIn("await backend.completeActivityMission(p.profile.evaluation)", pupil)
+        self.assertIn("await pupilOutcome(backend)", pupil)
+        self.assertIn("PUPIL_NATIVE_ACHIEVED", pupil)
+        self.assertIn("WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=achieved", runner)
+        self.assertIn("contact=0", runner)
+        self.assertIn("python3 /workspace/tools/ci/run_classroom_altitude_canopy.py", progression)
+        self.assertIn("python3 /workspace/tools/ci/run_classroom_altitude_pupil.py", progression)
+
     def test_scene_does_not_drift_from_native_constants(self):
         text = SCENE.read_text(encoding="utf-8")
         core = CORE.read_text(encoding="utf-8")

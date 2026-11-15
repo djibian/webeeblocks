@@ -184,7 +184,8 @@
     var documentModel = WebeeBlocksActivities && WebeeBlocksActivities.DOCUMENT;
     var activities = documentModel && Array.isArray(documentModel.activities) ? documentModel.activities : [];
     var profiles = activities.filter(function(profile) {
-      return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0;
+      return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0 &&
+        profile.starterVisible !== false;
     });
     if (!profiles.length) throw new Error('aucune activité de progression disponible');
     return profiles;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adversarial structural contracts for CI-only Blockly Activity 3 native flight.
+"""Adversarial structural contracts for native pupil-catalog Activity 3 flight.
 
 This static harness never substitutes for the Webots R2025a observed outcome.
 """
@@ -74,8 +74,11 @@ class OrientationPupilWorldTests(unittest.TestCase):
         ):
             with self.subTest(token=token):
                 self.assertIn(token,self.js)
-        self.assertIn("id:'ci-orientation-blockly-v1'",self.js)
-        self.assertIn("const doc={version:1,activities:[profile]}",self.js)
+        self.assertIn("'progression-orientation-3d-v1'",self.js)
+        self.assertIn("WebeeBlocksActivityProfiles.resolveById(",self.js)
+        self.assertIn("const doc=WebeeBlocksActivities.DOCUMENT",self.js)
+        self.assertNotIn("ci-orientation-blockly-v1",self.js)
+        self.assertNotIn("const doc={version:1,activities:[profile]}",self.js)
         self.assertNotIn('WebeeBlocksActivities.DOCUMENT.activities.push(',self.js)
         self.assertNotIn("webeeBlocks_physical",self.js)
 

@@ -63,8 +63,8 @@ def main():
     print(file_broker_test.stdout.strip())
     expected_starters = {
         '01-sequence.wbb':'progression-sequence-v1',
-        '02-precise-movement.wbb':'progression-precise-movement-v1',
-        '03-repeat.wbb':'progression-repeat-v1',
+        '02-altitude.wbb':'progression-altitude-v1',
+        '03-orientation.wbb':'progression-orientation-3d-v1',
         '04-simple-decision.wbb':'progression-simple-decision-v1',
         '05-reactive.wbb':'progression-reactive-v1',
         '06-multi-perception.wbb':'progression-combined-decisions-v1',
@@ -79,7 +79,23 @@ def main():
         project=json.loads((starter_dir / filename).read_text(encoding='utf-8'))
         if project.get('activity',{}).get('id') != activity_id:
             print(f'FAIL progression starter mapping {filename}', file=sys.stderr); return 1
-    print('PASS ordered progression starter files map one-to-one to activity profiles')
+    # The retired Activity 2 remains a valid historical .wbb, but must not
+    # occupy a second numbered slot in the eight active classroom starters.
+    archived=pathlib.Path('activities/historique/02-precise-movement.wbb')
+    if not archived.is_file():
+        print('FAIL original Activity 2 archive missing', file=sys.stderr); return 1
+    archived_project=json.loads(archived.read_text(encoding='utf-8'))
+    if (archived_project.get('activity',{}).get('id') != 'progression-precise-movement-v1'
+            or archived_project.get('activity',{}).get('semantics') != 'webeeblocks-ast-v1'):
+        print('FAIL original Activity 2 archive identity/semantics', file=sys.stderr); return 1
+    original3=pathlib.Path('activities/historique/03-repeat.wbb')
+    if not original3.is_file():
+        print('FAIL historical Activity 3 archive missing', file=sys.stderr); return 1
+    original3_project=json.loads(original3.read_text(encoding='utf-8'))
+    if (original3_project.get('activity',{}).get('id') != 'progression-repeat-v1'
+            or original3_project.get('activity',{}).get('semantics') != 'webeeblocks-ast-v1'):
+        print('FAIL archived Activity 3 identity/semantics', file=sys.stderr); return 1
+    print('PASS one-to-one progression starter mapping with archived original Activities 2 and 3')
     toolbox_defaults_test=subprocess.run(['node','plugins/robot_windows/blockly_v2/test_toolbox_defaults.js'],text=True,capture_output=True)
     if toolbox_defaults_test.returncode:
         print('FAIL Runtime v2 Blockly toolbox defaults',file=sys.stderr)
