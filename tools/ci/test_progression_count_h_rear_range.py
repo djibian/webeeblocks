@@ -9,9 +9,9 @@ import run_classroom_count_h_rear_range as diagnostic
 
 class CountHRearRangeWorldTests(unittest.TestCase):
     def test_genuine_upward_ray_samples_every_H_without_a_pupil_algorithm(self):
-        source=(ROOT/"controllers/progression_count_h_range_probe/"
+        source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")
-        runner=(ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
+        runner=(diagnostic.ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
             encoding="utf-8")
         self.assertIn('"range_up"',source)
         self.assertIn("wb_distance_sensor_enable(up, step)",source)
