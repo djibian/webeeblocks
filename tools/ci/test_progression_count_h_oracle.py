@@ -362,7 +362,22 @@ static void test_native_floor_contact_required(void) {
     }
   }
 }
+static void test_exact_attempt_completion_marker(void) {
+  const char *valid =
+    "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=progression-count-h-v1";
+  assert(wb_count_exact_completion(valid,1));
+  assert(!wb_count_exact_completion(valid,2)); /* stale attempt */
+  assert(!wb_count_exact_completion(valid,0));
+  assert(!wb_count_exact_completion(NULL,1));
+  assert(!wb_count_exact_completion("",1));
+  assert(!wb_count_exact_completion(
+    "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=progression-count-h-v2",1));
+  assert(!wb_count_exact_completion(
+    "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=1 oracle=progression-count-h-v1 trailing",1));
+  assert(!wb_count_exact_completion("WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1",1));
+}
 int main(void) {
+  test_exact_attempt_completion_marker();
   test_native_floor_contact_required();
   test_high_origin_false_hover_rejected();
   test_successes();

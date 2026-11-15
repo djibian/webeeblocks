@@ -85,6 +85,10 @@ export async function runPrivateBlockly(backend,report) {
        }}});
     if(!counted||JSON.stringify(executed)!==JSON.stringify(parsed.ast))
       throw Error('private .wbb was not executed by the real AST interpreter');
+    // Only after the entire .wbb and its native LAND have completed may
+    // the broker publish the reset-scoped, oracle-bound completion marker.
+    await backend.completeActivityMission({type:'mission-state-v1',oracle:'progression-count-h-v1'});
+    await report('A6_NATIVE_COMPLETION_ACK',{nativeReply:true,testOnly:true});
     await report('A6_TEST_COMPLETE',{testOnly:true,blockly:true,
       samePrivateWbb:true,productA6Unqualified:true});
   } finally {workspace.dispose();}

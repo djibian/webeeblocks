@@ -65,6 +65,8 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     await report('A6_PAD_SELECTED',{variant,side:variant===1?'center':variant===2?'left':'right'});
     await backend.land();
     await report('A6_LANDED',{nativeReply:true});
+    await backend.completeActivityMission({type:'mission-state-v1',oracle:'progression-count-h-v1'});
+    await report('A6_NATIVE_COMPLETION_ACK',{nativeReply:true,testOnly:true});
     await report('A6_TEST_COMPLETE',{testOnly:true});
   }catch(error){
     await report('A6_ERROR',{message:String(error&&(error.stack||error.message)||error)});

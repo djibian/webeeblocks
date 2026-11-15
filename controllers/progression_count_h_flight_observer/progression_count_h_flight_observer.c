@@ -111,6 +111,8 @@ int main(void) {
      fabs(start_velocity[2])>.12)
     return fail("motor flight did not start at authentic stationary blue zone");
   const double origin_z=origin[2];
+  WbFieldRef channel=wb_supervisor_node_get_field(craft,"customData");
+  if(!channel)return fail("missing native runtime-v2 completion channel");
   wb_count_mission m={0};
   wb_count_reset(&m,1,(unsigned)variant,origin_z);
   for(int i=0;i<collider_count;++i)
@@ -172,15 +174,15 @@ int main(void) {
     }
     if(fabs(sample.x-1.235)<=.03 && sample.x>0 &&
        fabs(sample.y)<=.10 && sample.z<=.53)screen_seen=1;
-    /* Physical near-ground pose, not JS source or client completion claim.
-     * The ordinary pilot's LAND command is checked separately in the log. */
-    const int pad=(fabs(sample.x-1.48)<=.060 &&
-                   fabs(sample.y-wb_count_target_y((unsigned)variant))<=.060 &&
-                   sample.z-origin_z<=WB_COUNT_LAND_Z &&
-                   sample.z<=WB_COUNT_LAND_ABSOLUTE_Z &&
-                   hypot(sample.vx,sample.vy)<=WB_COUNT_LAND_MAX_SPEED &&
-                   fabs(sample.vz)<=WB_COUNT_LAND_MAX_SPEED);
-    sample.completed=pad?1:0;
+    /* Mission completion must be published by the native runtime broker
+     * for the active attempt, never guessed from the pad pose. */
+    sample.completed=wb_count_exact_completion(
+      wb_supervisor_field_get_sf_string(channel),m.attempt);
+    if(sample.completed&&!m.completion_seen) {
+      printf("WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=%llu oracle=%s time=%.3f\n",
+             m.attempt,WB_COUNT_ORACLE,sample.time);
+      fflush(stdout);
+    }
     sample.obstacle_contact=0;
     wb_count_verdict result=wb_count_sample_mission(&m,&sample);
     if(m.crossed>(unsigned)reported_cross) {

@@ -71,7 +71,8 @@ class A6VariantHandler(observer.Handler):
 
 REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
           "A6_SCENE_ACK","A6_TAKEOFF","A6_CORRIDOR_DONE",
-          "A6_PAD_SELECTED","A6_LANDED","A6_TEST_COMPLETE")
+          "A6_PAD_SELECTED","A6_LANDED","A6_NATIVE_COMPLETION_ACK",
+          "A6_TEST_COMPLETE")
 
 def terminal_native_ack_logged(native_log, variant, mode="reference"):
     """Never kill Webots between C physical success and native LAND ACK."""
@@ -243,7 +244,7 @@ def run(variant=1,mode="reference"):
     if variant in (2,3):
         expected_moves.append(("left" if variant==2 else "right","0.550000000"))
     pad_y={1:0.0,2:0.55,3:-0.55}[variant]
-    expected_responses=11+(1 if variant!=1 else 0)
+    expected_responses=12+(1 if variant!=1 else 0)
     all_response_ids=re.findall(
         r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) "
         r"(?:OK|VALUE -?[0-9.]+|SCENE_OK [0-9a-f]{64})",txt)
@@ -271,7 +272,10 @@ def run(variant=1,mode="reference"):
     reference_protocol=(
         responses==[str(i) for i in range(1,expected_responses+1)]
         and moves==expected_moves)
+    authenticated_completion=(
+        "WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=1 oracle=progression-count-h-v1 " in txt)
     native_achieved=(
+        authenticated_completion and
         true_flight is not None and
         int(true_flight[1])==variant and int(true_flight[2])==variant and
         int(true_flight[3])>100 and
@@ -331,6 +335,7 @@ def run(variant=1,mode="reference"):
             dual.get("terminal_detected",False) and dual.get("count")==variant),
         "native_up_trace_schema":"webeeblocks-a6-native-up-motor-v1",
         "real_motorized_flight":bool(native_achieved),
+        "native_exact_attempt_completion":bool(authenticated_completion),
         "not_pupil_wbb_or_product_scene_qualification":True,
         "not_real_crazyflie_qualification":True,
         "product_window_autolaunch_qualified":False,

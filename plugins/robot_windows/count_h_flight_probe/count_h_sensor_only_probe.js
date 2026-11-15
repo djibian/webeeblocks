@@ -47,6 +47,8 @@ export async function runSensorOnly(backend,report) {
   await report('A6_PAD_SELECTED',{count,sensorOnly:true});
   await backend.land();
   await report('A6_LANDED',{nativeReply:true,sensorOnly:true});
+  await backend.completeActivityMission({type:'mission-state-v1',oracle:'progression-count-h-v1'});
+  await report('A6_NATIVE_COMPLETION_ACK',{nativeReply:true,testOnly:true});
   await report('A6_TEST_COMPLETE',{testOnly:true,sensorOnly:true,
     pupilWbbUnproven:true});
 }

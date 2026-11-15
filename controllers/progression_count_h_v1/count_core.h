@@ -9,6 +9,7 @@
  */
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define WB_COUNT_ORACLE "progression-count-h-v1"
@@ -71,6 +72,18 @@ static inline double wb_count_gate_x(unsigned index) {
 
 static inline double wb_count_target_y(unsigned variant) {
   return variant == 1 ? 0.0 : (variant == 2 ? 0.550 : -0.550);
+}
+
+/* Match only the broker's exact reset-scoped mission completion marker:
+ * neither pad coordinates nor a client/UI success event constitute COMPLETE. */
+static inline int wb_count_exact_completion(const char *data,
+                                             unsigned long long attempt) {
+  char marker[192];
+  if (!data || !attempt) return 0;
+  const int n = snprintf(marker, sizeof(marker),
+      "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=%llu oracle=%s",
+      attempt, WB_COUNT_ORACLE);
+  return n > 0 && (size_t)n < sizeof(marker) && strcmp(data, marker) == 0;
 }
 
 static inline void wb_count_reset(wb_count_mission *m,
