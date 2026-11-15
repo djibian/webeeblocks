@@ -13,6 +13,7 @@ import http.client
 import argparse
 
 import prepare_classroom_count_h_motor_flight as world
+from analyze_count_h_up_motor_evidence import attest_up_motor_trace
 import run_classroom_altitude_scene_ack as observer
 
 ARTIFACT=world.ARTIFACT
@@ -221,10 +222,23 @@ def run(variant=1):
         int(true_flight[3])>100 and
         abs(float(true_flight[4])-1.48)<=.06 and
         abs(float(true_flight[5])-pad_y)<=.06)
+    try:
+        up_motor=attest_up_motor_trace(txt,variant)
+    except ValueError as problem:
+        up_motor={
+            "schema":"webeeblocks-a6-native-up-motor-v1",
+            "variant":variant,
+            "native_motor_ray_observed":False,
+            "failure":str(problem),
+            "not_pupil_wbb_or_counter_qualification":True,
+        }
+    (ARTIFACT/"up-motor-evidence.json").write_text(
+        json.dumps(up_motor,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     launch=ARTIFACT/"browser-launch.log"
     launched=launch.read_text(encoding="utf-8",errors="replace") if launch.exists() else ""
     browser="BROWSER_LAUNCHED args=" in launched and "count_h_flight_probe.html" in launched
-    succeeded=(not missing and ordered and events.count("A6_ERROR")==0
+    succeeded=(up_motor["native_motor_ray_observed"] and
+               not missing and ordered and events.count("A6_ERROR")==0
                and native_achieved
                and responses==[str(i) for i in range(1,expected_responses+1)]
                and moves==expected_moves
@@ -237,6 +251,8 @@ def run(variant=1):
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
         "pass":bool(succeeded),"variant":variant,
+        "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
+        "native_up_trace_schema":"webeeblocks-a6-native-up-motor-v1",
         "real_motorized_flight":bool(native_achieved),
         "not_pupil_wbb_or_product_scene_qualification":True,
         "not_real_crazyflie_qualification":True,
@@ -247,13 +263,16 @@ def run(variant=1):
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")
     if not succeeded:
         print("A6_MOTOR_FLIGHT_UNPROVEN "+json.dumps({
-            "variant":variant,
+            "variant":variant,"up_motor":up_motor,
             "missing":missing,"ordered":ordered,"native":bool(native_achieved),
             "responses":responses,"moves":moves,"expected_moves":expected_moves,
             "browser":browser,
             "lastEvents":observer.EVENTS[-4:]}),file=sys.stderr)
         print(txt[-14000:],file=sys.stderr)
         return 1
+    print(f"WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED n={variant} "
+          f"gates={len(up_motor['gates'])} samples={up_motor['total_32ms_samples']} "
+          "sensor=authentic_range_up pupil_wbb=UNPROVEN",flush=True)
     print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
           "corridor=real_PID_and_motors contacts=none screen=passed "
           "pupil_wbb=UNPROVEN",flush=True)

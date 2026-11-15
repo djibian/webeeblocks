@@ -9,6 +9,54 @@ sys.path.insert(0,str(ROOT/"tools/ci"))
 import prepare_classroom_count_h_motor_flight as motor
 
 class CountHMotorFlightTests(unittest.TestCase):
+    def test_genuine_32ms_motor_ray_parser_and_adversarial_missing_H(self):
+        from analyze_count_h_up_motor_evidence import attest_up_motor_trace
+        import math
+        def synthetic(n,miss=None,step=32,altitude=.415):
+            lines=[]
+            for i in range(321):
+                x=-1.40+i*.009
+                center=any(abs(x-(-.85+.85*k))<.032
+                           for k in range(n) if k!=miss)
+                up=.2 if center else 2.
+                lines.append(
+                    f"WEBEEBLOCKS_A6_UP_MOTOR t={(i+1)*.032:.6f} "
+                    f"x={x:.9f} y=0.000000000 z={altitude:.9f} "
+                    f"up={up:.9f} step={step}")
+            return "\n".join(lines)
+        for n in (1,2,3):
+            with self.subTest(n=n):
+                good=attest_up_motor_trace(synthetic(n),n)
+                self.assertTrue(good["native_motor_ray_observed"])
+                self.assertEqual(len(good["gates"]),n)
+                self.assertEqual(good["total_32ms_samples"],321)
+                for missing in range(n):
+                    with self.assertRaisesRegex(ValueError,"far/near/far"):
+                        attest_up_motor_trace(synthetic(n,miss=missing),n)
+                with self.assertRaisesRegex(ValueError,"invalid native"):
+                    attest_up_motor_trace(synthetic(n,step=64),n)
+                with self.assertRaisesRegex(ValueError,"never sampled"):
+                    attest_up_motor_trace(synthetic(n,altitude=.95),n)
+                with self.assertRaisesRegex(ValueError,"missing/duplicating"):
+                    altered=synthetic(n).split("\n")
+                    del altered[30]
+                    attest_up_motor_trace("\n".join(altered),n)
+        for n in (0,4,True):
+            with self.assertRaisesRegex(ValueError,"invalid bounded"):
+                attest_up_motor_trace(synthetic(1),n)
+        with self.assertRaisesRegex(ValueError,"missing consecutive"):
+            attest_up_motor_trace("",1)
+
+    def test_motor_runner_requires_real_range_up_evidence_not_just_land(self):
+        source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text(
+            encoding="utf-8")
+        self.assertIn("attest_up_motor_trace(txt,variant)",source)
+        self.assertIn('up_motor["native_motor_ray_observed"] and',source)
+        self.assertIn("up-motor-evidence.json",source)
+        self.assertIn("native_up_during_motor_flight",source)
+        self.assertIn("WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED",source)
+        self.assertNotIn("backend.readRange('up')",source)
+
     def test_native_up_motor_trace_is_school_only_and_single_step(self):
         trace=(ROOT/"controllers/progression_count_h_school_pilot/"
                "a6_native_up_motor_trace.c").read_text(encoding="utf-8")
