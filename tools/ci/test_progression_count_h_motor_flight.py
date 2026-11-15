@@ -9,6 +9,27 @@ sys.path.insert(0,str(ROOT/"tools/ci"))
 import prepare_classroom_count_h_motor_flight as motor
 
 class CountHMotorFlightTests(unittest.TestCase):
+    def test_native_up_motor_trace_is_school_only_and_single_step(self):
+        trace=(ROOT/"controllers/progression_count_h_school_pilot/"
+               "a6_native_up_motor_trace.c").read_text(encoding="utf-8")
+        make=(ROOT/"controllers/progression_count_h_school_pilot/"
+              "Makefile").read_text(encoding="utf-8")
+        physical=(ROOT/"controllers/crazyflie_runtime_v2/Makefile").read_text(
+            encoding="utf-8")
+        self.assertIn("C_SOURCES += a6_native_up_motor_trace.c",make)
+        self.assertIn("LDFLAGS += -Wl,--wrap=wb_robot_step",make)
+        self.assertIn("extern int __real_wb_robot_step(int duration)",trace)
+        self.assertEqual(trace.count("__real_wb_robot_step(duration)"),1)
+        self.assertIn('wb_robot_get_device("range_up")',trace)
+        self.assertIn("wb_distance_sensor_get_value(native_up)/1000.0",trace)
+        self.assertIn("wb_gps_get_values(native_gps)",trace)
+        self.assertIn("WEBEEBLOCKS_A6_UP_MOTOR t=",trace)
+        for token in ("wb_motor_set_", "wb_supervisor_field_set_",
+                      "wb_robot_wwi_send_text", "wb_robot_wwi_receive_text"):
+            self.assertNotIn(token,trace)
+        self.assertNotIn("a6_native_up_motor_trace.c",physical)
+        self.assertNotIn("--wrap=wb_robot_step",physical)
+
     def test_webots_gui_project_cleanup_is_bounded_and_audited(self):
         import tempfile
         from unittest import mock
