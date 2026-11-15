@@ -60,16 +60,43 @@ static void completed_route(wb_dh_mission *m, int attempt, wb_dh_scene scene) {
   pass_first(m,scene==WB_DH_SCENE_A?.50:.85);
   pass_second(m,scene==WB_DH_SCENE_A?.85:.50);
 }
+/* Real R2025a classroom scene has a 32-ms basicTimeStep. A total of
+ * eight consecutive native intervals (0.256s) proves the 0.250s dwell. */
+static void finish_stably(wb_dh_mission *m, double t) {
+  assert(tick(m,t,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  for (int i=1;i<8;++i)
+    assert(tick(m,t+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(m,t+.256,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+}
 int main(void) {
   wb_dh_mission m;
   completed_route(&m,1,WB_DH_SCENE_A);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-  assert(tick(&m,8.125,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  finish_stably(&m,8.0);
   assert(tick(&m,9,5,5,5,99,-1,1)==WB_DH_ACHIEVED); // immutable terminal
   completed_route(&m,2,WB_DH_SCENE_B);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-  assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  finish_stably(&m,8.0);
+  // Neither A nor B may infer 250 ms of observed stillness from two
+  // isolated poses 260 ms apart; a fresh continuous 32-ms series may win.
+  for(int v=0;v<2;++v) {
+    wb_dh_scene scene=v==0?WB_DH_SCENE_A:WB_DH_SCENE_B;
+    completed_route(&m,40+v,scene);
+    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.260,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(m.landed_since == 8.260);
+    for(int i=1;i<8;++i)
+      assert(tick(&m,8.260+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.516,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    // One missed native tick (64 ms) invalidates only accumulated dwell,
+    // not the entire attempt. Eight fresh observations may still succeed.
+    completed_route(&m,50+v,scene);
+    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.032,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.096,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(m.landed_since == 8.096);
+    for(int i=1;i<8;++i)
+      assert(tick(&m,8.096+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.352,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  }
   // First native observation midway through the route must never count as
   // a legitimate blue start, even if later gate/landing poses look correct.
   for (int v=0; v<2; ++v) {
@@ -80,8 +107,7 @@ int main(void) {
     assert(tick(&m,8,1.750,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
     // Reset is not permanently poisoned: a freshly observed blue start wins.
     completed_route(&m,80+v,scene);
-    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-    assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    finish_stably(&m,8.0);
     for (int variant=0; variant<7; ++variant) {
       wb_dh_reset(&m,(unsigned long long)(90+10*v+variant),scene,.035);
       wb_dh_sample invalid = {
@@ -110,8 +136,7 @@ int main(void) {
     assert(tick(&m,8,1.75,0,.400,0,0,1)==WB_DH_NOT_ACHIEVED);
     // Grounded attempts still retain their correct H / threshold / landing.
     completed_route(&m,160+v,scene);
-    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-    assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    finish_stably(&m,8.0);
   }
   // RESET must clear all mission stages/markers and not inherit a PASS.
   wb_dh_reset(&m,3,WB_DH_SCENE_A,.035);
@@ -164,8 +189,9 @@ int main(void) {
   assert(tick(&m,8.18,1.75,.20,.035,0,0,0)==WB_DH_WAIT);
   assert(m.landed_since == -1.0); // the whole craft left the pad
   assert(tick(&m,8.25,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.45,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.51,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  for(int i=1;i<8;++i)
+    assert(tick(&m,8.25+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.506,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
   // A late arrival with less than the required continuous dwell fails.
   completed_route(&m,27,WB_DH_SCENE_B);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
@@ -177,24 +203,27 @@ int main(void) {
   assert(tick(&m,8.16,1.75,0,.035,.30,0,0)==WB_DH_WAIT);
   assert(m.landed_since == -1.0);
   assert(tick(&m,8.30,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.50,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.57,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
-  // A valid 0.25 s dwell finishing after 1.5 s must NEVER win the race.
-  // At the real 8-ms cadence, first stable sample is 9.248, and a
-  // 9.504 success would be 4 ms beyond the terminal completion deadline.
+  for(int i=1;i<8;++i)
+    assert(tick(&m,8.30+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.556,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  // A truly continuous 0.256-s dwell ending AFTER 1.5 s must lose:
+  // first stable sample 9.248 then seven native 32-ms ticks to 9.472.
   completed_route(&m,29,WB_DH_SCENE_B);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
   assert(tick(&m,9.240,1.75,.12,.035,0,0,0)==WB_DH_WAIT);
   assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,9.496,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  for(int i=1;i<8;++i)
+    assert(tick(&m,9.248+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
   assert(tick(&m,9.504,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
   assert(tick(&m,9.512,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
-  // At exact 1.500 s, deadline overrides a simultaneous dwell completion.
+  // At EXACT 1.500 s, equality overrides a simultaneous 0.252-s dwell.
   completed_route(&m,33,WB_DH_SCENE_A);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
   assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  for(int i=1;i<8;++i)
+    assert(tick(&m,9.248+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
   assert(tick(&m,9.500,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
-  // Existing timely success (8.260), motion/pad reset and RESET persist.
+  // Existing timely success (8.256), motion/pad reset and RESET persist.
   // Wrong chronology, unknown observations, invalid scene, repeated timestamp.
   takeoff(&m,30,WB_DH_SCENE_A);
   assert(tick(&m,1,.2,0,.75,0,0,0)==WB_DH_NOT_ACHIEVED);
@@ -236,6 +265,8 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_SCENE_A', content)
         self.assertIn('WB_DH_SCENE_B', content)
         self.assertIn('WB_DH_LAND_DWELL_SEC 0.250', content)
+        self.assertIn('WB_DH_MAX_OBSERVATION_GAP_SEC 0.048', content)
+        self.assertIn('s->time - m->last_time > WB_DH_MAX_OBSERVATION_GAP_SEC', content)
         self.assertIn('WB_DH_START_XY_TOL 0.080', content)
         self.assertIn('WB_DH_START_Z_TOL 0.060', content)
         self.assertIn('WB_DH_START_MAX_SPEED 0.120', content)

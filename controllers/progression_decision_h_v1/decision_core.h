@@ -38,6 +38,10 @@
 /* An instant at the target is not an immobile landing. Preserve enough
  * consecutive physical samples to exclude an in-motion crossing. */
 #define WB_DH_LAND_DWELL_SEC 0.250
+/* Authentic school WorldInfo.basicTimeStep is 32 ms, not 8 ms. Accept one
+ * nominal native observation (with bounded float jitter), never a skipped
+ * full 32-ms step. This only monitors the post-completion landing dwell. */
+#define WB_DH_MAX_OBSERVATION_GAP_SEC 0.048
 #define WB_DH_MAX_Z 1.100
 
 typedef enum {
@@ -134,6 +138,11 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
     m->verdict = WB_DH_NOT_ACHIEVED;
     return m->verdict;
   }
+  /* A momentary stable pose separated from the next sample by an
+   * unobserved 64-ms step cannot certify 250 ms of continuous landing. */
+  if (m->completion_seen && m->last_time >= 0.0 &&
+      s->time - m->last_time > WB_DH_MAX_OBSERVATION_GAP_SEC)
+    m->landed_since = -1.0;
   m->last_time = s->time;
   if (s->z >= m->origin_z + 0.20) m->airborne = 1;
 
