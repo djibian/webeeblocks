@@ -78,7 +78,7 @@ def validate_project_preferences(raw):
         data=raw.decode("utf-8")
     except UnicodeDecodeError:
         return False
-    if any(ord(ch)<32 and ch not in "\\n\\r\\t" for ch in data):
+    if any(ord(ch)<32 and ch not in "\n\r\t" for ch in data):
         return False
     lines=data.splitlines()
     return (len(lines)>=2 and
@@ -117,7 +117,7 @@ def cleanup(artifacts=None):
                         "bytes_after":len(raw),
                         "is_physics_or_mission_authority":False,
                         "valid_gui_metadata":validate_project_preferences(raw)
-                    },indent=2,sort_keys=True)+"\\n",encoding="utf-8")
+                    },indent=2,sort_keys=True)+"\n",encoding="utf-8")
             if not validate_project_preferences(raw):
                 raise ValueError("refuse cleanup unrecognized native A6 Webots GUI preferences")
     # Unlink ONLY files created by prepare() after validating paths and content.

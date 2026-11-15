@@ -26,7 +26,7 @@ class CountHMotorFlightTests(unittest.TestCase):
                 self.assertFalse(gui.exists())
                 motor.prepare()
                 # Ordinary GUI perspective records may append to .wbproj.
-                gui.write_text(motor.PROJECT_BYTES+"viewpoint: 1 2 3\\n",
+                gui.write_text(motor.PROJECT_BYTES+"viewpoint: 1 2 3\n",
                                encoding="utf-8")
                 motor.cleanup(artifacts=evidence)
                 self.assertFalse(gui.exists())
@@ -36,7 +36,7 @@ class CountHMotorFlightTests(unittest.TestCase):
                     (evidence/"postrun-webots-project.json").read_text()
                     )["valid_gui_metadata"])
                 motor.prepare()
-                gui.write_text("UNKNOWN PROJECT\\n",encoding="utf-8")
+                gui.write_text("UNKNOWN PROJECT\n",encoding="utf-8")
                 with self.assertRaisesRegex(ValueError,"unrecognized"):
                     motor.cleanup(artifacts=evidence)
                 self.assertTrue(gui.exists())
