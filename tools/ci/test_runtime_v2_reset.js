@@ -212,6 +212,9 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
 
   const elements = {
     projectActivity: button('projectActivity'),
+    // The public A4 adds a disabled/hidden variant action. The RESET
+    // harness must model the real DOM even while exercising another profile.
+    activityVariant: button('activityVariant'),
     projectOpen: button('projectOpen'),
     projectSave: button('projectSave'),
     projectSaveAs: button('projectSaveAs'),

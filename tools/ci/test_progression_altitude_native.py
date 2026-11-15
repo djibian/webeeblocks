@@ -56,6 +56,15 @@ static void finish_stably(wb_alt_mission *m, double t,
     assert(step(m,t+0.032*i,x,y,z,0,0,0) == WB_ALT_WAIT);
   assert(step(m,t+0.256,x,y,z,0,0,0) == WB_ALT_ACHIEVED);
 }
+/* The higher admitted origin needs absolute corridor altitudes above .80 m:
+ * using the original normal-origin reference z=.78 would fail to clear the
+ * actual barrier, making the negative landing test vacuous. */
+static void cross_higher_from_elevated_start(wb_alt_mission *m) {
+  assert(step(m, 2.0, 0.48, 0, .85, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(m, 2.5, 0.59, 0, .86, 0, 0, 0) == WB_ALT_WAIT);
+  assert(step(m, 3.0, 0.81, 0, .86, 0, 0, 0) == WB_ALT_WAIT);
+  assert(m->crossed_barrier);
+}
 int main(void) {
   wb_alt_mission m;
   normal_takeoff(&m, 1);
@@ -212,6 +221,31 @@ int main(void) {
     assert(step(&m, 6.096+0.032*i, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_WAIT);
   assert(step(&m, 6.352, 1.35, 0, 0.02, 0, 0, 0) == WB_ALT_ACHIEVED);
 
+
+  /* After a complete valid crossing, stationary craft 3/6/9/14 cm above
+   * the floor is NOT a physical landing, irrespective of relative descent.
+   * The 3-cm negative refutes the former 0.030-m absolute bound. */
+  for (int v=0; v<4; ++v) {
+    const double origin = v==1 ? .075 : .035;
+    const double hover = v==0 ? .090 : (v==1 ? .140 : (v==2 ? .060 : .030));
+    wb_alt_reset(&m, 200+v, origin);
+    assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
+    cross_higher_from_elevated_start(&m);
+    assert(hover-origin <= WB_ALT_MAX_LANDING_Z);
+    assert(hover > WB_ALT_MAX_ABSOLUTE_LANDING_Z);
+    assert(step(&m, 6, 1.35, 0, hover, 0, 0, 1) == WB_ALT_WAIT);
+    for(int i=1;i<=9;++i)
+      assert(step(&m, 6+.032*i, 1.35, 0, hover, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 7.500, 1.35, 0, hover, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+    /* Real grounded landing must remain possible after the same course. */
+    wb_alt_reset(&m, 210+v, origin);
+    assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
+    assert(step(&m, 1, 0, 0, .45, 0, 0, 0) == WB_ALT_WAIT);
+    cross_higher_from_elevated_start(&m);
+    finish_stably(&m, 6, 1.35, 0, .015);
+  }
+
   puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
@@ -248,6 +282,8 @@ class NativeAltitudeContract(unittest.TestCase):
         core = CORE.read_text(encoding="utf-8")
         self.assertIn("  basicTimeStep 32", world.splitlines())
         self.assertIn("#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048", core)
+        self.assertIn("#define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.020", core)
+        self.assertIn("s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z", core)
         mk = MAKEFILE.read_text(encoding="utf-8")
         src = SOURCE.read_text(encoding="utf-8")
         scene = SCENE.read_text(encoding="utf-8")

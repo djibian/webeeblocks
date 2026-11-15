@@ -70,6 +70,7 @@ $sequenceObserverDir = Join-Path $repoRoot 'controllers\progression_sequence_3d'
 # Activity 2 remains simulation-only: compile its independent native C oracle.
 $altitudeObserverDir = Join-Path $repoRoot 'controllers\progression_altitude_v1'
 $orientationObserverDir = Join-Path $repoRoot 'controllers\progression_orientation_3d'
+$decisionObserverDir = Join-Path $repoRoot 'controllers\progression_decision_h_v1'
 $oldWebotsHome = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 try {
@@ -115,6 +116,10 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "Activity 3 native observer clean failed: $LASTEXITCODE" }
   & $make -C $orientationObserverDir
   if ($LASTEXITCODE -ne 0) { throw "Activity 3 native observer build failed: $LASTEXITCODE" }
+  & $make -C $decisionObserverDir clean
+  if ($LASTEXITCODE -ne 0) { throw "Activity 4 native observer clean failed: $LASTEXITCODE" }
+  & $make -C $decisionObserverDir
+  if ($LASTEXITCODE -ne 0) { throw "Activity 4 native observer build failed: $LASTEXITCODE" }
 }
 finally {
   $env:WEBOTS_HOME = $oldWebotsHome
@@ -139,6 +144,10 @@ if (-not (Test-Path -LiteralPath $altitudeObserverBinary -PathType Leaf) -or (Ge
 $orientationObserverBinary = Join-Path $orientationObserverDir 'progression_orientation_3d.exe'
 if (-not (Test-Path -LiteralPath $orientationObserverBinary -PathType Leaf) -or (Get-Item $orientationObserverBinary).Length -le 0) {
   throw 'The official Webots Windows build produced no Activity 3 native supervisor executable.'
+}
+$decisionObserverBinary = Join-Path $decisionObserverDir 'progression_decision_h_v1.exe'
+if (-not (Test-Path -LiteralPath $decisionObserverBinary -PathType Leaf) -or (Get-Item $decisionObserverBinary).Length -le 0) {
+  throw 'The official Webots Windows build produced no Activity 4 native supervisor executable.'
 }
 
 # Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
@@ -231,6 +240,12 @@ Copy-RequiredFile $historySource $historyTarget
 $history3Source = Join-Path $repoRoot 'activities\historique\03-repeat.wbb'
 $history3Target = Join-Path $packageDir 'Activites\Historique\03-repeat.wbb'
 Copy-RequiredFile $history3Source $history3Target
+
+# Historical Activity 4 stays reopenable by its original profile ID,
+# but never appears beside the newly activated #04 pupil template.
+$history4Source = Join-Path $repoRoot 'activities\historique\04-simple-decision.wbb'
+$history4Target = Join-Path $packageDir 'Activites\Historique\04-simple-decision.wbb'
+Copy-RequiredFile $history4Source $history4Target
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
@@ -353,6 +368,8 @@ Copy-RequiredFile $observerBinary (Join-Path $packageDir 'controllers\progressio
 Copy-RequiredFile $altitudeObserverBinary (Join-Path $packageDir 'controllers\progression_altitude_v1\progression_altitude_v1.exe')
 # Activity 3 is simulation-only and retains its own native C oracle.
 Copy-RequiredFile $orientationObserverBinary (Join-Path $packageDir 'controllers\progression_orientation_3d\progression_orientation_3d.exe')
+# Activity 4 also requires its independent fail-closed C oracle on Windows.
+Copy-RequiredFile $decisionObserverBinary (Join-Path $packageDir 'controllers\progression_decision_h_v1\progression_decision_h_v1.exe')
 
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
@@ -448,7 +465,7 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'decision-h-a-v1.wbo', 'decision-h-b-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "worlds\scenes\$scene") `
     (Join-Path $packageDir "worlds\scenes\$scene")
