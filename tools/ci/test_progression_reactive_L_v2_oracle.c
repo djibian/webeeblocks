@@ -12,7 +12,8 @@ static void begin(journey *j,char v){
 }
 static void step(journey *j,double x,double y,double z,
                  double yaw,int completed,int contact){
-  const double dt=.08;const wb_rl2_sample old=j->s;
+  /* Match the actual classroom basicTimeStep=32 ms, not an 80-ms proxy. */
+  const double dt=.032;const wb_rl2_sample old=j->s;
   j->s.time+=dt;j->s.x=x;j->s.y=y;j->s.z=z;j->s.yaw=yaw;
   j->s.vx=(x-old.x)/dt;j->s.vy=(y-old.y)/dt;
   j->s.vz=(z-old.z)/dt;j->s.completed=completed;j->s.contact=contact;
@@ -58,7 +59,7 @@ static void positive(char v){
   journey j;full_route(&j,v);
   step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
-  for(int i=0;i<3;++i){
+  for(int i=0;i<7;++i){
     step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
     assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   }
@@ -86,7 +87,25 @@ static void sparse_landing(char v){
     j.s.time+=.11; /* 190-ms physical gap: inside MAX_DT but NOT continuous. */
     assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   }
-  for(int i=0;i<3;++i){
+  for(int i=0;i<7;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_ACHIEVED);
+}
+/* Losing even ONE native 32-ms sampling interval must reset dwell,
+ * irrespective of the duration of a subsequent uninterrupted observation. */
+static void missed_native_frame(char v){
+  journey j;full_route(&j,v);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=0;i<5;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    j.s.time+=.032; /* Observations 64ms apart, one actual frame missing. */
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  for(int i=0;i<7;++i){
     step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
     assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   }
@@ -121,7 +140,7 @@ static void false_landing(char v){
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   step(&j,j.s.x-.03,j.s.y,j.s.z,j.s.yaw,0,0);
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
-  for(int i=0;i<4;++i){
+  for(int i=0;i<7;++i){
     step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
     assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   }
@@ -190,7 +209,7 @@ static void never_completed(char v){
 int main(void){
   for(const char *v="ABC";*v;++v){
     positive(*v);raised_origin(*v);sparse_landing(*v);
-    skip_waypoint(*v);bypass_wall(*v);contact(*v);
+    missed_native_frame(*v);skip_waypoint(*v);bypass_wall(*v);contact(*v);
     false_landing(*v);late_pose(*v);replay(*v);side_bypass(*v);
     invalid_sample(*v);wrong_direction(*v);teleport(*v);
     wrong_pad(*v);never_completed(*v);
@@ -199,6 +218,6 @@ int main(void){
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
   wb_rl2_reset(&bad,0,'Z',NAN);
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
-  puts("PASS A5 V2 C oracle: 47 positive/adversarial cases");
+  puts("PASS A5 V2 C oracle: 50 positive/adversarial cases");
   return 0;
 }
