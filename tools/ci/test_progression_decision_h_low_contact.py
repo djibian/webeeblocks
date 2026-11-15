@@ -48,7 +48,7 @@ class A4LowContactTests(unittest.TestCase):
             "wb_supervisor_node_get_contact_points(colliders[j],false,&n)",
             "wb_supervisor_field_set_sf_vec3f(position_field,p)",
             "wb_supervisor_node_reset_physics(self)",
-            "WBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %d",
+            "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %d",
             "WEBEEBLOCKS_DECISION_H_LOW_PHYSICAL variant=%c",
             "WEBEEBLOCKS_DECISION_H_LOW_END variant=%c",
         ):
@@ -66,7 +66,7 @@ class A4LowContactTests(unittest.TestCase):
             "refusing cleanup of altered physical world",
         ):
             self.assertIn(token, src)
-        self.assertNotIn("status=achieved\" in log", probe)
+        self.assertNotIn("wb_motor_set_", probe)
 
     def test_draft_and_ready_native_gates_both_execute_contact_witness(self):
         for path in (DRAFT, CANONICAL):
