@@ -16,6 +16,7 @@ on:
       - 'tools/ci/prepare_classroom_count_h_motor_flight.py'
       - 'tools/ci/run_classroom_count_h_motor_flight.py'
       - 'tools/ci/build_a6_private_blockly_witness.js'
+      - 'tools/ci/test_progression_count_h_sensor_only_mock.js'
       - 'tools/ci/run_classroom_count_h_rotation_mutant.py'
       - 'controllers/progression_count_h_school_pilot/**'
       - 'controllers/progression_count_h_flight_observer/**'
@@ -55,6 +56,10 @@ jobs:
           set -euo pipefail
           npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
           node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb
+          # This is only a negative/positive MOCK test of the real sensor-only
+          # JS module. True R2025a PID/motor, oracle and same-pupil-WBB
+          # qualification remain separate, stronger requirements.
+          node tools/ci/test_progression_count_h_sensor_only_mock.js
       - name: Preserve private A6 Blockly artifact for review (never pupil starter)
         if: always()
         uses: actions/upload-artifact@v4
