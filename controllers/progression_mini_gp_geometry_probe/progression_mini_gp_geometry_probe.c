@@ -218,10 +218,12 @@ int main(void) {
     if(craft_id<=0||obstacle_id<=0)return fail("invalid physical IDs");
     wb_supervisor_node_enable_contact_points_tracking(obstacle,step,false);
     int contacts_low=0;
-    const double offsets[]={-.035,-.020,-.010,0.,.010,.020,.035};
-    for(int k=0;k<7;++k) {
-      const double boundary=part[0]=='C' && part[1]=='O' &&
-        !strcmp(part,"CORNER_FRONT") ? turn+.22-.04-.09 : 1.42-.04-.09;
+    /* Approach from well before the wall, then sample true penetration.
+     * The Crazyflie PROTO bounding body is narrower near floor level. */
+    const double offsets[]={0.,.025,.050,.075,.100,.125,.150,.170};
+    for(int k=0;k<8;++k) {
+      const double boundary=!strcmp(part,"CORNER_FRONT") ?
+        turn+.22-.04-.09 : 1.42-.04-.09;
       const double x=!strcmp(part,"CORNER_FRONT") ?
         boundary+offsets[k]:turn;
       const double y=!strcmp(part,"CORNER_FRONT") ?
@@ -237,6 +239,12 @@ int main(void) {
       int n=-1;
       const WbContactPoint *points=wb_supervisor_node_get_contact_points(obstacle,false,&n);
       if(n<0||(n>0&&!points))return fail("low-contact native points unavailable");
+      for(int i=0;i<n&&i<12;++i)
+        printf("A7_LOW_PHYSICAL_RAW variant=%c obstacle=%s "
+               "attempt=%d node_id=%d z=%.9f craft_id=%d obstacle_id=%d\n",
+               variant,part,100+k,points[i].node_id,points[i].point[2],
+               craft_id,obstacle_id);
+      fflush(stdout);
       for(int i=0;i<n;++i) {
         if(points[i].node_id==craft_id &&
            isfinite(points[i].point[2])&&fabs(points[i].point[2])<=.025) {
