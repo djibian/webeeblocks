@@ -40,7 +40,8 @@ jobs:
             tools.ci.test_progression_reactive_L_sensor \
             tools.ci.test_progression_reactive_L_v2_scene \
             tools.ci.test_progression_reactive_L_sensor_v2 \
-            tools.ci.test_progression_reactive_L_v2_oracle
+            tools.ci.test_progression_reactive_L_v2_oracle \
+            tools.ci.test_progression_reactive_L_v2_native
           python3 -m unittest -v \
             tools.ci.test_workflow_contract.WorkflowTests.test_activity5_draft_witness_is_non_decision
       - name: Compile original R2025a Crazyflie sensor probe
@@ -66,6 +67,13 @@ jobs:
             -w /workspace/controllers/progression_reactive_L_sensor_probe_v2 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_reactive_L_sensor_probe_v2'
+      - name: Compile read-only A5 V2 native Webots behavioral evaluator
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_v2'
       - name: Observe genuine three-step V2 ray divergence on A B C
         run: |
           docker run --rm \
