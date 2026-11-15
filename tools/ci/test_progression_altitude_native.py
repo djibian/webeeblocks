@@ -66,7 +66,7 @@ int main(void) {
   /* Re-use of attempt 2 after RESET cannot inherit success. */
   normal_takeoff(&m, 2);
   assert(!m.crossed_barrier && m.result == WB_ALT_WAIT);
-  assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
   assert(step(&m, 6.6, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
   /* Flying below the true physical barrier is terminal failure. */
@@ -109,7 +109,7 @@ int main(void) {
 
   /* Takeoff without a physical crossing cannot certify climbing. */
   normal_takeoff(&m, 9);
-  assert(step(&m, 3.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
+  assert(step(&m, 3.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
   assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
 
   /* Candidate cannot pass the wall by sliding around the rail at low height. */
