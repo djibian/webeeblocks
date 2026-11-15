@@ -82,6 +82,12 @@ class OrientationPupilWorldTests(unittest.TestCase):
         self.assertNotIn('WebeeBlocksActivities.DOCUMENT.activities.push(',self.js)
         self.assertNotIn("webeeBlocks_physical",self.js)
 
+    def test_provenance_reports_real_public_catalog_id(self):
+        self.assertIn("roundtrip.get('id')=='progression-orientation-3d-v1'",self.runner)
+        self.assertIn("'profile_id':roundtrip.get('id')",self.runner)
+        self.assertIn("'profile_kind':'public pupil catalog profile (CI-only native witness)'",self.runner)
+        self.assertNotIn('CI-only synthetic Blockly 13, not student catalog',self.runner)
+
     def test_native_c_verdict_and_sequence_are_necessary_not_browser_events(self):
         self.assertIn('status=achieved checkpoints=3',self.runner)
         self.assertIn('responses==[str(n) for n in range(1,17)]',self.runner)
