@@ -28,11 +28,16 @@
  */
 #define WB_ORIENT_LAND_TOL 0.07
 #define WB_ORIENT_LAND_HEIGHT 0.07
+/* Native Webots floor-contact observation is required as well: height alone
+ * cannot distinguish a landed craft from a motionless 6 cm hover. */
 #define WB_ORIENT_MAX_SPEED 0.12
 #define WB_ORIENT_AIRBORNE 0.20
 #define WB_ORIENT_SETTLE 1.5
 /* Require a continuous native landing, not a transient low-speed sample. */
 #define WB_ORIENT_LAND_DWELL 0.25
+/* School WorldInfo basicTimeStep=32 ms. Preserve 16 ms scheduling margin,
+ * but a missing 32-ms native sample (64-ms gap) breaks landing evidence. */
+#define WB_ORIENT_MAX_LAND_SAMPLE_GAP 0.048
 
 typedef enum {
   WB_ORIENT_WAIT = 0,
@@ -43,12 +48,14 @@ typedef enum {
 typedef struct {
   double time, x, y, z, vx, vy, vz, yaw;
   int completed;
+  /* -1=missing native evidence, 0=no floor contact, 1=ground contact. */
+  int floor_contact;
 } wb_orient_sample;
 
 typedef struct {
   unsigned long long attempt;
-  double origin_z, completion_at, stable_since;
-  int stable_since_valid;
+  double origin_z, completion_at, stable_since, last_time;
+  int stable_since_valid, sampled;
   int airborne, stage, completion_seen;
   wb_orient_verdict result;
 } wb_orient_mission;
@@ -58,12 +65,14 @@ static inline void wb_orient_reset(wb_orient_mission *mission,
   memset(mission, 0, sizeof(*mission));
   mission->attempt = attempt;
   mission->origin_z = origin_z;
+  mission->last_time = -1.0;
 }
 
 static inline int wb_orient_finite(const wb_orient_sample *s) {
   return s && isfinite(s->time) && isfinite(s->x) && isfinite(s->y) &&
     isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) &&
-    isfinite(s->vz) && isfinite(s->yaw);
+    isfinite(s->vz) && isfinite(s->yaw) &&
+    (s->floor_contact == 0 || s->floor_contact == 1);
 }
 
 /* Webots C orientation matrices are row-major; first column is local +X. */
@@ -91,6 +100,15 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
+  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
+    m->result = WB_ORIENT_NOT_ACHIEVED;
+    return m->result;
+  }
+  if (m->completion_seen && m->stable_since_valid && m->sampled &&
+      s->time - m->last_time > WB_ORIENT_MAX_LAND_SAMPLE_GAP)
+    m->stable_since_valid = 0;
+  m->last_time = s->time;
+  m->sampled = 1;
   const double x[] = {0.45, 0.45, 0.90};
   const double y[] = {0.00,-0.45,-0.45};
   const double z[] = {0.63, 0.79, 0.63};
@@ -125,7 +143,11 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
-  const int landed = (s->z - m->origin_z) <= WB_ORIENT_LAND_HEIGHT;
+  /* A stable low hover is not a landing. The physical contact is observed
+   * independently of the pupil's program or completion marker. */
+  const int landed =
+    (s->z - m->origin_z) <= WB_ORIENT_LAND_HEIGHT &&
+    s->floor_contact == 1;
   const int stationary =
     hypot(s->vx, s->vy) <= WB_ORIENT_MAX_SPEED && fabs(s->vz) <= WB_ORIENT_MAX_SPEED;
   const int on_pad =

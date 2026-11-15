@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <webots/contact_point.h>
 #include <webots/robot.h>
 #include <webots/supervisor.h>
 
@@ -70,6 +71,28 @@ static int parse_completion(const char *value, unsigned long long identity) {
     strcmp(value, canonical) == 0;
 }
 
+/* This classroom world has only a z=0 physical floor, with no physical
+ * teaching obstacles. A low-height pose is not itself proof of touching it.
+ * Webots reports actual collision contacts, not a pupil/runtime flag.
+ * Reject missing or non-finite contact observations conservatively. */
+static int observe_floor_contact(WbNodeRef craft) {
+  int count = -1;
+  const WbContactPoint *points =
+    wb_supervisor_node_get_contact_points(craft, true, &count);
+  if (count < 0 || (count > 0 && !points))
+    return -1;
+  int floor_seen = 0;
+  for (int i = 0; i < count; ++i) {
+    const double *point = points[i].point;
+    if (!isfinite(point[0]) || !isfinite(point[1]) ||
+        !isfinite(point[2]))
+      return -1;
+    if (fabs(point[2]) <= 0.030)
+      floor_seen = 1;
+  }
+  return floor_seen;
+}
+
 static void publish(WbFieldRef channel, const wb_orient_mission *m) {
   const char *status =
     m->result == WB_ORIENT_ACHIEVED ? "achieved" : "not-achieved";
@@ -87,7 +110,9 @@ static void publish(WbFieldRef channel, const wb_orient_mission *m) {
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene()) {
+  /* The independent landing oracle is sampled every 32 ms; never admit
+   * a world with an incompatible native clock. */
+  if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_ORIENTATION_3D_FATAL invalid scene identity\n");
     wb_robot_cleanup();
     return 2;
@@ -101,6 +126,7 @@ int main(void) {
     return 2;
   }
   const double origin_z = origin[2];
+  wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_orient_mission mission = {0};
   unsigned long long last_identity = 0;
   printf("WEBEEBLOCKS_ORIENTATION_3D_READY scene=orientation-v1 oracle=%s\n",
@@ -122,6 +148,7 @@ int main(void) {
     wb_orient_sample sample = {0};
     sample.time = wb_robot_get_time();
     sample.completed = parse_completion(data, mission.attempt);
+    sample.floor_contact = observe_floor_contact(craft);
     if (!position || !velocity ||
         !wb_orient_yaw(orientation, &sample.yaw)) {
       sample.x = NAN; /* Invalid native observation fails closed. */
