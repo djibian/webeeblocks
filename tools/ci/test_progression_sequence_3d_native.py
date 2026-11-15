@@ -41,6 +41,31 @@ int main(void) {
   assert(step(&m, 3.26, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
 
+  /* A complete no-obstacle mission with genuine lift and one-shot
+   * completion may hover inside the XY pad for >0.25s without touching
+   * the z=0 floor. This was an untested false positive of the relative
+   * landing predicate; all alternative origins keep the full scenario. */
+  for (int k=0; k<3; ++k) {
+    const double origin = k==1 ? .075 : .035;
+    const double hover = k==0 ? .090 : (k==1 ? .140 : .060);
+    wb_seq_reset(&m,(unsigned long long)(100+k),origin);
+    assert(step(&m,0,0,0,origin,0,0,0,0)==WB_SEQ_WAIT);
+    assert(step(&m,1,0,0,.50,0,0,0,0)==WB_SEQ_WAIT);
+    assert(m.airborne);
+    assert(hover-origin <= WB_SEQ_LAND_HEIGHT);
+    assert(hover > WB_SEQ_LAND_ABSOLUTE_Z);
+    assert(step(&m,2,.35,.28,hover,0,0,0,1)==WB_SEQ_WAIT);
+    for (int i=1; i<=9; ++i)
+      assert(step(&m,2+.032*i,.35,.28,hover,0,0,0,0)==WB_SEQ_WAIT);
+    assert(step(&m,3.500,.35,.28,hover,0,0,0,0)==WB_SEQ_NOT_ACHIEVED);
+    /* Actual grounded pose must remain achievable with same basic flight. */
+    wb_seq_reset(&m,(unsigned long long)(110+k),origin);
+    assert(step(&m,0,0,0,origin,0,0,0,0)==WB_SEQ_WAIT);
+    assert(step(&m,1,0,0,.50,0,0,0,0)==WB_SEQ_WAIT);
+    assert(step(&m,2,.35,.28,.015,0,0,0,1)==WB_SEQ_WAIT);
+    assert(step(&m,2.256,.35,.28,.015,0,0,0,0)==WB_SEQ_ACHIEVED);
+  }
+
   /* A new native attempt never inherits the previous victory. */
   wb_seq_reset(&m, 2, 0);
   assert(!m.airborne && !m.completion_seen && m.result == WB_SEQ_WAIT);
@@ -227,6 +252,8 @@ class NativeSequence3D(unittest.TestCase):
         }.items():
             self.assertRegex(header, rf"(?m)^#define {re.escape(name)} {re.escape(expected)}$")
         self.assertIn('WB_SEQ_ORACLE "progression-sequence-3d-v1"', header)
+        self.assertIn("#define WB_SEQ_LAND_ABSOLUTE_Z 0.030", header)
+        self.assertIn("s->z <= WB_SEQ_LAND_ABSOLUTE_Z", header)
         self.assertIn("TARGET_X_TOLERANCE = 0.05", python)
         self.assertIn("TARGET_Y_TOLERANCE = 0.08", python)
         self.assertAlmostEqual(0.05 + 0.09, 0.28 / 2)

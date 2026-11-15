@@ -19,6 +19,10 @@
 #define WB_SEQ_Y_TOL 0.08
 #define WB_SEQ_AIRBORNE 0.20
 #define WB_SEQ_LAND_HEIGHT 0.07
+/* Native classroom floor is at z=0. The Crazyflie body centre rests near
+ * 0.015 m; remaining above 0.030 m cannot prove a landed craft even if
+ * the relative height and the full-pad stillness are satisfied. */
+#define WB_SEQ_LAND_ABSOLUTE_Z 0.030
 #define WB_SEQ_MAX_SPEED 0.12
 #define WB_SEQ_SETTLE 1.5
 /* Sustained native pose/velocity, not an instantaneous slow sample. */
@@ -83,7 +87,8 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
     m->result = WB_SEQ_NOT_ACHIEVED;
     return m->result;
   }
-  const int landed = s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT;
+  const int landed = s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT &&
+                     s->z <= WB_SEQ_LAND_ABSOLUTE_Z;
   const int stationary = hypot(s->vx, s->vy) <= WB_SEQ_MAX_SPEED &&
                          fabs(s->vz) <= WB_SEQ_MAX_SPEED;
   const int on_pad = fabs(s->x - WB_SEQ_X) <= WB_SEQ_X_TOL &&
