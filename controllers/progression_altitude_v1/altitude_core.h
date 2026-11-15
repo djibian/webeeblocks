@@ -35,8 +35,11 @@
 #define WB_ALT_SETTLE_SEC 1.5
 /* Consecutive native simulation time, never a single slow pose sample. */
 #define WB_ALT_LAND_DWELL_SEC 0.250
-/* A native 8-ms evaluator cannot certify an unobserved 250-ms interval. */
-#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.012
+/* Classroom R2025a WorldInfo uses basicTimeStep=32 ms. One observed
+ * native step (32 ms) must preserve landing evidence; one missing full step
+ * (64 ms) must reset it. 48 ms leaves exact-timestep numerical headroom.
+ * The source/test contract must be updated if the classroom step changes. */
+#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.048
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
 
