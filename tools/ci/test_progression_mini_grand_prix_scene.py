@@ -80,6 +80,25 @@ class MiniGrandPrixScenes(unittest.TestCase):
         self.assertNotEqual(layouts["L"][0], layouts["R"][0])
         self.assertNotEqual(layouts["L"][1], layouts["R"][1])
         self.assertNotEqual(layouts["L"][2] > 0, layouts["R"][2] > 0)
+        # Falsify drift between the independent C mission oracle and the
+        # physically visible WBO coordinates. An otherwise green C-only
+        # witness must not accept a gate/corner/landing pad in the wrong scene.
+        core = (ROOT / "controllers/progression_mini_grand_prix_v1/mini_core.h").read_text(encoding="utf-8")
+        for function, coordinate in (("h_x", 0), ("turn_x", 1), ("pad_y", 2)):
+            match = re.search(
+                rf"static inline double wb_mini_{function}\\(char v\\)\\s*\\{{"
+                rf"\\s*return v=='L' \\? (-?[0-9.]+) : (-?[0-9.]+);\\s*\\}}",
+                core,
+            )
+            self.assertIsNotNone(match, f"missing transparent C oracle coordinate {function}")
+            for letter, expected in zip("LR", map(float, match.groups())):
+                self.assertAlmostEqual(
+                    layouts[letter][coordinate], expected,
+                    msg=f"world/oracle mismatch for {function} in variant {letter}",
+                )
+        self.assertIn("return v=='L' ? WB_MINI_PI/2 : -WB_MINI_PI/2;", core)
+        self.assertGreater(layouts["L"][2], 0)
+        self.assertLess(layouts["R"][2], 0)
 
 
 if __name__ == "__main__":
