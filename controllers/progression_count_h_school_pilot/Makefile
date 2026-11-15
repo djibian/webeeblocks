@@ -19,7 +19,7 @@ else
  # Diagnostic only: inspect genuine range_up each native physics step without
  # rebuilding or modifying the real Crazyflie runtime/PID source.
  C_SOURCES += a6_native_up_motor_trace.c
- LDFLAGS += -Wl,--wrap=wb_robot_step
+ LFLAGS += -Wl,--wrap=wb_robot_step
  CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp classroom_count_h_scene.cpp
  USE_C_API = true
  CFLAGS += -std=c++17 -fPIC -include ../crazyflie_runtime_v2/file_broker_interpose.h

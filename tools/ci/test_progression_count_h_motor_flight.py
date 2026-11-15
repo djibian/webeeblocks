@@ -17,7 +17,7 @@ class CountHMotorFlightTests(unittest.TestCase):
         physical=(ROOT/"controllers/crazyflie_runtime_v2/Makefile").read_text(
             encoding="utf-8")
         self.assertIn("C_SOURCES += a6_native_up_motor_trace.c",make)
-        self.assertIn("LDFLAGS += -Wl,--wrap=wb_robot_step",make)
+        self.assertIn("LFLAGS += -Wl,--wrap=wb_robot_step",make)
         self.assertIn("extern int __real_wb_robot_step(int duration)",trace)
         self.assertEqual(trace.count("__real_wb_robot_step(duration)"),1)
         self.assertIn('wb_robot_get_device("range_up")',trace)
