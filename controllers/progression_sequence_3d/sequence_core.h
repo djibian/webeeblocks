@@ -19,6 +19,8 @@
 #define WB_SEQ_Y_TOL 0.08
 #define WB_SEQ_AIRBORNE 0.20
 #define WB_SEQ_LAND_HEIGHT 0.07
+/* A low stationary hover must never count as an actual floor landing.
+ * Require the independent Webots contact observation as well. */
 #define WB_SEQ_MAX_SPEED 0.12
 #define WB_SEQ_SETTLE 1.5
 /* Sustained native pose/velocity, not an instantaneous slow sample. */
@@ -33,6 +35,8 @@ typedef enum {
 typedef struct {
   double time, x, y, z, vx, vy, vz;
   int completed;
+  /* -1=invalid native evidence, 0=no floor contact, 1=physical contact. */
+  int floor_contact;
 } wb_seq_sample;
 
 typedef struct {
@@ -56,7 +60,8 @@ static inline void wb_seq_reset(wb_seq_mission *m,
 
 static inline int wb_seq_sample_valid(const wb_seq_sample *s) {
   return s && isfinite(s->time) && isfinite(s->x) && isfinite(s->y) &&
-    isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) && isfinite(s->vz);
+    isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) && isfinite(s->vz) &&
+    (s->floor_contact == 0 || s->floor_contact == 1);
 }
 
 static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
@@ -83,7 +88,9 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
     m->result = WB_SEQ_NOT_ACHIEVED;
     return m->result;
   }
-  const int landed = s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT;
+  const int landed =
+    s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT &&
+    s->floor_contact == 1;
   const int stationary = hypot(s->vx, s->vy) <= WB_SEQ_MAX_SPEED &&
                          fabs(s->vz) <= WB_SEQ_MAX_SPEED;
   const int on_pad = fabs(s->x - WB_SEQ_X) <= WB_SEQ_X_TOL &&
