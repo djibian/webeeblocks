@@ -117,6 +117,12 @@ def run_one(letter: str) -> dict:
     first = re.findall(
         r"WEBEEBLOCKS_DECISION_H_FIRST_SAMPLE attempt=1 "
         r"time=[^\n]+ contact=([01-]+) completed=([01])", log)
+    ground = re.findall(
+        r"WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=([AB]) "
+        r"floor_contacts=(\\d+) center_z=(-?[0-9.]+) motors=OFF", log)
+    ground_ok = (len(ground) == 1 and ground[0][0] == letter.upper()
+                 and int(ground[0][1]) >= 1
+                 and 0.0 <= float(ground[0][2]) <= .030)
     proven = []
     for part in PARTS:
         p = [(float(z), int(node), int(official))
@@ -136,7 +142,7 @@ def run_one(letter: str) -> dict:
         proven.append({"part": part, "probe_z_m": p[0][0],
                        "observer_z_m": n[0][0], "node_id": p[0][2],
                        "number_of_probe_low_contacts": stop[0]})
-    if (first != [("0", "0")] or
+    if (first != [("0", "0")] or not ground_ok or
             "WEBEEBLOCKS_DECISION_H_RANGE_FATAL" in log or
             "WEBEEBLOCKS_DECISION_H_FATAL" in log or
             "status=achieved" in log):
@@ -147,7 +153,10 @@ def run_one(letter: str) -> dict:
           f"floor_only_accepted=true parts={','.join(PARTS)} "
           f"world_sha256={digest} motors=OFF", flush=True)
     return {"variant": letter.upper(), "contacts": proven,
-            "floor_only_first_sample": True, "world_sha256": digest,
+            "floor_only_first_sample": True,
+            "native_floor_contacts": int(ground[0][1]),
+            "native_floor_center_z_m": float(ground[0][2]),
+            "world_sha256": digest,
             "physical_pupil_flight": False}
 
 
