@@ -15,6 +15,9 @@
 #define WB_RL2_YAW_TOL 0.23
 #define WB_RL2_PAD_TOL 0.07 /* 0.16 pad half-side - 0.09 craft half-span */
 #define WB_RL2_LAND_Z 0.07
+/* Static classroom Floor is z=0; resting Crazyflie centre ~0.015 m.
+ * Do not accept a stationary hover just because the initial origin was high. */
+#define WB_RL2_LAND_ABSOLUTE_Z 0.070
 #define WB_RL2_LAND_SPEED 0.12
 #define WB_RL2_LAND_DWELL 0.25
 /* Native classroom start is on the physical floor, not an arbitrary z offset.
@@ -207,6 +210,7 @@ static inline wb_rl2_verdict wb_rl2_sample_mission(
       m->verdict=WB_RL2_FAILED;return m->verdict;
     }
     const int stable=s->z<=m->origin_z+WB_RL2_LAND_Z&&
+      s->z<=WB_RL2_LAND_ABSOLUTE_Z&&
       hypot(s->vx,s->vy)<=WB_RL2_LAND_SPEED&&
       fabs(s->vz)<=WB_RL2_LAND_SPEED&&
       fabs(s->x-wb_rl2_pad_x(m->variant))<=WB_RL2_PAD_TOL&&
