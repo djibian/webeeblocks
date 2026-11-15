@@ -69,8 +69,11 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("wb_supervisor_field_import_mf_node_from_string",adapter)
         self.assertIn("DEF WEBEEBLOCKS_A6_MOTOR_OBSERVER Robot",adapter)
         self.assertIn("realObserver()",adapter)
-        self.assertIn('strcmp(scene,"count-h-1-v1")',adapter)
-        self.assertIn("wb_supervisor_field_get_count(children)!=24",adapter)
+        self.assertIn("if(!requested||!actual_scene(requested))",adapter)
+        self.assertIn("admittedVariant=admitted?requested:0;",adapter)
+        self.assertIn("const int expected=24+4*(n-1);",adapter)
+        self.assertIn("wb_supervisor_field_get_count(children)!=expected",adapter)
+        self.assertIn("for(int i=1;i<=variant;++i)",adapter)
         self.assertIn("simulationScenes:true",browser)
         self.assertIn("await backend.takeoff(0.40)",browser)
         self.assertIn("await backend.move('forward',0.48)",browser)
@@ -119,6 +122,23 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertNotIn("Blockly.",source)
         self.assertNotIn("wb_motor_set_",source)
         self.assertNotIn("wb_supervisor_field_set_sf_vec3f",source)
+
+    def test_scene_admission_requires_exact_variant_identity_and_native_colliders(self):
+        adapter=(ROOT/"controllers/progression_count_h_school_pilot/"
+                 "classroom_count_h_scene.cpp").read_text(encoding="utf-8")
+        self.assertIn('"count-h-%d-v1"',adapter)
+        self.assertIn('"WEBEEBLOCKS_COUNT_%d_SCENE"',adapter)
+        self.assertIn("if(n!=variant) {",adapter)
+        self.assertIn("if(group)return false;",adapter)
+        for kind in ("LEFT","RIGHT","BAR"):
+            self.assertIn(f'"ACTIVITY6_%d_H_%d_{kind}"',adapter)
+        for kind in ("FINISH_SCREEN","TERMINAL"):
+            self.assertIn(f'"ACTIVITY6_%d_{kind}"',adapter)
+        self.assertIn("const int expected=24+4*(n-1);",adapter)
+        self.assertIn("if(!requested||!actual_scene(requested))",adapter)
+        self.assertIn("admittedVariant=0;",adapter)
+        self.assertIn("actual_scene(admittedVariant)&&realObserver()",adapter)
+        self.assertNotIn('std::strcmp(scene,"count-h-1-v1")',adapter)
 
     def test_ci_browser_preparation_is_the_verified_a3_native_preparation(self):
         workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
