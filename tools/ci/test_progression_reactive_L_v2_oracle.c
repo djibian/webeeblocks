@@ -140,7 +140,9 @@ static void false_landing(char v){
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   step(&j,j.s.x-.03,j.s.y,j.s.z,j.s.yaw,0,0);
   assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
-  for(int i=0;i<7;++i){
+  /* First stable sample starts after the preceding movement: allow eight
+   * complete 32-ms intervals thereafter, not seven. */
+  for(int i=0;i<8;++i){
     step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
     assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
   }
