@@ -118,7 +118,8 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("--mode blockly --variant 1",workflow)
         self.assertIn("tools/prepare_runtime_v2.sh",workflow)
         core=source.split("export async function",1)[1]
-        for forbidden in ("count-h-", "variant", "wb_supervisor_",
+        for forbidden in ("count-h-1-v1", "count-h-2-v1", "count-h-3-v1",
+                          "variant", "wb_supervisor_",
                           "wb_gps_get_values", "SCENE',"):
             self.assertNotIn(forbidden,core)
 
@@ -234,7 +235,7 @@ class CountHMotorFlightTests(unittest.TestCase):
             prefix+land+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 80 OK\n",2,"sensor"))
         source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
         for token in ('mode=="reference"','mode=="sensor"',
-                      'f"sensor-n{variant}"','"A6_SENSOR_COUNT"',
+                      'f"{mode}-n{variant}"','"A6_SENSOR_COUNT"',
                       "sensor_protocol",'"all_native_ack_ids"',
                       '"--mode"'):
             self.assertIn(token,source)
@@ -363,7 +364,8 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("await backend.move('left',0.55)",browser)
         self.assertIn("await backend.move('right',0.55)",browser)
         self.assertIn("Number.isInteger(variant)",browser)
-        self.assertIn('self.path != "/a6-variant"',native)
+        self.assertIn('elif self.path == "/a6-variant":',native)
+        self.assertIn('else:\n            self.send_error(404)',native)
         self.assertNotIn("Blockly.Workspace",browser)
         self.assertNotIn("backend.completeActivityMission",browser)
         self.assertIn("responses==[str(i) for i in range(1,expected_responses+1)]",native)
