@@ -35,7 +35,7 @@ jobs:
     name: A7 compiled C oracle, scenes and native Webots geometry (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 22
+    timeout-minutes: 28
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +54,10 @@ jobs:
             tools.ci.test_progression_mini_grand_prix_selector \
             tools.ci.test_progression_mini_grand_prix_pupil
           test -z "$(git status --porcelain)"
+      - name: Prepare exactly pinned Blockly 13.2.1 assets for browser witness
+        run: |
+          set -euo pipefail
+          ./tools/prepare_runtime_v2.sh
       - name: Compile genuine R2025a C Supervisor probe without motor authority
         run: |
           set -euo pipefail
@@ -135,8 +139,20 @@ jobs:
             -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-mini-gp-blockly \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_pupil.py'
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-mini-gp-blockly
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 tools/ci/run_classroom_mini_gp_pupil.py
+            '
       - name: Preserve negative and positive native evidence
         if: always()
         uses: actions/upload-artifact@v4
