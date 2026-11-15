@@ -25,6 +25,9 @@
 #define WB_SEQ_SETTLE 1.5
 /* Sustained native pose/velocity, not an instantaneous slow sample. */
 #define WB_SEQ_LAND_DWELL 0.25
+/* Activity 1 classroom WorldInfo uses 32-ms physics steps. A 64-ms gap
+ * cannot certify an unobserved interval of physical floor contact. */
+#define WB_SEQ_MAX_LAND_SAMPLE_GAP 0.048
 
 typedef enum {
   WB_SEQ_WAIT = 0,
@@ -44,7 +47,9 @@ typedef struct {
   double origin_z;
   double completion_at;
   double stable_since;
+  double last_time;
   int stable_since_valid;
+  int sampled;
   int airborne;
   int completion_seen;
   wb_seq_verdict result;
@@ -56,6 +61,7 @@ static inline void wb_seq_reset(wb_seq_mission *m,
   memset(m, 0, sizeof(*m));
   m->attempt = attempt;
   m->origin_z = origin_z;
+  m->last_time = -1.0;
 }
 
 static inline int wb_seq_sample_valid(const wb_seq_sample *s) {
@@ -76,6 +82,15 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
       m->result = WB_SEQ_NOT_ACHIEVED;
     return m->result;
   }
+  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
+    m->result = WB_SEQ_NOT_ACHIEVED;
+    return m->result;
+  }
+  if (m->completion_seen && m->stable_since_valid && m->sampled &&
+      s->time - m->last_time > WB_SEQ_MAX_LAND_SAMPLE_GAP)
+    m->stable_since_valid = 0;
+  m->last_time = s->time;
+  m->sampled = 1;
   if (s->z >= m->origin_z + WB_SEQ_AIRBORNE)
     m->airborne = 1;
   if (s->completed && !m->completion_seen) {
