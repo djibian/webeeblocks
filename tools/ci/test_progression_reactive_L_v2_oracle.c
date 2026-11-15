@@ -5,11 +5,12 @@
 #include <assert.h>
 #include <stdio.h>
 typedef struct{wb_rl2_mission m;wb_rl2_sample s;} journey;
-static void begin(journey *j,char v){
-  wb_rl2_reset(&j->m,101,v,.015);
-  j->s=(wb_rl2_sample){.time=.1,.x=0,.y=0,.z=.015,.yaw=0};
+static void begin_at(journey *j,char v,double origin_z){
+  wb_rl2_reset(&j->m,101,v,origin_z);
+  j->s=(wb_rl2_sample){.time=.1,.x=0,.y=0,.z=origin_z,.yaw=0};
   assert(wb_rl2_sample_mission(&j->m,&j->s)==WB_RL2_WAIT);
 }
+static void begin(journey *j,char v){begin_at(j,v,.015);}
 static void step(journey *j,double x,double y,double z,
                  double yaw,int completed,int contact){
   /* Match the actual classroom basicTimeStep=32 ms, not an 80-ms proxy. */
@@ -31,15 +32,16 @@ static void move(journey *j,double x,double y,double z,double yaw){
     assert(wb_rl2_sample_mission(&j->m,&j->s)==WB_RL2_WAIT);
   }
 }
-static void prefix(journey *j,char v){
-  begin(j,v);move(j,0,0,.5,0);move(j,.8,0,.5,0);
+static void prefix_at(journey *j,char v,double origin_z){
+  begin_at(j,v,origin_z);move(j,0,0,.5,0);move(j,.8,0,.5,0);
   move(j,.8,0,.5,WB_RL2_PI/2);
   assert(j->m.stage==1);
   move(j,.8,1,.5,WB_RL2_PI/2);
   assert(j->m.stage==2);
 }
-static void full_route(journey *j,char v){
-  prefix(j,v);
+static void prefix(journey *j,char v){prefix_at(j,v,.015);}
+static void full_route_at(journey *j,char v,double origin_z,double landing_z){
+  prefix_at(j,v,origin_z);
   if(v=='A'){
     move(j,.8,1,.5,0);move(j,1.58,1,.5,0);
   }else{
@@ -53,7 +55,22 @@ static void full_route(journey *j,char v){
     }
   }
   assert(j->m.stage==wb_rl2_total(v));
-  move(j,wb_rl2_pad_x(v),wb_rl2_pad_y(v),.015,wb_rl2_pad_yaw(v));
+  move(j,wb_rl2_pad_x(v),wb_rl2_pad_y(v),landing_z,wb_rl2_pad_yaw(v));
+}
+static void full_route(journey *j,char v){full_route_at(j,v,.015,.015);}
+static void false_hover_landing(char v){
+  /* Start was accepted at 10 cm, but an immobile 16.5-cm hover is NOT
+   * grounded, even with correct gates, pad, yaw, LAND and 32-ms dwell. */
+  journey j;full_route_at(&j,v,.100,.165);
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,1,0);
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  for(int i=0;i<12;++i){
+    step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+    assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_WAIT);
+  }
+  step(&j,j.s.x,j.s.y,j.s.z,j.s.yaw,0,0);
+  j.s.time=j.m.completion_at+WB_RL2_LAND_TIMEOUT;
+  assert(wb_rl2_sample_mission(&j.m,&j.s)==WB_RL2_FAILED);
 }
 static void positive(char v){
   journey j;full_route(&j,v);
@@ -234,7 +251,7 @@ static void never_completed(char v){
 }
 int main(void){
   for(const char *v="ABC";*v;++v){
-    positive(*v);raised_origin(*v);sparse_landing(*v);
+    positive(*v);raised_origin(*v);false_hover_landing(*v);sparse_landing(*v);
     missed_native_frame(*v);skip_waypoint(*v);bypass_wall(*v);contact(*v);
     false_landing(*v);late_pose(*v);replay(*v);side_bypass(*v);
     invalid_sample(*v);wrong_direction(*v);teleport(*v);
@@ -245,6 +262,6 @@ int main(void){
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
   wb_rl2_reset(&bad,0,'Z',NAN);
   assert(wb_rl2_sample_mission(&bad,&s)==WB_RL2_FAILED);
-  puts("PASS A5 V2 C oracle: 52 positive/adversarial cases");
+  puts("PASS A5 V2 C oracle: 55 positive/adversarial cases");
   return 0;
 }
