@@ -21,9 +21,11 @@
  * Keep a small tolerance for the Crazyflie's initial physical elevation. */
 #define WB_RL2_START_MIN_Z -0.04
 #define WB_RL2_START_MAX_Z 0.10
-/* An unobserved >100-ms interval cannot count as continuous stable landing.
- * Native 32-ms sampling and the historical 80-ms C11 fixture both qualify. */
-#define WB_RL2_LAND_MAX_SAMPLE_GAP 0.10
+/* Webots' normal classroom physics/observer sample is 32 ms. Allow 16 ms
+ * jitter, but not a missed 32-ms sample (64-ms gap): no unobserved interval
+ * may be credited as continuous landing dwell. This is NOT MAX_DT, which
+ * separately constrains movement/inter-sample jumps. */
+#define WB_RL2_LAND_MAX_SAMPLE_GAP 0.048
 #define WB_RL2_LAND_TIMEOUT 1.50
 #define WB_RL2_MAX_DT 0.20
 #define WB_RL2_MAX_SPEED 2.0
