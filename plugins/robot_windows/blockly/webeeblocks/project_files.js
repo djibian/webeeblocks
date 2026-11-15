@@ -159,7 +159,7 @@
     var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
       profile.parameterBounds.webeeblocks_v2_speed.SPEED;
     if (!limits || limits.step !== 0.01)
-      fail(lesson + 'speed constraints unavailable');
+      fail(lesson + ' speed constraints unavailable');
     var seen = Object.create(null);
     function visit(value) {
       if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -167,21 +167,21 @@
       if (value.type === 'webeeblocks_v2_speed' && isObject(value.fields) &&
           Object.prototype.hasOwnProperty.call(value.fields, 'SPEED')) {
         if (typeof value.id !== 'string' || !value.id || seen[value.id])
-          fail(lesson + 'invalid speed block identity');
+          fail(lesson + ' invalid speed block identity');
         seen[value.id] = true;
         var requested = value.fields.SPEED;
         if (typeof requested !== 'number' || !Number.isFinite(requested) ||
             requested < limits.min || requested > limits.max ||
             Math.abs((requested - limits.min) / limits.step -
               Math.round((requested - limits.min) / limits.step)) > 1e-7)
-          fail(lesson + 'serialized speed outside profile bounds or step');
+          fail(lesson + ' serialized speed outside profile bounds or step');
         var block = typeof workspace.getBlockById === 'function' && workspace.getBlockById(value.id);
         var field = block && block.type === 'webeeblocks_v2_speed' && block.getField('SPEED');
         if (!field || typeof field.setValue !== 'function' || typeof field.getValue !== 'function')
-          fail(lesson + 'speed block missing after load');
+          fail(lesson + ' speed block missing after load');
         field.setValue(requested);
         if (Number(field.getValue()) !== requested)
-          fail(lesson + 'speed precision changed during Open');
+          fail(lesson + ' speed precision changed during Open');
       }
       Object.keys(value).forEach(function(key) { visit(value[key]); });
     }
