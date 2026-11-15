@@ -36,7 +36,9 @@ int main(void) {
   wb_seq_mission m;
   airborne(&m, 1);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 3, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_ACHIEVED);
+  assert(step(&m, 3, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  assert(step(&m, 3.24, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 3.26, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
 
   /* A new native attempt never inherits the previous victory. */
@@ -56,7 +58,42 @@ int main(void) {
 
   /* Nonzero X and Y displacement well inside full-pad margins still pass. */
   airborne(&m, 5);
-  assert(step(&m, 2, .39, .34, .02, 0, 0, 0, 1) == WB_SEQ_ACHIEVED);
+  assert(step(&m, 2, .39, .34, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  assert(step(&m, 2.26, .39, .34, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+
+  /* Brief stillness cannot pass: any movement must restart the dwell. */
+  airborne(&m, 11);
+  assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.23, .35, .28, .02, .3, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.32, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.56, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.58, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+
+  /* A brief on-pad sample followed by a pad exit is not sustained landing. */
+  airborne(&m, 12);
+  assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  assert(step(&m, 2.15, .43, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.43, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
+  assert(step(&m, 2.46, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+
+  /* Adversarial 8-ms boundary: landing dwell completes 4 ms too late. */
+  airborne(&m, 24);
+  assert(step(&m, 2.000, .43, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  for (int tick = 1; tick <= 188; ++tick) {
+    const double t = 2.000 + 0.008 * tick;
+    const double x = tick < 156 ? .43 : .35;
+    const wb_seq_verdict verdict = step(&m, t, x, .28, .02, 0, 0, 0, 0);
+    if (tick < 188) assert(verdict == WB_SEQ_WAIT);
+    else assert(verdict == WB_SEQ_NOT_ACHIEVED);
+  }
+  assert(step(&m, 3.512, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
+
+  /* One valid sample followed by an invalid pose at deadline must fail. */
+  airborne(&m, 13);
+  assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
+  assert(step(&m, 3.6, .43, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
 
   /* Moving after completion cannot pass. */
   airborne(&m, 6);
@@ -185,7 +222,8 @@ class NativeSequence3D(unittest.TestCase):
             "WB_SEQ_X": "0.35", "WB_SEQ_Y": "0.28",
             "WB_SEQ_X_TOL": "0.05", "WB_SEQ_Y_TOL": "0.08",
             "WB_SEQ_AIRBORNE": "0.20", "WB_SEQ_LAND_HEIGHT": "0.07",
-            "WB_SEQ_MAX_SPEED": "0.12", "WB_SEQ_SETTLE": "1.5"
+            "WB_SEQ_MAX_SPEED": "0.12", "WB_SEQ_SETTLE": "1.5",
+            "WB_SEQ_LAND_DWELL": "0.25"
         }.items():
             self.assertRegex(header, rf"(?m)^#define {re.escape(name)} {re.escape(expected)}$")
         self.assertIn('WB_SEQ_ORACLE "progression-sequence-3d-v1"', header)
