@@ -12,7 +12,7 @@ const code=fs.readFileSync(path.join(ROOT,
 assert(code.includes('export async function runSensorOnly(backend,report)'));
 const gateX=[-.85,0,.85];
 async function trial(run,n,opts={}){
-  let x=-1.4,y=0,airborne=false,landed=false,forward=0;
+  let x=-1.4,y=0,airborne=false,landed=false,forward=0,completionAcks=0;
   const actions=[],events=[];
   const backend={
     async setSpeed(v){assert.equal(v,.20);},
@@ -42,12 +42,20 @@ async function trial(run,n,opts={}){
       assert(Math.abs(x-1.48)<=.06,'landing must be physical-pad-bound');
       assert(Math.abs(y-(n===2?.55:n===3?-.55:0))<=.001);
       landed=true;airborne=false;
+    },
+    async completeActivityMission(evaluation){
+      assert(landed&&!airborne,'COMPLETE cannot precede native LAND');
+      assert.deepEqual(evaluation,{
+        type:'mission-state-v1',oracle:'progression-count-h-v1'
+      },'mock must preserve the exact native completion oracle');
+      assert.equal(completionAcks,0,'COMPLETE must not be replayed');
+      completionAcks++;
     }
   };
   let error=null;
   try{await run(backend,async(event,detail)=>events.push({event,detail}));}
   catch(e){error=e;}
-  return{error,landed,forward,actions,events};
+  return{error,landed,forward,actions,events,completionAcks};
 }
 (async()=>{
   /* Import EXACT module bytes from the checkout, not a rewritten algorithm. */
@@ -57,6 +65,12 @@ async function trial(run,n,opts={}){
     const v=await trial(runSensorOnly,n);
     assert.equal(v.error,null,'mock n='+n+' '+v.error);
     assert(v.landed);
+    assert.equal(v.completionAcks,1,'one exact native completion after LAND');
+    const terminalEvents=v.events.map(e=>e.event);
+    assert(terminalEvents.indexOf('A6_LANDED') <
+           terminalEvents.indexOf('A6_NATIVE_COMPLETION_ACK'));
+    assert(terminalEvents.indexOf('A6_NATIVE_COMPLETION_ACK') <
+           terminalEvents.indexOf('A6_TEST_COMPLETE'));
     assert(v.forward>=20&&v.forward<=80);
     const count=v.events.filter(e=>e.event==='A6_SENSOR_COUNT');
     assert.equal(count.length,1);
@@ -79,6 +93,7 @@ async function trial(run,n,opts={}){
     assert(v.error&&item.why.test(String(v.error)),
       'test-only variant-blind pilot must refuse: '+JSON.stringify(item));
     assert(!v.landed,'refuted sensor trace landed');
+    assert.equal(v.completionAcks,0,'refuted trace must not publish native COMPLETE');
     assert(!v.events.some(e=>e.event==='A6_SENSOR_COUNT'),
       'refuted sensor trace published false sensor success');
   }
