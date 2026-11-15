@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cmath>
 #include <string>
+#include "decision_h_scene_gate.h"
 
 namespace {
 std::string legacyScene;
@@ -20,6 +21,7 @@ constexpr int kLegacyEvaluatorChildren = 6;
 constexpr int kAltitudeSceneChildren = 22;  // 18 markers, 4 physical colliders.
 constexpr int kOrientationSceneChildren = 24;  // Native observer and markers.
 constexpr int kSequenceSceneChildren = 18;  // Native observer inside first Pose.
+constexpr int kDecisionSceneChildren = webeeblocks_a4_gate::kChildren;
 double oldPosition[3];
 double oldOrientation[4];
 
@@ -293,7 +295,9 @@ bool reactiveV2Selection(char variant) {
          !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
          !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
          !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
-         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
 }
 bool liveSelection() {
   if (reactiveV2Token(selected.c_str()))
@@ -305,13 +309,17 @@ bool liveSelection() {
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
-      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
   if (selected == "legacy-v1")
     return completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren) &&
       completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren) &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
-      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
   if (selected == "altitude-v1")
     return completeGroup("WEBEEBLOCKS_ALTITUDE_SCENE", kAltitudeSceneChildren) &&
       altitudeColliders() &&
@@ -319,14 +327,30 @@ bool liveSelection() {
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
-      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
   if (selected == "orientation-v1")
     return completeGroup("WEBEEBLOCKS_ORIENTATION_SCENE", kOrientationSceneChildren) &&
       orientationObserver() &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
-      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE");
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
+  if (selected == "decision-h-a-v1" || selected == "decision-h-b-v1") {
+    const char variant = selected == "decision-h-a-v1" ? 'a' : 'b';
+    return webeeblocks_a4_gate::valid(variant) &&
+      !wb_supervisor_node_get_from_def(variant == 'a' ?
+        "WEBEEBLOCKS_DECISION_B_SCENE" : "WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+      !reactiveV2Present();
+  }
   // Absence is not identity: an interrupted managed-world import may also
   // leave zero groups. Dedicated worlds opt in through a typed world root.
   WbNodeRef world = wb_supervisor_node_get_from_def("WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD");
@@ -336,7 +360,9 @@ bool liveSelection() {
     !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
     !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
     !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
-    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE");
 }
 void observeWorld() {
   if (observed) return;
@@ -371,6 +397,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
                  std::strcmp(scene, "legacy-v1") &&
                  std::strcmp(scene, "altitude-v1") &&
                  std::strcmp(scene, "orientation-v1") &&
+                 std::strcmp(scene, "decision-h-a-v1") &&
+                 std::strcmp(scene, "decision-h-b-v1") &&
                  !reactiveV2Token(scene))) return 0;
   observeWorld();
   ready = ready && liveSelection();
@@ -394,6 +422,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE") &&
         !reactiveV2Present()) {
       // A typed, empty classroom launch has no live scenario to export. Its
       // versioned restoration assets remain subject to the same post-import
@@ -428,6 +458,19 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     if (nextScene.empty() || nextScene.find("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {") != 0 ||
         nextScene.find("controller \"progression_altitude_v1\"") == std::string::npos)
       return 0;
+  } else if (std::strcmp(scene, "decision-h-a-v1") == 0 ||
+             std::strcmp(scene, "decision-h-b-v1") == 0) {
+    const bool variantA = std::strcmp(scene, "decision-h-a-v1") == 0;
+    nextScene = sceneFile(variantA ? "decision-h-a-v1.wbo" : "decision-h-b-v1.wbo");
+    // A4 scene sources intentionally begin with explanatory comments; match
+    // the actual unindented Group root and the named native evaluator before
+    // any destructive removal. The post-import actual node checks are stronger.
+    const char *root = variantA ? "\nDEF WEBEEBLOCKS_DECISION_A_SCENE Group {" :
+                                  "\nDEF WEBEEBLOCKS_DECISION_B_SCENE Group {";
+    if (nextScene.empty() ||
+        nextScene.find(root) == std::string::npos ||
+        nextScene.find("controller \"progression_decision_h_v1\"") == std::string::npos)
+      return 0;
   } else if (std::strcmp(scene, "orientation-v1") == 0) {
     nextScene = sceneFile("orientation-v1.wbo");
     // Fail before destruction when the versioned scene or its native observer
@@ -460,6 +503,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   removeDef("WEBEEBLOCKS_REACTIVE_L_V2_A_SCENE");
   removeDef("WEBEEBLOCKS_REACTIVE_L_V2_B_SCENE");
   removeDef("WEBEEBLOCKS_REACTIVE_L_V2_C_SCENE");
+  removeDef("WEBEEBLOCKS_DECISION_A_SCENE");
+  removeDef("WEBEEBLOCKS_DECISION_B_SCENE");
   // Activities 7/8 currently import extra root nodes at evaluator startup.
   // Remove those too; restarting their evaluators recreates them on restoration.
   for (int i = wb_supervisor_field_get_count(children) - 1; i >= 0; --i) {
@@ -492,6 +537,26 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE"));
     const double p[] = {-1.8, -1.6, 1.6};
+    const double o[] = {-0.45, 0.47, 0.76, 1.05};
+    wb_supervisor_field_set_sf_vec3f(position, p);
+    wb_supervisor_field_set_sf_rotation(orientation, o);
+  } else if (std::strcmp(scene, "decision-h-a-v1") == 0 ||
+             std::strcmp(scene, "decision-h-b-v1") == 0) {
+    const bool variantA = std::strcmp(scene, "decision-h-a-v1") == 0;
+    const char variant = variantA ? 'a' : 'b';
+    wb_supervisor_field_import_mf_node_from_string(children, -1, nextScene.c_str());
+    ready = webeeblocks_a4_gate::valid(variant) &&
+      completeGroup(variantA ? "WEBEEBLOCKS_DECISION_A_SCENE" :
+                               "WEBEEBLOCKS_DECISION_B_SCENE",
+                    kDecisionSceneChildren) &&
+      !wb_supervisor_node_get_from_def(variantA ?
+        "WEBEEBLOCKS_DECISION_B_SCENE" : "WEBEEBLOCKS_DECISION_A_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE");
+    const double p[] = {-1.8, -1.6, 1.7};
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
     wb_supervisor_field_set_sf_rotation(orientation, o);

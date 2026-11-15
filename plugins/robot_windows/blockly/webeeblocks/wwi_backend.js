@@ -313,6 +313,7 @@
     // refuses altitude/orientation; only the school selector may ACK them.
     if (scene !== 'sequence-v1' && scene !== 'legacy-v1' &&
         scene !== 'altitude-v1' && scene !== 'orientation-v1' &&
+        scene !== 'decision-h-a-v1' && scene !== 'decision-h-b-v1' &&
         scene !== 'reactive-L-a-v2' && scene !== 'reactive-L-b-v2' &&
         scene !== 'reactive-L-c-v2')
       return Promise.reject(new RuntimeV2BackendError('SCENE_UNAVAILABLE'));

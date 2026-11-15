@@ -30,7 +30,7 @@ for (const activity of Activities.DOCUMENT.activities) {
     const changed = JSON.parse(JSON.stringify(activity));
     changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
-      /runtime.scene must be an explicitly staged native scene token/, 'ambiguous scene accepted for ' + activity.id);
+      /runtime.scene must be sequence-v1/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
 
