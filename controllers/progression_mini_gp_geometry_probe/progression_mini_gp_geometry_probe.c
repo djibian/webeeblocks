@@ -198,6 +198,64 @@ int main(void) {
     return 0;
   }
 
+  /* CI-only low obstacle contact preflight. This controller has NO motors,
+   * drives only its own physical craft, and publishes fresh attempt tokens
+   * so the independent A7 observer samples each REAL ODE contact. */
+  if(ground_token &&
+     !strncmp(ground_token,"WEBEEBLOCKS_A7_LOW_CONTACT_",25)) {
+    const char *part=NULL;
+    if(!strcmp(ground_token,"WEBEEBLOCKS_A7_LOW_CONTACT_CORNER_FRONT_V1"))
+      part="CORNER_FRONT";
+    else if(!strcmp(ground_token,"WEBEEBLOCKS_A7_LOW_CONTACT_CLOSED_PANEL_V1"))
+      part="CLOSED_PANEL";
+    if(!part)return fail("unknown low-contact physical probe");
+    char def[100];
+    snprintf(def,sizeof def,"ACTIVITY7_%c_%s",variant,part);
+    WbNodeRef obstacle=wb_supervisor_node_get_from_def(def);
+    if(!obstacle)return fail("missing near-floor collider");
+    const int craft_id=wb_supervisor_node_get_id(craft);
+    const int obstacle_id=wb_supervisor_node_get_id(obstacle);
+    if(craft_id<=0||obstacle_id<=0)return fail("invalid physical IDs");
+    wb_supervisor_node_enable_contact_points_tracking(obstacle,step,false);
+    int contacts_low=0;
+    const double offsets[]={-.035,-.020,-.010,0.,.010,.020,.035};
+    for(int k=0;k<7;++k) {
+      const double boundary=part[0]=='C' && part[1]=='O' &&
+        !strcmp(part,"CORNER_FRONT") ? turn+.22-.04-.09 : 1.42-.04-.09;
+      const double x=!strcmp(part,"CORNER_FRONT") ?
+        boundary+offsets[k]:turn;
+      const double y=!strcmp(part,"CORNER_FRONT") ?
+        0.0:side*(boundary+offsets[k]);
+      const double p[3]={x,y,.015};
+      wb_supervisor_field_set_sf_vec3f(position,p);
+      wb_supervisor_node_reset_physics(craft);
+      if(wb_robot_step(step)<0)return fail("physical low-contact step ended");
+      char token[100];
+      snprintf(token,sizeof token,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %d",100+k);
+      wb_supervisor_field_set_sf_string(test_data,token);
+      if(wb_robot_step(step)<0)return fail("physical low-contact attempt ended");
+      int n=-1;
+      const WbContactPoint *points=wb_supervisor_node_get_contact_points(obstacle,false,&n);
+      if(n<0||(n>0&&!points))return fail("low-contact native points unavailable");
+      for(int i=0;i<n;++i) {
+        if(points[i].node_id==craft_id &&
+           isfinite(points[i].point[2])&&fabs(points[i].point[2])<=.025) {
+          printf("WEBEEBLOCKS_A7_LOW_CONTACT_PHYSICAL variant=%c "
+                 "obstacle=%s z=%.9f partner_id=%d contact_count=%d\n",
+                 variant,part,points[i].point[2],points[i].node_id,n);
+          fflush(stdout);
+          ++contacts_low;
+        }
+      }
+    }
+    printf("WEBEEBLOCKS_A7_LOW_CONTACT_PROBE_END variant=%c "
+           "obstacle=%s low_contacts=%d obstacle_id=%d motors=OFF\n",
+           variant,part,contacts_low,obstacle_id);
+    fflush(stdout);
+    wb_robot_cleanup();
+    return 0;
+  }
+
   int contacts=0;
   if (!place(-1.40,0,.40,0.0,&contacts) || contacts)
     return fail("not freely positioned at low departure");
