@@ -176,7 +176,7 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                 self.assertEqual(mutant.count(wrong_step.MARKER), 1)
                 self.assertEqual(
                     mutant.replace("basicTimeStep 64", "basicTimeStep 32").replace(
-                        "\\n" + wrong_step.MARKER + "\\n", "\\n"),
+                        "\n" + wrong_step.MARKER + "\n", "\n"),
                     original)
                 self.assertEqual(mutant.count(" Solid {"), 9)
                 self.assertEqual(mutant.count("boundingObject Box"), 9)
