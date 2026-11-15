@@ -245,7 +245,7 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1) ([0-9a-f]{64})$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1|orientation-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
         controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
