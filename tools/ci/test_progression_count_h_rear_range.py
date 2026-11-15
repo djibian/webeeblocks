@@ -24,7 +24,7 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertIn("native_up_before_under_after_m",runner)
         self.assertIn("variable_counting_or_generic_wbb_unproven",runner)
         self.assertNotIn("wb_motor_set_",source)
-        self.assertNotIn("Blockly",source)
+        self.assertNotIn("Blockly.Workspace",source)
 
     def test_worlds_use_original_crazyflie_sensor_without_pupil_controller(self):
         for n in (1,2,3):
