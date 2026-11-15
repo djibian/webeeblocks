@@ -74,6 +74,10 @@ class A4LowContactTests(unittest.TestCase):
             "refusing cleanup of altered physical world",
         ):
             self.assertIn(token, src)
+        # This previously failed despite genuine contacts: double-escaped \d
+        # erroneously matched a literal slash rather than the native count.
+        self.assertIn(r"floor_contacts=(\d+) center_z=", src)
+        self.assertNotIn(r"floor_contacts=(\\d+) center_z=", src)
         self.assertNotIn("wb_motor_set_", probe)
 
     def test_draft_and_ready_native_gates_both_execute_contact_witness(self):
