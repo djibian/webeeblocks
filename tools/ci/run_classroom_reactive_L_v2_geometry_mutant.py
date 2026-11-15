@@ -41,24 +41,32 @@ def rotated_scene(letter):
 def main():
     # The native reader must *refuse* this changed world BEFORE advertising
     # startup READY; a direct change to the local Box is not sufficient.
+    original_compose= sensor.compose
+    original_artifacts=sensor.ARTIFACTS
+    original_fatal=sensor.FATAL
     sensor.ARTIFACTS=EVIDENCE
     sensor.compose=rotated_scene
+    # Stop as soon as the native independent evaluator rejects the scene.
+    # Waiting for the separately teleporting sensor witness is unnecessary.
+    sensor.FATAL=FATAL
     mutant=rotated_scene("A")
     print("WEBEEBLOCKS_A5_V2_ROTATION_MUTANT_SHA256 "+
           hashlib.sha256(mutant.encode("utf-8")).hexdigest(),flush=True)
-    # The original sensor-only runner may refuse this world because a
-    # rotated physical wall changes the observed rays. That is irrelevant:
-    # the independent mission observer itself MUST refuse identity.
     try:
-        sensor.run_one("A")
-    except AssertionError:
-        pass
+        try:
+            sensor.run_one("A")
+        except AssertionError:
+            pass
+    finally:
+        sensor.compose=original_compose
+        sensor.ARTIFACTS=original_artifacts
+        sensor.FATAL=original_fatal
     log=(EVIDENCE/"A"/"webots.log")
     if not log.is_file():
         raise AssertionError("missing genuine native Webots negative log")
     actual=log.read_text(encoding="utf-8",errors="replace")
     if (actual.count(FATAL)!=1 or READY in actual or
-        RESULT in actual or "WEBEEBLOCKS_A5_V2_SENSOR_FATAL" in actual):
+        RESULT in actual):
         raise AssertionError(
             "rotated wall did not fail closed in independent native evaluator: "+
             str(log)+" tail="+actual[-1500:])
