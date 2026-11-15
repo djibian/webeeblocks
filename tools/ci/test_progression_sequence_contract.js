@@ -12,11 +12,12 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 12, 'retain both historical profiles while activating A2 and A3');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 13, 'retain all historical profiles and hidden A5 v2 while activating A2 and A3');
 for (const activity of Activities.DOCUMENT.activities) {
   const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
     activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
-    activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' : 'legacy-v1';
+    activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' :
+    activity.id === 'progression-reactive-L-v2' ? 'reactive-L-a-v2' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
@@ -32,6 +33,22 @@ for (const activity of Activities.DOCUMENT.activities) {
       /runtime.scene must be an explicitly staged native scene token/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
+
+// The experimental A5 v2 identity can be opened in a .wbb, but is still
+// excluded from Start. No variant is encoded into a pupil's saved workspace.
+const pReactiveV2=Profiles.resolveById(
+  Activities.DOCUMENT,'progression-reactive-L-v2',Activities.BLOCK_CATALOG);
+assert.strictEqual(pReactiveV2.starterVisible,false);
+assert.strictEqual(pReactiveV2.runtime.scene,'reactive-L-a-v2');
+assert.strictEqual(pReactiveV2.evaluation.oracle,'progression-reactive-L-v2');
+assert.deepStrictEqual(pReactiveV2.runtime.rangeDirections,['front','left']);
+assert.deepStrictEqual(pReactiveV2.runtime.moveDirections,['forward']);
+assert(pReactiveV2.toolbox.includes('controls_whileUntil'));
+assert(pReactiveV2.toolbox.includes('controls_repeat_ext'));
+assert(pReactiveV2.toolbox.includes('variables_set'));
+assert(pReactiveV2.toolbox.includes('variables_get'));
+assert(pReactiveV2.runtime.allowedStatementKinds.includes('set_variable'));
+assert(pReactiveV2.runtime.allowedStatementKinds.includes('while'));
 
 // Exactly one independently attested native school profile selects altitude.
 const pAlt = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1', Activities.BLOCK_CATALOG);
