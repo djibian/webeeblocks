@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <webots/contact_point.h>
 #include <webots/robot.h>
 #include <webots/supervisor.h>
 
@@ -68,6 +69,27 @@ static int parse_completion(const char *data, unsigned long long identity) {
          strcmp(data, canonical) == 0;
 }
 
+/* In the simple Activity 1 scene the only physical surface at low height
+ * is the z=0 floor. Colors and targets are visual-only. Do not confuse
+ * hovering near the floor with an actual physics contact on that floor. */
+static int observe_floor_contact(WbNodeRef craft) {
+  int count = -1;
+  const WbContactPoint *points =
+    wb_supervisor_node_get_contact_points(craft, true, &count);
+  if (count < 0 || (count > 0 && !points))
+    return -1;
+  int floor_seen = 0;
+  for (int i = 0; i < count; ++i) {
+    const double *point = points[i].point;
+    if (!isfinite(point[0]) || !isfinite(point[1]) ||
+        !isfinite(point[2]))
+      return -1;
+    if (fabs(point[2]) <= 0.030)
+      floor_seen = 1;
+  }
+  return floor_seen;
+}
+
 static void publish(WbFieldRef channel, const wb_seq_mission *m) {
   const char *status = (m->result == WB_SEQ_ACHIEVED) ? "achieved" : "not-achieved";
   char result[180];
@@ -84,7 +106,9 @@ static void publish(WbFieldRef channel, const wb_seq_mission *m) {
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene()) {
+  /* The stable landing proof requires the exact 32-ms native classroom
+   * cadence. Reject incompatible worlds before announcing READY. */
+  if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_SEQUENCE_3D_FATAL invalid native scene\n");
     wb_robot_cleanup();
     return 2;
@@ -98,6 +122,7 @@ int main(void) {
     return 2;
   }
   const double origin_z = origin[2];
+  wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_seq_mission mission = {0};
   unsigned long long last_attempt = 0;
   printf("WEBEEBLOCKS_SEQUENCE_3D_READY target_x=0.350 target_y=0.280\n");
@@ -120,6 +145,7 @@ int main(void) {
     wb_seq_sample sample = {0};
     sample.time = wb_robot_get_time();
     sample.completed = parse_completion(data, mission.attempt);
+    sample.floor_contact = observe_floor_contact(craft);
     if (!pose || !velocity) {
       sample.x = NAN; /* A missing native observation cannot authorize success. */
     } else {
