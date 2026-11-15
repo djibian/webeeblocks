@@ -26,6 +26,10 @@
 #define WB_DH_LAND_TOL 0.080
 #define WB_DH_LAND_Z 0.070
 #define WB_DH_LAND_MAX_SPEED 0.120
+/* Verify the real blue launch-pad before crediting each new attempt. */
+#define WB_DH_START_XY_TOL 0.080
+#define WB_DH_START_Z_TOL 0.060
+#define WB_DH_START_MAX_SPEED 0.120
 #define WB_DH_SETTLE_SEC 1.500
 /* An instant at the target is not an immobile landing. Preserve enough
  * consecutive physical samples to exclude an in-motion crossing. */
@@ -110,6 +114,18 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
     return m->verdict;
   if (!wb_dh_valid_sample(s) || s->obstacle_contact ||
       s->time <= m->last_time || s->time < 0.0) {
+    m->verdict = WB_DH_NOT_ACHIEVED;
+    return m->verdict;
+  }
+  /* Reject a late-attached attempt already in flight. Observe actual first
+   * native pose and velocity; never inspect the learner's algorithm or AST. */
+  if (m->last_time < 0.0 &&
+      (fabs(s->x) > WB_DH_START_XY_TOL ||
+       fabs(s->y) > WB_DH_START_XY_TOL ||
+       fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
+       hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||
+       fabs(s->vz) > WB_DH_START_MAX_SPEED ||
+       s->completed)) {
     m->verdict = WB_DH_NOT_ACHIEVED;
     return m->verdict;
   }

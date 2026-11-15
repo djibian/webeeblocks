@@ -70,6 +70,35 @@ int main(void) {
   completed_route(&m,2,WB_DH_SCENE_B);
   assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
   assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  // First native observation midway through the route must never count as
+  // a legitimate blue start, even if later gate/landing poses look correct.
+  for (int v=0; v<2; ++v) {
+    wb_dh_scene scene=v==0 ? WB_DH_SCENE_A : WB_DH_SCENE_B;
+    wb_dh_reset(&m,(unsigned long long)(70+v),scene,.035);
+    assert(tick(&m,1,.570,0,.40,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,2,.750,0,v==0?.50:.85,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,8,1.750,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
+    // Reset is not permanently poisoned: a freshly observed blue start wins.
+    completed_route(&m,80+v,scene);
+    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    for (int variant=0; variant<7; ++variant) {
+      wb_dh_reset(&m,(unsigned long long)(90+10*v+variant),scene,.035);
+      wb_dh_sample invalid = {
+        .time=0,.x=0,.y=0,.z=.035,.vx=0,.vy=0,.vz=0,
+        .obstacle_contact=0,.completed=0
+      };
+      if (variant == 0) invalid.x=.090;
+      if (variant == 1) invalid.y=.090;
+      if (variant == 2) invalid.z=.100;
+      if (variant == 3) invalid.vx=.130;
+      if (variant == 4) invalid.vy=.130;
+      if (variant == 5) invalid.vz=.130;
+      if (variant == 6) invalid.completed=1;
+      assert(wb_dh_sample_mission(&m,&invalid)==WB_DH_NOT_ACHIEVED);
+      assert(wb_dh_sample_mission(&m,&invalid)==WB_DH_NOT_ACHIEVED);
+    }
+  }
   // RESET must clear all mission stages/markers and not inherit a PASS.
   wb_dh_reset(&m,3,WB_DH_SCENE_A,.035);
   assert(!m.stage&&!m.airborne&&!m.before_first&&!m.completion_seen);
@@ -193,6 +222,9 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_SCENE_A', content)
         self.assertIn('WB_DH_SCENE_B', content)
         self.assertIn('WB_DH_LAND_DWELL_SEC 0.250', content)
+        self.assertIn('WB_DH_START_XY_TOL 0.080', content)
+        self.assertIn('WB_DH_START_Z_TOL 0.060', content)
+        self.assertIn('WB_DH_START_MAX_SPEED 0.120', content)
         self.assertIn('m->landed_since = -1.0', content)
         self.assertIn('s->time - m->landed_since >= WB_DH_LAND_DWELL_SEC', content)
         self.assertIn('wb_dh_sample_mission', content)
