@@ -146,6 +146,18 @@ def run_one(letter):
         readings.append(front if stage=="origin" else left)
     if any(abs(float(final[0][j+1])-readings[j])>1e-6 for j in range(5)):
         raise AssertionError("V2 terminal and staged observations disagree")
+    # Crucial falsifier: the profile also permits FRONT. After the left pivot,
+    # the front ray looks exactly where LEFT looked before that pivot. Looking
+    # only at the post-pivot LEFT ray would falsely suggest lost information.
+    before_left=float(hits[2][3])
+    after_front=float(hits[3][2])
+    if not all(math.isfinite(v) for v in (before_left,after_front)) or (
+        abs(before_left-after_front)>.01):
+        raise AssertionError("front ray does not reproduce prior left: "+
+                             repr((letter,before_left,after_front)))
+    print("A5_V2_NO_MEMORY_FRONT_EQUIVALENCE variant="+letter+
+          f" prior_left_m={before_left:.9f} post_front_m={after_front:.9f} "+
+          f"delta_m={abs(before_left-after_front):.9f}",flush=True)
     print("A5_V2_REAL_SENSOR_READINGS variant="+letter+
           f" first={readings[0]:.6f} second={readings[1]:.6f} "
           f"third={readings[2]:.6f} after_pivot={readings[3]:.6f} "
@@ -215,6 +227,9 @@ def main():
         "v2_all_first_two_native_readings_indistinguishable":True,
         "later_third_native_observation_distinguishes_variants":True,
         "post_pivot_left_readings_no_longer_distinguish_variants":True,
+        "post_pivot_front_recovers_historical_left_at_same_pose":True,
+        "direct_no_memory_front_observation_still_available":True,
+        "variable_free_motorized_flight_NOT_TESTED":True,
         "after_rewind_real_left_readings_recover_historical_values":True,
         "historical_readings_recoverable_by_reverse_turn":True,
         "reobserving_by_reverse_turn_not_a_motorized_pupil_program":True,
@@ -232,7 +247,7 @@ def main():
     print("WEBEEBLOCKS_A5_V2_PREFIX_NATIVE_CONFIRMED "
           "two_original_rays_same=true later_third_ray_differs=true "
           "post_pivot_left_nondiscriminating=true reorientation_recovers_history=true "
-          "flight=NOT_TESTED",flush=True)
+          "front_also_recovers_history_without_turn=true flight=NOT_TESTED",flush=True)
 
 
 if __name__=="__main__":

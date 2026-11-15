@@ -75,6 +75,12 @@ class A5V2WitnessTests(unittest.TestCase):
         self.assertIn('"reobserving_by_reverse_turn_not_a_motorized_pupil_program":True',runner)
         self.assertIn('abs(values[v][4]-values[v][2])>.08',runner)
         self.assertIn('max(post)-min(post)>.08',runner)
+        self.assertIn('A5_V2_NO_MEMORY_FRONT_EQUIVALENCE',runner)
+        self.assertIn('before_left=float(hits[2][3])',runner)
+        self.assertIn('after_front=float(hits[3][2])',runner)
+        self.assertIn('abs(before_left-after_front)>.01',runner)
+        self.assertIn('"direct_no_memory_front_observation_still_available":True',runner)
+        self.assertIn('"variable_free_motorized_flight_NOT_TESTED":True',runner)
         self.assertIn("does_not_prove_drone_flight_or_student_solution",runner)
 
 
