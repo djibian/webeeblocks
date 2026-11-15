@@ -7,7 +7,7 @@ import unittest
 import runpy
 import os
 import tempfile
-from unittest.mock import patch
+from unittest.mock import call, patch
 import run_grand_prix_u_prototype as runner
 from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch, has_native_land_completion
 import run_grand_prix_u_geometry as geometry
@@ -136,6 +136,74 @@ class TimeoutEvidenceTests(unittest.TestCase):
             with self.subTest(rows=rows,text=text),self.assertRaises(RuntimeError):
                 validate_timeout_probe(rows,text)
 
+
+
+class OwnedNativeGroupRetirementTests(unittest.TestCase):
+    """Prove a dead xvfb-run leader cannot hide live Webots descendants."""
+
+    def test_dead_leader_with_live_group_requires_group_sigkill(self):
+        child=SimpleNamespace(pid=223, wait=lambda timeout: -15)
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',side_effect=[
+                  {'status':'nonempty'}, {'status':'empty'}]) as membership):
+            runner.stop_groups([child])
+        self.assertEqual(kill.call_args_list, [
+            call(223,runner.signal.SIGTERM), call(223,runner.signal.SIGKILL)])
+        self.assertEqual(membership.call_count,2)
+
+    def test_clean_group_needs_no_extra_sigkill(self):
+        child=SimpleNamespace(pid=145, wait=lambda timeout: -15)
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',
+                           return_value={'status':'empty'}) as membership):
+            runner.stop_groups([child])
+        kill.assert_called_once_with(145,runner.signal.SIGTERM)
+        membership.assert_called_once_with(145)
+
+    def test_unknown_group_cannot_claim_success(self):
+        child=SimpleNamespace(pid=223, wait=lambda timeout: -15)
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',
+                           return_value={'status':'unknown','reason':'permission'})):
+            with self.assertRaisesRegex(RuntimeError,'status unproven'):
+                runner.stop_groups([child])
+        kill.assert_called_once_with(223,runner.signal.SIGTERM)
+
+    def test_killed_group_still_present_refuses_retirement(self):
+        child=SimpleNamespace(pid=223, wait=lambda timeout: -15)
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',
+                           return_value={'status':'nonempty'}),
+              patch.object(runner.time,'monotonic',side_effect=[0.,6.]),
+              patch.object(runner.time,'sleep') as sleep):
+            with self.assertRaisesRegex(RuntimeError,'survived SIGKILL'):
+                runner.stop_groups([child])
+        self.assertEqual(kill.call_args_list, [
+            call(223,runner.signal.SIGTERM), call(223,runner.signal.SIGKILL)])
+        sleep.assert_not_called()
+
+    def test_unobservable_after_escalation_refuses_retirement(self):
+        child=SimpleNamespace(pid=223, wait=lambda timeout: -15)
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',side_effect=[
+                  {'status':'nonempty'}, {'status':'unknown','reason':'kernel'}]),
+              patch.object(runner.time,'monotonic',return_value=0)):
+            with self.assertRaisesRegex(RuntimeError,'status unproven'):
+                runner.stop_groups([child])
+        self.assertEqual(kill.call_args_list, [
+            call(223,runner.signal.SIGTERM), call(223,runner.signal.SIGKILL)])
+
+    def test_timeout_of_direct_leader_retains_existing_sigkill_path(self):
+        child=SimpleNamespace(pid=432)
+        child.wait=unittest.mock.Mock(side_effect=[
+            subprocess.TimeoutExpired('webots',5), None])
+        with (patch.object(runner.os,'killpg') as kill,
+              patch.object(runner,'owned_process_group_state',
+                           return_value={'status':'empty'})):
+            runner.stop_groups([child])
+        self.assertEqual(kill.call_args_list, [
+            call(432,runner.signal.SIGTERM), call(432,runner.signal.SIGKILL)])
+        self.assertEqual(child.wait.call_count,2)
 
 
 class NormalQuitHostTests(unittest.TestCase):

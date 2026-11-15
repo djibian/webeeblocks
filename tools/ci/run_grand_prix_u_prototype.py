@@ -73,6 +73,13 @@ def validate_timeout_probe(rows, text):
         raise RuntimeError('confirmed RESET did not revoke the old outcome')
 
 def stop_groups(children):
+    """Retire the entire owned group, not just the direct xvfb-run launcher.
+
+    A direct wrapper can exit on SIGTERM while Webots stays alive in its PGID,
+    preserving inherited stdout indefinitely. Re-probe the owned group after
+    wait(), escalate only if it survives, and refuse unknown/nonempty retirement.
+    The independent EOF, crash and startup seals remain mandatory.
+    """
     for child in reversed(children):
         try:os.killpg(child.pid,signal.SIGTERM)
         except ProcessLookupError:pass
@@ -81,6 +88,22 @@ def stop_groups(children):
             try:os.killpg(child.pid,signal.SIGKILL)
             except ProcessLookupError:pass
             child.wait()
+        group=owned_process_group_state(child.pid)
+        if group['status']=='unknown':
+            raise RuntimeError('owned native process group status unproven after wrapper exit')
+        if group['status']=='nonempty':
+            # The leader's return code is not the descendants' exit evidence.
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            deadline=time.monotonic()+5
+            while True:
+                group=owned_process_group_state(child.pid)
+                if group['status']=='empty':break
+                if group['status']!='nonempty':
+                    raise RuntimeError('owned native process group status unproven after SIGKILL')
+                if time.monotonic()>=deadline:
+                    raise RuntimeError('owned native process group survived SIGKILL')
+                time.sleep(.05)
 
 def owned_process_group_state(pgid):
     """Kernel-only existence probe of the runner-owned process group.
