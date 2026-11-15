@@ -3,6 +3,10 @@
 name: Activity 5 Draft real Multi-ranger counterexample
 
 on:
+  # This temporary experimental branch exists only while #980 is Draft.
+  # Its runs have no integration/release authority and no secrets.
+  push:
+    branches: [feat/pedagogy-a5-reactive-L-variants-20261112]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -20,13 +24,13 @@ permissions:
 jobs:
   a5-native-draft-only:
     name: A5 R2025a two-ray negative witness (not CI Gate)
-    if: github.event.pull_request.draft == true
+    if: github.event_name == 'push' || github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Refuse altered A5 source worlds and witness roles
         run: |
