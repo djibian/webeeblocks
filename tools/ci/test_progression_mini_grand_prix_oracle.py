@@ -39,7 +39,7 @@ class MiniGrandPrixCompiledOracle(unittest.TestCase):
                              "A7 adversarial assertions failed:\n" +
                              executed.stdout + executed.stderr)
             self.assertEqual(executed.stdout.strip(),
-                             "PASS A7 isolated C oracle: forty-three positive/adversarial scenarios")
+                             "PASS A7 isolated C oracle: forty-seven positive/adversarial scenarios")
             self.assertEqual(executed.stderr.strip(), "")
 
 

@@ -18,6 +18,18 @@ static void blue_start(wb_mini_mission *m,char v,unsigned long long attempt) {
   wb_mini_sample a=sample(0,-1.40,0,.015,0,0);
   assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
 }
+/* A positive 250-ms hold is witnessed by consecutive 32-ms native
+ * samples. Jumping straight from 6.0 to 6.26 cannot certify a dwell. */
+static void observed_dwell(wb_mini_mission *m,double t,double x,
+                           double y,double z,double yaw) {
+  wb_mini_sample a;
+  for(int i=1;i<=7;++i) {
+    a=sample(t+0.032*i,x,y,z,yaw,0);
+    assert(wb_mini_sample_mission(m,&a)==WB_MINI_WAIT);
+  }
+  a=sample(t+0.032*8,x,y,z,yaw,0);
+  assert(wb_mini_sample_mission(m,&a)==WB_MINI_ACHIEVED);
+}
 static void positive(char v) {
   wb_mini_mission m;blue_start(&m,v,1);
   const double h=wb_mini_h_x(v),x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
@@ -31,10 +43,7 @@ static void positive(char v) {
   a=sample(6,x,y,.015,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   /* Native program completion is one pulse, NOT a permanent level. */
-  a=sample(6.24,x,y,.015,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6.26,x,y,.015,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+  observed_dwell(&m,6,x,y,.015,wb_mini_heading(v));
 }
 static void bypass(char v) {
   wb_mini_mission m;blue_start(&m,v,1);
@@ -106,8 +115,7 @@ static void corrected_retry(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(9,x,y,.015,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(9.26,x,y,.015,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+  observed_dwell(&m,9,x,y,.015,wb_mini_heading(v));
 }
 
 /* First observed sample near a physical obstacle cannot prove a fresh
@@ -202,8 +210,7 @@ static void genuine_ground_origin_can_land(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(6,x,y,.030,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6.26,x,y,.030,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+  observed_dwell(&m,6,x,y,.030,wb_mini_heading(v));
 }
 
 static void skip_gate(char v) {
@@ -260,10 +267,7 @@ static void settle_pulse_and_motion(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(6.40,x,y,.015,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6.63,x,y,.015,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6.66,x,y,.015,wb_mini_heading(v),0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+  observed_dwell(&m,6.40,x,y,.015,wb_mini_heading(v));
 }
 /* A trajectory that crossed H and turned cannot claim program COMPLETE
  * at the corner and then travel the remaining 0.95 m as a settling action. */
@@ -292,8 +296,36 @@ static void completion_near_pad_can_settle(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(6.20,x,y,.015,yaw,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
-  a=sample(6.46,x,y,.015,yaw,0);
-  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_ACHIEVED);
+  observed_dwell(&m,6.20,x,y,.015,yaw);
+}
+/* Two identical 250ms-spaced samples cannot establish a 250ms
+ * continuous touchdown. The candidate may still earn a fresh full dwell. */
+static void no_credit_for_unobserved_gap(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.0,x,y,.015,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.256,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.256)<1e-7);
+  a=sample(6.512,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.512)<1e-7);
+  observed_dwell(&m,6.512,x,y,.015,yaw);
+}
+/* Missing one full native 32ms step is also an interrupted landing
+ * observation, even if the craft is identically positioned either side. */
+static void missed_native_tick_resets_dwell(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v),yaw=wb_mini_heading(v);
+  wb_mini_sample a=sample(6.000,x,y,.015,yaw,1);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.032,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  a=sample(6.096,x,y,.015,yaw,0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-6.096)<1e-7);
+  observed_dwell(&m,6.096,x,y,.015,yaw);
 }
 static void terminal_timeout(char v) {
   wb_mini_mission m;
@@ -350,6 +382,8 @@ static void late_dwell_boundary(char v) {
 }
 int main(void) {
   positive('L');positive('R');
+  no_credit_for_unobserved_gap('L');no_credit_for_unobserved_gap('R');
+  missed_native_tick_resets_dwell('L');missed_native_tick_resets_dwell('R');
   airborne_origin_must_fail('L');airborne_origin_must_fail('R');
   underground_origin_must_fail('L');underground_origin_must_fail('R');
   genuine_ground_origin_can_land('L');genuine_ground_origin_can_land('R');
@@ -371,6 +405,6 @@ int main(void) {
   skip_gate('L');skip_gate('R');
   no_turn('L');no_turn('R');
   contact_and_stale();
-  puts("PASS A7 isolated C oracle: forty-three positive/adversarial scenarios");
+  puts("PASS A7 isolated C oracle: forty-seven positive/adversarial scenarios");
   return 0;
 }

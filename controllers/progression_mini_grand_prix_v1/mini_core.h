@@ -35,6 +35,10 @@
 #define WB_MINI_SETTLE 1.5
 /* Completion is a one-shot notification; stability must be observed after it. */
 #define WB_MINI_LAND_DWELL 0.25
+/* The classroom R2025a world samples at 32ms. Missing one full native
+ * observation cannot count toward a continuous 250ms landing proof.
+ * Pausing Webots freezes simulation time and never creates a false gap. */
+#define WB_MINI_MAX_LANDING_SAMPLE_GAP 0.040
 typedef enum { WB_MINI_WAIT=0, WB_MINI_ACHIEVED=1, WB_MINI_FAILED=2 } wb_mini_verdict;
 typedef struct {
   double time,x,y,z,vx,vy,vz,yaw;
@@ -94,6 +98,11 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
       s->completed)) {
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
+  /* A sparse sequence of identical poses is not continuous evidence.
+   * A gap after COMPLETE restarts dwell from the next real sample. */
+  if(m->completion_seen &&
+     s->time-m->last_time>WB_MINI_MAX_LANDING_SAMPLE_GAP)
+    m->stable_since_valid=0;
   m->last_time=s->time;
   if(s->z>=m->origin_z+WB_MINI_AIRBORNE)m->airborne=1;
   const double h=wb_mini_h_x(m->variant);
