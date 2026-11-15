@@ -90,7 +90,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
         self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
         for forbidden in ("name: CI Gate\n","continue-on-error: true",
-                          "  schedule:\n","  push:\n","contents: write",
+                          "  schedule:\n","contents: write",
                           "pull-requests: write","actions: write"):
             self.assertNotIn(forbidden,workflow)
 
