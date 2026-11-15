@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Native R2025a witness of real Blockly Activity 3 AST and 3-beacon flight.
 
-Uses a *test-only* profile: no public Activity 3 product activation, real
-File System Access picker or pupil competence is asserted by this experiment.
+Uses the *actual student catalog profile* and school world, under test-only
+browser orchestration. Real File System Access picker and pupil competence
+remain unproven by this experiment.
 """
 from __future__ import annotations
 

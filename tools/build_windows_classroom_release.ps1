@@ -226,6 +226,12 @@ $historySource = Join-Path $repoRoot 'activities\historique\02-precise-movement.
 $historyTarget = Join-Path $packageDir 'Activites\Historique\02-precise-movement.wbb'
 Copy-RequiredFile $historySource $historyTarget
 
+# Keep the historical Activity 3 program valid and accessible, but outside
+# the unique active #03 student starter.
+$history3Source = Join-Path $repoRoot 'activities\historique\03-repeat.wbb'
+$history3Target = Join-Path $packageDir 'Activites\Historique\03-repeat.wbb'
+Copy-RequiredFile $history3Source $history3Target
+
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
 # Keep the classroom archive bounded to the actual Runtime root dependency

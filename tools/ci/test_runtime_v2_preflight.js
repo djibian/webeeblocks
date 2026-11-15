@@ -128,7 +128,7 @@ function proveProgressionStarterFiles() {
   const expected = [
     ['01-sequence.wbb', 'progression-sequence-v1'],
     ['02-altitude.wbb', 'progression-altitude-v1'],
-    ['03-repeat.wbb', 'progression-repeat-v1'],
+    ['03-orientation.wbb', 'progression-orientation-3d-v1'],
     ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
     ['06-multi-perception.wbb', 'progression-combined-decisions-v1'],
@@ -151,6 +151,17 @@ function proveProgressionStarterFiles() {
   const archivedProfile=Profiles.resolveById(Activities.DOCUMENT, historical.activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(archivedProfile.starterVisible, false);
   assert.strictEqual(archivedProfile.runtime.scene, 'legacy-v1');
+  const oldA3 = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../../activities/historique/03-repeat.wbb'), 'utf8'));
+  assert.strictEqual(oldA3.activity.id,'progression-repeat-v1');
+  const archivedA3=Profiles.resolveById(Activities.DOCUMENT,oldA3.activity.id,Activities.BLOCK_CATALOG);
+  assert.strictEqual(archivedA3.starterVisible,false);
+  assert.strictEqual(archivedA3.runtime.scene,'legacy-v1');
+  const nativeA3=Profiles.resolveById(Activities.DOCUMENT,'progression-orientation-3d-v1',Activities.BLOCK_CATALOG);
+  assert.strictEqual(nativeA3.runtime.scene,'orientation-v1');
+  assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_turn.DIRECTION,['left','right']);
+  assert.deepStrictEqual(nativeA3.fieldOptions.webeeblocks_v2_move.DIRECTION,['forward']);
+  assert.deepStrictEqual(nativeA3.runtime.verticalDirections,['up','down']);
 }
 
 function proveProgressionProfilesAndFieldOptions() {
@@ -284,6 +295,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   const definitions = {
     webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
+    webeeblocks_v2_turn: {init() { this.fields = {DIRECTION:dropdown([['tourner à gauche','left'],['tourner à droite','right']])}; }},
     webeeblocks_v2_vertical: {init() { this.fields = {DIRECTION:dropdown([['monter','up'],['descendre','down']])}; }},
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
     math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
@@ -331,6 +343,11 @@ function proveProgressionProfilesAndFieldOptions() {
   const flyoutVertical = flyoutWorkspace.newBlock('webeeblocks_v2_vertical');
   assert.deepStrictEqual(flyoutVertical.getField('DIRECTION').getOptions(false).map(option => option[1]), ['up']);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  // Activity 3 must expose real ±90° turn controls under the same generic dropdown contract.
+  const orientationFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-orientation-3d-v1', Activities.BLOCK_CATALOG);
+  controller.setProfile(orientationFlyoutProfile, flyoutWorkspace);
+  const flyoutTurn = flyoutWorkspace.newBlock('webeeblocks_v2_turn');
+  assert.deepStrictEqual(flyoutTurn.getField('DIRECTION').getOptions(false).map(option => option[1]), ['left','right']);
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);

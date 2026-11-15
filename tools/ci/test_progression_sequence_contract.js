@@ -12,10 +12,11 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 11, 'archive historical profile while adding altitude');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 12, 'retain both historical profiles while activating A2 and A3');
 for (const activity of Activities.DOCUMENT.activities) {
   const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
-    activity.id === 'progression-altitude-v1' ? 'altitude-v1' : 'legacy-v1';
+    activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
+    activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
@@ -38,13 +39,34 @@ assert.deepStrictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scen
 assert.strictEqual(pAlt.starterVisible, undefined);
 assert.strictEqual(Profiles.validateProfile(pAlt, Activities.BLOCK_CATALOG),true);
 
-// Stage only the orientation transport vocabulary; the Activity 3 starter,
-// toolbox, world and oracle stay untouched until native R2025a qualification.
-assert(!Activities.DOCUMENT.activities.some(profile => profile.runtime.scene === 'orientation-v1'),
-  'unstaged orientation scene was activated in the student catalog');
-const stagedOrientation = JSON.parse(JSON.stringify(Activities.DOCUMENT.activities[2]));
-stagedOrientation.runtime.scene = 'orientation-v1';
-assert.strictEqual(Profiles.validateProfile(stagedOrientation, Activities.BLOCK_CATALOG), true);
+// Native A3 orientation and repeat are now offered as one pupil mission.
+const pOrient = Profiles.resolveById(Activities.DOCUMENT, 'progression-orientation-3d-v1', Activities.BLOCK_CATALOG);
+const pRepeatLegacy = Profiles.resolveById(Activities.DOCUMENT, 'progression-repeat-v1', Activities.BLOCK_CATALOG);
+assert.deepStrictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'orientation-v1').map(p => p.id),[pOrient.id]);
+assert.strictEqual(pOrient.starterVisible, undefined);
+assert.strictEqual(pRepeatLegacy.starterVisible, false);
+assert.strictEqual(pRepeatLegacy.runtime.scene, 'legacy-v1');
+assert.strictEqual(pOrient.evaluation.oracle,'progression-orientation-3d-v1');
+assert.deepStrictEqual(pOrient.toolbox,[
+  'webeeblocks_v2_takeoff','webeeblocks_v2_speed','webeeblocks_v2_move',
+  'webeeblocks_v2_turn','webeeblocks_v2_vertical','controls_repeat_ext',
+  'math_number','webeeblocks_v2_land'
+]);
+assert.deepStrictEqual(pOrient.runtime.allowedStatementKinds,
+  ['takeoff','set_speed','move','turn','vertical','repeat','land']);
+assert.deepStrictEqual(pOrient.runtime.moveDirections,['forward']);
+assert.deepStrictEqual(pOrient.runtime.verticalDirections,['up','down']);
+assert.deepStrictEqual(pOrient.runtime.astBounds['turn.angle_deg_abs'],{min:90,max:90});
+assert.deepStrictEqual(pOrient.runtime.astBounds['repeat.count'],{min:1,max:3});
+assert.strictEqual(Profiles.validateProfile(pOrient,Activities.BLOCK_CATALOG),true);
+const noRepeatAst={version:1,semantics:'webeeblocks-ast-v1',program:[
+  {kind:'takeoff',height_m:0.63},{kind:'set_speed',speed_m_s:0.10},
+  {kind:'move',direction:'forward',distance_m:0.45},
+  {kind:'turn',direction:'right',angle_deg:90},
+  {kind:'land'}
+]};
+assert(ActivityContract.preflightAst(pOrient,noRepeatAst),
+  'no AST-shape rule may require repeat; only native trajectory decides success');
 
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
@@ -119,6 +141,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id.startsWith('progression-') &&
   profile.id !== 'progression-sequence-v1' &&
   profile.id !== 'progression-altitude-v1' &&
+  profile.id !== 'progression-orientation-3d-v1' &&
   profile.id !== 'progression-precise-movement-v1' &&
   profile.id !== 'progression-repeat-v1' &&
   profile.id !== 'progression-simple-decision-v1' &&
@@ -128,7 +151,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-autonomous-strategy-v1');
 assert.strictEqual(remainingProgression.length, 0);
 
-for (const missionProfile of [p1, p2, pAlt]) {
+for (const missionProfile of [p1, p2, pAlt, pOrient]) {
   const missingMission = JSON.parse(JSON.stringify(missionProfile));
   delete missingMission.brief.mission;
   assert.throws(() => Profiles.validateProfile(missingMission, Activities.BLOCK_CATALOG), /brief\.mission must be a non-empty string/);

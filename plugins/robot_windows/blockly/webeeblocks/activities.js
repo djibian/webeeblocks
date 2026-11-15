@@ -139,6 +139,56 @@
         }
       },
       {
+        // Native A3 scene and oracle are already attested independently.
+        // Leave the student starter empty: no example algorithm or secret state.
+        id: 'progression-orientation-3d-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '3 — S’orienter et organiser son trajet',
+          mission: 'Parcours les balises A, B et C dans l’ordre, en respectant le cap indiqué et les hauteurs du circuit, puis pose le drone entièrement et immobile sur le damier.'
+        },
+        pedagogy: {
+          objective: 'Comprendre la rotation relative et les déplacements dans le repère local, puis identifier un motif de trajet utile à répéter.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_move', 'webeeblocks_v2_turn',
+          'webeeblocks_v2_vertical', 'controls_repeat_ext',
+          'math_number', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.10, max: 0.16, step: 0.01 } },
+          webeeblocks_v2_turn: { ANGLE: { min: 90, max: 90, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_turn: { DIRECTION: [ 'left', 'right' ] },
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-orientation-3d-v1' },
+        runtime: {
+          scene: 'orientation-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'set_speed', 'move', 'turn', 'vertical', 'repeat', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up', 'down' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.60, max: 0.66 },
+            'move.distance_m': { min: 0.20, max: 0.50 },
+            'vertical.distance_m': { min: 0.10, max: 0.20 },
+            'turn.angle_deg_abs': { min: 90, max: 90 },
+            'repeat.count': { min: 1, max: 3 },
+            'set_speed.speed_m_s': { min: 0.10, max: 0.16 }
+          }
+        }
+      },
+      {
+        // Historical Activity 3 must remain reopenable, never displayed as #3.
+        starterVisible: false,
         id: 'progression-repeat-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {

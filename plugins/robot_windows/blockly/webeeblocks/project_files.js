@@ -146,19 +146,20 @@
   }
 
 
-  // Blockly's generic SPEED field has a 0.1 precision and rounds saved
-  // Activity 2 values (e.g. 0.14) before profile bounds can be applied.
-  // Restore only exact, authorized Activity 2 values after normal load.
-  // Other profiles, including the Grand Prix, retain their existing semantics.
+  // Blockly's generic SPEED field has 0.1 precision and can round saved
+  // classroom A2/A3 values before profile-specific 0.01 bounds are installed.
+  // Restore only exact, authorized school values; the Grand Prix is unchanged.
   function loadWorkspaceWithProfile(profile, state, workspace, options) {
     requireDependencies(options);
     options.Blockly.serialization.workspaces.load(state, workspace);
-    if (profile.id !== 'progression-altitude-v1') return workspace;
+    if (profile.id !== 'progression-altitude-v1' &&
+        profile.id !== 'progression-orientation-3d-v1') return workspace;
+    var lesson = profile.id === 'progression-altitude-v1' ? 'Activity 2' : 'Activity 3';
     options.activityContract.applyFieldBounds(profile, workspace);
     var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
       profile.parameterBounds.webeeblocks_v2_speed.SPEED;
     if (!limits || limits.step !== 0.01)
-      fail('Activity 2 speed constraints unavailable');
+      fail(lesson + ' speed constraints unavailable');
     var seen = Object.create(null);
     function visit(value) {
       if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -166,21 +167,21 @@
       if (value.type === 'webeeblocks_v2_speed' && isObject(value.fields) &&
           Object.prototype.hasOwnProperty.call(value.fields, 'SPEED')) {
         if (typeof value.id !== 'string' || !value.id || seen[value.id])
-          fail('invalid Activity 2 speed block identity');
+          fail(lesson + ' invalid speed block identity');
         seen[value.id] = true;
         var requested = value.fields.SPEED;
         if (typeof requested !== 'number' || !Number.isFinite(requested) ||
             requested < limits.min || requested > limits.max ||
             Math.abs((requested - limits.min) / limits.step -
               Math.round((requested - limits.min) / limits.step)) > 1e-7)
-          fail('Activity 2 serialized speed outside profile bounds or step');
+          fail(lesson + ' serialized speed outside profile bounds or step');
         var block = typeof workspace.getBlockById === 'function' && workspace.getBlockById(value.id);
         var field = block && block.type === 'webeeblocks_v2_speed' && block.getField('SPEED');
         if (!field || typeof field.setValue !== 'function' || typeof field.getValue !== 'function')
-          fail('Activity 2 speed block missing after load');
+          fail(lesson + ' speed block missing after load');
         field.setValue(requested);
         if (Number(field.getValue()) !== requested)
-          fail('Activity 2 speed precision changed during Open');
+          fail(lesson + ' speed precision changed during Open');
       }
       Object.keys(value).forEach(function(key) { visit(value[key]); });
     }

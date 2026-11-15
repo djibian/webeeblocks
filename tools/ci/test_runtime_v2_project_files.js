@@ -121,13 +121,13 @@ async function proveScenePreparation() {
   await preparingAltitude;
   assert.strictEqual(backend.sceneIdentity, 'altitude-v1');
 
-  // The orientation vocabulary is staged, but no pupil profile selects it.
-  // Even a legacy OK must not attest the world: only an exact native scene ACK.
-  const stagedOrientation = JSON.parse(JSON.stringify(sequence));
-  stagedOrientation.runtime.scene = 'orientation-v1';
-  assert.strictEqual(Profiles.validateProfile(stagedOrientation, Activities.BLOCK_CATALOG), true);
-  assert(!Activities.DOCUMENT.activities.some(p => p.runtime.scene === 'orientation-v1'));
-  const preparingOrientation = backend.prepareActivity(stagedOrientation);
+  // The real Activity 3 pupil profile must be selected exactly once and
+  // authenticated by a nonce-bound native scene ACK, never by a legacy OK.
+  const pupilOrientation = activityProfile('progression-orientation-3d-v1');
+  assert.strictEqual(Profiles.validateProfile(pupilOrientation, Activities.BLOCK_CATALOG), true);
+  assert.strictEqual(pupilOrientation.runtime.scene, 'orientation-v1');
+  assert.strictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'orientation-v1').length, 1);
+  const preparingOrientation = backend.prepareActivity(pupilOrientation);
   assert.match(messages.at(-1), / REQUEST 3 SCENE orientation-v1 [0-9a-f]{64}$/);
   assert.strictEqual(backend.sceneIdentity, null, 'orientation claimed before native ACK');
   backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
@@ -245,7 +245,7 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1) ([0-9a-f]{64})$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1|altitude-v1|orientation-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
         controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
@@ -803,6 +803,87 @@ async function proveVariableProfileRealBlocklyRoundTrip() {
   reopenedWorkspace.dispose();
 }
 
+// The public Activity 3 profile must preserve an authentic Blockly repeat
+// and 0.01 m/s speed precision through the production project manager.
+async function proveOrientationBlocklyProjectRoundTrip(){
+  const profile=activityProfile('progression-orientation-3d-v1');
+  const workspace=new Blockly.Workspace();
+  const takeoff=workspace.newBlock('webeeblocks_v2_takeoff');
+  const speed=workspace.newBlock('webeeblocks_v2_speed');
+  const repeat=workspace.newBlock('controls_repeat_ext');
+  const count=workspace.newBlock('math_number');
+  const first=workspace.newBlock('webeeblocks_v2_move');
+  const turn=workspace.newBlock('webeeblocks_v2_turn');
+  const rise=workspace.newBlock('webeeblocks_v2_vertical');
+  const land=workspace.newBlock('webeeblocks_v2_land');
+  setMotionNumber(takeoff,'HEIGHT',0.63);
+  setMotionNumber(first,'DISTANCE',0.45);
+  setMotionNumber(rise,'DISTANCE',0.16);
+  first.setFieldValue('forward','DIRECTION');
+  turn.setFieldValue('right','DIRECTION');
+  turn.setFieldValue('90','ANGLE');
+  rise.setFieldValue('up','DIRECTION');
+  count.setFieldValue('2','NUM');
+  repeat.getInput('TIMES').connection.connect(count.outputConnection);
+  repeat.getInput('DO').connection.connect(first.previousConnection);
+  first.nextConnection.connect(turn.previousConnection);
+  turn.nextConnection.connect(rise.previousConnection);
+  takeoff.nextConnection.connect(speed.previousConnection);
+  speed.nextConnection.connect(repeat.previousConnection);
+  repeat.nextConnection.connect(land.previousConnection);
+  ActivityContract.applyFieldBounds(profile,workspace);
+  speed.setFieldValue('0.12','SPEED');
+  assert.strictEqual(Number(speed.getFieldValue('SPEED')),0.12);
+  const compiled=ast(workspace,profile);
+  assert.strictEqual(compiled.program[2].kind,'repeat');
+  assert.strictEqual(compiled.program[2].count,2);
+  assert.deepStrictEqual(compiled.program[2].body.map(s=>s.kind),
+    ['move','turn','vertical']);
+  const state={value:profile},transport=memoryTransport();
+  const manager=managerFor(workspace,state,transport);
+  await assert.rejects(manager.save(),/no current file/);
+  await manager.saveAs('orientation-eleve');
+  const original=transport.state.currentText;
+  const originalProject=ProjectFiles.parseProject(original);
+  assert.strictEqual(originalProject.activity.id,profile.id);
+  const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  for(const invalid of [0.125,0.17]){
+    const changed=JSON.parse(original);
+    let edits=0;
+    function tamper(value){
+      if(Array.isArray(value)){value.forEach(tamper);return;}
+      if(!value||typeof value!=='object')return;
+      if(value.type==='webeeblocks_v2_speed'&&value.fields&&
+         Object.prototype.hasOwnProperty.call(value.fields,'SPEED')){
+        value.fields.SPEED=invalid;edits++;
+      }
+      Object.keys(value).forEach(k=>tamper(value[k]));
+    }
+    tamper(changed.workspace);
+    assert.strictEqual(edits,1);
+    assert.throws(()=>ProjectFiles.validateProjectText(JSON.stringify(changed),profile,options),
+      /Activity 3 serialized speed outside profile bounds or step/);
+  }
+  speed.setFieldValue('0.10','SPEED');
+  transport.state.openText=original;
+  await manager.open();
+  assert.deepStrictEqual(ast(workspace,state.value),compiled,
+    'Activity 3 Blockly repeat/rotation/altitude/speed drifted on Open');
+  assert.strictEqual(transport.state.writes.length,1,'Open unexpectedly saved');
+  transport.state.openText=ProjectFiles.createStarterText('progression-repeat-v1');
+  await manager.open();
+  assert.strictEqual(state.value.id,'progression-repeat-v1');
+  assert.strictEqual(state.value.runtime.scene,'legacy-v1');
+  assert.strictEqual(transport.state.writes.length,1,'old Activity 3 was auto-saved');
+  await manager.openTemplateText('03-orientation.wbb',
+    ProjectFiles.createStarterText('progression-orientation-3d-v1'));
+  assert.strictEqual(state.value.id,profile.id);
+  assert.strictEqual(manager.hasCurrentTarget(),false);
+  await assert.rejects(manager.save(),/no current file/);
+  workspace.dispose();
+}
+
 // Real Blockly 13 profile and project-file boundary for the new school A2.
 // Native Webots collision/success remains a distinct independent CI witness.
 async function proveAltitudeBlocklyProjectRoundTrip(){
@@ -911,6 +992,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
 }
 
 (async function() {
+  await proveOrientationBlocklyProjectRoundTrip();
   await proveAltitudeBlocklyProjectRoundTrip();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
@@ -1033,6 +1115,15 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
+  const orientationStarter=fs.readFileSync(path.join(ROOT,'activities/progression/03-orientation.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(orientationStarter),
+    JSON.parse(ProjectFiles.createStarterText('progression-orientation-3d-v1')),
+    'Activity 3 student starter must be empty and equivalent to embedded template');
+  assert.strictEqual(activityProfile('progression-orientation-3d-v1').runtime.scene,'orientation-v1');
+  const archivedA3=fs.readFileSync(path.join(ROOT,'activities/historique/03-repeat.wbb'),'utf8');
+  assert.deepStrictEqual(JSON.parse(archivedA3),
+    JSON.parse(ProjectFiles.createStarterText('progression-repeat-v1')),
+    'historical Activity 3 must keep its exact old ID and semantics');
   const altitudeStarter=fs.readFileSync(path.join(ROOT,'activities/progression/02-altitude.wbb'),'utf8');
   assert.deepStrictEqual(JSON.parse(altitudeStarter),
     JSON.parse(ProjectFiles.createStarterText('progression-altitude-v1')),
