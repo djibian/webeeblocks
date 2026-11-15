@@ -24,6 +24,8 @@
 #define WB_COUNT_LAND_Z 0.070
 #define WB_COUNT_LAND_MAX_SPEED 0.120
 #define WB_COUNT_SETTLE_SEC 1.500
+/* A passing landing requires consecutive measured stability, not one frame. */
+#define WB_COUNT_LAND_DWELL_SEC 0.250
 
 typedef enum {
   WB_COUNT_WAIT = 0,
@@ -46,8 +48,8 @@ typedef struct {
   unsigned crossed;
   unsigned armed;
   unsigned observed_center;
-  int airborne, completion_seen, has_last;
-  double origin_z, last_time, last_x, completion_at;
+  int airborne, completion_seen, has_last, stable_since_valid;
+  double origin_z, last_time, last_x, completion_at, stable_since;
   wb_count_verdict verdict;
 } wb_count_mission;
 
@@ -149,6 +151,12 @@ static inline wb_count_verdict wb_count_sample_mission(
     }
   }
   if (!m->completion_seen) return WB_COUNT_WAIT;
+  /* Expiration is terminal even when a 0.250-s dwell also completes
+   * on this native tick. Never award a success after the 1.500-s limit. */
+  if (s->time - m->completion_at >= WB_COUNT_SETTLE_SEC) {
+    m->verdict = WB_COUNT_NOT_ACHIEVED;
+    return m->verdict;
+  }
 
   const int landed = s->z - m->origin_z <= WB_COUNT_LAND_Z;
   const int still = hypot(s->vx, s->vy) <= WB_COUNT_LAND_MAX_SPEED &&
@@ -156,10 +164,17 @@ static inline wb_count_verdict wb_count_sample_mission(
   const int whole_craft_on_pad =
     fabs(s->x - WB_COUNT_PAD_X) <= WB_COUNT_PAD_TOL &&
     fabs(s->y - wb_count_target_y(m->variant)) <= WB_COUNT_PAD_TOL;
-  if (landed && still && whole_craft_on_pad)
-    m->verdict = WB_COUNT_ACHIEVED;
-  else if (s->time - m->completion_at >= WB_COUNT_SETTLE_SEC)
-    m->verdict = WB_COUNT_NOT_ACHIEVED;
+  if (landed && still && whole_craft_on_pad) {
+    if (!m->stable_since_valid) {
+      m->stable_since = s->time;
+      m->stable_since_valid = 1;
+    }
+    if (s->time - m->stable_since >= WB_COUNT_LAND_DWELL_SEC)
+      m->verdict = WB_COUNT_ACHIEVED;
+  } else {
+    /* Any new motion or loss of full-craft pad containment restarts dwell. */
+    m->stable_since_valid = 0;
+  }
   return m->verdict;
 }
 
