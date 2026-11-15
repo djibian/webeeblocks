@@ -87,7 +87,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("tools.ci.test_progression_reactive_L_v2_scene",workflow)
         self.assertIn("tools.ci.test_progression_reactive_L_sensor_v2",workflow)
         self.assertIn("tools.ci.test_progression_reactive_L_v2_oracle",workflow)
+        self.assertIn("tools.ci.test_progression_reactive_L_v2_native",workflow)
+        self.assertIn("tools.ci.test_progression_reactive_L_v2_evaluator_attestation",workflow)
         self.assertIn("progression_reactive_L_sensor_probe_v2",workflow)
+        self.assertIn("progression_reactive_L_v2",workflow)
+        self.assertIn("run_classroom_reactive_L_v2_evaluator_attestation.py",workflow)
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
         self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
         for forbidden in ("name: CI Gate\n","continue-on-error: true",
