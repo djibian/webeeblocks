@@ -65,7 +65,7 @@ def main():
         '01-sequence.wbb':'progression-sequence-v1',
         '02-altitude.wbb':'progression-altitude-v1',
         '03-orientation.wbb':'progression-orientation-3d-v1',
-        '04-simple-decision.wbb':'progression-simple-decision-v1',
+        '04-observer-decision.wbb':'progression-decision-h-v1',
         '05-reactive.wbb':'progression-reactive-v1',
         '06-multi-perception.wbb':'progression-combined-decisions-v1',
         '07-memory.wbb':'progression-memory-v1',
@@ -95,7 +95,14 @@ def main():
     if (original3_project.get('activity',{}).get('id') != 'progression-repeat-v1'
             or original3_project.get('activity',{}).get('semantics') != 'webeeblocks-ast-v1'):
         print('FAIL archived Activity 3 identity/semantics', file=sys.stderr); return 1
-    print('PASS one-to-one progression starter mapping with archived original Activities 2 and 3')
+    original4=pathlib.Path('activities/historique/04-simple-decision.wbb')
+    if not original4.is_file():
+        print('FAIL historical Activity 4 archive missing', file=sys.stderr); return 1
+    original4_project=json.loads(original4.read_text(encoding='utf-8'))
+    if (original4_project.get('activity',{}).get('id') != 'progression-simple-decision-v1'
+            or original4_project.get('activity',{}).get('semantics') != 'webeeblocks-ast-v1'):
+        print('FAIL archived Activity 4 identity/semantics', file=sys.stderr); return 1
+    print('PASS one-to-one progression starter mapping with archived original Activities 2, 3 and 4')
     toolbox_defaults_test=subprocess.run(['node','plugins/robot_windows/blockly_v2/test_toolbox_defaults.js'],text=True,capture_output=True)
     if toolbox_defaults_test.returncode:
         print('FAIL Runtime v2 Blockly toolbox defaults',file=sys.stderr)

@@ -107,7 +107,7 @@ def run()->int:
         try:
             parsed=json.loads(project)
             project_ok=(parsed.get('format')=='webeeblocks-project' and
-                        parsed.get('activity',{}).get('id')=='ci-decision-h-conditional-v1')
+                        parsed.get('activity',{}).get('id')=='progression-decision-h-v1')
         except (ValueError,TypeError,AttributeError):
             project_ok=False
     steps=[
