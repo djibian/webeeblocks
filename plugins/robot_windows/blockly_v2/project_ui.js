@@ -38,7 +38,11 @@
     var open = document.getElementById('projectOpen');
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
-    var locked = busy || !supported || runtimeLocked;
+    // An interpreter can finish while its independent native evaluator is
+    // still deciding the outcome. Never change the scene or project then.
+    var outcomePending = typeof runtimeOutcomePending !== 'undefined' &&
+      runtimeOutcomePending === true;
+    var locked = busy || !supported || runtimeLocked || outcomePending;
     var blocklyDiv = document.getElementById('blocklyDiv');
     // Blockly 13's native read-only mode blocks editing while keeping its scrollbars live.
     // Project transactions still require a fully inert editor.
@@ -69,7 +73,9 @@
   }
 
   async function operation(name, action) {
-    if (busy || !supported || runtimeLocked) return null;
+    if (busy || !supported || runtimeLocked ||
+        (typeof runtimeOutcomePending !== 'undefined' && runtimeOutcomePending === true))
+      return null;
     busy = true;
     runtimeProjectPending = true;
     updateRuntimeActions();
@@ -104,7 +110,9 @@
   async function prepareProfileScene(profile) {
     if (!runtimeBackend || !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
       return; // Existing non-scene test/transport composition is unchanged.
-    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending)
+    if (runtimeRunning || runtimeResetPending || runtimeStopPending ||
+        runtimeScenePending ||
+        (typeof runtimeOutcomePending !== 'undefined' && runtimeOutcomePending === true))
       throw new Error('Simulation occupée');
     if (runtimeTerminal) {
       await resetSimulation();
