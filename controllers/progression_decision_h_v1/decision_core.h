@@ -25,10 +25,12 @@
 /* 34-cm-square landing pad, with 9-cm whole-craft half-span. */
 #define WB_DH_LAND_TOL 0.080
 #define WB_DH_LAND_Z 0.070
-/* Classroom floor is attested at z=0. A resting Crazyflie centre is near
- * z=0.015; relative height alone could otherwise award a hovering landing
- * when initial observation is legitimately above the floor. */
-#define WB_DH_LAND_ABSOLUTE_Z 0.070
+/* R2025a real motorized A/B landings were observed at z=0.014512203
+ * and z=0.014983586 (floor z=0, job 132900735197, run 43743219594).
+ * Allow 5 mm vertical tolerance around the ~0.015 m resting body centre,
+ * in addition to relative descent; a 3-cm/6-cm stationary hover is not
+ * a classroom landing. This is a height envelope, not floor-contact ID. */
+#define WB_DH_LAND_ABSOLUTE_Z 0.020
 #define WB_DH_LAND_MAX_SPEED 0.120
 /* Verify the real blue launch-pad before crediting each new attempt. */
 #define WB_DH_START_XY_TOL 0.080
