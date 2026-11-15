@@ -246,10 +246,11 @@ int main(void) {
                craft_id,obstacle_id);
       fflush(stdout);
       for(int i=0;i<n;++i) {
-        if(points[i].node_id==craft_id &&
+        if(points[i].node_id==obstacle_id &&
            isfinite(points[i].point[2])&&fabs(points[i].point[2])<=.025) {
+          /* Native WbContactPoint.node_id is the queried obstacle here. */
           printf("WEBEEBLOCKS_A7_LOW_CONTACT_PHYSICAL variant=%c "
-                 "obstacle=%s z=%.9f partner_id=%d contact_count=%d\n",
+                 "obstacle=%s z=%.9f contact_node_id=%d contact_count=%d\n",
                  variant,part,points[i].point[2],points[i].node_id,n);
           fflush(stdout);
           ++contacts_low;
