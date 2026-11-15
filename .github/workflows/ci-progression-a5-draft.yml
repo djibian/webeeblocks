@@ -60,6 +60,12 @@ jobs:
           python3 -m unittest -v tools.ci.test_runtime_v2_classroom_selector
           node tools/ci/test_progression_reactive_L_v2_selection.js
           node --check plugins/robot_windows/reactive_l_v2_scene_ack_probe/reactive_l_v2_scene_ack_probe.js
+      - name: Verify hidden A5 profile and byte-identical real Blockly .wbb
+        run: |
+          set -euo pipefail
+          npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+          node tools/ci/test_progression_sequence_contract.js
+          node tools/ci/test_progression_reactive_L_v2_project.js
       - name: Compile original R2025a Crazyflie sensor probe
         run: |
           docker run --rm \
