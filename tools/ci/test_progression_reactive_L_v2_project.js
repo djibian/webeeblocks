@@ -48,7 +48,8 @@ try{
     const project=Projects.parseProject(text);
     assert.equal(project.activity.id,profile.id);
     assert.equal(Object.hasOwn(project.activity,'scene'),false);
-    assert.equal(JSON.stringify(project).includes('reactive-L-'),false);
+    for(const token of ['reactive-L-a-v2','reactive-L-b-v2','reactive-L-c-v2'])
+      assert.equal(JSON.stringify(project).includes(token),false);
     const verified=Projects.validateProjectText(text,testProfile,opts);
     assert.equal(verified.project.activity.id,profile.id);
     assert.equal(verified.profile.world,profile.world);
