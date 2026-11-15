@@ -36,7 +36,7 @@
 /* Consecutive native simulation time, never a single slow pose sample. */
 #define WB_ALT_LAND_DWELL_SEC 0.250
 /* A native 8-ms evaluator cannot certify an unobserved 250-ms interval. */
-#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.050
+#define WB_ALT_MAX_OBSERVATION_GAP_SEC 0.012
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
 
