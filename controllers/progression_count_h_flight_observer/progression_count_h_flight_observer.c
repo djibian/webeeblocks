@@ -1,4 +1,4 @@
-/* A6 single-variant diagnostic: genuine, motor-driven Webots R2025a flight.
+/* A6 bounded three-variant physical observer for genuine Webots R2025a flight.
  * Separate observer Robot: does not command flight, read pupil JS or AST,
  * or publish a product mission verdict. Only a CI physical witness.
  * Product Grand Prix and real Crazyflie safety binaries are not linked.
@@ -56,17 +56,38 @@ int main(void) {
   const int step=(int)wb_robot_get_basic_time_step();
   if(step<8||step>64||strcmp(wb_robot_get_name(),"A6 independent motor-flight observer"))
     return fail("observer identity/timestep");
-  if(!wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_1_SCENE")||
-     wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_2_SCENE")||
-     wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_3_SCENE"))
-    return fail("scene ambiguity");
-  WbNodeRef obstacle[5]={0};
-  if(!box("ACTIVITY6_1_H_1_LEFT",-.85,.30,.50,.07,.065,1.0,&obstacle[0])||
-     !box("ACTIVITY6_1_H_1_RIGHT",-.85,-.30,.50,.07,.065,1.0,&obstacle[1])||
-     !box("ACTIVITY6_1_H_1_BAR",-.85,0,.74,.07,.57,.24,&obstacle[2])||
-     !box("ACTIVITY6_1_FINISH_SCREEN",1.235,0,.76,.07,1.48,.24,&obstacle[3])||
-     !box("ACTIVITY6_1_TERMINAL",1.86,0,.55,.06,1.48,1.10,&obstacle[4]))
-    return fail("source cannot attest native collider geometry");
+  /* A6 native scene is self-identifying. Exactly one numbered scene is
+   * accepted, with every physical Solid checked before any flight verdict. */
+  int variant=0;
+  for(int n=1;n<=3;++n) {
+    char group[48];
+    snprintf(group,sizeof(group),"WEBEEBLOCKS_COUNT_%d_SCENE",n);
+    if(wb_supervisor_node_get_from_def(group)) {
+      if(variant)return fail("multiple numbered scenes in observer world");
+      variant=n;
+    }
+  }
+  if(!variant)return fail("no numbered physical scene");
+  WbNodeRef obstacle[11]={0};
+  int collider_count=0;
+  for(int n=1;n<=variant;++n) {
+    const double x=wb_count_gate_x((unsigned)n-1);
+    char left[48],right[48],bar[48];
+    snprintf(left,sizeof(left),"ACTIVITY6_%d_H_%d_LEFT",variant,n);
+    snprintf(right,sizeof(right),"ACTIVITY6_%d_H_%d_RIGHT",variant,n);
+    snprintf(bar,sizeof(bar),"ACTIVITY6_%d_H_%d_BAR",variant,n);
+    if(!box(left,x,.30,.50,.07,.065,1.0,&obstacle[collider_count++])||
+       !box(right,x,-.30,.50,.07,.065,1.0,&obstacle[collider_count++])||
+       !box(bar,x,0,.74,.07,.57,.24,&obstacle[collider_count++]))
+      return fail("H collider geometry not native-attested");
+  }
+  char screen[48],terminal[48];
+  snprintf(screen,sizeof(screen),"ACTIVITY6_%d_FINISH_SCREEN",variant);
+  snprintf(terminal,sizeof(terminal),"ACTIVITY6_%d_TERMINAL",variant);
+  if(!box(screen,1.235,0,.76,.07,1.48,.24,&obstacle[collider_count++])||
+     !box(terminal,1.86,0,.55,.06,1.48,1.10,&obstacle[collider_count++])||
+     collider_count!=3*variant+2)
+    return fail("finish screen, terminal or collider count not attested");
   WbNodeRef craft=find_craft();
   const double *origin=craft?wb_supervisor_node_get_position(craft):NULL;
   const double *start_velocity=craft?wb_supervisor_node_get_velocity(craft):NULL;
@@ -83,12 +104,13 @@ int main(void) {
     return fail("motor flight did not start at authentic stationary blue zone");
   const double origin_z=origin[2];
   wb_count_mission m={0};
-  wb_count_reset(&m,1,1,origin_z);
-  for(int i=0;i<5;++i)
+  wb_count_reset(&m,1,(unsigned)variant,origin_z);
+  for(int i=0;i<collider_count;++i)
     wb_supervisor_node_enable_contact_points_tracking(obstacle[i],step,false);
   double last_x=-1.4,last_y=0,last_z=origin_z;
   int previous=0, reported_cross=0, screen_seen=0, observations=0;
-  printf("WEBEEBLOCKS_A6_MOTOR_READY n=1 origin_z=%.9f colliders=5\n",origin_z);
+  printf("WEBEEBLOCKS_A6_MOTOR_READY n=%d origin_z=%.9f colliders=%d\n",
+         variant,origin_z,collider_count);
   fflush(stdout);
   while(wb_robot_step(step)!=-1) {
     const double *pos=wb_supervisor_node_get_position(craft);
@@ -109,7 +131,7 @@ int main(void) {
     last_x=pos[0];last_y=pos[1];last_z=pos[2];previous=1;
     ++observations;
     if(sample.time>145.0)return fail("bounded native motor flight timeout");
-    for(int i=0;i<5;++i) {
+    for(int i=0;i<collider_count;++i) {
       int n=-1;
       const WbContactPoint *points=
         wb_supervisor_node_get_contact_points(obstacle[i],false,&n);
@@ -128,26 +150,27 @@ int main(void) {
     /* Physical near-ground pose, not JS source or client completion claim.
      * The ordinary pilot's LAND command is checked separately in the log. */
     const int pad=(fabs(sample.x-1.48)<=.060 &&
-                   fabs(sample.y)<=.060 &&
+                   fabs(sample.y-wb_count_target_y((unsigned)variant))<=.060 &&
                    sample.z-origin_z<=WB_COUNT_LAND_Z &&
                    hypot(sample.vx,sample.vy)<=WB_COUNT_LAND_MAX_SPEED &&
                    fabs(sample.vz)<=WB_COUNT_LAND_MAX_SPEED);
     sample.completed=pad?1:0;
     sample.obstacle_contact=0;
     wb_count_verdict result=wb_count_sample_mission(&m,&sample);
-    if(m.crossed==1&&!reported_cross) {
-      printf("WEBEEBLOCKS_A6_MOTOR_CROSSED n=1 x=%.6f z=%.6f time=%.3f\n",
-             sample.x,sample.z,sample.time);
-      fflush(stdout);reported_cross=1;
+    if(m.crossed>(unsigned)reported_cross) {
+      printf("WEBEEBLOCKS_A6_MOTOR_CROSSED n=%d crossed=%u x=%.6f z=%.6f time=%.3f\n",
+             variant,m.crossed,sample.x,sample.z,sample.time);
+      fflush(stdout);reported_cross=(int)m.crossed;
     }
     if(result==WB_COUNT_NOT_ACHIEVED)return fail("native behavioral oracle rejected flight");
     if(result==WB_COUNT_ACHIEVED) {
-      if(!screen_seen||!reported_cross||observations<20)
+      if(!screen_seen||reported_cross!=variant||observations<20)
         return fail("native flight lacks credible full corridor passage");
-      printf("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
+      printf("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=%d "
              "crossed=%u screen=%d observations=%d "
              "x=%.6f y=%.6f z=%.6f\n",
-             m.crossed,screen_seen,observations,sample.x,sample.y,sample.z);
+             variant,m.crossed,screen_seen,observations,
+             sample.x,sample.y,sample.z);
       fflush(stdout);
       wb_robot_cleanup();
       return 0;

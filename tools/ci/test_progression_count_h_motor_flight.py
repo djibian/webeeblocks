@@ -99,6 +99,27 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("manual_browser_no_html_event",native)
         self.assertIn("browser_only_proven_by_launch_and_events",native)
 
+    def test_observer_attests_all_three_native_H_footprints_without_student_AST(self):
+        source=(ROOT/"controllers/progression_count_h_flight_observer/"
+                "progression_count_h_flight_observer.c").read_text(encoding="utf-8")
+        self.assertIn("for(int n=1;n<=3;++n)",source)
+        self.assertIn('"WEBEEBLOCKS_COUNT_%d_SCENE"',source)
+        self.assertIn("if(variant)return fail(",source)
+        self.assertIn("WbNodeRef obstacle[11]",source)
+        self.assertIn("for(int n=1;n<=variant;++n)",source)
+        for suffix in ("LEFT","RIGHT","BAR"):
+            self.assertIn(f'"ACTIVITY6_%d_H_%d_{suffix}"',source)
+        for suffix in ("FINISH_SCREEN","TERMINAL"):
+            self.assertIn(f'"ACTIVITY6_%d_{suffix}"',source)
+        self.assertIn("collider_count!=3*variant+2",source)
+        self.assertIn("for(int i=0;i<collider_count;++i)",source)
+        self.assertIn("wb_count_target_y((unsigned)variant)",source)
+        self.assertIn("wb_count_reset(&m,1,(unsigned)variant,origin_z)",source)
+        self.assertIn("reported_cross!=variant",source)
+        self.assertNotIn("Blockly.",source)
+        self.assertNotIn("wb_motor_set_",source)
+        self.assertNotIn("wb_supervisor_field_set_sf_vec3f",source)
+
     def test_ci_browser_preparation_is_the_verified_a3_native_preparation(self):
         workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
         reference=(ROOT/"tools/ci/run_classroom_neutral_start.py").read_text()
