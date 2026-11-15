@@ -104,6 +104,30 @@ def run_one(n):
             project.unlink()
     txt=log.read_text(encoding="utf-8",errors="replace")
     findings=pattern.findall(txt)
+    upper_rows=re.findall(
+        r"WEBEEBLOCKS_COUNT_H_UP_SAMPLE variant=(\d) gate=(\d) phase=(\d) "
+        r"range_m=([0-9.]+) pose_x=(-?[0-9.]+) "
+        r"pose_y=(-?[0-9.]+) pose_z=([0-9.]+)",txt)
+    if len(upper_rows)!=n*3:
+        raise AssertionError("missing one or more native upward sensor samples: "+str(log))
+    upper_samples=[]
+    for gate in range(n):
+        phases=[]
+        for phase in range(3):
+            variant_index,gate_index,phase_index,raw_range,raw_x,raw_y,raw_z=(
+                upper_rows[3*gate+phase])
+            range_m=float(raw_range)
+            xyz=(float(raw_x),float(raw_y),float(raw_z))
+            expected_x=-.850+.850*gate+(-.240,0,.240)[phase]
+            if (variant_index!=str(n) or int(gate_index)!=gate or
+                int(phase_index)!=phase or not 0<=range_m<=2.001 or
+                abs(xyz[0]-expected_x)>.035 or abs(xyz[1])>.035 or
+                abs(xyz[2]-.415)>.045):
+                raise AssertionError("native upward ray not sampled at matched H pose: "+str(log))
+            phases.append(range_m)
+        upper_samples.append(phases)
+    print(f"A6_UP_RANGE_NATIVE_OBSERVED n={n} before_under_after={upper_samples} "
+          "flight=NOT_TESTED pedagogy=UNPROVEN",flush=True)
     sweep=re.findall(r"WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=(\d) "
                      r"samples=(\d+) control_contacts=(\d+) low_z=([0-9.]+)",txt)
     if (len(sweep)!=1 or sweep[0][0]!=str(n) or
@@ -129,7 +153,7 @@ def run_one(n):
         readings.append(reading)
         coordinates.append(xyz)
         print(f"A6_BACK_RANGE_MASKED n={n} pad={i} meters={reading:.9f}",flush=True)
-    return readings,coordinates
+    return readings,coordinates,upper_samples
 
 
 def main():
@@ -149,8 +173,11 @@ def main():
         "native_rear_mask_observed":True,
         "not_an_information_security_proof":True,
         "not_a_pedagogical_or_flight_pass":True,
+        "upward_sensor_observability_only":True,
+        "variable_counting_or_generic_wbb_unproven":True,
         "variants":[{"count":n,"pad_readings_m":observations[n][0],
-                     "pad_poses_xyz":[list(x) for x in observations[n][1]]}
+                     "pad_poses_xyz":[list(x) for x in observations[n][1]],
+                     "native_up_before_under_after_m":observations[n][2]}
                     for n in EXPECTED]
     }
     ARTIFACTS.mkdir(parents=True,exist_ok=True)

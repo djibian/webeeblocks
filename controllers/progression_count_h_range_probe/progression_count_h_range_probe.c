@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define WB_COUNT_BACK_SENSOR "range_back"
+#define WB_COUNT_UP_SENSOR "range_up"
 #define WB_COUNT_CRAFT_NAME "Crazyflie WebeeBlocks"
 
 static int invalid(const char *why) {
@@ -40,7 +41,8 @@ int main(void) {
   WbFieldRef pos=self?wb_supervisor_node_get_field(self,"translation"):NULL;
   WbFieldRef rot=self?wb_supervisor_node_get_field(self,"rotation"):NULL;
   WbDeviceTag back=wb_robot_get_device(WB_COUNT_BACK_SENSOR);
-  if(!self||!pos||!rot||!back)
+  WbDeviceTag up=wb_robot_get_device(WB_COUNT_UP_SENSOR);
+  if(!self||!pos||!rot||!back||!up)
     return invalid("missing supervisor pose or genuine rear range sensor");
 
   /* Probe ALL three possible pads in each world, before any pupil program.
@@ -50,6 +52,7 @@ int main(void) {
   const double pad_y[] = {0.0, 0.55, -0.55};
   const double facing[] = {0.0, 0.0, 1.0, 0.0};
   wb_distance_sensor_enable(back, step);
+  wb_distance_sensor_enable(up, step);
   /* Track both genuine physical colliders before the experiment.
    * An all-zero contact stream cannot qualify a collision-free path. */
   char gate_def[80];
@@ -89,6 +92,39 @@ int main(void) {
            variant, pad, range, world[0], world[1], world[2]);
     fflush(stdout);
   }
+  /* RESEARCH ONLY: genuine upward Multi-ranger ray at the same altitude
+   * and heading immediately before, under and after EACH physical H.
+   * Supervisor teleportation tests sensory observability; it DOES NOT
+   * demonstrate a motor flight, state counting or a pupil algorithm.
+   * Do not classify the count based on a single initial/terminal reading.
+   */
+  const double offsets[3]={-0.240,0.000,0.240};
+  for(int gate=0;gate<variant;++gate) {
+    const double centre=-0.850+0.850*gate;
+    for(int phase=0;phase<3;++phase) {
+      const double xyz[3]={centre+offsets[phase],0.0,0.415};
+      wb_supervisor_field_set_sf_vec3f(pos,xyz);
+      wb_supervisor_field_set_sf_rotation(rot,facing);
+      wb_supervisor_node_reset_physics(self);
+      if(wb_robot_step(step)<0)
+        return invalid("native up-range observation unavailable");
+      const double *seen=wb_supervisor_node_get_position(self);
+      const double measured=wb_distance_sensor_get_value(up)/1000.0;
+      int contacts=-1;
+      const WbContactPoint *points=
+        wb_supervisor_node_get_contact_points(self,true,&contacts);
+      if(!seen||!isfinite(measured)||measured<0||measured>2.001 ||
+         !isfinite(seen[0])||!isfinite(seen[1])||!isfinite(seen[2])||
+         fabs(seen[0]-xyz[0])>.035||fabs(seen[1])>.035||
+         fabs(seen[2]-xyz[2])>.045||contacts!=0||points)
+        return invalid("up-ray pose, range or positive-contact control invalid");
+      printf("WEBEEBLOCKS_COUNT_H_UP_SAMPLE variant=%d gate=%d phase=%d "
+             "range_m=%.9f pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
+             variant,gate,phase,measured,seen[0],seen[1],seen[2]);
+      fflush(stdout);
+    }
+  }
+
   /* Native *geometric* collision sweep only. The supervisor explicitly
    * positions the unmodified Crazyflie PROTO at 20-mm steps. No motors
    * act, so a PASS does NOT prove actual commanded flight or stability.

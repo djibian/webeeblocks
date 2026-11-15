@@ -8,6 +8,24 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 import run_classroom_count_h_rear_range as diagnostic
 
 class CountHRearRangeWorldTests(unittest.TestCase):
+    def test_genuine_upward_ray_samples_every_H_without_a_pupil_algorithm(self):
+        source=(ROOT/"controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        runner=(ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
+            encoding="utf-8")
+        self.assertIn('"range_up"',source)
+        self.assertIn("wb_distance_sensor_enable(up, step)",source)
+        self.assertIn("for(int gate=0;gate<variant;++gate)",source)
+        self.assertIn("for(int phase=0;phase<3;++phase)",source)
+        self.assertIn("wb_distance_sensor_get_value(up)/1000.0",source)
+        self.assertIn("WEBEEBLOCKS_COUNT_H_UP_SAMPLE variant=%d",source)
+        self.assertIn("contacts!=0",source)
+        self.assertIn("len(upper_rows)!=n*3",runner)
+        self.assertIn("native_up_before_under_after_m",runner)
+        self.assertIn("variable_counting_or_generic_wbb_unproven",runner)
+        self.assertNotIn("wb_motor_set_",source)
+        self.assertNotIn("Blockly",source)
+
     def test_worlds_use_original_crazyflie_sensor_without_pupil_controller(self):
         for n in (1,2,3):
             world=diagnostic.compose(n)
