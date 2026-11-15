@@ -71,8 +71,13 @@ async function scenario(startProfileId, options={}){
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
   const bytes=manager.bytes();
+  const mini=startProfileId==='progression-mini-grand-prix-v1';
+  const nextScene=mini?'mini-grand-prix-r-v1':'decision-h-b-v1';
+  const firstScene=mini?'mini-grand-prix-l-v1':'decision-h-a-v1';
+  const firstLabel=mini?/Parcours gauche/:/Parcours A/;
+  const nextLabel=mini?/Parcours droite/:/Parcours B/;
 
-  if(startProfileId!=='progression-decision-h-v1'){
+  if(startProfileId!=='progression-decision-h-v1' && !mini){
     assert(btn.hidden&&btn.disabled,'non-A4 profile must hide and disable A/B control');
     btn.handlers.click();await flush();
     assert.equal(backendCalls.length,0,'non-A4 click attempted a scene mutation');
@@ -98,7 +103,7 @@ async function scenario(startProfileId, options={}){
     return {kind:'pending-verdict',status:'PASS'};
   }
   assert(!btn.hidden&&!btn.disabled,'A4 toggle must be enabled after native initialization');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.match(btn.textContent,firstLabel);
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'EXÉCUTION'}}));
   assert(btn.disabled,'active flight must prevent scene changes');
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'PRÊT'}}));
@@ -107,26 +112,26 @@ async function scenario(startProfileId, options={}){
   // Native SCENE_OK is the linearization point: never show B before ACK.
   holdAck=true;btn.handlers.click();await flush();
   assert.equal(backendCalls.length,1);
-  assert.equal(backendCalls[0].scene,'decision-h-b-v1');
-  assert.match(btn.textContent,/Parcours A/,'A4 B was displayed before native ACK');
+  assert.equal(backendCalls[0].scene,nextScene);
+  assert.match(btn.textContent,firstLabel,'variant was displayed before native ACK');
   assert(btn.disabled,'scene selection must serialize with project operations');
   assert.equal(manager.bytes(),bytes);
   assert(resolveAck,'native ACK was not awaited');
   holdAck=false;resolveAck();await flush();
-  assert.match(btn.textContent,/Parcours B/);
+  assert.match(btn.textContent,nextLabel);
   assert.equal(manager.bytes(),bytes,'A/B scene choice must never alter .wbb');
   assert.equal(saveWrites,0,'A/B scene choice must never auto-save');
 
   btn.handlers.click();await flush();
-  assert.equal(backendCalls[1].scene,'decision-h-a-v1');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.equal(backendCalls[1].scene,firstScene);
+  assert.match(btn.textContent,firstLabel);
   assert.equal(manager.bytes(),bytes);
 
   // A missing/invalid native ACK must fail closed, keep the last profile,
   // not change a single project byte, and not create a Save operation.
   failNext=true;btn.handlers.click();await flush();
-  assert.equal(backendCalls[2].scene,'decision-h-b-v1');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.equal(backendCalls[2].scene,nextScene);
+  assert.match(btn.textContent,firstLabel);
   assert.match(elements.projectFileState.textContent,/Impossible de changer de parcours/);
   assert(diagnostics.some(s=>s.includes('NATIVE_SCENE_ACK_REJECT')));
   assert.equal(manager.bytes(),bytes);
@@ -140,7 +145,9 @@ async function scenario(startProfileId, options={}){
     p.starterVisible!==false).length,8);
   const a4=await scenario('progression-decision-h-v1');
   const pending=await scenario('progression-decision-h-v1',{outcomePending:true});
+  const mini=await scenario('progression-mini-grand-prix-v1');
+  const miniPending=await scenario('progression-mini-grand-prix-v1',{outcomePending:true});
   const other=await scenario('progression-sequence-v1');
-  console.log('PASS A4 public A/B session UI:',a4.status,pending.status,other.status,
+  console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,other.status,
     'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});

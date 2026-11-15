@@ -163,7 +163,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "04-observer-decision.wbb": "progression-decision-h-v1",
             "05-reactive.wbb": "progression-reactive-v1",
             "06-multi-perception.wbb": "progression-combined-decisions-v1",
-            "07-memory.wbb": "progression-memory-v1",
+            "07-mini-grand-prix.wbb": "progression-mini-grand-prix-v1",
             "08-autonomous-strategy.wbb": "progression-autonomous-strategy-v1",
         }
         starter_dir = ROOT / "activities" / "progression"

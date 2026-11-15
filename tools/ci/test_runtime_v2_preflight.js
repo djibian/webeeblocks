@@ -132,7 +132,7 @@ function proveProgressionStarterFiles() {
     ['04-observer-decision.wbb', 'progression-decision-h-v1'],
     ['05-reactive.wbb', 'progression-reactive-v1'],
     ['06-multi-perception.wbb', 'progression-combined-decisions-v1'],
-    ['07-memory.wbb', 'progression-memory-v1'],
+    ['07-mini-grand-prix.wbb', 'progression-mini-grand-prix-v1'],
     ['08-autonomous-strategy.wbb', 'progression-autonomous-strategy-v1']
   ];
   const directory = path.resolve(__dirname, '../../activities/progression');
