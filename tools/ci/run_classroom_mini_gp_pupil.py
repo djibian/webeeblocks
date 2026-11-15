@@ -100,7 +100,7 @@ def run()->int:
                           'mini_gp_pupil_probe/mini_gp_pupil_probe.html'
                           '?name=Crazyflie%20WebeeBlocks')
                     manual_browser=subprocess.Popen(
-                        ['/workspace/tools/ci/webots_runtime_v2_browser.sh',page],
+                        ['/bin/bash','/workspace/tools/ci/webots_runtime_v2_browser.sh',page],
                         cwd=str(world.ROOT),env=env,
                         stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
                         start_new_session=True)
