@@ -175,6 +175,27 @@ class CountHMotorFlightTests(unittest.TestCase):
                 variant))
         self.assertFalse(native.terminal_native_ack_logged("",4))
 
+    def test_sensor_command_mode_keeps_its_own_ack_and_artifact_boundary(self):
+        import run_classroom_count_h_motor_flight as native
+        prefix="WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 crossed=1\n"
+        land="WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+        self.assertFalse(native.terminal_native_ack_logged(prefix+land,1,"sensor"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+land+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 10 OK\n",1,"sensor"))
+        self.assertTrue(native.terminal_native_ack_logged(
+            prefix+land+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 80 OK\n",1,"sensor"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+land+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 80 OK\n",2,"sensor"))
+        source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        for token in ('mode=="reference"','mode=="sensor"',
+                      'f"sensor-n{variant}"','"A6_SENSOR_COUNT"',
+                      "sensor_protocol",'"all_native_ack_ids"',
+                      '"--mode"'):
+            self.assertIn(token,source)
+        script=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                "count_h_sensor_only_probe.js").read_text()
+        self.assertNotIn("variant",script.split("export async function",1)[1])
+
     def test_world_is_authentic_with_single_count_and_independent_observer(self):
         w=motor.compose()
         self.assertEqual(w.count(motor.MARKER),1)

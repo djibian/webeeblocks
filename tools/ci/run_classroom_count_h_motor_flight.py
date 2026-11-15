@@ -63,23 +63,32 @@ REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
           "A6_SCENE_ACK","A6_TAKEOFF","A6_CORRIDOR_DONE",
           "A6_PAD_SELECTED","A6_LANDED","A6_TEST_COMPLETE")
 
-def terminal_native_ack_logged(native_log, variant):
-    """Never kill Webots between physical achieved and native LAND RESPONSE."""
-    if variant not in (1,2,3):
+def terminal_native_ack_logged(native_log, variant, mode="reference"):
+    """Never kill Webots between C physical success and native LAND ACK."""
+    if variant not in (1,2,3) or mode not in ("reference","sensor"):
         return False
-    final_id=11+(1 if variant!=1 else 0)
-    return (f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} "
-            in native_log and
-            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in native_log and
-            re.search(rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK$",
-                      native_log) is not None)
+    if f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} " not in native_log:
+        return False
+    if mode=="reference":
+        final_id=11+(1 if variant!=1 else 0)
+        return ("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in native_log and
+                re.search(rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK$",
+                          native_log) is not None)
+    pos=native_log.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")
+    if pos<0:return False
+    ack=re.search(r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) OK$",
+                  native_log[pos:])
+    return ack is not None and int(ack[1])>=20
 
 
-def run(variant=1):
+def run(variant=1,mode="reference"):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
+    if mode not in ("reference","sensor"):
+        raise ValueError("invalid bounded A6 pilot mode")
     global ARTIFACT
-    ARTIFACT=world.ARTIFACT/f"n{variant}"
+    ARTIFACT=(world.ARTIFACT/f"n{variant}" if mode=="reference"
+              else world.ARTIFACT/f"sensor-n{variant}")
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     log=ARTIFACT/"webots.log"
     observer.EVENTS.clear()
@@ -96,6 +105,7 @@ def run(variant=1):
                 raise FileNotFoundError("native motor flight binary unavailable: "+str(path))
         world.prepare(variant=variant)
         A6VariantHandler.variant=variant
+        A6VariantHandler.mode=mode
         server=observer.http.server.ThreadingHTTPServer(("127.0.0.1",8765),A6VariantHandler)
         threading.Thread(target=server.serve_forever,daemon=True).start()
         env=dict(os.environ)
@@ -158,7 +168,7 @@ def run(variant=1):
                           "seconds=60",flush=True)
                     break
             if (("A6_TEST_COMPLETE" in seen and
-                 terminal_native_ack_logged(txt,variant))
+                 terminal_native_ack_logged(txt,variant,mode))
                 or "A6_ERROR" in seen
                 or "WEBEEBLOCKS_A6_MOTOR_FATAL" in txt
                 or "WEBEEBLOCKS_RUNTIME_V2 FATAL" in txt
@@ -219,6 +229,33 @@ def run(variant=1):
         expected_moves.append(("left" if variant==2 else "right","0.550000000"))
     pad_y={1:0.0,2:0.55,3:-0.55}[variant]
     expected_responses=11+(1 if variant!=1 else 0)
+    all_response_ids=re.findall(
+        r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) "
+        r"(?:OK|VALUE -?[0-9.]+|SCENE_OK [0-9a-f]{64})",txt)
+    sensor_records=[e for e in observer.EVENTS
+                    if e.get("event")=="A6_SENSOR_COUNT"]
+    sensor_detail=(sensor_records[0].get("detail") or {}
+                   if len(sensor_records)==1 else {})
+    sensor_steps=sensor_detail.get("steps")
+    sensor_count=sensor_detail.get("count")
+    sensor_front=sensor_detail.get("front_m")
+    sensor_protocol=(
+        len(sensor_records)==1 and
+        type(sensor_steps) is int and 20<=sensor_steps<=80 and
+        type(sensor_count) is int and sensor_count==variant and
+        type(sensor_front) in (float,int) and 0.3<=sensor_front<=.82 and
+        len(all_response_ids)>50 and
+        all_response_ids==[str(i) for i in range(1,len(all_response_ids)+1)] and
+        len(moves)==sensor_steps+1+(1 if variant!=1 else 0) and
+        moves[:sensor_steps]==[("forward","0.080000000")]*sensor_steps and
+        moves[sensor_steps][0]=="forward" and
+        .10<=float(moves[sensor_steps][1])<=.70 and
+        moves[sensor_steps+1:]==(
+            [("left" if variant==2 else "right","0.550000000")]
+            if variant!=1 else []))
+    reference_protocol=(
+        responses==[str(i) for i in range(1,expected_responses+1)]
+        and moves==expected_moves)
     native_achieved=(
         true_flight is not None and
         int(true_flight[1])==variant and int(true_flight[2])==variant and
@@ -254,8 +291,8 @@ def run(variant=1):
                up_motor["native_motor_ray_observed"] and
                not missing and ordered and events.count("A6_ERROR")==0
                and native_achieved
-               and responses==[str(i) for i in range(1,expected_responses+1)]
-               and moves==expected_moves
+               and (reference_protocol if mode=="reference"
+                    else sensor_protocol)
                and f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt
                and "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt
                and "LAND_TOUCHDOWN" in txt and browser
@@ -264,7 +301,10 @@ def run(variant=1):
                and "ERROR:" not in txt)
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
-        "pass":bool(succeeded),"variant":variant,
+        "pass":bool(succeeded),"variant":variant,"mode":mode,
+        "sensor_command_program_pass":bool(sensor_protocol if mode=="sensor"
+                                          else False),
+        "sensor_reported_count":sensor_count if mode=="sensor" else None,
         "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
         "variant_blind_two_sensor_count_correct":bool(
             dual.get("terminal_detected",False) and dual.get("count")==variant),
@@ -275,17 +315,25 @@ def run(variant=1):
         "product_window_autolaunch_qualified":False,
         "manual_external_window":manual_external_window,
         "events":events,"missing":missing,"ordered":bool(ordered),
-        "native_command_acks":responses,"moves":moves,"browser":bool(browser)
+        "native_command_acks":responses,"all_native_ack_ids":all_response_ids,
+        "moves":moves,"browser":bool(browser)
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")
     if not succeeded:
         print("A6_MOTOR_FLIGHT_UNPROVEN "+json.dumps({
-            "variant":variant,"up_motor":up_motor,"dual_motor_sensor":dual,
+            "variant":variant,"mode":mode,
+            "sensor_protocol":sensor_protocol,
+            "sensor_detail":sensor_detail,
+            "up_motor":up_motor,"dual_motor_sensor":dual,
             "missing":missing,"ordered":ordered,"native":bool(native_achieved),
             "responses":responses,"moves":moves,"expected_moves":expected_moves,
             "browser":browser,
             "lastEvents":observer.EVENTS[-4:]}),file=sys.stderr)
         print(txt[-14000:],file=sys.stderr)
         return 1
+    if mode=="sensor":
+        print(f"WEBEEBLOCKS_A6_SENSOR_COMMANDS_PASS n={variant} "
+              f"count={sensor_count} moves={sensor_steps} "
+              "same_test_pilot=true pupil_wbb=UNPROVEN",flush=True)
     print(f"WEBEEBLOCKS_A6_TWO_SENSOR_COUNT_OK native={variant} "
           f"count={dual['count']} terminal={dual['terminal_detected']} "
           "controller=real_motor sensor_only=true pupil_wbb=UNPROVEN",flush=True)
@@ -300,5 +348,6 @@ def run(variant=1):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
+    parser.add_argument("--mode",choices=("reference","sensor"),default="reference")
     args=parser.parse_args()
-    raise SystemExit(run(variant=args.variant))
+    raise SystemExit(run(variant=args.variant,mode=args.mode))
