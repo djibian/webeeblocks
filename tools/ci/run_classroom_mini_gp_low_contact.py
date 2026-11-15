@@ -106,7 +106,7 @@ def run_one(letter,part):
         r"z=(-?[0-9.]+) node_id=(\d+)",data)
     physical=re.findall(
         rf"WEBEEBLOCKS_A7_LOW_CONTACT_PHYSICAL variant={letter} "
-        rf"obstacle={part} z=(-?[0-9.]+) partner_id=(\d+) contact_count=(\d+)",
+        rf"obstacle={part} z=(-?[0-9.]+) contact_node_id=(\d+) contact_count=(\d+)",
         data)
     summary=re.findall(
         rf"WEBEEBLOCKS_A7_LOW_CONTACT_PROBE_END variant={letter} "
