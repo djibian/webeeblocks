@@ -73,7 +73,7 @@ static int parse_completion(const char *value, unsigned long long identity) {
 
 /* This classroom world has only a z=0 physical floor, with no physical
  * teaching obstacles. A low-height pose is not itself proof of touching it.
- * Webots reports actual collision contacts, not a Blockly/runtime flag.
+ * Webots reports actual collision contacts, not a pupil/runtime flag.
  * Reject missing or non-finite contact observations conservatively. */
 static int observe_floor_contact(WbNodeRef craft) {
   int count = -1;
