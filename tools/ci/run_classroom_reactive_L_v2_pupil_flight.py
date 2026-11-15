@@ -30,6 +30,10 @@ REQUIRED=(
  "A5_PUPIL_INTERPRETER_LANDED",
  "A5_PUPIL_NATIVE_ACHIEVED","A5_PUPIL_TEST_COMPLETE",
 )
+RESET_REQUIRED=(
+ "A5_PUPIL_NATIVE_RESET","A5_PUPIL_RESET_CLEAN",
+ "A5_PUPIL_NATIVE_REPLAY_ACHIEVED",
+)
 MARKER="# WEBEEBLOCKS_A5_V2_REAL_PUPIL_BROWSER_CI_ONLY"
 
 class FixtureHandler(events.Handler):
@@ -128,7 +132,9 @@ def run(variant):
                 content=log.read_text(encoding="utf-8",errors="replace")
                 match=(f"WEBEEBLOCKS_A5_V2_RESULT attempt=1 "
                        f"status=achieved stage={3 if variant in 'AB' else 4} variant={variant}")
-                if match in content:
+                replay=(f"WEBEEBLOCKS_A5_V2_RESULT attempt=2 "
+                        f"status=achieved stage=3 variant=A")
+                if match in content and (variant!="A" or replay in content):
                     break
             time.sleep(.25)
     finally:
@@ -154,9 +160,11 @@ def run(variant):
             project.unlink()
     native=log.read_text(encoding="utf-8",errors="replace")
     names=[r.get("event") for r in events.EVENTS]
-    missing=[k for k in REQUIRED if names.count(k)!=1]
-    ordered=not missing and [names.index(k) for k in REQUIRED]==sorted(
-        names.index(k) for k in REQUIRED)
+    required=(REQUIRED[:-1]+RESET_REQUIRED+REQUIRED[-1:]
+              if variant=="A" else REQUIRED)
+    missing=[k for k in required if names.count(k)!=1]
+    ordered=not missing and [names.index(k) for k in required]==sorted(
+        names.index(k) for k in required)
     marker=(f"WEBEEBLOCKS_A5_V2_RESULT attempt=1 status=achieved "
             f"stage={3 if variant in 'AB' else 4} variant={variant}")
     event=next((r.get("detail") for r in events.EVENTS
@@ -165,7 +173,14 @@ def run(variant):
               if r.get("event")=="A5_PUPIL_SAME_WBB_REOPENED"),None)
     failures=[x for x in ("WEBEEBLOCKS_A5_V2_FATAL",
                          "WEBEEBLOCKS_RUNTIME_V2 FATAL") if x in native]
+    reset_marker="WEBEEBLOCKS_A5_V2_RESULT attempt=2 status=achieved stage=3 variant=A"
+    reset_event=next((r.get("detail") for r in events.EVENTS
+                      if r.get("event")=="A5_PUPIL_NATIVE_RESET"),None)
+    replay_event=next((r.get("detail") for r in events.EVENTS
+                       if r.get("event")=="A5_PUPIL_NATIVE_REPLAY_ACHIEVED"),None)
     result=dict(variant=variant,fixture_sha256=sha,
+                native_replay_achieved=native.count(reset_marker),
+                reset_event=reset_event,replay_event=replay_event,
                 missing=missing,ordered=ordered,
                 native_achieved=native.count(marker),
                 error_events=names.count("A5_PUPIL_ERROR"),
@@ -179,7 +194,14 @@ def run(variant):
         event.get("wbb_sha256")==sha and
         isinstance(wbb,dict) and wbb.get("sha256")==sha and
         wbb.get("variant")==variant and
-        wbb.get("loops")==2 and wbb.get("state_assignments")==1
+        wbb.get("loops")==2 and wbb.get("state_assignments")==1 and
+        (variant!="A" or (
+            result["native_replay_achieved"]==1 and
+            isinstance(reset_event,dict) and reset_event.get("sha256")==sha and
+            reset_event.get("same_fixture") is True and
+            names.count("A5_PUPIL_RESET_CLEAN")==1 and
+            isinstance(replay_event,dict) and replay_event.get("sha256")==sha and
+            replay_event.get("status")=="achieved"))
     )
     (directory/"summary.json").write_text(
         json.dumps(result,indent=2,sort_keys=True)+"\n",encoding="utf-8")

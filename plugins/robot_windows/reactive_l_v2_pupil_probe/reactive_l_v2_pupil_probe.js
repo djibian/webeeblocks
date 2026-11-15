@@ -90,6 +90,28 @@ window.addEventListener('unhandledrejection',e=>pupilA5Report('A5_PUPIL_ERROR',{
   await backend.completeActivityMission(profile.evaluation);
   await pupilA5Outcome(backend,profile);
   await pupilA5Report('A5_PUPIL_NATIVE_ACHIEVED',{variant:fetched.variant,sha256:hash});
+  if(fetched.variant==='A') {
+    // A5 CI-only genuine host RESET replay, not merely a new attempt ID.
+    // The original Blockly workspace and exact .wbb SHA are not rebuilt.
+    await backend.resetSimulation();
+    await pupilA5Report('A5_PUPIL_NATIVE_RESET',{variant:'A',same_fixture:true,sha256:hash});
+    await backend.prepareActivity(profile);
+    try {
+      const stale=await backend.readActivityOutcome(profile.evaluation);
+      pupilA5Fail('RESET exposed a result before the new attempt: '+JSON.stringify(stale));
+    }catch(error) {
+      if(!error||error.code!=='OUTCOME_UNAVAILABLE')throw error;
+    }
+    await pupilA5Report('A5_PUPIL_RESET_CLEAN',{variant:'A',prior_outcome:'unavailable'});
+    const rerun=await WebeeBlocksActivityContract.execute(
+      profile,workspace,WebeeBlocksSemanticAst,WebeeBlocksInterpreter,backend);
+    if(JSON.stringify(rerun)!==JSON.stringify(ast))
+      pupilA5Fail('RESET replay changed the original pupil AST');
+    await backend.completeActivityMission(profile.evaluation);
+    const rerunOutcome=await pupilA5Outcome(backend,profile);
+    await pupilA5Report('A5_PUPIL_NATIVE_REPLAY_ACHIEVED',{
+      variant:'A',sha256:hash,status:rerunOutcome.status});
+  }
   await pupilA5Report('A5_PUPIL_TEST_COMPLETE',{
    variant:fetched.variant,wbb_sha256:hash,same_fixture:true,
    status:'achieved',physical_flight:false});

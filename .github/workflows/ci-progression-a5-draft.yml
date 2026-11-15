@@ -264,6 +264,13 @@ jobs:
               assert summary.get('fixture_sha256')==sha, f'{variant}: fixture altered'
               assert summary.get('wbb_event',{}).get('sha256')==sha, f'{variant}: reopened WBB altered'
               assert summary.get('completion',{}).get('wbb_sha256')==sha, f'{variant}: completed WBB altered'
+              if variant=='A':
+                  assert summary.get('native_replay_achieved')==1, 'RESET replay not achieved in native C'
+                  assert summary.get('reset_event',{}).get('same_fixture') is True, 'RESET altered pupil project'
+                  assert summary.get('reset_event',{}).get('sha256')==sha, 'RESET original WBB changed'
+                  assert summary.get('replay_event',{}).get('sha256')==sha, 'RESET replay WBB changed'
+                  assert summary.get('replay_event',{}).get('status')=='achieved', 'RESET stale outcome'
+                  print('A5_NATIVE_RESET_REPLAY_PASS variant=A same_wbb=true native_attempt=2')
           print('A5_NATIVE_SAME_WBB_ABC_PASS sha256='+sha+' variants=A,B,C')
           PY
       - name: Preserve A5 positive/negative pupil experimental evidence

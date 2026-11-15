@@ -115,6 +115,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('for variant in A B C; do',workflow)
         self.assertIn('run_classroom_reactive_L_v2_pupil_flight.py --variant "$variant"',workflow)
         self.assertIn('A5_NATIVE_SAME_WBB_ABC_PASS',workflow)
+        self.assertIn('A5_NATIVE_RESET_REPLAY_PASS',workflow)
         self.assertIn("WEBEEBLOCKS_A5_WBB_OUTPUT=ci-artifacts/progression-reactive-L-v2-pupil/generic-witness.wbb",workflow)
         self.assertEqual(workflow.count("if: github.event.pull_request.draft == true"),2)
         self.assertEqual(workflow.count("persist-credentials: false"),2)

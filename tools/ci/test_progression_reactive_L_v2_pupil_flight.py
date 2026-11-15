@@ -57,6 +57,25 @@ class TestA5PupilFlightStaging(unittest.TestCase):
         self.assertLess(pilot.index('for variant in A B C; do'),pilot.index('A5_NATIVE_SAME_WBB_ABC_PASS'))
         self.assertIn('if: always()',pilot)
 
+    def test_real_native_reset_replays_same_workspace_without_stale_oracle(self):
+        js=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
+            "reactive_l_v2_pupil_probe.js").read_text(encoding="utf-8")
+        runner=(ROOT/"tools/ci/run_classroom_reactive_L_v2_pupil_flight.py"
+                ).read_text(encoding="utf-8")
+        workflow=(ROOT/".github/workflows/ci-progression-a5-draft.yml"
+                  ).read_text(encoding="utf-8")
+        self.assertIn("await backend.resetSimulation()",js)
+        self.assertIn("await backend.prepareActivity(profile)",js)
+        self.assertIn("error.code!=='OUTCOME_UNAVAILABLE'",js)
+        self.assertIn("A5_PUPIL_NATIVE_REPLAY_ACHIEVED",js)
+        self.assertIn("const rerun=await WebeeBlocksActivityContract.execute(",js)
+        self.assertEqual(js.count("new Blockly.Workspace()"),1)
+        self.assertEqual(js.count("WebeeBlocksProjectFiles.validateProjectText("),1)
+        self.assertIn("native_replay_achieved",runner)
+        self.assertIn("attempt=2",runner)
+        self.assertIn("RESET_REQUIRED",runner)
+        self.assertIn("A5_NATIVE_RESET_REPLAY_PASS",workflow)
+
     def test_browser_never_invents_native_outcome_or_activity_solution(self):
         js=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
             "reactive_l_v2_pupil_probe.js").read_text(encoding="utf-8")
