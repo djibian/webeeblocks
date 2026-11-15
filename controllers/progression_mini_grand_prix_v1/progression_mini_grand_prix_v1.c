@@ -147,7 +147,27 @@ static int completed_token(const char *data,unsigned long long attempt) {
   return data&&n>0&&(size_t)n<sizeof(expected)&&!strcmp(expected,data);
 }
 static int native_contact(WbNodeRef craft,
-                          const int collider_ids[WB_A7_COLLIDERS]) {
+                          const WbNodeRef colliders[WB_A7_COLLIDERS]) {
+  /* R2025a native evidence: point.node_id identifies the node BEING
+   * queried, not reliably the partner (the 2026-11-15 low-contact mutant
+   * showed obstacle node_id=277 while the craft id was 59). Never infer
+   * 'floor' solely from z: two official obstacle Boxes touch the floor. */
+  for(int j=0;j<WB_A7_COLLIDERS;++j){
+    int n=-1;
+    const WbContactPoint *points=
+      wb_supervisor_node_get_contact_points(colliders[j],false,&n);
+    if(n<0||(n>0&&!points))return -1;
+    for(int i=0;i<n;++i){
+      const double *p=points[i].point;
+      if(!isfinite(p[0])||!isfinite(p[1])||!isfinite(p[2]))return -1;
+      printf("WB_MINI_NATIVE_COLLIDER_CONTACT type=%s z=%.9f node_id=%d\n",
+             kA7ColliderNames[j],p[2],points[i].node_id);
+      fflush(stdout);
+      return 1;
+    }
+  }
+  /* Allow actual floor contacts only; reject unknown high contacts.
+   * The nine obstacle Solids above are checked at EVERY native tick. */
   int count=-1;
   const WbContactPoint *points=
     wb_supervisor_node_get_contact_points(craft,true,&count);
@@ -155,19 +175,6 @@ static int native_contact(WbNodeRef craft,
   for(int i=0;i<count;++i){
     const double *p=points[i].point;
     if(!isfinite(p[0])||!isfinite(p[1])||!isfinite(p[2]))return -1;
-    /* An actual contact with any of this mission's nine attested physical
-     * Solids is a collision even at z=0, where a floor-height heuristic
-     * alone could silently discard it. This relies on the R2025a contact
-     * partner's native node_id, not a pupil-supplied scene/AST token. */
-    for(int j=0;j<WB_A7_COLLIDERS;++j)
-      if(points[i].node_id==collider_ids[j]) {
-        printf("WB_MINI_NATIVE_COLLIDER_CONTACT type=%s z=%.9f node_id=%d\n",
-               kA7ColliderNames[j],p[2],points[i].node_id);
-        fflush(stdout);
-        return 1;
-      }
-    /* Other non-floor contacts still fail closed under the prior rule.
-     * Native floor contacts near z=0 remain valid for touchdown. */
     if(fabs(p[2])>0.025)return 1;
   }
   return 0;
@@ -207,18 +214,19 @@ int main(void) {
     wb_robot_cleanup();return 2;
   }
   const double origin_z=origin[2];
-  int collider_ids[WB_A7_COLLIDERS]={0};
+  WbNodeRef colliders[WB_A7_COLLIDERS]={0};
   for(int i=0;i<WB_A7_COLLIDERS;++i) {
     char def[96];
     const int n=snprintf(def,sizeof(def),"ACTIVITY7_%c_%s",
                          variant,kA7ColliderNames[i]);
     WbNodeRef obstacle=n>0&&(size_t)n<sizeof(def) ?
       wb_supervisor_node_get_from_def(def) : NULL;
-    collider_ids[i]=obstacle?wb_supervisor_node_get_id(obstacle):-1;
-    if(collider_ids[i]<=0) {
+    if(!obstacle||wb_supervisor_node_get_id(obstacle)<=0) {
       fprintf(stderr,"WB_MINI_NATIVE_FATAL missing collider node identity\n");
       wb_robot_cleanup();return 2;
     }
+    colliders[i]=obstacle;
+    wb_supervisor_node_enable_contact_points_tracking(obstacle,step,false);
   }
   wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
   wb_mini_mission mission={0};
@@ -238,7 +246,7 @@ int main(void) {
     if(!last_attempt||mission.verdict!=WB_MINI_WAIT)continue;
     wb_mini_sample sample={0};
     sample.time=wb_robot_get_time();
-    sample.contact=native_contact(craft,collider_ids);
+    sample.contact=native_contact(craft,colliders);
     sample.completed=completed_token(data,mission.attempt);
     const double *p=wb_supervisor_node_get_position(craft);
     const double *v=wb_supervisor_node_get_velocity(craft);
