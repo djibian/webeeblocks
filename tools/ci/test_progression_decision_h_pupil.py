@@ -31,6 +31,7 @@ class PupilA4Tests(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         html=HTML.read_text(encoding='utf-8')
         js=JS.read_text(encoding='utf-8')
+        run=RUN.read_text(encoding='utf-8')
         self.assertIn('WB_A4_PUPIL_BOOTSTRAP',html)
         self.assertIn('decision_h_pupil_probe.js',html)
         profiles=(ROOT/'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js').read_text(encoding='utf-8')
