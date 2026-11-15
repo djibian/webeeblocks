@@ -43,12 +43,12 @@
 #define WB_ALT_MAX_SPEED 0.12
 #define WB_ALT_MAX_LANDING_Z 0.07
 /* Both the descent relative to the native starting pose and the proximity
- * to the attested z=0 classroom floor are required for an actual landing.
+ * to the attested z=0 classroom floor are required for a landing candidate.
  * A grounded Crazyflie centre is observed at z≈0.015 m in R2025a; an
  * upper 0.020 m envelope keeps 5 mm above the observed physical rest
  * centre in the closely related A4 native R2025a scenes. Verify A2 native
  * landings independently before Ready. This is
- * a conservative proximity test, not proof of a native Floor contact. */
+ * a conservative proximity test; actual native floor contact is also required. */
 #define WB_ALT_MAX_ABSOLUTE_LANDING_Z 0.020
 
 typedef enum {
@@ -81,6 +81,8 @@ typedef struct {
    * 1: native obstacle contact observed; -1: contact observation unavailable.
    * Floor contacts are not obstacle contacts. */
   int obstacle_contact;
+  /* Independent native contact with the attested z=0 floor. */
+  int floor_contact; /* -1=unavailable, 0=none, 1=observed */
   int completed;
 } wb_alt_sample;
 
@@ -131,7 +133,8 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
   if (m->result != WB_ALT_WAIT)
     return m->result;
   if (!s || !wb_alt_finite(s) || s->obstacle_contact < 0 ||
-      s->obstacle_contact > 1) {
+      s->obstacle_contact > 1 || s->floor_contact < 0 ||
+      s->floor_contact > 1) {
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
@@ -203,7 +206,8 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     fabs(x - WB_ALT_TARGET_X) <= WB_ALT_TARGET_X_TOL &&
     fabs(y - WB_ALT_TARGET_Y) <= WB_ALT_TARGET_Y_TOL;
   const int landed = z <= WB_ALT_MAX_LANDING_Z &&
-                     s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z;
+                     s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z &&
+                     s->floor_contact == 1;
   const int stationary =
     hypot(s->vx, s->vy) <= WB_ALT_MAX_SPEED && fabs(s->vz) <= WB_ALT_MAX_SPEED;
 
