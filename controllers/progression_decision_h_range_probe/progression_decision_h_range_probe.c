@@ -63,10 +63,34 @@ int main(void) {
       wb_supervisor_node_enable_contact_points_tracking(colliders[j],step,false);
     }
     /* Real floor-only preflight, first sample at a stable blue launch.
-     * This confirms the new detector does not call ordinary floor contact
-     * an obstacle. No attempt was active while the robot settled. */
+     * Require measured native floor contact, not merely a near-ground pose.
+     * No attempt was active while the robot settled. */
+    wb_supervisor_node_enable_contact_points_tracking(self,step,true);
     for(int i=0;i<45;++i)
       if(wb_robot_step(step)<0)return invalid("floor preflight interrupted");
+    const double *floor_pose=wb_supervisor_node_get_position(self);
+    const double *floor_speed=wb_supervisor_node_get_velocity(self);
+    int nf=-1;
+    const WbContactPoint *floor_points=
+        wb_supervisor_node_get_contact_points(self,true,&nf);
+    if(!floor_pose||!floor_speed||nf<1||!floor_points||
+       fabs(floor_pose[0])>.040||fabs(floor_pose[1])>.040||
+       floor_pose[2]<0.0||floor_pose[2]>.030||
+       hypot(floor_speed[0],floor_speed[1])>.120||
+       fabs(floor_speed[2])>.120)
+      return invalid("floor-only physical sample not settled");
+    int floor_contacts=0;
+    for(int i=0;i<nf;++i) {
+      if(!isfinite(floor_points[i].point[2]) ||
+         fabs(floor_points[i].point[2])>.025)
+        return invalid("nonfloor physical preflight contact");
+      ++floor_contacts;
+    }
+    if(!floor_contacts)return invalid("no actual Floor contacts");
+    printf("WEBEEBLOCKS_DECISION_H_FLOOR_ONLY variant=%c "
+           "floor_contacts=%d center_z=%.9f motors=OFF\n",
+           variant,floor_contacts,floor_pose[2]);
+    fflush(stdout);
     wb_supervisor_field_set_sf_string(data_field,
         "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
     if(wb_robot_step(step)<0)return invalid("floor attempt interrupted");
