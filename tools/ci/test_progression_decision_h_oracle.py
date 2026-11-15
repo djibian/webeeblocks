@@ -73,11 +73,13 @@ static void completed_route_with_origin(wb_dh_mission *m, int attempt,
 }
 /* Real R2025a classroom scene has a 32-ms basicTimeStep. A total of
  * eight consecutive native intervals (0.256s) proves the 0.250s dwell. */
+/* Landing samples follow measured R2025a positions: A z=0.014512203,
+ * B z=0.014983586, rather than the old 0.035-m test placeholder. */
 static void finish_stably(wb_dh_mission *m, double t) {
-  assert(tick(m,t,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(m,t,1.75,0,.015,0,0,1)==WB_DH_WAIT);
   for (int i=1;i<8;++i)
-    assert(tick(m,t+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(m,t+.256,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    assert(tick(m,t+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(m,t+.256,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
 }
 int main(void) {
   wb_dh_mission m;
@@ -89,15 +91,16 @@ int main(void) {
   /* Refute hovering falsely treated as LAND after the COMPLETE event.
    * Both variants traverse BOTH physical stations at legal heights; only
    * the final stationary craft's absolute altitude is invalid. The first
-   * test even starts at the normal origin: z=0.090 is only 55 mm above it.
-   * The second starts legally higher at z=0.075 and hovers at 0.140.
+   * Covers the previously missed 0.060-m hover and a 0.030-m hover,
+   * both above the observed ~0.015-m physical landing plane. Also retain
+   * the previous 0.090/0.140-m counterexamples with legal starts.
    * On the old relative-only oracle, either case returned ACHIEVED after
    * 8 native 32-ms intervals. That is NOT a grounded landing. */
   for(int v=0;v<2;++v) {
     const wb_dh_scene scene=v==0?WB_DH_SCENE_A:WB_DH_SCENE_B;
-    for(int kind=0;kind<2;++kind) {
-      const double origin=kind==0?.035:.075;
-      const double hover=kind==0?.090:.140;
+    for(int kind=0;kind<4;++kind) {
+      const double origin=kind==1?.075:.035;
+      const double hover=kind==0?.090:kind==1?.140:kind==2?.060:.030;
       completed_route_with_origin(&m,200+10*v+kind,scene,origin);
       assert(hover-origin<=WB_DH_LAND_Z);
       assert(hover>WB_DH_LAND_ABSOLUTE_Z);
@@ -116,22 +119,22 @@ int main(void) {
   for(int v=0;v<2;++v) {
     wb_dh_scene scene=v==0?WB_DH_SCENE_A:WB_DH_SCENE_B;
     completed_route(&m,40+v,scene);
-    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-    assert(tick(&m,8.260,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8,1.75,0,.015,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.260,1.75,0,.015,0,0,0)==WB_DH_WAIT);
     assert(m.landed_since == 8.260);
     for(int i=1;i<8;++i)
-      assert(tick(&m,8.260+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-    assert(tick(&m,8.516,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+      assert(tick(&m,8.260+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.516,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
     // One missed native tick (64 ms) invalidates only accumulated dwell,
     // not the entire attempt. Eight fresh observations may still succeed.
     completed_route(&m,50+v,scene);
-    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-    assert(tick(&m,8.032,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-    assert(tick(&m,8.096,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8,1.75,0,.015,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.032,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.096,1.75,0,.015,0,0,0)==WB_DH_WAIT);
     assert(m.landed_since == 8.096);
     for(int i=1;i<8;++i)
-      assert(tick(&m,8.096+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-    assert(tick(&m,8.352,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+      assert(tick(&m,8.096+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+    assert(tick(&m,8.352,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
   }
   // First native observation midway through the route must never count as
   // a legitimate blue start, even if later gate/landing poses look correct.
@@ -178,7 +181,7 @@ int main(void) {
   wb_dh_reset(&m,3,WB_DH_SCENE_A,.035);
   assert(!m.stage&&!m.airborne&&!m.before_first&&!m.completion_seen);
   assert(m.landed_since == -1.0);
-  assert(tick(&m,0,1.75,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,0,1.75,0,.015,0,0,1)==WB_DH_NOT_ACHIEVED);
   // Wrong blind constant altitude: near gate is H in A, raised threshold in B.
   takeoff(&m,4,WB_DH_SCENE_A);
   assert(tick(&m,2,.75,0,.85,0,0,0)==WB_DH_NOT_ACHIEVED);
@@ -198,7 +201,7 @@ int main(void) {
   assert(tick(&m,5,1.35,0,.85,0,0,0)==WB_DH_NOT_ACHIEVED);
   // Never certify skip, sideways bypass, unknown contacts, or contact.
   takeoff(&m,10,WB_DH_SCENE_A);
-  assert(tick(&m,2,1.75,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,2,1.75,0,.015,0,0,1)==WB_DH_NOT_ACHIEVED);
   takeoff(&m,11,WB_DH_SCENE_A);
   assert(tick(&m,2,.55,.35,.5,0,0,0)==WB_DH_NOT_ACHIEVED);
   takeoff(&m,12,WB_DH_SCENE_A);
@@ -208,57 +211,57 @@ int main(void) {
   // Completion at right pad but only one obstacle is not achievement.
   takeoff(&m,14,WB_DH_SCENE_A);
   pass_first(&m,.50);
-  assert(tick(&m,5,1.75,0,.035,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,5,1.75,0,.015,0,0,1)==WB_DH_NOT_ACHIEVED);
   // Landing must be stationary, entire craft on the pad, and below 7 cm.
   for(int k=0;k<4;++k) {
     completed_route(&m,20+k,WB_DH_SCENE_B);
     double x=k==0?1.85:1.75;
     double y=k==1?.12:0;
-    double z=k==2?.25:.035;
+    double z=k==2?.25:.015;
     double vx=k==3?.35:0;
     assert(tick(&m,8,x,y,z,vx,0,1)==WB_DH_WAIT);
     assert(tick(&m,10,x,y,z,vx,0,0)==WB_DH_NOT_ACHIEVED);
   }
   // An instantaneous valid landing sample must never earn a mission PASS.
   completed_route(&m,26,WB_DH_SCENE_A);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8,1.75,0,.015,0,0,1)==WB_DH_WAIT);
   assert(tick(&m,8.18,1.75,.20,.035,0,0,0)==WB_DH_WAIT);
   assert(m.landed_since == -1.0); // the whole craft left the pad
-  assert(tick(&m,8.25,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.25,1.75,0,.015,0,0,0)==WB_DH_WAIT);
   for(int i=1;i<8;++i)
-    assert(tick(&m,8.25+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.506,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    assert(tick(&m,8.25+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.506,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
   // A late arrival with less than the required continuous dwell fails.
   completed_route(&m,27,WB_DH_SCENE_B);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
-  assert(tick(&m,9.39,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,9.51,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,9.39,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.51,1.75,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
   // A valid landing that develops motion must restart its dwell clock.
   completed_route(&m,28,WB_DH_SCENE_A);
-  assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
-  assert(tick(&m,8.16,1.75,0,.035,.30,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8,1.75,0,.015,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,8.16,1.75,0,.015,.30,0,0)==WB_DH_WAIT);
   assert(m.landed_since == -1.0);
-  assert(tick(&m,8.30,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.30,1.75,0,.015,0,0,0)==WB_DH_WAIT);
   for(int i=1;i<8;++i)
-    assert(tick(&m,8.30+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,8.556,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+    assert(tick(&m,8.30+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,8.556,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
   // A truly continuous 0.256-s dwell ending AFTER 1.5 s must lose:
   // first stable sample 9.248 then seven native 32-ms ticks to 9.472.
   completed_route(&m,29,WB_DH_SCENE_B);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
   assert(tick(&m,9.240,1.75,.12,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.248,1.75,0,.015,0,0,0)==WB_DH_WAIT);
   for(int i=1;i<8;++i)
-    assert(tick(&m,9.248+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,9.504,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
-  assert(tick(&m,9.512,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,9.248+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.504,1.75,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(tick(&m,9.512,1.75,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
   // At EXACT 1.500 s, equality overrides a simultaneous 0.252-s dwell.
   completed_route(&m,33,WB_DH_SCENE_A);
   assert(tick(&m,8,1.75,.12,.035,0,0,1)==WB_DH_WAIT);
-  assert(tick(&m,9.248,1.75,0,.035,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.248,1.75,0,.015,0,0,0)==WB_DH_WAIT);
   for(int i=1;i<8;++i)
-    assert(tick(&m,9.248+.032*i,1.75,0,.035,0,0,0)==WB_DH_WAIT);
-  assert(tick(&m,9.500,1.75,0,.035,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,9.248+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
+  assert(tick(&m,9.500,1.75,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
   // Existing timely success (8.256), motion/pad reset and RESET persist.
   // Wrong chronology, unknown observations, invalid scene, repeated timestamp.
   takeoff(&m,30,WB_DH_SCENE_A);
@@ -301,7 +304,7 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_SCENE_A', content)
         self.assertIn('WB_DH_SCENE_B', content)
         self.assertIn('WB_DH_LAND_DWELL_SEC 0.250', content)
-        self.assertIn('WB_DH_LAND_ABSOLUTE_Z 0.070', content)
+        self.assertIn('WB_DH_LAND_ABSOLUTE_Z 0.020', content)
         self.assertIn('s->z - m->origin_z <= WB_DH_LAND_Z &&', content)
         self.assertIn('s->z <= WB_DH_LAND_ABSOLUTE_Z', content)
         self.assertIn('WB_DH_MAX_OBSERVATION_GAP_SEC 0.048', content)
