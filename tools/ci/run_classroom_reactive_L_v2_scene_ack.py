@@ -66,9 +66,14 @@ def run():
                 break
             if "A5_SCENE_TEST_COMPLETE" in kinds:
                 contents=logpath.read_text(encoding="utf-8",errors="replace")
+                # Browser completion can precede the native stdout flush.
+                # Never terminate Webots until its ninth nonce-bound SCENE_OK
+                # (the FINAL legacy restoration) is independently visible.
                 if (contents.count(MARKERS["A"])>=2 and
                     contents.count(MARKERS["B"])>=1 and
-                    contents.count(MARKERS["C"])>=1):
+                    contents.count(MARKERS["C"])>=1 and
+                    re.search(r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 9 SCENE_OK [0-9a-f]{64}",
+                              contents)):
                     break
             time.sleep(.25)
     finally:
