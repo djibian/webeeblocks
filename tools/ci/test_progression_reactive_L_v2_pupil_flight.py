@@ -43,6 +43,20 @@ class TestA5PupilFlightStaging(unittest.TestCase):
         self.assertIn('src="../blockly_v2/vendor/blockly_compressed.js"',browser)
         self.assertIn('src="../blockly_v2/vendor/blocks_compressed.js"',browser)
 
+    def test_one_identical_WBB_flights_in_native_A_B_C_before_success(self):
+        wf=(ROOT/'.github/workflows/ci-progression-a5-draft.yml').read_text(encoding='utf-8')
+        pilot=wf.split('  a5-pupil-flight-draft:')[1]
+        self.assertIn('for variant in A B C; do',pilot)
+        self.assertIn('run_classroom_reactive_L_v2_pupil_flight.py --variant "$variant"',pilot)
+        self.assertIn('A5_NATIVE_SAME_WBB_ABC_PASS',pilot)
+        self.assertIn("summary.get('native_achieved')==1",pilot)
+        self.assertIn("summary.get('fixture_sha256')==sha",pilot)
+        self.assertIn("summary.get('wbb_event',{}).get('sha256')==sha",pilot)
+        self.assertIn("summary.get('completion',{}).get('wbb_sha256')==sha",pilot)
+        self.assertIn('exit "$failed"',pilot)
+        self.assertLess(pilot.index('for variant in A B C; do'),pilot.index('A5_NATIVE_SAME_WBB_ABC_PASS'))
+        self.assertIn('if: always()',pilot)
+
     def test_browser_never_invents_native_outcome_or_activity_solution(self):
         js=(ROOT/"plugins/robot_windows/reactive_l_v2_pupil_probe/"
             "reactive_l_v2_pupil_probe.js").read_text(encoding="utf-8")
