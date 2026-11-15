@@ -30,6 +30,10 @@
 #define WB_DH_START_XY_TOL 0.080
 #define WB_DH_START_Z_TOL 0.060
 #define WB_DH_START_MAX_SPEED 0.120
+/* The official floor is z=0: reject an evaluator first attached while the
+ * craft is already aloft, even if its relative origin_z was re-established. */
+#define WB_DH_BLUE_GROUND_Z 0.035
+#define WB_DH_BLUE_GROUND_Z_TOL 0.060
 #define WB_DH_SETTLE_SEC 1.500
 /* An instant at the target is not an immobile landing. Preserve enough
  * consecutive physical samples to exclude an in-motion crossing. */
@@ -120,7 +124,8 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   /* Reject a late-attached attempt already in flight. Observe actual first
    * native pose and velocity; never inspect the learner's algorithm or AST. */
   if (m->last_time < 0.0 &&
-      (fabs(s->x) > WB_DH_START_XY_TOL ||
+      (fabs(m->origin_z - WB_DH_BLUE_GROUND_Z) > WB_DH_BLUE_GROUND_Z_TOL ||
+       fabs(s->x) > WB_DH_START_XY_TOL ||
        fabs(s->y) > WB_DH_START_XY_TOL ||
        fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
        hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||

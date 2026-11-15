@@ -99,6 +99,20 @@ int main(void) {
       assert(wb_dh_sample_mission(&m,&invalid)==WB_DH_NOT_ACHIEVED);
     }
   }
+  // An observer attached when the craft is already 0.40 m above the
+  // true z=0 floor must not redefine that altitude as its landing ground.
+  // This is an independently reset attempt, not a tampered source scene.
+  for (int v=0; v<2; ++v) {
+    wb_dh_scene scene=v==0 ? WB_DH_SCENE_A : WB_DH_SCENE_B;
+    wb_dh_reset(&m,(unsigned long long)(150+v),scene,.400);
+    assert(tick(&m,0,0,0,.400,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,1,.20,0,.800,0,0,0)==WB_DH_NOT_ACHIEVED);
+    assert(tick(&m,8,1.75,0,.400,0,0,1)==WB_DH_NOT_ACHIEVED);
+    // Grounded attempts still retain their correct H / threshold / landing.
+    completed_route(&m,160+v,scene);
+    assert(tick(&m,8,1.75,0,.035,0,0,1)==WB_DH_WAIT);
+    assert(tick(&m,8.26,1.75,0,.035,0,0,0)==WB_DH_ACHIEVED);
+  }
   // RESET must clear all mission stages/markers and not inherit a PASS.
   wb_dh_reset(&m,3,WB_DH_SCENE_A,.035);
   assert(!m.stage&&!m.airborne&&!m.before_first&&!m.completion_seen);
@@ -225,6 +239,8 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_START_XY_TOL 0.080', content)
         self.assertIn('WB_DH_START_Z_TOL 0.060', content)
         self.assertIn('WB_DH_START_MAX_SPEED 0.120', content)
+        self.assertIn('WB_DH_BLUE_GROUND_Z 0.035', content)
+        self.assertIn('WB_DH_BLUE_GROUND_Z_TOL 0.060', content)
         self.assertIn('m->landed_since = -1.0', content)
         self.assertIn('s->time - m->landed_since >= WB_DH_LAND_DWELL_SEC', content)
         self.assertIn('wb_dh_sample_mission', content)
