@@ -31,6 +31,8 @@
 #define WB_ORIENT_MAX_SPEED 0.12
 #define WB_ORIENT_AIRBORNE 0.20
 #define WB_ORIENT_SETTLE 1.5
+/* Require a continuous native landing, not a transient low-speed sample. */
+#define WB_ORIENT_LAND_DWELL 0.25
 
 typedef enum {
   WB_ORIENT_WAIT = 0,
@@ -45,7 +47,8 @@ typedef struct {
 
 typedef struct {
   unsigned long long attempt;
-  double origin_z, completion_at;
+  double origin_z, completion_at, stable_since;
+  int stable_since_valid;
   int airborne, stage, completion_seen;
   wb_orient_verdict result;
 } wb_orient_mission;
@@ -116,6 +119,12 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
+  /* The 1.5 s completion window is terminal, including its boundary.
+   * Do not promote a newly stable sample after that deadline. */
+  if (s->time - m->completion_at >= WB_ORIENT_SETTLE) {
+    m->result = WB_ORIENT_NOT_ACHIEVED;
+    return m->result;
+  }
   const int landed = (s->z - m->origin_z) <= WB_ORIENT_LAND_HEIGHT;
   const int stationary =
     hypot(s->vx, s->vy) <= WB_ORIENT_MAX_SPEED && fabs(s->vz) <= WB_ORIENT_MAX_SPEED;
@@ -123,9 +132,15 @@ static inline wb_orient_verdict wb_orient_sample_mission(
     fabs(s->x - WB_ORIENT_LAND_X) <= WB_ORIENT_LAND_TOL &&
     fabs(s->y - WB_ORIENT_LAND_Y) <= WB_ORIENT_LAND_TOL;
   if (landed && stationary && on_pad) {
-    m->result = WB_ORIENT_ACHIEVED;
-  } else if (s->time - m->completion_at >= WB_ORIENT_SETTLE) {
-    m->result = WB_ORIENT_NOT_ACHIEVED;
+    if (!m->stable_since_valid) {
+      m->stable_since = s->time;
+      m->stable_since_valid = 1;
+    }
+    if (s->time - m->stable_since >= WB_ORIENT_LAND_DWELL)
+      m->result = WB_ORIENT_ACHIEVED;
+  } else {
+    /* Renewed movement or loss of full-pad containment restarts dwell. */
+    m->stable_since_valid = 0;
   }
   return m->result;
 }
