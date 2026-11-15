@@ -17,7 +17,7 @@ function element(){
 }
 async function flush(){for(let i=0;i<40;i++)await Promise.resolve();}
 
-async function scenario(startProfileId){
+async function scenario(startProfileId, options={}){
   const names=['projectActivity','projectOpen','projectSave','projectSaveAs','activityVariant',
     'blocklyDiv','projectFileState','runtimeDetail','activityTitle','activityGoal'];
   const elements=Object.fromEntries(names.map(k=>[k,element()]));
@@ -31,6 +31,7 @@ async function scenario(startProfileId){
     setIsReadOnly(){}};
   const backendCalls=[],diagnostics=[];
   let holdAck=false,resolveAck=null,failNext=false,saveWrites=0,clearBreakpoints=0;
+  let resetCalls=0;
   let manager=null;
   const runtimeBackend={ready:true,capabilities:{simulationScenes:true},
     async waitUntilReady(){},
@@ -55,7 +56,9 @@ async function scenario(startProfileId){
     WebeeBlocksActivities:Activities,WebeeBlocksSemanticAst:{},
     WebeeBlocksActivityContract:{applyFieldBounds(){}},
     runtimeRunning:false,runtimeResetPending:false,runtimeStopPending:false,
-    runtimeScenePending:false,runtimeTerminal:false,runtimeProjectPending:false,
+    runtimeScenePending:false,runtimeTerminal:options.outcomePending===true,
+    runtimeOutcomePending:options.outcomePending===true,runtimeProjectPending:false,
+    async resetSimulation(){resetCalls++},
     updateRuntimeActions(){},setRuntimeStatus(){},
     setRuntimeFailure(error){diagnostics.push('native:'+error.message)},
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
@@ -75,6 +78,24 @@ async function scenario(startProfileId){
     assert.equal(backendCalls.length,0,'non-A4 click attempted a scene mutation');
     assert.equal(manager.bytes(),bytes,'non-A4 variant changed project bytes');
     return {kind:'other-profile',status:'PASS'};
+  }
+  if(options.outcomePending===true){
+    // Deliberately deliver a stale READY event in the interval where Blockly
+    // is done but the native evaluator has not yet acknowledged its verdict.
+    // Even a synthetic click must never issue SCENE, RESET or Save then.
+    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',
+      {detail:{state:'PRÊT'}}));
+    assert(!btn.hidden&&btn.disabled,
+      'pending native mission outcome must disable A4 scene selection');
+    for(const id of ['projectActivity','projectOpen','projectSave','projectSaveAs'])
+      assert(elements[id].disabled,'file operation unlocked before mission verdict: '+id);
+    btn.handlers.click();await flush();
+    assert.equal(backendCalls.length,0,'pending outcome switched Webots scene');
+    assert.equal(resetCalls,0,'pending outcome issued native RESET');
+    assert.equal(saveWrites,0,'pending outcome wrote a project file');
+    assert.equal(manager.bytes(),bytes,'pending outcome altered pupil .wbb');
+    assert.equal(diagnostics.length,0,'pending scene click should be ignored, not fail native');
+    return {kind:'pending-verdict',status:'PASS'};
   }
   assert(!btn.hidden&&!btn.disabled,'A4 toggle must be enabled after native initialization');
   assert.match(btn.textContent,/Parcours A/);
@@ -118,7 +139,8 @@ async function scenario(startProfileId){
   assert.deepEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&
     p.starterVisible!==false).length,8);
   const a4=await scenario('progression-decision-h-v1');
+  const pending=await scenario('progression-decision-h-v1',{outcomePending:true});
   const other=await scenario('progression-sequence-v1');
-  console.log('PASS A4 public A/B session UI:',a4.status,other.status,
-    'nonce ACK needed, no .wbb change, no autosave, failure fail-closed');
+  console.log('PASS A4 public A/B session UI:',a4.status,pending.status,other.status,
+    'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});
