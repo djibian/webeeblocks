@@ -77,15 +77,16 @@ class WorkflowTests(unittest.TestCase):
             "# Temporary non-decision A5 Draft witness. Does NOT provide CI Gate"))
         self.assertEqual(job_ids(workflow),{"a5-native-draft-only"})
         self.assertIn("  pull_request:\n",workflow)
-        self.assertIn("if: github.event.pull_request.draft == true",workflow)
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}",workflow)
+        self.assertIn("  push:\n    branches: [feat/pedagogy-a5-reactive-L-variants-20261112]",workflow)
+        self.assertIn("if: github.event_name == 'push' || github.event.pull_request.draft == true",workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}",workflow)
         self.assertIn("persist-credentials: false",workflow)
         self.assertIn("permissions:\n  contents: read",workflow)
         self.assertIn("python3 tools/ci/run_classroom_reactive_L_sensor.py",workflow)
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04",workflow)
         self.assertIn("a5-draft-real-two-ray-counterexample",workflow)
         for forbidden in ("name: CI Gate\n","continue-on-error: true",
-                          "  schedule:\n","  push:\n","contents: write",
+                          "  schedule:\n","contents: write",
                           "pull-requests: write","actions: write"):
             self.assertNotIn(forbidden,workflow)
 
