@@ -17,6 +17,8 @@
 #define WB_MINI_LAND_Z 0.070
 #define WB_MINI_LAND_SPEED 0.120
 #define WB_MINI_SETTLE 1.5
+/* Completion is a one-shot notification; stability must be observed after it. */
+#define WB_MINI_LAND_DWELL 0.25
 typedef enum { WB_MINI_WAIT=0, WB_MINI_ACHIEVED=1, WB_MINI_FAILED=2 } wb_mini_verdict;
 typedef struct {
   double time,x,y,z,vx,vy,vz,yaw;
@@ -25,8 +27,9 @@ typedef struct {
 typedef struct {
   unsigned long long attempt;
   char variant; /* native-attested L/R, never Blockly-supplied */
-  double origin_z,last_time,settle_since;
+  double origin_z,last_time,completion_at,stable_since;
   int airborne,armed,center_seen,crossed,turned,completion_seen;
+  int stable_since_valid;
   wb_mini_verdict verdict;
 } wb_mini_mission;
 static inline double wb_mini_h_x(char v) {return v=='L' ? -0.750 : -0.450;}
@@ -67,7 +70,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
      (fabs(s->y)>WB_MINI_H_Y_TOL||s->z>WB_MINI_H_Z_MAX)) {
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
-  if(!m->crossed) {
+  if(!m->crossed && !s->completed && !m->completion_seen) {
     if(s->x<=h-WB_MINI_H_ENVELOPE-0.01 && m->airborne)m->armed=1;
     if(m->armed&&fabs(s->x-h)<=WB_MINI_H_CENTER_TOL&&
        fabs(s->y)<=WB_MINI_H_Y_TOL&&s->z<=WB_MINI_H_Z_MAX&&
@@ -81,27 +84,45 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
   }
   const double turn_x=wb_mini_turn_x(m->variant);
   /* Require a physically observed 90-degree yaw at the visible corner. */
-  if(m->crossed&&!m->turned&&fabs(s->x-turn_x)<=WB_MINI_TURN_TOL&&
+  if(m->crossed&&!m->turned&&!s->completed&&!m->completion_seen&&
+     fabs(s->x-turn_x)<=WB_MINI_TURN_TOL&&
      fabs(s->y)<=WB_MINI_TURN_TOL&&
      wb_mini_yaw_error(s->yaw,wb_mini_heading(m->variant))<=WB_MINI_YAW_TOL)
     m->turned=1;
   if(m->crossed && (m->variant=='L'?s->y>1.26:s->y< -1.26)) {
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
-  if(s->completed) {
-    if(!m->airborne||!m->crossed||!m->turned||
-       fabs(s->x-turn_x)>WB_MINI_LAND_TOL||
-       fabs(s->y-wb_mini_pad_y(m->variant))>WB_MINI_LAND_TOL||
-       s->z-m->origin_z>WB_MINI_LAND_Z||
-       hypot(s->vx,s->vy)>WB_MINI_LAND_SPEED||
-       fabs(s->vz)>WB_MINI_LAND_SPEED) {
+  /* Like the native Activity 1/3 controllers, completion is an event, NOT
+   * a level required on subsequent physics steps. No post-completion
+   * progress is allowed: an unfinished route fails on first completion. */
+  if(s->completed && !m->completion_seen) {
+    m->completion_seen=1;
+    m->completion_at=s->time;
+    if(!m->airborne||!m->crossed||!m->turned) {
       m->verdict=WB_MINI_FAILED;return m->verdict;
     }
-    if(!m->completion_seen) {
-      m->completion_seen=1;m->settle_since=s->time;
+  }
+  if(m->completion_seen) {
+    const int stable =
+      fabs(s->x-turn_x)<=WB_MINI_LAND_TOL &&
+      fabs(s->y-wb_mini_pad_y(m->variant))<=WB_MINI_LAND_TOL &&
+      s->z-m->origin_z<=WB_MINI_LAND_Z &&
+      hypot(s->vx,s->vy)<=WB_MINI_LAND_SPEED &&
+      fabs(s->vz)<=WB_MINI_LAND_SPEED;
+    if(stable) {
+      if(!m->stable_since_valid) {
+        m->stable_since=s->time;
+        m->stable_since_valid=1;
+      }
+      if(s->time-m->stable_since>=WB_MINI_LAND_DWELL)
+        m->verdict=WB_MINI_ACHIEVED;
+    } else {
+      m->stable_since_valid=0;
     }
-    if(s->time-m->settle_since>=WB_MINI_SETTLE)m->verdict=WB_MINI_ACHIEVED;
-  } else if(m->completion_seen)m->verdict=WB_MINI_FAILED;
+    if(m->verdict==WB_MINI_WAIT &&
+       s->time-m->completion_at>=WB_MINI_SETTLE)
+      m->verdict=WB_MINI_FAILED;
+  }
   return m->verdict;
 }
 #endif
