@@ -50,13 +50,17 @@ def main():
     # A7 Draft: compile the exact C oracle and falsify lateral H bypass,
     # skipped gate, missing yaw, stale replay and contact independently.
     # This is NOT a native Webots flight or a classroom/hardware PASS.
-    mini_gp_test=subprocess.run([sys.executable,'tools/ci/test_progression_mini_grand_prix_oracle.py'],text=True,capture_output=True)
-    if mini_gp_test.returncode:
-        print('FAIL Activity 7 isolated C behavioral oracle',file=sys.stderr)
-        print(mini_gp_test.stdout,file=sys.stderr)
-        print(mini_gp_test.stderr,file=sys.stderr)
-        return mini_gp_test.returncode
-    print(mini_gp_test.stdout.strip())
+    for mini_gp_path in (
+        'tools/ci/test_progression_mini_grand_prix_scene.py',
+        'tools/ci/test_progression_mini_grand_prix_oracle.py',
+    ):
+        mini_gp_test=subprocess.run([sys.executable,mini_gp_path],text=True,capture_output=True)
+        if mini_gp_test.returncode:
+            print('FAIL Activity 7 scene or isolated C oracle: '+mini_gp_path,file=sys.stderr)
+            print(mini_gp_test.stdout,file=sys.stderr)
+            print(mini_gp_test.stderr,file=sys.stderr)
+            return mini_gp_test.returncode
+        print('PASS Activity 7 isolated proof: '+mini_gp_path)
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
         print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode
