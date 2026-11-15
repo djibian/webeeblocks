@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A6 first real motor-flight witness (diagnostic, NOT a pupil .wbb PASS)."""
+"""A6 n=1..3 genuine motor-flight witness (diagnostic, NOT a pupil .wbb PASS)."""
 from __future__ import annotations
 import json
 import os
@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import http.client
+import argparse
 
 import prepare_classroom_count_h_motor_flight as world
 import run_classroom_altitude_scene_ack as observer
@@ -39,11 +40,30 @@ def diagnose_webots_window_http():
             conn.close()
     return observed
 
+class A6VariantHandler(observer.Handler):
+    """Only CI launch configuration; native Webots re-attests identity."""
+    variant = 1
+
+    def do_GET(self):
+        if self.path != "/a6-variant":
+            self.send_error(404)
+            return
+        data=json.dumps({"variant":self.variant},sort_keys=True).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type","application/json")
+        self.send_header("Content-Length",str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
 REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
           "A6_SCENE_ACK","A6_TAKEOFF","A6_CORRIDOR_DONE",
-          "A6_LANDED","A6_TEST_COMPLETE")
+          "A6_PAD_SELECTED","A6_LANDED","A6_TEST_COMPLETE")
 
-def run():
+def run(variant=1):
+    if type(variant) is not int or variant not in (1,2,3):
+        raise ValueError("A6 experimental motor variant must be 1/2/3")
+    global ARTIFACT
+    ARTIFACT=world.ARTIFACT/f"n{variant}"
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     log=ARTIFACT/"webots.log"
     observer.EVENTS.clear()
@@ -58,8 +78,9 @@ def run():
         ):
             if not path.is_file() or not path.stat().st_size:
                 raise FileNotFoundError("native motor flight binary unavailable: "+str(path))
-        world.prepare()
-        server=observer.http.server.ThreadingHTTPServer(("127.0.0.1",8765),observer.Handler)
+        world.prepare(variant=variant)
+        A6VariantHandler.variant=variant
+        server=observer.http.server.ThreadingHTTPServer(("127.0.0.1",8765),A6VariantHandler)
         threading.Thread(target=server.serve_forever,daemon=True).start()
         env=dict(os.environ)
         env["WEBOTS_WEB_BROWSER"]="/workspace/tools/ci/webots_runtime_v2_browser.sh"
@@ -169,21 +190,33 @@ def run():
         events.index(x) for x in REQUIRED)
     # The native observer independently evaluates physical contact and pose.
     true_flight=re.search(
-        r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
-        r"crossed=1 screen=1 observations=(\d+) "
+        r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=(\d+) "
+        r"crossed=(\d+) screen=1 observations=(\d+) "
         r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+)",txt)
     responses=re.findall(
         r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (?:OK|SCENE_OK [0-9a-f]{64})",txt)
     moves=re.findall(
-        r"WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE forward distance=([0-9.]+) stop=1",txt)
+        r"WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE (forward|left|right) "
+        r"distance=([0-9.]+) stop=1",txt)
+    expected_moves=[("forward","0.480000000")]*6+[("forward","0.120000000")]
+    if variant in (2,3):
+        expected_moves.append(("left" if variant==2 else "right","0.550000000"))
+    pad_y={1:0.0,2:0.55,3:-0.55}[variant]
+    expected_responses=11+(1 if variant!=1 else 0)
+    native_achieved=(
+        true_flight is not None and
+        int(true_flight[1])==variant and int(true_flight[2])==variant and
+        int(true_flight[3])>100 and
+        abs(float(true_flight[4])-1.48)<=.06 and
+        abs(float(true_flight[5])-pad_y)<=.06)
     launch=ARTIFACT/"browser-launch.log"
     launched=launch.read_text(encoding="utf-8",errors="replace") if launch.exists() else ""
     browser="BROWSER_LAUNCHED args=" in launched and "count_h_flight_probe.html" in launched
     succeeded=(not missing and ordered and events.count("A6_ERROR")==0
-               and true_flight is not None and int(true_flight[1])>100
-               and responses==[str(i) for i in range(1,12)]
-               and moves==["0.480000000"]*6+["0.120000000"]
-               and "WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant=1 native_colliders=5" in txt
+               and native_achieved
+               and responses==[str(i) for i in range(1,expected_responses+1)]
+               and moves==expected_moves
+               and f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt
                and "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt
                and "LAND_TOUCHDOWN" in txt and browser
                and "WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt
@@ -191,7 +224,8 @@ def run():
                and "ERROR:" not in txt)
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
-        "pass":bool(succeeded),"real_motorized_flight":bool(true_flight),
+        "pass":bool(succeeded),"variant":variant,
+        "real_motorized_flight":bool(native_achieved),
         "not_pupil_wbb_or_product_scene_qualification":True,
         "not_real_crazyflie_qualification":True,
         "product_window_autolaunch_qualified":False,
@@ -201,15 +235,20 @@ def run():
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")
     if not succeeded:
         print("A6_MOTOR_FLIGHT_UNPROVEN "+json.dumps({
-            "missing":missing,"ordered":ordered,"native":bool(true_flight),
-            "responses":responses,"moves":moves,"browser":browser,
+            "variant":variant,
+            "missing":missing,"ordered":ordered,"native":bool(native_achieved),
+            "responses":responses,"moves":moves,"expected_moves":expected_moves,
+            "browser":browser,
             "lastEvents":observer.EVENTS[-4:]}),file=sys.stderr)
         print(txt[-14000:],file=sys.stderr)
         return 1
-    print("WEBEEBLOCKS_A6_MOTOR_PASS native=1 count=1 "
+    print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
           "corridor=real_PID_and_motors contacts=none screen=passed "
           "pupil_wbb=UNPROVEN",flush=True)
     return 0
 
 if __name__=="__main__":
-    raise SystemExit(run())
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
+    args=parser.parse_args()
+    raise SystemExit(run(variant=args.variant))

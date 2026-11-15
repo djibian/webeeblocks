@@ -16,7 +16,13 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
   try {
     const response=await window.WB_A6_BOOTSTRAP;
     if(!response||!response.ok)throw new Error('HTML bootstrap not acknowledged');
-    await report('A6_JS_STARTED',{mode:'native-motor-no-Blockly'});
+    const configResponse=await fetch('http://127.0.0.1:8765/a6-variant');
+    if(!configResponse.ok)throw new Error('A6 CI variant unavailable');
+    const config=await configResponse.json();
+    const variant=config&&config.variant;
+    if(!Number.isInteger(variant)||variant<1||variant>3)
+      throw new Error('invalid A6 CI native variant');
+    await report('A6_JS_STARTED',{mode:'native-motor-no-Blockly',variant});
     const module=await import('../blockly_v2/webots/RobotWindow.js');
     const bridge=new module.default();
     const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
@@ -27,8 +33,8 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     // Private test request: the product backend intentionally does NOT list
     // A6 among admitted activity profiles. This does NOT qualify that missing
     // product scene integration; only our isolated CI adapter accepts it.
-    await backend._request(['SCENE','count-h-1-v1']);
-    await report('A6_SCENE_ACK',{diagnosticOnly:true,variant:1});
+    await backend._request(['SCENE','count-h-'+variant+'-v1']);
+    await report('A6_SCENE_ACK',{diagnosticOnly:true,variant});
     await backend.setSpeed(0.20);
     await backend.takeoff(0.40);
     await report('A6_TAKEOFF',{height_m:.40});
@@ -38,7 +44,12 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     // never the real contact/mission oracle or runtime tolerances.
     for(let i=0;i<6;i++)await backend.move('forward',0.48);
     await backend.move('forward',0.12);
-    await report('A6_CORRIDOR_DONE',{moves:7,distance_m:3.00});
+    await report('A6_CORRIDOR_DONE',{moves:7,distance_m:3.00,variant});
+    // Diagnostic reference trajectory, NOT a pupil algorithm. After the
+    // terminal screen has been passed at y=0, land on the scene's own pad.
+    if(variant===2)await backend.move('left',0.55);
+    if(variant===3)await backend.move('right',0.55);
+    await report('A6_PAD_SELECTED',{variant,side:variant===1?'center':variant===2?'left':'right'});
     await backend.land();
     await report('A6_LANDED',{nativeReply:true});
     await report('A6_TEST_COMPLETE',{testOnly:true});

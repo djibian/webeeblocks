@@ -28,6 +28,29 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertNotIn("WEBEEBLOCKS_COUNT_2_SCENE",w)
         self.assertNotIn("WEBEEBLOCKS_COUNT_3_SCENE",w)
 
+    def test_all_three_native_worlds_are_distinct_and_exactly_one_scene(self):
+        hashes=set()
+        import hashlib
+        for variant in (1,2,3):
+            with self.subTest(variant=variant):
+                composed=motor.compose(variant=variant)
+                hashes.add(hashlib.sha256(composed.encode("utf-8")).hexdigest())
+                self.assertIn(f"DEF WEBEEBLOCKS_COUNT_{variant}_SCENE Group",composed)
+                self.assertEqual(composed.count("boundingObject Box"),3*variant+2)
+                for other in (1,2,3):
+                    if other!=variant:
+                        self.assertNotIn(f"DEF WEBEEBLOCKS_COUNT_{other}_SCENE",composed)
+                scene=motor.SCENES[variant].read_text(encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    motor.compose(variant=variant,scene=scene.replace(
+                        "boundingObject Box","boundingObject Sphere",1))
+                with self.assertRaises(ValueError):
+                    motor.compose(variant=variant,scene=scene+'Robot { controller "foreign" }')
+        self.assertEqual(len(hashes),3)
+        for value in (0,4,-1,1.0,True):
+            with self.assertRaises(ValueError):
+                motor.compose(variant=value)
+
     def test_refuse_missing_native_collider_and_altered_base(self):
         scene=motor.SCENE.read_text(encoding="utf-8")
         base=motor.SOURCE.read_text(encoding="utf-8")
@@ -81,11 +104,17 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("await backend.move('forward',0.12)",browser)
         self.assertIn("A6_CORRIDOR_DONE',{moves:7,distance_m:3.00}",browser)
         self.assertIn("await backend.land()",browser)
-        self.assertIn("['SCENE','count-h-1-v1']",browser)
+        self.assertIn("['SCENE','count-h-'+variant+'-v1']",browser)
+        self.assertIn("await backend.move('left',0.55)",browser)
+        self.assertIn("await backend.move('right',0.55)",browser)
+        self.assertIn("Number.isInteger(variant)",browser)
+        self.assertIn('self.path != "/a6-variant"',native)
         self.assertNotIn("Blockly.Workspace",browser)
         self.assertNotIn("backend.completeActivityMission",browser)
-        self.assertIn("responses==[str(i) for i in range(1,12)]",native)
-        self.assertIn('moves==["0.480000000"]*6+["0.120000000"]',native)
+        self.assertIn("responses==[str(i) for i in range(1,expected_responses+1)]",native)
+        self.assertIn('expected_moves=[("forward","0.480000000")]*6',native)
+        self.assertIn("native_achieved=(",native)
+        self.assertIn('abs(float(true_flight[5])-pad_y)<=.06',native)
         self.assertIn('"WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt',native)
         self.assertIn('env["WEBEEBLOCKS_CI_ARTIFACT_DIR"]=str(ARTIFACT)',native)
         self.assertIn('timeout","-k","5s","390s"',native)
@@ -156,6 +185,8 @@ class CountHMotorFlightTests(unittest.TestCase):
             self.assertIn(requirement,workflow)
             self.assertIn(requirement,reference)
         self.assertIn("run_classroom_count_h_motor_flight.py",workflow)
+        self.assertIn("for n in 1 2 3",workflow)
+        self.assertIn("python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --variant ${n}",workflow)
 
     def test_native_school_loader_reuses_qualified_webots_qt_runtime_ini(self):
         school=(ROOT/"controllers/progression_count_h_school_pilot/runtime.ini").read_bytes()

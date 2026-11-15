@@ -16,22 +16,26 @@ PROJECT=ROOT/"worlds/.ci_classroom_count_h_motor_flight.wbproj"
 ARTIFACT=ROOT/"ci-artifacts/progression-count-h-motor"
 MARKER="# WEBEEBLOCKS_COUNT_H_MOTOR_CI_ONLY"
 PROJECT_BYTES="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
-SCENE=ROOT/"worlds/scenes/count-h-1-v1.wbo"
-def compose(start=None,scene=None):
+SCENES={n:ROOT/f"worlds/scenes/count-h-{n}-v1.wbo" for n in (1,2,3)}
+SCENE=SCENES[1]
+def compose(start=None,scene=None,variant=1):
+    if type(variant) is not int or variant not in SCENES:
+        raise ValueError('invalid bounded A6 count variant')
     source=SOURCE.read_text(encoding="utf-8") if start is None else start
     world=classroom.compose(source)
-    body=SCENE.read_text(encoding="utf-8") if scene is None else scene
+    body=SCENES[variant].read_text(encoding="utf-8") if scene is None else scene
     original='Crazyflie {\n  name "Crazyflie WebeeBlocks"'
     if (world.count(original)!=1 or
         world.count('controller "crazyflie_classroom_v2"')!=1 or
         world.count('window "altitude_scene_ack_probe"')!=1 or
         world.count(classroom.MARKER)!=1 or
-        body.count("DEF WEBEEBLOCKS_COUNT_1_SCENE Group {")!=1 or
-        body.count(" Solid {")!=5 or
-        body.count("boundingObject Box")!=5 or
+        body.count(f"DEF WEBEEBLOCKS_COUNT_{variant}_SCENE Group {{")!=1 or
+        body.count(" Solid {")!=3*variant+2 or
+        body.count("boundingObject Box")!=3*variant+2 or
         'controller "' in body or 'Robot {' in body or
-        any(f"DEF WEBEEBLOCKS_COUNT_{n}_SCENE Group" in body for n in (2,3))):
-        raise ValueError("ambiguous n=1 native physical scene or authentic craft")
+        any(f"DEF WEBEEBLOCKS_COUNT_{n}_SCENE Group" in body
+            for n in SCENES if n!=variant)):
+        raise ValueError("ambiguous numbered native physical scene or authentic craft")
     world=world.replace(original,
         'Crazyflie {\n  translation -1.40 0 0.055\n  name "Crazyflie WebeeBlocks"')
     world=world.replace('controller "crazyflie_classroom_v2"',
@@ -55,12 +59,13 @@ def compose(start=None,scene=None):
         raise ValueError("unexpected product runtime or contaminating evaluator")
     return output
 
-def prepare():
+def prepare(variant=1):
     if WORLD.exists() or PROJECT.exists():
         raise FileExistsError("refusing to overwrite A6 physical test world")
-    data=compose()
+    data=compose(variant=variant)
     WORLD.write_text(data,encoding="utf-8")
     PROJECT.write_text(PROJECT_BYTES,encoding="utf-8")
+    print(f"WEBEEBLOCKS_A6_MOTOR_WORLD_VARIANT {variant}",flush=True)
     print("WEBEEBLOCKS_A6_MOTOR_WORLD_SHA256 "+
           hashlib.sha256(data.encode()).hexdigest(),flush=True)
 
@@ -79,6 +84,8 @@ def cleanup():
 
 if __name__=="__main__":
     import sys
-    if sys.argv[1:]==["prepare"]:prepare()
+    if len(sys.argv)==3 and sys.argv[1]=="prepare":
+        prepare(int(sys.argv[2]))
+    elif sys.argv[1:]==["prepare"]:prepare()
     elif sys.argv[1:]==["clean"]:cleanup()
     else:raise SystemExit("expected prepare/clean")
