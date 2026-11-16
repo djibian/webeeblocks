@@ -12,6 +12,9 @@ on:
       - 'tools/ci/prepare_classroom_reactive_L_alias_motor.py'
       - 'tools/ci/run_classroom_reactive_L_alias_motor.py'
       - 'tools/ci/test_progression_reactive_L_alias_motor.py'
+      - 'tools/ci/run_classroom_reactive_L_memory_alias.py'
+      - 'tools/ci/test_progression_reactive_L_memory_alias.py'
+      - 'controllers/progression_reactive_L_memory_alias_probe/**'
       - 'plugins/robot_windows/a5_alias_motor_probe/**'
       - 'worlds/scenes/reactive-L-memory-alias-*.wbo'
       - 'tools/ci/test_workflow_contract.py'
@@ -24,7 +27,7 @@ jobs:
     name: A5 original PID native floor A/B, same private pilot (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 22
+    timeout-minutes: 29
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,4 +84,31 @@ jobs:
         with:
           name: a5-alias-motor-physical-feasibility-draft
           path: ci-artifacts/progression-reactive-L-alias-motor/
+          if-no-files-found: warn
+      # Previously ci-runtime.yml contained this native experiment, but
+      # Draft CI skips that suite. Execute it here instead of claiming PASS
+      # from a successful static/motor-only diagnostic.
+      - name: Falsify 16-heading real native A5 alias in both fixed-pose worlds
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_reactive_L_memory_alias
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_memory_alias_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_memory_alias_probe'
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_memory_alias.py'
+      - name: Preserve original sixteen-angle ray data even if hypothesis fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-sixteen-heading-native-rays-draft
+          path: ci-artifacts/progression-reactive-L-memory-alias/
           if-no-files-found: warn
