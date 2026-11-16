@@ -140,7 +140,8 @@ static int native_contact_observation(WbNodeRef craft, int *floor_contact) {
 }
 
 static void publish(WbFieldRef channel, unsigned long long attempt,
-                    wb_alt_verdict result, const wb_alt_mission *mission) {
+                    wb_alt_verdict result, const wb_alt_mission *mission,
+                    int floor_contact) {
   const char *status = result == WB_ALT_ACHIEVED ? "achieved" : "not-achieved";
   char marker[192];
   snprintf(marker, sizeof(marker),
@@ -148,9 +149,9 @@ static void publish(WbFieldRef channel, unsigned long long attempt,
            attempt, WB_ALT_ORACLE, status);
   wb_supervisor_field_set_sf_string(channel, marker);
   printf("WEBEEBLOCKS_ALTITUDE_RESULT attempt=%llu status=%s "
-         "airborne=%d crossed=%d contact=%d completion=%d\n",
+         "airborne=%d crossed=%d contact=%d completion=%d floor_contact=%d\n",
          attempt, status, mission->airborne, mission->crossed_barrier,
-         mission->collision_seen, mission->completion_seen);
+         mission->collision_seen, mission->completion_seen, floor_contact);
   fflush(stdout);
 }
 
@@ -206,7 +207,7 @@ int main(void) {
     }
     wb_alt_verdict result = wb_alt_sample_mission(&mission, &sample);
     if (result != WB_ALT_WAIT)
-      publish(channel, mission.attempt, result, &mission);
+      publish(channel, mission.attempt, result, &mission, sample.floor_contact);
   }
   wb_robot_cleanup();
   return 0;
