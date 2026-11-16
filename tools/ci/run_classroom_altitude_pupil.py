@@ -67,7 +67,7 @@ def run()->int:
     missing=[x for x in REQUIRED if names.count(x)!=1]
     event_order=not missing and [names.index(x) for x in REQUIRED]==sorted(names.index(x) for x in REQUIRED)
     success=re.search(
-        r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=achieved\b[^\n]*\bairborne=1\b[^\n]*\bcrossed=1\b[^\n]*\bcontact=0\b[^\n]*\bcompletion=1\b',txt)
+        r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=achieved\b[^\n]*\bairborne=1\b[^\n]*\bcrossed=1\b[^\n]*\bcontact=0\b[^\n]*\bcompletion=1\b[^\n]*\bfloor_contact=1\b',txt)
     messages=re.findall(r'WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (?:OK|SCENE_OK [0-9a-f]{64})',txt)
     # Seven acknowledged requests: SCENE then six pupil actions. COMPLETE
     # signals the evaluator through native state and has no WWI ACK.

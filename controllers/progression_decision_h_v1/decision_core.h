@@ -68,6 +68,8 @@ typedef struct {
   int obstacle_contact;
   /* Independently attested program-completion marker, not the pupil's AST. */
   int completed;
+  /* -1=unknown, 0=no physical Floor contact, 1=observed contact. */
+  int floor_contact;
 } wb_dh_sample;
 
 typedef struct {
@@ -96,7 +98,8 @@ static inline int wb_dh_valid_sample(const wb_dh_sample *s) {
     isfinite(s->z) && isfinite(s->vx) && isfinite(s->vy) &&
     isfinite(s->vz) && (s->obstacle_contact == 0 ||
                        s->obstacle_contact == 1) &&
-    (s->completed == 0 || s->completed == 1);
+    (s->completed == 0 || s->completed == 1) &&
+    (s->floor_contact == 0 || s->floor_contact == 1);
 }
 
 static inline int wb_dh_is_h(wb_dh_scene scene, unsigned stage) {
@@ -210,7 +213,8 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   /* Both the relative descent and absolute floor height are necessary.
    * Keep the consecutive 250-ms dwell, pad footprint and velocity guards. */
   const int landed = s->z - m->origin_z <= WB_DH_LAND_Z &&
-                     s->z <= WB_DH_LAND_ABSOLUTE_Z;
+                     s->z <= WB_DH_LAND_ABSOLUTE_Z &&
+                     s->floor_contact == 1;
   const int still = hypot(s->vx, s->vy) <= WB_DH_LAND_MAX_SPEED &&
                     fabs(s->vz) <= WB_DH_LAND_MAX_SPEED;
   const int whole_craft_on_pad =
