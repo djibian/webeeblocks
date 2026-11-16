@@ -375,6 +375,8 @@ class CountHMotorFlightTests(unittest.TestCase):
             self.assertIn("await backend.completeActivityMission(",
                 (ROOT/"plugins/robot_windows/count_h_flight_probe"/pilot).read_text())
         self.assertIn("responses==[str(i) for i in range(1,expected_responses+1)]",native)
+        self.assertIn("expected_responses=11+(1 if variant!=1 else 0)",native)
+        # Completion has its own independent native evidence, not a phantom WWI ACK.
         self.assertIn('expected_moves=[("forward","0.480000000")]*6',native)
         self.assertIn("native_achieved=(",native)
         self.assertIn('abs(float(true_flight[5])-pad_y)<=.06',native)
