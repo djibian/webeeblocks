@@ -239,12 +239,12 @@ def run(variant=1,mode="reference"):
         # No second Webots process is launched: this one log contains the
         # three broker epochs and two genuine motorized landing outcomes.
         epochs=re.findall(
-            r"WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=(\\d+) variant=1",txt)
+            r"WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=(\d+) variant=1",txt)
         positives=re.findall(
             r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
-            r"crossed=1 screen=1 observations=(\\d+) ",txt)
+            r"crossed=1 screen=1 observations=(\d+) ",txt)
         completed=re.findall(
-            r"WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=(\\d+) "
+            r"WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=(\d+) "
             r"oracle=progression-count-h-v1 ",txt)
         expected=[
             "A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
@@ -278,7 +278,7 @@ def run(variant=1,mode="reference"):
             "events":events,
         }
         (ARTIFACT/"replay-summary.json").write_text(
-            json.dumps(evidence,indent=2,sort_keys=True)+"\\n",encoding="utf-8")
+            json.dumps(evidence,indent=2,sort_keys=True)+"\n",encoding="utf-8")
         if not pass_replay:
             print("A6_SAME_WORLD_REPLAY_UNPROVEN "+json.dumps(evidence),
                   file=sys.stderr)

@@ -446,8 +446,8 @@ class CountHMotorFlightTests(unittest.TestCase):
                          "A6_REPLAY_STALE_DENIED"):
             self.assertIn(required,source)
         self.assertEqual(source.count("await backend.resetSimulation()"),2)
-        for required in ('mode=="replay"', "epochs==[\\\"2\\\",\\\"3\\\"]",
-                         'completed==[\\\"1\\\",\\\"2\\\",\\\"3\\\"]',
+        for required in ('mode=="replay"', 'epochs==["2","3"]',
+                         'completed==["1","2","3"]',
                          'len(positives)==2',
                          'txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ")==2',
                          "A6_SAME_WORLD_NATIVE_REPLAY_PASS"):
