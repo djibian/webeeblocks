@@ -95,11 +95,11 @@ class A5AliasMotorSourceTests(unittest.TestCase):
         self.assertIn('"A5_ALIAS_MOTOR_EARLY_CUE" not in names',runner)
         self.assertIn("WEBEEBLOCKS_A5_DETOUR_NATIVE_PASS",runner)
         self.assertIn("native_collision_coverage(text,variant)",runner)
-        self.assertIn("--detour",workflow)
         self.assertNotIn("variables_set",js)
         self.assertNotIn("pupil_project",js)
         workflow=(ROOT/".github/workflows/ci-progression-a5-alias-motor-draft.yml").read_text()
         self.assertIn("run_classroom_reactive_L_alias_motor.py --negative-collision",workflow)
+        self.assertIn("run_classroom_reactive_L_alias_motor.py --detour",workflow)
 
     def test_physics_monitor_checks_each_motor_step_and_obstacle_sides(self):
         trace=(ROOT/"controllers/progression_reactive_L_alias_motor_pilot"/
