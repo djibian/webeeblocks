@@ -112,7 +112,8 @@ async function scenario(startProfileId, options={}){
   assert(!choices.includes('progression-future-world-v1'),
     'foreign published starter shown in normal Webots school world');
   assert(choices.includes(startProfileId),'compatible public activity missing');
-  assert.equal(elements.projectActivity.disabled,false,'normal Start unexpectedly disabled');
+  assert.equal(elements.projectActivity.disabled,options.outcomePending === true,
+    'Start must remain blocked during a native verdict, enabled only when idle');
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
   const bytes=manager.bytes();
