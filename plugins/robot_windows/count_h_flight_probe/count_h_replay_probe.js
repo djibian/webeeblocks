@@ -3,7 +3,8 @@
 // A negative, a RESET ACK, a motorized success, another RESET and another
 // motorized success must all be observed without restarting Webots.
 export async function runReplay(backend,report,variant) {
-  if(variant!==1)throw new Error('bounded A6 same-world replay tests n=1 only');
+  if(!Number.isInteger(variant)||variant<1||variant>3)
+    throw new Error('A6 same-world replay requires an attested n=1/2/3 scene');
   const evaluation={type:'mission-state-v1',oracle:'progression-count-h-v1'};
   await backend.completeActivityMission(evaluation);
   const negative=await backend.readActivityOutcome(evaluation);
@@ -29,12 +30,16 @@ export async function runReplay(backend,report,variant) {
     await backend.takeoff(0.40);
     for(let i=0;i<6;i++)await backend.move('forward',0.48);
     await backend.move('forward',0.12);
+    // Same physical reference trajectory, with the scene's actual lateral
+    // landing zone; never infer the zone from Blockly or bypass the C oracle.
+    if(variant===2)await backend.move('left',0.55);
+    if(variant===3)await backend.move('right',0.55);
     await backend.land();
     await backend.completeActivityMission(evaluation);
     const outcome=await backend.readActivityOutcome(evaluation);
     if(!outcome||outcome.status!=='achieved')
       throw new Error('new native epoch not achieved '+epoch);
-    await report('A6_REPLAY_POSITIVE',{epoch,front_m:front,status:outcome.status});
+    await report('A6_REPLAY_POSITIVE',{epoch,variant,front_m:front,status:outcome.status});
   }
   await backend.resetSimulation();
   await report('A6_REPLAY_RESET_ACK',{epoch:2,nativeReply:true});
