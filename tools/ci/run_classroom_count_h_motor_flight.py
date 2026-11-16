@@ -97,8 +97,6 @@ def run(variant=1,mode="reference"):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
     if mode not in ("reference","sensor","blockly","replay"):
         raise ValueError("invalid bounded A6 pilot mode")
-    if mode=="replay" and variant!=1:
-        raise ValueError("same-world replay is bounded to the n=1 scene")
     global ARTIFACT
     ARTIFACT=(world.ARTIFACT/f"n{variant}" if mode=="reference"
               else world.ARTIFACT/f"{mode}-n{variant}")
@@ -239,10 +237,12 @@ def run(variant=1,mode="reference"):
         # No second Webots process is launched: this one log contains the
         # three broker epochs and two genuine motorized landing outcomes.
         epochs=re.findall(
-            r"WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=(\d+) variant=1",txt)
+            rf"WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=(\d+) variant={variant}\b",txt)
         positives=re.findall(
-            r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
-            r"crossed=1 screen=1 observations=(\d+) ",txt)
+            rf"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} "
+            rf"crossed={variant} screen=1 observations=(\d+) "
+            r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+)",txt)
+        pad_y={1:0.0,2:0.55,3:-0.55}[variant]
         completed=re.findall(
             r"WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=(\d+) "
             r"oracle=progression-count-h-v1 ",txt)
@@ -257,7 +257,11 @@ def run(variant=1,mode="reference"):
         pass_replay=(
             filtered==expected and events.count("A6_ERROR")==0 and
             epochs==["2","3"] and completed==["1","2","3"] and
-            len(positives)==2 and all(int(x)>100 for x in positives) and
+            len(positives)==2 and
+            all(int(obs)>100 and abs(float(x)-1.480)<=.060 and
+                abs(float(y)-pad_y)<=.060 and 0.0<=float(z)<=.020
+                for obs,x,y,z in positives) and
+            txt.count(f"WEBEEBLOCKS_A6_MOTOR_NATIVE_FLOOR_CONTACT n={variant} ")==2 and
             txt.count("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved")==2 and
             txt.count("WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1")==1 and
             txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ")==2 and
@@ -268,6 +272,7 @@ def run(variant=1,mode="reference"):
         evidence={
             "schema":"webeeblocks-a6-same-world-reset-replay-native-v1",
             "pass":bool(pass_replay),"head_mode":"draft-only",
+            "variant":variant,"target_pad_y":pad_y,
             "real_same_webots_incarnation":True,
             "first_native_failure_before_takeoff":True,
             "exact_broker_epoch_acks":epochs,
@@ -284,7 +289,7 @@ def run(variant=1,mode="reference"):
                   file=sys.stderr)
             print(txt[-13000:],file=sys.stderr)
             return 1
-        print("A6_SAME_WORLD_NATIVE_REPLAY_PASS epoch_1=negative "
+        print(f"A6_SAME_WORLD_NATIVE_REPLAY_PASS n={variant} epoch_1=negative "
               "epoch_2=motor_achieved epoch_3=motor_achieved "
               "single_webots_instance=true pupil_wbb=UNPROVEN",flush=True)
         return 0
