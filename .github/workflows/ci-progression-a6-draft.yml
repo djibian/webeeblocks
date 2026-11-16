@@ -16,6 +16,10 @@ on:
       - 'tools/ci/test_progression_count_h_public_profile.js'
       - 'plugins/robot_windows/blockly/webeeblocks/activities.js'
       - 'plugins/robot_windows/blockly_v2/project_ui.js'
+      - 'plugins/robot_windows/blockly_v2/main.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'plugins/robot_windows/blockly_count_h/**'
+      - 'tools/ci/test_runtime_v2_project_files.js'
       - 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'
       - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
       - 'controllers/crazyflie_classroom_v2/count_h_scene_gate.h'
@@ -72,6 +76,10 @@ jobs:
           # The real ProjectFiles loader below requires the installed Blockly 13.
           # Prepare its dependencies BEFORE both public-profile and private tests.
           bash ./tools/prepare_runtime_v2.sh
+          # A previously duplicated shared project-files test parsed as invalid JS
+          # while the Draft gate stayed green. Run its real test here, fail closed.
+          node --check tools/ci/test_runtime_v2_project_files.js
+          node tools/ci/test_runtime_v2_project_files.js
           node tools/ci/test_progression_count_h_public_profile.js
           node tools/ci/test_progression_decision_h_variant_ui.js
       - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
