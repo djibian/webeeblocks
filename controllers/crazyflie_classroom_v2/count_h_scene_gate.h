@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 namespace webeeblocks_a6_gate {
 constexpr const char *kObserverDef="WEBEEBLOCKS_A6_MOTOR_OBSERVER";
@@ -101,8 +102,9 @@ inline bool currentObserver(int variant) {
     !std::strcmp(broker,canonical);
 }
 inline bool valid(int variant) {
-  if(variant<1||variant>3||
-     std::strcmp(wb_robot_get_name(),"Crazyflie WebeeBlocks"))return false;
+  const char *craftName=wb_robot_get_name();
+  if(variant<1||variant>3||!craftName||
+     std::strcmp(craftName,"Crazyflie WebeeBlocks"))return false;
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   const char *type=world?wb_supervisor_node_get_type_name(world):nullptr;
   if(!type||std::strcmp(type,"WorldInfo"))return false;
