@@ -68,12 +68,15 @@ jobs:
           python3 -m unittest -v tools.ci.test_runtime_v2_classroom_selector
       - name: Confirm A6 profile stays hidden and variant selector preserves the learner project
         run: |
+          set -euo pipefail
+          # The real ProjectFiles loader below requires the installed Blockly 13.
+          # Prepare its dependencies BEFORE both public-profile and private tests.
+          bash ./tools/prepare_runtime_v2.sh
           node tools/ci/test_progression_count_h_public_profile.js
           node tools/ci/test_progression_decision_h_variant_ui.js
       - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
         run: |
           set -euo pipefail
-          bash ./tools/prepare_runtime_v2.sh
           node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb
           # This is only a negative/positive MOCK test of the real sensor-only
           # JS module. True R2025a PID/motor, oracle and same-pupil-WBB
