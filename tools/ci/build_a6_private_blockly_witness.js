@@ -150,6 +150,23 @@ function build(){
   }
   try{
     sequence(expected.program);
+    // Blockly 13 creates a default orphan "item" while constructing the
+    // first variable block. Never leak that unused variable into the saved
+    // classroom project: only the two declared states are legitimate.
+    const variables=workspace.getVariableMap();
+    for(const candidate of variables.getAllVariables()){
+      if(candidate.name!=='item')continue;
+      const id=candidate.getId();
+      const referenced=workspace.getAllBlocks(false).some(b=>{
+        const field=b.getField('VAR');
+        return field&&field.getValue()===id;
+      });
+      assert.equal(referenced,false,'default item variable unexpectedly used');
+      variables.deleteVariableById(id);
+    }
+    assert.deepStrictEqual(
+      variables.getAllVariables().map(x=>x.name).sort(),
+      ['count','under'],'compact Blockly must serialize exactly two variables');
     Contract.preflightWorkspace(profile,workspace);
     const ast=Semantic.compileWorkspace(workspace);
     Contract.preflightAst(profile,ast);
