@@ -20,11 +20,19 @@ DRIVER = r"""
 #include <math.h>
 #include <stdio.h>
 
+static wb_seq_verdict step_contact(wb_seq_mission *m, double time,
+                                   double x, double y, double z,
+                                   double vx, double vy, double vz,
+                                   int completed, int floor_contact) {
+  wb_seq_sample s = {time, x, y, z, vx, vy, vz, completed, floor_contact};
+  return wb_seq_sample_mission(m, &s);
+}
+/* Test fixtures below provide real contact for normal resting positions;
+ * dedicated negatives keep contact absent even at low altitude. */
 static wb_seq_verdict step(wb_seq_mission *m, double time,
                            double x, double y, double z,
                            double vx, double vy, double vz, int completed) {
-  wb_seq_sample s = {time, x, y, z, vx, vy, vz, completed};
-  return wb_seq_sample_mission(m, &s);
+  return step_contact(m,time,x,y,z,vx,vy,vz,completed,z<=.035?1:0);
 }
 
 static void airborne(wb_seq_mission *m, unsigned long long attempt) {
@@ -37,9 +45,62 @@ int main(void) {
   airborne(&m, 1);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 3, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
-  assert(step(&m, 3.24, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 3.26, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,3.0+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,3.256,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
+
+  /* A complete flight at low altitude without a ground contact is not
+   * a landing, even if stationary for longer than the dwell. */
+  wb_seq_reset(&m,25,.035);
+  assert(step(&m,1,0,0,.45,0,0,0,0)==WB_SEQ_WAIT);
+  for (int tick=0;tick<=8;++tick)
+    assert(step_contact(&m,2+.032*tick,.35,.28,.060,0,0,0,
+                        tick==0,0)==WB_SEQ_WAIT);
+  assert(!m.stable_since_valid);
+  assert(step_contact(&m,3.504,.35,.28,.060,0,0,0,0,0)==WB_SEQ_NOT_ACHIEVED);
+  /* Even a 2 cm hover cannot pass if the floor contact is absent. */
+  wb_seq_reset(&m,26,0);
+  assert(step(&m,1,0,0,.50,0,0,0,0)==WB_SEQ_WAIT);
+  for (int tick=0;tick<=8;++tick)
+    assert(step_contact(&m,2+.032*tick,.35,.28,.020,0,0,0,
+                        tick==0,0)==WB_SEQ_WAIT);
+  /* A single contact sample is insufficient; interrupted contact restarts
+   * the 250-ms dwell, while sustained contact permits a real landing. */
+  assert(step_contact(&m,2.288,.35,.28,.020,0,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step_contact(&m,2.320,.35,.28,.020,0,0,0,0,0)==WB_SEQ_WAIT);
+  for (int tick=0;tick<=8;++tick) {
+    const wb_seq_verdict v = step_contact(&m,2.352+.032*tick,
+                                         .35,.28,.020,0,0,0,0,1);
+    assert(v==(tick==8?WB_SEQ_ACHIEVED:WB_SEQ_WAIT));
+  }
+  /* Invalid or missing native contact evidence fails closed. */
+  wb_seq_reset(&m,27,0);
+  assert(step(&m,1,0,0,.50,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step_contact(&m,2,.35,.28,.020,0,0,0,1,-1)==WB_SEQ_NOT_ACHIEVED);
+
+  /* Even two true floor contacts separated by 256 ms cannot prove
+   * continuous stability. A missing 32-ms physics frame resets the dwell. */
+  airborne(&m,28);
+  assert(step(&m,2.000,.35,.28,.02,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step(&m,2.256,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-2.256)<1e-8);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,2.256+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.512,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
+
+  airborne(&m,29);
+  assert(step(&m,2.000,.35,.28,.02,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step(&m,2.032,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.096,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(m.stable_since_valid && fabs(m.stable_since-2.096)<1e-8);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,2.096+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.352,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
+
+  airborne(&m,30);
+  assert(step(&m,2.000,.35,.28,.02,0,0,0,1)==WB_SEQ_WAIT);
+  assert(step(&m,1.999,.35,.28,.02,0,0,0,0)==WB_SEQ_NOT_ACHIEVED);
 
   /* A new native attempt never inherits the previous victory. */
   wb_seq_reset(&m, 2, 0);
@@ -59,7 +120,9 @@ int main(void) {
   /* Nonzero X and Y displacement well inside full-pad margins still pass. */
   airborne(&m, 5);
   assert(step(&m, 2, .39, .34, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
-  assert(step(&m, 2.26, .39, .34, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,2.0+.032*tick,.39,.34,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.256,.39,.34,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* Brief stillness cannot pass: any movement must restart the dwell. */
   airborne(&m, 11);
@@ -67,16 +130,18 @@ int main(void) {
   assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.23, .35, .28, .02, .3, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.32, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.56, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.58, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,2.32+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.576,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* A brief on-pad sample followed by a pad exit is not sustained landing. */
   airborne(&m, 12);
   assert(step(&m, 2, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
   assert(step(&m, 2.15, .43, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
   assert(step(&m, 2.20, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.43, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_WAIT);
-  assert(step(&m, 2.46, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_ACHIEVED);
+  for (int tick=1;tick<=7;++tick)
+    assert(step(&m,2.20+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
+  assert(step(&m,2.456,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
 
   /* Adversarial 8-ms boundary: landing dwell completes 4 ms too late. */
   airborne(&m, 24);
@@ -109,12 +174,12 @@ int main(void) {
   /* An unknown postcompletion physical state is never a success. */
   airborne(&m, 8);
   assert(step(&m, 2, .35, .28, .4, 0, 0, 0, 1) == WB_SEQ_WAIT);
-  wb_seq_sample bad = {3, NAN, .28, .02, 0, 0, 0, 0};
+  wb_seq_sample bad = {3, NAN, .28, .02, 0, 0, 0, 0, 0};
   assert(wb_seq_sample_mission(&m, &bad) == WB_SEQ_NOT_ACHIEVED);
 
   wb_seq_reset(&m, 9, 0);
   assert(wb_seq_sample_mission(&m, NULL) == WB_SEQ_WAIT);
-  wb_seq_sample completed_bad = {2, NAN, .28, .02, 0, 0, 0, 1};
+  wb_seq_sample completed_bad = {2, NAN, .28, .02, 0, 0, 0, 1, 0};
   assert(wb_seq_sample_mission(&m, &completed_bad) == WB_SEQ_NOT_ACHIEVED);
   assert(wb_seq_sample_mission(NULL, &bad) == WB_SEQ_NOT_ACHIEVED);
 
@@ -153,6 +218,12 @@ class NativeSequence3D(unittest.TestCase):
                          (NATIVE / "progression_sequence_3d.py").read_text(encoding="utf8"))
         self.assertIn("wb_supervisor_node_get_position(craft)", source)
         self.assertIn("wb_supervisor_node_get_velocity(craft)", source)
+        self.assertIn("wb_supervisor_node_enable_contact_points_tracking", source)
+        self.assertIn("wb_supervisor_node_get_contact_points", source)
+        self.assertIn("if (step != 32 || !verify_scene())", source)
+        self.assertIn("#define WB_SEQ_MAX_LAND_SAMPLE_GAP 0.048", CORE.read_text(encoding="utf8"))
+        self.assertIn("sample.floor_contact = observe_floor_contact(craft)", source)
+        self.assertIn("s->floor_contact == 1", CORE.read_text(encoding="utf8"))
         self.assertIn("wb_supervisor_field_set_sf_string(channel, result)", source)
         for forbidden in ("wb_motor_set_velocity", "wb_motor_set_position",
                           "wb_supervisor_node_set_velocity", "wb_supervisor_node_set_position",

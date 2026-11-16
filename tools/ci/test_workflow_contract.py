@@ -22,6 +22,8 @@ EXPECTED = {
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Draft-only A6 C/source witness: no flight/native physics, gate or merge authority.
     "ci-progression-a6-draft.yml": {"a6-core-draft-only"},
+    # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
+    "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
     "ci-runtime.yml": {
@@ -30,7 +32,7 @@ EXPECTED = {
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
-        "grand-prix-v2-native-matrix",
+        "grand-prix-v2-native-matrix", "progression-mini-gp-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -140,6 +142,25 @@ class WorkflowTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, workflow)
 
+    def test_a7_draft_native_geometry_workflow_is_non_decision(self):
+        source = (WORKFLOWS / "ci-progression-a7-draft.yml").read_text(encoding="utf-8")
+        self.assertEqual(job_ids(source), {"a7-draft-source-only"})
+        self.assertIn("  pull_request:\n", source)
+        self.assertIn("  types: [opened, synchronize, reopened]\n", source)
+        self.assertNotIn("\n  push:", source)
+        self.assertIn("  contents: read\n", source)
+        self.assertIn("if: github.event.pull_request.draft == true", source)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_oracle", source)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_scene", source)
+        self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", source)
+        self.assertIn("if-no-files-found: warn", source)
+        self.assertNotIn("continue-on-error:", source)
+        self.assertNotIn("name: CI Gate\n", source)
+        self.assertNotIn("pull-requests: write", source)
+        self.assertNotIn("issues: write", source)
+
     def test_activity6_draft_witness_is_scoped_and_non_decision(self):
         workflow = (WORKFLOWS / "ci-progression-a6-draft.yml").read_text(
             encoding="utf-8")
@@ -245,6 +266,27 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('timeout -k 5s 60s xvfb-run', detour)
         self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
         self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
+
+    def test_activity7_public_native_ready_is_required_and_not_skipped(self):
+        runtime=(WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a7=runtime.split("\n  progression-mini-gp-native:\n",1)[1].split(
+            "\n  runtime-v2-core:\n",1)[0]
+        self.assertIn("name: progression-mini-gp-native",a7)
+        self.assertIn("timeout-minutes: 28",a7)
+        self.assertIn("ref: ${{ inputs.target_sha || github.sha }}",a7)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_oracle",a7)
+        self.assertIn("tools.ci.test_progression_mini_grand_prix_pupil",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_low_contact.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_foreign_scene.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_scene_selector.py",a7)
+        self.assertIn("python3 tools/ci/run_classroom_mini_gp_pupil.py",a7)
+        self.assertIn("cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",a7)
+        self.assertIn("if-no-files-found: error",a7)
+        for bypass in ("continue-on-error", "if: false",
+                       "if: github.event.pull_request.draft == true",
+                       "|| true", "allow-failure"):
+            self.assertNotIn(bypass,a7)
+        self.assertNotIn("name: CI Gate",a7)
 
     def test_job_sets(self):
         for name, expected in EXPECTED.items():

@@ -12,12 +12,13 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 13, 'retain historical A4 while activating native A4');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 14, 'retain historical A4/A7 while activating native profiles');
 for (const activity of Activities.DOCUMENT.activities) {
   const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
     activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
     activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' :
-    activity.id === 'progression-decision-h-v1' ? 'decision-h-a-v1' : 'legacy-v1';
+    activity.id === 'progression-decision-h-v1' ? 'decision-h-a-v1' :
+    activity.id === 'progression-mini-grand-prix-v1' ? 'mini-grand-prix-l-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
@@ -30,7 +31,7 @@ for (const activity of Activities.DOCUMENT.activities) {
     const changed = JSON.parse(JSON.stringify(activity));
     changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
-      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1, orientation-v1, decision-h-a-v1 or decision-h-b-v1/, 'ambiguous scene accepted for ' + activity.id);
+      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1, orientation-v1, decision-h-a-v1, decision-h-b-v1, mini-grand-prix-l-v1 or mini-grand-prix-r-v1/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
 
@@ -119,6 +120,34 @@ assert(variantUi.includes("operation('variant'") &&
   'A4 scene switching must be session-only, guarded, and use native scene ACK');
 assert(!variantUi.includes("next.id ="),'switching scene must not mutate .wbb activity ID');
 
+
+const pMini = Profiles.resolveById(Activities.DOCUMENT, 'progression-mini-grand-prix-v1', Activities.BLOCK_CATALOG);
+const oldA7 = Profiles.resolveById(Activities.DOCUMENT, 'progression-memory-v1', Activities.BLOCK_CATALOG);
+assert.strictEqual(oldA7.starterVisible,false);
+assert.strictEqual(oldA7.runtime.scene,'legacy-v1');
+assert.strictEqual(pMini.brief.title, '7 — Mini Grand Prix');
+assert.strictEqual(pMini.runtime.scene, 'mini-grand-prix-l-v1');
+assert.strictEqual(pMini.evaluation.oracle, 'progression-mini-grand-prix-v1');
+assert(pMini.toolbox.includes('variables_set') && pMini.toolbox.includes('controls_repeat_ext'),
+  'activity 7 must preserve generic learned memory and loops');
+const pMiniR=JSON.parse(JSON.stringify(pMini));
+pMiniR.runtime.scene='mini-grand-prix-r-v1';
+assert(Profiles.validateProfile(pMiniR,Activities.BLOCK_CATALOG));
+const miniWs=new Blockly.Workspace();
+assert.strictEqual(ProjectFiles.encodeProject(pMini,miniWs,decisionOptions),
+  ProjectFiles.encodeProject(pMiniR,miniWs,decisionOptions),
+  'the two A7 worlds must preserve identical .wbb project bytes');
+miniWs.dispose();
+const miniStarter=JSON.parse(fs.readFileSync(path.join(ROOT,'activities/progression/07-mini-grand-prix.wbb'),'utf8'));
+assert.deepStrictEqual(miniStarter,JSON.parse(ProjectFiles.createStarterText(pMini.id)));
+assert.deepStrictEqual(miniStarter.workspace.blocks.blocks,[]);
+const historicalA7=JSON.parse(fs.readFileSync(path.join(ROOT,'activities/historique/07-memory.wbb'),'utf8'));
+assert.deepStrictEqual(historicalA7,JSON.parse(ProjectFiles.createStarterText(oldA7.id)));
+const miniBlind={version:1,semantics:'webeeblocks-ast-v1',program:[
+  {kind:'takeoff',height_m:0.5},{kind:'move',direction:'forward',distance_m:0.2},{kind:'land'}]};
+assert(ActivityContract.preflightAst(pMini,miniBlind),
+  'activity 7 accepts alternate AST structures; only native outcome judges success');
+
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
 const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
@@ -200,6 +229,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-reactive-v1' &&
   profile.id !== 'progression-combined-decisions-v1' &&
   profile.id !== 'progression-memory-v1' &&
+  profile.id !== 'progression-mini-grand-prix-v1' &&
   profile.id !== 'progression-autonomous-strategy-v1');
 assert.strictEqual(remainingProgression.length, 0);
 

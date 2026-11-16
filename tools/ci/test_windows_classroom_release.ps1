@@ -118,6 +118,11 @@ $required = @(
   'worlds\scenes\decision-h-a-v1.wbo',
   'worlds\scenes\decision-h-b-v1.wbo',
   'controllers\progression_decision_h_v1\progression_decision_h_v1.exe',
+  'controllers\progression_mini_grand_prix_v1\progression_mini_grand_prix_v1.exe',
+  'worlds\scenes\mini-grand-prix-l-v1.wbo',
+  'worlds\scenes\mini-grand-prix-r-v1.wbo',
+  'Activites\07-mini-grand-prix.wbb',
+  'Activites\Historique\07-memory.wbb',
   'worlds\scenes\legacy-scene-v1.wbo',
   'worlds\scenes\legacy-evaluators-v1.wbo'
 )
@@ -144,6 +149,13 @@ $decisionStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\04-o
 Assert-Release ($decisionStarter.activity.id -eq 'progression-decision-h-v1') 'Active Activity 4 unexpectedly maps to legacy profile.'
 Assert-Release ($decisionStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 4 starter contains an algorithm solution.'
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'Activites\04-simple-decision.wbb') -PathType Leaf)) 'Legacy Activity 4 must not be an active template.'
+$historical7Source = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\historique\07-memory.wbb'
+$historical7Packaged = Join-Path $testRoot 'Activites\Historique\07-memory.wbb'
+Assert-Release ((Get-FileHash -LiteralPath $historical7Source -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $historical7Packaged -Algorithm SHA256).Hash) 'Packaged archived Activity 7 project was modified.'
+$miniStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\07-mini-grand-prix.wbb') -Raw | ConvertFrom-Json
+Assert-Release ($miniStarter.activity.id -eq 'progression-mini-grand-prix-v1') 'Active Activity 7 unexpectedly maps to historical memory.'
+Assert-Release ($miniStarter.workspace.blocks.blocks.Count -eq 0) 'Activity 7 public starter contains an algorithm solution.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'Activites\07-memory.wbb') -PathType Leaf)) 'Legacy Activity 7 must not be an active template.'
 $orientationStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\03-orientation.wbb') -Raw | ConvertFrom-Json
 Assert-Release ($orientationStarter.activity.id -eq 'progression-orientation-3d-v1') 'Active Activity 3 still maps to the legacy profile.'
 Assert-Release ($orientationStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 3 starter contains an algorithm solution.'
@@ -198,6 +210,22 @@ foreach ($variant in @('a','b')) {
   Assert-Release ((Get-FileHash -LiteralPath $decisionSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $decisionScenePackaged -Algorithm SHA256).Hash) "Packaged Activity 4 $variant scene differs from native-tested source."
   $decisionSceneText = Get-Content -LiteralPath $decisionScenePackaged -Raw
   Assert-Release ($decisionSceneText.Contains('controller "progression_decision_h_v1"')) "Activity 4 $variant scene missing native C oracle."
+}
+$miniObserverRelative = 'controllers\progression_mini_grand_prix_v1\progression_mini_grand_prix_v1.exe'
+$miniObserverSource = Join-Path $releaseRepo $miniObserverRelative
+$miniObserverPackaged = Join-Path $testRoot $miniObserverRelative
+Assert-Release ((Get-FileHash -LiteralPath $miniObserverSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $miniObserverPackaged -Algorithm SHA256).Hash) 'Packaged Activity 7 native supervisor differs from the freshly built R2025a binary.'
+$miniObserverBytes = [System.IO.File]::ReadAllBytes($miniObserverPackaged)
+Assert-Release ($miniObserverBytes.Length -gt 2 -and $miniObserverBytes[0] -eq 0x4d -and $miniObserverBytes[1] -eq 0x5a) 'Activity 7 native supervisor is not a Windows PE executable.'
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'controllers\progression_mini_grand_prix_v1\progression_mini_grand_prix_v1.py') -PathType Leaf)) 'Windows Activity 7 cannot depend on Python.'
+foreach ($variant in @('l','r')) {
+  $miniSceneFile = "mini-grand-prix-$variant-v1.wbo"
+  $miniSceneSource = Join-Path $releaseRepo "worlds\scenes\$miniSceneFile"
+  $miniScenePackaged = Join-Path $testRoot "worlds\scenes\$miniSceneFile"
+  Assert-Release ((Get-FileHash -LiteralPath $miniSceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $miniScenePackaged -Algorithm SHA256).Hash) "Activity 7 $variant scene differs from its native-tested source."
+  $miniSceneText = Get-Content -LiteralPath $miniScenePackaged -Raw
+  Assert-Release ($miniSceneText.Contains('controller "progression_mini_grand_prix_v1"')) "Activity 7 $variant scene missing its native evaluator."
+  Assert-Release ($miniSceneText.Contains('CLOSED_PANEL Solid')) "Activity 7 $variant scene has no collision-enabled final H."
 }
 $schoolSource = Join-Path $releaseRepo 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'
 $schoolPackaged = Join-Path $testRoot 'controllers\crazyflie_classroom_v2\crazyflie_classroom_v2.exe'

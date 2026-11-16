@@ -25,7 +25,18 @@ assert.ok(p7.runtime.allowedStatementKinds.includes('set_variable'));
 assert.deepStrictEqual(p7.runtime.rangeDirections, ['front','left','right']);
 assert.deepStrictEqual(p7.runtime.moveDirections, ['forward','left','right']);
 
-const project = JSON.parse(fs.readFileSync(path.join(ROOT, 'activities/progression/07-memory.wbb'), 'utf8'));
+// Historical memory mission is retained, but must no longer occupy active slot 7.
+assert.strictEqual(fs.existsSync(path.join(ROOT, 'activities/progression/07-memory.wbb')), false,
+  'archived memory mission cannot remain a duplicate active starter');
+const project = JSON.parse(fs.readFileSync(path.join(ROOT, 'activities/historique/07-memory.wbb'), 'utf8'));
+const pupilStarter = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'activities/progression/07-mini-grand-prix.wbb'), 'utf8'));
+assert.strictEqual(pupilStarter.activity.id, 'progression-mini-grand-prix-v1');
+assert.deepStrictEqual(pupilStarter.workspace.blocks.blocks, [],
+  'new Mini Grand Prix must start with an empty Blockly workspace');
+assert.strictEqual(Activities.DOCUMENT.activities.filter(p =>
+  p.id.startsWith('progression-') && p.starterVisible !== false).length, 8,
+  'there must be exactly eight visible pupil activities');
 assert.strictEqual(project.activity.id, 'progression-memory-v1');
 assert.deepStrictEqual(project.workspace.blocks.blocks, []);
 
