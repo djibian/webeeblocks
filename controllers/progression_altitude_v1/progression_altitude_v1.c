@@ -117,22 +117,31 @@ static int parse_completion(const char *data, unsigned long long attempt) {
   return data && strcmp(data, canonical) == 0;
 }
 
-static int native_contact_observation(WbNodeRef craft) {
+static int native_contact_observation(WbNodeRef craft, int *floor_contact) {
+  if (!floor_contact) return -1;
+  *floor_contact = -1;
   int count = -1;
   const WbContactPoint *points =
     wb_supervisor_node_get_contact_points(craft, true, &count);
   if (count < 0 || (count > 0 && !points))
     return -1;
+  *floor_contact = 0;
   for (int i = 0; i < count; ++i) {
     const int hit = wb_alt_obstacle_point(points[i].point);
     if (hit != 0)
-      return hit;
+      return hit; /* Obstacle collision or malformed observation wins. */
+    /* This classroom scene has only a z=0 floor outside the four
+     * independently attested obstacle colliders. Height alone never
+     * proves landing: use a real Webots contact sample. */
+    if (fabs(points[i].point[2]) <= 0.030)
+      *floor_contact = 1;
   }
   return 0;
 }
 
 static void publish(WbFieldRef channel, unsigned long long attempt,
-                    wb_alt_verdict result, const wb_alt_mission *mission) {
+                    wb_alt_verdict result, const wb_alt_mission *mission,
+                    int floor_contact) {
   const char *status = result == WB_ALT_ACHIEVED ? "achieved" : "not-achieved";
   char marker[192];
   snprintf(marker, sizeof(marker),
@@ -140,18 +149,17 @@ static void publish(WbFieldRef channel, unsigned long long attempt,
            attempt, WB_ALT_ORACLE, status);
   wb_supervisor_field_set_sf_string(channel, marker);
   printf("WEBEEBLOCKS_ALTITUDE_RESULT attempt=%llu status=%s "
-         "airborne=%d crossed=%d contact=%d completion=%d\n",
+         "airborne=%d crossed=%d contact=%d completion=%d floor_contact=%d\n",
          attempt, status, mission->airborne, mission->crossed_barrier,
-         mission->collision_seen, mission->completion_seen);
+         mission->collision_seen, mission->completion_seen, floor_contact);
   fflush(stdout);
 }
 
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  /* The 250-ms grounded dwell requires consecutive observations <=48 ms.
-   * The real classroom WorldInfo is pinned to 32 ms; 64 ms cannot qualify.
-   * Refuse before READY, never relax the evidence interval. */
+  /* Canonical classroom 32-ms timestep is required for the 48-ms
+   * maximum continuous landing-observation gap. */
   if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_ALTITUDE_FATAL invalid scene identity or geometry\n");
     wb_robot_cleanup();
@@ -189,7 +197,7 @@ int main(void) {
     const double *velocity = wb_supervisor_node_get_velocity(craft);
     wb_alt_sample sample = {0};
     sample.time = wb_robot_get_time();
-    sample.obstacle_contact = native_contact_observation(craft);
+    sample.obstacle_contact = native_contact_observation(craft, &sample.floor_contact);
     sample.completed = parse_completion(data, mission.attempt);
     if (!position || !velocity) {
       sample.x = NAN;
@@ -199,7 +207,7 @@ int main(void) {
     }
     wb_alt_verdict result = wb_alt_sample_mission(&mission, &sample);
     if (result != WB_ALT_WAIT)
-      publish(channel, mission.attempt, result, &mission);
+      publish(channel, mission.attempt, result, &mission, sample.floor_contact);
   }
   wb_robot_cleanup();
   return 0;

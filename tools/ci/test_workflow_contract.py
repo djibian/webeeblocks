@@ -18,11 +18,13 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    # Isolated native Floor-contact A2 diagnostic, Draft-only and never CI Gate.
+    "ci-progression-a2-draft.yml": {"a2-grounded-flight-draft"},
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
-    # Draft-only A5 alias motor/PID physics experiment, never a release gate.
+    # Draft-only A5 native motor feasibility; not a product/pupil PASS.
     "ci-progression-a5-alias-motor-draft.yml": {"a5-alias-motor-draft-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
@@ -80,6 +82,23 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_activity2_draft_floor_contact_workflow_is_non_decision(self):
+        path = WORKFLOWS / "ci-progression-a2-draft.yml"
+        source = path.read_text(encoding="utf-8")
+        self.assertEqual(job_ids(source), {"a2-grounded-flight-draft"})
+        self.assertIn("  pull_request:\n", source)
+        self.assertIn("if: github.event.pull_request.draft == true", source)
+        self.assertIn("permissions:\n  contents: read\n", source)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", source)
+        self.assertIn("tools.ci.test_progression_altitude_native", source)
+        self.assertIn("python3 tools/ci/run_classroom_altitude_pupil.py", source)
+        self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", source)
+        self.assertIn("if-no-files-found: warn", source)
+        for forbidden in ("name: CI Gate", "  push:\n", "  schedule:\n",
+                          "continue-on-error", "permissions: write",
+                          "pull-requests: write", "actions: write", "|| true"):
+            self.assertNotIn(forbidden, source)
 
     def test_windows_variable_grand_prix_workflow_is_non_decision_and_pinned(self):
         workflow = (WORKFLOWS / "grand-prix-variable-windows.yml").read_text(encoding="utf-8")

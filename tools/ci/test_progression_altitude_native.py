@@ -27,15 +27,24 @@ DRIVER = r"""
 #include <stdio.h>
 #include <string.h>
 
-static wb_alt_verdict step(wb_alt_mission *m, double t,
-                           double x, double y, double z,
-                           double vx, int contact, int complete) {
+static wb_alt_verdict step_with_floor(wb_alt_mission *m, double t,
+                                      double x, double y, double z,
+                                      double vx, int obstacle, int complete,
+                                      int floor_contact) {
   const wb_alt_sample sample = {
     .time=t, .x=x, .y=y, .z=z,
     .vx=vx, .vy=0.0, .vz=0.0,
-    .obstacle_contact=contact, .completed=complete
+    .obstacle_contact=obstacle, .floor_contact=floor_contact, .completed=complete
   };
   return wb_alt_sample_mission(m, &sample);
+}
+/* Existing route witnesses explicitly include a grounded final posture.
+ * New counter-examples below independently override that evidence. */
+static wb_alt_verdict step(wb_alt_mission *m, double t,
+                           double x, double y, double z,
+                           double vx, int contact, int complete) {
+  return step_with_floor(m, t, x, y, z, vx, contact, complete,
+                         z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z ? 1 : 0);
 }
 static void normal_takeoff(wb_alt_mission *m, unsigned long long attempt) {
   wb_alt_reset(m, attempt, 0.0);
@@ -246,6 +255,33 @@ int main(void) {
     finish_stably(&m, 6, 1.35, 0, .015);
   }
 
+  /* Adversarial true-geometry landing: .015m may still be unsupported.
+   * Low stationary hovering must not become a floor contact by inference. */
+  normal_takeoff(&m, 300);
+  cross_higher(&m);
+  for (int tick=0; tick<=8; ++tick)
+    assert(step_with_floor(&m, 6.0+.032*tick, 1.35,0,.015,0,0,
+                           tick==0,0)==WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  assert(step_with_floor(&m,7.500,1.35,0,.015,0,0,0,0)==WB_ALT_NOT_ACHIEVED);
+
+  /* Genuine contact starts dwell, then a missing contact restarts it.
+   * Only a complete uninterrupted 32-ms sequence passes. */
+  normal_takeoff(&m, 301);
+  cross_higher(&m);
+  assert(step_with_floor(&m,6.000,1.35,0,.015,0,0,1,1)==WB_ALT_WAIT);
+  assert(step_with_floor(&m,6.032,1.35,0,.015,0,0,0,0)==WB_ALT_WAIT);
+  assert(!m.stable_since_valid);
+  for (int tick=0; tick<=8; ++tick)
+    assert(step_with_floor(&m,6.064+.032*tick,1.35,0,.015,0,0,0,1)
+           ==(tick==8?WB_ALT_ACHIEVED:WB_ALT_WAIT));
+
+  /* Missing/invalid native floor contact fails closed. */
+  normal_takeoff(&m, 302);
+  cross_higher(&m);
+  assert(step_with_floor(&m,6.000,1.35,0,.015,0,0,1,-1)
+         ==WB_ALT_NOT_ACHIEVED);
+
   puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
   return 0;
 }
@@ -290,6 +326,8 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn("C_SOURCES = progression_altitude_v1.c", mk)
         self.assertNotIn("crazyflie_runtime_v2", mk)
         self.assertIn("wb_supervisor_node_get_contact_points", src)
+        self.assertIn("native_contact_observation(craft, &sample.floor_contact)", src)
+        self.assertIn("s->floor_contact == 1", core)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking", src)
         self.assertIn("wb_alt_sample_mission", src)
         self.assertIn('controller "progression_altitude_v1"', scene)
