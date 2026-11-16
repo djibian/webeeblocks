@@ -35,11 +35,16 @@
   function isMiniGrandPrixPupilProfile(profile) {
     return !!profile && profile.id === 'progression-mini-grand-prix-v1';
   }
+  function isCountHPupilProfile(profile) {
+    return !!profile && profile.id === 'progression-count-h-v1';
+  }
   function switchableScenes(profile) {
     if (isDecisionPupilProfile(profile))
       return ['decision-h-a-v1','decision-h-b-v1'];
     if (isMiniGrandPrixPupilProfile(profile))
       return ['mini-grand-prix-l-v1','mini-grand-prix-r-v1'];
+    if (isCountHPupilProfile(profile))
+      return ['count-h-1-v1','count-h-2-v1','count-h-3-v1'];
     return null;
   }
 
@@ -80,9 +85,12 @@
         if (isDecisionPupilProfile(runtimeProfile))
           variant.textContent = runtimeProfile.runtime.scene === 'decision-h-b-v1' ?
             'Parcours B — changer' : 'Parcours A — changer';
-        else
+        else if (isMiniGrandPrixPupilProfile(runtimeProfile))
           variant.textContent = runtimeProfile.runtime.scene === 'mini-grand-prix-r-v1' ?
             'Parcours droite — changer' : 'Parcours gauche — changer';
+        else if (isCountHPupilProfile(runtimeProfile))
+          variant.textContent = 'Parcours ' +
+            (pair.indexOf(runtimeProfile.runtime.scene) + 1) + ' H — changer';
       }
     }
   }
@@ -317,17 +325,18 @@
             runtimeBackend.capabilities.simulationScenes !== true)
           throw new Error('variante de parcours indisponible');
         var next = JSON.parse(JSON.stringify(runtimeProfile));
-        next.runtime.scene = isDecisionPupilProfile(runtimeProfile) ?
-          (runtimeProfile.runtime.scene === 'decision-h-a-v1' ?
-            'decision-h-b-v1' : 'decision-h-a-v1') :
-          (runtimeProfile.runtime.scene === 'mini-grand-prix-l-v1' ?
-            'mini-grand-prix-r-v1' : 'mini-grand-prix-l-v1');
+        // One safe cycle for both 2-world and 3-world missions. The world
+        // index stays exclusively in the teacher's session-only UI state,
+        // never in the workspace, the pupil's AST or saved .wbb.
+        next.runtime.scene = pair[(pair.indexOf(runtimeProfile.runtime.scene) + 1) % pair.length];
         WebeeBlocksActivityProfiles.validateProfile(next, WebeeBlocksActivities.BLOCK_CATALOG);
         await prepareProfileScene(next);
         runtimeProfile = next; // Scene only; project bytes and workspace remain intact.
         var letter = isDecisionPupilProfile(next) ?
           (next.runtime.scene === 'decision-h-b-v1' ? 'B' : 'A') :
-          (next.runtime.scene === 'mini-grand-prix-r-v1' ? 'droite' : 'gauche');
+          isMiniGrandPrixPupilProfile(next) ?
+            (next.runtime.scene === 'mini-grand-prix-r-v1' ? 'droite' : 'gauche') :
+            (pair.indexOf(next.runtime.scene) + 1) + ' H';
         fileState('Parcours ' + letter + ' — projet .wbb inchangé', false);
         markProjectChanged('Parcours ' + letter + ' prêt');
         return next.runtime.scene;
