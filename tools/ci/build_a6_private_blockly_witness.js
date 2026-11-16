@@ -34,31 +34,29 @@ const iff=(condition,then,otherwise)=>({kind:'if',condition,then,
 const forward=distance_m=>({kind:'move',direction:'forward',distance_m});
 
 function expectedAst(){
-  // The private reference has NO variant, world name, GPS, or pupil AST
-  // inspection. All decisions are from RANGE up/front and stored variables.
+  // Compact private *candidate*, not an approved pupil solution. Exactly two
+  // state variables: confirmed H crossings and currently under a H.
+  // Sensor reads are immediate and fresh: no copied front/up/step variables.
+  // Bounded 80-iteration loop is the native execution limit, not an extra
+  // variable or an AST-based criterion for mission success.
   return {version:1,semantics:'webeeblocks-ast-v1',program:[
-    ...['count','under','front','up','confirmed','steps'].map(x=>set(x,0)),
+    set('count',0),set('under',0),
     {kind:'takeoff',height_m:.4},
     {kind:'set_speed',speed_m_s:.2},
-    set('front',range('front')),
     {kind:'while',mode:'WHILE',max_iterations:80,
-      condition:both(cmp('GT',v('front'),.82),cmp('LT',v('steps'),80)),
+      condition:cmp('GT',range('front'),.82),
       body:[
         forward(.08),
-        set('up',range('up')),
-        set('front',range('front')),
-        iff(cmp('LT',v('up'),.75),[
-          set('confirmed',range('up')),
-          iff(cmp('LT',v('confirmed'),.75),[set('under',1)])
+        iff(both(cmp('LT',range('up'),.75),cmp('LT',range('up'),.75)),[
+          set('under',1)
         ],[
-          iff(both(cmp('GT',v('up'),1.30),cmp('EQ',v('under'),1)),[
+          iff(both(cmp('GT',range('up'),1.30),cmp('EQ',v('under'),1)),[
             set('count',ar('ADD',v('count'),1)),
             set('under',0)
           ])
-        ]),
-        set('steps',ar('ADD',v('steps'),1))
+        ])
       ]},
-    forward(ar('MINUS',v('front'),.36)),
+    forward(ar('MINUS',range('front'),.36)),
     iff(cmp('EQ',v('count'),2),[{kind:'move',direction:'left',distance_m:.55}]),
     iff(cmp('EQ',v('count'),3),[{kind:'move',direction:'right',distance_m:.55}]),
     {kind:'land'}
@@ -183,7 +181,9 @@ function build(){
       Contract.preflightAst(profile,after);
       assert.deepStrictEqual(after,ast);
     }finally{reopened.dispose();}
-    return {ast,profile,project,text};
+    return {ast,profile,project,text,
+      blockCount:workspace.getAllBlocks(false).length,
+      variableCount:workspace.getAllVariables().length};
   }finally{workspace.dispose();}
 }
 
@@ -250,6 +250,9 @@ async function main(){
     assert.equal(fs.readFileSync(dest,'utf8'),serialized,
       'private WBB artifact differs from the MOCK-qualified exact bytes');
   }
+  console.log('WEBEEBLOCKS_A6_COMPACT_BLOCKLY_CANDIDATE '+ 
+    'blocks='+witness.blockCount+' variables='+witness.variableCount+
+    ' physical_webots=UNPROVEN pupil_wbb=UNPROVEN');
   console.log('WEBEEBLOCKS_A6_PRIVATE_BLOCKLY_ROUNDTRIP_OK '+
     'blockly=13.2.1 same_wbb=1 mock_worlds=1,2,3 '+
     'physical_webots=UNPROVEN product_profile=UNPROVEN pupil_starter=EMPTY');
