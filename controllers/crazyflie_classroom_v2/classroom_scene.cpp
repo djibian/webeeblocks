@@ -7,6 +7,7 @@
 #include <string>
 #include "decision_h_scene_gate.h"
 #include "mini_gp_scene_gate.h"
+#include "count_h_scene_gate.h"
 
 namespace {
 std::string legacyScene;
@@ -195,11 +196,21 @@ bool orientationObserver() {
 bool liveSelection() {
   const bool miniL = wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_L_SCENE") != nullptr;
   const bool miniR = wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE") != nullptr;
+  const bool anyCount = wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_1_SCENE") ||
+    wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_2_SCENE") ||
+    wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_3_SCENE");
+  // A foreign counted-H world may never coexist with an A1-4/A7 mission.
+  if(anyCount && !webeeblocks_a6_gate::sceneNumber(selected.c_str()))return false;
   // A foreign Mini GP group always poisons another selected activity. Two
   // simultaneous variants are never a valid authorisation to take off.
   if ((miniL || miniR) &&
       selected != "mini-grand-prix-l-v1" &&
       selected != "mini-grand-prix-r-v1") return false;
+  const int count=webeeblocks_a6_gate::sceneNumber(selected.c_str());
+  if(count)
+    return webeeblocks_a6_gate::valid(count)&&
+      webeeblocks_a6_gate::realObserver()&&
+      webeeblocks_a6_gate::currentObserver(count);
   if (selected == "sequence-v1")
     return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", kSequenceSceneChildren) &&
       sequenceObserver() &&
@@ -294,6 +305,15 @@ void removeDef(const char *def) {
 
 extern "C" int webeeblocks_activity_scene_ready(void) {
   observeWorld();
+  // An A6 observer created on a SCENE request may need one Webots step to
+  // emit its first heartbeat. Never latch a temporary missing heartbeat as
+  // a permanently unusable scene; still fail-closed for every TAKEOFF.
+  const int n=webeeblocks_a6_gate::sceneNumber(selected.c_str());
+  if(n) {
+    ready=ready&&webeeblocks_a6_gate::valid(n)&&
+      webeeblocks_a6_gate::realObserver();
+    return ready&&webeeblocks_a6_gate::currentObserver(n)?1:0;
+  }
   ready = ready && liveSelection();
   return ready ? 1 : 0;
 }
@@ -308,7 +328,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
                  std::strcmp(scene, "decision-h-a-v1") &&
                  std::strcmp(scene, "decision-h-b-v1") &&
                  std::strcmp(scene, "mini-grand-prix-l-v1") &&
-                 std::strcmp(scene, "mini-grand-prix-r-v1"))) return 0;
+                 std::strcmp(scene, "mini-grand-prix-r-v1") &&
+                 !webeeblocks_a6_gate::sceneNumber(scene))) return 0;
   observeWorld();
   ready = ready && liveSelection();
   if (ready && selected == scene) return 1;
@@ -334,7 +355,11 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_A_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_DECISION_B_SCENE") &&
         !wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_L_SCENE") &&
-        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE")) {
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_1_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_2_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_COUNT_3_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_A6_MOTOR_OBSERVER")) {
       // A typed, empty classroom launch has no live scenario to export. Its
       // versioned restoration assets remain subject to the same post-import
       // type/count/node checks. An interrupted/partial scene is never empty.
@@ -393,6 +418,14 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     if (nextScene.empty() || nextScene.find(root) == std::string::npos ||
         nextScene.find("controller \"progression_mini_grand_prix_v1\"") ==
           std::string::npos) return 0;
+  } else if (webeeblocks_a6_gate::sceneNumber(scene)) {
+    const int n=webeeblocks_a6_gate::sceneNumber(scene);
+    char file[32],root[72];
+    std::snprintf(file,sizeof file,"count-h-%d-v1.wbo",n);
+    std::snprintf(root,sizeof root,"DEF WEBEEBLOCKS_COUNT_%d_SCENE Group {",n);
+    nextScene=sceneFile(file);
+    if(nextScene.empty()||nextScene.find(root)==std::string::npos)
+      return 0;  // Never destroy an existing world for an unknown A6 asset.
   } else if (std::strcmp(scene, "orientation-v1") == 0) {
     nextScene = sceneFile("orientation-v1.wbo");
     // Fail before destruction when the versioned scene or its native observer
@@ -404,6 +437,10 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   }
   ready = false;
   // Stop controllers before removing any node to which they hold field refs.
+  removeDef("WEBEEBLOCKS_A6_MOTOR_OBSERVER"); // stop native Robot first
+  removeDef("WEBEEBLOCKS_COUNT_1_SCENE");
+  removeDef("WEBEEBLOCKS_COUNT_2_SCENE");
+  removeDef("WEBEEBLOCKS_COUNT_3_SCENE");
   removeDef("WEBEEBLOCKS_LEGACY_EVALUATORS");
   removeDef("WEBEEBLOCKS_LEGACY_SCENE");
   removeDef("WEBEEBLOCKS_SEQUENCE_SCENE");
@@ -489,6 +526,21 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
     wb_supervisor_field_set_sf_rotation(orientation, o);
+  } else if (webeeblocks_a6_gate::sceneNumber(scene)) {
+    const int n=webeeblocks_a6_gate::sceneNumber(scene);
+    wb_supervisor_field_import_mf_node_from_string(children,-1,nextScene.c_str());
+    // Physical Solids and exactly one numbered Group must be attested before
+    // we introduce the separate read-only mission observer.
+    ready=webeeblocks_a6_gate::valid(n);
+    if(ready) {
+      wb_supervisor_field_import_mf_node_from_string(
+        children,-1,webeeblocks_a6_gate::kObserverSource);
+      ready=webeeblocks_a6_gate::realObserver();
+    }
+    const double p[]={-2.4,-1.8,1.9};
+    const double o[]={-.45,.47,.76,1.05};
+    wb_supervisor_field_set_sf_vec3f(position,p);
+    wb_supervisor_field_set_sf_rotation(orientation,o);
   } else if (std::strcmp(scene, "orientation-v1") == 0) {
     wb_supervisor_field_import_mf_node_from_string(children, -1, nextScene.c_str());
     ready = completeGroup("WEBEEBLOCKS_ORIENTATION_SCENE", kOrientationSceneChildren) &&
