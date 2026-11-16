@@ -82,4 +82,29 @@ assert.equal(starter.activity.id,id);
 assert.deepEqual(starter.workspace.blocks.blocks,[],'pupil starter must have no hidden solution');
 assert.equal(Activities.DOCUMENT.activities.filter(x=>x.id.startsWith('progression-')&&x.starterVisible!==false).length,8,
   'an unqualified A6 profile must not appear in the pupil Start catalogue');
+
+// A6 world-identity bootstrap regression: the school WBT cannot be assumed compatible with the legacy default profile merely because its
+// native 1/2/3-H motor pilot succeeds. Keep the rejection fail-closed until
+// the real Robot Window bootstrap and native scene attestation are qualified.
+const Blockly=require('../../plugins/robot_windows/blockly_v2/node_modules/blockly');
+const SemanticAst=require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast');
+const startSource=fs.readFileSync(path.resolve(__dirname,
+  '../../plugins/robot_windows/blockly_v2/main.js'),'utf8');
+assert(startSource.includes("typeof WebeeBlocksInitialActivityId === 'string' ? WebeeBlocksInitialActivityId : 'reactive-obstacle-v2'"),
+  'the current bootstrap identity changed: requalify the A6 world admission');
+const defaultProfile=Activities.getProfile('reactive-obstacle-v2');
+assert.notEqual(defaultProfile.world,profile.world,
+  'the ordinary world cannot silently become the dedicated A6 school start');
+const fileOptions={Blockly, profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+  blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:Contract};
+const pupilStarterText=Files.createStarterText(id);
+assert.throws(()=>Files.validateProjectText(pupilStarterText,defaultProfile,fileOptions),
+  /activity is incompatible with the current Webots world/,
+  'opening A6 from the ordinary Robot Window must fail before scene import');
+const acceptedInA6=Files.validateProjectText(pupilStarterText,profile,fileOptions);
+assert.equal(acceptedInA6.profile.id,id,
+  'the unchanged blank A6 project must remain valid in its own dedicated world');
+// This positive unit check is NOT native proof of how the Robot Window obtains
+// its initial world identity; starterVisible must remain false.
+
 console.log('PASS A6 hidden pupil profile: limited concepts, three-world contract, blank starter, not yet public');
