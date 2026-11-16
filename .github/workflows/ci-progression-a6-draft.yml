@@ -13,6 +13,8 @@ on:
       - '.github/workflows/ci-progression-a6-draft.yml'
       - 'tools/ci/test_workflow_contract.py'
       - 'tools/ci/test_progression_count_h_*.py'
+      - 'tools/ci/test_progression_count_h_public_profile.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/activities.js'
       - 'tools/ci/prepare_classroom_count_h_motor_flight.py'
       - 'tools/ci/run_classroom_count_h_motor_flight.py'
       - 'tools/ci/build_a6_private_blockly_witness.js'
@@ -51,6 +53,9 @@ jobs:
       - name: Require Draft witness remains outside integration gates
         run: |
           python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision
+      - name: Confirm A6 student profile stays hidden, bounded and solution-free
+        run: |
+          node tools/ci/test_progression_count_h_public_profile.js
       - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
         run: |
           set -euo pipefail
