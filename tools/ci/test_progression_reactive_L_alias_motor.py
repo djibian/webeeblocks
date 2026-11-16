@@ -126,6 +126,16 @@ class A5AliasMotorSourceTests(unittest.TestCase):
         coverage=monitor.native_collision_coverage(good,"A")
         self.assertIsNotNone(coverage)
         self.assertEqual(coverage["continuous_native_steps"],83)
+        # Native Webots keeps generating observations after first Floor
+        # contact while LAND and the browser finish. Their presence is not
+        # evidence of a gap or of an absent touchdown.
+        continued=good+''.join(
+            f"WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=A "
+            f"ticks={n} t={n*.032:.6f} no_obstacle_contacts=true\n"
+            for n in (96,112))
+        self.assertEqual(
+            monitor.native_collision_coverage(continued,"A"),
+            coverage)
         negatives=(
             good.replace("ticks=48","ticks=47"),
             good.replace("t=1.536000","t=1.700000"),

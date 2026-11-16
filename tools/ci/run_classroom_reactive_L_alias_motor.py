@@ -124,7 +124,15 @@ def native_collision_coverage(transcript,variant):
         prev_tick=n
         prev_time=t
     final_tick=int(final[0][1])
-    if final_tick<64 or final_tick<prev_tick or final_tick>=prev_tick+16:
+    # Webots keeps stepping for native LAND confirmation and the browser's
+    # final event AFTER first real Floor contact. The one-time terminal marker
+    # is therefore sandwiched by heartbeats, not necessarily the final one.
+    ticks=[int(n) for _,n,_ in rows]
+    before=[n for n in ticks if n<=final_tick]
+    after=[n for n in ticks if n>final_tick]
+    if (final_tick<64 or not before or
+        final_tick-before[-1]>=16 or
+        (after and after[0]-final_tick>16)):
         return None
     if ("WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT" in transcript or
         "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION" in transcript or
