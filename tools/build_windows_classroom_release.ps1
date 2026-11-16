@@ -71,6 +71,7 @@ $sequenceObserverDir = Join-Path $repoRoot 'controllers\progression_sequence_3d'
 $altitudeObserverDir = Join-Path $repoRoot 'controllers\progression_altitude_v1'
 $orientationObserverDir = Join-Path $repoRoot 'controllers\progression_orientation_3d'
 $decisionObserverDir = Join-Path $repoRoot 'controllers\progression_decision_h_v1'
+$miniObserverDir = Join-Path $repoRoot 'controllers\progression_mini_grand_prix_v1'
 $oldWebotsHome = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 try {
@@ -120,6 +121,10 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "Activity 4 native observer clean failed: $LASTEXITCODE" }
   & $make -C $decisionObserverDir
   if ($LASTEXITCODE -ne 0) { throw "Activity 4 native observer build failed: $LASTEXITCODE" }
+  & $make -C $miniObserverDir clean
+  if ($LASTEXITCODE -ne 0) { throw "Activity 7 native observer clean failed: $LASTEXITCODE" }
+  & $make -C $miniObserverDir
+  if ($LASTEXITCODE -ne 0) { throw "Activity 7 native observer build failed: $LASTEXITCODE" }
 }
 finally {
   $env:WEBOTS_HOME = $oldWebotsHome
@@ -148,6 +153,10 @@ if (-not (Test-Path -LiteralPath $orientationObserverBinary -PathType Leaf) -or 
 $decisionObserverBinary = Join-Path $decisionObserverDir 'progression_decision_h_v1.exe'
 if (-not (Test-Path -LiteralPath $decisionObserverBinary -PathType Leaf) -or (Get-Item $decisionObserverBinary).Length -le 0) {
   throw 'The official Webots Windows build produced no Activity 4 native supervisor executable.'
+}
+$miniObserverBinary = Join-Path $miniObserverDir 'progression_mini_grand_prix_v1.exe'
+if (-not (Test-Path -LiteralPath $miniObserverBinary -PathType Leaf) -or (Get-Item $miniObserverBinary).Length -le 0) {
+  throw 'The official Webots Windows build produced no Activity 7 native supervisor executable.'
 }
 
 # Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
@@ -246,6 +255,11 @@ Copy-RequiredFile $history3Source $history3Target
 $history4Source = Join-Path $repoRoot 'activities\historique\04-simple-decision.wbb'
 $history4Target = Join-Path $packageDir 'Activites\Historique\04-simple-decision.wbb'
 Copy-RequiredFile $history4Source $history4Target
+
+# Retain old A7 pupil projects without exposing their legacy scene in Start.
+$history7Source = Join-Path $repoRoot 'activities\historique\07-memory.wbb'
+$history7Target = Join-Path $packageDir 'Activites\Historique\07-memory.wbb'
+Copy-RequiredFile $history7Source $history7Target
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
@@ -370,6 +384,8 @@ Copy-RequiredFile $altitudeObserverBinary (Join-Path $packageDir 'controllers\pr
 Copy-RequiredFile $orientationObserverBinary (Join-Path $packageDir 'controllers\progression_orientation_3d\progression_orientation_3d.exe')
 # Activity 4 also requires its independent fail-closed C oracle on Windows.
 Copy-RequiredFile $decisionObserverBinary (Join-Path $packageDir 'controllers\progression_decision_h_v1\progression_decision_h_v1.exe')
+# Activity 7 has its own isolated physics oracle, not the physical runtime.
+Copy-RequiredFile $miniObserverBinary (Join-Path $packageDir 'controllers\progression_mini_grand_prix_v1\progression_mini_grand_prix_v1.exe')
 
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
@@ -465,7 +481,7 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'decision-h-a-v1.wbo', 'decision-h-b-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'decision-h-a-v1.wbo', 'decision-h-b-v1.wbo', 'mini-grand-prix-l-v1.wbo', 'mini-grand-prix-r-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "worlds\scenes\$scene") `
     (Join-Path $packageDir "worlds\scenes\$scene")

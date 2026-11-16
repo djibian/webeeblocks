@@ -1,0 +1,203 @@
+# Diagnostic ONLY, for Activity 7 Mini Grand Prix Draft: genuine native Webots
+# collider/sensor geometry and an adversarial single-.wbb motor witness are
+# checked on two distinct worlds. Neither is a decision-authoritative V5 CI Gate.
+name: Activity 7 Draft C scene and physical geometry witness
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a7-draft.yml'
+      - 'controllers/progression_mini_grand_prix_v1/**'
+      - 'controllers/progression_mini_gp_scene_probe/**'
+      - 'controllers/crazyflie_classroom_v2/mini_gp_scene_gate.h'
+      - 'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
+      - 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'tools/ci/test_progression_sequence_contract.js'
+      - 'controllers/progression_mini_gp_geometry_probe/**'
+      - 'worlds/scenes/mini-grand-prix-*-v1.wbo'
+      - 'tools/ci/test_progression_mini_grand_prix_*'
+      - 'tools/ci/run_classroom_mini_gp_geometry.py'
+      - 'tools/ci/run_classroom_mini_gp_native_observer.py'
+      - 'tools/ci/run_classroom_mini_gp_foreign_scene.py'
+      - 'tools/ci/run_classroom_mini_gp_wrong_timestep.py'
+      - 'tools/ci/run_classroom_mini_gp_low_contact.py'
+      - 'tools/ci/run_classroom_mini_gp_ground_start.py'
+      - 'tools/ci/run_classroom_mini_gp_scene_selector.py'
+      - 'tools/ci/prepare_classroom_mini_gp_pupil.py'
+      - 'tools/ci/run_classroom_mini_gp_pupil.py'
+      - 'plugins/robot_windows/mini_gp_pupil_probe/**'
+
+permissions:
+  contents: read
+
+jobs:
+  a7-draft-source-only:
+    name: A7 compiled C oracle, scenes and native Webots geometry (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify source candidate and compile adversarial C11 behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "A7_DRAFT_ONLY_SHA=$(git rev-parse HEAD)"
+          cc --version | head -n 1
+          python3 -m unittest -v \
+            tools.ci.test_progression_mini_grand_prix_scene \
+            tools.ci.test_progression_mini_grand_prix_oracle \
+            tools.ci.test_progression_mini_grand_prix_native \
+            tools.ci.test_progression_mini_grand_prix_selector \
+            tools.ci.test_progression_mini_grand_prix_pupil
+          test -z "$(git status --porcelain)"
+      - name: Prepare exactly pinned Blockly 13.2.1 assets for browser witness
+        run: |
+          set -euo pipefail
+          ./tools/prepare_runtime_v2.sh
+      - name: Compile genuine R2025a C Supervisor probe without motor authority
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_gp_geometry_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_gp_geometry_probe'
+      - name: Compile isolated A7 native pose and contact evaluator on real R2025a
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_grand_prix_v1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_grand_prix_v1'
+      - name: Compile genuine R2025a school C++ scene selector with isolated A7 gate
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_mini_gp_scene_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_mini_gp_scene_probe'
+      - name: Falsify L and R native colliders, contact and range geometry
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_geometry.py'
+      - name: Refuse one native false-start attempt in each real L and R scene
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_native_observer.py'
+      - name: Reject wrong 64-ms native physics before A7 READY on both L/R
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_wrong_timestep.py'
+      - name: Falsify near-floor A7 corner and closed panel contacts on L/R
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_low_contact.py'
+      - name: Refuse physical foreign A4 colliders before A7 READY on L/A L/B R/A R/B
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_foreign_scene.py'
+      - name: Validate a non-teleported real floor start on both native L and R worlds
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_ground_start.py'
+      - name: Import and re-import native Mini GP L-R-L with real school selector
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_mini_gp_scene_selector.py'
+      - name: Compile the genuine R2025a school motor/PID runtime
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_classroom_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s crazyflie_classroom_v2'
+      - name: Fly both Mini GP worlds using ONE real Blockly serialized .wbb
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-mini-gp-blockly \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-mini-gp-blockly
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 tools/ci/run_classroom_mini_gp_pupil.py
+            '
+      - name: Preserve negative and positive native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a7-draft-native-geometry-and-observer-negative
+          path: |
+            ci-artifacts/progression-mini-gp-geometry/
+            ci-artifacts/progression-mini-gp-native-observer/
+            ci-artifacts/progression-mini-gp-foreign-scene/
+            ci-artifacts/progression-mini-gp-wrong-timestep/
+            ci-artifacts/progression-mini-gp-low-contact/
+            ci-artifacts/progression-mini-gp-ground-start/
+            ci-artifacts/progression-mini-gp-scene-selector/
+            ci-artifacts/progression-mini-gp-blockly/
+          if-no-files-found: warn

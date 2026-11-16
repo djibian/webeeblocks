@@ -10,6 +10,7 @@ const Activities=require(path.join(ROOT,'plugins/robot_windows/blockly/webeebloc
 const Profiles=require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
 const Projects=require(path.join(ROOT,'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 const src=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8');
+const mainSrc=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/main.js'),'utf8');
 
 function element(){
   return {disabled:false,hidden:false,textContent:'',dataset:{},inert:false,
@@ -27,8 +28,16 @@ async function scenario(startProfileId, options={}){
   const document={body:{dataset:{}},getElementById(id){return elements[id]}};
   class CustomEvent{constructor(type,options){this.type=type;this.detail=options?.detail}}
   const Blockly={};
-  const workspace={state:{blocks:['students work',42]},isReadOnly:()=>false,
-    setIsReadOnly(){}};
+  let readOnly=false;
+  const workspace={state:{blocks:['students work',42]}};
+  if(!options.noReadOnlyApi){
+    workspace.isReadOnly=()=>readOnly;
+    workspace.setIsReadOnly=value=>{readOnly=value===true};
+  }
+  function editWouldBeBlocked(){
+    return (typeof workspace.isReadOnly==='function' && workspace.isReadOnly()) ||
+      elements.blocklyDiv.inert;
+  }
   const backendCalls=[],diagnostics=[];
   let holdAck=false,resolveAck=null,failNext=false,saveWrites=0,clearBreakpoints=0;
   let resetCalls=0;
@@ -64,15 +73,23 @@ async function scenario(startProfileId, options={}){
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
     console:{error(...args){diagnostics.push(args.map(v=>v?.message||String(v)).join(' '))},
       warn(){},log(){}}};
-  new Function(...Object.keys(inputs),src)(...Object.values(inputs));
+  const control=new Function(...Object.keys(inputs),src+
+    '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;}};')(...Object.values(inputs));
   assert(callbacks.load?.length===1,'actual project UI did not subscribe to window load');
   callbacks.load[0]();await flush();
   assert(manager,'real project UI did not initialize its file manager');
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
   const bytes=manager.bytes();
+  if(!options.outcomePending)
+    assert(!editWouldBeBlocked(),'pupil must be able to edit while READY');
+  const mini=startProfileId==='progression-mini-grand-prix-v1';
+  const nextScene=mini?'mini-grand-prix-r-v1':'decision-h-b-v1';
+  const firstScene=mini?'mini-grand-prix-l-v1':'decision-h-a-v1';
+  const firstLabel=mini?/Parcours gauche/:/Parcours A/;
+  const nextLabel=mini?/Parcours droite/:/Parcours B/;
 
-  if(startProfileId!=='progression-decision-h-v1'){
+  if(startProfileId!=='progression-decision-h-v1' && !mini){
     assert(btn.hidden&&btn.disabled,'non-A4 profile must hide and disable A/B control');
     btn.handlers.click();await flush();
     assert.equal(backendCalls.length,0,'non-A4 click attempted a scene mutation');
@@ -89,44 +106,58 @@ async function scenario(startProfileId, options={}){
       'pending native mission outcome must disable A4 scene selection');
     for(const id of ['projectActivity','projectOpen','projectSave','projectSaveAs'])
       assert(elements[id].disabled,'file operation unlocked before mission verdict: '+id);
+    assert(editWouldBeBlocked(),
+      'stale READY unlocked Blockly editing before native verdict');
+    // Model a pupil edit only when the editor actually permits it.
+    if(!editWouldBeBlocked()) workspace.state.blocks.push('unverified edit');
+    assert.equal(manager.bytes(),bytes,'pending verdict allowed a student block edit');
     btn.handlers.click();await flush();
     assert.equal(backendCalls.length,0,'pending outcome switched Webots scene');
     assert.equal(resetCalls,0,'pending outcome issued native RESET');
     assert.equal(saveWrites,0,'pending outcome wrote a project file');
     assert.equal(manager.bytes(),bytes,'pending outcome altered pupil .wbb');
     assert.equal(diagnostics.length,0,'pending scene click should be ignored, not fail native');
+    // Native adjudication finishes AFTER its terminal status event. Without
+    // the explicit settled notification Blockly would remain read-only.
+    control.setOutcomePending(false);
+    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-outcome-settled'));
+    assert(!editWouldBeBlocked(),'Blockly stayed locked after native verdict settled');
+    assert(!btn.disabled,'scene selector stayed locked after native verdict settled');
+    assert.equal(manager.bytes(),bytes,'settled verdict mutated student project');
     return {kind:'pending-verdict',status:'PASS'};
   }
   assert(!btn.hidden&&!btn.disabled,'A4 toggle must be enabled after native initialization');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.match(btn.textContent,firstLabel);
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'EXÉCUTION'}}));
   assert(btn.disabled,'active flight must prevent scene changes');
+  assert(editWouldBeBlocked(),'active flight must prevent Blockly editing');
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'PRÊT'}}));
   assert(!btn.disabled,'completed flight state should re-enable A4 selection');
+  assert(!editWouldBeBlocked(),'editor must unlock after native completion');
 
   // Native SCENE_OK is the linearization point: never show B before ACK.
   holdAck=true;btn.handlers.click();await flush();
   assert.equal(backendCalls.length,1);
-  assert.equal(backendCalls[0].scene,'decision-h-b-v1');
-  assert.match(btn.textContent,/Parcours A/,'A4 B was displayed before native ACK');
+  assert.equal(backendCalls[0].scene,nextScene);
+  assert.match(btn.textContent,firstLabel,'variant was displayed before native ACK');
   assert(btn.disabled,'scene selection must serialize with project operations');
   assert.equal(manager.bytes(),bytes);
   assert(resolveAck,'native ACK was not awaited');
   holdAck=false;resolveAck();await flush();
-  assert.match(btn.textContent,/Parcours B/);
+  assert.match(btn.textContent,nextLabel);
   assert.equal(manager.bytes(),bytes,'A/B scene choice must never alter .wbb');
   assert.equal(saveWrites,0,'A/B scene choice must never auto-save');
 
   btn.handlers.click();await flush();
-  assert.equal(backendCalls[1].scene,'decision-h-a-v1');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.equal(backendCalls[1].scene,firstScene);
+  assert.match(btn.textContent,firstLabel);
   assert.equal(manager.bytes(),bytes);
 
   // A missing/invalid native ACK must fail closed, keep the last profile,
   // not change a single project byte, and not create a Save operation.
   failNext=true;btn.handlers.click();await flush();
-  assert.equal(backendCalls[2].scene,'decision-h-b-v1');
-  assert.match(btn.textContent,/Parcours A/);
+  assert.equal(backendCalls[2].scene,nextScene);
+  assert.match(btn.textContent,firstLabel);
   assert.match(elements.projectFileState.textContent,/Impossible de changer de parcours/);
   assert(diagnostics.some(s=>s.includes('NATIVE_SCENE_ACK_REJECT')));
   assert.equal(manager.bytes(),bytes);
@@ -135,12 +166,18 @@ async function scenario(startProfileId, options={}){
   return {kind:'public-A4',status:'PASS',nativeRequests:backendCalls.length};
 }
 (async()=>{
+  assert.match(mainSrc,/runtimeOutcomePending = false;\s*\/\/ The terminal status is emitted before this flag clears; notify the\s*\/\/ project UI so it can restore Blockly editing only after adjudication\.\s*window\.dispatchEvent\(new CustomEvent\('webeeblocks-runtime-v2-outcome-settled'\)\)/,
+    'runProgram finally must notify project UI after native verdict');
   assert.equal(Activities.DOCUMENT.activities.filter(p=>p.id==='progression-decision-h-v1').length,1);
   assert.deepEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&
     p.starterVisible!==false).length,8);
   const a4=await scenario('progression-decision-h-v1');
   const pending=await scenario('progression-decision-h-v1',{outcomePending:true});
+  const mini=await scenario('progression-mini-grand-prix-v1');
+  const miniPending=await scenario('progression-mini-grand-prix-v1',{outcomePending:true});
+  const a4Fallback=await scenario('progression-decision-h-v1',{outcomePending:true,noReadOnlyApi:true});
+  const a7Fallback=await scenario('progression-mini-grand-prix-v1',{outcomePending:true,noReadOnlyApi:true});
   const other=await scenario('progression-sequence-v1');
-  console.log('PASS A4 public A/B session UI:',a4.status,pending.status,other.status,
+  console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,a4Fallback.status,a7Fallback.status,other.status,
     'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});
