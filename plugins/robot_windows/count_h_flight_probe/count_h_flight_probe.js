@@ -29,7 +29,7 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     const module=await import('../blockly_v2/webots/RobotWindow.js');
     const bridge=new module.default();
     const backend=new WebeeBlocksWwiBackend({send:s=>bridge.send(s)},
-      {simulationScenes:true,timeoutMs:60000});
+      {simulationScenes:true,simulationReset:true,timeoutMs:60000});
     bridge.receive=s=>backend.handleMessage(String(s));
     await backend.waitUntilReady();
     await report('A6_RUNTIME_READY',{native:true});

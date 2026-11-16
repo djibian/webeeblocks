@@ -446,6 +446,9 @@ class CountHMotorFlightTests(unittest.TestCase):
                          "A6_REPLAY_STALE_DENIED"):
             self.assertIn(required,source)
         self.assertEqual(source.count("await backend.resetSimulation()"),2)
+        probe=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+               "count_h_flight_probe.js").read_text()
+        self.assertIn("simulationReset:true",probe)
         for required in ('mode=="replay"', 'epochs==["2","3"]',
                          'completed==["1","2","3"]',
                          'len(positives)==2',
