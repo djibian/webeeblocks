@@ -84,12 +84,16 @@ async function scenario(startProfileId, options={}){
   if(!options.outcomePending)
     assert(!editWouldBeBlocked(),'pupil must be able to edit while READY');
   const mini=startProfileId==='progression-mini-grand-prix-v1';
-  const nextScene=mini?'mini-grand-prix-r-v1':'decision-h-b-v1';
-  const firstScene=mini?'mini-grand-prix-l-v1':'decision-h-a-v1';
-  const firstLabel=mini?/Parcours gauche/:/Parcours A/;
-  const nextLabel=mini?/Parcours droite/:/Parcours B/;
+  const count=startProfileId==='progression-count-h-v1';
+  const scenes=count?['count-h-1-v1','count-h-2-v1','count-h-3-v1']:
+    mini?['mini-grand-prix-l-v1','mini-grand-prix-r-v1']:
+      ['decision-h-a-v1','decision-h-b-v1'];
+  const labels=count?[/Parcours 1 H/,/Parcours 2 H/,/Parcours 3 H/]:
+    mini?[/Parcours gauche/,/Parcours droite/]:[/Parcours A/,/Parcours B/];
+  const [firstScene,nextScene]=scenes;
+  const [firstLabel,nextLabel]=labels;
 
-  if(startProfileId!=='progression-decision-h-v1' && !mini){
+  if(startProfileId!=='progression-decision-h-v1' && !mini && !count){
     assert(btn.hidden&&btn.disabled,'non-A4 profile must hide and disable A/B control');
     btn.handlers.click();await flush();
     assert.equal(backendCalls.length,0,'non-A4 click attempted a scene mutation');
@@ -149,21 +153,23 @@ async function scenario(startProfileId, options={}){
   assert.equal(saveWrites,0,'A/B scene choice must never auto-save');
 
   btn.handlers.click();await flush();
-  assert.equal(backendCalls[1].scene,firstScene);
-  assert.match(btn.textContent,firstLabel);
+  const secondIndex=2%scenes.length;
+  assert.equal(backendCalls[1].scene,scenes[secondIndex]);
+  assert.match(btn.textContent,labels[secondIndex]);
   assert.equal(manager.bytes(),bytes);
 
   // A missing/invalid native ACK must fail closed, keep the last profile,
   // not change a single project byte, and not create a Save operation.
   failNext=true;btn.handlers.click();await flush();
-  assert.equal(backendCalls[2].scene,nextScene);
-  assert.match(btn.textContent,firstLabel);
+  assert.equal(backendCalls[2].scene,scenes[(secondIndex+1)%scenes.length]);
+  assert.match(btn.textContent,labels[secondIndex]);
   assert.match(elements.projectFileState.textContent,/Impossible de changer de parcours/);
   assert(diagnostics.some(s=>s.includes('NATIVE_SCENE_ACK_REJECT')));
   assert.equal(manager.bytes(),bytes);
   assert.equal(saveWrites,0);
   assert(clearBreakpoints>=2,'scene change failed to clear stale debug positions');
-  return {kind:'public-A4',status:'PASS',nativeRequests:backendCalls.length};
+  return {kind:count?'draft-A6':mini?'public-A7':'public-A4',
+    status:'PASS',nativeRequests:backendCalls.length};
 }
 (async()=>{
   assert.match(mainSrc,/runtimeOutcomePending = false;\s*\/\/ The terminal status is emitted before this flag clears; notify the\s*\/\/ project UI so it can restore Blockly editing only after adjudication\.\s*window\.dispatchEvent\(new CustomEvent\('webeeblocks-runtime-v2-outcome-settled'\)\)/,
@@ -177,7 +183,12 @@ async function scenario(startProfileId, options={}){
   const miniPending=await scenario('progression-mini-grand-prix-v1',{outcomePending:true});
   const a4Fallback=await scenario('progression-decision-h-v1',{outcomePending:true,noReadOnlyApi:true});
   const a7Fallback=await scenario('progression-mini-grand-prix-v1',{outcomePending:true,noReadOnlyApi:true});
+  const a6=await scenario('progression-count-h-v1');
+  const a6Pending=await scenario('progression-count-h-v1',{outcomePending:true});
+  const a6Fallback=await scenario('progression-count-h-v1',{outcomePending:true,noReadOnlyApi:true});
   const other=await scenario('progression-sequence-v1');
-  console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,a4Fallback.status,a7Fallback.status,other.status,
-    'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
+  console.log('PASS A4/A7 and hidden draft A6 variant session UI:',
+    a4.status,pending.status,mini.status,miniPending.status,
+    a4Fallback.status,a7Fallback.status,a6.status,a6Pending.status,a6Fallback.status,
+    other.status,'two/three-world cycling, nonce ACK, pending outcome locked, unchanged .wbb, no autosave, rejection fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});
