@@ -121,7 +121,10 @@ static inline int wb_dh_valid_sample(const wb_dh_sample *s) {
     isfinite(s->vz) && (s->obstacle_contact == 0 ||
                        s->obstacle_contact == 1) &&
     (s->completed == 0 || s->completed == 1) &&
-    (s->floor_contact == 0 || s->floor_contact == 1);
+    /* A proved obstacle collision is terminal even if Floor contact was
+     * not queried. Unknown Floor remains forbidden for any landing PASS. */
+    (s->floor_contact == 0 || s->floor_contact == 1 ||
+     (s->obstacle_contact == 1 && s->floor_contact == -1));
 }
 
 static inline int wb_dh_is_h(wb_dh_scene scene, unsigned stage) {
