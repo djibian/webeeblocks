@@ -112,13 +112,20 @@ inline bool currentObserver(int variant) {
   return size>0&&static_cast<size_t>(size)<sizeof canonical&&
     !std::strcmp(broker,canonical);
 }
+/* Diagnostic only: every former rejection still returns false. No
+ * physical or admission condition changes; this explains a native red test. */
+inline bool deny(int variant,const char *stage,int item=-1) {
+  std::fprintf(stderr,"WEBEEBLOCKS_A6_GATE_DENIED n=%d stage=%s item=%d\n",
+               variant,stage,item);
+  return false;
+}
 inline bool valid(int variant) {
   const char *craftName=wb_robot_get_name();
   if(variant<1||variant>3||!craftName||
-     std::strcmp(craftName,"Crazyflie WebeeBlocks")||!blueOrigin())return false;
+     std::strcmp(craftName,"Crazyflie WebeeBlocks")||!blueOrigin())return deny(variant,"craft-or-origin");
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   const char *type=world?wb_supervisor_node_get_type_name(world):nullptr;
-  if(!type||std::strcmp(type,"WorldInfo"))return false;
+  if(!type||std::strcmp(type,"WorldInfo"))return deny(variant,"world-identity");
   for(const char *foreign : {
     "WEBEEBLOCKS_LEGACY_SCENE","WEBEEBLOCKS_LEGACY_EVALUATORS",
     "WEBEEBLOCKS_SEQUENCE_SCENE","WEBEEBLOCKS_ALTITUDE_SCENE",
@@ -126,24 +133,26 @@ inline bool valid(int variant) {
     "WEBEEBLOCKS_DECISION_A_SCENE","WEBEEBLOCKS_DECISION_B_SCENE",
     "WEBEEBLOCKS_MINI_GP_L_SCENE","WEBEEBLOCKS_MINI_GP_R_SCENE"
   })
-    if(wb_supervisor_node_get_from_def(foreign))return false;
+    if(wb_supervisor_node_get_from_def(foreign))return deny(variant,"foreign-scene");
   for(int n=1;n<=3;n++) {
     char name[48];
     std::snprintf(name,sizeof name,"WEBEEBLOCKS_COUNT_%d_SCENE",n);
     WbNodeRef group=wb_supervisor_node_get_from_def(name);
     if(n!=variant) {
-      if(group)return false; // No second H count in an admitted world.
+      if(group)return deny(variant,"duplicate-h-group",n); // Never admit a second H group.
       continue;
     }
     const char *groupType=group?wb_supervisor_node_get_type_name(group):nullptr;
-    if(!groupType||std::strcmp(groupType,"Group"))return false;
+    if(!groupType||std::strcmp(groupType,"Group"))return deny(variant,"group-identity",n);
     WbFieldRef children=wb_supervisor_node_get_field(group,"children");
     const int poses=18+n,expected=poses+3*n+2;
-    if(!children||wb_supervisor_field_get_count(children)!=expected)return false;
+    if(!children||wb_supervisor_field_get_count(children)!=expected)
+      return deny(variant,"group-child-count",children?wb_supervisor_field_get_count(children):-1);
     for(int i=0;i<expected;i++) {
       WbNodeRef node=wb_supervisor_field_get_mf_node(children,i);
       const char *item=node?wb_supervisor_node_get_type_name(node):nullptr;
-      if(!item||std::strcmp(item,i<poses?"Pose":"Solid"))return false;
+      if(!item||std::strcmp(item,i<poses?"Pose":"Solid"))
+        return deny(variant,"child-type",i);
     }
   }
   for(int i=1;i<=variant;i++) {
@@ -152,19 +161,20 @@ inline bool valid(int variant) {
     const double upright[3]={.070,.065,1.00},crossbar[3]={.070,.570,.240};
     char name[80];
     std::snprintf(name,sizeof name,"ACTIVITY6_%d_H_%d_LEFT",variant,i);
-    if(!box(name,left,upright))return false;
+    if(!box(name,left,upright))return deny(variant,"left-collider",i);
     std::snprintf(name,sizeof name,"ACTIVITY6_%d_H_%d_RIGHT",variant,i);
-    if(!box(name,right,upright))return false;
+    if(!box(name,right,upright))return deny(variant,"right-collider",i);
     std::snprintf(name,sizeof name,"ACTIVITY6_%d_H_%d_BAR",variant,i);
-    if(!box(name,bar,crossbar))return false;
+    if(!box(name,bar,crossbar))return deny(variant,"crossbar-collider",i);
   }
   const double finish[3]={1.235,0,.760},finishSize[3]={.070,1.48,.240};
   const double end[3]={1.86,0,.550},endSize[3]={.060,1.48,1.10};
   char name[80];
   std::snprintf(name,sizeof name,"ACTIVITY6_%d_FINISH_SCREEN",variant);
-  if(!box(name,finish,finishSize))return false;
+  if(!box(name,finish,finishSize))return deny(variant,"finish-screen");
   std::snprintf(name,sizeof name,"ACTIVITY6_%d_TERMINAL",variant);
-  return box(name,end,endSize);
+  if(!box(name,end,endSize))return deny(variant,"terminal-screen");
+  return true;
 }
 } // namespace webeeblocks_a6_gate
 #endif
