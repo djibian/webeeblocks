@@ -162,8 +162,10 @@ function build(){
         return field&&field.getValue()===id;
       });
       assert.equal(referenced,false,'default item variable unexpectedly used');
-      // Blockly Workspace owns deletion; VariableMap exposes lookup only.
-      workspace.deleteVariableById(id);
+      // Blockly 13 VariableMap.deleteVariable(model) is the supported,
+      // non-interactive deletion API. Neither deleteVariableById method
+      // exists on Blockly 13's Workspace or VariableMap.
+      variables.deleteVariable(candidate);
     }
     assert.deepStrictEqual(
       variables.getAllVariables().map(x=>x.name).sort(),
