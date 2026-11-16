@@ -1,0 +1,83 @@
+# Private A5 native physical feasibility only. Never supplies CI Gate or pupil PASS.
+# Original Crazyflie R2025a, unchanged Runtime v2/PID, real native Floor contact.
+name: Activity 5 alias A/B motor feasibility (non-decision)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-progression-a5-alias-motor-draft.yml'
+      - 'controllers/progression_reactive_L_alias_motor_pilot/**'
+      - 'tools/ci/prepare_classroom_reactive_L_alias_motor.py'
+      - 'tools/ci/run_classroom_reactive_L_alias_motor.py'
+      - 'tools/ci/test_progression_reactive_L_alias_motor.py'
+      - 'plugins/robot_windows/a5_alias_motor_probe/**'
+      - 'worlds/scenes/reactive-L-memory-alias-*.wbo'
+      - 'tools/ci/test_workflow_contract.py'
+
+permissions:
+  contents: read
+
+jobs:
+  a5-alias-motor-draft-only:
+    name: A5 original PID native floor A/B, same private pilot (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Falsify source scenes, motor authority and student-oracle boundary
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_reactive_L_memory_alias
+          python3 -m unittest -v tools.ci.test_progression_reactive_L_alias_motor
+          python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_a5_alias_motor_draft_is_non_decision
+          node --check plugins/robot_windows/a5_alias_motor_probe/a5_alias_motor_probe.js
+      - name: Prepare pinned ordinary Robot Window runtime resources
+        run: |
+          set -euo pipefail
+          ./tools/prepare_runtime_v2.sh
+          test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
+          test -s plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+      - name: Compile real motor/PID test-only native controller on R2025a
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_alias_motor_pilot \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_alias_motor_pilot'
+      - name: Fly private retained-cue reference on BOTH A and B with real Floor contact
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-reactive-L-alias-motor
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 tools/ci/run_classroom_reactive_L_alias_motor.py
+            '
+      - name: Preserve raw motor, Floor and browser evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-alias-motor-physical-feasibility-draft
+          path: ci-artifacts/progression-reactive-L-alias-motor/
+          if-no-files-found: warn

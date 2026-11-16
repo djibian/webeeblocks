@@ -22,6 +22,8 @@ EXPECTED = {
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
+    # Draft-only A5 alias motor/PID physics experiment, never a release gate.
+    "ci-progression-a5-alias-motor-draft.yml": {"a5-alias-motor-draft-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
     "ci-runtime.yml": {
@@ -158,6 +160,34 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("name: CI Gate\n", source)
         self.assertNotIn("pull-requests: write", source)
         self.assertNotIn("issues: write", source)
+
+    def test_a5_alias_motor_draft_is_non_decision(self):
+        source=(WORKFLOWS/"ci-progression-a5-alias-motor-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertTrue(source.startswith("# Private A5 native physical feasibility only."))
+        self.assertEqual(job_ids(source),{"a5-alias-motor-draft-only"})
+        for required in (
+            "  pull_request:\n",
+            "  types: [opened, synchronize, reopened]\n",
+            "permissions:\n  contents: read\n",
+            "if: github.event.pull_request.draft == true",
+            "ref: ${{ github.event.pull_request.head.sha }}",
+            "persist-credentials: false",
+            "tools.ci.test_progression_reactive_L_alias_motor",
+            "tools.ci.test_progression_reactive_L_memory_alias",
+            "controllers/progression_reactive_L_alias_motor_pilot",
+            "run_classroom_reactive_L_alias_motor.py",
+            "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+            "a5-alias-motor-physical-feasibility-draft",
+            "if: always()",
+        ):
+            self.assertIn(required,source)
+        self.assertEqual(source.count("if: github.event.pull_request.draft == true"),1)
+        for forbidden in ("\n  push:", "\n  schedule:", "\n  workflow_call:",
+                          "contents: write","pull-requests: write",
+                          "issues: write","continue-on-error: true",
+                          "name: CI Gate\n","allow-failure","if: false"):
+            self.assertNotIn(forbidden,source)
 
     def test_inventory_rejects_extra_or_missing_workflows(self):
         with tempfile.TemporaryDirectory() as temp:
