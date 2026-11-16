@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -95,6 +96,10 @@ def run():
     dev=None
     result={"pass":False,"scope":"Actual Chrome UI plus native scenes, no pupil .wbb Save/Open or Windows release"}
     visits=[]
+    # Each native READY belongs to one scene incarnation, not to a previously
+    # loaded variant. Returning to n=1 must yield a *second* native witness.
+    observed_ready={1:0,2:0,3:0}
+    seen_scene_nonces=set()
     try:
         env=dict(os.environ)
         env["WEBOTS_WEB_BROWSER"]="/workspace/tools/ci/webots_count_h_variant_cdp.sh"
@@ -123,7 +128,14 @@ def run():
                             dev=Chrome(uri)
                     if dev is not None:
                         state=dev.state()
-                        ready=("WEBEEBLOCKS_A6_MOTOR_READY n="+str(count) in trace)
+                        ready_count=trace.count("WEBEEBLOCKS_A6_MOTOR_READY n="+str(count)+" ")
+                        # The UI's sceneIdentity is necessary but insufficient:
+                        # require this click's exact native SCENE_OK/nonce and
+                        # a new observer incarnation (including the return 3→1).
+                        native_ack=re.search(
+                            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+
+                            str(index+1)+r" SCENE_OK ([0-9a-f]{64})$",trace)
+                        ready=(ready_count>observed_ready[count] and native_ack is not None)
                         if (state and state["id"]=="progression-count-h-v1" and
                             state["scene"]==target and state["ack"]==target and
                             state["status"]=="PRÊT" and ready):
@@ -133,7 +145,16 @@ def run():
                                 original=state["program"]
                             if not original or original!=state["program"]:
                                 raise AssertionError("Blockly workspace changed during variant selection")
+                            nonce=native_ack.group(1)
+                            if nonce in seen_scene_nonces:
+                                raise AssertionError("native scene nonce was reused")
+                            seen_scene_nonces.add(nonce)
+                            observed_ready[count]=ready_count
                             visits.append({"scene":target,"label":state["label"],
+                                           "scene_request_id":index+1,
+                                           "native_ready_occurrences":ready_count,
+                                           "native_nonce_sha256":hashlib.sha256(
+                                               nonce.encode()).hexdigest(),
                                            "workspace_sha256":hashlib.sha256(
                                                original.encode()).hexdigest()})
                             print("A6_REAL_VARIANT_NATIVE_ADMITTED "+target,flush=True)
@@ -141,6 +162,11 @@ def run():
                     time.sleep(0.3)
                 else:
                     raise AssertionError("native UI transition timed out: "+target)
+        if len(visits)!=4 or [v["scene"] for v in visits]!=[
+                SCENES[0],SCENES[1],SCENES[2],SCENES[0]]:
+            raise AssertionError("incomplete real A6 native scene cycle")
+        if observed_ready!={1:2,2:1,3:1} or len(seen_scene_nonces)!=4:
+            raise AssertionError("A6 did not attest four fresh native scene epochs")
         result["pass"]=True
         result["visited"]=visits
     except Exception as error:
