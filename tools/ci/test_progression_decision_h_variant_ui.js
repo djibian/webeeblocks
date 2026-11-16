@@ -125,7 +125,7 @@ async function scenario(startProfileId, options={}){
     options.outcomePending===true || selectable.length===0,
     'Start activity must be disabled while locked or when all starters belong to another Webots world');
   if(selectable.length===0)
-    assert.match(elements.projectActivity.title,/Aucune activité disponible dans ce monde/);
+    assert.match(elements.projectActivity.title,/Aucune activité publiée pour ce monde de simulation/);
   const bytes=manager.bytes();
   if(!options.outcomePending)
     assert(!editWouldBeBlocked(),'pupil must be able to edit while READY');
