@@ -81,8 +81,41 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
         await report('A4_BLIND_NATIVE_RESET',{between:'a,b'});
       }
     }
-    await report('A4_BLIND_TEST_COMPLETE',{variants:['a','b'],
-      status:'both-native-not-achieved',rangeReads:0});
+    // Third adversarial pupil error: succeed at both *physical* crossings,
+    // then deliberately land on the real Floor outside the correct pad.
+    // No Supervisor teleport and no synthetic/native-identity oracle bypass.
+    await backend.resetSimulation();
+    await report('A4_BLIND_NATIVE_RESET',{between:'b,wrong-pad'});
+    await backend.prepareActivity({runtime:{scene:'decision-h-a-v1'}});
+    await report('A4_BLIND_SCENE_READY',{variant:'a',case:'wrong-pad'});
+    await backend.setSpeed(0.1);
+    await backend.takeoff(0.50);
+    await backend.vertical('up',0.25);
+    await backend.move('forward',0.20);
+    await backend.vertical('down',0.35);  // Genuine low H clearance in A.
+    await backend.move('forward',0.75);
+    await backend.vertical('up',0.25);
+    await backend.vertical('up',0.20);    // Genuine curb clearance in A.
+    await backend.move('forward',0.80);
+    await backend.move('left',0.35);     // x>1.60, off the target pad.
+    await report('A4_BLIND_WRONG_PAD_STARTED',{variant:'a',offsetY_m:0.35});
+    await backend.land();
+    await backend.completeActivityMission({
+      type:'mission-state-v1',oracle:'progression-decision-h-v1'});
+    const padResult=await outcome(backend);
+    const padDisplay=WebeeBlocksRuntimeOutcome.classifyMission(padResult,{
+      type:'mission-state-v1',oracle:'progression-decision-h-v1'});
+    const padTarget=document.getElementById('a4-native-failure-feedback');
+    assert(padTarget && padTarget.getAttribute('aria-live')==='polite',
+      'missing real DOM target for wrong pad');
+    padTarget.textContent=padDisplay.state+' — '+padDisplay.detail;
+    assert(padResult.reason==='wrong-pad' &&
+      padTarget.textContent==='MISSION NON RÉUSSIE — Mission non accomplie — Atterrissage hors de la zone prévue',
+      'native wrong-pad cause or browser rendering missing');
+    await report('A4_BLIND_WRONG_PAD_REFUSED',{variant:'a',reason:padResult.reason,
+      status:padResult.status,renderedDetail:padTarget.textContent});
+    await report('A4_BLIND_TEST_COMPLETE',{variants:['a','b','a-wrong-pad'],
+      status:'three-native-not-achieved',rangeReads:0});
   } catch(error) {
     await report('A4_BLIND_ERROR',{message:String(error?.stack||error)});
   }
