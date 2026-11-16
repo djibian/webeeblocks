@@ -15,8 +15,10 @@ class FactorSourceTests(unittest.TestCase):
         marker="  DEF A5_FACTOR_G_LOWER Solid {"
         self.assertEqual(a.count(marker),1)
         self.assertEqual(b.count(marker),1)
-        before_a=a.split(marker,1)[0].replace("GLEFT","GX").replace("_GL_SCENE","_GX_SCENE")
-        before_b=b.split(marker,1)[0].replace("GRIGHT","GX").replace("_GR_SCENE","_GX_SCENE")
+        # Exclude descriptive comments and variant-specific DEF identifiers.
+        # Compare exactly the four visual markers and BOTH physical H Solids.
+        before_a=a.split(" children [",1)[1].split(marker,1)[0]
+        before_b=b.split(" children [",1)[1].split(marker,1)[0]
         self.assertEqual(before_a,before_b)
         self.assertEqual(a.count(" Solid {"),7)
         self.assertEqual(b.count(" Solid {"),7)
