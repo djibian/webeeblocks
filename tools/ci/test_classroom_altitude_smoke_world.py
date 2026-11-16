@@ -67,6 +67,18 @@ class NativeAltitudeSmokeWorld(unittest.TestCase):
         self.assertIn(b"WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots", classroom_ini)
         self.assertIn(b"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins", classroom_ini)
 
+    def test_wrong_64ms_world_is_rejected_by_native_evaluator_not_just_source(self):
+        school = (ROOT / "worlds/crazyflie_classroom_start.wbt").read_text(encoding="utf-8")
+        oracle = (ROOT / "controllers/progression_altitude_v1/progression_altitude_v1.c").read_text(encoding="utf-8")
+        runner = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(encoding="utf-8")
+        self.assertEqual(school.count("basicTimeStep 32"), 1)
+        self.assertIn("if (step != 32 || !verify_scene())", oracle)
+        self.assertIn("basicTimeStep 64", runner)
+        self.assertIn("altitude-wrong-timestep.log", runner)
+        self.assertIn("WEBEEBLOCKS_ALTITUDE_FATAL invalid scene identity or geometry", runner)
+        self.assertIn("FAIL Activity 2 evaluator announced READY on a 64ms world", runner)
+        self.assertIn("prepare_classroom_altitude_smoke.py clean", runner)
+
     def test_no_unauthorized_smoke_world_cleanup(self):
         source = MODULE.read_text(encoding="utf-8")
         self.assertIn('refusing to overwrite an existing native smoke world', source)
