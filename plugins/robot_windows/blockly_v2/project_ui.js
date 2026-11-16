@@ -69,11 +69,11 @@
       if (blocklyDiv) blocklyDiv.inert = busy;
     } else if (blocklyDiv) blocklyDiv.inert = busy || editorReadOnly; // Fail closed.
     if (activity) {
-      // Never offer a Start template that ProjectFiles will reject as a
-      // foreign Webots world. A hidden Draft A6 has no eligible starter yet.
-      var available = progressionProfiles().length > 0;
-      activity.disabled = locked || !available;
-      activity.title = available ? '' : 'Aucune activité disponible dans ce monde';
+      // Offer only published projects compatible with the current Webots
+      // world. The strict validation in project_files.js remains authoritative.
+      var compatible = progressionProfiles();
+      activity.disabled = locked || compatible.length === 0;
+      activity.title = compatible.length ? '' : 'Aucune activité publiée pour ce monde de simulation';
     }
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
@@ -241,13 +241,11 @@
   function progressionProfiles() {
     var documentModel = WebeeBlocksActivities && WebeeBlocksActivities.DOCUMENT;
     var activities = documentModel && Array.isArray(documentModel.activities) ? documentModel.activities : [];
-    // Use the same strict world-identity criterion as ProjectFiles. This is
-    // filtering for usability, NOT permission to load another native world.
-    var world = runtimeProfile && runtimeProfile.world;
+    var currentWorld = runtimeProfile && runtimeProfile.world;
+    if (typeof currentWorld !== 'string' || !currentWorld) return [];
     return activities.filter(function(profile) {
-      return !!world && profile && typeof profile.id === 'string' &&
-        profile.id.indexOf('progression-') === 0 &&
-        profile.starterVisible !== false && profile.world === world;
+      return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0 &&
+        profile.starterVisible !== false && profile.world === currentWorld;
     });
   }
 
@@ -258,9 +256,11 @@
         return;
       }
 
-      var profiles = progressionProfiles();
+      var profiles;
+      try { profiles = progressionProfiles(); }
+      catch (error) { reject(error); return; }
       if (!profiles.length) {
-        reject(new Error('aucune activité disponible dans ce monde Webots'));
+        reject(new Error('aucune activité publiée pour ce monde de simulation'));
         return;
       }
 
