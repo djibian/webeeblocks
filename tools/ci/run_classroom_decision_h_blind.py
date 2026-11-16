@@ -111,7 +111,11 @@ def main()->int:
     refused_ok=(len(refused)==2 and
       [r.get('variant') for r in refused]==['a','b'] and
       [r.get('status') for r in refused]==['not-achieved','not-achieved'] and
-      [r.get('wrong') for r in refused]==['high-on-H','low-on-threshold'])
+      [r.get('wrong') for r in refused]==['high-on-H','low-on-threshold'] and
+      [r.get('reason') for r in refused]==['unsafe-clearance','unsafe-clearance'] and
+      [r.get('renderedDetail') for r in refused]==[
+        'MISSION NON RÉUSSIE — Mission non accomplie — Zone ou hauteur de franchissement non respectée'
+      ]*2)
     results=re.findall(
       r'WEBEEBLOCKS_DECISION_H_RESULT scene=([AB]) attempt=([0-9]+) '
       r'status=([a-z-]+) stage=([0-9]+)',log)
@@ -127,16 +131,22 @@ def main()->int:
       all(0.55<float(s[1])<0.9 and s[4]=='0' and s[5]=='0'
           and s[6]=='0' and s[7]=='1' for s in first_fail) and
       float(first_fail[0][3])>0.530 and float(first_fail[1][3])<0.790)
+    native_reasons=re.findall(
+      r'WEBEEBLOCKS_DECISION_H_RESULT scene=([AB]) attempt=([0-9]+) '
+      r'status=not-achieved stage=0 reason=([a-z-]+)',log)
+    native_reason_ok=native_reasons==[
+      ('A','1','unsafe-clearance'),('B','2','unsafe-clearance')]
     no_sensor='WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE' not in log
     browser_log=ARTIFACT/'browser-launch.log'
     browser=browser_log.read_text(encoding='utf-8',errors='replace') if browser_log.exists() else ''
     browser_ok=('BROWSER_LAUNCHED args=' in browser and
                 'decision_h_blind_probe.html' in browser)
-    valid=(valid_sequence and refused_ok and no_sensor and browser_ok and
+    valid=(valid_sequence and refused_ok and native_reason_ok and no_sensor and browser_ok and
            results==[('A','1','not-achieved','0'),
                      ('B','2','not-achieved','0')] and invalid_samples and
            'WEBEEBLOCKS_DECISION_H_FATAL' not in log)
     summary={'pass':valid,'sequence':names,'native_results':results,
+             'native_failure_reasons':native_reasons,
              'physical_rejection_samples':first_fail,'blind_cases':refused,
              'range_reads':0 if no_sensor else 'unexpected',
              'browser_ok':browser_ok,'note':'two bounded blind controls, not universal impossibility'}

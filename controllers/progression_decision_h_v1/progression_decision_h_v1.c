@@ -263,9 +263,9 @@ static void publish(WbFieldRef channel, const wb_dh_mission *m) {
         m->attempt, WB_DH_ORACLE, status);
   if (n <= 0 || (size_t)n >= sizeof(data)) return;
   wb_supervisor_field_set_sf_string(channel, data);
-  printf("WEBEEBLOCKS_DECISION_H_RESULT scene=%c attempt=%llu status=%s stage=%u\n",
+  printf("WEBEEBLOCKS_DECISION_H_RESULT scene=%c attempt=%llu status=%s stage=%u reason=%s\n",
          m->scene == WB_DH_SCENE_A ? 'A' : 'B', m->attempt,
-         status, m->stage);
+         status, m->stage, reason ? reason : "none");
   fflush(stdout);
 }
 

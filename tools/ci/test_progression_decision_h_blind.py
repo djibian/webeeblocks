@@ -42,6 +42,11 @@ class BlindNativeControls(unittest.TestCase):
         html=HTML.read_text(encoding='utf-8')
         self.assertIn("decision_h_blind_probe.js",html)
         self.assertIn("wwi_backend.js",html)
+        self.assertIn("runtime_outcome.js",html)
+        self.assertIn("aria-live=\"polite\"",html)
+        self.assertIn("WebeeBlocksRuntimeOutcome.classifyMission(refused,evaluation)",js)
+        self.assertIn("target.textContent=display.state",js)
+        self.assertIn("refused.reason==='unsafe-clearance'",js)
         self.assertIn("A4_BLIND_HTML_LOADED",html)
 
     def test_draft_and_canonical_runtime_protect_both_native_witnesses(self):
@@ -72,6 +77,9 @@ class BlindNativeControls(unittest.TestCase):
           "results==[('A','1','not-achieved','0'),",
           "('B','2','not-achieved','0')]",
           "A4_BLIND_NATIVE_PASS",
+          "native_reason_ok",
+          "native_failure_reasons",
+          "renderedDetail",
           "no_sensor='WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE' not in log",
         ):
             self.assertIn(token,src)

@@ -62,8 +62,20 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       catch(error){movementError=String(error?.code||error?.message||error);}
       const refused=await outcome(backend);
       assert(refused.status==='not-achieved','blind route was not refused');
+      // The same presenter used by the classroom Blockly window translates
+      // ONLY native exact-attempt A4 evidence. Check the real browser DOM.
+      const evaluation={type:'mission-state-v1',oracle:'progression-decision-h-v1'};
+      const display=WebeeBlocksRuntimeOutcome.classifyMission(refused,evaluation);
+      const target=document.getElementById('a4-native-failure-feedback');
+      assert(target&&target.getAttribute('aria-live')==='polite',
+        'accessible real browser failure-feedback element missing');
+      target.textContent=display.state+' — '+display.detail;
+      assert(refused.reason==='unsafe-clearance' &&
+        target.textContent==='MISSION NON RÉUSSIE — Mission non accomplie — Zone ou hauteur de franchissement non respectée',
+        'native failure reason absent or not displayed by actual browser');
       await report('A4_BLIND_NATIVE_REFUSED',{variant,wrong,
-        status:refused.status,movementError});
+        status:refused.status,reason:refused.reason,
+        renderedDetail:target.textContent,movementError});
       if(variant==='a') {
         await backend.resetSimulation();
         await report('A4_BLIND_NATIVE_RESET',{between:'a,b'});
