@@ -90,7 +90,7 @@
             'Parcours droite — changer' : 'Parcours gauche — changer';
         else if (isCountHPupilProfile(runtimeProfile))
           variant.textContent = 'Parcours ' +
-            (pair.indexOf(runtimeProfile.runtime.scene) + 1) + ' H — changer';
+            String.fromCharCode(65 + pair.indexOf(runtimeProfile.runtime.scene)) + ' — changer';
       }
     }
   }
@@ -336,7 +336,7 @@
           (next.runtime.scene === 'decision-h-b-v1' ? 'B' : 'A') :
           isMiniGrandPrixPupilProfile(next) ?
             (next.runtime.scene === 'mini-grand-prix-r-v1' ? 'droite' : 'gauche') :
-            (pair.indexOf(next.runtime.scene) + 1) + ' H';
+            String.fromCharCode(65 + pair.indexOf(next.runtime.scene));
         fileState('Parcours ' + letter + ' — projet .wbb inchangé', false);
         markProjectChanged('Parcours ' + letter + ' prêt');
         return next.runtime.scene;

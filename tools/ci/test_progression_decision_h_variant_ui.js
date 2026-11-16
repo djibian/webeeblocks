@@ -88,7 +88,7 @@ async function scenario(startProfileId, options={}){
   const scenes=count?['count-h-1-v1','count-h-2-v1','count-h-3-v1']:
     mini?['mini-grand-prix-l-v1','mini-grand-prix-r-v1']:
       ['decision-h-a-v1','decision-h-b-v1'];
-  const labels=count?[/Parcours 1 H/,/Parcours 2 H/,/Parcours 3 H/]:
+  const labels=count?[/Parcours A/,/Parcours B/,/Parcours C/]:
     mini?[/Parcours gauche/,/Parcours droite/]:[/Parcours A/,/Parcours B/];
   const [firstScene,nextScene]=scenes;
   const [firstLabel,nextLabel]=labels;
@@ -132,6 +132,8 @@ async function scenario(startProfileId, options={}){
   }
   assert(!btn.hidden&&!btn.disabled,'A4 toggle must be enabled after native initialization');
   assert.match(btn.textContent,firstLabel);
+  if(count) assert.doesNotMatch(btn.textContent,/\b[123]\s*H\b/,
+    'A6 pupil variant button must never disclose number of H');
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',{detail:{state:'EXÉCUTION'}}));
   assert(btn.disabled,'active flight must prevent scene changes');
   assert(editWouldBeBlocked(),'active flight must prevent Blockly editing');
@@ -149,6 +151,12 @@ async function scenario(startProfileId, options={}){
   assert(resolveAck,'native ACK was not awaited');
   holdAck=false;resolveAck();await flush();
   assert.match(btn.textContent,nextLabel);
+  if(count) {
+    assert.doesNotMatch(btn.textContent,/\b[123]\s*H\b/,
+      'A6 changed-scene label disclosed number of H');
+    assert.doesNotMatch(elements.projectFileState.textContent,/\b[123]\s*H\b/,
+      'A6 project-status message disclosed number of H');
+  }
   assert.equal(manager.bytes(),bytes,'A/B scene choice must never alter .wbb');
   assert.equal(saveWrites,0,'A/B scene choice must never auto-save');
 
@@ -156,6 +164,12 @@ async function scenario(startProfileId, options={}){
   const secondIndex=2%scenes.length;
   assert.equal(backendCalls[1].scene,scenes[secondIndex]);
   assert.match(btn.textContent,labels[secondIndex]);
+  if(count) {
+    assert.doesNotMatch(btn.textContent,/\b[123]\s*H\b/,
+      'A6 third-variant label disclosed number of H');
+    assert.doesNotMatch(elements.projectFileState.textContent,/\b[123]\s*H\b/,
+      'A6 third-variant status disclosed number of H');
+  }
   assert.equal(manager.bytes(),bytes);
 
   // A missing/invalid native ACK must fail closed, keep the last profile,
@@ -163,6 +177,12 @@ async function scenario(startProfileId, options={}){
   failNext=true;btn.handlers.click();await flush();
   assert.equal(backendCalls[2].scene,scenes[(secondIndex+1)%scenes.length]);
   assert.match(btn.textContent,labels[secondIndex]);
+  if(count) {
+    assert.doesNotMatch(btn.textContent,/\b[123]\s*H\b/,
+      'A6 third-variant label disclosed number of H');
+    assert.doesNotMatch(elements.projectFileState.textContent,/\b[123]\s*H\b/,
+      'A6 third-variant status disclosed number of H');
+  }
   assert.match(elements.projectFileState.textContent,/Impossible de changer de parcours/);
   assert(diagnostics.some(s=>s.includes('NATIVE_SCENE_ACK_REJECT')));
   assert.equal(manager.bytes(),bytes);
