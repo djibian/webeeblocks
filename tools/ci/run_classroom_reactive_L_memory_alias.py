@@ -172,6 +172,45 @@ def main():
             a, b = data["A"][idx][direction], data["B"][idx][direction]
             deltas.append(abs(a-b))
     if not deltas or max(deltas) > .035:
+        # A scientifically useful negative result must survive the failed job.
+        # Keep all six revealing rays' true A/B readings, without converting
+        # the false alias hypothesis into a passing experiment.
+        revealing = []
+        for index, delta in enumerate(deltas):
+            if delta <= .035:
+                continue
+            scan_index, direction_index = divmod(index, 3)
+            direction = ("front", "left", "right")[direction_index]
+            a = data["A"][scan_index + 1][direction]
+            b = data["B"][scan_index + 1][direction]
+            revealing.append({
+                "yaw_deg": scan_index * 22.5,
+                "direction": direction,
+                "variant_A_m": a,
+                "variant_B_m": b,
+                "difference_m": delta,
+            })
+        refutation = {
+            "schema": "webeeblocks-a5-alias-refutation-native-v1",
+            "outcome": "REFUTED",
+            "threshold_m": .035,
+            "maximum_difference_m": max(deltas) if deltas else None,
+            "early_left_difference_m": far - near,
+            "late_scans_per_variant": 16,
+            "original_range_sensors": ["front", "left", "right"],
+            "revealing_rays": revealing,
+            "sensor_physics_native": True,
+            "motorized_student_program_proven": False,
+            "student_turns_90deg_only_not_falsified": True,
+        }
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "refutation.json").write_text(
+            json.dumps(refutation, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8")
+        print("WEBEEBLOCKS_A5_ALIAS_NATIVE_REFUTED " +
+              json.dumps({"maximum_difference_m": refutation["maximum_difference_m"],
+                          "revealing_rays": revealing}, sort_keys=True),
+              flush=True)
         raise AssertionError("late R2025a rays still reveal earlier variant: " +
                              repr(deltas))
     evidence = {
