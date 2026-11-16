@@ -422,7 +422,7 @@
         // have independent evidence. Never distribute the private CI solution.
         starterVisible: false,
         id: 'progression-count-h-v1',
-        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        world: 'worlds/crazyflie_classroom_count_h_start.wbt',
         brief: {
           visible: true,
           title: '6 — Compter pour choisir',
@@ -439,7 +439,8 @@
           'variables_set', 'variables_get', 'math_change', 'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_speed: { SPEED: { min: 0.2, max: 0.2, step: 0.1 } }
+          webeeblocks_v2_speed: { SPEED: { min: 0.2, max: 0.2, step: 0.1 } },
+          controls_whileUntil: { MAX_ITERATIONS: { min: 1, max: 80, step: 1 } }
         },
         fieldOptions: {
           webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
@@ -485,13 +486,15 @@
           'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
           'webeeblocks_v2_vertical', 'webeeblocks_v2_move',
           'webeeblocks_v2_turn', 'webeeblocks_v2_range',
-          'controls_repeat_ext', 'controls_if', 'logic_compare',
+          'controls_repeat_ext', 'controls_whileUntil',
+          'controls_if', 'logic_compare',
           'logic_operation', 'math_number', 'math_arithmetic',
           'variables_set', 'variables_get', 'math_change',
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } }
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } },
+          controls_whileUntil: { MAX_ITERATIONS: { min: 1, max: 80, step: 1 } }
         },
         fieldOptions: {
           webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] },
@@ -507,7 +510,7 @@
           scene: 'mini-grand-prix-l-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'set_speed', 'vertical',
-            'move', 'turn', 'repeat', 'if', 'set_variable', 'land' ],
+            'move', 'turn', 'repeat', 'while', 'if', 'set_variable', 'land' ],
           rangeDirections: [ 'front', 'left', 'right' ],
           moveDirections: [ 'forward' ],
           verticalDirections: [ 'up', 'down' ],
@@ -517,7 +520,8 @@
             'vertical.distance_m': { min: 0.10, max: 0.35 },
             'set_speed.speed_m_s': { min: 0.1, max: 0.1 },
             'turn.angle_deg_abs': { min: 90, max: 90 },
-            'repeat.count': { min: 1, max: 10 }
+            'repeat.count': { min: 1, max: 10 },
+            'while.max_iterations': { min: 1, max: 80 }
           }
         }
       },

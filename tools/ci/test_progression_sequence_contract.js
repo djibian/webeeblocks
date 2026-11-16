@@ -130,6 +130,34 @@ assert.strictEqual(pMini.runtime.scene, 'mini-grand-prix-l-v1');
 assert.strictEqual(pMini.evaluation.oracle, 'progression-mini-grand-prix-v1');
 assert(pMini.toolbox.includes('variables_set') && pMini.toolbox.includes('controls_repeat_ext'),
   'activity 7 must preserve generic learned memory and loops');
+// A5/A6 teach a bounded conditional loop. A7 must allow reusing that
+// learned generic construct, without prescribing its use as an AST-shape oracle.
+// Limit 80 is enforced both by the pupil's editable field and by preflight.
+assert(pMini.toolbox.includes('controls_whileUntil'),
+  'A7 must offer the conditional loop already learned in A5/A6');
+assert(pMini.runtime.allowedStatementKinds.includes('while'),
+  'A7 must admit its compiled while AST');
+assert.deepStrictEqual(pMini.runtime.astBounds['while.max_iterations'], {min:1,max:80});
+assert.deepStrictEqual(pMini.parameterBounds.controls_whileUntil.MAX_ITERATIONS,
+  {min:1,max:80,step:1});
+const miniWhile = {version:1,semantics:'webeeblocks-ast-v1',program:[
+  {kind:'takeoff',height_m:0.5},
+  {kind:'while',mode:'WHILE',max_iterations:80,
+    condition:{kind:'compare',op:'LT',
+      left:{kind:'range',direction:'front',unit:'m'},
+      right:{kind:'number',value:0.5}},
+    body:[{kind:'move',direction:'forward',distance_m:0.15}]},
+  {kind:'land'}
+]};
+assert(ActivityContract.preflightAst(pMini,miniWhile));
+assert(Interpreter.validateExecutionBudget(miniWhile,5000)>0);
+const oversizedMiniWhile=JSON.parse(JSON.stringify(miniWhile));
+oversizedMiniWhile.program[1].max_iterations=81;
+assert.throws(()=>ActivityContract.preflightAst(pMini,oversizedMiniWhile),
+  /while.max_iterations outside profile bounds/);
+assert.throws(()=>ActivityContract.preflightAst(pDecision,miniWhile),
+  /AST statement forbidden by profile: while/);
+
 const pMiniR=JSON.parse(JSON.stringify(pMini));
 pMiniR.runtime.scene='mini-grand-prix-r-v1';
 assert(Profiles.validateProfile(pMiniR,Activities.BLOCK_CATALOG));
