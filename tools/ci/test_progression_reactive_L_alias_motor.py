@@ -66,7 +66,8 @@ class A5AliasMotorSourceTests(unittest.TestCase):
                       "decision_source:'retained_early_sensor'"):
             self.assertIn(token,js)
         for token in ("native_loader_env()",
-                      'env["LD_LIBRARY_PATH"]=str(lib)',
+                      'env["LD_LIBRARY_PATH"]=str(qt_lib)+":"+str(controller_lib)',
+                      'controller_lib/"libController.so"',
                       '"native-loader-dependencies.txt"',
                       'subprocess.run(["ldd",str(executable)]',
                       'check.returncode!=0 or "not found"',

@@ -58,14 +58,20 @@ def native_loader_env():
     This is CI-only, never a modification of product or native flight code.
     """
     home=Path(os.environ.get("WEBOTS_HOME","/usr/local/webots"))
-    lib=home/"lib/webots"
+    qt_lib=home/"lib/webots"
+    controller_lib=home/"lib/controller"
     executable=ROOT/"controllers/progression_reactive_L_alias_motor_pilot"/(
         "progression_reactive_L_alias_motor_pilot")
-    if not executable.is_file() or not (lib/"libQt6Core.so.6").is_file():
-        raise FileNotFoundError("missing pinned native pilot or Webots R2025a Qt library")
+    if (not executable.is_file() or
+        not (qt_lib/"libQt6Core.so.6").is_file() or
+        not (controller_lib/"libController.so").is_file()):
+        raise FileNotFoundError("missing private pilot, Qt6 or native Webots controller library")
     env=dict(os.environ)
     original=env.get("LD_LIBRARY_PATH","")
-    env["LD_LIBRARY_PATH"]=str(lib)+(":"+original if original else "")
+    # libController.so is NOT in lib/webots; omitting lib/controller leaves a
+    # compiled C/C++ binary unable to start (verified artifact #14230587226).
+    env["LD_LIBRARY_PATH"]=str(qt_lib)+":"+str(controller_lib)+(
+        ":"+original if original else "")
     check=subprocess.run(["ldd",str(executable)],env=env,
                          capture_output=True,text=True,timeout=15,check=False)
     ARTIFACT.mkdir(parents=True,exist_ok=True)
