@@ -9,14 +9,14 @@ CFLAGS = -I../crazyflie_square -I../crazyflie_runtime_v2 -Dmain=webeeblocks_runt
 # Webots builds. Windows follows Webots R2025a's own bundled Qt/MSYS2 layout;
 # Linux uses the bundled Webots Qt libraries and plugin runtime environment.
 ifeq ($(OS),Windows_NT)
- CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp classroom_scene.cpp
+ CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp build/file_broker_classroom.cpp classroom_scene.cpp
  USE_C_API = true
  CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -include ../crazyflie_runtime_v2/file_broker_interpose.h
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
  DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets -lole32 -luuid
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
 else
- CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp classroom_scene.cpp
+ CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp build/file_broker_classroom.cpp classroom_scene.cpp
  USE_C_API = true
  CFLAGS += -std=c++17 -fPIC -include ../crazyflie_runtime_v2/file_broker_interpose.h
  LDFLAGS += -pie
@@ -28,4 +28,9 @@ endif
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
+
+# Only the SCHOOL simulation compiles this strict generated reason-aware broker.
+# The shared hash-locked physical source and its build remain byte-identical.
+build/file_broker_classroom.cpp: ../crazyflie_runtime_v2/file_broker_runtime.cpp ../../tools/classroom/compose_a4_outcome_broker.py ../../tools/grand_prix/route_broker_outcome_v2.py
+	python3 ../../tools/classroom/compose_a4_outcome_broker.py
 include $(WEBOTS_HOME_PATH)/resources/Makefile.include

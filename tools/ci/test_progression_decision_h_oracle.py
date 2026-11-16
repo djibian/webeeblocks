@@ -115,7 +115,41 @@ static void test_physical_floor_contact_required(void) {
            ==WB_DH_NOT_ACHIEVED);
   }
 }
+static void test_native_failure_causes(void) {
+  wb_dh_mission m;
+  wb_dh_reset(&m,700,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,1,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT);
+  assert(!strcmp(wb_dh_reason_token(m.reason),"obstacle-contact"));
+  assert(tick_floor(&m,1,0,0,.035,0,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT); /* First cause is immutable. */
+  wb_dh_reset(&m,701,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
+  takeoff(&m,702,WB_DH_SCENE_A);
+  assert(tick(&m,2,.75,0,.85,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CLEARANCE);
+  takeoff(&m,703,WB_DH_SCENE_A);
+  assert(tick(&m,2,1.05,0,.50,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_ROUTE);
+  takeoff(&m,704,WB_DH_SCENE_A);
+  assert(tick(&m,2,.30,0,.75,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_EARLY);
+  completed_route(&m,705,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.75,0,.060,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.501,1.75,0,.060,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_LANDING);
+  completed_route(&m,706,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.52,0,.015,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.501,1.52,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_WRONG_PAD);
+  completed_route(&m,707,WB_DH_SCENE_A);
+  finish_stably(&m,8);
+  assert(m.reason==WB_DH_REASON_NONE);
+}
+
 int main(void) {
+  test_native_failure_causes();
   test_physical_floor_contact_required();
   wb_dh_mission m;
   completed_route(&m,1,WB_DH_SCENE_A);

@@ -251,10 +251,16 @@ static int obstacle_contact(WbNodeRef craft,
 
 static void publish(WbFieldRef channel, const wb_dh_mission *m) {
   const char *status = m->verdict == WB_DH_ACHIEVED ? "achieved" : "not-achieved";
+  const char *reason = m->verdict == WB_DH_NOT_ACHIEVED
+    ? wb_dh_reason_token(m->reason) : NULL;
   char data[200];
-  int n = snprintf(data, sizeof(data),
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-      m->attempt, WB_DH_ORACLE, status);
+  int n = reason
+    ? snprintf(data, sizeof(data),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+        m->attempt, WB_DH_ORACLE, status, reason)
+    : snprintf(data, sizeof(data),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+        m->attempt, WB_DH_ORACLE, status);
   if (n <= 0 || (size_t)n >= sizeof(data)) return;
   wb_supervisor_field_set_sf_string(channel, data);
   printf("WEBEEBLOCKS_DECISION_H_RESULT scene=%c attempt=%llu status=%s stage=%u\n",

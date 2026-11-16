@@ -315,6 +315,23 @@ function proveRealWebotsOutcomeFreshness() {
   assert.deepStrictEqual(achieved, {
     status:'achieved', state:'MISSION RÉUSSIE', detail:'Mission accomplie'
   });
+  const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
+  assert.deepStrictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'obstacle-contact'},a4), {
+    status:'not-achieved',state:'MISSION NON RÉUSSIE',
+    detail:'Mission non accomplie — Contact avec un obstacle'
+  });
+  for(const bad of [
+    {status:'not-achieved',reason:'mystery'},
+    {status:'achieved',reason:'obstacle-contact'}
+  ]) {
+    const got=Outcome.classifyMission(bad,a4);
+    assert.strictEqual(got.detail,bad.status==='achieved'
+      ? 'Mission accomplie' : 'Mission non accomplie');
+  }
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'obstacle-contact'},evaluation).detail,
+    'Mission non accomplie','another oracle cannot claim A4 causes');
   assert.deepStrictEqual(Outcome.classifyMission('not-achieved'), {
     status:'not-achieved', state:'MISSION NON RÉUSSIE', detail:'Mission non accomplie'
   });
