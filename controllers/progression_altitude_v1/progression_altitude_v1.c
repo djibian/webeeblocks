@@ -149,7 +149,10 @@ static void publish(WbFieldRef channel, unsigned long long attempt,
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene()) {
+  /* The 250-ms grounded dwell requires consecutive observations <=48 ms.
+   * The real classroom WorldInfo is pinned to 32 ms; 64 ms cannot qualify.
+   * Refuse before READY, never relax the evidence interval. */
+  if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_ALTITUDE_FATAL invalid scene identity or geometry\n");
     wb_robot_cleanup();
     return 2;
