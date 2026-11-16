@@ -76,6 +76,13 @@ class A5MemoryAliasingPrototypeTests(unittest.TestCase):
             self.assertNotIn(forbidden,source)
         self.assertIn("far-near > .35",script)
         self.assertIn("max(deltas) > .035",script)
+        # A failed geometric hypothesis must be archived as genuine negative
+        # evidence, never hidden by a green static/motor-only Draft workflow.
+        for marker in ('refutation.json', 'WEBEEBLOCKS_A5_ALIAS_NATIVE_REFUTED',
+                       '"outcome": "REFUTED"', '"yaw_deg": scan_index * 22.5',
+                       '"variant_A_m": a', '"variant_B_m": b',
+                       '"revealing_rays": revealing'):
+            self.assertIn(marker, script)
         self.assertIn("backtracking_or_local_translations_not_falsified",script)
         self.assertIn("variable_required_for_all_strategies_NOT_PROVEN",script)
         self.assertIn("classroom_student_PASS",script)
