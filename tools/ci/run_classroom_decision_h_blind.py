@@ -148,12 +148,17 @@ def main()->int:
       0.20<float(first_fail[2][2])<0.50 and
       0.0<float(first_fail[2][3])<=0.020 and
       first_fail[2][4:] == ('0','1','4','1'))
+    # The last real landing has crossed both obstacles (stage 4);
+    # the two deliberately wrong in-flight crossings fail at stage 0.
+    # Capture the native stage and refuse any different chronology rather
+    # than deleting a legitimate wrong-pad verdict from the evidence.
     native_reasons=re.findall(
       r'WEBEEBLOCKS_DECISION_H_RESULT scene=([AB]) attempt=([0-9]+) '
-      r'status=not-achieved stage=0 reason=([a-z-]+)',log)
+      r'status=not-achieved stage=([0-9]+) reason=([a-z-]+)',log)
     native_reason_ok=native_reasons==[
-      ('A','1','unsafe-clearance'),('B','2','unsafe-clearance'),
-      ('A','3','wrong-pad')]
+      ('A','1','0','unsafe-clearance'),
+      ('B','2','0','unsafe-clearance'),
+      ('A','3','4','wrong-pad')]
     no_sensor='WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE' not in log
     browser_log=ARTIFACT/'browser-launch.log'
     browser=browser_log.read_text(encoding='utf-8',errors='replace') if browser_log.exists() else ''
