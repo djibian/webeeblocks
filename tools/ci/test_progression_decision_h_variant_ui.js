@@ -83,13 +83,17 @@ async function scenario(startProfileId, options={}){
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
     console:{error(...args){diagnostics.push(args.map(v=>v?.message||String(v)).join(' '))},
       warn(){},log(){}}};
-  const control=new Function(...Object.keys(inputs),src+
-    '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;},'+
-    'starterIds(){return progressionProfiles().map(p=>p.id);}};')(...Object.values(inputs));
+  // Access the real closure only through a test-local hook injected before
+  // its IIFE closes; never expose this function in the product build.
+  const instrumented=src.replace(/\n\}\)\(\);\s*$/,
+    '\n  window.__ciStarterIds = function(){return progressionProfiles().map(p=>p.id);};\n})();\n');
+  assert.notEqual(instrumented,src,'cannot instrument private chooser in test');
+  const control=new Function(...Object.keys(inputs),instrumented+
+    '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;}};')(...Object.values(inputs));
   assert(callbacks.load?.length===1,'actual project UI did not subscribe to window load');
   callbacks.load[0]();await flush();
   assert(manager,'real project UI did not initialize its file manager');
-  const choices=control.starterIds();
+  const choices=window.__ciStarterIds();
   assert(choices.every(id=>{
     const p=localActivities.DOCUMENT.activities.find(v=>v.id===id);
     return p&&p.starterVisible!==false&&p.world===profile.world;
