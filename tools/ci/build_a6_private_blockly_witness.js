@@ -47,7 +47,9 @@ function expectedAst(){
       condition:cmp('GT',range('front'),.82),
       body:[
         forward(.08),
-        iff(both(cmp('LT',range('up'),.75),cmp('LT',range('up'),.75)),[
+        // Real R2025a n=2 may yield LOW then HIGH on successive up rays
+        // at the same gate; require one genuine LOW, not two coincident ones.
+        iff(cmp('LT',range('up'),.75),[
           set('under',1)
         ],[
           iff(both(cmp('GT',range('up'),1.30),cmp('EQ',v('under'),1)),[
@@ -207,9 +209,9 @@ function build(){
   }finally{workspace.dispose();}
 }
 
-function virtualSensorBackend(numberOfH){
+function virtualSensorBackend(numberOfH,narrowSecondH=false){
   const gatePositions=[-.85,0,.85].slice(0,numberOfH);
-  const self={x:-1.4,y:0,z:0,landed:false,
+  const self={x:-1.4,y:0,z:0,landed:false,narrowPulseSeen:false,
     actions:[],
     capabilities:{actions:['takeoff','move','set_speed','land'],
       conditionalLoops:true,
@@ -228,8 +230,16 @@ function virtualSensorBackend(numberOfH){
     async readRange(direction){
       this.actions.push('read:'+direction);
       if(direction==='front')return Math.max(.01,Math.min(2,1.84-this.x));
-      if(direction==='up')
+      if(direction==='up') {
+        // Deterministic reproduction of the single-low second H ray seen
+        // in the failed true R2025a Blockly n=2 run; never consult scene ID.
+        if(narrowSecondH && gatePositions.length>=2 &&
+           Math.abs(this.x-gatePositions[1])<=.061){
+          if(!this.narrowPulseSeen){this.narrowPulseSeen=true;return .20;}
+          return 2.0;
+        }
         return gatePositions.some(x=>Math.abs(this.x-x)<=.061)? .20:2.0;
+      }
       throw Error('unavailable mock sensor');
     },
     async land(){this.z=0;this.landed=true;this.actions.push('land');}
@@ -263,6 +273,16 @@ async function main(){
     assert(backend.actions.filter(x=>x==='read:up').length>10);
     assert.equal(witness.text,serialized,'same exact .wbb must be reused');
   }
+  // The old two-consecutive-LOW fixture lost H2 when its physical beam
+  // produced 0.20m once and 2m on the immediately following ray.
+  const narrow=virtualSensorBackend(2,true);
+  const narrowResult=await Interpreter.run(witness.ast,narrow,{maxSteps:20000,
+    motionBounds:witness.profile.runtime.astBounds});
+  assert(narrow.narrowPulseSeen,'narrow second H fixture did not execute');
+  assert.equal(narrowResult.variables.count,2,
+    'a real single-LOW second H must not vanish from the Blockly count');
+  assert.equal(narrowResult.variables.under,0,'narrow H entry not closed');
+  assert(Math.abs(narrow.y-.55)<.06,'narrow H landed on wrong 2-H pad');
   if(process.argv[2]){
     const dest=path.resolve(process.argv[2]);
     fs.mkdirSync(path.dirname(dest),{recursive:true});
