@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Falsify canopy high-takeoff bypass in actual Webots R2025a.
+"""Falsify high-takeoff and no-ascent shortcuts in actual Webots R2025a.
 
 No mocked flight, no simulator bypass, no AST inspection. Outputs are evidence,
 not an owner pedagogical PASS; the first low-flight trajectory is experimental.
@@ -27,7 +27,8 @@ REQUIRED = (
     'CANOPY_SCENE_ACK','CANOPY_HIGH_REJECTED','CANOPY_RESET_FRESH',
     'CANOPY_SCENE_REATTACHED','CANOPY_CLEARED_LOW',
     'CANOPY_ASCENDED_AFTER_CLEARANCE','CANOPY_LOW_CLIMB_ACHIEVED',
-    'CANOPY_TEST_COMPLETE',
+    'CANOPY_BLIND_RESET_FRESH','CANOPY_BLIND_SCENE_REATTACHED',
+    'CANOPY_BLIND_NO_ASCENT_REJECTED','CANOPY_TEST_COMPLETE',
 )
 
 
@@ -84,6 +85,11 @@ def run() -> int:
     low_success = re.search(
         r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=2 status=achieved\b[^\n]*\bcrossed=1\b[^\n]*\bcontact=0\b[^\n]*\bcompletion=1\b',
         transcript)
+    # A separate third native attempt must reject the A1-style path:
+    # takeoff at safe height followed by forward movement without ascent.
+    blind_rejection = re.search(
+        r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=3 status=not-achieved\b[^\n]*\bairborne=1\b[^\n]*\bcrossed=0\b',
+        transcript)
     browser_dir = world.ROOT / 'ci-artifacts' / Path(
         os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR',
                        '/workspace/ci-artifacts/progression-neutral-start')
@@ -95,8 +101,9 @@ def run() -> int:
     # fail-safe on attempt 1. Its one exact FATAL is the negative witness,
     # never permission to ignore other or later native safety failures.
     expected_fatal = 'WEBEEBLOCKS_RUNTIME_V2 FATAL unsafe attitude or action timeout'
-    native_fatals = [line.strip() for line in transcript.splitlines()
-                     if 'WEBEEBLOCKS_RUNTIME_V2 FATAL' in line]
+    native_fatal_matches = list(re.finditer(
+        r'[^\n]*WEBEEBLOCKS_RUNTIME_V2 FATAL[^\n]*',transcript))
+    native_fatals = [match.group().strip() for match in native_fatal_matches]
     positions = (
         actual_contact.start() if actual_contact else -1,
         transcript.find(expected_fatal),
@@ -104,8 +111,19 @@ def run() -> int:
         transcript.find('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET'),
         low_success.start() if low_success else -1,
     )
+    second_reset = transcript.find('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET',
+                                   positions[3]+1) if positions[3]>=0 else -1
+    blind_sequence = bool(low_success and blind_rejection and
+                          second_reset > low_success.start() and
+                          blind_rejection.start() > second_reset)
+    # The no-ascent attempt may trigger the same original runtime safeguard.
+    # Allow only that second, exactly identified FATAL and only AFTER reset;
+    # all other fatal reasons and additional FATAL lines still fail closed.
+    known_fatals = native_fatals == [expected_fatal] or (
+        native_fatals == [expected_fatal,expected_fatal] and
+        blind_sequence and native_fatal_matches[1].start() > second_reset)
     high_fail_safe_verified = (
-        native_fatals == [expected_fatal] and
+        known_fatals and
         all(index >= 0 for index in positions) and
         all(left < right for left, right in zip(positions, positions[1:]))
     )
@@ -116,20 +134,24 @@ def run() -> int:
     (ARTIFACT/'summary.json').write_text(json.dumps({
         'required_events_missing':missing,
         'native_ready':native_ready,'physical_roof_contact':bool(actual_contact),
-        'low_climb_landing':bool(low_success),'browser_launched':launched,
+        'low_climb_landing':bool(low_success),
+        'no_ascent_native_rejection':bool(blind_sequence),
+        'browser_launched':launched,
         'high_fail_safe_verified':high_fail_safe_verified,
         'fatal':fatal,'observed':observed
     },indent=2,sort_keys=True)+'\n',encoding='utf-8')
-    if missing or not native_ready or not actual_contact or not low_success or not launched or fatal:
+    if (missing or not native_ready or not actual_contact or not low_success or
+            not blind_sequence or not launched or fatal):
         print('FAIL native R2025a canopy flight '+json.dumps({
             'missing':missing,'native_ready':native_ready,'roof_contact':bool(actual_contact),
-            'low_success':bool(low_success),'browser_launched':launched,
+            'low_success':bool(low_success),
+            'no_ascent_rejected':bool(blind_sequence),'browser_launched':launched,
             'high_fail_safe_verified':high_fail_safe_verified,
             'fatal':fatal,'events':ack.EVENTS[-5:]
         }),file=sys.stderr)
         print(transcript[-12000:],file=sys.stderr)
         return 1
-    print('PASS real Webots R2025a canopy: high TAKEOFF native collision, reset freshness, low departure then ascent and full-pad LAND')
+    print('PASS R2025a A2: high TAKEOFF rejected, low+ascent landed, no-ascent rejected, RESET fresh')
     return 0
 
 

@@ -81,7 +81,28 @@ window.addEventListener('unhandledrejection', e => report('CANOPY_ERROR',{messag
     await outcome(backend,'achieved',80000);
     await report('CANOPY_LOW_CLIMB_ACHIEVED',{status:'achieved'});
 
-    await report('CANOPY_TEST_COMPLETE',{high:'not-achieved',low:'achieved',reset:'fresh'});
+    // A1-style horizontal-only strategy must not cross A2's low barrier.
+    // Reuse the identical native world and oracle; do not inspect Blockly AST.
+    await backend.resetSimulation();
+    await fresh(backend);
+    await report('CANOPY_BLIND_RESET_FRESH',{code:'OUTCOME_UNAVAILABLE'});
+    await backend.prepareActivity(PROFILE);
+    await report('CANOPY_BLIND_SCENE_REATTACHED',{scene:'altitude-v1'});
+    await backend.setSpeed(0.14);
+    await backend.takeoff(0.45);
+    let blindError = null;
+    try { await backend.move('forward',0.80); }
+    catch (error) {
+      blindError = String(error && (error.code || error.message) || error);
+    }
+    await outcome(backend,'not-achieved',80000);
+    await report('CANOPY_BLIND_NO_ASCENT_REJECTED',{
+      status:'not-achieved',movementError:blindError
+    });
+
+    await report('CANOPY_TEST_COMPLETE',{
+      high:'not-achieved',low:'achieved',blind:'not-achieved',reset:'fresh'
+    });
   } catch (error) {
     await report('CANOPY_ERROR',{message:String(error && (error.stack || error.message) || error)});
   }
