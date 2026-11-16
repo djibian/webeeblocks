@@ -50,6 +50,32 @@ class Handler(events.Handler):
         self.end_headers()
         self.wfile.write(raw)
 
+def native_loader_env():
+    """Validate the isolated C++ Qt dependencies BEFORE launching Webots.
+
+    R2025a's Qt .so files live in WEBOTS_HOME/lib/webots; mere successful
+    compilation with -L does not make that directory discoverable by ld.so.
+    This is CI-only, never a modification of product or native flight code.
+    """
+    home=Path(os.environ.get("WEBOTS_HOME","/usr/local/webots"))
+    lib=home/"lib/webots"
+    executable=ROOT/"controllers/progression_reactive_L_alias_motor_pilot"/(
+        "progression_reactive_L_alias_motor_pilot")
+    if not executable.is_file() or not (lib/"libQt6Core.so.6").is_file():
+        raise FileNotFoundError("missing pinned native pilot or Webots R2025a Qt library")
+    env=dict(os.environ)
+    original=env.get("LD_LIBRARY_PATH","")
+    env["LD_LIBRARY_PATH"]=str(lib)+(":"+original if original else "")
+    check=subprocess.run(["ldd",str(executable)],env=env,
+                         capture_output=True,text=True,timeout=15,check=False)
+    ARTIFACT.mkdir(parents=True,exist_ok=True)
+    (ARTIFACT/"native-loader-dependencies.txt").write_text(
+        check.stdout+check.stderr,encoding="utf-8")
+    if check.returncode!=0 or "not found" in check.stdout+check.stderr:
+        raise RuntimeError("unresolved A5 native pilot runtime library: "+
+                           (check.stdout+check.stderr)[-2800:])
+    return env
+
 def run(variant):
     if not isinstance(variant,str) or variant not in "AB" or len(variant)!=1:
         raise ValueError("unexpected native A5 motor variant")
@@ -59,6 +85,9 @@ def run(variant):
     event_path=folder/"events.json"
     summary_file=folder/"summary.json"
     body=world.compose(variant)
+    # Fail fast with a precise dependent-library diagnosis, not a misleading
+    # 90-s browser READY timeout while the native controller cannot start.
+    checked_env=native_loader_env()
     events.EVENTS.clear()
     Handler.variant=variant
     server=proc=stream=None
@@ -67,7 +96,7 @@ def run(variant):
         server=events.http.server.ThreadingHTTPServer(("127.0.0.1",8765),Handler)
         thread=threading.Thread(target=server.serve_forever,daemon=True)
         thread.start()
-        env=dict(os.environ)
+        env=checked_env
         env["WEBOTS_WEB_BROWSER"]="/workspace/tools/ci/webots_runtime_v2_browser.sh"
         env["LIBGL_ALWAYS_SOFTWARE"]="true"
         env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"

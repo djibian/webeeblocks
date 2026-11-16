@@ -65,7 +65,12 @@ class A5AliasMotorSourceTests(unittest.TestCase):
                       "await backend.land()",
                       "decision_source:'retained_early_sensor'"):
             self.assertIn(token,js)
-        for token in ("native_floor_contact",
+        for token in ("native_loader_env()",
+                      'env["LD_LIBRARY_PATH"]=str(lib)',
+                      '"native-loader-dependencies.txt"',
+                      'subprocess.run(["ldd",str(executable)]',
+                      'check.returncode!=0 or "not found"',
+                      "native_floor_contact",
                       "native_land_ack",
                       "same_pilot_js",
                       "student_blockly_and_mission_oracle_NOT_PROVEN",
