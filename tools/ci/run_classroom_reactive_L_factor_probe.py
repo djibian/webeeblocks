@@ -150,8 +150,10 @@ def main():
     early=max(abs(L[0][d]-R[0][d]) for d in
               ("front_m","left_m","right_m"))
     approach=abs(L[1]["left_m"]-R[1]["left_m"])
-    gap_left=R[2]["front_m"]-L[2]["front_m"]
-    gap_right=L[3]["front_m"]-R[3]["front_m"]
+    # Open aperture must have the FARTHER unobstructed frontal ray.
+    # G-L opens on the left; G-R opens on the right. Do not invert this sign.
+    gap_left=L[2]["front_m"]-R[2]["front_m"]
+    gap_right=R[3]["front_m"]-L[3]["front_m"]
     report=dict(schema="webeeblocks-a5-gfactor-native-v1",
                 early_max_delta_m=early,
                 approach_left_delta_m=approach,

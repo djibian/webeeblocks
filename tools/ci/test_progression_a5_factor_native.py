@@ -23,6 +23,12 @@ class NativeFactorTests(unittest.TestCase):
             for bad in (src+src,src.replace(" Solid {"," Robot {",1),
                         src.replace("boundingObject Box","geometry Box",1)):
                 with self.assertRaises(ValueError):witness.compose(v,bad)
+    def test_opening_ray_delta_is_signed_toward_the_open_gap(self):
+        script=(ROOT/"tools/ci/run_classroom_reactive_L_factor_probe.py").read_text()
+        self.assertIn('gap_left=L[2]["front_m"]-R[2]["front_m"]',script)
+        self.assertIn('gap_right=R[3]["front_m"]-L[3]["front_m"]',script)
+        self.assertIn("gap_left<.35 or gap_right<.35",script)
+
     def test_native_authority_and_failure_are_real(self):
         src=(ROOT/"controllers/progression_reactive_L_factor_probe"/
              "progression_reactive_L_factor_probe.c").read_text()
