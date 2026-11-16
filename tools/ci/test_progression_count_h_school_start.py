@@ -69,7 +69,11 @@ class CountHSchoolStartTest(unittest.TestCase):
             'real browser .wbb bytes changed during variants',
             'A6_REAL_BROWSER_WBB_ROUNDTRIP_PASS',
             'os_save_open=UNPROVEN',
-            'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 SCENE_OK',
+            'same_native_epoch_preserved',
+            'ack_after!=ack_before',
+            'observer_after!=observer_before',
+            'responses_after!=responses_before',
+            'native_epoch_preserved=true',
         ):
             self.assertIn(marker,runner)
         self.assertIn('no_os_picker_proven',runner)
