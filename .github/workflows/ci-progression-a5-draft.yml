@@ -24,6 +24,8 @@ on:
       - 'tools/ci/*reactive_L_v2*'
       - 'tools/ci/run_classroom_reactive_L_v2_attempts.py'
       - 'controllers/progression_reactive_L_sensor_probe*/**'
+      - 'controllers/progression_reactive_L_memory_alias_probe/**'
+      - 'tools/ci/run_classroom_reactive_L_memory_alias.py'
       - 'worlds/scenes/reactive-L-*.wbo'
 
 permissions:
@@ -34,7 +36,7 @@ jobs:
     name: A5 R2025a sensor/attempt falsification (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
-    timeout-minutes: 14
+    timeout-minutes: 17
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,6 +50,7 @@ jobs:
             tools.ci.test_progression_reactive_L_sensor \
             tools.ci.test_progression_reactive_L_v2_scene \
             tools.ci.test_progression_reactive_L_sensor_v2 \
+            tools.ci.test_progression_reactive_L_memory_alias \
             tools.ci.test_progression_reactive_L_v2_oracle \
             tools.ci.test_progression_reactive_L_v2_native \
             tools.ci.test_progression_reactive_L_v2_evaluator_attestation \
@@ -108,6 +111,24 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_sensor_v2.py'
+      - name: Compile native R2025a A5 early-clue / late-alias probe
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_memory_alias_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_memory_alias_probe'
+      - name: Falsify A5 late 0-90-180-270 native sensor aliases with early L cue A/B
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_memory_alias.py'
       - name: Attest independent A5 V2 evaluator in three genuine R2025a worlds
         run: |
           docker run --rm \
@@ -187,6 +208,7 @@ jobs:
           path: |
             ci-artifacts/progression-reactive-L-sensor/
             ci-artifacts/progression-reactive-L-sensor-v2/
+            ci-artifacts/progression-reactive-L-memory-alias/
             ci-artifacts/progression-reactive-L-v2-evaluator/
             ci-artifacts/progression-reactive-L-v2-mutant/
             ci-artifacts/progression-reactive-L-v2-foreign-a4/
