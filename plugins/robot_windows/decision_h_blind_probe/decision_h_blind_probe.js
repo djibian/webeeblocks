@@ -114,8 +114,38 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       'native wrong-pad cause or browser rendering missing');
     await report('A4_BLIND_WRONG_PAD_REFUSED',{variant:'a',reason:padResult.reason,
       status:padResult.status,renderedDetail:padTarget.textContent});
-    await report('A4_BLIND_TEST_COMPLETE',{variants:['a','b','a-wrong-pad'],
-      status:'three-native-not-achieved',rangeReads:0});
+    // Fourth adversarial case: strike the INNER left H upright at legal
+    // low-H altitude, before the corridor y-boundary. Never weaken the
+    // oracle's pre-collision unsafe-clearance guard to obtain a contact.
+    await backend.resetSimulation();
+    await report('A4_BLIND_NATIVE_RESET',{between:'wrong-pad,contact'});
+    await backend.prepareActivity({runtime:{scene:'decision-h-a-v1'}});
+    await report('A4_BLIND_SCENE_READY',{variant:'a',case:'H_LEFT-contact'});
+    await backend.setSpeed(0.1);
+    await backend.takeoff(0.50);
+    await backend.vertical('up',0.25);
+    await backend.vertical('down',0.35); // Safe centre altitude below H bar.
+    await backend.move('forward',0.75); // Real motor flight inside H passage.
+    await report('A4_BLIND_CONTACT_STARTED',{variant:'a',target:'H_LEFT'});
+    let contactMovementError=null;
+    try{await backend.move('left',0.32);}
+    catch(error){contactMovementError=String(error?.code||error?.message||error);}
+    const contactResult=await outcome(backend);
+    const contactDisplay=WebeeBlocksRuntimeOutcome.classifyMission(contactResult,{
+      type:'mission-state-v1',oracle:'progression-decision-h-v1'});
+    const contactTarget=document.getElementById('a4-native-failure-feedback');
+    assert(contactTarget&&contactTarget.getAttribute('aria-live')==='polite',
+      'missing accessible real DOM target for native collision');
+    contactTarget.textContent=contactDisplay.state+' — '+contactDisplay.detail;
+    assert(contactResult.reason==='obstacle-contact' &&
+      contactTarget.textContent==='MISSION NON RÉUSSIE — Mission non accomplie — Contact avec un obstacle',
+      'native H_LEFT contact cause or real browser rendering missing');
+    await report('A4_BLIND_CONTACT_REFUSED',{variant:'a',target:'H_LEFT',
+      status:contactResult.status,reason:contactResult.reason,
+      renderedDetail:contactTarget.textContent,movementError:contactMovementError});
+    await report('A4_BLIND_TEST_COMPLETE',{
+      variants:['a','b','a-wrong-pad','a-H_LEFT-contact'],
+      status:'four-native-not-achieved',rangeReads:0});
   } catch(error) {
     await report('A4_BLIND_ERROR',{message:String(error?.stack||error)});
   }
