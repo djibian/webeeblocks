@@ -58,6 +58,13 @@ class BlindNativeControls(unittest.TestCase):
         self.assertIn("padResult.reason==='wrong-pad'",js)
         self.assertIn("A4_BLIND_WRONG_PAD_REFUSED",js)
         self.assertIn("Atterrissage hors de la zone prévue",js)
+        self.assertIn("await backend.move('forward',0.75)",js)
+        self.assertIn("await backend.move('left',0.32)",js)
+        self.assertIn("contactResult.reason==='obstacle-contact'",js)
+        self.assertIn("Contact avec un obstacle",js)
+        self.assertIn("A4_BLIND_CONTACT_STARTED",js)
+        self.assertIn("A4_BLIND_CONTACT_REFUSED",js)
+        self.assertEqual(js.count("await backend.resetSimulation()"),3)
         self.assertIn("A4_BLIND_HTML_LOADED",html)
 
     def test_draft_and_canonical_runtime_protect_both_native_witnesses(self):
@@ -92,6 +99,10 @@ class BlindNativeControls(unittest.TestCase):
           "('A','1','0','unsafe-clearance')",
           "('B','2','0','unsafe-clearance')",
           "('A','3','4','wrong-pad')",
+          "native_reasons[3][3]=='obstacle-contact'",
+          "native_contact_ok",
+          "WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT type=H_LEFT",
+          "results[3][3] in ('0','1')",
           "stage=([0-9]+) reason=([a-z-]+)",
           "A4_BLIND_WRONG_PAD_REFUSED",
           "A4_BLIND_NATIVE_PASS",
