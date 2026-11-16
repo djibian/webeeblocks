@@ -22,7 +22,12 @@ window.addEventListener('unhandledrejection',e=>
   if(!response.ok)throw Error('private native world identity unavailable');
   const config=await response.json();
   const variant=config&&config.variant;
+  const mode=config&&config.mode;
   if(variant!=='A'&&variant!=='B')throw Error('untrusted A5 pilot variant');
+  if(mode!=='reference'&&mode!=='collision')
+    throw Error('untrusted A5 native test mode');
+  if(mode==='collision'&&variant!=='A')
+    throw Error('A5 collision adversary only allowed on A');
   await report('A5_ALIAS_MOTOR_JS_STARTED',{variant,testOnly:true});
   const mod=await import('../blockly_v2/webots/RobotWindow.js');
   const bridge=new mod.default();
@@ -45,6 +50,17 @@ window.addEventListener('unhandledrejection',e=>
   await backend.setSpeed(.16);
   await backend.takeoff(.50);
   await report('A5_ALIAS_MOTOR_TAKEOFF',{height_m:.50});
+  if(mode==='collision') {
+    // The *real* 32-ms product PID drives the native craft toward the
+    // immutable A-scene L wall. Only the independent C observer can reject
+    // its physical swept approach; no browser-generated failure is trusted.
+    await report('A5_ALIAS_MOTOR_NEGATIVE_BEGIN',{
+      target:'A5_ALIAS_A_CUE_ARM',testOnly:true});
+    await backend.move('left',.65);
+    await report('A5_ALIAS_MOTOR_NEGATIVE_UNEXPECTED_SUCCESS',{
+      reason:'native obstacle was not blocked'});
+    return;
+  }
   await backend.move('forward',.70);
   await backend.move('forward',.70);
   await backend.move('forward',.15);

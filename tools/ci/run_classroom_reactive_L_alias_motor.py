@@ -38,11 +38,12 @@ REQUIRED=(
 
 class Handler(events.Handler):
     variant="A"
+    mode="reference"
     def do_GET(self):
         if self.path!="/variant":
             self.send_error(404)
             return
-        raw=json.dumps({"variant":self.variant}).encode("utf-8")
+        raw=json.dumps({"variant":self.variant,"mode":self.mode}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type","application/json")
         self.send_header("Cache-Control","no-store")
@@ -143,10 +144,45 @@ def native_collision_coverage(transcript,variant):
             "three_physical_boxes_and_craft_contacts_each_step":True,
             "conservative_swept_boxes_per_step":True}
 
-def run(variant):
+def attest_native_collision_negative(transcript,found,variant):
+    """Real, motor-driven obstruction must trigger native fail-closed physics.
+
+    Never accept a browser-reported error or textual fake success: the native
+    C observer must name a specific physically attested A-scene collider.
+    """
+    needed=(
+        "A5_ALIAS_HTML_LOADED",
+        "A5_ALIAS_MOTOR_JS_STARTED",
+        "A5_ALIAS_MOTOR_READY",
+        "A5_ALIAS_MOTOR_SCENE_ACK",
+        "A5_ALIAS_MOTOR_EARLY_CUE",
+        "A5_ALIAS_MOTOR_TAKEOFF",
+        "A5_ALIAS_MOTOR_NEGATIVE_BEGIN",
+    )
+    if (variant!="A" or any(found.count(x)!=1 for x in needed) or
+        [found.index(x) for x in needed]!=sorted(found.index(x) for x in needed)):
+        return False
+    if any(token in transcript for token in (
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_NATIVE_FLOOR",
+        "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1",
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR_COMPLETE")):
+        return False
+    return (all(token in transcript for token in (
+        "WEBEEBLOCKS_RUNTIME_V2 READY",
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_SCENE_OK variant=A",
+        "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF",
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=A ticks=16",
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION variant=A collider=CUE_ARM",
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL reason=swept_physical_box_intersection")) and
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT" not in transcript)
+
+def run(variant,mode="reference"):
     if not isinstance(variant,str) or variant not in "AB" or len(variant)!=1:
         raise ValueError("unexpected native A5 motor variant")
-    folder=ARTIFACT/variant
+    if mode not in ("reference","collision") or (
+        mode=="collision" and variant!="A"):
+        raise ValueError("A5 private collision mode is restricted to world A")
+    folder=ARTIFACT/(variant if mode=="reference" else "negative-collision-A")
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -157,6 +193,7 @@ def run(variant):
     checked_env=native_loader_env()
     events.EVENTS.clear()
     Handler.variant=variant
+    Handler.mode=mode
     server=proc=stream=None
     try:
         world.prepare(variant)
@@ -210,6 +247,25 @@ def run(variant):
         world.cleanup(variant,original=body)
     text=log.read_text(encoding="utf-8",errors="replace")
     names=[e["event"] for e in events.EVENTS]
+    if mode=="collision":
+        proven=attest_native_collision_negative(text,names,variant)
+        summary={"schema":"webeeblocks-a5-real-motor-negative-collision-v1",
+                 "variant":variant,"pass":proven,"motorized":True,
+                 "native_obstacle_rejection":proven,
+                 "browser_mission_success":False,"student_wbb":False,
+                 "events":names}
+        summary_file.write_text(
+            json.dumps(summary,indent=2,sort_keys=True)+"\n",
+            encoding="utf-8")
+        if not proven:
+            print("WEBEEBLOCKS_A5_ALIAS_REAL_COLLISION_UNPROVEN "+
+                  json.dumps(summary),file=sys.stderr,flush=True)
+            print(text[-7000:],file=sys.stderr)
+            raise AssertionError("native motor collision adversary not refused")
+        print("WEBEEBLOCKS_A5_ALIAS_REAL_COLLISION_NEGATIVE_PASS "
+              "variant=A obstacle=CUE_ARM native_swept_rejection=true "
+              "pupil_wbb=UNPROVEN",flush=True)
+        return summary
     missing=[x for x in REQUIRED if names.count(x)!=1]
     ordered=not missing and [
         names.index(x) for x in REQUIRED]==sorted(names.index(x) for x in REQUIRED)
@@ -308,6 +364,11 @@ def main():
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",choices=["A","B","both"],default="both")
+    parser.add_argument("--negative-collision",action="store_true")
     args=parser.parse_args()
-    if args.variant=="both":main()
+    if args.negative_collision:
+        if args.variant!="both":
+            parser.error("--negative-collision cannot select a positive variant")
+        run("A",mode="collision")
+    elif args.variant=="both":main()
     else:run(args.variant)

@@ -83,8 +83,12 @@ class A5AliasMotorSourceTests(unittest.TestCase):
                       "student_blockly_and_mission_oracle_NOT_PROVEN",
                       "no_memory_competitor_NOT_TESTED"):
             self.assertIn(token,runner)
+        self.assertIn("A5_ALIAS_MOTOR_NEGATIVE_BEGIN",js)
+        self.assertIn("await backend.move('left',.65);",js)
         self.assertNotIn("variables_set",js)
         self.assertNotIn("pupil_project",js)
+        workflow=(ROOT/".github/workflows/ci-progression-a5-alias-motor-draft.yml").read_text()
+        self.assertIn("run_classroom_reactive_L_alias_motor.py --negative-collision",workflow)
 
     def test_physics_monitor_checks_each_motor_step_and_obstacle_sides(self):
         trace=(ROOT/"controllers/progression_reactive_L_alias_motor_pilot"/
@@ -153,6 +157,45 @@ class A5AliasMotorSourceTests(unittest.TestCase):
         for i,bad in enumerate(negatives):
             with self.subTest(case=i):
                 self.assertIsNone(monitor.native_collision_coverage(bad,"A"))
+
+    def test_native_motor_collision_requires_physical_observer_failure(self):
+        import run_classroom_reactive_L_alias_motor as witness
+        self.assertFalse(witness.attest_native_collision_negative("",
+                           ["A5_ALIAS_MOTOR_NEGATIVE_BEGIN"],"A"))
+        required=(
+            "A5_ALIAS_HTML_LOADED",
+            "A5_ALIAS_MOTOR_JS_STARTED",
+            "A5_ALIAS_MOTOR_READY",
+            "A5_ALIAS_MOTOR_SCENE_ACK",
+            "A5_ALIAS_MOTOR_EARLY_CUE",
+            "A5_ALIAS_MOTOR_TAKEOFF",
+            "A5_ALIAS_MOTOR_NEGATIVE_BEGIN",
+        )
+        raw=(
+            "WEBEEBLOCKS_RUNTIME_V2 READY\n"
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_SCENE_OK variant=A\n"
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.5\n"
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=A ticks=16 t=.544\n"
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION variant=A collider=CUE_ARM\n"
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL reason=swept_physical_box_intersection\n"
+        )
+        self.assertTrue(witness.attest_native_collision_negative(raw,list(required),"A"))
+        for i,broken in enumerate((
+            raw.replace("collider=CUE_ARM","collider=TERMINAL"),
+            raw.replace("swept_physical_box_intersection","other_error"),
+            raw.replace("TRACE TAKEOFF","TRACE SPEED"),
+            raw+"WEBEEBLOCKS_A5_ALIAS_MOTOR_NATIVE_FLOOR variant=A\n",
+            raw+"WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n",
+            raw+"WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR_COMPLETE native_ticks=200\n",
+            raw+"WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT collider=CUE_ARM\n",
+        )):
+            with self.subTest(negative=i):
+                self.assertFalse(witness.attest_native_collision_negative(
+                    broken,list(required),"A"))
+        self.assertFalse(witness.attest_native_collision_negative(
+            raw,list(required),"B"))
+        self.assertFalse(witness.attest_native_collision_negative(
+            raw,list(reversed(required)),"A"))
 
 if __name__=="__main__":
     unittest.main()
