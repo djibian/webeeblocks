@@ -102,7 +102,7 @@ def run() -> int:
     # never permission to ignore other or later native safety failures.
     expected_fatal = 'WEBEEBLOCKS_RUNTIME_V2 FATAL unsafe attitude or action timeout'
     native_fatal_matches = list(re.finditer(
-        r'^WEBEEBLOCKS_RUNTIME_V2 FATAL[^\n]*',transcript,re.MULTILINE))
+        r'[^\n]*WEBEEBLOCKS_RUNTIME_V2 FATAL[^\n]*',transcript))
     native_fatals = [match.group().strip() for match in native_fatal_matches]
     positions = (
         actual_contact.start() if actual_contact else -1,
