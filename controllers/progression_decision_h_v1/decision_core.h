@@ -56,6 +56,27 @@ typedef enum {
   WB_DH_NOT_ACHIEVED = 2
 } wb_dh_verdict;
 
+/* A4 failure causes are attested by the C oracle, never inferred in JS.
+ * NONE also covers missing/invalid native evidence: never invent a cause. */
+typedef enum {
+  WB_DH_REASON_NONE = 0, WB_DH_REASON_CONTACT, WB_DH_REASON_CLEARANCE,
+  WB_DH_REASON_ROUTE, WB_DH_REASON_EARLY, WB_DH_REASON_LANDING,
+  WB_DH_REASON_WRONG_PAD, WB_DH_REASON_START
+} wb_dh_reason;
+
+static inline const char *wb_dh_reason_token(wb_dh_reason r) {
+  switch (r) {
+    case WB_DH_REASON_CONTACT: return "obstacle-contact";
+    case WB_DH_REASON_CLEARANCE: return "unsafe-clearance";
+    case WB_DH_REASON_ROUTE: return "route-incomplete";
+    case WB_DH_REASON_EARLY: return "early-finish";
+    case WB_DH_REASON_LANDING: return "landing-timeout";
+    case WB_DH_REASON_WRONG_PAD: return "wrong-pad";
+    case WB_DH_REASON_START: return "invalid-start";
+    default: return NULL;
+  }
+}
+
 typedef enum {
   WB_DH_SCENE_A = 1, /* H near, threshold far. */
   WB_DH_SCENE_B = 2  /* Threshold near, H far. */
@@ -80,6 +101,7 @@ typedef struct {
                    * 3 inside second, 4 cleared both. */
   int airborne, before_first, before_second, completion_seen;
   wb_dh_verdict verdict;
+  wb_dh_reason reason; /* First irreversible, observationally attested cause. */
 } wb_dh_mission;
 
 static inline void wb_dh_reset(wb_dh_mission *m, unsigned long long attempt,
@@ -99,7 +121,10 @@ static inline int wb_dh_valid_sample(const wb_dh_sample *s) {
     isfinite(s->vz) && (s->obstacle_contact == 0 ||
                        s->obstacle_contact == 1) &&
     (s->completed == 0 || s->completed == 1) &&
-    (s->floor_contact == 0 || s->floor_contact == 1);
+    /* A proved obstacle collision is terminal even if Floor contact was
+     * not queried. Unknown Floor remains forbidden for any landing PASS. */
+    (s->floor_contact == 0 || s->floor_contact == 1 ||
+     (s->obstacle_contact == 1 && s->floor_contact == -1));
 }
 
 static inline int wb_dh_is_h(wb_dh_scene scene, unsigned stage) {
@@ -129,23 +154,34 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
     return WB_DH_NOT_ACHIEVED;
   if (m->verdict != WB_DH_WAIT)
     return m->verdict;
-  if (!wb_dh_valid_sample(s) || s->obstacle_contact ||
-      s->time <= m->last_time || s->time < 0.0) {
+  if (!wb_dh_valid_sample(s) || s->time <= m->last_time ||
+      s->time < 0.0) {
+    /* Invalid or untrusted observation proves failure, not a specific cause. */
+    m->verdict = WB_DH_NOT_ACHIEVED;
+    return m->verdict;
+  }
+  if (s->obstacle_contact) {
+    m->reason = WB_DH_REASON_CONTACT;
     m->verdict = WB_DH_NOT_ACHIEVED;
     return m->verdict;
   }
   /* Reject a late-attached attempt already in flight. Observe actual first
    * native pose and velocity; never inspect the learner's algorithm or AST. */
-  if (m->last_time < 0.0 &&
-      (fabs(m->origin_z - WB_DH_BLUE_GROUND_Z) > WB_DH_BLUE_GROUND_Z_TOL ||
-       fabs(s->x) > WB_DH_START_XY_TOL ||
-       fabs(s->y) > WB_DH_START_XY_TOL ||
-       fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
-       hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||
-       fabs(s->vz) > WB_DH_START_MAX_SPEED ||
-       s->completed)) {
-    m->verdict = WB_DH_NOT_ACHIEVED;
-    return m->verdict;
+  if (m->last_time < 0.0) {
+    const int invalid_start =
+      fabs(m->origin_z - WB_DH_BLUE_GROUND_Z) > WB_DH_BLUE_GROUND_Z_TOL ||
+      fabs(s->x) > WB_DH_START_XY_TOL ||
+      fabs(s->y) > WB_DH_START_XY_TOL ||
+      fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
+      hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||
+      fabs(s->vz) > WB_DH_START_MAX_SPEED;
+    if (invalid_start || s->completed) {
+      /* An immediate valid-position COMPLETE is an early finish, NOT
+       * evidence that the native departure pose was invalid. */
+      m->reason = invalid_start ? WB_DH_REASON_START : WB_DH_REASON_EARLY;
+      m->verdict = WB_DH_NOT_ACHIEVED;
+      return m->verdict;
+    }
   }
   /* A momentary stable pose separated from the next sample by an
    * unobserved 64-ms step cannot certify 250 ms of continuous landing. */
@@ -163,6 +199,7 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
                        wb_dh_is_h(m->scene, 0)) ||
       !wb_dh_clearance(s->x, s->z, WB_DH_FAR_X,
                        wb_dh_is_h(m->scene, 1))) {
+    m->reason = WB_DH_REASON_CLEARANCE;
     m->verdict = WB_DH_NOT_ACHIEVED;
     return m->verdict;
   }
@@ -173,8 +210,10 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
         m->before_first = 1;
       if (m->before_first && fabs(s->x - WB_DH_NEAR_X) <= 0.025 &&
           fabs(s->y) <= 0.25) m->stage = 1;
-      else if (s->x > WB_DH_NEAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN)
+      else if (s->x > WB_DH_NEAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN) {
+        m->reason = WB_DH_REASON_ROUTE;
         m->verdict = WB_DH_NOT_ACHIEVED;
+      }
     } else if (m->stage == 1) {
       if (s->x >= WB_DH_NEAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN &&
           fabs(s->y) <= 0.25) m->stage = 2;
@@ -183,8 +222,10 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
         m->before_second = 1;
       if (m->before_second && fabs(s->x - WB_DH_FAR_X) <= 0.025 &&
           fabs(s->y) <= 0.25) m->stage = 3;
-      else if (s->x > WB_DH_FAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN)
+      else if (s->x > WB_DH_FAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN) {
+        m->reason = WB_DH_REASON_ROUTE;
         m->verdict = WB_DH_NOT_ACHIEVED;
+      }
     } else if (m->stage == 3) {
       if (s->x >= WB_DH_FAR_X + WB_DH_CURB_HALF_X + WB_DH_CRAFT_MARGIN &&
           fabs(s->y) <= 0.25) m->stage = 4;
@@ -197,6 +238,7 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
     m->completion_seen = 1;
     m->completion_at = s->time;
     if (!m->airborne || m->stage != 4) {
+      m->reason = WB_DH_REASON_EARLY;
       m->verdict = WB_DH_NOT_ACHIEVED;
       return m->verdict;
     }
@@ -206,6 +248,13 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   /* Never award a newly stable landing at/after the terminal deadline.
    * Equality belongs to failure, even when 0.250 s dwell also completes. */
   if (s->time - m->completion_at >= WB_DH_SETTLE_SEC) {
+    /* A wrong pad is attested only from actual floor contact, valid height,
+     * and demonstrably outside the entire-craft target footprint. */
+    m->reason = s->floor_contact == 1 &&
+      s->z <= WB_DH_LAND_ABSOLUTE_Z &&
+      (fabs(s->x - WB_DH_LAND_X) > WB_DH_LAND_TOL ||
+       fabs(s->y - WB_DH_LAND_Y) > WB_DH_LAND_TOL)
+      ? WB_DH_REASON_WRONG_PAD : WB_DH_REASON_LANDING;
     m->verdict = WB_DH_NOT_ACHIEVED;
     return m->verdict;
   }
