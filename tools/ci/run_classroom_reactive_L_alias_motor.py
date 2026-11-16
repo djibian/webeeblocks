@@ -80,6 +80,17 @@ def native_loader_env():
     if check.returncode!=0 or "not found" in check.stdout+check.stderr:
         raise RuntimeError("unresolved A5 native pilot runtime library: "+
                            (check.stdout+check.stderr)[-2800:])
+    # Webots may construct a fresh environment for Robot controllers; an
+    # inherited LD_LIBRARY_PATH proves only our Python subprocess, not the
+    # dynamically linked controller. Require embedded direct library RPATH.
+    dynamic=subprocess.run(["readelf","-d",str(executable)],capture_output=True,
+                           text=True,timeout=15,check=False)
+    (ARTIFACT/"native-loader-dynamic.txt").write_text(
+        dynamic.stdout+dynamic.stderr,encoding="utf-8")
+    if (dynamic.returncode!=0 or
+        not ("(RUNPATH)" in dynamic.stdout or "(RPATH)" in dynamic.stdout) or
+        str(qt_lib) not in dynamic.stdout or str(controller_lib) not in dynamic.stdout):
+        raise RuntimeError("native Robot executable lacks embedded Qt and Webots controller search paths")
     return env
 
 def run(variant):

@@ -9,7 +9,10 @@ USE_C_API = true
 CFLAGS += -std=c++17 -fPIC -include ../crazyflie_runtime_v2/file_broker_interpose.h
 LDFLAGS += -pie
 QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
-DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/lib/webots" -lQt6Core -lQt6Gui -lQt6Widgets
+# Webots launches the Robot controller with its own environment, so a Python
+# LD_LIBRARY_PATH alone does not reach it. Embed the exact pinned SDK paths
+# in this isolated executable (never in the product or real-flight binary).
+DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/lib/webots" -Wl,-rpath,$(WEBOTS_HOME)/lib/webots -Wl,-rpath,$(WEBOTS_HOME)/lib/controller -lQt6Core -lQt6Gui -lQt6Widgets
 INCLUDE += -isystem "$(QT_INCLUDE_DIR)" -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
 null :=
 space := $(null) $(null)

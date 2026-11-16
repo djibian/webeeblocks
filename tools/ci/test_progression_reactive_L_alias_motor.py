@@ -44,7 +44,9 @@ class A5AliasMotorSourceTests(unittest.TestCase):
         runner=(ROOT/"tools/ci/run_classroom_reactive_L_alias_motor.py").read_text()
         for required in ("../crazyflie_runtime_v2/crazyflie_runtime_v2.c",
                          "../crazyflie_square/pid_controller.c",
-                         "LFLAGS += -Wl,--wrap=wb_robot_step"):
+                         "LFLAGS += -Wl,--wrap=wb_robot_step",
+                         "-Wl,-rpath,$(WEBOTS_HOME)/lib/webots",
+                         "-Wl,-rpath,$(WEBOTS_HOME)/lib/controller"):
             self.assertIn(required,make)
         for required in ("webeeblocks_select_activity_scene",
                          "webeeblocks_activity_scene_ready",
@@ -69,7 +71,11 @@ class A5AliasMotorSourceTests(unittest.TestCase):
                       'env["LD_LIBRARY_PATH"]=str(qt_lib)+":"+str(controller_lib)',
                       'controller_lib/"libController.so"',
                       '"native-loader-dependencies.txt"',
+                      '"native-loader-dynamic.txt"',
                       'subprocess.run(["ldd",str(executable)]',
+                      'subprocess.run(["readelf","-d",str(executable)]',
+                      'str(qt_lib) not in dynamic.stdout',
+                      'str(controller_lib) not in dynamic.stdout',
                       'check.returncode!=0 or "not found"',
                       "native_floor_contact",
                       "native_land_ack",
