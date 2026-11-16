@@ -3,7 +3,7 @@
 
 Two physically attested worlds differ only by an early L cue; late decision
 rays must be indistinguishable under yaw 0/90/180/270 using real Multi-ranger
-sensor devices on the ORIGINAL Crazyflie. This is not a claim of memory
+sensor devices on the ORIGINAL Crazyflie. This probes oblique searches at a\nfixed pose, not nearby translations or return-to-cue trajectories.\nThis is not a claim of memory
 necessity under arbitrary movement or a human classroom PASS.
 """
 from pathlib import Path
@@ -26,12 +26,12 @@ SOURCE_WINDOW = 'window "altitude_scene_ack_probe"'
 MARKER = "# WEBEEBLOCKS_A5_MEMORY_ALIAS_NATIVE_CI_ONLY"
 PROJECT = "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 SAMPLE = re.compile(
-    r"WEBEEBLOCKS_A5_ALIAS_SAMPLE variant=([AB]) phase=(early|late) turn=([0-3]) "
+    r"WEBEEBLOCKS_A5_ALIAS_SAMPLE variant=([AB]) phase=(early|late) turn=([0-9]{1,2}) "
     r"front=([0-9.]+) left=([0-9.]+) right=([0-9.]+) "
     r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+) time=([0-9.]+)"
 )
 DONE = re.compile(
-    r"WEBEEBLOCKS_A5_ALIAS_DONE variant=([AB]) early=true late_scans=4 "
+    r"WEBEEBLOCKS_A5_ALIAS_DONE variant=([AB]) early=true late_scans=16 "
     r"teleport_only=true motorized_flight=false"
 )
 FATAL = "WEBEEBLOCKS_A5_ALIAS_FATAL"
@@ -126,10 +126,10 @@ def run_one(letter):
     source = log.read_text(encoding="utf-8", errors="replace")
     rows = SAMPLE.findall(source)
     terminal = DONE.findall(source)
-    if (FATAL in source or len(rows) != 5 or terminal != [letter] or
+    if (FATAL in source or len(rows) != 17 or terminal != [letter] or
         [(v, phase, int(idx)) for v, phase, idx, *_ in rows] !=
         [(letter, "early", 0)] +
-        [(letter, "late", i) for i in range(4)]):
+        [(letter, "late", i) for i in range(16)]):
         raise AssertionError("missing exact native A5 alias sensor proof " + str(log))
     samples = []
     previous_t = -1.0
@@ -156,7 +156,7 @@ def run_one(letter):
         encoding="utf-8")
     print(f"WEBEEBLOCKS_A5_ALIAS_NATIVE_OBSERVED variant={letter} "
           f"early_left_m={samples[0]['left']:.9f} "
-          "late_quarter_scans=4 pupil_flight=UNPROVEN", flush=True)
+          "late_oblique_scans=16 pupil_flight=UNPROVEN", flush=True)
     return samples
 
 def main():
@@ -167,7 +167,7 @@ def main():
             far-near > .35):
         raise AssertionError("real early L cue is not discriminating")
     deltas = []
-    for idx in range(1, 5):
+    for idx in range(1, 17):
         for direction in ("front","left","right"):
             a, b = data["A"][idx][direction], data["B"][idx][direction]
             deltas.append(abs(a-b))
@@ -178,12 +178,12 @@ def main():
         "schema":"webeeblocks-a5-alias-prototype-native-v1",
         "early_left_difference_m":far-near,
         "late_max_native_ray_delta_m":max(deltas),
-        "four_native_90_degree_rotations":True,
+        "sixteen_native_22p5_degree_rotations":True,
         "all_three_original_range_sensors_compared":True,
         "same_late_physical_solid_and_two_visual_pads":True,
         "not_motorized":True,
         "not_pupil_oralce_or_AST_qualification":True,
-        "backtracking_or_oblique_scans_not_falsified":True,
+        "backtracking_or_local_translations_not_falsified":True,
         "variable_required_for_all_strategies_NOT_PROVEN":True,
         "classroom_student_PASS":False,
         "variants":data

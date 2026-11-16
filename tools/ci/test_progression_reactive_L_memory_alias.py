@@ -68,7 +68,7 @@ class A5MemoryAliasingPrototypeTests(unittest.TestCase):
                       "wb_supervisor_node_get_orientation(self)",
                       "wb_supervisor_node_reset_physics(self)",
                       "wb_robot_get_basic_time_step()",
-                      "for(int i=0;i<4;i++)",
+                      "for(int i=0;i<16;i++)",
                       "WEBEEBLOCKS_A5_ALIAS_SAMPLE"):
             self.assertIn(token,source)
         for forbidden in ("wb_motor_set_velocity", "wb_motor_set_position",
@@ -76,10 +76,13 @@ class A5MemoryAliasingPrototypeTests(unittest.TestCase):
             self.assertNotIn(forbidden,source)
         self.assertIn("far-near > .35",script)
         self.assertIn("max(deltas) > .035",script)
-        self.assertIn("backtracking_or_oblique_scans_not_falsified",script)
+        self.assertIn("backtracking_or_local_translations_not_falsified",script)
         self.assertIn("variable_required_for_all_strategies_NOT_PROVEN",script)
         self.assertIn("classroom_student_PASS",script)
-        self.assertIn("len(rows) != 5",script)
+        self.assertIn("len(rows) != 17",script)
+        self.assertIn("late_oblique_scans=16",script)
+        self.assertIn("for idx in range(1, 17)",script)
+        self.assertIn("i*PI/8,step",source)
         self.assertIn("scope=local_perception_only motor_flight=UNPROVEN",script)
 
 if __name__=="__main__":

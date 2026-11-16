@@ -97,10 +97,12 @@ int main(void) {
   if(wb_robot_step(step)==-1)return refuse("native sensor activation failed");
   if(!sample(self,tr,rot,front,left,right,variant,0,0,0,step))
     return refuse("early physical clue unavailable");
-  for(int i=0;i<4;i++)
-    if(!sample(self,tr,rot,front,left,right,variant,1,i,i*PI/2,step))
+  /* A5 adversary: four cardinal headings alone do not prove that a pupil
+   * cannot recover the earlier cue by turning to an oblique bearing. */
+  for(int i=0;i<16;i++)
+    if(!sample(self,tr,rot,front,left,right,variant,1,i,i*PI/8,step))
       return refuse("late 90-degree scan unavailable");
-  printf("WEBEEBLOCKS_A5_ALIAS_DONE variant=%c early=true late_scans=4 "
+  printf("WEBEEBLOCKS_A5_ALIAS_DONE variant=%c early=true late_scans=16 "
          "teleport_only=true motorized_flight=false\n",variant);
   fflush(stdout);
   wb_robot_cleanup();
