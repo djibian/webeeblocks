@@ -215,6 +215,19 @@ def run():
                     raise AssertionError("native UI transition timed out: "+target)
             # A real ProjectFiles parser/serializer/browser workspace round
             # trip after four native scene admissions; no OS picker is faked.
+            # Opening the same already-trusted scene MUST be idempotent:
+            # neither a fifth SCENE request nor a new observer incarnation.
+            import re
+            native_before=content(log)
+            ack_pattern=r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) SCENE_OK ([0-9a-f]{64})$"
+            observer_pattern=r"(?m)^WEBEEBLOCKS_A6_MOTOR_READY n=([123]) "
+            ack_before=re.findall(ack_pattern,native_before)
+            observer_before=re.findall(observer_pattern,native_before)
+            response_pattern=r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE [0-9]+ .*$"
+            responses_before=re.findall(response_pattern,native_before)
+            if ([request_id for request_id,_ in ack_before]!=["1","2","3","4"] or
+                observer_before!=["1","2","3","1"]):
+                raise AssertionError("baseline four fresh native scene epochs missing")
             reopened=dev.verify_project_reopen()
             if (not reopened or not reopened.get("rejectedForeignWorld") or
                 not reopened.get("actualManager") or
@@ -224,27 +237,29 @@ def run():
                 reopened.get("scene")!=SCENES[0] or
                 reopened.get("nativeSceneIdentity")!=SCENES[0]):
                 raise AssertionError("real browser .wbb round-trip or world gate failed")
-            # The incompatible .wbb did NOT send a native scene request.
-            # The compatible in-browser reopen must receive request 5 ACK;
-            # the same scene may correctly retain its native observer epoch.
+            # Both the foreign-world rejection and same-scene re-open must
+            # preserve the native epoch; the WWI backend caches sceneIdentity.
+            # No new ACK/observer is authoritative or required for an
+            # idempotent in-browser project re-open.
             trace=content(log)
-            import re
-            acks=re.findall(
-                r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 SCENE_OK ([0-9a-f]{64})$",
-                trace)
-            if len(acks)!=1 or "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 " in trace:
-                raise AssertionError("reopened same-world .wbb lacks exact native ACK")
+            ack_after=re.findall(ack_pattern,trace)
+            observer_after=re.findall(observer_pattern,trace)
+            responses_after=re.findall(response_pattern,trace)
+            if (ack_after!=ack_before or observer_after!=observer_before or
+                responses_after!=responses_before):
+                raise AssertionError("idempotent .wbb reopen mutated the native scene epoch")
             result["project_reopen"]={
                 "actual_manager":True,
                 "foreign_world_rejected":True,
                 "same_world_reopened":True,
+                "same_native_epoch_preserved":True,
                 "no_os_picker_proven":True,
                 "wbb_sha256":hashlib.sha256(project_bytes.encode()).hexdigest(),
                 "name":reopened.get("name"),
-                "native_request_id":5
+                "native_request_ids":[1,2,3,4]
             }
             print("A6_REAL_BROWSER_WBB_ROUNDTRIP_PASS foreign_rejected=true "
-                  "same_world_bytes_unchanged=true native_ack=5 "
+                  "same_world_bytes_unchanged=true native_epoch_preserved=true "
                   "os_save_open=UNPROVEN",flush=True)
         if len(visits)!=4 or [v["scene"] for v in visits]!=[
                 SCENES[0],SCENES[1],SCENES[2],SCENES[0]]:
