@@ -27,7 +27,9 @@ class A4LowContactTests(unittest.TestCase):
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking(obstacle, step, false)", source)
         self.assertIn("wb_supervisor_node_get_contact_points(colliders[j], false, &n)", source)
         self.assertIn("WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT type=%s", source)
-        self.assertIn("obstacle_contact(craft, colliders)", source)
+        self.assertIn("obstacle_contact(craft, colliders,", source)
+        self.assertIn("&sample.floor_contact);", source)
+        self.assertIn("*floor_contact = floor_seen;", source)
         self.assertIn("return -1;", source)
         native = source.split("static int obstacle_contact(", 1)[1].split(
             "static void publish(", 1)[0]

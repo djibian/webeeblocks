@@ -28,11 +28,19 @@ DRIVER = r'''
 #include <stdio.h>
 #include <string.h>
 
-static wb_dh_verdict tick(wb_dh_mission *m, double t, double x, double y,
-                          double z, double vx, int contact, int done) {
+static wb_dh_verdict tick_floor(wb_dh_mission *m, double t, double x,
+                                 double y, double z, double vx,
+                                 int contact, int done, int floor_contact) {
   wb_dh_sample s = {.time=t,.x=x,.y=y,.z=z,.vx=vx,.vy=0,.vz=0,
-                    .obstacle_contact=contact,.completed=done};
+                     .obstacle_contact=contact,.completed=done,
+                     .floor_contact=floor_contact};
   return wb_dh_sample_mission(m,&s);
+}
+/* Synthetic C11 helper only, NOT real Floor-contact evidence. */
+static wb_dh_verdict tick(wb_dh_mission *m, double t, double x, double y,
+                           double z, double vx, int contact, int done) {
+  return tick_floor(m,t,x,y,z,vx,contact,done,
+                    z<=WB_DH_LAND_ABSOLUTE_Z && contact==0?1:0);
 }
 static void takeoff(wb_dh_mission *m, int attempt, wb_dh_scene scene) {
   wb_dh_reset(m,(unsigned long long)attempt,scene,.035);
@@ -81,7 +89,34 @@ static void finish_stably(wb_dh_mission *m, double t) {
     assert(tick(m,t+.032*i,1.75,0,.015,0,0,0)==WB_DH_WAIT);
   assert(tick(m,t+.256,1.75,0,.015,0,0,0)==WB_DH_ACHIEVED);
 }
+/* Both genuine route stages can be complete while the craft hovers at
+ * 1.5cm: no native Floor contact => no award. Contact interruption restarts
+ * the full 250-ms stable landing evidence, for each A/B world. */
+static void test_physical_floor_contact_required(void) {
+  for(int v=0;v<2;++v) {
+    const wb_dh_scene scene=v==0?WB_DH_SCENE_A:WB_DH_SCENE_B;
+    wb_dh_mission m;
+    completed_route(&m,900+v,scene);
+    for(int i=0;i<=8;++i)
+      assert(tick_floor(&m,8.0+.032*i,1.75,0,.015,0,0,i==0,0)
+             ==WB_DH_WAIT);
+    assert(m.landed_since == -1.0);
+    assert(tick_floor(&m,9.501,1.75,0,.015,0,0,0,0)
+           ==WB_DH_NOT_ACHIEVED);
+    completed_route(&m,910+v,scene);
+    assert(tick_floor(&m,8.0,1.75,0,.015,0,0,1,1)==WB_DH_WAIT);
+    assert(tick_floor(&m,8.032,1.75,0,.015,0,0,0,0)==WB_DH_WAIT);
+    assert(m.landed_since == -1.0);
+    for(int i=0;i<=8;++i)
+      assert(tick_floor(&m,8.064+.032*i,1.75,0,.015,0,0,0,1)
+             ==(i==8?WB_DH_ACHIEVED:WB_DH_WAIT));
+    completed_route(&m,920+v,scene);
+    assert(tick_floor(&m,8.0,1.75,0,.015,0,0,1,-1)
+           ==WB_DH_NOT_ACHIEVED);
+  }
+}
 int main(void) {
+  test_physical_floor_contact_required();
   wb_dh_mission m;
   completed_route(&m,1,WB_DH_SCENE_A);
   finish_stably(&m,8.0);
@@ -307,6 +342,8 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WB_DH_LAND_ABSOLUTE_Z 0.020', content)
         self.assertIn('s->z - m->origin_z <= WB_DH_LAND_Z &&', content)
         self.assertIn('s->z <= WB_DH_LAND_ABSOLUTE_Z', content)
+        self.assertIn('s->floor_contact == 1', content)
+        self.assertIn('test_physical_floor_contact_required()', DRIVER)
         self.assertIn('WB_DH_MAX_OBSERVATION_GAP_SEC 0.048', content)
         self.assertIn('s->time - m->last_time > WB_DH_MAX_OBSERVATION_GAP_SEC', content)
         self.assertIn('WB_DH_START_XY_TOL 0.080', content)
@@ -336,6 +373,8 @@ class DecisionHOracleTests(unittest.TestCase):
         self.assertIn('WEBEEBLOCKS_DECISION_H_VERDICT_SAMPLE', observer)
         self.assertIn('WEBEEBLOCKS_DECISION_H_CONTACT_UNAVAILABLE', observer)
         self.assertIn('WEBEEBLOCKS_DECISION_H_CONTACT_NONFLOOR', observer)
+        self.assertIn('&sample.floor_contact', observer)
+        self.assertIn('WEBEEBLOCKS_DECISION_H_NATIVE_FLOOR_LANDING', observer)
         self.assertIn('WEBEEBLOCKS_DECISION_H_READY', observer)
         self.assertIn('WEBEEBLOCKS_ACTIVITY_OUTCOME_V1', observer)
         range_source = RANGE_C.read_text(encoding='utf-8')

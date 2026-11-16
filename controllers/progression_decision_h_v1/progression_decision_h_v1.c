@@ -191,7 +191,9 @@ static int parse_completion(const char *text, unsigned long long attempt) {
  * every non-floor contact (including unrecognized geometry) is an obstacle.
  */
 static int obstacle_contact(WbNodeRef craft,
-                            const WbNodeRef colliders[WB_DH_COLLIDERS]) {
+                            const WbNodeRef colliders[WB_DH_COLLIDERS], int *floor_contact) {
+  if (!floor_contact) return -1;
+  *floor_contact = -1; /* Unavailable native evidence cannot pass. */
   /* The six attested Solid obstacles extend down to the floor. The
    * Crazyflie's point.z alone does NOT identify the other contacted body:
    * a collision with a post below z=0.025 was previously hidden as floor.
@@ -227,6 +229,7 @@ static int obstacle_contact(WbNodeRef craft,
     fflush(stdout);
     return -1;
   }
+  int floor_seen = 0;
   for (int i = 0; i < count; ++i) {
     const double *p = points[i].point;
     if (!isfinite(p[0]) || !isfinite(p[1]) || !isfinite(p[2])) {
@@ -240,7 +243,9 @@ static int obstacle_contact(WbNodeRef craft,
       fflush(stdout);
       return 1;
     }
+    floor_seen = 1;
   }
+  *floor_contact = floor_seen;
   return 0;
 }
 
@@ -312,7 +317,8 @@ int main(void) {
     if (!last_attempt || mission.verdict != WB_DH_WAIT) continue;
     wb_dh_sample sample = {0};
     sample.time = wb_robot_get_time();
-    sample.obstacle_contact = obstacle_contact(craft, colliders);
+    sample.obstacle_contact = obstacle_contact(craft, colliders,
+                                               &sample.floor_contact);
     sample.completed = parse_completion(data, mission.attempt);
     const double *position = wb_supervisor_node_get_position(craft);
     const double *velocity = wb_supervisor_node_get_velocity(craft);
@@ -341,6 +347,9 @@ int main(void) {
              sample.completed, mission.stage, mission.airborne,
              (int)mission.verdict);
       fflush(stdout);
+      if (mission.verdict == WB_DH_ACHIEVED)
+        printf("WEBEEBLOCKS_DECISION_H_NATIVE_FLOOR_LANDING attempt=%llu floor_contact=%d\n",
+               mission.attempt, sample.floor_contact);
       publish(channel, &mission);
     }
   }
