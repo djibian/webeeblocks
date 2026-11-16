@@ -22,6 +22,8 @@ EXPECTED = {
     "ci-progression-a2-draft.yml": {"a2-grounded-flight-draft"},
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
+    # A5 source / native G experiment, Draft-only, not CI Gate.
+    "ci-progression-a5-factor-draft.yml": {"a5-factor-g-native-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
@@ -80,6 +82,23 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_a5_factor_draft_non_decision(self):
+        source=(WORKFLOWS/"ci-progression-a5-factor-draft.yml").read_text()
+        self.assertEqual(job_ids(source),{"a5-factor-g-native-draft-only"})
+        for needed in ("  pull_request:\n",
+                       "if: github.event.pull_request.draft == true",
+                       "persist-credentials: false",
+                       "ref: ${{ github.event.pull_request.head.sha }}",
+                       "permissions:\n  contents: read\n",
+                       "run_classroom_reactive_L_factor_probe.py",
+                       "test_progression_a5_factor_native",
+                       "a5-hfixed-gbinary-real-sensors-draft",
+                       "if: always()"):
+            self.assertIn(needed,source)
+        for forbidden in ("name: CI Gate","\n  push:","\n  schedule:",
+                          "continue-on-error","if: false","|| true"):
+            self.assertNotIn(forbidden,source)
 
     def test_activity2_draft_floor_contact_workflow_is_non_decision(self):
         path = WORKFLOWS / "ci-progression-a2-draft.yml"
