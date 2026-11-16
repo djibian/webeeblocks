@@ -130,6 +130,10 @@ const projectGuard=fs.readFileSync(path.resolve(__dirname,
   '../../plugins/robot_windows/blockly/webeeblocks/project_files.js'),'utf8');
 assert(mainUi.includes("typeof WebeeBlocksInitialActivityId === 'string'"),
   'the canonical UI must actually honor the bounded A6 startup hint');
+assert(mainUi.includes("runtimeProfile.id === 'progression-count-h-v1'") &&
+  mainUi.includes('await runtimeBackend.prepareActivity(runtimeProfile)') &&
+  mainUi.includes('await runtimeBackend.prepareActivity(profile)'),
+  'A6 must require native scene admission on startup AND after reset');
 assert(projectGuard.includes('profile.world !== currentProfile.world'),
   'A6 must retain the strict cross-world Save/Open refusal');
 

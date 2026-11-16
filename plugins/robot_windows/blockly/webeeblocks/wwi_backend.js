@@ -314,7 +314,9 @@
     if (scene !== 'sequence-v1' && scene !== 'legacy-v1' &&
         scene !== 'altitude-v1' && scene !== 'orientation-v1' &&
         scene !== 'decision-h-a-v1' && scene !== 'decision-h-b-v1' &&
-        scene !== 'mini-grand-prix-l-v1' && scene !== 'mini-grand-prix-r-v1')
+        scene !== 'mini-grand-prix-l-v1' && scene !== 'mini-grand-prix-r-v1' &&
+        scene !== 'count-h-1-v1' && scene !== 'count-h-2-v1' &&
+        scene !== 'count-h-3-v1')
       return Promise.reject(new RuntimeV2BackendError('SCENE_UNAVAILABLE'));
     if (this.sceneIdentity === scene) return Promise.resolve();
     this.sceneIdentity = null; // An unknown import outcome must be reconstructed.

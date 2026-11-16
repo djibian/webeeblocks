@@ -548,6 +548,13 @@ async function resetSimulation() {
   setRuntimeStatus('RÉINITIALISATION', 'Retour à l’état initial de la simulation');
   try {
     await runtimeBackend.resetSimulation();
+    // Reset revokes the previous native scene epoch. A6 must re-attest its
+    // exact school scene before restoring the Ready state or Blockly edits.
+    if (profile.id === 'progression-count-h-v1') {
+      await runtimeBackend.prepareActivity(profile);
+      if (runtimeBackend.sceneIdentity !== profile.runtime.scene)
+        throw new Error('Activité 6 : scène native non rétablie après RESET');
+    }
     var after = serializedWorkspace();
     if (after !== before)
       throw new Error('Simulation reset changed Blockly workspace');
@@ -695,6 +702,24 @@ window.onload = async function() {
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();
+    // A6's separate WBT starts with no imported 1/2/3-H geometry. The
+    // HTML activity hint is not authority: only the nonce-bound native ACK
+    // for this exact scene may enable flight in the school Robot Window.
+    if (runtimeProfile.id === 'progression-count-h-v1') {
+      runtimeScenePending = true;
+      setRuntimeStatus('PRÉPARATION', 'Vérification native du parcours');
+      try {
+        await runtimeBackend.prepareActivity(runtimeProfile);
+        if (runtimeBackend.sceneIdentity !== runtimeProfile.runtime.scene)
+          throw new Error('Activité 6 : scène native non attestée');
+      } catch (error) {
+        runtimeTerminal = true;
+        throw error;
+      } finally {
+        runtimeScenePending = false;
+        updateRuntimeActions();
+      }
+    }
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
     updateRuntimeActions();
     setRuntimeStatus('PRÊT', 'Simulation connectée');
