@@ -29,6 +29,14 @@ Tester séparément : démarrer une activité depuis le sélecteur ; créer et m
 
 **6 → 7 : synthèse accessible.** Le Mini Grand Prix introduit **une nouvelle combinaison**, pas une nouvelle notion ni une copie raccourcie de l'activité 8. Vérifier la capacité de l'élève à expliquer ses choix plutôt qu'à reconstruire un programme expert caché. La complexité d'un témoin privé (par exemple un grand nombre de blocs) prouve au mieux une faisabilité technique ; elle ne constitue ni objectif de reproduction ni mesure d'accessibilité aux 4e/3e.
 
+### Reconnaissance du H final : distinguer réussite et apprentissage
+
+La réussite technique des variantes L/R **ne démontre pas à elle seule** que l'élève a reconnu le H fermé terminal en cours de vol. Le témoin privé d'intégration de l'activité 7 peut mesurer une distance **une seule fois au départ**, choisir ensuite un trajet de longueurs prédéfinies et terminer correctement avant le H fermé. Ce résultat valide l'oracle physique sur les deux mondes, **pas** la nécessité pédagogique d'une observation au voisinage du dernier obstacle. Il ne faut ni montrer ce programme témoin aux élèves ni retirer son GO technique sur cette seule base.
+
+**Observation en classe, sans dévoiler de stratégie :** demander à l'élève de prévoir ce qui lui indique où terminer, de justifier la décision prise à l'approche du H fermé, puis d'expliquer ce qu'il changerait si le dernier obstacle était plus proche ou plus éloigné. Recueillir les mesures réellement disponibles au moment du choix et confronter la réponse de l'élève à l'exécution. **Ne jamais imposer** une seconde lecture de télémètre, une boucle ou une forme d'AST comme condition de réussite.
+
+**Contre-épreuve de généralisation à concevoir, non encore qualifiée :** si l'on veut spécifiquement établir la reconnaissance sensorielle du H final plutôt que le seul transfert des notions précédentes, proposer après décision pédagogique une variation de son approche qui ne soit pas prédictible depuis l'indice initial. Le même fichier `.wbb` devra réussir les variantes physiques tandis qu'une stratégie entièrement prédéfinie devra échouer dans au moins l'une d'elles ; les télémètres utiles devront être mesurables et les verdicts natifs conserver franchissement, collision, virage, pose entière et RESET. Cette extension éventuelle réclame sa propre PR, ses contre-épreuves R2025a et un accord enseignant sur la difficulté. **Elle n'ajoute pas une troisième variante obligatoire à la matrice approuvée**, ne remet pas en cause le Mini Grand Prix L/R intégré et ne modifie aucune propriété de l'activité 8.
+
 ## Fiche d'observation minimale
 
 | Champ | Observation à conserver |
