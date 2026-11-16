@@ -417,6 +417,58 @@
         }
       },
       {
+        // A6 draft contract is intentionally NOT selectable by pupils until
+        // genuine Webots scene switching, native observer and learner Save/Open
+        // have independent evidence. Never distribute the private CI solution.
+        starterVisible: false,
+        id: 'progression-count-h-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '6 — Compter pour choisir',
+          mission: 'Sur la ligne droite, franchis les H ouverts dans l’ordre, compte ceux réellement franchis puis pose entièrement le drone sur la bonne zone parmi trois. Réussis les trois parcours sans modifier ton projet.'
+        },
+        pedagogy: {
+          objective: 'Réemployer mesures, boucle, condition et variable pour retenir le nombre de franchissements et choisir une destination.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_move', 'webeeblocks_v2_range',
+          'controls_whileUntil', 'controls_if', 'logic_compare',
+          'logic_operation', 'math_number', 'math_arithmetic',
+          'variables_set', 'variables_get', 'math_change', 'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.2, max: 0.2, step: 0.1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'up' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-count-h-v1' },
+        runtime: {
+          scene: 'count-h-1-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'set_speed', 'move',
+            'while', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'up' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [],
+          maxSteps: 20000,
+          astBounds: {
+            'takeoff.height_m': { min: 0.40, max: 0.40 },
+            'move.distance_m': { min: 0.01, max: 0.70 },
+            'move.forward.distance_m': { min: 0.01, max: 0.70 },
+            'move.lateral.distance_m': { min: 0.01, max: 0.60 },
+            'while.max_iterations': { min: 1, max: 80 },
+            'set_speed.speed_m_s': { min: 0.20, max: 0.20 }
+          }
+        }
+      },
+      {
         // Public A7, distinct from the historical memory exercise; one unchanged
         // pupil project is used in both strictly native-attested L/R worlds.
         id: 'progression-mini-grand-prix-v1',
