@@ -33,7 +33,7 @@ static int box(const char *name,const double pos[3],const double size[3]) {
 static int sample(WbNodeRef self,WbFieldRef translation,WbFieldRef rotation,
                   WbDeviceTag front,WbDeviceTag left,WbDeviceTag right,
                   char variant,int late,int index,double yaw,int step) {
-  const double pos[3]={late?1.50:0.0,0.0,0.50};
+  const double pos[3]={late?1.50:0.0,late==2?0.60:0.0,0.50};
   const double orientation[4]={0,0,1,yaw};
   wb_supervisor_field_set_sf_vec3f(translation,pos);
   wb_supervisor_field_set_sf_rotation(rotation,orientation);
@@ -52,7 +52,7 @@ static int sample(WbNodeRef self,WbFieldRef translation,WbFieldRef rotation,
   printf("WEBEEBLOCKS_A5_ALIAS_SAMPLE variant=%c phase=%s turn=%d "
          "front=%.9f left=%.9f right=%.9f "
          "x=%.9f y=%.9f z=%.9f time=%.9f\n",
-         variant,late?"late":"early",index,f,l,r,
+         variant,late==2?"detour":(late?"late":"early"),index,f,l,r,
          seen[0],seen[1],seen[2],wb_robot_get_time());
   fflush(stdout);
   return 1;
@@ -101,8 +101,13 @@ int main(void) {
    * cannot recover the earlier cue by turning to an oblique bearing. */
   for(int i=0;i<16;i++)
     if(!sample(self,tr,rot,front,left,right,variant,1,i,i*PI/8,step))
-      return refuse("late 90-degree scan unavailable");
-  printf("WEBEEBLOCKS_A5_ALIAS_DONE variant=%c early=true late_scans=16 "
+      return refuse("late oblique scan unavailable");
+  /* Position (1.50,+0.60,0.50), face WEST after two ordinary 90-degree
+   * turns. This attests range perception ONLY, never a collision-free flight
+   * to this viewpoint with the pupil's restricted forward-only toolbox. */
+  if(!sample(self,tr,rot,front,left,right,variant,2,0,PI,step))
+    return refuse("detour 90-degree frontal sensor unavailable");
+  printf("WEBEEBLOCKS_A5_ALIAS_DONE variant=%c early=true late_scans=16 detour_sample=true "
          "teleport_only=true motorized_flight=false\n",variant);
   fflush(stdout);
   wb_robot_cleanup();

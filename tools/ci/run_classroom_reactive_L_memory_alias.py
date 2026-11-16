@@ -2,7 +2,7 @@
 """Native R2025a A5 information-aliasing experiment, deliberately NOT pupil flight.
 
 Two physically attested worlds differ only by an early L cue; late decision
-rays must be indistinguishable under yaw 0/90/180/270 using real Multi-ranger
+rays were first sampled under cardinal headings using real Multi-ranger
 sensor devices on the ORIGINAL Crazyflie. This probes oblique searches at a\nfixed pose, not nearby translations or return-to-cue trajectories.\nThis is not a claim of memory
 necessity under arbitrary movement or a human classroom PASS.
 """
@@ -26,12 +26,12 @@ SOURCE_WINDOW = 'window "altitude_scene_ack_probe"'
 MARKER = "# WEBEEBLOCKS_A5_MEMORY_ALIAS_NATIVE_CI_ONLY"
 PROJECT = "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 SAMPLE = re.compile(
-    r"WEBEEBLOCKS_A5_ALIAS_SAMPLE variant=([AB]) phase=(early|late) turn=([0-9]{1,2}) "
+    r"WEBEEBLOCKS_A5_ALIAS_SAMPLE variant=([AB]) phase=(early|late|detour) turn=([0-9]{1,2}) "
     r"front=([0-9.]+) left=([0-9.]+) right=([0-9.]+) "
     r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+) time=([0-9.]+)"
 )
 DONE = re.compile(
-    r"WEBEEBLOCKS_A5_ALIAS_DONE variant=([AB]) early=true late_scans=16 "
+    r"WEBEEBLOCKS_A5_ALIAS_DONE variant=([AB]) early=true late_scans=16 detour_sample=true "
     r"teleport_only=true motorized_flight=false"
 )
 FATAL = "WEBEEBLOCKS_A5_ALIAS_FATAL"
@@ -126,10 +126,11 @@ def run_one(letter):
     source = log.read_text(encoding="utf-8", errors="replace")
     rows = SAMPLE.findall(source)
     terminal = DONE.findall(source)
-    if (FATAL in source or len(rows) != 17 or terminal != [letter] or
+    if (FATAL in source or len(rows) != 18 or terminal != [letter] or
         [(v, phase, int(idx)) for v, phase, idx, *_ in rows] !=
         [(letter, "early", 0)] +
-        [(letter, "late", i) for i in range(16)]):
+        [(letter, "late", i) for i in range(16)] +
+        [(letter, "detour", 0)]):
         raise AssertionError("missing exact native A5 alias sensor proof " + str(log))
     samples = []
     previous_t = -1.0
@@ -140,13 +141,14 @@ def run_one(letter):
                     (front, left, right, x, y, z, t)) or
             t <= previous_t or min(front, left, right) < 0 or
             max(front, left, right) > 2.001 or
-            abs(x - (1.5 if phase == "late" else 0)) > .035 or
-            abs(y) > .035 or abs(z - .50) > .09):
+            abs(x - (1.5 if phase != "early" else 0)) > .035 or
+            abs(y - (.60 if phase == "detour" else 0)) > .035 or abs(z - .50) > .09):
             raise AssertionError("invalid original native sensor, pose or timestamp")
         previous_t = t
         samples.append({"phase":phase, "turn_quarter":yaw_id,
                         "front":front, "left":left, "right":right,
-                        "x":x, "y":y, "z":z, "time":t})
+                        "x":x, "y":y, "z":z, "time":t,
+                        "yaw_deg": 180.0 if phase == "detour" else yaw_id * 22.5})
     (folder / "samples.json").write_text(
         json.dumps({"variant":letter,
                     "method":"R2025a original Crazyflie native sensors; Supervisor pose isolation",
@@ -166,6 +168,33 @@ def main():
     if not (.10 < near < 1.5 and .10 < far < 1.8 and
             far-near > .35):
         raise AssertionError("real early L cue is not discriminating")
+    # Adversarial pupil-toolbox hypothesis: one can move to (1.50,+0.60),
+    # face west using only 90-degree turns, and read FRONT instead of storing
+    # the original L clue. The supervisor ISOLATES the sensing geometry only.
+    # No motorized detour, command acceptance, collision-free route, return,
+    # or pupil Blockly program is proven by this measurement.
+    a_detour, b_detour = data["A"][17], data["B"][17]
+    detour_delta = abs(a_detour["front"] - b_detour["front"])
+    detour = {
+        "schema": "webeeblocks-a5-cardinal-detour-native-v1",
+        "method": "R2025a original Crazyflie range_front at supervisor-set pose",
+        "position_m": {"x": 1.50, "y": 0.60, "z": 0.50},
+        "yaw_deg": 180,
+        "student_turns_required_deg": [90, 90],
+        "front_A_m": a_detour["front"],
+        "front_B_m": b_detour["front"],
+        "difference_m": detour_delta,
+        "discrimination_threshold_m": .35,
+        "discriminating": detour_delta > .35,
+        "motorized_detour_proven": False,
+        "collision_free_detour_proven": False,
+        "pupil_program_without_memory_proven": False,
+    }
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "cardinal-detour.json").write_text(
+        json.dumps(detour, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print("WEBEEBLOCKS_A5_CARDINAL_DETOUR_NATIVE_OBSERVED " +
+          json.dumps(detour, sort_keys=True), flush=True)
     deltas = []
     for idx in range(1, 17):
         for direction in ("front","left","right"):

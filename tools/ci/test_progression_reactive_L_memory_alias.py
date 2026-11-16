@@ -69,6 +69,8 @@ class A5MemoryAliasingPrototypeTests(unittest.TestCase):
                       "wb_supervisor_node_reset_physics(self)",
                       "wb_robot_get_basic_time_step()",
                       "for(int i=0;i<16;i++)",
+                      "late==2?0.60:0.0",
+                      "variant,2,0,PI,step",
                       "WEBEEBLOCKS_A5_ALIAS_SAMPLE"):
             self.assertIn(token,source)
         for forbidden in ("wb_motor_set_velocity", "wb_motor_set_position",
@@ -86,7 +88,12 @@ class A5MemoryAliasingPrototypeTests(unittest.TestCase):
         self.assertIn("backtracking_or_local_translations_not_falsified",script)
         self.assertIn("variable_required_for_all_strategies_NOT_PROVEN",script)
         self.assertIn("classroom_student_PASS",script)
-        self.assertIn("len(rows) != 17",script)
+        self.assertIn("len(rows) != 18",script)
+        self.assertIn("[(letter, \"detour\", 0)]",script)
+        self.assertIn("WEBEEBLOCKS_A5_CARDINAL_DETOUR_NATIVE_OBSERVED",script)
+        self.assertIn("cardinal-detour.json",script)
+        self.assertIn('"collision_free_detour_proven": False',script)
+        self.assertIn('"pupil_program_without_memory_proven": False',script)
         self.assertIn("late_oblique_scans=16",script)
         self.assertIn("for idx in range(1, 17)",script)
         self.assertIn("i*PI/8,step",source)
