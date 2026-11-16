@@ -430,6 +430,39 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertNotIn("wb_motor_set_",source)
         self.assertNotIn("wb_supervisor_field_set_sf_vec3f",source)
 
+
+    def test_native_observer_rearms_only_on_broker_ack_epoch_and_proves_liveness(self):
+        observer=(ROOT/"controllers/progression_count_h_flight_observer/"
+                  "progression_count_h_flight_observer.c").read_text()
+        adapter=(ROOT/"controllers/progression_count_h_school_pilot/"
+                 "classroom_count_h_scene.cpp").read_text()
+        broker=(ROOT/"controllers/crazyflie_runtime_v2/"
+                "file_broker_runtime.cpp").read_text()
+        for required in (
+            "new_epoch_marker(native_state,&next_epoch)",
+            "next_epoch<=m.attempt||next_epoch!=m.attempt+1",
+            "wb_count_reset(&m,next_epoch,(unsigned)variant,origin_z)",
+            "WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH",
+            "publish_liveness(health,m.attempt,variant,wb_robot_get_time())",
+            "WEBEEBLOCKS_A6_NATIVE_OBSERVER_LIVE_V1",
+            "publish_attempt_verdict(channel,m.attempt,0)",
+            "publish_attempt_verdict(channel,m.attempt,1)",
+            "WEBEEBLOCKS_A6_MOTOR_RESET_TRANSITION",
+            "Do not terminate: RESET must rearm the same live observer.",
+        ):
+            self.assertIn(required,observer)
+        self.assertNotIn("wb_robot_cleanup();\n      return 0;",observer)
+        for required in (
+            "bool currentObserver()", "WEBEEBLOCKS_A6_NATIVE_OBSERVER_LIVE_V1",
+            "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1",
+            "now-observed_time>.128",
+            "actual_scene(admittedVariant)&&realObserver()&&currentObserver()",
+        ):
+            self.assertIn(required,adapter)
+        self.assertIn("if (std::strcmp(payload, \"OK\") == 0)",broker)
+        self.assertIn("++gActivityAttempt;",broker)
+        self.assertIn("publishActivityAttempt();",broker)
+
     def test_scene_admission_requires_exact_variant_identity_and_native_colliders(self):
         adapter=(ROOT/"controllers/progression_count_h_school_pilot/"
                  "classroom_count_h_scene.cpp").read_text(encoding="utf-8")
@@ -444,7 +477,7 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("const int expected=24+4*(n-1);",adapter)
         self.assertIn("if(!requested||!actual_scene(requested))",adapter)
         self.assertIn("admittedVariant=0;",adapter)
-        self.assertIn("actual_scene(admittedVariant)&&realObserver()",adapter)
+        self.assertIn("actual_scene(admittedVariant)&&realObserver()&&currentObserver()",adapter)
         self.assertNotIn('std::strcmp(scene,"count-h-1-v1")',adapter)
 
     def test_ci_browser_preparation_is_the_verified_a3_native_preparation(self):

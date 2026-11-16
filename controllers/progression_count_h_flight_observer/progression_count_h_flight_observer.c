@@ -59,6 +59,39 @@ static int fail(const char *reason) {
   wb_robot_cleanup();
   return 2;
 }
+/* Broker-controlled epochs arrive on the craft's native customData channel.
+ * A RESET does not restart this Robot; only a fresh exact marker may rearm.
+ * No pupil AST, pad pose or visible "READY" event grants an epoch. */
+static int new_epoch_marker(const char *data,unsigned long long *out) {
+  if(!data||!out)return 0;
+  unsigned long long epoch=0;char tail='\0';
+  if(sscanf(data,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu%c",
+            &epoch,&tail)!=1||epoch==0)return 0;
+  char exact[128];
+  int n=snprintf(exact,sizeof(exact),
+                 "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu",epoch);
+  if(n<=0||(size_t)n>=sizeof(exact)||strcmp(exact,data))return 0;
+  *out=epoch;
+  return 1;
+}
+/* The heartbeat is authored by the still-running native observer, not
+ * by the browser or the flight controller. It expires without fresh steps. */
+static void publish_liveness(WbFieldRef health,unsigned long long epoch,
+                             int variant,double time) {
+  char token[192];
+  snprintf(token,sizeof(token),
+    "WEBEEBLOCKS_A6_NATIVE_OBSERVER_LIVE_V1 epoch=%llu variant=%d time=%.6f",
+    epoch,variant,time);
+  wb_supervisor_field_set_sf_string(health,token);
+}
+static void publish_attempt_verdict(WbFieldRef channel,
+                                    unsigned long long epoch,int achieved) {
+  char marker[192];
+  snprintf(marker,sizeof(marker),
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+    epoch,WB_COUNT_ORACLE,achieved?"achieved":"not-achieved");
+  wb_supervisor_field_set_sf_string(channel,marker);
+}
 int main(void) {
   wb_robot_init();
   const int step=(int)wb_robot_get_basic_time_step();
@@ -113,6 +146,10 @@ int main(void) {
   const double origin_z=origin[2];
   WbFieldRef channel=wb_supervisor_node_get_field(craft,"customData");
   if(!channel)return fail("missing native runtime-v2 completion channel");
+  WbNodeRef observer=wb_supervisor_node_get_self();
+  WbFieldRef health=observer?
+    wb_supervisor_node_get_field(observer,"customData"):NULL;
+  if(!health)return fail("missing native observer heartbeat channel");
   wb_count_mission m={0};
   wb_count_reset(&m,1,(unsigned)variant,origin_z);
   for(int i=0;i<collider_count;++i)
@@ -124,6 +161,32 @@ int main(void) {
          variant,origin_z,collider_count);
   fflush(stdout);
   while(wb_robot_step(step)!=-1) {
+    const char *native_state=wb_supervisor_field_get_sf_string(channel);
+    unsigned long long next_epoch=0;
+    if(new_epoch_marker(native_state,&next_epoch) && next_epoch!=m.attempt) {
+      if(next_epoch<=m.attempt||next_epoch!=m.attempt+1)
+        return fail("non-monotonic or skipped broker RESET epoch");
+      const double *reset_pos=wb_supervisor_node_get_position(craft);
+      const double *reset_vel=wb_supervisor_node_get_velocity(craft);
+      if(!reset_pos||!reset_vel||
+         fabs(reset_pos[0]+1.40)>.025||fabs(reset_pos[1])>.025||
+         reset_pos[2]<0.012||reset_pos[2]>0.075||
+         !isfinite(reset_vel[0])||!isfinite(reset_vel[1])||
+         !isfinite(reset_vel[2])||
+         hypot(reset_vel[0],reset_vel[1])>.12||
+         fabs(reset_vel[2])>.12)
+        return fail("broker RESET ACK without actual grounded origin");
+      wb_count_reset(&m,next_epoch,(unsigned)variant,origin_z);
+      last_x=reset_pos[0];last_y=reset_pos[1];last_z=reset_pos[2];
+      previous=0;reported_cross=0;screen_seen=0;observations=0;
+      printf("WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=%llu variant=%d\n",
+             next_epoch,variant);
+      fflush(stdout);
+    }
+    publish_liveness(health,m.attempt,variant,wb_robot_get_time());
+    /* Terminal results remain latched but the observer stays alive across
+     * RESET. A new attempt is never inferred from drone proximity. */
+    if(m.verdict!=WB_COUNT_WAIT)continue;
     const double *pos=wb_supervisor_node_get_position(craft);
     const double *velocity=wb_supervisor_node_get_velocity(craft);
     if(!pos||!velocity)return fail("missing native motor flight kinematics");
@@ -138,24 +201,39 @@ int main(void) {
       return fail("nonfinite native flight observation");
     if(previous&&
        (fabs(pos[0]-last_x)>.075||fabs(pos[1]-last_y)>.075||
-        fabs(pos[2]-last_z)>.100))
+        fabs(pos[2]-last_z)>.100)) {
+      /* Native RESET teleports this same craft BEFORE the broker's RESET
+       * ACK publishes epoch N+1. Park the old attempt (never award it)
+       * until the exact new broker token arrives. Unknown teleports fail. */
+      if(fabs(pos[0]+1.40)<=.035&&fabs(pos[1])<=.035&&
+         isfinite(pos[2])&&pos[2]>=-.04&&pos[2]<=.10) {
+        m.verdict=WB_COUNT_NOT_ACHIEVED;
+        printf("WEBEEBLOCKS_A6_MOTOR_RESET_TRANSITION old_attempt=%llu\n",
+               m.attempt);
+        fflush(stdout);
+        continue;
+      }
       return fail("unphysical supervisor pose discontinuity");
+    }
     last_x=pos[0];last_y=pos[1];last_z=pos[2];previous=1;
     ++observations;
     if(sample.time>145.0)return fail("bounded native motor flight timeout");
+    int physical_collision=-1;
     for(int i=0;i<collider_count;++i) {
       int n=-1;
       const WbContactPoint *points=
         wb_supervisor_node_get_contact_points(obstacle[i],false,&n);
       if(n<0||(n>0&&!points))return fail("missing native collision evidence");
-      if(n) {
-        fprintf(stderr,"WEBEEBLOCKS_A6_MOTOR_FATAL physical_contact collider=%d "
-                       "count=%d x=%.6f y=%.6f z=%.6f\n",
-                       i,n,sample.x,sample.y,sample.z);
-        fflush(stderr);
-        wb_robot_cleanup();
-        return 2;
-      }
+      if(n) { physical_collision=i; break; }
+    }
+    if(physical_collision>=0) {
+      m.verdict=WB_COUNT_NOT_ACHIEVED;
+      publish_attempt_verdict(channel,m.attempt,0);
+      printf("WEBEEBLOCKS_A6_MOTOR_REJECT attempt=%llu collider=%d "
+             "x=%.6f y=%.6f z=%.6f\n",
+             m.attempt,physical_collision,sample.x,sample.y,sample.z);
+      fflush(stdout);
+      continue;
     }
     /* All attested obstacle-side contacts were rejected above, including
      * low z. Query separate physical craft contacts to attest actual Floor. */
@@ -177,7 +255,7 @@ int main(void) {
     /* Mission completion must be published by the native runtime broker
      * for the active attempt, never guessed from the pad pose. */
     sample.completed=wb_count_exact_completion(
-      wb_supervisor_field_get_sf_string(channel),m.attempt);
+      native_state,m.attempt);
     if(sample.completed&&!m.completion_seen) {
       printf("WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=%llu oracle=%s time=%.3f\n",
              m.attempt,WB_COUNT_ORACLE,sample.time);
@@ -190,7 +268,13 @@ int main(void) {
              variant,m.crossed,sample.x,sample.z,sample.time);
       fflush(stdout);reported_cross=(int)m.crossed;
     }
-    if(result==WB_COUNT_NOT_ACHIEVED)return fail("native behavioral oracle rejected flight");
+    if(result==WB_COUNT_NOT_ACHIEVED) {
+      publish_attempt_verdict(channel,m.attempt,0);
+      printf("WEBEEBLOCKS_A6_MOTOR_REJECT attempt=%llu behavioral_oracle=1\n",
+             m.attempt);
+      fflush(stdout);
+      continue;
+    }
     if(result==WB_COUNT_ACHIEVED) {
       if(sample.floor_contact!=1)
         return fail("achievement without actual Floor contact");
@@ -205,8 +289,9 @@ int main(void) {
              variant,m.crossed,screen_seen,observations,
              sample.x,sample.y,sample.z);
       fflush(stdout);
-      wb_robot_cleanup();
-      return 0;
+      publish_attempt_verdict(channel,m.attempt,1);
+      /* Do not terminate: RESET must rearm the same live observer. */
+      continue;
     }
     if(observations%100==0) {
       printf("WEBEEBLOCKS_A6_MOTOR_TRACE time=%.3f x=%.6f y=%.6f "
@@ -215,5 +300,8 @@ int main(void) {
       fflush(stdout);
     }
   }
-  return fail("native Webots terminated before flight result");
+  if(m.verdict==WB_COUNT_WAIT)
+    return fail("native Webots terminated before flight result");
+  wb_robot_cleanup();
+  return 0;
 }

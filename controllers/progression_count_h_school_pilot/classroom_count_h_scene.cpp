@@ -35,6 +35,41 @@ bool realObserver() {
     !std::strcmp(c,"progression_count_h_flight_observer")&&
     wb_supervisor_field_get_sf_bool(supervisor);
 }
+/* A typed Robot node does not prove that its Webots controller is alive:
+ * enforce a fresh native timestamp AND the broker's reset-scoped epoch
+ * before any new TAKEOFF can be authorized. */
+bool currentObserver() {
+  if(!realObserver())return false;
+  WbNodeRef node=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A6_MOTOR_OBSERVER");
+  WbFieldRef data=node?wb_supervisor_node_get_field(node,"customData"):nullptr;
+  const char *token=data?wb_supervisor_field_get_sf_string(data):nullptr;
+  unsigned long long seen=0;int variant=0;double observed_time=-1;char tail=0;
+  if(!token||std::sscanf(token,
+      "WEBEEBLOCKS_A6_NATIVE_OBSERVER_LIVE_V1 epoch=%llu variant=%d time=%lf%c",
+      &seen,&variant,&observed_time,&tail)!=3||
+      seen==0||variant!=admittedVariant||!std::isfinite(observed_time))
+    return false;
+  char canonical[192];
+  const int size=std::snprintf(canonical,sizeof(canonical),
+      "WEBEEBLOCKS_A6_NATIVE_OBSERVER_LIVE_V1 epoch=%llu variant=%d time=%.6f",
+      seen,variant,observed_time);
+  if(size<=0||(size_t)size>=sizeof(canonical)||std::strcmp(token,canonical))
+    return false;
+  const double now=wb_robot_get_time();
+  if(!std::isfinite(now)||observed_time>now+.032||
+     now-observed_time>.128)return false;
+  WbNodeRef craft=wb_supervisor_node_get_self();
+  WbFieldRef channel=craft?wb_supervisor_node_get_field(craft,"customData"):nullptr;
+  const char *broker=channel?wb_supervisor_field_get_sf_string(channel):nullptr;
+  if(!broker)return false;
+  unsigned long long current=0;char stray=0;
+  if(std::sscanf(broker,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu%c",
+                 &current,&stray)!=1||current!=seen)return false;
+  char exact[128];
+  const int k=std::snprintf(exact,sizeof(exact),
+                           "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu",current);
+  return k>0&&(size_t)k<sizeof(exact)&&!std::strcmp(broker,exact);
+}
 bool approx(double a, double b) { return std::isfinite(a) && std::fabs(a-b)<0.000001; }
 
 bool box(const char *def, double x, double y, double z,
@@ -137,5 +172,5 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
 }
 extern "C" int webeeblocks_activity_scene_ready(void) {
   return admitted&&admittedVariant>=1&&admittedVariant<=3&&
-    actual_scene(admittedVariant)&&realObserver()?1:0;
+    actual_scene(admittedVariant)&&realObserver()&&currentObserver()?1:0;
 }
