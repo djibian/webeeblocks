@@ -145,13 +145,19 @@ inline bool valid(int variant) {
     const char *groupType=group?wb_supervisor_node_get_type_name(group):nullptr;
     if(!groupType||std::strcmp(groupType,"Group"))return deny(variant,"group-identity",n);
     WbFieldRef children=wb_supervisor_node_get_field(group,"children");
-    const int poses=18+n,expected=poses+3*n+2;
+    // The WBO order is exact: 19 shared decorative Poses, three Solids
+    // for each H with one low-band Pose BETWEEN Hs, then two terminal Solids.
+    // All-Pose-first mistakenly refused the genuine 2-/3-H variants.
+    const int commonPoses=19,expected=commonPoses+3*n+(n-1)+2;
     if(!children||wb_supervisor_field_get_count(children)!=expected)
       return deny(variant,"group-child-count",children?wb_supervisor_field_get_count(children):-1);
     for(int i=0;i<expected;i++) {
       WbNodeRef node=wb_supervisor_field_get_mf_node(children,i);
       const char *item=node?wb_supervisor_node_get_type_name(node):nullptr;
-      if(!item||std::strcmp(item,i<poses?"Pose":"Solid"))
+      const bool lowBand=(i>=commonPoses && i<commonPoses+4*n-1 &&
+                          (i-commonPoses)%4==3);
+      const bool mustBePose=(i<commonPoses)||lowBand;
+      if(!item||std::strcmp(item,mustBePose?"Pose":"Solid"))
         return deny(variant,"child-type",i);
     }
   }

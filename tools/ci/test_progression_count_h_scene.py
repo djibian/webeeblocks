@@ -24,6 +24,27 @@ def collider(source, name):
 
 
 class CountingSceneTests(unittest.TestCase):
+    def test_exact_order_of_child_node_types_in_1_2_3_h_worlds(self):
+        # A previous native UI click from 1 to 2 H was denied by the
+        # physical-scene gate because it assumed *all* Poses precede Solids.
+        # Keep exact type ordering; do not relax the geometry checks.
+        for n, scene in zip((1, 2, 3), SCENES):
+            with self.subTest(n=n):
+                src = scene.read_text(encoding="utf-8")
+                children = re.findall(
+                    r"(?m)^  (Pose \{|DEF ACTIVITY6_[0-9]+_[A-Z0-9_]+ Solid \{)",
+                    src,
+                )
+                found = ["Pose" if node.startswith("Pose") else "Solid"
+                         for node in children]
+                expected = ["Pose"] * 19
+                for gate in range(n):
+                    expected.extend(["Solid"] * 3)
+                    if gate != n - 1:
+                        expected.append("Pose")
+                expected.extend(["Solid"] * 2)
+                self.assertEqual(found, expected)
+
     def test_one_two_three_gates_without_turning_or_premature_count_leakage(self):
         for n, path in zip((1, 2, 3), SCENES):
             with self.subTest(gate_count=n):
