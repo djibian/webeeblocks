@@ -115,7 +115,67 @@ static void test_physical_floor_contact_required(void) {
            ==WB_DH_NOT_ACHIEVED);
   }
 }
+static void test_native_failure_causes(void) {
+  wb_dh_mission m;
+  wb_dh_reset(&m,700,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,1,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT);
+  assert(!strcmp(wb_dh_reason_token(m.reason),"obstacle-contact"));
+  assert(tick_floor(&m,1,0,0,.035,0,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT); /* First cause is immutable. */
+  /* A real collider-side Webots hit is independently conclusive even
+   * before the observer has queried Floor contacts. This is FAIL only. */
+  wb_dh_reset(&m,710,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,1,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT);
+  assert(!strcmp(wb_dh_reason_token(m.reason),"obstacle-contact"));
+  /* A missing Floor observation without a collision is still unknown,
+   * never accepted as contact or as evidence of a landed craft. */
+  wb_dh_reset(&m,711,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
+  /* Bad coordinates must not gain a specific collision cause merely
+   * because the contact flag was set by a malformed sample. */
+  wb_dh_reset(&m,712,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,NAN,0,1,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
+  wb_dh_reset(&m,701,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
+  takeoff(&m,702,WB_DH_SCENE_A);
+  assert(tick(&m,2,.75,0,.85,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CLEARANCE);
+  takeoff(&m,703,WB_DH_SCENE_A);
+  assert(tick(&m,2,1.05,0,.50,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_ROUTE);
+  takeoff(&m,704,WB_DH_SCENE_A);
+  assert(tick(&m,2,.30,0,.75,0,0,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_EARLY);
+  completed_route(&m,705,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.75,0,.060,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.501,1.75,0,.060,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_LANDING);
+  completed_route(&m,706,WB_DH_SCENE_A);
+  assert(tick(&m,8,1.52,0,.015,0,0,1)==WB_DH_WAIT);
+  assert(tick(&m,9.501,1.52,0,.015,0,0,0)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_WRONG_PAD);
+  completed_route(&m,707,WB_DH_SCENE_A);
+  finish_stably(&m,8);
+  assert(m.reason==WB_DH_REASON_NONE);
+  /* First native event after RESET can already be a completion. A valid
+   * stationary blue-zone pose must report EARLY, not invent INVALID_START. */
+  wb_dh_reset(&m,708,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,1,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_EARLY);
+  /* When both the first pose and completion are invalid, the independently
+   * established invalid native starting pose remains the earlier cause. */
+  wb_dh_reset(&m,709,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,.10,0,.035,0,0,1,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_START);
+}
+
 int main(void) {
+  test_native_failure_causes();
   test_physical_floor_contact_required();
   wb_dh_mission m;
   completed_route(&m,1,WB_DH_SCENE_A);
