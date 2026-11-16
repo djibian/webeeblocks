@@ -417,6 +417,61 @@
         }
       },
       {
+        // Public A7, distinct from the historical memory exercise; one unchanged
+        // pupil project is used in both strictly native-attested L/R worlds.
+        id: 'progression-mini-grand-prix-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '7 — Mini Grand Prix',
+          mission: 'Depuis la zone bleue, franchis le H ouvert sans contact, négocie le virage à angle droit puis pose entièrement le drone sur le damier avant le H fermé. Fais réussir les parcours gauche et droite avec un seul programme enregistré, sans le modifier.'
+        },
+        pedagogy: {
+          objective: 'Réinvestir déplacements 3D, rotations, observations, conditions, boucles et mémoire dans une mission autonome sans fournir l’algorithme solution.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff', 'webeeblocks_v2_speed',
+          'webeeblocks_v2_vertical', 'webeeblocks_v2_move',
+          'webeeblocks_v2_turn', 'webeeblocks_v2_range',
+          'controls_repeat_ext', 'controls_if', 'logic_compare',
+          'logic_operation', 'math_number', 'math_arithmetic',
+          'variables_set', 'variables_get', 'math_change',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] },
+          webeeblocks_v2_move: { DIRECTION: [ 'forward' ] },
+          webeeblocks_v2_turn: { DIRECTION: [ 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-mini-grand-prix-v1' },
+        runtime: {
+          scene: 'mini-grand-prix-l-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'set_speed', 'vertical',
+            'move', 'turn', 'repeat', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [ 'up', 'down' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.50, max: 0.50 },
+            'move.distance_m': { min: 0.15, max: 0.80 },
+            'vertical.distance_m': { min: 0.10, max: 0.35 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.1 },
+            'turn.angle_deg_abs': { min: 90, max: 90 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        // Historical A7 remains loadable, but not in the student's Start menu.
+        starterVisible: false,
         id: 'progression-memory-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {

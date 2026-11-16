@@ -17,7 +17,17 @@ assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/
 assert.doesNotMatch(mainSource, /getElementById\('stepContinue'\)\.disabled = !runtimeRunning;/);
 assert.match(classroomFixesSource, /body\[data-runtime-state="À CORRIGER"\] #runtimeState/);
 assert.match(projectUiSource, /setRuntimeLocked\(state === 'EXÉCUTION' \|\| state === 'RÉINITIALISATION'\);/);
-assert.match(projectUiSource, /workspace\.setIsReadOnly\(runtimeLocked\)/);
+// Native mission outcome may still be pending after an interpreter has finished.
+assert(projectUiSource.includes('var editorReadOnly = runtimeLocked || outcomePending;'));
+assert(projectUiSource.includes('workspace.setIsReadOnly(editorReadOnly)'));
+assert(!projectUiSource.includes('workspace.setIsReadOnly(runtimeLocked)'),
+  'legacy runtime-only edit lock would permit stale READY to unlock blocks');
+assert(projectUiSource.includes('blocklyDiv.inert = busy || editorReadOnly;'),
+  'no Blockly read-only API must trigger the fully inert fallback');
+assert(projectUiSource.includes("window.addEventListener('webeeblocks-runtime-v2-outcome-settled', renderButtons)"),
+  'editor must re-evaluate its guard after the native outcome settles');
+assert(mainSource.includes("window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-outcome-settled'))"),
+  'settled outcome must signal the project UI to restore editing');
 assert.match(projectUiSource, /blocklyDiv\.inert = busy;/);
 assert.doesNotMatch(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);

@@ -145,6 +145,24 @@ class WindowsReleaseContractTests(unittest.TestCase):
             ROOT / "controllers" / "crazyflie_runtime_v2" / "Makefile"
         ).read_text(encoding="utf-8"))
 
+    def test_activity7_native_windows_payload_is_complete(self) -> None:
+        packager=(ROOT/"tools/build_windows_classroom_release.ps1").read_text(encoding="utf-8")
+        witness=(ROOT/"tools/ci/test_windows_classroom_release.ps1").read_text(encoding="utf-8")
+        self.assertIn("$miniObserverDir = Join-Path $repoRoot 'controllers\\progression_mini_grand_prix_v1'",packager)
+        self.assertIn("& $make -C $miniObserverDir clean",packager)
+        self.assertIn("& $make -C $miniObserverDir",packager)
+        self.assertIn("$miniObserverBinary",packager)
+        for name in ("mini-grand-prix-l-v1.wbo","mini-grand-prix-r-v1.wbo"):
+            self.assertIn("'"+name+"'",packager)
+            self.assertIn('controller "progression_mini_grand_prix_v1"',
+                          (ROOT/"worlds/scenes"/name).read_text(encoding="utf-8"))
+            self.assertIn(name,witness)
+        self.assertIn("Copy-RequiredFile $miniObserverBinary",packager)
+        self.assertIn("progression_mini_grand_prix_v1.exe",witness)
+        self.assertIn("'Activites\\Historique\\07-memory.wbb'",witness)
+        self.assertNotIn("progression_mini_grand_prix_v1",(
+            ROOT/"controllers/crazyflie_runtime_v2/Makefile").read_text(encoding="utf-8"))
+
     def test_progression_starters_are_shipped_as_non_target_templates(self) -> None:
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
@@ -163,7 +181,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "04-observer-decision.wbb": "progression-decision-h-v1",
             "05-reactive.wbb": "progression-reactive-v1",
             "06-multi-perception.wbb": "progression-combined-decisions-v1",
-            "07-memory.wbb": "progression-memory-v1",
+            "07-mini-grand-prix.wbb": "progression-mini-grand-prix-v1",
             "08-autonomous-strategy.wbb": "progression-autonomous-strategy-v1",
         }
         starter_dir = ROOT / "activities" / "progression"
@@ -172,7 +190,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
             project = json.loads((starter_dir / filename).read_text(encoding="utf-8"))
             self.assertEqual(project["activity"]["id"], activity_id)
             if filename in ("02-altitude.wbb", "03-orientation.wbb",
-                            "04-observer-decision.wbb"):
+                            "04-observer-decision.wbb", "07-mini-grand-prix.wbb"):
                 self.assertEqual(project["format"], "webeeblocks-project")
                 self.assertEqual(project["version"], 1)
                 self.assertEqual(project["activity"]["semantics"], "webeeblocks-ast-v1")
@@ -190,6 +208,12 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("$history3Source = Join-Path $repoRoot 'activities\\historique\\03-repeat.wbb'",packager)
         self.assertIn("$history3Target = Join-Path $packageDir 'Activites\\Historique\\03-repeat.wbb'",packager)
         self.assertIn("Copy-RequiredFile $history3Source $history3Target",packager)
+        historical_a7=ROOT/"activities/historique/07-memory.wbb"
+        self.assertTrue(historical_a7.is_file())
+        self.assertEqual(json.loads(historical_a7.read_text(encoding="utf-8"))["activity"]["id"],
+                         "progression-memory-v1")
+        self.assertIn("$history7Source = Join-Path $repoRoot 'activities\\historique\\07-memory.wbb'",packager)
+        self.assertIn("Copy-RequiredFile $history7Source $history7Target",packager)
         historical_a4=ROOT / "activities" / "historique" / "04-simple-decision.wbb"
         self.assertTrue(historical_a4.is_file())
         self.assertEqual(json.loads(historical_a4.read_text(encoding="utf-8"))["activity"]["id"],"progression-simple-decision-v1")
