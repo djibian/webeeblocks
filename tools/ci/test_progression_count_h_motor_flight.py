@@ -417,7 +417,10 @@ class CountHMotorFlightTests(unittest.TestCase):
         # remains authoritative for the selected whole-craft landing pad.
         core=(ROOT/"controllers/progression_count_h_v1/count_core.h").read_text()
         self.assertIn("wb_count_target_y(m->variant)",core)
-        self.assertIn("wb_count_reset(&m,1,(unsigned)variant,origin_z)",source)
+        self.assertIn("new_epoch_marker(initial,&initial_epoch)",source)
+        self.assertIn("initial canonical broker epoch missing",source)
+        self.assertIn("wb_count_reset(&m,initial_epoch,(unsigned)variant,origin_z)",source)
+        self.assertNotIn("wb_count_reset(&m,1,(unsigned)variant,origin_z)",source)
         self.assertIn("step!=32",source)
         self.assertIn("WB_COUNT_LAND_MAX_SAMPLE_GAP_SEC 0.048",core)
         self.assertIn("m->stable_since_valid = 0;",core)
