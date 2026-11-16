@@ -61,7 +61,10 @@ class CountHSchoolStartTest(unittest.TestCase):
     def test_wrong_start_refused_before_scene_mutation(self):
         native=SELECTOR.read_text(encoding='utf-8')
         gate=GATE.read_text(encoding='utf-8')
-        self.assertIn('if(!webeeblocks_a6_gate::blueOrigin())return 0;',native)
+        self.assertIn('if(!webeeblocks_a6_gate::blueOrigin()) {',native)
+        self.assertIn('WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=blue-origin',native)
+        self.assertIn('WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=geometry',native)
+        self.assertIn('WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=observer',native)
         self.assertIn('std::fabs(p[0]+1.40)<=.025',gate)
         self.assertIn('std::fabs(p[1])<=.025',gate)
         self.assertIn('wb_supervisor_node_get_position(craft)',gate)

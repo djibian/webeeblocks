@@ -342,7 +342,12 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   }
   WbFieldRef position = view ? wb_supervisor_node_get_field(view, "position") : nullptr;
   WbFieldRef orientation = view ? wb_supervisor_node_get_field(view, "orientation") : nullptr;
-  if (!children || !position || !orientation) return 0;
+  if (!children || !position || !orientation) {
+    if(webeeblocks_a6_gate::sceneNumber(scene))
+      std::fprintf(stderr,"WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=viewpoint\n",
+                   webeeblocks_a6_gate::sceneNumber(scene));
+    return 0;
+  }
   if (!saved) {
     legacyScene = exported("WEBEEBLOCKS_LEGACY_SCENE");
     legacyEvaluators = exported("WEBEEBLOCKS_LEGACY_EVALUATORS");
@@ -422,14 +427,20 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     // The current generic school start at x=0 is NOT the qualified A6 blue
     // start at x=-1.40. Reject before removing the active scene, without
     // teleporting the craft or changing the native Runtime reset origin.
-    if(!webeeblocks_a6_gate::blueOrigin())return 0;
+    if(!webeeblocks_a6_gate::blueOrigin()) {
+      std::fprintf(stderr,"WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=blue-origin\n",
+                   webeeblocks_a6_gate::sceneNumber(scene));
+      return 0;  // Fail before removing a previous scenario.
+    }
     const int n=webeeblocks_a6_gate::sceneNumber(scene);
     char file[32],root[72];
     std::snprintf(file,sizeof file,"count-h-%d-v1.wbo",n);
     std::snprintf(root,sizeof root,"DEF WEBEEBLOCKS_COUNT_%d_SCENE Group {",n);
     nextScene=sceneFile(file);
-    if(nextScene.empty()||nextScene.find(root)==std::string::npos)
+    if(nextScene.empty()||nextScene.find(root)==std::string::npos) {
+      std::fprintf(stderr,"WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=asset\n",n);
       return 0;  // Never destroy an existing world for an unknown A6 asset.
+    }
   } else if (std::strcmp(scene, "orientation-v1") == 0) {
     nextScene = sceneFile("orientation-v1.wbo");
     // Fail before destruction when the versioned scene or its native observer
@@ -536,10 +547,14 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     // Physical Solids and exactly one numbered Group must be attested before
     // we introduce the separate read-only mission observer.
     ready=webeeblocks_a6_gate::valid(n);
+    if(!ready)
+      std::fprintf(stderr,"WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=geometry\n",n);
     if(ready) {
       wb_supervisor_field_import_mf_node_from_string(
         children,-1,webeeblocks_a6_gate::kObserverSource);
       ready=webeeblocks_a6_gate::realObserver();
+      if(!ready)
+        std::fprintf(stderr,"WEBEEBLOCKS_A6_SCENE_DENIED n=%d stage=observer\n",n);
     }
     const double p[]={-2.4,-1.8,1.9};
     const double o[]={-.45,.47,.76,1.05};
