@@ -283,6 +283,11 @@ jobs:
       - name: Check dedicated blue-origin WBT contract before opening Webots
         run: |
           python3 -m unittest -v tools.ci.test_progression_count_h_school_start
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare pinned Blockly 13.2.1 for A6 school browser
+        run: bash ./tools/prepare_runtime_v2.sh
       - name: Start unmodified A6 school WBT in Webots R2025a with actual Blockly Robot Window
         timeout-minutes: 7
         run: |

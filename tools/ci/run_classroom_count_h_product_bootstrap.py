@@ -36,6 +36,13 @@ def run() -> int:
             or 'DEF WEBEEBLOCKS_A6_MOTOR_OBSERVER' in source
             or 'translation -1.40 0 0.055' not in source):
         raise ValueError("A6 school launcher world identity/empty-scene precondition failed")
+    # Fail before starting a 140-second Webots process if the Blockly bundle
+    # required by the actual Robot Window is not built in the CI checkout.
+    for relative in ("vendor/blockly_compressed.js",
+                     "vendor/blocks_compressed.js", "vendor/msg/fr.js"):
+        asset = ROOT / "plugins/robot_windows/blockly_v2" / relative
+        if not asset.is_file() or asset.stat().st_size == 0:
+            raise FileNotFoundError(f"A6 browser dependency missing before Webots: {asset}")
     ARTIFACT.mkdir(parents=True, exist_ok=True)
     log_path = ARTIFACT / "webots.log"
     browser_path = ARTIFACT / "browser-launch.log"
