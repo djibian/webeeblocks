@@ -231,6 +231,22 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
         self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
 
+    def test_a5_memory_alias_native_perception_is_experimental_but_required(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        for required in (
+            "Attest A5 early clue and late four-heading native perceptual alias",
+            "tools.ci.test_progression_reactive_L_memory_alias",
+            "controllers/progression_reactive_L_memory_alias_probe",
+            "run_classroom_reactive_L_memory_alias.py",
+            "a5-native-memory-alias-experimental",
+            "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+        ):
+            self.assertIn(required, runtime)
+        self.assertIn('name: progression-mini-gp-native', runtime,
+                      'A7 native required job must not be removed')
+        self.assertIn('name: CI Runtime Suite', runtime,
+                      'this is the reusable canonical runtime suite')
+
     def test_activity7_public_native_ready_is_required_and_not_skipped(self):
         runtime=(WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
         a7=runtime.split("\n  progression-mini-gp-native:\n",1)[1].split(

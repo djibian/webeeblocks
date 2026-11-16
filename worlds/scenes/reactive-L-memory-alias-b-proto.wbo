@@ -1,0 +1,31 @@
+# A5 CI-only information-memory prototype, NOT an activity or pupil product.
+# The only A/B physical difference is the early real L-shaped cue at x=0.
+# Two COMMON accessible landing pads are visible in both scenes; which one
+# is correct depends on the earlier observed clue, not on late ray readings.
+# Neither visible pad has a collision box: only three genuine solids do.
+DEF WEBEEBLOCKS_A5_ALIAS_B_SCENE Group {
+ children [
+  Pose { translation 0.000 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.200 0.200 0.004 } } ] }
+  Pose { translation 1.500 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 1.500 0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  Pose { translation 1.500 -0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  DEF A5_ALIAS_B_CUE_ARM Solid {
+    translation 0.000 1.180 0.550
+    name "A5_ALIAS_B_CUE_ARM"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.400 0.080 1.100 } } ]
+    boundingObject Box { size 0.400 0.080 1.100 }
+  }
+  DEF A5_ALIAS_B_CUE_TIP Solid {
+    translation 0.200 1.380 0.550
+    name "A5_ALIAS_B_CUE_TIP"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.480 1.100 } } ]
+    boundingObject Box { size 0.080 0.480 1.100 }
+  }
+  DEF A5_ALIAS_B_TERMINAL Solid {
+    translation 2.100 0.000 0.550
+    name "A5_ALIAS_B_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.820 1.100 } } ]
+    boundingObject Box { size 0.080 0.820 1.100 }
+  }
+ ]
+}

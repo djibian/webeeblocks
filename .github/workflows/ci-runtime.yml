@@ -261,6 +261,31 @@ jobs:
       # A4 Draft has no activated pupil profile yet. The native C core and
       # static scene contract are still a mandatory negative/provisional gate
       # on the reusable Runtime suite, not a simulated Webots mission PASS.
+      # Experimental information-alias witness: true R2025a Multi-ranger,
+      # Supervisor pose isolation, never a motorized student or product PASS.
+      - name: Attest A5 early clue and late four-heading native perceptual alias
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_reactive_L_memory_alias
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_memory_alias_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_memory_alias_probe'
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_memory_alias.py'
+      - name: Archive A5 native perceptual alias samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-native-memory-alias-experimental
+          path: ci-artifacts/progression-reactive-L-memory-alias/
+          if-no-files-found: warn
       - name: Falsify Activity 4 geometric scenes and isolated C oracle
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene
