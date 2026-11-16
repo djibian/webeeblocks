@@ -63,7 +63,13 @@
       if (workspace.isReadOnly() !== editorReadOnly) workspace.setIsReadOnly(editorReadOnly);
       if (blocklyDiv) blocklyDiv.inert = busy;
     } else if (blocklyDiv) blocklyDiv.inert = busy || editorReadOnly; // Fail closed.
-    if (activity) activity.disabled = locked;
+    if (activity) {
+      // Offer only published projects compatible with the current Webots
+      // world. The strict validation in project_files.js remains authoritative.
+      var compatible = progressionProfiles();
+      activity.disabled = locked || compatible.length === 0;
+      activity.title = compatible.length ? '' : 'Aucune activité publiée pour ce monde de simulation';
+    }
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
@@ -227,12 +233,12 @@
   function progressionProfiles() {
     var documentModel = WebeeBlocksActivities && WebeeBlocksActivities.DOCUMENT;
     var activities = documentModel && Array.isArray(documentModel.activities) ? documentModel.activities : [];
-    var profiles = activities.filter(function(profile) {
+    var currentWorld = runtimeProfile && runtimeProfile.world;
+    if (typeof currentWorld !== 'string' || !currentWorld) return [];
+    return activities.filter(function(profile) {
       return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0 &&
-        profile.starterVisible !== false;
+        profile.starterVisible !== false && profile.world === currentWorld;
     });
-    if (!profiles.length) throw new Error('aucune activité de progression disponible');
-    return profiles;
   }
 
   function chooseActivityProfile() {
@@ -245,6 +251,10 @@
       var profiles;
       try { profiles = progressionProfiles(); }
       catch (error) { reject(error); return; }
+      if (!profiles.length) {
+        reject(new Error('aucune activité publiée pour ce monde de simulation'));
+        return;
+      }
 
       var dialog = document.createElement('dialog');
       dialog.id = 'activityChooser';
