@@ -270,6 +270,10 @@ int main(int argc,char**argv){
  assert(!webeeblocks_select_activity_scene("nonexistent-v1"));
  assert(!webeeblocks_select_activity_scene(""));
  assert(!webeeblocks_select_activity_scene(nullptr));
+ // The generic x=0 school origin cannot stand in for A6's x=-1.40.
+ // Each A6 selection must fail before damaging the current scene.
+ for(const char *id: {"count-h-1-v1","count-h-2-v1","count-h-3-v1"})
+   assert(!webeeblocks_select_activity_scene(id));
  assert(removals.empty());
  if(mode.rfind("sequence-",0)==0){
   if(mode=="sequence-missing" || mode=="sequence-malformed"){
@@ -404,6 +408,7 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn('webeeblocks_a6_gate::valid(n)',cpp)
         self.assertIn('webeeblocks_a6_gate::currentObserver(n)',cpp)
         self.assertIn('removeDef("WEBEEBLOCKS_A6_MOTOR_OBSERVER")',cpp)
+        self.assertIn('if(!webeeblocks_a6_gate::blueOrigin())return 0;',cpp)
         self.assertNotIn('"count-h-1-v1"',phys)
         self.assertNotIn('"count-h-2-v1"',phys)
         self.assertNotIn('"count-h-3-v1"',phys)
