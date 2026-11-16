@@ -146,6 +146,16 @@ static void test_native_failure_causes(void) {
   completed_route(&m,707,WB_DH_SCENE_A);
   finish_stably(&m,8);
   assert(m.reason==WB_DH_REASON_NONE);
+  /* First native event after RESET can already be a completion. A valid
+   * stationary blue-zone pose must report EARLY, not invent INVALID_START. */
+  wb_dh_reset(&m,708,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,1,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_EARLY);
+  /* When both the first pose and completion are invalid, the independently
+   * established invalid native starting pose remains the earlier cause. */
+  wb_dh_reset(&m,709,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,.10,0,.035,0,0,1,1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_START);
 }
 
 int main(void) {

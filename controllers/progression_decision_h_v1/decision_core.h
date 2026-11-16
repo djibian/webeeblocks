@@ -164,17 +164,21 @@ static inline wb_dh_verdict wb_dh_sample_mission(wb_dh_mission *m,
   }
   /* Reject a late-attached attempt already in flight. Observe actual first
    * native pose and velocity; never inspect the learner's algorithm or AST. */
-  if (m->last_time < 0.0 &&
-      (fabs(m->origin_z - WB_DH_BLUE_GROUND_Z) > WB_DH_BLUE_GROUND_Z_TOL ||
-       fabs(s->x) > WB_DH_START_XY_TOL ||
-       fabs(s->y) > WB_DH_START_XY_TOL ||
-       fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
-       hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||
-       fabs(s->vz) > WB_DH_START_MAX_SPEED ||
-       s->completed)) {
-    m->reason = WB_DH_REASON_START;
-    m->verdict = WB_DH_NOT_ACHIEVED;
-    return m->verdict;
+  if (m->last_time < 0.0) {
+    const int invalid_start =
+      fabs(m->origin_z - WB_DH_BLUE_GROUND_Z) > WB_DH_BLUE_GROUND_Z_TOL ||
+      fabs(s->x) > WB_DH_START_XY_TOL ||
+      fabs(s->y) > WB_DH_START_XY_TOL ||
+      fabs(s->z - m->origin_z) > WB_DH_START_Z_TOL ||
+      hypot(s->vx, s->vy) > WB_DH_START_MAX_SPEED ||
+      fabs(s->vz) > WB_DH_START_MAX_SPEED;
+    if (invalid_start || s->completed) {
+      /* An immediate valid-position COMPLETE is an early finish, NOT
+       * evidence that the native departure pose was invalid. */
+      m->reason = invalid_start ? WB_DH_REASON_START : WB_DH_REASON_EARLY;
+      m->verdict = WB_DH_NOT_ACHIEVED;
+      return m->verdict;
+    }
   }
   /* A momentary stable pose separated from the next sample by an
    * unobserved 64-ms step cannot certify 250 ms of continuous landing. */
