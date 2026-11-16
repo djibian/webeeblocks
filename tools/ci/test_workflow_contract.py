@@ -185,7 +185,7 @@ class WorkflowTests(unittest.TestCase):
             encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
-        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only"})
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only"})
         for required in (
             "  pull_request:\n",
             "  types: [opened, synchronize, reopened]\n",
@@ -202,6 +202,10 @@ class WorkflowTests(unittest.TestCase):
             "tools/ci/run_classroom_count_h_rear_range.py",
             "if: always()",
             "ci-artifacts/progression-count-h-rear-range/",
+            "run_classroom_count_h_product_bootstrap.py",
+            "a6-school-window-draft-only:",
+            "ci-artifacts/progression-count-h-product-bootstrap/",
+            "A6 real Webots school window and native scene bootstrap (not CI Gate)",
             "tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision",
             "set -euo pipefail",
         ):
