@@ -37,7 +37,13 @@ class PupilA4Tests(unittest.TestCase):
         profiles=(ROOT/'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js').read_text(encoding='utf-8')
         for scene in ('decision-h-a-v1','decision-h-b-v1'):
             self.assertIn("profile.runtime.scene !== '"+scene+"'",profiles)
-        self.assertIn("fail('runtime.scene must be sequence-v1",profiles)
+        self.assertIn(
+            "fail('runtime.scene must name a supported versioned classroom scene",
+            profiles)
+        # A6 adds three *known* tokens, not a default permit-all scene:
+        # the strict allowlist must still end in the fail-closed branch.
+        for scene in ('count-h-1-v1','count-h-2-v1','count-h-3-v1'):
+            self.assertIn("profile.runtime.scene !== '"+scene+"'",profiles)
         for resource in ('blockly_compressed.js','blocks_compressed.js',
                          'semantic_ast.js','interpreter.js','activity_contract.js',
                          'project_files.js','wwi_backend.js'):

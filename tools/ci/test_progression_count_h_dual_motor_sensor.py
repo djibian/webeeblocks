@@ -9,7 +9,7 @@ from tools.ci.analyze_count_h_dual_motor_sensor import (
 
 class DualNativeRayCounterTests(unittest.TestCase):
     @staticmethod
-    def fixture(n,glitch=False):
+    def fixture(n,glitch=False,split_pulse=False):
         rows=[]
         def push(k,up,front):
             for _ in range(k):
@@ -19,6 +19,12 @@ class DualNativeRayCounterTests(unittest.TestCase):
             if glitch:
                 push(2,.20,1.9)  # transient noise is not a physical H
                 push(5,2.,1.9)
+            if split_pulse:
+                # Native #43895108217 blockly-n1: an early 5-tick near,
+                # a 5-tick far gap, then the long near of the SAME gate.
+                # Do not award two H for that 160-ms sensor dropout.
+                push(5,.20,2. if j<2 else .97)
+                push(5,2.,2. if j<2 else .97)
             push(12,.20,2. if j<2 else .97)
             push(40,2.,2. if j<2 else .91)
         # Distinctive FRONTAL wall cue occurs before the cyan terminal pulse.
@@ -30,6 +36,14 @@ class DualNativeRayCounterTests(unittest.TestCase):
         for n in (1,2,3):
             with self.subTest(n=n):
                 result=count_from_sensor_stream(self.fixture(n,glitch=True))
+                self.assertEqual(result["count"],n)
+                self.assertTrue(result["terminal_detected"])
+
+    def test_one_physical_h_split_by_real_160ms_far_dropout(self):
+        for n in (1,2,3):
+            with self.subTest(n=n):
+                result=count_from_sensor_stream(
+                    self.fixture(n,glitch=True,split_pulse=True))
                 self.assertEqual(result["count"],n)
                 self.assertTrue(result["terminal_detected"])
 

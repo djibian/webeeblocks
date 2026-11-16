@@ -45,6 +45,11 @@ def count_from_sensor_stream(records):
     near_ticks=0
     far_ticks=0
     inside=False
+    # H beams can briefly read FAR then NEAR again while the Crazyflie
+    # crosses the SAME physical H. Re-arm only after a sustained FAR interval.
+    # 20 consecutive 32-ms samples = 0.64 s; distinct H centres are 0.85 m
+    # apart and the actual PID speed is <=0.20 m/s. No scene/XYZ/AST inputs.
+    armed=True
     last_t=None
     observed_terminal=False
     for t,up,front in records:
@@ -63,7 +68,7 @@ def count_from_sensor_stream(records):
         if up<.75:
             near_ticks+=1
             far_ticks=0
-            if near_ticks>=3:
+            if armed and near_ticks>=3:
                 inside=True
         elif up>1.30:
             far_ticks+=1
@@ -73,6 +78,9 @@ def count_from_sensor_stream(records):
                 if count>3:
                     raise ValueError("more than three distinct H pulses")
                 inside=False
+                armed=False
+            if not armed and far_ticks>=20:
+                armed=True
         else:
             near_ticks=0
             far_ticks=0
