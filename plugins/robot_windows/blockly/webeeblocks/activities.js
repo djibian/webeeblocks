@@ -440,7 +440,8 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } }
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.1, step: 0.1 } },
+          controls_whileUntil: { MAX_ITERATIONS: { min: 1, max: 80, step: 1 } }
         },
         fieldOptions: {
           webeeblocks_v2_vertical: { DIRECTION: [ 'up', 'down' ] },
