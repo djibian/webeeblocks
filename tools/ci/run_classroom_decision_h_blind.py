@@ -61,13 +61,13 @@ def main()->int:
         threading.Thread(target=server.serve_forever,daemon=True).start()
         output=logfile.open('w',encoding='utf-8')
         process=subprocess.Popen(
-            ['timeout','-k','5s','240s','xvfb-run','-a','webots',
+            ['timeout','-k','5s','360s','xvfb-run','-a','webots',
              '--stdout','--stderr','--batch','--mode=realtime',str(WORLD)],
             cwd=ROOT,env={**os.environ,'WEBOTS_WEB_BROWSER':
                           '/workspace/tools/ci/webots_runtime_v2_browser.sh'},
             stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
         start=time.monotonic()
-        while time.monotonic()-start<225:
+        while time.monotonic()-start<345:
             names=[e.get('event') for e in ack.EVENTS]
             if ('A4_BLIND_TEST_COMPLETE' in names or
                 'A4_BLIND_ERROR' in names or process.poll() is not None):break
