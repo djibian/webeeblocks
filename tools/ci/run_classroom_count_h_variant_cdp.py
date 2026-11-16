@@ -72,7 +72,8 @@ class Chrome:
             enabled: !!button && !button.hidden && !button.disabled,
             label: button ? button.textContent.trim() : null,
             project: project,
-            projectMode: document.body.dataset.projectFileMode || null,
+            projectMode: document.body && document.body.dataset ?
+              (document.body.dataset.projectFileMode || null) : null,
             program: typeof workspace !== 'undefined' && workspace ?
               JSON.stringify(Blockly.serialization.workspaces.save(workspace)) : null
           };
