@@ -123,6 +123,22 @@ static void test_native_failure_causes(void) {
   assert(!strcmp(wb_dh_reason_token(m.reason),"obstacle-contact"));
   assert(tick_floor(&m,1,0,0,.035,0,0,0,1)==WB_DH_NOT_ACHIEVED);
   assert(m.reason==WB_DH_REASON_CONTACT); /* First cause is immutable. */
+  /* A real collider-side Webots hit is independently conclusive even
+   * before the observer has queried Floor contacts. This is FAIL only. */
+  wb_dh_reset(&m,710,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,1,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_CONTACT);
+  assert(!strcmp(wb_dh_reason_token(m.reason),"obstacle-contact"));
+  /* A missing Floor observation without a collision is still unknown,
+   * never accepted as contact or as evidence of a landed craft. */
+  wb_dh_reset(&m,711,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,.035,0,0,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
+  /* Bad coordinates must not gain a specific collision cause merely
+   * because the contact flag was set by a malformed sample. */
+  wb_dh_reset(&m,712,WB_DH_SCENE_A,.035);
+  assert(tick_floor(&m,0,0,0,NAN,0,1,0,-1)==WB_DH_NOT_ACHIEVED);
+  assert(m.reason==WB_DH_REASON_NONE);
   wb_dh_reset(&m,701,WB_DH_SCENE_A,.035);
   assert(tick_floor(&m,0,0,0,.035,0,0,0,-1)==WB_DH_NOT_ACHIEVED);
   assert(m.reason==WB_DH_REASON_NONE);
