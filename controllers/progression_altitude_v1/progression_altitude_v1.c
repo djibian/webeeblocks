@@ -157,7 +157,7 @@ static void publish(WbFieldRef channel, unsigned long long attempt,
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
-  if (step <= 0 || !verify_scene()) {
+  /* Canonical classroom 32-ms timestep is required for the 48-ms\n   * maximum continuous landing-observation gap. */\n  if (step != 32 || !verify_scene()) {
     fprintf(stderr, "WEBEEBLOCKS_ALTITUDE_FATAL invalid scene identity or geometry\n");
     wb_robot_cleanup();
     return 2;
