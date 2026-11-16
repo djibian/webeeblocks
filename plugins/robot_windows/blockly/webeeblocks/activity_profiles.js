@@ -108,8 +108,11 @@
         profile.runtime.scene !== 'decision-h-a-v1' &&
         profile.runtime.scene !== 'decision-h-b-v1' &&
         profile.runtime.scene !== 'mini-grand-prix-l-v1' &&
-        profile.runtime.scene !== 'mini-grand-prix-r-v1')
-      fail('runtime.scene must be sequence-v1, legacy-v1, altitude-v1, orientation-v1, decision-h-a-v1, decision-h-b-v1, mini-grand-prix-l-v1 or mini-grand-prix-r-v1');
+        profile.runtime.scene !== 'mini-grand-prix-r-v1' &&
+        profile.runtime.scene !== 'count-h-1-v1' &&
+        profile.runtime.scene !== 'count-h-2-v1' &&
+        profile.runtime.scene !== 'count-h-3-v1')
+      fail('runtime.scene must name a supported versioned classroom scene (sequence/legacy/altitude/orientation/decision-h/mini-grand-prix/count-h-1..3)');
     if (profile.runtime.maxSteps !== undefined &&
         (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000))
       fail('runtime.maxSteps outside [1, 20000]');
