@@ -12,6 +12,17 @@ const occurrences=Activities.DOCUMENT.activities.filter(p=>p.id===id);
 assert.equal(occurrences.length,1,'A6 pupil profile must have exactly one identity');
 const profile=Activities.getProfile(id);
 Profiles.validateProfile(profile,Activities.BLOCK_CATALOG);
+for (const scene of ['count-h-1-v1','count-h-2-v1','count-h-3-v1']) {
+  const candidate=JSON.parse(JSON.stringify(profile));
+  candidate.runtime.scene=scene;
+  Profiles.validateProfile(candidate,Activities.BLOCK_CATALOG);
+}
+for (const bad of ['count-h-0-v1','count-h-4-v1','count-h-1-v1-extra','a8-route']) {
+  const rejected=JSON.parse(JSON.stringify(profile));
+  rejected.runtime.scene=bad;
+  assert.throws(()=>Profiles.validateProfile(rejected,Activities.BLOCK_CATALOG),
+    /runtime.scene/,'untrusted native scene ID must be rejected: '+bad);
+}
 assert.equal(profile.starterVisible,false,'A6 must remain hidden pending native product admission');
 assert.equal(profile.runtime.scene,'count-h-1-v1');
 assert.equal(profile.evaluation.type,'mission-state-v1');
