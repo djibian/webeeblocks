@@ -232,6 +232,45 @@ int main() {
 
 #endif
 
+
+#ifdef WB_CLASSROOM_A4_REASON_TEST
+  reset_harness();
+  const std::string a4 =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-decision-h-v1 status=not-achieved reason=obstacle-contact";
+  custom_data = a4;
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 60 COMPLETE progression-decision-h-v1",
+           "WEBEEBLOCKS_RUNTIME_V2 REQUEST 61 OUTCOME progression-decision-h-v1"});
+  assert(custom_data == a4);
+  assert(sent_text.size() == 2);
+  assert(sent_text[1] ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 61 STATE not-achieved reason=obstacle-contact");
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 62 OUTCOME another-oracle"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 62 ERR OUTCOME_MISMATCH");
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-decision-h-v1 status=achieved reason=obstacle-contact",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-decision-h-v1 status=not-achieved reason=fake",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=another-oracle status=not-achieved reason=obstacle-contact",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-decision-h-v1 status=not-achieved reason=obstacle-contact trailing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-decision-h-v1 status=not-achieved reason=obstacle-contact",
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 63 OUTCOME progression-decision-h-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 63 STATE not-achieved reason=obstacle-contact");
+  }
+  reset_harness();
+  custom_data = a4;
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 64 RESET");
+  assert(webeeblocks_file_broker_receive_text() != nullptr);
+  const std::string reset_ok = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 64 OK";
+  webeeblocks_file_broker_send(reset_ok.c_str(), static_cast<int>(reset_ok.size()+1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 65 OUTCOME progression-decision-h-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 65 ERR OUTCOME_UNAVAILABLE");
+#endif
+
   expect_unavailable_after_complete(
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=0 oracle=progression-precise-movement-v1 status=not-achieved");
   expect_unavailable_after_complete(
@@ -411,13 +450,20 @@ def main() -> int:
         route_broker.write_text(
             compose_route_outcome_broker(BROKER.read_text(encoding="utf-8")),
             encoding="utf-8")
-        for variant, source in (("shared", BROKER), ("route", route_broker)):
+        from tools.classroom.compose_a4_outcome_broker import compose_classroom_outcome_broker
+        classroom_broker = temp / "classroom_broker.cpp"
+        classroom_broker.write_text(
+            compose_classroom_outcome_broker(BROKER.read_text(encoding="utf-8")),
+            encoding="utf-8")
+        for variant, source in (("shared", BROKER), ("route", route_broker),
+                                ("classroom", classroom_broker)):
             executable = temp / ("probe_" + variant)
             command = [
                 os.environ.get("CXX", "c++"), "-std=c++17",
                 "-Wall", "-Wextra", "-Werror",
                 "-I", str(include), "-I", str(CONTROLLER_DIR),
                 *([] if variant == "shared" else ["-DWB_ROUTE_REASON_TEST"]),
+                *(["-DWB_CLASSROOM_A4_REASON_TEST"] if variant == "classroom" else []),
                 str(source), str(probe), "-o", str(executable),
             ]
             subprocess.run(command, cwd=ROOT, check=True)

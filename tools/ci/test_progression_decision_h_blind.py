@@ -34,7 +34,7 @@ class BlindNativeControls(unittest.TestCase):
         ):
             self.assertIn(fragment,js)
         for forbidden in (
-          "backend.range(", "backend.completeActivityMission(",
+          "backend.range(",
           "wb_supervisor_node_", "WB_DH_NOT_ACHIEVED", "WEBEEBLOCKS_DECISION_H_RESULT",
           "WebeeBlocksSemanticAst", "WebeeBlocksProjectFiles",
         ):
@@ -42,6 +42,29 @@ class BlindNativeControls(unittest.TestCase):
         html=HTML.read_text(encoding='utf-8')
         self.assertIn("decision_h_blind_probe.js",html)
         self.assertIn("wwi_backend.js",html)
+        self.assertIn("runtime_outcome.js",html)
+        self.assertIn("aria-live=\"polite\"",html)
+        school=(ROOT/"controllers/crazyflie_classroom_v2/Makefile").read_text()
+        self.assertTrue(school.startswith(".DEFAULT_GOAL := release\n"))
+        workflow=(ROOT/".github/workflows/ci-progression-a4-draft.yml").read_text()
+        self.assertIn("make clean; make; test -s crazyflie_classroom_v2",workflow)
+        self.assertIn("WebeeBlocksRuntimeOutcome.classifyMission(refused,evaluation)",js)
+        self.assertIn("target.textContent=display.state",js)
+        self.assertIn("refused.reason==='unsafe-clearance'",js)
+        # Unlike blind in-flight failures, a genuine wrong-pad verdict is
+        # sampled after explicit COMPLETE on a fully traversed physical route.
+        self.assertEqual(js.count("await backend.completeActivityMission("),1)
+        self.assertIn("await backend.move('left',0.35)",js)
+        self.assertIn("padResult.reason==='wrong-pad'",js)
+        self.assertIn("A4_BLIND_WRONG_PAD_REFUSED",js)
+        self.assertIn("Atterrissage hors de la zone prévue",js)
+        self.assertIn("await backend.move('forward',0.75)",js)
+        self.assertIn("await backend.move('left',0.32)",js)
+        self.assertIn("contactResult.reason==='obstacle-contact'",js)
+        self.assertIn("Contact avec un obstacle",js)
+        self.assertIn("A4_BLIND_CONTACT_STARTED",js)
+        self.assertIn("A4_BLIND_CONTACT_REFUSED",js)
+        self.assertEqual(js.count("await backend.resetSimulation()"),3)
         self.assertIn("A4_BLIND_HTML_LOADED",html)
 
     def test_draft_and_canonical_runtime_protect_both_native_witnesses(self):
@@ -69,9 +92,26 @@ class BlindNativeControls(unittest.TestCase):
           "refusing to delete changed blind-native world",
           "WEBEEBLOCKS_DECISION_H_VERDICT_SAMPLE attempt=",
           "WEBEEBLOCKS_DECISION_H_RESULT scene=",
-          "results==[('A','1','not-achieved','0'),",
-          "('B','2','not-achieved','0')]",
+          "results[:3]==[",
+          "('A','1','not-achieved','0'),",
+          "('B','2','not-achieved','0'),",
+          "('A','3','not-achieved','4')]",
+          "wrong_pad_ok", "resets_ok",
+          "len(results)==4",
+          "results[3][:3]==('A','4','not-achieved')",
+          "('A','1','0','unsafe-clearance')",
+          "('B','2','0','unsafe-clearance')",
+          "('A','3','4','wrong-pad')",
+          "native_reasons[3][3]=='obstacle-contact'",
+          "native_contact_ok",
+          "WEBEEBLOCKS_DECISION_H_COLLIDER_CONTACT type=H_LEFT",
+          "results[3][3] in ('0','1')",
+          "stage=([0-9]+) reason=([a-z-]+)",
+          "A4_BLIND_WRONG_PAD_REFUSED",
           "A4_BLIND_NATIVE_PASS",
+          "native_reason_ok",
+          "native_failure_reasons",
+          "renderedDetail",
           "no_sensor='WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE' not in log",
         ):
             self.assertIn(token,src)
