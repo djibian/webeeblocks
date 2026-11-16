@@ -51,6 +51,9 @@ export async function runPrivateBlockly(backend,report) {
       statement_count:reopened.program.length,same_private_project:true,testOnly:true});
     // Native scene admitted already by test adapter. Product A6 registry is
     // NOT enabled. Relay the real motor commands with scene prepare disabled.
+    // CI-only command counters prove the physical repeat count without
+    // adding a third variable to the two-variable Blockly program.
+    let acknowledgedSteps=0;
     const native={
       capabilities:Object.assign({},backend.capabilities,{simulationScenes:false}),
       takeoff:async height=>{
@@ -58,7 +61,11 @@ export async function runPrivateBlockly(backend,report) {
         await report('A6_TAKEOFF',{height_m:height,blockly:true});
       },
       setSpeed:speed=>backend.setSpeed(speed),
-      move:(direction,distance)=>backend.move(direction,distance),
+      move:async(direction,distance)=>{
+        await backend.move(direction,distance);
+        if(direction==='forward'&&Math.abs(distance-.08)<1e-8)
+          acknowledgedSteps++;
+      },
       readRange:direction=>backend.readRange(direction),
       land:async()=>{
         await backend.land();
@@ -72,7 +79,10 @@ export async function runPrivateBlockly(backend,report) {
        hooks:{beforeStep:async context=>{
          if(context.node.kind!=='land')return;
          const variables=context.variables||{};
-         const count=variables.count,steps=variables.steps,front=variables.front;
+         const count=variables.count,steps=acknowledgedSteps;
+         // Independent final native sample only for CI attestation, not
+         // passed into the learner AST or used to select the landing pad.
+         const front=await backend.readRange('front');
          if(!Number.isInteger(count)||count<1||count>3||
             !Number.isInteger(steps)||steps<20||steps>80||
             !Number.isFinite(front)||front<.30||front>.82)
