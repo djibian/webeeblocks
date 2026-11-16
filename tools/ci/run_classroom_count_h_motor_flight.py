@@ -244,7 +244,10 @@ def run(variant=1,mode="reference"):
     if variant in (2,3):
         expected_moves.append(("left" if variant==2 else "right","0.550000000"))
     pad_y={1:0.0,2:0.55,3:-0.55}[variant]
-    expected_responses=12+(1 if variant!=1 else 0)
+    # Only SCENE, SPEED, TAKEOFF, 7 forward MOVEs, optional lateral
+    # MOVE and LAND have numbered WWI responses. Native completion is an
+    # independently attested customData signal, not an extra WWI response.
+    expected_responses=11+(1 if variant!=1 else 0)
     all_response_ids=re.findall(
         r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) "
         r"(?:OK|VALUE -?[0-9.]+|SCENE_OK [0-9a-f]{64})",txt)
