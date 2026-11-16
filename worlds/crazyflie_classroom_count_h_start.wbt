@@ -25,7 +25,7 @@ Crazyflie {
   translation -1.40 0 0.055
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_classroom_v2"
-  window "blockly_v2"
+  window "blockly_count_h"
   supervisor TRUE
   synchronization TRUE
   extensionSlot [
@@ -146,4 +146,5 @@ Crazyflie {
 
 # A6 school-start world. No H geometry or native observer preloaded:
 # the verified school SCENE request imports the selected 1/2/3 WBO.
-# This world is NOT enabled in pupil Start or Windows releases yet.
+# Dedicated school Robot Window is experimental; hidden A6 remains unpublished.
+# Native scene admission is authoritative, not the browser initial-profile hint.

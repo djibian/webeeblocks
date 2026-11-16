@@ -107,4 +107,30 @@ assert.equal(acceptedInA6.profile.id,id,
 // This positive unit check is NOT native proof of how the Robot Window obtains
 // its initial world identity; starterVisible must remain false.
 
+// Dedicated WBT opens a UI preselected to A6, while the canonical script and
+// HTML presentation stay byte-identical outside its declarative bootstrap.
+// This is NOT a native scene attestation or a pupil publication decision.
+const classroomHtml=fs.readFileSync(path.resolve(__dirname,
+  '../../plugins/robot_windows/blockly_count_h/blockly_count_h.html'),'utf8');
+const canonicalHtml=fs.readFileSync(path.resolve(__dirname,
+  '../../plugins/robot_windows/blockly_v2/blockly_v2.html'),'utf8');
+const bootstrap=`  <!-- A6 DRAFT-only classroom launcher: this is a UI hint, NOT scene
+       authority. Native blue-origin, exact collider and observer admission
+       must still ACK the selected count-h-N-v1 scene before flight. -->
+  <base href="../blockly_v2/">
+  <script>window.WebeeBlocksInitialActivityId = 'progression-count-h-v1';</script>
+`;
+assert.equal(classroomHtml,canonicalHtml.replace('<head>\n','<head>\n'+bootstrap),
+  'A6 launcher must reuse the complete canonical Blockly interface with only a bounded hint');
+assert(schoolStart.includes('window "blockly_count_h"'),
+  'the dedicated A6 world must launch the dedicated school browser');
+const mainUi=fs.readFileSync(path.resolve(__dirname,
+  '../../plugins/robot_windows/blockly_v2/main.js'),'utf8');
+const projectGuard=fs.readFileSync(path.resolve(__dirname,
+  '../../plugins/robot_windows/blockly/webeeblocks/project_files.js'),'utf8');
+assert(mainUi.includes("typeof WebeeBlocksInitialActivityId === 'string'"),
+  'the canonical UI must actually honor the bounded A6 startup hint');
+assert(projectGuard.includes('profile.world !== currentProfile.world'),
+  'A6 must retain the strict cross-world Save/Open refusal');
+
 console.log('PASS A6 hidden pupil profile: limited concepts, three-world contract, blank starter, not yet public');
