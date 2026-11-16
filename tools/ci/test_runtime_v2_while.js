@@ -99,6 +99,87 @@ async function prove() {
   assert.strictEqual(mapped['program/0/condition'],condition.id);
   ws.dispose();
 
+  // Activity 7 actual Blockly field-bound roundtrip (not a pupil solution).
+  // The generic block starts at 100, but A7 must display, save and reopen
+  // at most 80 iterations, without accepting a forged out-of-profile .wbb.
+  {
+    const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/activities');
+    const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
+    const ProjectFiles = require('../../plugins/robot_windows/blockly/webeeblocks/project_files');
+    const left = Profiles.resolveById(Activities.DOCUMENT, 'progression-mini-grand-prix-v1', Activities.BLOCK_CATALOG);
+    const right = JSON.parse(JSON.stringify(left));
+    right.runtime.scene = 'mini-grand-prix-r-v1';
+    assert(Profiles.validateProfile(right, Activities.BLOCK_CATALOG));
+    const pupil = new Blockly.Workspace();
+    const takeoff = pupil.newBlock('webeeblocks_v2_takeoff');
+    const pupilLoop = pupil.newBlock('controls_whileUntil');
+    const land = pupil.newBlock('webeeblocks_v2_land');
+    const compare = pupil.newBlock('logic_compare');
+    const sensed = pupil.newBlock('webeeblocks_v2_range');
+    const threshold = pupil.newBlock('math_number');
+    const motion = pupil.newBlock('webeeblocks_v2_move');
+    const takeoffHeight = pupil.newBlock('math_number');
+    const distance = pupil.newBlock('math_number');
+    takeoffHeight.setFieldValue('0.5', 'NUM');
+    distance.setFieldValue('0.15', 'NUM');
+    threshold.setFieldValue('0.5', 'NUM');
+    sensed.setFieldValue('front', 'DIRECTION');
+    compare.setFieldValue('LT', 'OP');
+    pupilLoop.setFieldValue('UNTIL', 'MODE');
+    takeoff.getInput('HEIGHT').connection.connect(takeoffHeight.outputConnection);
+    motion.getInput('DISTANCE').connection.connect(distance.outputConnection);
+    compare.getInput('A').connection.connect(sensed.outputConnection);
+    compare.getInput('B').connection.connect(threshold.outputConnection);
+    pupilLoop.getInput('BOOL').connection.connect(compare.outputConnection);
+    pupilLoop.getInput('DO').connection.connect(motion.previousConnection);
+    takeoff.nextConnection.connect(pupilLoop.previousConnection);
+    pupilLoop.nextConnection.connect(land.previousConnection);
+    assert.strictEqual(Number(pupilLoop.getFieldValue('MAX_ITERATIONS')), 100,
+      'generic Blockly loop default unexpectedly changed');
+    Contract.applyFieldBounds(left, pupil);
+    assert.strictEqual(Number(pupilLoop.getFieldValue('MAX_ITERATIONS')), 80,
+      'A7 must clamp the visible generic default before execution or save');
+    pupilLoop.setFieldValue('81', 'MAX_ITERATIONS');
+    assert.strictEqual(Number(pupilLoop.getFieldValue('MAX_ITERATIONS')), 80,
+      'A7 editable limit accepted an out-of-profile value');
+    Contract.preflightWorkspace(left, pupil);
+    const initialAst = Compiler.compileWorkspace(pupil);
+    assert.strictEqual(initialAst.program[1].max_iterations, 80);
+    assert(Contract.preflightAst(left, initialAst));
+    const fileOptions = {Blockly, profiles: Profiles, activitiesDocument: Activities.DOCUMENT,
+      blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Compiler, activityContract: Contract};
+    const pupilWbb = ProjectFiles.encodeProject(left, pupil, fileOptions);
+    for (const profile of [left, right]) {
+      const decoded = ProjectFiles.validateProjectText(pupilWbb, profile, fileOptions);
+      const restored = new Blockly.Workspace();
+      Blockly.serialization.workspaces.load(decoded.project.workspace, restored);
+      Contract.applyFieldBounds(profile, restored);
+      Contract.preflightWorkspace(profile, restored);
+      assert.deepStrictEqual(Compiler.compileWorkspace(restored), initialAst,
+        'A7 loop semantics changed across Save/Open or L/R scene change');
+      const loadedLoop = restored.getAllBlocks(false).find(b => b.type === 'controls_whileUntil');
+      assert.strictEqual(Number(loadedLoop.getFieldValue('MAX_ITERATIONS')), 80);
+      restored.dispose();
+    }
+    const forged = JSON.parse(pupilWbb);
+    function findLoopNode(value) {
+      if (!value || typeof value !== 'object') return null;
+      if (value.type === 'controls_whileUntil') return value;
+      for (const item of Object.values(value)) {
+        const candidate = findLoopNode(item);
+        if (candidate) return candidate;
+      }
+      return null;
+    }
+    const serializedLoop = findLoopNode(forged.workspace);
+    assert(serializedLoop && serializedLoop.fields, 'saved A7 loop missing');
+    serializedLoop.fields.MAX_ITERATIONS = 100;
+    assert.throws(() => ProjectFiles.validateProjectText(JSON.stringify(forged), left, fileOptions),
+      /outside profile bounds|out of bounds|invalid workspace/,
+      'opening a forged 100-iteration A7 .wbb must refuse, not silently certify it');
+    pupil.dispose();
+  }
+
   const normal=backend([0.2,0.3,0.8]);
   const paths=[];
   await Interpreter.run(program(loop()),normal,{hooks:{onSensor:async c=>paths.push(c.path)}});
