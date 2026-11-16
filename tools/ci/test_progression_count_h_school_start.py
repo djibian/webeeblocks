@@ -13,7 +13,8 @@ TRAILER='''
 
 # A6 school-start world. No H geometry or native observer preloaded:
 # the verified school SCENE request imports the selected 1/2/3 WBO.
-# This world is NOT enabled in pupil Start or Windows releases yet.
+# Dedicated school Robot Window is experimental; hidden A6 remains unpublished.
+# Native scene admission is authoritative, not the browser initial-profile hint.
 '''
 
 class CountHSchoolStartTest(unittest.TestCase):
@@ -28,6 +29,7 @@ class CountHSchoolStartTest(unittest.TestCase):
           .replace('Crazyflie {\n','Crazyflie {\n  translation -1.40 0 0.055\n')
           .replace('controller "crazyflie_runtime_v2"',
                    'controller "crazyflie_classroom_v2"')
+          .replace('window "blockly_v2"', 'window "blockly_count_h"')
           .replace('title "WebeeBlocks — accueil"',
                    'title "WebeeBlocks — activité 6 : comptage de H (brouillon)"')
           .replace('position -2.4 -2.4 2.2','position -2.9 -2.4 2.1')
@@ -39,7 +41,7 @@ class CountHSchoolStartTest(unittest.TestCase):
                               'basicTimeStep 32',
                               'Crazyflie {\n  translation -1.40 0 0.055',
                               'controller "crazyflie_classroom_v2"',
-                              'window "blockly_v2"', 'range_up',
+                              'window "blockly_count_h"', 'range_up',
                               'Floor { size 4 4 }'):
             self.assertIn(expected_line,school)
         self.assertNotIn('progression_count_h_flight_observer',school)
