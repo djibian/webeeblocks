@@ -86,5 +86,60 @@ class A5AliasMotorSourceTests(unittest.TestCase):
         self.assertNotIn("variables_set",js)
         self.assertNotIn("pupil_project",js)
 
+    def test_physics_monitor_checks_each_motor_step_and_obstacle_sides(self):
+        trace=(ROOT/"controllers/progression_reactive_L_alias_motor_pilot"/
+               "alias_motor_trace.c").read_text()
+        runner=(ROOT/"tools/ci/run_classroom_reactive_L_alias_motor.py").read_text()
+        for required in (
+            "__real_wb_robot_step(duration)",
+            "wb_supervisor_node_enable_contact_points_tracking(craft,32,true)",
+            "wb_supervisor_node_enable_contact_points_tracking(obstacles[i],32,false)",
+            "wb_supervisor_node_get_contact_points(obstacles[i],false,&n)",
+            "wb_supervisor_node_get_contact_points(craft,true,&n)",
+            "segment_hits(start,position,center,half)",
+            'fatal("native_obstacle_contact",t)',
+            'fatal("unknown_nonfloor_contact",t)',
+            'fatal("premature_floor_contact",t)',
+            'fatal("craft_contact_stream_unavailable",t)',
+            'fatal("native_sample_gap",t)',
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR_COMPLETE",
+            "swept_boxes_checked=3",
+        ):
+            self.assertIn(required,trace)
+        self.assertNotIn("if(p[2]>=.08||floor_emitted||t<1.0)return result",trace)
+        self.assertIn("native_collision_coverage(text,variant)",runner)
+        self.assertIn("native_coverage is not None",runner)
+        self.assertIn("full_native_contact_monitoring",runner)
+        self.assertIn("conservative_swept_aabb_proof_not_full_craft_kinematics",runner)
+
+    def test_native_collision_coverage_rejects_missing_and_colliding_frames(self):
+        import run_classroom_reactive_L_alias_motor as monitor
+        self.assertIsNone(monitor.native_collision_coverage("", "A"))
+        self.assertIsNone(monitor.native_collision_coverage("", "C"))
+        good="".join(
+            f"WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=A "
+            f"ticks={n} t={n*.032:.6f} no_obstacle_contacts=true\n"
+            for n in (16,32,48,64,80))
+        good+=("WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR_COMPLETE "
+               "variant=A native_ticks=83 all_contacts_checked=true "
+               "swept_boxes_checked=3\n")
+        coverage=monitor.native_collision_coverage(good,"A")
+        self.assertIsNotNone(coverage)
+        self.assertEqual(coverage["continuous_native_steps"],83)
+        negatives=(
+            good.replace("ticks=48","ticks=47"),
+            good.replace("t=1.536000","t=1.700000"),
+            good.replace("variant=A native_ticks=83",
+                         "variant=B native_ticks=83"),
+            good.replace("native_ticks=83","native_ticks=100"),
+            good.replace("swept_boxes_checked=3","swept_boxes_checked=0"),
+            good+"WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL reason=invalid_sample\n",
+            good+"WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT collider=CUE_ARM\n",
+            good+"WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION collider=TERMINAL\n",
+        )
+        for i,bad in enumerate(negatives):
+            with self.subTest(case=i):
+                self.assertIsNone(monitor.native_collision_coverage(bad,"A"))
+
 if __name__=="__main__":
     unittest.main()

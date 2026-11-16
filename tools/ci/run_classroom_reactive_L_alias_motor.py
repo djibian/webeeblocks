@@ -93,6 +93,48 @@ def native_loader_env():
         raise RuntimeError("native Robot executable lacks embedded Qt and Webots controller search paths")
     return env
 
+def native_collision_coverage(transcript,variant):
+    """Fail closed if any native physics step is unobserved up to the true LAND.
+
+    Logger emits one heartbeat per 16 real 32-ms WB steps, plus a terminal
+    heartbeat after physical contact. A browser success cannot forge these
+    markers, which come from the isolated, physically linked C observer.
+    """
+    if variant not in ("A","B"):
+        return None
+    pattern=re.compile(
+        r"(?m)^WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=([AB]) "
+        r"ticks=(\d+) t=([0-9.]+) no_obstacle_contacts=true$")
+    rows=pattern.findall(transcript)
+    final=re.findall(
+        r"(?m)^WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR_COMPLETE "
+        r"variant=([AB]) native_ticks=(\d+) all_contacts_checked=true "
+        r"swept_boxes_checked=3$",transcript)
+    if len(rows)<4 or len(final)!=1 or final[0][0]!=variant:
+        return None
+    prev_tick=0
+    prev_time=-1.0
+    for observed, ticks, moment in rows:
+        n=int(ticks)
+        t=float(moment)
+        if (observed!=variant or n!=prev_tick+16 or
+            not math.isfinite(t) or t<=prev_time or
+            (prev_time>=0 and not .49<=t-prev_time<=.54)):
+            return None
+        prev_tick=n
+        prev_time=t
+    final_tick=int(final[0][1])
+    if final_tick<64 or final_tick<prev_tick or final_tick>=prev_tick+16:
+        return None
+    if ("WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT" in transcript or
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION" in transcript or
+        "WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL" in transcript):
+        return None
+    return {"continuous_native_steps":final_tick,
+            "native_heartbeat_count":len(rows),
+            "three_physical_boxes_and_craft_contacts_each_step":True,
+            "conservative_swept_boxes_per_step":True}
+
 def run(variant):
     if not isinstance(variant,str) or variant not in "AB" or len(variant)!=1:
         raise ValueError("unexpected native A5 motor variant")
@@ -186,9 +228,11 @@ def run(variant):
     ack_after_land=land_pos>=0 and re.search(
         rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK$",
         text[land_pos:]) is not None
+    native_coverage=native_collision_coverage(text,variant)
     fatal_tokens=("WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL",
                   "WEBEEBLOCKS_RUNTIME_V2 FATAL",
-                  "WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT")
+                  "WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT",
+                  "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION")
     errors=[token for token in fatal_tokens if token in text]
     good=(not missing and ordered and names.count("A5_ALIAS_MOTOR_ERROR")==0 and
           isinstance(measured,(float,int)) and math.isfinite(measured) and
@@ -202,6 +246,7 @@ def run(variant):
           abs(gps[1]-(.62 if variant=="A" else -.62))<=.075 and
           gps[2]<=.025 and gps[2]>=0 and
           gps[3]>2.0 and ack_after_land and not errors and
+          native_coverage is not None and
           "WEBEEBLOCKS_RUNTIME_V2 READY" in text and
           f"WEBEEBLOCKS_A5_ALIAS_MOTOR_SCENE_OK variant={variant}" in text)
     summary={"schema":"webeeblocks-a5-alias-motor-feasibility-draft-v1",
@@ -210,6 +255,7 @@ def run(variant):
              "motorized_runtime_v2":len(pose)>15,
              "native_floor_contact":len(contact)==1,
              "native_land_ack":ack_after_land,
+             "native_collision_coverage":native_coverage,
              "selected_pad":selected,"early_left_m":measured,
              "gps_contact_xyzt":gps,"pose_samples":len(pose),
              "missing_events":missing,"ordered":ordered,"fatal":errors,
@@ -225,6 +271,7 @@ def run(variant):
         raise AssertionError("A5 native motor/PID proof missing on "+variant)
     print(f"WEBEEBLOCKS_A5_ALIAS_MOTOR_PASS variant={variant} "
           f"early_left_m={measured:.6f} real_floor=true native_LAND=true "
+          f"fully_checked_steps={native_coverage['continuous_native_steps']} "
           "pupil_wbb=UNPROVEN",flush=True)
     return summary
 
@@ -241,6 +288,8 @@ def main():
         "pass":True,"variants":[a,b],"single_private_js":True,
         "real_native_motor_flight":True,
         "true_physical_floor_contacts":2,
+        "full_native_contact_monitoring":True,
+        "conservative_swept_aabb_proof_not_full_craft_kinematics":True,
         "student_blockly_and_mission_oracle_NOT_PROVEN":True,
         "no_memory_competitor_NOT_TESTED":True
     },indent=2,sort_keys=True)+"\n",encoding="utf-8")
