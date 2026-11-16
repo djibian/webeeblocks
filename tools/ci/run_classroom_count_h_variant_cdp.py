@@ -60,6 +60,10 @@ class Chrome:
           let state = document.getElementById('runtimeState');
           let profile = typeof runtimeProfile !== 'undefined' ? runtimeProfile : null;
           let backend = typeof runtimeBackend !== 'undefined' ? runtimeBackend : null;
+          let manager = window.WebeeBlocksProjectManager;
+          // Real browser ProjectFiles manager, not a fabricated file serializer.
+          let project = manager && typeof manager.encodeCurrent === 'function' ?
+            manager.encodeCurrent() : null;
           return {
             id: profile ? profile.id : null,
             scene: profile ? profile.runtime.scene : null,
@@ -67,8 +71,44 @@ class Chrome:
             status: state ? state.textContent.trim() : null,
             enabled: !!button && !button.hidden && !button.disabled,
             label: button ? button.textContent.trim() : null,
+            project: project,
+            projectMode: document.body.dataset.projectFileMode || null,
             program: typeof workspace !== 'undefined' && workspace ?
               JSON.stringify(Blockly.serialization.workspaces.save(workspace)) : null
+          };
+        })()""")
+    def verify_project_reopen(self):
+        # Execute real in-browser ProjectFiles manager. No fake .wbb parser or
+        # OS file picker: this is strictly a browser encode/openTemplateText
+        # round trip, NOT a disk Save As/Open or Windows distribution test.
+        return self.eval("""(async () => {
+          const manager=window.WebeeBlocksProjectManager;
+          if (!manager || typeof manager.encodeCurrent!=='function' ||
+              typeof manager.openTemplateText!=='function')
+            throw Error('real browser project manager unavailable');
+          const before=manager.encodeCurrent();
+          const foreign=WebeeBlocksProjectFiles.createStarterText('progression-sequence-v1');
+          let refusal=null;
+          try {
+            await manager.openTemplateText('wrong-world.wbb',foreign);
+          } catch(error) {
+            refusal=String(error && error.message || error);
+          }
+          const afterRefusal=manager.encodeCurrent();
+          if (!refusal || !refusal.includes('incompatible with the current Webots world') ||
+              afterRefusal!==before)
+            throw Error('foreign .wbb was accepted or mutated the student project');
+          const result=await manager.openTemplateText('a6-browser-roundtrip.wbb',before);
+          return {
+            rejectedForeignWorld:true,
+            before:before,
+            after:manager.encodeCurrent(),
+            name:manager.currentName(),
+            id:runtimeProfile.id,
+            scene:runtimeProfile.runtime.scene,
+            nativeSceneIdentity:runtimeBackend.sceneIdentity,
+            actualManager:true,
+            openResultName:result && result.name || null
           };
         })()""")
     def click(self):
@@ -94,8 +134,9 @@ def run():
         raise AssertionError("wrong school WBT")
     process=None
     dev=None
-    result={"pass":False,"scope":"Actual Chrome UI plus native scenes, no pupil .wbb Save/Open or Windows release"}
+    result={"pass":False,"scope":"Actual Chrome UI plus native scenes and in-browser .wbb serializer/reopen; no OS Save/Open or Windows release"}
     visits=[]
+    project_bytes=None
     # Each native READY belongs to one scene incarnation, not to a previously
     # loaded variant. Returning to n=1 must yield a *second* native witness.
     observed_ready={1:0,2:0,3:0}
@@ -142,6 +183,18 @@ def run():
                                 original=state["program"]
                             if not original or original!=state["program"]:
                                 raise AssertionError("Blockly workspace changed during variant selection")
+                            project=state.get("project")
+                            if not isinstance(project,str) or not project:
+                                raise AssertionError("real browser ProjectFiles manager unavailable")
+                            parsed=json.loads(project)
+                            if parsed.get("activity",{}).get("id")!="progression-count-h-v1":
+                                raise AssertionError("A6 .wbb activity identity changed")
+                            if any(scene in project for scene in SCENES):
+                                raise AssertionError("session-only H count leaked into saved .wbb")
+                            if project_bytes is None:
+                                project_bytes=project
+                            elif project_bytes!=project:
+                                raise AssertionError("real browser .wbb bytes changed during variants")
                             nonce=native_witness["nonce"]
                             seen_scene_nonces.add(nonce)
                             observed_ready[count]=native_witness["ready_count"]
@@ -151,12 +204,48 @@ def run():
                                            "native_nonce_sha256":hashlib.sha256(
                                                nonce.encode()).hexdigest(),
                                            "workspace_sha256":hashlib.sha256(
-                                               original.encode()).hexdigest()})
+                                               original.encode()).hexdigest(),
+                                           "wbb_sha256":hashlib.sha256(
+                                               project_bytes.encode()).hexdigest(),
+                                           "file_mode":state.get("projectMode")})
                             print("A6_REAL_VARIANT_NATIVE_ADMITTED "+target,flush=True)
                             break
                     time.sleep(0.3)
                 else:
                     raise AssertionError("native UI transition timed out: "+target)
+            # A real ProjectFiles parser/serializer/browser workspace round
+            # trip after four native scene admissions; no OS picker is faked.
+            reopened=dev.verify_project_reopen()
+            if (not reopened or not reopened.get("rejectedForeignWorld") or
+                not reopened.get("actualManager") or
+                reopened.get("before")!=project_bytes or
+                reopened.get("after")!=project_bytes or
+                reopened.get("id")!="progression-count-h-v1" or
+                reopened.get("scene")!=SCENES[0] or
+                reopened.get("nativeSceneIdentity")!=SCENES[0]):
+                raise AssertionError("real browser .wbb round-trip or world gate failed")
+            # The incompatible .wbb did NOT send a native scene request.
+            # The compatible in-browser reopen must receive request 5 ACK;
+            # the same scene may correctly retain its native observer epoch.
+            trace=content(log)
+            import re
+            acks=re.findall(
+                r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 SCENE_OK ([0-9a-f]{64})$",
+                trace)
+            if len(acks)!=1 or "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 " in trace:
+                raise AssertionError("reopened same-world .wbb lacks exact native ACK")
+            result["project_reopen"]={
+                "actual_manager":True,
+                "foreign_world_rejected":True,
+                "same_world_reopened":True,
+                "no_os_picker_proven":True,
+                "wbb_sha256":hashlib.sha256(project_bytes.encode()).hexdigest(),
+                "name":reopened.get("name"),
+                "native_request_id":5
+            }
+            print("A6_REAL_BROWSER_WBB_ROUNDTRIP_PASS foreign_rejected=true "
+                  "same_world_bytes_unchanged=true native_ack=5 "
+                  "os_save_open=UNPROVEN",flush=True)
         if len(visits)!=4 or [v["scene"] for v in visits]!=[
                 SCENES[0],SCENES[1],SCENES[2],SCENES[0]]:
             raise AssertionError("incomplete real A6 native scene cycle")
