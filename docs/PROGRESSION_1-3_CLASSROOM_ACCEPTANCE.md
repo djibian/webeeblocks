@@ -32,6 +32,12 @@ Un élève peut réussir la première mission avec la seule hauteur initiale et 
 
 Les déplacements verticaux déjà rencontrés sont réemployés, mais l'activité 3 exige maintenant une **orientation réelle** aux balises : une translation vers la droite ou la gauche sans changement de cap ne doit pas suffire. Vérifier les flèches visibles et le cap physique réellement observé ; une simple succession de coordonnées visitées ne prouve pas la nouvelle compétence.
 
+### Vérifier l'intérêt réel de la répétition dans l'activité 3
+
+La géométrie comporte un motif de trajet réutilisable à deux endroits. Avant de programmer, demander à l'élève d'identifier **ce qui se répète dans l'espace**, puis de prévoir ce que le drone devra refaire après une première étape. Pendant les essais, distinguer une répétition d'actions correspondant à ce motif d'une boucle purement cosmétique (par exemple, découper un seul déplacement en deux). L'élève doit pouvoir expliquer ce qu'une modification du motif change aux deux endroits, **sans recevoir un programme solution**.
+
+**Contre-épreuve pédagogique :** vérifier que le motif est réellement visible et compréhensible dans Webots, et que sa répétition aide à concevoir, expliquer ou corriger le trajet. Une réussite native avec `repeat(2)` ne démontre pas à elle seule cet intérêt pour les 4e/3e ; inversement, un algorithme équivalent sans boucle reste recevable par l'oracle. Consigner l'argumentation de l'élève et les aides nécessaires, non un nombre de blocs ni une forme d'AST imposée.
+
 ## Fiche d'observation minimale — une ligne par activité/élève
 
 | Champ | Consigner, sans notation automatique |
