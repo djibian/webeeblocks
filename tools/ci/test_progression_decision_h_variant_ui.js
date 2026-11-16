@@ -59,10 +59,20 @@ async function scenario(startProfileId, options={}){
         save(){saveWrites++},saveAs(){saveWrites++},open(){saveWrites++},openTemplateText(){saveWrites++}};
       return manager;
     }};
+  // A synthetic published activity in another WBT must never leak into the
+  // current world's chooser. This tests future A6 publication without changing
+  // the real repository's hidden/public activity catalogue.
+  const fixtureWorld='worlds/ci-foreign-classroom.wbt';
+  const future={...Activities.getProfile('progression-sequence-v1'),
+    id:'progression-future-world-v1',world:fixtureWorld,starterVisible:true};
+  const localActivities={...Activities,DOCUMENT:{...Activities.DOCUMENT,
+    activities:[...Activities.DOCUMENT.activities,future]}};
+  const profile=JSON.parse(JSON.stringify(Activities.getProfile(startProfileId)));
+  if(options.worldOverride)profile.world=options.worldOverride;
   const inputs={window,document,CustomEvent,Blockly,workspace,
-    robotWindow:{send(){},receive(){}},runtimeProfile:Activities.getProfile(startProfileId),
+    robotWindow:{send(){},receive(){}},runtimeProfile:profile,
     runtimeBackend,WebeeBlocksProjectFiles,WebeeBlocksActivityProfiles:Profiles,
-    WebeeBlocksActivities:Activities,WebeeBlocksSemanticAst:{},
+    WebeeBlocksActivities:localActivities,WebeeBlocksSemanticAst:{},
     WebeeBlocksActivityContract:{applyFieldBounds(){}},
     runtimeRunning:false,runtimeResetPending:false,runtimeStopPending:false,
     runtimeScenePending:false,runtimeTerminal:options.outcomePending===true,
@@ -73,11 +83,37 @@ async function scenario(startProfileId, options={}){
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
     console:{error(...args){diagnostics.push(args.map(v=>v?.message||String(v)).join(' '))},
       warn(){},log(){}}};
-  const control=new Function(...Object.keys(inputs),src+
+  // Access the real closure only through a test-local hook injected before
+  // its IIFE closes; never expose this function in the product build.
+  const instrumented=src.replace(/\n\}\)\(\);\s*$/,
+    '\n  window.__ciStarterIds = function(){return progressionProfiles().map(p=>p.id);};\n})();\n');
+  assert.notEqual(instrumented,src,'cannot instrument private chooser in test');
+  const control=new Function(...Object.keys(inputs),instrumented+
     '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;}};')(...Object.values(inputs));
   assert(callbacks.load?.length===1,'actual project UI did not subscribe to window load');
   callbacks.load[0]();await flush();
   assert(manager,'real project UI did not initialize its file manager');
+  const choices=window.__ciStarterIds();
+  assert(choices.every(id=>{
+    const p=localActivities.DOCUMENT.activities.find(v=>v.id===id);
+    return p&&p.starterVisible!==false&&p.world===profile.world;
+  }), 'activity chooser offered a project from another Webots world');
+  if(options.worldOverride){
+    const expected=options.worldOverride===fixtureWorld?['progression-future-world-v1']:[];
+    assert.deepEqual(choices,expected,'incorrect world-bound published choice');
+    assert.equal(elements.projectActivity.disabled,expected.length===0,
+      'Start must not expose impossible choices');
+    if(!expected.length)assert.match(elements.projectActivity.title,/Aucune activité publiée/);
+    assert.equal(elements.projectOpen.disabled,false,
+      'the chooser filter must not disable opening a compatible existing project');
+    assert.equal(saveWrites,0,'world-bound chooser unexpectedly wrote a project');
+    return {kind:'world-filter',status:'PASS'};
+  }
+  assert(!choices.includes('progression-future-world-v1'),
+    'foreign published starter shown in normal Webots school world');
+  assert(choices.includes(startProfileId),'compatible public activity missing');
+  assert.equal(elements.projectActivity.disabled,options.outcomePending === true,
+    'Start must remain blocked during a native verdict, enabled only when idle');
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
   const bytes=manager.bytes();
@@ -178,6 +214,13 @@ async function scenario(startProfileId, options={}){
   const a4Fallback=await scenario('progression-decision-h-v1',{outcomePending:true,noReadOnlyApi:true});
   const a7Fallback=await scenario('progression-mini-grand-prix-v1',{outcomePending:true,noReadOnlyApi:true});
   const other=await scenario('progression-sequence-v1');
+  const foreignNoStarter=await scenario('progression-decision-h-v1',
+    {worldOverride:'worlds/unpublished-school.wbt'});
+  const foreignPublished=await scenario('progression-decision-h-v1',
+    {worldOverride:'worlds/ci-foreign-classroom.wbt'});
   console.log('PASS A4/A7 public variant session UI:',a4.status,pending.status,mini.status,miniPending.status,a4Fallback.status,a7Fallback.status,other.status,
     'nonce ACK needed, pending outcome locked, no .wbb change, no autosave, failure fail-closed');
+  assert.equal(foreignNoStarter.status,'PASS');
+  assert.equal(foreignPublished.status,'PASS');
+  console.log('PASS world-specific activity picker: unknown world disabled; foreign world offers only its own published starter');
 })().catch(error=>{console.error(error);process.exitCode=1});
