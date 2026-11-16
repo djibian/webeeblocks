@@ -81,6 +81,9 @@ bool missingBounds=false,badShape=false,badPosition=false,badDimensions=false,ba
 bool missingCanopyBounds=false,badCanopyShape=false,badCanopyPosition=false,badCanopySize=false;
 std::vector<std::string> removals;
 extern "C" const char* wb_robot_get_project_path(void){return project.c_str();}
+extern "C" const char* wb_robot_get_name(void){return "Crazyflie WebeeBlocks";}
+extern "C" double wb_robot_get_time(void){return 0.0;}
+extern "C" void* wb_supervisor_node_get_self(void){return &root;}
 extern "C" void* wb_supervisor_node_get_root(void){return &root;}
 extern "C" void* wb_supervisor_node_get_from_def(const char *def){
  for (Node *n : all) {
@@ -397,6 +400,13 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
         self.assertIn("orientation-v1", cpp)
         self.assertIn("kOrientationSceneChildren = 24", cpp)
         self.assertIn("kSequenceSceneChildren = 18", cpp)
+        self.assertIn('#include "count_h_scene_gate.h"',cpp)
+        self.assertIn('webeeblocks_a6_gate::valid(n)',cpp)
+        self.assertIn('webeeblocks_a6_gate::currentObserver(n)',cpp)
+        self.assertIn('removeDef("WEBEEBLOCKS_A6_MOTOR_OBSERVER")',cpp)
+        self.assertNotIn('"count-h-1-v1"',phys)
+        self.assertNotIn('"count-h-2-v1"',phys)
+        self.assertNotIn('"count-h-3-v1"',phys)
         self.assertIn("sequenceObserver()", cpp)
         self.assertIn("sequenceObserver() &&", cpp)
         self.assertIn("WEBEEBLOCKS_ORIENTATION_SCENE", cpp)
@@ -442,7 +452,10 @@ class ClassroomRuntimeSelectorTest(unittest.TestCase):
                     "const double *wb_supervisor_node_get_position(WbNodeRef);\n"
                     "const double *wb_supervisor_node_get_orientation(WbNodeRef);\n"
                     "const char *wb_supervisor_field_get_sf_string(WbFieldRef);\n"
-                    "int wb_supervisor_field_get_sf_bool(WbFieldRef);"
+                    "int wb_supervisor_field_get_sf_bool(WbFieldRef);\n"
+                    "const char *wb_robot_get_name(void);\n"
+                    "double wb_robot_get_time(void);\n"
+                    "WbNodeRef wb_supervisor_node_get_self(void);"
                 ))
             scenes=root/"worlds/scenes"
             scenes.mkdir(parents=True)
