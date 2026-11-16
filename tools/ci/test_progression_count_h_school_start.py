@@ -53,6 +53,28 @@ class CountHSchoolStartTest(unittest.TestCase):
         self.assertNotIn('DEF WEBEEBLOCKS_COUNT_',school)
         self.assertNotIn('Progression sequence evaluator',school)
         self.assertNotIn('controller "crazyflie_runtime_v2"',school)
+    def test_real_chrome_browser_project_roundtrip_is_observed_and_scoped(self):
+        # The actual A6 CDP runner must exercise the real browser project
+        # manager, not merely compare an empty workspace across variants.
+        # This is NOT a claim about an OS Save As/Open dialog on Windows.
+        runner=(ROOT/'tools/ci/run_classroom_count_h_variant_cdp.py').read_text(
+            encoding='utf-8')
+        for marker in (
+            'window.WebeeBlocksProjectManager',
+            'manager.encodeCurrent()',
+            'manager.openTemplateText',
+            'WebeeBlocksProjectFiles.createStarterText',
+            "'progression-sequence-v1'",
+            'incompatible with the current Webots world',
+            'real browser .wbb bytes changed during variants',
+            'A6_REAL_BROWSER_WBB_ROUNDTRIP_PASS',
+            'os_save_open=UNPROVEN',
+            'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 SCENE_OK',
+        ):
+            self.assertIn(marker,runner)
+        self.assertIn('no_os_picker_proven',runner)
+        self.assertIn('wbb_sha256',runner)
+
     def test_generic_start_remains_unmodified(self):
         generic=GENERIC.read_text(encoding='utf-8')
         self.assertIn('controller "crazyflie_runtime_v2"',generic)
