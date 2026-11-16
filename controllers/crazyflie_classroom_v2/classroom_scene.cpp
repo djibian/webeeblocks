@@ -419,6 +419,10 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
         nextScene.find("controller \"progression_mini_grand_prix_v1\"") ==
           std::string::npos) return 0;
   } else if (webeeblocks_a6_gate::sceneNumber(scene)) {
+    // The current generic school start at x=0 is NOT the qualified A6 blue
+    // start at x=-1.40. Reject before removing the active scene, without
+    // teleporting the craft or changing the native Runtime reset origin.
+    if(!webeeblocks_a6_gate::blueOrigin())return 0;
     const int n=webeeblocks_a6_gate::sceneNumber(scene);
     char file[32],root[72];
     std::snprintf(file,sizeof file,"count-h-%d-v1.wbo",n);
