@@ -458,8 +458,21 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertIn("sample.time-epoch_start_time>145.0",observer)
         self.assertIn("epoch_start_time=wb_robot_get_time();",observer)
         self.assertIn("a6-replay-draft-only:",workflow)
-        self.assertIn("--mode replay --variant 1",workflow)
+        self.assertIn("matrix:",workflow)
+        self.assertIn("count: [1, 2, 3]",workflow)
+        self.assertIn("--mode replay --variant ${{ matrix.count }}",workflow)
+        self.assertIn("replay-n${{ matrix.count }}",workflow)
+        self.assertIn("fail-fast: false",workflow)
         self.assertIn("if: github.event.pull_request.draft == true",workflow)
+        # Each separate Webots job uses the same native C oracle, real
+        # completion marker, real RESET ACK and its own physical target pad.
+        self.assertNotIn("variant!==1",source)
+        self.assertIn("variant===2)await backend.move('left',0.55)",source)
+        self.assertIn("variant===3)await backend.move('right',0.55)",source)
+        self.assertIn("pad_y={1:0.0,2:0.55,3:-0.55}[variant]",runner)
+        self.assertIn('abs(float(y)-pad_y)<=.060',runner)
+        self.assertIn('WEBEEBLOCKS_A6_MOTOR_NATIVE_FLOOR_CONTACT n={variant}',runner)
+        self.assertNotIn('same-world replay is bounded to the n=1 scene',runner)
 
     def test_native_observer_rearms_only_on_broker_ack_epoch_and_proves_liveness(self):
         observer=(ROOT/"controllers/progression_count_h_flight_observer/"
