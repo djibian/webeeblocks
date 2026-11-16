@@ -183,7 +183,7 @@ function build(){
     }finally{reopened.dispose();}
     return {ast,profile,project,text,
       blockCount:workspace.getAllBlocks(false).length,
-      variableCount:workspace.getAllVariables().length};
+      variableCount:workspace.getVariableMap().getAllVariables().length};
   }finally{workspace.dispose();}
 }
 
