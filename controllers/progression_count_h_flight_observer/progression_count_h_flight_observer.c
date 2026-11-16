@@ -150,8 +150,17 @@ int main(void) {
   WbFieldRef health=observer?
     wb_supervisor_node_get_field(observer,"customData"):NULL;
   if(!health)return fail("missing native observer heartbeat channel");
+  /* Dynamic classroom imports may happen after earlier activities have
+   * advanced the same native broker to epoch > 1. Derive the initial epoch
+   * exclusively from the canonical current broker token; successive RESETs
+   * of this already-running observer must still advance exactly by one.
+   * Missing, stale/malformed or forged epoch text does NOT authorize READY. */
+  const char *initial=wb_supervisor_field_get_sf_string(channel);
+  unsigned long long initial_epoch=0;
+  if(!new_epoch_marker(initial,&initial_epoch))
+    return fail("initial canonical broker epoch missing");
   wb_count_mission m={0};
-  wb_count_reset(&m,1,(unsigned)variant,origin_z);
+  wb_count_reset(&m,initial_epoch,(unsigned)variant,origin_z);
   for(int i=0;i<collider_count;++i)
     wb_supervisor_node_enable_contact_points_tracking(obstacle[i],step,false);
   wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
