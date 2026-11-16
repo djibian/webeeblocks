@@ -17,6 +17,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLD = ROOT / "worlds/crazyflie_classroom_count_h_start.wbt"
+PROJECT = ROOT / "worlds/.crazyflie_classroom_count_h_start.wbproj"
 ARTIFACT = ROOT / "ci-artifacts/progression-count-h-product-bootstrap"
 BROWSER_MARKER = "blockly_count_h.html"
 NATIVE_READY = "WEBEEBLOCKS_A6_MOTOR_READY n=1"
@@ -26,6 +27,9 @@ FATAL_MARKERS = ("WEBEEBLOCKS_RUNTIME_V2 FATAL", "WEBEEBLOCKS_A6_MOTOR_FATAL")
 
 def run() -> int:
     source = WORLD.read_text(encoding="utf-8")
+    project = PROJECT.read_text(encoding="utf-8")
+    if project != "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n":
+        raise ValueError("A6 Webots project must select precisely the school Crazyflie Robot Window")
     if (source.count('window "blockly_count_h"') != 1
             or source.count('controller "crazyflie_classroom_v2"') != 1
             or any(f'DEF WEBEEBLOCKS_COUNT_{n}_SCENE' in source for n in (1, 2, 3))
@@ -82,6 +86,7 @@ def run() -> int:
     evidence = {
         "status": status,
         "world_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+        "webots_project_sha256": hashlib.sha256(project.encode("utf-8")).hexdigest(),
         "runtime_ready": RUNTIME_READY in trace,
         "native_count_h_1_ready": NATIVE_READY in trace,
         "actual_browser_launched": BROWSER_MARKER in browser,

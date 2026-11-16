@@ -6,6 +6,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[2]
 GENERIC=ROOT/'worlds/crazyflie_classroom_start.wbt'
 COUNT=ROOT/'worlds/crazyflie_classroom_count_h_start.wbt'
+PROJECT=ROOT/'worlds/.crazyflie_classroom_count_h_start.wbproj'
 SELECTOR=ROOT/'controllers/crazyflie_classroom_v2/classroom_scene.cpp'
 GATE=ROOT/'controllers/crazyflie_classroom_v2/count_h_scene_gate.h'
 HEADER='# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN'
@@ -18,6 +19,10 @@ TRAILER='''
 '''
 
 class CountHSchoolStartTest(unittest.TestCase):
+    def test_dedicated_world_project_activates_real_robot_window(self):
+        self.assertEqual(PROJECT.read_text(encoding='utf-8'),
+                         'Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')
+
     def test_exactly_scoped_dedicated_native_start(self):
         generic=GENERIC.read_text(encoding='utf-8')
         school=COUNT.read_text(encoding='utf-8')
