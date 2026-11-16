@@ -42,7 +42,7 @@ def scene_path(letter):
 def compose(letter, scene=None):
     if type(letter) is not str or letter not in LETTERS or len(letter) != 1:
         raise ValueError("only explicit A/B information-alias prototype worlds")
-    base = classroom.compose()
+    base = classroom.compose(classroom.SOURCE.read_text(encoding="utf-8"))
     scene = (scene_path(letter).read_text(encoding="utf-8")
              if scene is None else scene)
     identity = f"DEF WEBEEBLOCKS_A5_ALIAS_{letter}_SCENE Group"
