@@ -24,7 +24,7 @@ EXPECTED = {
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Draft-only A6 C/source witness: no flight/native physics, gate or merge authority.
     "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-replay-draft-only",
-                                    "a6-school-window-draft-only"},
+                                    "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
@@ -186,7 +186,7 @@ class WorkflowTests(unittest.TestCase):
             encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
-        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only"})
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only"})
         for required in (
             "  pull_request:\n",
             "  types: [opened, synchronize, reopened]\n",
@@ -205,6 +205,10 @@ class WorkflowTests(unittest.TestCase):
             "ci-artifacts/progression-count-h-rear-range/",
             "run_classroom_count_h_product_bootstrap.py",
             "a6-school-window-draft-only:",
+            "a6-real-variant-cdp-draft-only:",
+            "run_classroom_count_h_variant_cdp.py",
+            "webots_count_h_variant_cdp.sh",
+            "A6 real UI buttons 1-2-3-1 and native scene ACK (Draft, not CI Gate)",
             "ci-artifacts/progression-count-h-product-bootstrap/",
             "A6 real Webots school window and native scene bootstrap (not CI Gate)",
             "tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision",
