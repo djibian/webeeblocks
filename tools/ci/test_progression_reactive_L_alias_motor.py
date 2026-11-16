@@ -133,9 +133,12 @@ class A5AliasMotorSourceTests(unittest.TestCase):
             f"WEBEEBLOCKS_A5_ALIAS_MOTOR_MONITOR variant=A "
             f"ticks={n} t={n*.032:.6f} no_obstacle_contacts=true\n"
             for n in (96,112))
-        self.assertEqual(
-            monitor.native_collision_coverage(continued,"A"),
-            coverage)
+        continued_coverage=monitor.native_collision_coverage(continued,"A")
+        self.assertIsNotNone(continued_coverage)
+        self.assertEqual(continued_coverage["continuous_native_steps"],
+                         coverage["continuous_native_steps"])
+        self.assertGreater(continued_coverage["native_heartbeat_count"],
+                           coverage["native_heartbeat_count"])
         negatives=(
             good.replace("ticks=48","ticks=47"),
             good.replace("t=1.536000","t=1.700000"),
