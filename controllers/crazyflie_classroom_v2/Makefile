@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := release
 # Experimental SCHOOL-ONLY Webots runtime. This creates a distinct executable;
 # the qualification physical binary, its Makefile, all source blobs and its
 # generated-input SHA256 lock must remain byte-for-byte unchanged.
