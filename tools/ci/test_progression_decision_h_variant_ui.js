@@ -80,6 +80,14 @@ async function scenario(startProfileId, options={}){
   assert(manager,'real project UI did not initialize its file manager');
   const btn=elements.activityVariant;
   assert(typeof btn.handlers.click==='function','real A4 toggle was not bound');
+  const selectable = Activities.DOCUMENT.activities.filter(a=>
+    a.id.startsWith('progression-') && a.starterVisible!==false &&
+    a.world===Activities.getProfile(startProfileId).world);
+  assert.equal(elements.projectActivity.disabled,
+    options.outcomePending===true || selectable.length===0,
+    'Start activity must be disabled while locked or when all starters belong to another Webots world');
+  if(selectable.length===0)
+    assert.match(elements.projectActivity.title,/Aucune activité disponible dans ce monde/);
   const bytes=manager.bytes();
   if(!options.outcomePending)
     assert(!editWouldBeBlocked(),'pupil must be able to edit while READY');
@@ -192,6 +200,24 @@ async function scenario(startProfileId, options={}){
     status:'PASS',nativeRequests:backendCalls.length};
 }
 (async()=>{
+  // Evaluate the actual picker selection function, not a duplicated filter.
+  const start=src.indexOf('  function progressionProfiles() {');
+  const end=src.indexOf('\n  function chooseActivityProfile() {',start);
+  assert(start>=0&&end>start,'actual chooser source was not found');
+  const realPicker=new Function('WebeeBlocksActivities','runtimeProfile',
+    src.slice(start,end)+'\nreturn progressionProfiles();');
+  const regular=Activities.getProfile('progression-sequence-v1');
+  const school=Activities.getProfile('progression-count-h-v1');
+  assert.equal(realPicker(Activities,regular).length,8,
+    'ordinary classroom must retain all eight currently published starters');
+  assert.deepEqual(realPicker(Activities,school),[],
+    'hidden A6 Draft must not offer starters from the ordinary classroom world');
+  const future=JSON.parse(JSON.stringify(Activities.DOCUMENT));
+  future.activities.find(p=>p.id===school.id).starterVisible=true;
+  assert.deepEqual(realPicker({DOCUMENT:future},school).map(p=>p.id),[school.id],
+    'when A6 is explicitly published, Start must offer only its own school-world project');
+  assert.equal(realPicker({DOCUMENT:future},regular).some(p=>p.id===school.id),false,
+    'publishing A6 must not leak that starter into ordinary Webots scenes');
   assert.match(mainSrc,/runtimeOutcomePending = false;\s*\/\/ The terminal status is emitted before this flag clears; notify the\s*\/\/ project UI so it can restore Blockly editing only after adjudication\.\s*window\.dispatchEvent\(new CustomEvent\('webeeblocks-runtime-v2-outcome-settled'\)\)/,
     'runProgram finally must notify project UI after native verdict');
   assert.equal(Activities.DOCUMENT.activities.filter(p=>p.id==='progression-decision-h-v1').length,1);
