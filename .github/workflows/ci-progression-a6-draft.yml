@@ -179,9 +179,13 @@ jobs:
           if-no-files-found: warn
   # Parallel Draft-only native RESET witness, never the protected CI Gate.
   a6-replay-draft-only:
-    name: A6 same-world negative RESET positive RESET positive (not CI Gate)
+    name: A6 same-world n=${{ matrix.count }} negative RESET positive RESET positive (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        count: [1, 2, 3]
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
@@ -214,12 +218,12 @@ jobs:
               chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
               mkdir -p /root/.config/Cyberbotics
               printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
-              python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode replay --variant 1
+              python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py --mode replay --variant ${{ matrix.count }}
             '
       - name: Preserve replay evidence even when it fails
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a6-draft-same-world-reset-native-evidence
-          path: ci-artifacts/progression-count-h-motor/replay-n1/
+          name: a6-draft-same-world-reset-native-evidence-n${{ matrix.count }}
+          path: ci-artifacts/progression-count-h-motor/replay-n${{ matrix.count }}/
           if-no-files-found: warn
