@@ -431,6 +431,33 @@ class CountHMotorFlightTests(unittest.TestCase):
         self.assertNotIn("wb_supervisor_field_set_sf_vec3f",source)
 
 
+    def test_same_native_world_replay_requires_three_authenticated_epochs(self):
+        source=(ROOT/"plugins/robot_windows/count_h_flight_probe/"
+                "count_h_replay_probe.js").read_text()
+        runner=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        observer=(ROOT/"controllers/progression_count_h_flight_observer/"
+                  "progression_count_h_flight_observer.c").read_text()
+        workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
+        for required in ("await backend.completeActivityMission(evaluation)",
+                         "negative.status!=='not-achieved'",
+                         "await backend.resetSimulation()",
+                         "await backend.readActivityOutcome(evaluation)",
+                         "A6_REPLAY_TEST_COMPLETE",
+                         "A6_REPLAY_STALE_DENIED"):
+            self.assertIn(required,source)
+        self.assertEqual(source.count("await backend.resetSimulation()"),2)
+        for required in ('mode=="replay"', "epochs==[\\\"2\\\",\\\"3\\\"]",
+                         'completed==[\\\"1\\\",\\\"2\\\",\\\"3\\\"]',
+                         'len(positives)==2',
+                         'txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ")==2',
+                         "A6_SAME_WORLD_NATIVE_REPLAY_PASS"):
+            self.assertIn(required,runner)
+        self.assertIn("sample.time-epoch_start_time>145.0",observer)
+        self.assertIn("epoch_start_time=wb_robot_get_time();",observer)
+        self.assertIn("a6-replay-draft-only:",workflow)
+        self.assertIn("--mode replay --variant 1",workflow)
+        self.assertIn("if: github.event.pull_request.draft == true",workflow)
+
     def test_native_observer_rearms_only_on_broker_ack_epoch_and_proves_liveness(self):
         observer=(ROOT/"controllers/progression_count_h_flight_observer/"
                   "progression_count_h_flight_observer.c").read_text()

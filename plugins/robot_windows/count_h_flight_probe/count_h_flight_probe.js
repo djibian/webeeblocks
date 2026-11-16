@@ -20,7 +20,7 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     if(!configResponse.ok)throw new Error('A6 CI variant unavailable');
     const config=await configResponse.json();
     const mode=config&&config.mode;
-    if(mode!=='reference'&&mode!=='sensor'&&mode!=='blockly')
+    if(mode!=='reference'&&mode!=='sensor'&&mode!=='blockly'&&mode!=='replay')
       throw new Error('invalid private A6 CI probe mode');
     const variant=config&&config.variant;
     if(!Number.isInteger(variant)||variant<1||variant>3)
@@ -38,6 +38,11 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     // product scene integration; only our isolated CI adapter accepts it.
     await backend._request(['SCENE','count-h-'+variant+'-v1']);
     await report('A6_SCENE_ACK',{diagnosticOnly:true,variant});
+    if(mode==='replay') {
+      const replay=await import('./count_h_replay_probe.js');
+      await replay.runReplay(backend,report,variant);
+      return;
+    }
     if(mode==='sensor') {
       const pilot=await import('./count_h_sensor_only_probe.js');
       await pilot.runSensorOnly(backend,report);

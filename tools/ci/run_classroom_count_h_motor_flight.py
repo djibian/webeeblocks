@@ -95,8 +95,10 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
 def run(variant=1,mode="reference"):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
-    if mode not in ("reference","sensor","blockly"):
+    if mode not in ("reference","sensor","blockly","replay"):
         raise ValueError("invalid bounded A6 pilot mode")
+    if mode=="replay" and variant!=1:
+        raise ValueError("same-world replay is bounded to the n=1 scene")
     global ARTIFACT
     ARTIFACT=(world.ARTIFACT/f"n{variant}" if mode=="reference"
               else world.ARTIFACT/f"{mode}-n{variant}")
@@ -183,8 +185,10 @@ def run(variant=1,mode="reference"):
                           "reason=browser_missing_after_native_READY "
                           "seconds=60",flush=True)
                     break
-            if (("A6_TEST_COMPLETE" in seen and
-                 terminal_native_ack_logged(txt,variant,mode))
+            if ((("A6_TEST_COMPLETE" in seen and
+                  terminal_native_ack_logged(txt,variant,mode)) or
+                 (mode=="replay" and "A6_REPLAY_TEST_COMPLETE" in seen and
+                  "WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=3 " in txt))
                 or "A6_ERROR" in seen
                 or "WEBEEBLOCKS_A6_MOTOR_FATAL" in txt
                 or "WEBEEBLOCKS_RUNTIME_V2 FATAL" in txt
@@ -230,6 +234,60 @@ def run(variant=1,mode="reference"):
     missing=[e for e in REQUIRED if events.count(e)!=1]
     ordered=not missing and [events.index(x) for x in REQUIRED]==sorted(
         events.index(x) for x in REQUIRED)
+
+    if mode=="replay":
+        # No second Webots process is launched: this one log contains the
+        # three broker epochs and two genuine motorized landing outcomes.
+        epochs=re.findall(
+            r"WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=(\\d+) variant=1",txt)
+        positives=re.findall(
+            r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 "
+            r"crossed=1 screen=1 observations=(\\d+) ",txt)
+        completed=re.findall(
+            r"WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=(\\d+) "
+            r"oracle=progression-count-h-v1 ",txt)
+        expected=[
+            "A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
+            "A6_SCENE_ACK","A6_REPLAY_FIRST_NEGATIVE",
+            "A6_REPLAY_RESET_ACK","A6_REPLAY_STALE_DENIED",
+            "A6_REPLAY_POSITIVE","A6_REPLAY_RESET_ACK",
+            "A6_REPLAY_STALE_DENIED","A6_REPLAY_POSITIVE",
+            "A6_REPLAY_TEST_COMPLETE"]
+        filtered=[e for e in events if e in set(expected)]
+        pass_replay=(
+            filtered==expected and events.count("A6_ERROR")==0 and
+            epochs==["2","3"] and completed==["1","2","3"] and
+            len(positives)==2 and all(int(x)>100 for x in positives) and
+            txt.count("WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved")==2 and
+            txt.count("WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1")==1 and
+            txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ")==2 and
+            txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")==2 and
+            "WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt and
+            "WEBEEBLOCKS_RUNTIME_V2 FATAL" not in txt and
+            not early_browser_refusal and "ERROR:" not in txt)
+        evidence={
+            "schema":"webeeblocks-a6-same-world-reset-replay-native-v1",
+            "pass":bool(pass_replay),"head_mode":"draft-only",
+            "real_same_webots_incarnation":True,
+            "first_native_failure_before_takeoff":True,
+            "exact_broker_epoch_acks":epochs,
+            "authenticated_completions":completed,
+            "motorized_positive_count":len(positives),
+            "genuine_reset_traces":txt.count("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET "),
+            "pupil_wbb_replay_not_proven":True,
+            "events":events,
+        }
+        (ARTIFACT/"replay-summary.json").write_text(
+            json.dumps(evidence,indent=2,sort_keys=True)+"\\n",encoding="utf-8")
+        if not pass_replay:
+            print("A6_SAME_WORLD_REPLAY_UNPROVEN "+json.dumps(evidence),
+                  file=sys.stderr)
+            print(txt[-13000:],file=sys.stderr)
+            return 1
+        print("A6_SAME_WORLD_NATIVE_REPLAY_PASS epoch_1=negative "
+              "epoch_2=motor_achieved epoch_3=motor_achieved "
+              "single_webots_instance=true pupil_wbb=UNPROVEN",flush=True)
+        return 0
     # The native observer independently evaluates physical contact and pose.
     true_flight=re.search(
         r"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=(\d+) "
@@ -382,6 +440,6 @@ def run(variant=1,mode="reference"):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
-    parser.add_argument("--mode",choices=("reference","sensor","blockly"),default="reference")
+    parser.add_argument("--mode",choices=("reference","sensor","blockly","replay"),default="reference")
     args=parser.parse_args()
     raise SystemExit(run(variant=args.variant,mode=args.mode))

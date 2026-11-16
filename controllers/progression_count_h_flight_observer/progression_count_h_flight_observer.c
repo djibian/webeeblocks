@@ -155,6 +155,7 @@ int main(void) {
   for(int i=0;i<collider_count;++i)
     wb_supervisor_node_enable_contact_points_tracking(obstacle[i],step,false);
   wb_supervisor_node_enable_contact_points_tracking(craft,step,true);
+  double epoch_start_time=wb_robot_get_time();
   double last_x=-1.4,last_y=0,last_z=origin_z;
   int previous=0, reported_cross=0, screen_seen=0, observations=0;
   printf("WEBEEBLOCKS_A6_MOTOR_READY n=%d origin_z=%.9f colliders=%d\n",
@@ -177,6 +178,7 @@ int main(void) {
          fabs(reset_vel[2])>.12)
         return fail("broker RESET ACK without actual grounded origin");
       wb_count_reset(&m,next_epoch,(unsigned)variant,origin_z);
+      epoch_start_time=wb_robot_get_time();
       last_x=reset_pos[0];last_y=reset_pos[1];last_z=reset_pos[2];
       previous=0;reported_cross=0;screen_seen=0;observations=0;
       printf("WEBEEBLOCKS_A6_MOTOR_FRESH_EPOCH attempt=%llu variant=%d\n",
@@ -217,7 +219,8 @@ int main(void) {
     }
     last_x=pos[0];last_y=pos[1];last_z=pos[2];previous=1;
     ++observations;
-    if(sample.time>145.0)return fail("bounded native motor flight timeout");
+    if(sample.time-epoch_start_time>145.0)
+      return fail("bounded native motor flight attempt timeout");
     int physical_collision=-1;
     for(int i=0;i<collider_count;++i) {
       int n=-1;
