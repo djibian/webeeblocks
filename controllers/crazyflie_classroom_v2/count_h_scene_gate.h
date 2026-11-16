@@ -58,6 +58,17 @@ inline int sceneNumber(const char *scene) {
   }
   return 0;
 }
+/* The current generic school world starts at x=0, while the qualified A6
+ * witness starts at x=-1.40. Never silently teleport the craft or mutate
+ * Runtime v2's protected reset origin to pretend these worlds are equivalent.
+ * Refuse A6 BEFORE removing a prior scenario when its launch pose is wrong. */
+inline bool blueOrigin() {
+  WbNodeRef craft=wb_supervisor_node_get_self();
+  const double *p=craft?wb_supervisor_node_get_position(craft):nullptr;
+  return p&&std::isfinite(p[0])&&std::isfinite(p[1])&&std::isfinite(p[2])&&
+    std::fabs(p[0]+1.40)<=.025&&std::fabs(p[1])<=.025&&
+    p[2]>=.012&&p[2]<=.075;
+}
 inline bool realObserver() {
   WbNodeRef node=wb_supervisor_node_get_from_def(kObserverDef);
   const char *type=node?wb_supervisor_node_get_type_name(node):nullptr;
@@ -104,7 +115,7 @@ inline bool currentObserver(int variant) {
 inline bool valid(int variant) {
   const char *craftName=wb_robot_get_name();
   if(variant<1||variant>3||!craftName||
-     std::strcmp(craftName,"Crazyflie WebeeBlocks"))return false;
+     std::strcmp(craftName,"Crazyflie WebeeBlocks")||!blueOrigin())return false;
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   const char *type=world?wb_supervisor_node_get_type_name(world):nullptr;
   if(!type||std::strcmp(type,"WorldInfo"))return false;
