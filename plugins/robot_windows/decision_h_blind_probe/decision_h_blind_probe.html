@@ -10,6 +10,10 @@ window.WB_A4_BLIND_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
 }).catch(error=>console.error('A4 blind bootstrap',error));
 </script>
 <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+<script src="../blockly/webeeblocks/runtime_outcome.js"></script>
 </head>
-<body><script src="decision_h_blind_probe.js"></script></body>
+<body>
+<p id="a4-native-failure-feedback" aria-live="polite"></p>
+<script src="decision_h_blind_probe.js"></script>
+</body>
 </html>

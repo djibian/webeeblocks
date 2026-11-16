@@ -60,6 +60,16 @@
     'time-limit': 'Durée maximale de 210 secondes dépassée'
   });
 
+  var A4_PUBLIC_REASONS = Object.freeze({
+    'obstacle-contact': 'Contact avec un obstacle',
+    'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
+    'route-incomplete': 'Franchissement des obstacles incomplet',
+    'early-finish': 'Programme terminé avant la fin du parcours',
+    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'wrong-pad': 'Atterrissage hors de la zone prévue',
+    'invalid-start': 'Départ non conforme à la zone bleue'
+  });
+
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
     var presentation = MISSION_STATES[status];
@@ -73,6 +83,10 @@
         evaluation.oracle === 'grand-prix-route-v2' &&
         Object.prototype.hasOwnProperty.call(GRAND_PRIX_PUBLIC_REASONS, reason))
       detail += ' — ' + GRAND_PRIX_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-decision-h-v1' &&
+        Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))
+      detail += ' — ' + A4_PUBLIC_REASONS[reason];
     return {status: status, state: presentation.state, detail: detail};
   }
 
