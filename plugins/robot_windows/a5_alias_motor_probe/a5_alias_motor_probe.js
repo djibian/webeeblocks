@@ -24,7 +24,7 @@ window.addEventListener('unhandledrejection',e=>
   const variant=config&&config.variant;
   const mode=config&&config.mode;
   if(variant!=='A'&&variant!=='B')throw Error('untrusted A5 pilot variant');
-  if(mode!=='reference'&&mode!=='collision')
+  if(mode!=='reference'&&mode!=='collision'&&mode!=='detour')
     throw Error('untrusted A5 native test mode');
   if(mode==='collision'&&variant!=='A')
     throw Error('A5 collision adversary only allowed on A');
@@ -40,6 +40,46 @@ window.addEventListener('unhandledrejection',e=>
   // WebeeBlocks activity ID or a pupil-accessible backend capability.
   await backend._request(['SCENE','a5-memory-alias-'+variant.toLowerCase()+'-proto']);
   await report('A5_ALIAS_MOTOR_SCENE_ACK',{variant});
+  // Independent adversary to the *memory* claim: this path NEVER reads
+  // or stores the initial L cue. It re-observes from a late reachable
+  // hypothesis point, using exclusively forward moves and 90-degree turns.
+  // It is a PRIVATE motor/PID witness, not a pupil Blockly deliverable.
+  if(mode==='detour') {
+    await report('A5_ALIAS_DETOUR_BEGIN',{earlyCueRead:false,testOnly:true});
+    await backend.setSpeed(.16);
+    await backend.takeoff(.50);
+    await report('A5_ALIAS_MOTOR_TAKEOFF',{height_m:.50});
+    await backend.move('forward',.70);
+    await backend.move('forward',.70);
+    await backend.move('forward',.15);
+    await report('A5_ALIAS_MOTOR_COMMON_APPROACH',{moves:3,testOnly:true});
+    await backend.turn(90);
+    await backend.move('forward',.60);
+    await backend.turn(90);
+    const lateFront=await backend.readRange('front');
+    if(!Number.isFinite(lateFront)||lateFront<0||lateFront>2.001)
+      throw Error('A5 later native frontal range unavailable');
+    const chooseLeft=lateFront<1.65;
+    await report('A5_ALIAS_DETOUR_SENSOR',{
+      front_m:lateFront,decision_source:'later_front_only',
+      no_early_cue:true,testOnly:true
+    });
+    if(!chooseLeft) {
+      await backend.turn(90);
+      await backend.move('forward',1.24);
+    }
+    await report('A5_ALIAS_MOTOR_PAD_SELECTED',{
+      side:chooseLeft?'left':'right',
+      decision_source:'later_detour_front',testOnly:true
+    });
+    await backend.land();
+    await report('A5_ALIAS_MOTOR_LAND_ACK',{nativeReply:true});
+    await report('A5_ALIAS_MOTOR_TEST_COMPLETE',{
+      testOnly:true,pupilWbb:false,missionOracle:false,
+      noInitialCue:true
+    });
+    return;
+  }
   const savedClue=await backend.readRange('left');
   if(!Number.isFinite(savedClue)||savedClue<0||savedClue>2.001)
     throw Error('early left native range is unavailable');

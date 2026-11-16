@@ -35,6 +35,14 @@ REQUIRED=(
     "A5_ALIAS_MOTOR_LAND_ACK",
     "A5_ALIAS_MOTOR_TEST_COMPLETE",
 )
+REQUIRED_DETOUR=(
+    "A5_ALIAS_HTML_LOADED", "A5_ALIAS_MOTOR_JS_STARTED",
+    "A5_ALIAS_MOTOR_READY", "A5_ALIAS_MOTOR_SCENE_ACK",
+    "A5_ALIAS_DETOUR_BEGIN", "A5_ALIAS_MOTOR_TAKEOFF",
+    "A5_ALIAS_MOTOR_COMMON_APPROACH", "A5_ALIAS_DETOUR_SENSOR",
+    "A5_ALIAS_MOTOR_PAD_SELECTED", "A5_ALIAS_MOTOR_LAND_ACK",
+    "A5_ALIAS_MOTOR_TEST_COMPLETE",
+)
 
 class Handler(events.Handler):
     variant="A"
@@ -179,10 +187,12 @@ def attest_native_collision_negative(transcript,found,variant):
 def run(variant,mode="reference"):
     if not isinstance(variant,str) or variant not in "AB" or len(variant)!=1:
         raise ValueError("unexpected native A5 motor variant")
-    if mode not in ("reference","collision") or (
+    if mode not in ("reference","collision","detour") or (
         mode=="collision" and variant!="A"):
         raise ValueError("A5 private collision mode is restricted to world A")
-    folder=ARTIFACT/(variant if mode=="reference" else "negative-collision-A")
+    folder=ARTIFACT/(variant if mode=="reference" else
+                     "negative-collision-A" if mode=="collision" else
+                     f"detour-{variant}")
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -264,6 +274,99 @@ def run(variant,mode="reference"):
             raise AssertionError("native motor collision adversary not refused")
         print("WEBEEBLOCKS_A5_ALIAS_REAL_COLLISION_NEGATIVE_PASS "
               "variant=A obstacle=CUE_ARM native_swept_rejection=true "
+              "pupil_wbb=UNPROVEN",flush=True)
+        return summary
+    if mode=="detour":
+        # Only native C++/WWI acknowledgments plus actual Webots Floor contact
+        # can qualify the alternative route. Browser events alone are never
+        # a sensor or collision oracle.
+        missing=[x for x in REQUIRED_DETOUR if names.count(x)!=1]
+        ordered=not missing and [
+            names.index(x) for x in REQUIRED_DETOUR]==sorted(
+                names.index(x) for x in REQUIRED_DETOUR)
+        details=lambda name: next((x.get("detail") for x in events.EVENTS
+                                  if x.get("event")==name),None)
+        sensed=details("A5_ALIAS_DETOUR_SENSOR")
+        chosen=details("A5_ALIAS_MOTOR_PAD_SELECTED")
+        start=details("A5_ALIAS_DETOUR_BEGIN")
+        raw_range=(float(sensed["front_m"]) if isinstance(sensed,dict)
+                   and isinstance(sensed.get("front_m"),(int,float))
+                   else None)
+        readback=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 10 VALUE ([0-9.]+)$",
+            text)
+        native_range=float(readback[0]) if len(readback)==1 else None
+        native_front=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=([0-9.]+)$",
+            text)
+        floor=re.findall(
+            rf"WEBEEBLOCKS_A5_ALIAS_MOTOR_NATIVE_FLOOR variant={variant} "
+            r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+) t=([0-9.]+)",
+            text)
+        gps=[float(q) for q in floor[0]] if len(floor)==1 else None
+        land_at=text.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")
+        final_id=11 if variant=="A" else 13
+        land_ack=land_at>=0 and re.search(
+            rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {final_id} OK$",
+            text[land_at:]) is not None
+        coverage=native_collision_coverage(text,variant)
+        expected="left" if variant=="A" else "right"
+        fatal=any(z in text for z in (
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_FATAL",
+            "WEBEEBLOCKS_RUNTIME_V2 FATAL",
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_SWEPT_COLLISION",
+            "WEBEEBLOCKS_A5_ALIAS_MOTOR_OBSTACLE_CONTACT"))
+        expected_range=1.26 if variant=="A" else 2.0
+        good=(not missing and ordered and
+              names.count("A5_ALIAS_MOTOR_ERROR")==0 and
+              "A5_ALIAS_MOTOR_EARLY_CUE" not in names and
+              start=={"earlyCueRead":False,"testOnly":True} and
+              isinstance(sensed,dict) and sensed.get("no_early_cue") is True and
+              sensed.get("decision_source")=="later_front_only" and
+              isinstance(chosen,dict) and chosen.get("side")==expected and
+              chosen.get("decision_source")=="later_detour_front" and
+              raw_range is not None and math.isfinite(raw_range) and
+              native_range is not None and math.isfinite(native_range) and
+              len(native_front)==1 and
+              abs(native_range-float(native_front[0]))<1e-6 and
+              abs(raw_range-native_range)<1e-6 and
+              abs(native_range-expected_range)<.12 and
+              gps is not None and
+              abs(gps[0]-1.50)<.075 and
+              abs(gps[1]-(.62 if variant=="A" else -.62))<.075 and
+              0<=gps[2]<=.025 and gps[3]>1 and
+              land_ack and coverage is not None and not fatal and
+              text.count("WEBEEBLOCKS_RUNTIME_V2 TRACE TURN angle_deg=90.")==
+                  (2 if variant=="A" else 3) and
+              "WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE forward distance=0.600000000" in text and
+              (variant=="A" or
+               "WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE forward distance=1.240000000" in text) and
+              f"WEBEEBLOCKS_A5_ALIAS_MOTOR_SCENE_OK variant={variant}" in text)
+        summary={"schema":"webeeblocks-a5-no-early-memory-native-detour-v1",
+                 "variant":variant,"pass":good,"actual_motor_and_pid":True,
+                 "native_front_m":native_range,"native_floor_xyzt":gps,
+                 "selected_pad":chosen.get("side") if isinstance(chosen,dict) else None,
+                 "collision_coverage":coverage,"native_land_ack":land_ack,
+                 "early_cue_was_never_read":("A5_ALIAS_MOTOR_EARLY_CUE" not in names
+                                              and "TRACE RANGE left" not in text),
+                 "same_private_js":True,"student_wbb":False,"pupil_mission":False,
+                 "program_has_no_stored_initial_clue":True,
+                 "pedagogical_memory_usefulness_refuted_in_this_private_pilot":good,
+                 "fully_generic_student_strategy_not_proven":True,
+                 "missing_events":missing,"ordered":ordered,"fatal":fatal,
+                 "events":names,"private_source_sha256":hashlib.sha256(
+                     (ROOT/"plugins/robot_windows/a5_alias_motor_probe/a5_alias_motor_probe.js"
+                      ).read_bytes()).hexdigest()}
+        summary_file.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n",
+                                encoding="utf-8")
+        if not good:
+            print("WEBEEBLOCKS_A5_DETOUR_NATIVE_UNPROVEN "+json.dumps(summary),
+                  file=sys.stderr,flush=True)
+            print(text[-6500:],file=sys.stderr)
+            raise AssertionError("motorized 90-degree no-memory detour unproven")
+        print(f"WEBEEBLOCKS_A5_DETOUR_NATIVE_PASS variant={variant} "
+              f"late_front_m={native_range:.6f} "
+              "true_floor=true full_collision_monitor=true "
               "pupil_wbb=UNPROVEN",flush=True)
         return summary
     missing=[x for x in REQUIRED if names.count(x)!=1]
@@ -365,8 +468,20 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",choices=["A","B","both"],default="both")
     parser.add_argument("--negative-collision",action="store_true")
+    parser.add_argument("--detour",action="store_true",
+                        help="motorized no-initial-cue alternative, two worlds")
     args=parser.parse_args()
-    if args.negative_collision:
+    if args.detour:
+        if args.negative_collision or args.variant!="both":
+            parser.error("--detour requires both worlds and no collision mode")
+        a,b=run("A","detour"),run("B","detour")
+        if (not a["pass"] or not b["pass"] or
+            a["private_source_sha256"]!=b["private_source_sha256"]):
+            raise AssertionError("A/B no-early-memory motor detour not reproduced")
+        print("WEBEEBLOCKS_A5_DETOUR_TWO_NATIVE_PASS "
+              "same_private_js=true early_cue_never_read=true "
+              "native_contact_and_land=true pupil_wbb=UNPROVEN",flush=True)
+    elif args.negative_collision:
         if args.variant!="both":
             parser.error("--negative-collision cannot select a positive variant")
         run("A",mode="collision")

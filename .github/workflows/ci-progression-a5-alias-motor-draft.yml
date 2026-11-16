@@ -77,6 +77,8 @@ jobs:
               printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
               python3 tools/ci/run_classroom_reactive_L_alias_motor.py
               python3 tools/ci/run_classroom_reactive_L_alias_motor.py --negative-collision
+              # An adversarial route: no initial cue, authentic late FRONT scan.
+              python3 tools/ci/run_classroom_reactive_L_alias_motor.py --detour
             '
       - name: Preserve raw motor, Floor and browser evidence even on failure
         if: always()
