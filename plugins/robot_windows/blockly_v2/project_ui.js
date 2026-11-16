@@ -68,7 +68,13 @@
       if (workspace.isReadOnly() !== editorReadOnly) workspace.setIsReadOnly(editorReadOnly);
       if (blocklyDiv) blocklyDiv.inert = busy;
     } else if (blocklyDiv) blocklyDiv.inert = busy || editorReadOnly; // Fail closed.
-    if (activity) activity.disabled = locked;
+    if (activity) {
+      // Never offer a Start template that ProjectFiles will reject as a
+      // foreign Webots world. A hidden Draft A6 has no eligible starter yet.
+      var available = progressionProfiles().length > 0;
+      activity.disabled = locked || !available;
+      activity.title = available ? '' : 'Aucune activité disponible dans ce monde';
+    }
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
@@ -235,12 +241,14 @@
   function progressionProfiles() {
     var documentModel = WebeeBlocksActivities && WebeeBlocksActivities.DOCUMENT;
     var activities = documentModel && Array.isArray(documentModel.activities) ? documentModel.activities : [];
-    var profiles = activities.filter(function(profile) {
-      return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0 &&
-        profile.starterVisible !== false;
+    // Use the same strict world-identity criterion as ProjectFiles. This is
+    // filtering for usability, NOT permission to load another native world.
+    var world = runtimeProfile && runtimeProfile.world;
+    return activities.filter(function(profile) {
+      return !!world && profile && typeof profile.id === 'string' &&
+        profile.id.indexOf('progression-') === 0 &&
+        profile.starterVisible !== false && profile.world === world;
     });
-    if (!profiles.length) throw new Error('aucune activité de progression disponible');
-    return profiles;
   }
 
   function chooseActivityProfile() {
@@ -250,9 +258,11 @@
         return;
       }
 
-      var profiles;
-      try { profiles = progressionProfiles(); }
-      catch (error) { reject(error); return; }
+      var profiles = progressionProfiles();
+      if (!profiles.length) {
+        reject(new Error('aucune activité disponible dans ce monde Webots'));
+        return;
+      }
 
       var dialog = document.createElement('dialog');
       dialog.id = 'activityChooser';
