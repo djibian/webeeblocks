@@ -162,7 +162,8 @@ function build(){
         return field&&field.getValue()===id;
       });
       assert.equal(referenced,false,'default item variable unexpectedly used');
-      variables.deleteVariableById(id);
+      // Blockly Workspace owns deletion; VariableMap exposes lookup only.
+      workspace.deleteVariableById(id);
     }
     assert.deepStrictEqual(
       variables.getAllVariables().map(x=>x.name).sort(),
