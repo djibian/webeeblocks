@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 import signal
 import subprocess
@@ -12,6 +11,7 @@ import sys
 import time
 from urllib.request import urlopen
 import websocket
+from count_h_cdp_evidence import attest_visit
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLD = ROOT / "worlds/crazyflie_classroom_count_h_start.wbt"
@@ -128,14 +128,11 @@ def run():
                             dev=Chrome(uri)
                     if dev is not None:
                         state=dev.state()
-                        ready_count=trace.count("WEBEEBLOCKS_A6_MOTOR_READY n="+str(count)+" ")
-                        # The UI's sceneIdentity is necessary but insufficient:
-                        # require this click's exact native SCENE_OK/nonce and
-                        # a new observer incarnation (including the return 3→1).
-                        native_ack=re.search(
-                            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+
-                            str(index+1)+r" SCENE_OK ([0-9a-f]{64})$",trace)
-                        ready=(ready_count>observed_ready[count] and native_ack is not None)
+                        # Require fresh nonce-bound SCENE_OK and subsequent native
+                        # observer incarnation, never a stale earlier n=1 log.
+                        native_witness=attest_visit(
+                            trace,index,count,observed_ready,seen_scene_nonces)
+                        ready=native_witness is not None
                         if (state and state["id"]=="progression-count-h-v1" and
                             state["scene"]==target and state["ack"]==target and
                             state["status"]=="PRÊT" and ready):
@@ -145,14 +142,12 @@ def run():
                                 original=state["program"]
                             if not original or original!=state["program"]:
                                 raise AssertionError("Blockly workspace changed during variant selection")
-                            nonce=native_ack.group(1)
-                            if nonce in seen_scene_nonces:
-                                raise AssertionError("native scene nonce was reused")
+                            nonce=native_witness["nonce"]
                             seen_scene_nonces.add(nonce)
-                            observed_ready[count]=ready_count
+                            observed_ready[count]=native_witness["ready_count"]
                             visits.append({"scene":target,"label":state["label"],
                                            "scene_request_id":index+1,
-                                           "native_ready_occurrences":ready_count,
+                                           "native_ready_occurrences":native_witness["ready_count"],
                                            "native_nonce_sha256":hashlib.sha256(
                                                nonce.encode()).hexdigest(),
                                            "workspace_sha256":hashlib.sha256(

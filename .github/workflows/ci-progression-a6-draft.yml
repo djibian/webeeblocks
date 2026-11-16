@@ -31,6 +31,7 @@ on:
       - 'tools/ci/run_classroom_count_h_motor_flight.py'
       - 'tools/ci/run_classroom_count_h_product_bootstrap.py'
       - 'tools/ci/run_classroom_count_h_variant_cdp.py'
+      - 'tools/ci/count_h_cdp_evidence.py'
       - 'tools/ci/webots_count_h_variant_cdp.sh'
       - 'tools/ci/build_a6_private_blockly_witness.js'
       - 'tools/ci/test_progression_count_h_sensor_only_mock.js'
@@ -345,6 +346,7 @@ jobs:
           set -euo pipefail
           bash ./tools/prepare_runtime_v2.sh
           python3 -m py_compile tools/ci/run_classroom_count_h_variant_cdp.py
+          python3 -m unittest -v tools.ci.test_progression_count_h_cdp_evidence
       - name: R2025a actual Chrome clicks with independent native scene admissions
         timeout-minutes: 10
         run: |
