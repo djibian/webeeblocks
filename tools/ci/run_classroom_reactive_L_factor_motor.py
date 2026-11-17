@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Draft-only physical motor/PID feasibility in A5 independently varying physical G worlds.
+"""Draft-only physical motor/PID feasibility in A5 independently varying H/G worlds.
 
-This intentionally runs a private same-JS pilot against two genuine Webots
+This intentionally runs a private same-JS pilot against four genuine Webots
 R2025a worlds. The independent Webots Floor contact and normal WWI LAND ACK
 are required: a browser-side success or a low GPS altitude alone never passes.
 No student .wbb, no runtime product activity profile, no behavioral oracle.
@@ -26,7 +26,8 @@ ARTIFACT=ROOT/"ci-artifacts/progression-reactive-L-factor-motor"
 REQUIRED=(
     "A5_FACTOR_HTML_LOADED","A5_FACTOR_MOTOR_JS_STARTED",
     "A5_FACTOR_MOTOR_READY","A5_FACTOR_MOTOR_SCENE_ACK",
-    "A5_FACTOR_MOTOR_TAKEOFF","A5_FACTOR_MOTOR_APPROACH",
+    "A5_FACTOR_MOTOR_TAKEOFF","A5_FACTOR_MOTOR_H_OBSERVATION",
+    "A5_FACTOR_MOTOR_APPROACH",
     "A5_FACTOR_MOTOR_G_OBSERVATION","A5_FACTOR_MOTOR_GATE_PASSED",
     "A5_FACTOR_MOTOR_PAD_SELECTED","A5_FACTOR_MOTOR_LAND_ACK",
     "A5_FACTOR_MOTOR_TEST_COMPLETE"
@@ -97,15 +98,15 @@ def native_collision_coverage(transcript,variant):
     heartbeat after physical contact. A browser success cannot forge these
     markers, which come from the isolated, physically linked C observer.
     """
-    if variant not in ("A","B"):
+    if variant not in ("A","B","C","D"):
         return None
     pattern=re.compile(
-        r"(?m)^WEBEEBLOCKS_A5_FACTOR_MOTOR_MONITOR variant=([AB]) "
+        r"(?m)^WEBEEBLOCKS_A5_FACTOR_MOTOR_MONITOR variant=([ABCD]) "
         r"ticks=(\d+) t=([0-9.]+) no_obstacle_contacts=true$")
     rows=pattern.findall(transcript)
     final=re.findall(
         r"(?m)^WEBEEBLOCKS_A5_FACTOR_MOTOR_MONITOR_COMPLETE "
-        r"variant=([AB]) native_ticks=(\d+) all_contacts_checked=true "
+        r"variant=([ABCD]) native_ticks=(\d+) all_contacts_checked=true "
         r"swept_boxes_checked=7$",transcript)
     if len(rows)<4 or len(final)!=1 or final[0][0]!=variant:
         return None
@@ -141,8 +142,8 @@ def native_collision_coverage(transcript,variant):
             "conservative_swept_boxes_per_step":True}
 
 def run(variant,mode="positive"):
-    if variant not in ("A","B") or mode not in ("positive","blind"):
-        raise ValueError("wrong fixed-H independent-G native test")
+    if variant not in ("A","B","C","D") or mode not in ("positive","blind"):
+        raise ValueError("wrong factorial H/G native test")
     if mode=="blind" and variant!="B":
         raise ValueError("blind gate rejection tested only against G-right")
     folder=ARTIFACT/("blind-B" if mode=="blind" else variant)
@@ -263,13 +264,18 @@ def run(variant,mode="positive"):
     detail=lambda key:next((v.get("detail") for v in events.EVENTS
                             if v.get("event")==key),None)
     sensor=detail("A5_FACTOR_MOTOR_G_OBSERVATION")
+    h=detail("A5_FACTOR_MOTOR_H_OBSERVATION")
     pad=detail("A5_FACTOR_MOTOR_PAD_SELECTED")
     measured=sensor.get("left_m") if isinstance(sensor,dict) else None
+    initial=h.get("left_m") if isinstance(h,dict) else None
     native_read=re.findall(
         r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE left value=([0-9.]+)$",
         trace)
-    native_reply=re.findall(
-        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE ([0-9.]+)$",
+    native_h_reply=re.findall(
+        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 VALUE ([0-9.]+)$",
+        trace)
+    native_g_reply=re.findall(
+        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 VALUE ([0-9.]+)$",
         trace)
     contact=re.findall(
         rf"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR variant={variant} "
@@ -277,13 +283,18 @@ def run(variant,mode="positive"):
         trace)
     xyz=[float(v) for v in contact[0]] if len(contact)==1 else None
     land_at=trace.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")
-    last_command=13 if variant=="A" else 15
+    # Extra genuine H range is WWI request 4, G is request 8.
+    # An opposite landing side needs two more genuine commands.
+    shifted=variant in ("B","C")
+    last_command=16 if shifted else 14
     landed=land_at>=0 and re.search(
         rf"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE {last_command} OK$",
         trace[land_at:]) is not None
     coverage=native_collision_coverage(trace,variant)
-    expected_route="left" if variant=="A" else "right"
-    expected_value=1.41 if variant=="A" else .54
+    expected_route="left" if variant in ("A","C") else "right"
+    expected_value=1.41 if variant in ("A","C") else .54
+    expected_initial=.54 if variant in ("A","B") else 1.14
+    expected_pad="left" if variant in ("A","B") else "right"
     errors=any(marker in trace for marker in (
         "WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL",
         "WEBEEBLOCKS_RUNTIME_V2 FATAL",
@@ -295,26 +306,36 @@ def run(variant,mode="positive"):
           f"WEBEEBLOCKS_A5_FACTOR_MOTOR_SCENE_OK variant={variant}" in trace and
           isinstance(sensor,dict) and sensor.get("route")==expected_route and
           sensor.get("decision_source")=="late_left_only" and
-          isinstance(pad,dict) and pad.get("side")=="left" and
-          pad.get("decision_source")=="fixed_H_experimental" and
+          isinstance(h,dict) and h.get("destination")==expected_pad and
+          h.get("decision_source")=="initial_left_only" and
+          isinstance(pad,dict) and pad.get("side")==expected_pad and
+          pad.get("decision_source")=="initial_left_only" and
+          isinstance(initial,(int,float)) and math.isfinite(initial) and
+          abs(initial-expected_initial)<.12 and
           isinstance(measured,(int,float)) and math.isfinite(measured) and
           abs(measured-expected_value)<.12 and
-          len(native_read)==1 and len(native_reply)==1 and
-          abs(float(native_read[0])-measured)<1e-6 and
-          abs(float(native_reply[0])-measured)<1e-6 and
+          len(native_read)==2 and len(native_h_reply)==1 and
+          len(native_g_reply)==1 and
+          abs(float(native_read[0])-initial)<1e-6 and
+          abs(float(native_h_reply[0])-initial)<1e-6 and
+          abs(float(native_read[1])-measured)<1e-6 and
+          abs(float(native_g_reply[0])-measured)<1e-6 and
           xyz is not None and abs(xyz[0]-4.15)<.10 and
-          abs(xyz[1]-.62)<.10 and 0<=xyz[2]<=.025 and xyz[3]>2.0 and
+          abs(xyz[1]-(.62 if expected_pad=="left" else -.62))<.10 and
+          0<=xyz[2]<=.025 and xyz[3]>2.0 and
           coverage is not None and landed and not errors and
           "TRACE RANGE left" in trace and
           "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF" in trace and
           trace.count("WEBEEBLOCKS_RUNTIME_V2 TRACE TURN angle_deg=")>=2 and
           "WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE forward distance=0.600000000" in trace)
-    summary={"schema":"webeeblocks-a5-gfactor-pid-private-v1",
+    summary={"schema":"webeeblocks-a5-hg-factor-pid-private-v1",
              "variant":variant,"mode":mode,"pass":good,
-             "actual_pid":True,"native_range_left_m":measured,
+             "actual_pid":True,
+             "native_initial_h_left_m":initial,
+             "native_range_left_m":measured,
              "native_floor_xyzt":xyz,"native_land_ack":landed,
              "collision_coverage":coverage,"selected_G_route":expected_route,
-             "selected_H_pad":"left","early_G_read":False,
+             "selected_H_pad":expected_pad,"early_G_read":False,
              "same_private_js":True,"student_wbb":False,
              "mission_oracle":False,"events":names,
              "missing_events":missing,"ordered":ordered,"fatal":errors,
@@ -335,29 +356,34 @@ def run(variant,mode="positive"):
     return summary
 
 def main():
-    a=run("A")
-    b=run("B")
-    if (not a["pass"] or not b["pass"] or
-        a["private_js_sha256"]!=b["private_js_sha256"] or
-        a["native_range_left_m"]-b["native_range_left_m"]<.35 or
+    results=[run(var) for var in ("A","B","C","D")]
+    a,b,c,d=results
+    if (not all(r["pass"] for r in results) or
+        len({r["private_js_sha256"] for r in results})!=1 or
+        any(results[i]["native_range_left_m"]-
+            results[i+1]["native_range_left_m"]<.35 for i in (0,2)) or
+        abs(a["native_initial_h_left_m"]-c["native_initial_h_left_m"])<.35 or
+        abs(b["native_initial_h_left_m"]-d["native_initial_h_left_m"])<.35 or
         a["selected_G_route"]!="left" or b["selected_G_route"]!="right" or
-        a["selected_H_pad"]!="left" or b["selected_H_pad"]!="left"):
-        raise AssertionError("native G choice not independent of fixed H")
+        c["selected_G_route"]!="left" or d["selected_G_route"]!="right" or
+        [r["selected_H_pad"] for r in results]!=["left","left","right","right"]):
+        raise AssertionError("actual PID H/G factors not independently handled")
     OUT_SUM=ARTIFACT/"summary.json"
     OUT_SUM.write_text(json.dumps({
-        "schema":"webeeblocks-a5-hfixed-gbinary-motor-v1",
-        "pass":True,"variants":[a,b],"single_private_js":True,
-        "genuine_motors_and_pid":True,"two_real_floor_contacts":True,
+        "schema":"webeeblocks-a5-hg-four-world-motor-v1",
+        "pass":True,"variants":results,"single_private_js":True,
+        "genuine_motors_and_pid":True,"four_real_floor_contacts":True,
         "native_swept_and_contact_7_solid":True,
         "pupil_wbb_or_full_mission_proven":False
     },sort_keys=True,indent=2)+"\n")
-    print("WEBEEBLOCKS_A5_FACTOR_G_TWO_REAL_MOTOR_PASS "
-          "native_swept_7=true same_js=true h_fixed=true pupil_wbb=false",
+    print("WEBEEBLOCKS_A5_FACTOR_HG_FOUR_REAL_MOTOR_PASS "
+          "native_swept_7=true same_js=true "
+          "H_and_G_read_at_distinct_times=true pupil_wbb=false",
           flush=True)
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--variant",choices=["A","B","both"],default="both")
+    parser.add_argument("--variant",choices=["A","B","C","D","both"],default="both")
     parser.add_argument("--blind",action="store_true")
     args=parser.parse_args()
     if args.blind:

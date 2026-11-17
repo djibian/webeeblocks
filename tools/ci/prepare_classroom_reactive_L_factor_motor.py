@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare private motor/PID A5 factor A/B worlds without changing product files.
+"""Prepare private motor/PID A5 factorial H-near/far × G-left/right worlds without changing product files.
 
 The original Crazyflie and Webots physics are retained. The private controller
 is an isolated linked copy of the locked runtime, with a strict scene gate.
@@ -18,19 +18,23 @@ SOURCE_WINDOW='window "altitude_scene_ack_probe"'
 PILOT_WINDOW='window "a5_alias_motor_probe"'
 
 def scene_file(variant):
-    return ROOT/("worlds/scenes/reactive-L-factor-hnear-g"+("left" if variant=="A" else "right")+"-proto.wbo")
+    if type(variant) is not str or variant not in ("A","B","C","D"):
+        raise ValueError("A5 native flight allows only four H/G scenes")
+    cue="near" if variant in ("A","B") else "far"
+    gate="left" if variant in ("A","C") else "right"
+    return ROOT/f"worlds/scenes/reactive-L-factor-h{cue}-g{gate}-proto.wbo"
 
 def paths(variant):
     return (ROOT/f"worlds/ci_a5_factor_motor_{variant.lower()}.wbt",
             ROOT/f"worlds/.ci_a5_factor_motor_{variant.lower()}.wbproj")
 
 def compose(variant,scene=None):
-    if not isinstance(variant,str) or len(variant)!=1 or variant not in "AB":
-        raise ValueError("A5 motor feasibility only permits A/B")
+    if type(variant) is not str or variant not in ("A","B","C","D"):
+        raise ValueError("A5 motor feasibility only permits A/B/C/D")
     start=classroom.SOURCE.read_text(encoding="utf-8")
     world=classroom.compose(start)
     body=scene_file(variant).read_text(encoding="utf-8") if scene is None else scene
-    expected=f"DEF WEBEEBLOCKS_A5_FACTOR_G{'L' if variant=='A' else 'R'}_SCENE Group"
+    expected=f"DEF WEBEEBLOCKS_A5_FACTOR_G{'L' if variant in ('A','C') else 'R'}_SCENE Group"
     if (world.count(SOURCE_CONTROLLER)!=1 or world.count(SOURCE_WINDOW)!=1
         or world.count(classroom.MARKER)!=1 or
         world.count('Crazyflie {\n  name "Crazyflie WebeeBlocks"')!=1
@@ -38,7 +42,7 @@ def compose(variant,scene=None):
         body.count(" Solid {")!=7 or body.count("boundingObject Box")!=7
         or "Robot {" in body or 'controller "' in body or
         any(f"DEF WEBEEBLOCKS_A5_FACTOR_G{v}_SCENE" in body
-            for v in "LR" if v!=('L' if variant=='A' else 'R'))):
+            for v in "LR" if v!=('L' if variant in ('A','C') else 'R'))):
         raise ValueError("untrusted original classroom world or A5 factor obstacle")
     world=world.replace(SOURCE_CONTROLLER,PILOT_CONTROLLER,1)
     world=world.replace(SOURCE_WINDOW,PILOT_WINDOW,1)
@@ -55,7 +59,9 @@ def compose(variant,scene=None):
 def native_feeder_world(variant,mode):
     # Only a generated private WBT carries this marker. Product worlds retain
     # their original title and never opt into the command feeder.
-    if mode not in ("positive","blind") or (mode=="blind" and variant!="B"):
+    # The separate native feeder is validated for historical near-H A/B only.
+    # Never implicitly expand the feeder's injection permission to H-far C/D.
+    if variant not in ("A","B") or mode not in ("positive","blind") or (mode=="blind" and variant!="B"):
         raise ValueError("invalid native G test mode")
     text=compose(variant)
     original='  title "WebeeBlocks — accueil"'

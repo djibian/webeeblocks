@@ -93,7 +93,7 @@ jobs:
             -w /workspace/controllers/progression_reactive_L_factor_motor_pilot \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_reactive_L_factor_motor_pilot'
-      - name: Native motorized gates A and B plus physically rejected blind B
+      - name: Native motorized H/G A B C D from the same private JS and rejected blind B
         timeout-minutes: 18
         run: |
           set -euo pipefail

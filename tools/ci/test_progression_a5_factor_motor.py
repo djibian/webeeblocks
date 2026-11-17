@@ -9,7 +9,7 @@ import prepare_classroom_reactive_L_factor_motor as motor
 
 class A5FactorMotorTests(unittest.TestCase):
     def test_original_crazyflie_and_exact_native_g_geometry(self):
-        for var in "AB":
+        for var in "ABCD":
             world=motor.compose(var)
             self.assertEqual(world.count(motor.PILOT_CONTROLLER),1)
             self.assertEqual(world.count(motor.PILOT_WINDOW),1)
@@ -19,12 +19,12 @@ class A5FactorMotorTests(unittest.TestCase):
             self.assertEqual(world.count("boundingObject Box"),7)
             self.assertEqual(world.count(" Solid {"),7)
             self.assertEqual(world.count(
-                f"DEF WEBEEBLOCKS_A5_FACTOR_G{'L' if var=='A' else 'R'}_SCENE Group"),1)
-        for bad in ("",None,"AB","C"):
+                f"DEF WEBEEBLOCKS_A5_FACTOR_G{'L' if var in ('A','C') else 'R'}_SCENE Group"),1)
+        for bad in ("",None,"AB","E"):
             with self.assertRaises(ValueError):motor.compose(bad)
 
     def test_refuse_changed_world_assets(self):
-        for v in "AB":
+        for v in "ABCD":
             text=motor.scene_file(v).read_text()
             for changed in (text+text,text.replace(" Solid {"," Robot {",1),
                             text.replace("boundingObject Box","geometry Box",1)):
@@ -90,15 +90,25 @@ class A5FactorMotorTests(unittest.TestCase):
                          "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR"):
             self.assertIn(required,trace)
         for required in ("await backend.readRange('left')",
+                         "const targetRight=initialH>.80",
                          "const chooseLeft=config.mode==='blind'?true:left>1.0",
                          "await backend.move('forward',.60)",
                          "await backend.move('forward',1.24)",
                          "await backend.land()",
                          "A5_FACTOR_MOTOR_G_OBSERVATION"):
             self.assertIn(required,js)
+        self.assertLess(js.index("A5_FACTOR_MOTOR_H_OBSERVATION"),
+                        js.index("A5_FACTOR_MOTOR_APPROACH"))
         self.assertLess(js.index("A5_FACTOR_MOTOR_APPROACH"),
-                        js.index("await backend.readRange('left')"))
-        self.assertEqual(js.count("await backend.readRange("),1)
+                        js.rindex("await backend.readRange('left')"))
+        self.assertEqual(js.count("await backend.readRange("),2)
+        self.assertIn("side:targetRight?'right':'left'",js)
+        self.assertIn("await backend.turn(targetRight?-90:90)",js)
+        self.assertIn("a5-factor-hfar-g-",js)
+        self.assertIn('far?1.18:.58',scene)
+        self.assertIn('far?1.38:.78',scene)
+        self.assertIn('target_y=far_h?-.62:.62',trace)
+        self.assertIn("if(near==far_h)return 0",trace)
         self.assertIn("WEBEEBLOCKS_A5_FACTOR_MOTOR_BROWSER_BOUNDARY_MISSING",runner)
         self.assertIn('"web_browser_invoked":launch.exists()',runner)
         self.assertIn('"native_motor_attempted":False',runner)
@@ -106,7 +116,8 @@ class A5FactorMotorTests(unittest.TestCase):
         for required in ("native_collision_coverage(trace,variant)",
                          "swept_boxes_checked=7",
                          "WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE left",
-                         "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE",
+                         "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 VALUE",
+                         "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 VALUE",
                          "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR",
                          "pupil_wbb_or_full_mission_proven"):
             # Full mission remains false in the final aggregate report.

@@ -26,14 +26,16 @@ bool box(const char *name,double x,double y,double z,double sx,double sy,double 
   return true;
 }
 bool attest(int v){
-  if((v!=1&&v!=2)||std::strcmp(wb_robot_get_name(),"Crazyflie WebeeBlocks")||
+  if((v<1||v>4)||std::strcmp(wb_robot_get_name(),"Crazyflie WebeeBlocks")||
       (int)wb_robot_get_basic_time_step()!=32)return false;
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   if(!world||std::strcmp(wb_supervisor_node_get_type_name(world),"WorldInfo"))return false;
-  const char *yes=v==1?"WEBEEBLOCKS_A5_FACTOR_GL_SCENE":
-                          "WEBEEBLOCKS_A5_FACTOR_GR_SCENE";
-  const char *no=v==1?"WEBEEBLOCKS_A5_FACTOR_GR_SCENE":
-                         "WEBEEBLOCKS_A5_FACTOR_GL_SCENE";
+  const bool L=(v==1||v==3);
+  const bool far=(v==3||v==4);
+  const char *yes=L?"WEBEEBLOCKS_A5_FACTOR_GL_SCENE":
+                     "WEBEEBLOCKS_A5_FACTOR_GR_SCENE";
+  const char *no=L?"WEBEEBLOCKS_A5_FACTOR_GR_SCENE":
+                    "WEBEEBLOCKS_A5_FACTOR_GL_SCENE";
   WbNodeRef group=wb_supervisor_node_get_from_def(yes);
   WbFieldRef members=group?wb_supervisor_node_get_field(group,"children"):nullptr;
   if(!group||std::strcmp(wb_supervisor_node_get_type_name(group),"Group")||
@@ -43,9 +45,8 @@ bool attest(int v){
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_L_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_MINI_GP_R_SCENE"))return false;
   for(int i=0;i<11;i++)if(!wb_supervisor_field_get_mf_node(members,i))return false;
-  const bool L=v==1;
-  return box("A5_FACTOR_H_CUE_ARM",0,.58,.55,.40,.08,1.10)&&
-     box("A5_FACTOR_H_CUE_TIP",.20,.78,.55,.08,.48,1.10)&&
+  return box("A5_FACTOR_H_CUE_ARM",0,far?1.18:.58,.55,.40,.08,1.10)&&
+     box("A5_FACTOR_H_CUE_TIP",.20,far?1.38:.78,.55,.08,.48,1.10)&&
      box("A5_FACTOR_G_LOWER",3.10,L?-.55:-1.16,.55,.08,L?1.70:.48,1.10)&&
      box("A5_FACTOR_G_UPPER",3.10,L?1.16:.55,.55,.08,L?.48:1.70,1.10)&&
      box("A5_FACTOR_G_SIDE_ARM",2.45,L?-.58:.58,.55,.70,.08,1.10)&&
@@ -55,14 +56,16 @@ bool attest(int v){
 }
 extern "C" int webeeblocks_select_activity_scene(const char *scene){
   int v=scene&&std::strcmp(scene,"a5-factor-g-left-proto")==0?1:
-        scene&&std::strcmp(scene,"a5-factor-g-right-proto")==0?2:0;
+        scene&&std::strcmp(scene,"a5-factor-g-right-proto")==0?2:
+        scene&&std::strcmp(scene,"a5-factor-hfar-g-left-proto")==0?3:
+        scene&&std::strcmp(scene,"a5-factor-hfar-g-right-proto")==0?4:0;
   selected=attest(v)?v:0;
   if(!selected){
     std::fprintf(stderr,"WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL untrusted scene\n");
     std::fflush(stderr);return 0;
   }
   std::printf("WEBEEBLOCKS_A5_FACTOR_MOTOR_SCENE_OK variant=%c "
-              "physics=32ms colliders=7 test_only=true\n",v==1?'A':'B');
+              "physics=32ms colliders=7 test_only=true\n",'A'+v-1);
   std::fflush(stdout);return 1;
 }
 extern "C" int webeeblocks_activity_scene_ready(void){

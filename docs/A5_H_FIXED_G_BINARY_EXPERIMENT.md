@@ -57,6 +57,30 @@ sans variable, le contact/atterrissage et l'acceptation personnelle
 4e/3e. L'alias local à trois rayons ne prouve pas l'alias global de
 toutes les stratégies motorisées possibles.
 
+
+## H×G private motor cross-validation (unqualified until native results)
+
+The four physical 2×2 scenes passed the isolated native Multi-ranger
+sensor matrix on `346ae789`, but **H-far flights were not yet proven**.
+The next private R2025a Chrome/Robot Window witness uses *one identical
+JavaScript pilot* in all four worlds: read H once from the real left
+sensor after takeoff (destination = left/right), travel the shared
+approach, read G again (opening = left/right), follow the physically
+correct opening, and turn toward the H-indicated checkered pad.
+A scene identity is used only to select the private fixture;
+**the route and destination must come from the two actual range returns**.
+
+All four flights must obtain native MOVE/TAKEOFF/TURN/LAND acknowledgments,
+independent physical Floor contact at the correct H destination and all
+seven authentic Solid contacts/swept intersections checked at every
+32-ms step. The old blind-right negative remains mandatory, as does
+the native-only A/B feeder regression, and no physical product,
+public activity starter, safety threshold or Grand Prix A8 is changed.
+A green run proves feasibility of this private JS *only*, not a
+student-editable Blockly `.wbb`, a reactive loop, a mission oracle,
+a memory requirement or a 4e/3e PASS. Re-reading H by an accessible
+detour and duplicating branches remain adversaries to test explicitly.
+
 ## Native R2025a falsification checkpoints, in order
 
 1. Embed each WBO in an isolated original-Crazyflie Webots R2025a world and

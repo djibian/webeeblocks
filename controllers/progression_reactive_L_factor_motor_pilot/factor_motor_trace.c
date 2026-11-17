@@ -23,6 +23,7 @@ static unsigned long count = 0;
 static int started = 0, failed = 0, floor_emitted = 0, airborne = 0;
 static double last_t = -1, prev[3] = {0,0,0};
 static char variant = 0;
+static int far_h = 0;
 static const char *const types[7] = {
   "H_CUE_ARM","H_CUE_TIP","G_LOWER","G_UPPER","G_SIDE_ARM",
   "G_LEFT_BOUNDARY","G_RIGHT_BOUNDARY"
@@ -65,7 +66,17 @@ static int init_monitor(int duration) {
   const WbNodeRef a=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_FACTOR_GL_SCENE");
   const WbNodeRef b=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_FACTOR_GR_SCENE");
   if((!!a)+(!!b)!=1)return 0;
-  variant=a?'A':'B';
+  WbNodeRef arm=wb_supervisor_node_get_from_def("A5_FACTOR_H_CUE_ARM");
+  WbNodeRef tip=wb_supervisor_node_get_from_def("A5_FACTOR_H_CUE_TIP");
+  const double *a_pos=arm?wb_supervisor_node_get_position(arm):NULL;
+  if(!a_pos||!isfinite(a_pos[1]))return 0;
+  const double arm_y=a_pos[1];
+  const double *tip_pos=tip?wb_supervisor_node_get_position(tip):NULL;
+  if(!tip_pos||!isfinite(tip_pos[1]))return 0;
+  const int near=fabs(arm_y-.58)<.000001&&fabs(tip_pos[1]-.78)<.000001;
+  far_h=fabs(arm_y-1.18)<.000001&&fabs(tip_pos[1]-1.38)<.000001;
+  if(near==far_h)return 0;
+  variant=a?(far_h?'C':'A'):(far_h?'D':'B');
   craft=wb_supervisor_node_get_self();
   gps=wb_robot_get_device("gps");
   if(!craft||!gps||duration!=32)return 0;
@@ -128,7 +139,7 @@ int __wrap_wb_robot_step(int duration) {
       return result;
     }
     const double center[7][3]={
-      {0,.58,.55},{.20,.78,.55},
+      {0,far_h?1.18:.58,.55},{.20,far_h?1.38:.78,.55},
       {3.10,variant=='A'?-.55:-1.16,.55},
       {3.10,variant=='A'?1.16:.55,.55},
       {2.45,variant=='A'?-.58:.58,.55},
@@ -175,7 +186,7 @@ int __wrap_wb_robot_step(int duration) {
     floor=1;
   }
   if(position[2]>.18)airborne=1;
-  const double target_y=.62;
+  const double target_y=far_h?-.62:.62;
   const int target=fabs(position[0]-4.15)<=.10&&
                    fabs(position[1]-target_y)<=.10;
   if(airborne&&floor&&!target) {
