@@ -34,6 +34,19 @@ Ni Git, ni Node.js, ni npm, ni compilateur ne sont requis sur le poste élève.
 4. attendre l’état `PRÊT` dans la fenêtre Blockly ;
 5. utiliser **Lancer le vol** ou les contrôles pas-à-pas de WebeeBlocks.
 
+### Essai expérimental professeur — activité 6
+
+Pour ouvrir le monde scolaire A6 distinct dans le ZIP extrait :
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Launch-WebeeBlocks.ps1 -ExperimentalCountH
+```
+
+L'option `-ValidateOnly -ExperimentalCountH` valide les sessions locales sans
+vol. Le lancement normal par double-clic ne change pas. **A6 reste en Draft** :
+ce mode ne vaut ni publication élève, ni PASS pédagogique, ni qualification
+ou autorisation de vol réel.
+
 Le lanceur démarre Webots directement en mode temps réel : le parcours validé
 ne demande pas de cliquer manuellement sur ▶ dans Webots.
 

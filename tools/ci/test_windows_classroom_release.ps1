@@ -467,6 +467,15 @@ $launcher = Join-Path $testRoot 'Launch-WebeeBlocks.ps1'
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -WebotsHome $WebotsHome
 if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed under Windows PowerShell 5.1.' }
 
+# Experimental A6 must use the actual extracted ZIP, session isolation and
+# the same loopback asset server. This validates launcher integrity, not flight.
+$a6Validate = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -ExperimentalCountH -WebotsHome $WebotsHome | Out-String
+if ($LASTEXITCODE -ne 0 -or $a6Validate -notmatch 'WEBEEBLOCKS_WINDOWS_LAUNCHER_OK' -or
+    $a6Validate -notmatch 'experimental_count_h=true' -or
+    $a6Validate -notmatch 'crazyflie_classroom_count_h_start') {
+  throw 'Activity 6 experimental classroom launcher validation failed.'
+}
+
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
 # from the exact ZIP must load with the Webots controller libraries, the MinGW

@@ -1,13 +1,20 @@
 [CmdletBinding()]
 param(
   [string]$WebotsHome = $env:WEBOTS_HOME,
-  [switch]$ValidateOnly
+  [switch]$ValidateOnly,
+  [switch]$ExperimentalCountH
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$world = Join-Path $PSScriptRoot 'worlds\crazyflie_runtime_v2.wbt'
+# Teacher-only experiment; default remains the ordinary classroom world.
+$worldRelative = if ($ExperimentalCountH) {
+  'worlds\crazyflie_classroom_count_h_start.wbt'
+} else {
+  'worlds\crazyflie_runtime_v2.wbt'
+}
+$world = Join-Path $PSScriptRoot $worldRelative
 if (-not (Test-Path -LiteralPath $world -PathType Leaf)) {
   throw "Monde WebeeBlocks introuvable : $world"
 }
@@ -28,9 +35,14 @@ if ($worldText -match '"(?:https?|webots)://') {
 }
 
 function Get-PackagedRobotWindow {
-  param([string]$WorldText)
+  param([string]$WorldText, [switch]$CountH)
 
-  $matches = [regex]::Matches($WorldText, '(?m)^\s*window\s+"(blockly_v2_[0-9a-f]{16})"\s*$')
+  $expectedWindow = if ($CountH) {
+    '(?m)^\s*window\s+"(blockly_count_h_[0-9a-f]{16})"\s*$'
+  } else {
+    '(?m)^\s*window\s+"(blockly_v2_[0-9a-f]{16})"\s*$'
+  }
+  $matches = [regex]::Matches($WorldText, $expectedWindow)
   if ($matches.Count -ne 1) {
     throw 'Le monde de classe doit contenir exactement une Robot Window versionnee.'
   }
@@ -40,7 +52,29 @@ function Get-PackagedRobotWindow {
   if (-not (Test-Path -LiteralPath $root -PathType Container) -or -not (Test-Path -LiteralPath $html -PathType Leaf)) {
     throw "Robot Window de classe introuvable : $name"
   }
-  [PSCustomObject]@{ Name = $name; Root = $root; Html = $html }
+  $editorRoot = $null
+  $baseMarker = $null
+  if ($CountH) {
+    # Bind only the exact, local content-addressed canonical editor.
+    $source = [System.IO.File]::ReadAllText($html, [System.Text.Encoding]::UTF8)
+    $baseMatches = [regex]::Matches($source, '<base href="\.\./(blockly_v2_[0-9a-f]{16})/">')
+    if ($baseMatches.Count -ne 1 -or
+        [regex]::Matches($source, '<base\b').Count -ne 1) {
+      throw 'Le shell A6 exige exactement une base Blockly locale versionnee.'
+    }
+    $editorName = $baseMatches[0].Groups[1].Value
+    $editorRoot = Join-Path $PSScriptRoot "plugins\robot_windows\$editorName"
+    $editorHtml = Join-Path $editorRoot "$editorName.html"
+    if (-not (Test-Path -LiteralPath $editorRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $editorHtml -PathType Leaf)) {
+      throw 'L editeur Blockly versionne du mode A6 manque dans le ZIP.'
+    }
+    $baseMarker = $baseMatches[0].Value
+  }
+  [PSCustomObject]@{
+    Name = $name; Root = $root; Html = $html
+    EditorRoot = $editorRoot; BaseMarker = $baseMarker
+  }
 }
 
 function New-WebeeBlocksRobotWindowSession {
@@ -72,6 +106,20 @@ function New-WebeeBlocksRobotWindowSession {
       throw "HTML Robot Window de session introuvable : $copiedHtml"
     }
     Move-Item -LiteralPath $copiedHtml -Destination $html
+
+    if ($null -ne $RobotWindow.EditorRoot) {
+      # Reuse the existing loopback URL rewriter for the A6 shell. Resolve
+      # its assets from an isolated copy of the verified packaged editor.
+      Copy-Item -Path (Join-Path $RobotWindow.EditorRoot '*') -Destination $root -Recurse -Force
+      $shell = [System.IO.File]::ReadAllText($html, [System.Text.Encoding]::UTF8)
+      if ([regex]::Matches($shell, [regex]::Escape($RobotWindow.BaseMarker)).Count -ne 1 -or
+          [regex]::Matches($shell, '<base\b').Count -ne 1) {
+        throw 'La base locale du shell A6 a change pendant la preparation.'
+      }
+      [System.IO.File]::WriteAllText(
+        $html, $shell.Replace($RobotWindow.BaseMarker, ''),
+        [System.Text.UTF8Encoding]::new($false))
+    }
 
     $sourceMarker = 'window "' + $RobotWindow.Name + '"'
     $markerCount = [regex]::Matches($WorldText, [regex]::Escape($sourceMarker)).Count
@@ -512,7 +560,7 @@ if ([string]::IsNullOrWhiteSpace($webots)) {
   throw 'Webots R2025a est introuvable. Installez exactement R2025a dans C:\Program Files\Webots ou definissez WEBOTS_HOME.'
 }
 
-$robotWindow = Get-PackagedRobotWindow -WorldText $worldText
+$robotWindow = Get-PackagedRobotWindow -WorldText $worldText -CountH:$ExperimentalCountH
 
 if ($ValidateOnly) {
   $serverA = $null
@@ -595,7 +643,8 @@ if ($ValidateOnly) {
       throw 'Le nettoyage de session WebeeBlocks a laisse un artefact temporaire.'
     }
   }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime browser=direct-local-chrome local_http=loopback-ephemeral-session-isolated-connection-close"
+  $experimental = if ($ExperimentalCountH) { 'true' } else { 'false' }
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime browser=direct-local-chrome local_http=loopback-ephemeral-session-isolated-connection-close experimental_count_h=$experimental"
   exit 0
 }
 
