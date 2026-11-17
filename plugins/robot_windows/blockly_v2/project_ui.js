@@ -164,6 +164,10 @@
     } finally {
       runtimeScenePending = false;
       updateRuntimeActions();
+      // ProjectFiles can legitimately prepare a scene directly, outside the
+      // button-operation wrapper. Restore the selector after the final ACK.
+      // Native scene identity and busy/terminal guards remain authoritative.
+      renderButtons();
     }
   }
 

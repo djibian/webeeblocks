@@ -78,7 +78,11 @@ async function scenario(startProfileId, options={}){
     runtimeScenePending:false,runtimeTerminal:options.outcomePending===true,
     runtimeOutcomePending:options.outcomePending===true,runtimeProjectPending:false,
     async resetSimulation(){resetCalls++},
-    updateRuntimeActions(){},setRuntimeStatus(){},
+    updateRuntimeActions(){},setRuntimeStatus(state){
+      if(options.directProjectPreparation)
+        window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2',
+          {detail:{state}}));
+    },
     setRuntimeFailure(error){diagnostics.push('native:'+error.message)},
     runtimeDebug:{clearBreakpoints(){clearBreakpoints++}},
     console:{error(...args){diagnostics.push(args.map(v=>v?.message||String(v)).join(' '))},
@@ -86,7 +90,7 @@ async function scenario(startProfileId, options={}){
   // Access the real closure only through a test-local hook injected before
   // its IIFE closes; never expose this function in the product build.
   const instrumented=src.replace(/\n\}\)\(\);\s*$/,
-    '\n  window.__ciStarterIds = function(){return progressionProfiles().map(p=>p.id);};\n})();\n');
+    '\n  window.__ciStarterIds = function(){return progressionProfiles().map(p=>p.id);};\n  window.__ciPrepareProfileScene = prepareProfileScene;\n})();\n');
   assert.notEqual(instrumented,src,'cannot instrument private chooser in test');
   const control=new Function(...Object.keys(inputs),instrumented+
     '\nreturn {setOutcomePending(value){runtimeOutcomePending=value;}};')(...Object.values(inputs));
@@ -145,6 +149,22 @@ async function scenario(startProfileId, options={}){
     assert.equal(backendCalls.length,0,'non-A4 click attempted a scene mutation');
     assert.equal(manager.bytes(),bytes,'non-A4 variant changed project bytes');
     return {kind:'other-profile',status:'PASS'};
+  }
+  if(options.directProjectPreparation){
+    // Exact previous bug: ProjectFiles.openTemplateText calls prepareProfile
+    // without the outer operation() wrapper. PRÊT arrived while scenePending
+    // was still true, leaving the selector disabled after ACK completion.
+    assert(!btn.disabled,'initial native-ready variant control is disabled');
+    await window.__ciPrepareProfileScene(profile);
+    await flush();
+    assert.equal(backendCalls.length,1,'direct preparation skipped real backend');
+    assert.equal(backendCalls[0].scene,firstScene);
+    assert(!btn.hidden&&!btn.disabled,
+      'direct ProjectFiles preparation left the real pupil variant button stale');
+    assert(!editWouldBeBlocked(),'scene completion left Blockly read-only');
+    assert.equal(manager.bytes(),bytes,'direct profile preparation mutated .wbb');
+    assert.equal(saveWrites,0,'direct profile preparation created a file');
+    return {kind:'direct-project-prepare',status:'PASS'};
   }
   if(options.outcomePending===true){
     // Deliberately deliver a stale READY event in the interval where Blockly
@@ -268,6 +288,7 @@ async function scenario(startProfileId, options={}){
   const a4Fallback=await scenario('progression-decision-h-v1',{outcomePending:true,noReadOnlyApi:true});
   const a7Fallback=await scenario('progression-mini-grand-prix-v1',{outcomePending:true,noReadOnlyApi:true});
   const a6=await scenario('progression-count-h-v1');
+  const directPrepare=await scenario('progression-count-h-v1',{directProjectPreparation:true});
   const a6Pending=await scenario('progression-count-h-v1',{outcomePending:true});
   const a6Fallback=await scenario('progression-count-h-v1',{outcomePending:true,noReadOnlyApi:true});
   const other=await scenario('progression-sequence-v1');
@@ -277,6 +298,6 @@ async function scenario(startProfileId, options={}){
   assert.equal(otherWorldPublished.status,'PASS');
   console.log('PASS A4/A7 and hidden draft A6 variant session UI:',
     a4.status,pending.status,mini.status,miniPending.status,
-    a4Fallback.status,a7Fallback.status,a6.status,a6Pending.status,a6Fallback.status,
+    a4Fallback.status,a7Fallback.status,a6.status,directPrepare.status,a6Pending.status,a6Fallback.status,
     other.status,'two/three-world cycling, nonce ACK, pending outcome locked, unchanged .wbb, no autosave, rejection fail-closed');
 })().catch(error=>{console.error(error);process.exitCode=1});
