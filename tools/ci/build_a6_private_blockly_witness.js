@@ -314,6 +314,17 @@ async function main(){
     assert.equal(fs.readFileSync(dest,'utf8'),serialized,
       'private WBB artifact differs from the MOCK-qualified exact bytes');
   }
+  if(process.argv[3]) {
+    // This is a CI-only identity translation of an independently validated
+    // private witness. Do NOT expose it through the student starter/catalog.
+    const dest=path.resolve(process.argv[3]);
+    fs.mkdirSync(path.dirname(dest),{recursive:true});
+    fs.writeFileSync(dest,actualWbb,{encoding:'utf8',flag:'wx'});
+    assert.equal(fs.readFileSync(dest,'utf8'),actualWbb,
+      'CI-only genuine-profile A6 WBB bytes changed after validation');
+    console.log('WEBEEBLOCKS_A6_PRIVATE_REAL_PROFILE_WBB_EXPORTED '+
+      'pupil_starter=UNMODIFIED actual_student_ui_flight=UNPROVEN');
+  }
   console.log('WEBEEBLOCKS_A6_COMPACT_BLOCKLY_CANDIDATE '+ 
     'blocks='+witness.blockCount+' variables='+witness.variableCount+
     ' physical_webots=UNPROVEN pupil_wbb=UNPROVEN');

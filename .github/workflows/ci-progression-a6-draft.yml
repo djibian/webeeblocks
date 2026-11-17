@@ -91,7 +91,7 @@ jobs:
       - name: Qualify private A6 Blockly Save/Open witness with identical program in three mock worlds
         run: |
           set -euo pipefail
-          node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb
+          node tools/ci/build_a6_private_blockly_witness.js ci-artifacts/progression-count-h-private-blockly/a6-private.wbb ci-artifacts/progression-count-h-private-blockly/a6-real-profile-ci-only.wbb
           # This is only a negative/positive MOCK test of the real sensor-only
           # JS module. True R2025a PID/motor, oracle and same-pupil-WBB
           # qualification remain separate, stronger requirements.

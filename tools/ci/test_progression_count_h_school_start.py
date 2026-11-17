@@ -53,6 +53,17 @@ class CountHSchoolStartTest(unittest.TestCase):
         self.assertNotIn('DEF WEBEEBLOCKS_COUNT_',school)
         self.assertNotIn('Progression sequence evaluator',school)
         self.assertNotIn('controller "crazyflie_runtime_v2"',school)
+    def test_private_generic_reference_export_is_hidden_and_real_profile_only(self):
+        # Real product-profile identity is validated before export, but the
+        # private CI program must never become an A6 pupil starter.
+        builder=(ROOT/'tools/ci/build_a6_private_blockly_witness.js').read_text(encoding='utf-8')
+        workflow=(ROOT/'.github/workflows/ci-progression-a6-draft.yml').read_text(encoding='utf-8')
+        profile=(ROOT/'plugins/robot_windows/blockly/webeeblocks/activities.js').read_text(encoding='utf-8')
+        self.assertIn('WEBEEBLOCKS_A6_PRIVATE_REAL_PROFILE_WBB_EXPORTED',builder)
+        self.assertIn("ProjectFiles.validateProjectText(\n    actualWbb,actualProfile,actualOptions)",builder)
+        self.assertIn('a6-real-profile-ci-only.wbb',workflow)
+        self.assertIn('starterVisible: false,\n        id: \'progression-count-h-v1\'',profile)
+
     def test_real_chrome_browser_project_roundtrip_is_observed_and_scoped(self):
         # The actual A6 CDP runner must exercise the real browser project
         # manager, not merely compare an empty workspace across variants.
