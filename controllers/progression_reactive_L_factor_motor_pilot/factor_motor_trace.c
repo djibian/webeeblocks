@@ -23,7 +23,7 @@ static unsigned long count = 0;
 static int started = 0, failed = 0, floor_emitted = 0, airborne = 0;
 static double last_t = -1, prev[3] = {0,0,0};
 static char variant = 0;
-static int far_h = 0;
+static int far_h = 0, gate_left = 0;
 static const char *const types[7] = {
   "H_CUE_ARM","H_CUE_TIP","G_LOWER","G_UPPER","G_SIDE_ARM",
   "G_LEFT_BOUNDARY","G_RIGHT_BOUNDARY"
@@ -76,7 +76,10 @@ static int init_monitor(int duration) {
   const int near=fabs(arm_y-.58)<.000001&&fabs(tip_pos[1]-.78)<.000001;
   far_h=fabs(arm_y-1.18)<.000001&&fabs(tip_pos[1]-1.38)<.000001;
   if(near==far_h)return 0;
-  variant=a?(far_h?'C':'A'):(far_h?'D':'B');
+  /* Gate geometry comes from the actual native scene, not a letter
+   * whose ordinal changes when the H factor is added. */
+  gate_left=a!=NULL;
+  variant=gate_left?(far_h?'C':'A'):(far_h?'D':'B');
   craft=wb_supervisor_node_get_self();
   gps=wb_robot_get_device("gps");
   if(!craft||!gps||duration!=32)return 0;
@@ -140,15 +143,15 @@ int __wrap_wb_robot_step(int duration) {
     }
     const double center[7][3]={
       {0,far_h?1.18:.58,.55},{.20,far_h?1.38:.78,.55},
-      {3.10,variant=='A'?-.55:-1.16,.55},
-      {3.10,variant=='A'?1.16:.55,.55},
-      {2.45,variant=='A'?-.58:.58,.55},
+      {3.10,gate_left?-.55:-1.16,.55},
+      {3.10,gate_left?1.16:.55,.55},
+      {2.45,gate_left?-.58:.58,.55},
       {3.00,1.45,.55},{3.00,-1.45,.55}
     };
     const double half[7][3]={
       {.20,.04,.55},{.04,.24,.55},
-      {.04,variant=='A'?.85:.24,.55},
-      {.04,variant=='A'?.24:.85,.55},
+      {.04,gate_left?.85:.24,.55},
+      {.04,gate_left?.24:.85,.55},
       {.35,.04,.55},{1.20,.04,.55},{1.20,.04,.55}
     };
     double start[3]={prev[0],prev[1],prev[2]};

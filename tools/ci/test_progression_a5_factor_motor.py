@@ -109,6 +109,13 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn('far?1.38:.78',scene)
         self.assertIn('target_y=far_h?-.62:.62',trace)
         self.assertIn("if(near==far_h)return 0",trace)
+        # C shares real G-left with A; D shares G-right with B.
+        # The old 'variant == A' shortcut falsely mirrored C's swept
+        # obstacle and refused an otherwise legitimate left-gate flight.
+        self.assertIn("gate_left=a!=NULL;",trace)
+        self.assertIn("variant=gate_left?(far_h?'C':'A'):(far_h?'D':'B');",trace)
+        self.assertEqual(trace.count("gate_left?"),6)
+        self.assertNotIn("variant=='A'?",trace)
         self.assertIn("WEBEEBLOCKS_A5_FACTOR_MOTOR_BROWSER_BOUNDARY_MISSING",runner)
         self.assertIn('"web_browser_invoked":launch.exists()',runner)
         self.assertIn('"native_motor_attempted":False',runner)
