@@ -80,17 +80,21 @@ int main(void) {
   cross_higher(&m);
   finish_stably(&m, 6.0, 1.35, 0, 0.015);
   assert(step(&m, 10.0, 0.0, 0, 1.4, 0, 1, 1) == WB_ALT_ACHIEVED);
-  assert(m.result == WB_ALT_ACHIEVED);
+  assert(m.result == WB_ALT_ACHIEVED && m.reason == WB_ALT_REASON_NONE);
 
   /* Re-use of attempt 2 after RESET cannot inherit success. */
   normal_takeoff(&m, 2);
-  assert(!m.crossed_barrier && m.result == WB_ALT_WAIT);
+  assert(!m.crossed_barrier && m.result == WB_ALT_WAIT &&
+         m.reason == WB_ALT_REASON_NONE);
   assert(step(&m, 5.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_EARLY);
   assert(step(&m, 6.6, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_EARLY);
 
   /* Flying below the true physical barrier is terminal failure. */
   normal_takeoff(&m, 3);
   assert(step(&m, 1.1, 0.48, 0, 0.51, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_CLEARANCE);
 
   /* Actual barrier and side-wall contact points are discriminated. */
   const double ground[3] = {0, 0, 0};
@@ -109,10 +113,13 @@ int main(void) {
   assert(wb_alt_obstacle_point(invalid) == -1);
   normal_takeoff(&m, 4);
   assert(step(&m, 1.1, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_CONTACT);
+  assert(!strcmp(wb_alt_reason_token(m.reason), "obstacle-contact"));
 
   /* No contact evidence is NOT permission to grant success. */
   normal_takeoff(&m, 5);
   assert(step(&m, 1.1, 0.3, 0, 0.48, 0, -1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_NONE);
   normal_takeoff(&m, 6);
   assert(step(&m, 1.1, 0.3, 0, NAN, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
 
@@ -121,10 +128,12 @@ int main(void) {
   cross_higher(&m);
   assert(step(&m, 6.0, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.35, 0.20, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_WRONG_PAD);
   normal_takeoff(&m, 8);
   cross_higher(&m);
   assert(step(&m, 6.0, 1.35, 0, 0.02, 0.25, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.35, 0, 0.02, 0.25, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_LANDING);
 
   /* Takeoff without a physical crossing cannot certify climbing. */
   normal_takeoff(&m, 9);
@@ -247,6 +256,7 @@ int main(void) {
     for(int i=1;i<=9;++i)
       assert(step(&m, 6+.032*i, 1.35, 0, hover, 0, 0, 0) == WB_ALT_WAIT);
     assert(step(&m, 7.500, 1.35, 0, hover, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+    assert(m.reason == WB_ALT_REASON_LANDING);
     /* Real grounded landing must remain possible after the same course. */
     wb_alt_reset(&m, 210+v, origin);
     assert(step(&m, 0, 0, 0, origin, 0, 0, 0) == WB_ALT_WAIT);
@@ -282,7 +292,9 @@ int main(void) {
   assert(step_with_floor(&m,6.000,1.35,0,.015,0,0,1,-1)
          ==WB_ALT_NOT_ACHIEVED);
 
-  puts("PASS native altitude C oracle: continuous sampled landing, terminal deadline, early completion, collision, reset, negatives");
+  assert(wb_alt_reason_token(WB_ALT_REASON_NONE) == NULL);
+  assert(wb_alt_reason_token((wb_alt_reason)999) == NULL);
+  puts("PASS native altitude C oracle and irreversible failure reasons: landing, deadline, early completion, collision, reset, negatives");
   return 0;
 }
 """
@@ -349,7 +361,8 @@ class NativeAltitudeContract(unittest.TestCase):
         source = (ROOT / "tools/ci/run_classroom_altitude_canopy.py").read_text(
             encoding="utf-8")
         self.assertIn("native_fatals == [expected_fatal]", source)
-        self.assertIn("all(left < right for left, right in zip(", source)
+        self.assertIn("known_fatals and high_fail_safe_event_order(*positions)", source)
+        self.assertIn("len(high_error_responses) == 1", source)
         self.assertIn("not high_fail_safe_verified", source)
         self.assertIn("RESPONSE 2 ERR UNSAFE_OR_TIMEOUT", source)
         self.assertIn("WEBEEBLOCKS_RUNTIME_V2 TRACE RESET", source)
@@ -357,6 +370,34 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn(r"\bcontact=0\b", source)
         self.assertIn(r"\bcompletion=1\b", source)
         self.assertNotIn("'WEBEEBLOCKS_RUNTIME_V2 FATAL' in transcript", source)
+
+    def test_canopy_error_and_fatal_can_arrive_in_either_safe_order(self):
+        # The CI failure on #1041 HEAD e49fa431 recorded the authentic
+        # RESPONSE 2 before FATAL; a previous PASS recorded the reverse.
+        # Both must still occur after the obstacle contact and before RESET.
+        import importlib
+        import sys
+        ci_dir = str(ROOT / "tools/ci")
+        sys.path.insert(0, ci_dir)
+        try:
+            runner = importlib.import_module("run_classroom_altitude_canopy")
+        finally:
+            sys.path.remove(ci_dir)
+        order = runner.high_fail_safe_event_order
+        self.assertTrue(order(10, 20, 30, 40, 50))
+        self.assertTrue(order(10, 30, 20, 40, 50))
+        for unsafe in (
+            (-1, 20, 30, 40, 50),  # no physical contact
+            (10, -1, 30, 40, 50),  # no native FATAL
+            (10, 20, -1, 40, 50),  # no native error response
+            (10, 9, 30, 40, 50),   # FATAL precedes collision
+            (10, 20, 9, 40, 50),   # response precedes collision
+            (10, 41, 30, 40, 50),  # FATAL after RESET
+            (10, 20, 41, 40, 50),  # response after RESET
+            (10, 20, 30, 40, 39),  # success preceded RESET
+        ):
+            with self.subTest(unsafe=unsafe):
+                self.assertFalse(order(*unsafe))
 
     def test_canopy_witness_submits_real_completion_after_landing(self):
         # The first real R2025a canopy run proved the upper collision and
@@ -371,6 +412,17 @@ class NativeAltitudeContract(unittest.TestCase):
                         source.index("await outcome(backend,'achieved',80000);"))
         self.assertIn("await backend.prepareActivity(PROFILE);", source)
         self.assertIn("await backend.resetSimulation();", source)
+        # Require actual A2 native reason -> school WWI result -> public French
+        # translation in a real R2025a browser, not a synthetic JS status.
+        self.assertIn("WebeeBlocksRuntimeOutcome.classifyMission(high,ORACLE)", source)
+        self.assertIn("WebeeBlocksRuntimeOutcome.classifyMission(blind,ORACLE)", source)
+        self.assertIn("high.reason !== 'obstacle-contact'", source)
+        html = (ROOT / "plugins/robot_windows/altitude_canopy_probe/"
+                "altitude_canopy_probe.html").read_text(encoding="utf-8")
+        self.assertIn("../blockly/webeeblocks/runtime_outcome.js", html)
+        runner = (ROOT / "tools/ci/run_classroom_altitude_canopy.py").read_text(encoding="utf-8")
+        self.assertIn("high_native_reason_displayed", runner)
+        self.assertIn("blind_native_reason_displayed", runner)
 
     def test_pupil_blockly_webots_witness_is_native_and_distinct(self):
         # A native shell flight with a fabricated JS profile cannot establish

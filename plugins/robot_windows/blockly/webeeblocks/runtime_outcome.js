@@ -60,6 +60,14 @@
     'time-limit': 'Durée maximale de 210 secondes dépassée'
   });
 
+  var A2_PUBLIC_REASONS = Object.freeze({
+    'obstacle-contact': 'Contact avec un obstacle',
+    'unsafe-clearance': 'Hauteur ou passage dangereux près de l’obstacle',
+    'early-finish': 'Parcours non franchi avant la fin du programme',
+    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'wrong-pad': 'Atterrissage hors du damier'
+  });
+
   var A4_PUBLIC_REASONS = Object.freeze({
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
@@ -83,6 +91,10 @@
         evaluation.oracle === 'grand-prix-route-v2' &&
         Object.prototype.hasOwnProperty.call(GRAND_PRIX_PUBLIC_REASONS, reason))
       detail += ' — ' + GRAND_PRIX_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-altitude-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A2_PUBLIC_REASONS, reason))
+      detail += ' — ' + A2_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))

@@ -57,6 +57,28 @@ typedef enum {
   WB_ALT_NOT_ACHIEVED = 2
 } wb_alt_verdict;
 
+/* Diagnostic uniquement : la première observation irréversiblement
+ * invalidante est attestée par l'oracle C, jamais déduite de l'AST. */
+typedef enum {
+  WB_ALT_REASON_NONE = 0,
+  WB_ALT_REASON_CONTACT,
+  WB_ALT_REASON_CLEARANCE,
+  WB_ALT_REASON_EARLY,
+  WB_ALT_REASON_LANDING,
+  WB_ALT_REASON_WRONG_PAD
+} wb_alt_reason;
+
+static inline const char *wb_alt_reason_token(wb_alt_reason reason) {
+  switch (reason) {
+    case WB_ALT_REASON_CONTACT: return "obstacle-contact";
+    case WB_ALT_REASON_CLEARANCE: return "unsafe-clearance";
+    case WB_ALT_REASON_EARLY: return "early-finish";
+    case WB_ALT_REASON_LANDING: return "landing-timeout";
+    case WB_ALT_REASON_WRONG_PAD: return "wrong-pad";
+    default: return NULL;
+  }
+}
+
 typedef struct {
   unsigned long long attempt;
   double origin_z;
@@ -72,6 +94,7 @@ typedef struct {
   int collision_seen;
   int completion_seen;
   wb_alt_verdict result;
+  wb_alt_reason reason; /* Premier échec irréversible observé. */
 } wb_alt_mission;
 
 typedef struct {
@@ -140,6 +163,7 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
   }
   if (s->obstacle_contact) {
     m->collision_seen = 1;
+    m->reason = WB_ALT_REASON_CONTACT;
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
@@ -167,6 +191,7 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
   if (in_barrier_span &&
       fabs(y) <= WB_ALT_BARRIER_HALF_Y + WB_ALT_CRAFT_CLEARANCE &&
       z < WB_ALT_BARRIER_TOP + WB_ALT_CRAFT_CLEARANCE) {
+    m->reason = WB_ALT_REASON_CLEARANCE;
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
@@ -177,6 +202,7 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     m->completion_seen = 1;
     m->completion_at = s->time;
     if (!m->airborne || !m->crossed_barrier) {
+      m->reason = WB_ALT_REASON_EARLY;
       m->result = WB_ALT_NOT_ACHIEVED;
       return m->result;
     }
@@ -198,6 +224,14 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     return WB_ALT_WAIT;
   /* Terminal timeout wins even if the stability window ends at this tick. */
   if (s->time - m->completion_at >= WB_ALT_SETTLE_SEC) {
+    /* Une mauvaise zone est attestée seulement en contact réel avec le sol,
+     * à hauteur compatible. Ne pas transformer un vol stationnaire en pose. */
+    const int off_pad =
+      fabs(x - WB_ALT_TARGET_X) > WB_ALT_TARGET_X_TOL ||
+      fabs(y - WB_ALT_TARGET_Y) > WB_ALT_TARGET_Y_TOL;
+    m->reason = s->floor_contact == 1 &&
+      s->z <= WB_ALT_MAX_ABSOLUTE_LANDING_Z && off_pad
+      ? WB_ALT_REASON_WRONG_PAD : WB_ALT_REASON_LANDING;
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }

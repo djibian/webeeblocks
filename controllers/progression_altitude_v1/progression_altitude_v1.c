@@ -143,15 +143,23 @@ static void publish(WbFieldRef channel, unsigned long long attempt,
                     wb_alt_verdict result, const wb_alt_mission *mission,
                     int floor_contact) {
   const char *status = result == WB_ALT_ACHIEVED ? "achieved" : "not-achieved";
+  const char *reason = result == WB_ALT_NOT_ACHIEVED
+    ? wb_alt_reason_token(mission->reason) : NULL;
   char marker[192];
-  snprintf(marker, sizeof(marker),
-           "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-           attempt, WB_ALT_ORACLE, status);
+  const int n = reason
+    ? snprintf(marker, sizeof(marker),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+        attempt, WB_ALT_ORACLE, status, reason)
+    : snprintf(marker, sizeof(marker),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+        attempt, WB_ALT_ORACLE, status);
+  if (n <= 0 || (size_t)n >= sizeof(marker)) return;
   wb_supervisor_field_set_sf_string(channel, marker);
   printf("WEBEEBLOCKS_ALTITUDE_RESULT attempt=%llu status=%s "
-         "airborne=%d crossed=%d contact=%d completion=%d floor_contact=%d\n",
+         "airborne=%d crossed=%d contact=%d completion=%d floor_contact=%d reason=%s\n",
          attempt, status, mission->airborne, mission->crossed_barrier,
-         mission->collision_seen, mission->completion_seen, floor_contact);
+         mission->collision_seen, mission->completion_seen, floor_contact,
+         reason ? reason : "none");
   fflush(stdout);
 }
 
