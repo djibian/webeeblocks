@@ -1,9 +1,9 @@
 # Draft-only genuine Webots R2025a motor feasibility; NOT physical or pupil product.
 # Preserve the locked product runtime/PID source verbatim. This is a separate
 # test executable; only the scene admission and observational wrapper vary.
-C_SOURCES = ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/runtime_entry.c ../crazyflie_runtime_v2/progression_sequence_evaluator.c ../crazyflie_runtime_v2/progression_precise_evaluator.c ../crazyflie_runtime_v2/progression_repeat_evaluator.c ../crazyflie_runtime_v2/progression_simple_decision_evaluator.c ../crazyflie_runtime_v2/progression_reactive_evaluator.c ../crazyflie_runtime_v2/progression_combined_decisions_evaluator.c ../crazyflie_runtime_v2/progression_autonomous_evaluator.c ../crazyflie_square/pid_controller.c factor_motor_trace.c
+C_SOURCES = ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/runtime_entry.c ../crazyflie_runtime_v2/progression_sequence_evaluator.c ../crazyflie_runtime_v2/progression_precise_evaluator.c ../crazyflie_runtime_v2/progression_repeat_evaluator.c ../crazyflie_runtime_v2/progression_simple_decision_evaluator.c ../crazyflie_runtime_v2/progression_reactive_evaluator.c ../crazyflie_runtime_v2/progression_combined_decisions_evaluator.c ../crazyflie_runtime_v2/progression_autonomous_evaluator.c ../crazyflie_square/pid_controller.c factor_motor_trace.c factor_motor_feeder.c
 CFLAGS = -I../crazyflie_square -I../crazyflie_runtime_v2 -Dmain=webeeblocks_runtime_flight_main
-LFLAGS += -Wl,--wrap=wb_robot_step
+LFLAGS += -Wl,--wrap=wb_robot_step -Wl,--wrap=wb_robot_wwi_receive_text -Wl,--wrap=wb_robot_wwi_send_text
 CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp factor_school_scene.cpp
 USE_C_API = true
 CFLAGS += -std=c++17 -fPIC -include ../crazyflie_runtime_v2/file_broker_interpose.h
