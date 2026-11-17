@@ -12,6 +12,7 @@ import time
 from urllib.request import urlopen
 import websocket
 from count_h_cdp_evidence import attest_visit
+from a6_pupil_negative_cdp import negative_flight_then_reset
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLD = ROOT / "worlds/crazyflie_classroom_count_h_start.wbt"
@@ -168,7 +169,7 @@ def run():
         raise AssertionError("wrong school WBT")
     process=None
     dev=None
-    result={"pass":False,"scope":"Actual Chrome with short nonempty Blockly program, native scenes and in-browser .wbb roundtrip; no OS Save/Open, pupil gestures, flight or Windows release"}
+    result={"pass":False,"scope":"Real A6 student-like non-solution: native scenes, in-browser .wbb, negative flight and RESET; no OS Save/Open, pupil drag or Windows release"}
     visits=[]
     project_bytes=None
     # Each native READY belongs to one scene incarnation, not to a previously
@@ -182,10 +183,10 @@ def run():
         env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"
         with log.open("w",encoding="utf-8") as output:
             process=subprocess.Popen(
-                ["timeout","-k","5s","200s","xvfb-run","-a","webots",
+                ["timeout","-k","5s","360s","xvfb-run","-a","webots",
                  "--stdout","--stderr","--batch","--mode=realtime",str(WORLD)],
                 cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
-            deadline=time.monotonic()+180
+            deadline=time.monotonic()+335
             original=None
             for index,count in enumerate((1,2,3,1)):
                 if index:
@@ -311,6 +312,7 @@ def run():
             raise AssertionError("incomplete real A6 native scene cycle")
         if observed_ready!={1:2,2:1,3:1} or len(seen_scene_nonces)!=4:
             raise AssertionError("A6 did not attest four fresh native scene epochs")
+        result["negative_pupil_reset"]=negative_flight_then_reset(dev,process,log,content,FATAL)
         result["pass"]=True
         result["visited"]=visits
     except Exception as error:

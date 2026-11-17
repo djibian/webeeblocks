@@ -70,6 +70,7 @@ class CountHSchoolStartTest(unittest.TestCase):
             'A6_REAL_BROWSER_WBB_ROUNDTRIP_PASS',
             'os_save_open=UNPROVEN',
             'same_native_epoch_preserved',
+            'negative_flight_then_reset',
             'ack_after!=ack_before',
             'observer_after!=observer_before',
             'responses_after!=responses_before',
