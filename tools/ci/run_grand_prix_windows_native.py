@@ -60,7 +60,67 @@ def validate(directory, seed):
     return result
 
 
-def stop(process):
+def _filter_windows_tree(rows, root_pid, watched=()):
+    """Bounded process-identity evidence; NEVER a successful-cleanup oracle."""
+    if not isinstance(rows, list) or len(rows) > 4096 or len(watched) > 64:
+        raise ValueError('Windows process snapshot is malformed or too large')
+    by_pid = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError('Malformed process row')
+        pid, parent = row.get('ProcessId'), row.get('ParentProcessId')
+        if type(pid) is not int or type(parent) is not int or pid <= 0 or parent < 0:
+            raise ValueError('Malformed process identifiers')
+        created = row.get('CreationDate')
+        if created is not None and not isinstance(created, str):
+            raise ValueError('Malformed process creation identity')
+        by_pid[pid] = dict(pid=pid, parent=parent, created=created,
+                           name=str(row.get('Name', ''))[:128])
+    owned = {root_pid}
+    for _ in range(65):
+        new = owned | {r['pid'] for r in by_pid.values() if r['parent'] in owned}
+        if len(new) > 64:
+            raise ValueError('Windows process tree exceeds diagnostic bound')
+        if new == owned:
+            break
+        owned = new
+    else:
+        raise ValueError('Windows process tree did not converge')
+    return dict(available=True, root_present=root_pid in by_pid,
+                owned=[by_pid[pid] for pid in sorted(owned) if pid in by_pid],
+                watched=[by_pid[pid] for pid in sorted(set(watched))
+                         if pid in by_pid])
+
+
+def _windows_process_snapshot(root_pid, watched=()):
+    """Observe process parent PID and creation identity via native Windows CIM.
+
+    A Toolhelp/CIM snapshot can race child creation and is NOT proof of total
+    extinction. Preserve both snapshots; never use them to excuse taskkill.
+    """
+    if sys.platform != 'win32':
+        return {'available': False, 'error': 'Windows-only observation'}
+    try:
+        command = ("$ErrorActionPreference='Stop'; "
+                   "Get-CimInstance Win32_Process | "
+                   "Select-Object ProcessId,ParentProcessId,CreationDate,Name | "
+                   "ConvertTo-Json -Compress -Depth 3")
+        result = subprocess.run(
+            ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive',
+             '-Command', command], stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, check=True, timeout=15)
+        if len(result.stdout) > 512000:
+            raise ValueError('Process inventory exceeds diagnostic byte bound')
+        rows = json.loads(result.stdout.decode('utf-8-sig', errors='replace'))
+        if isinstance(rows, dict):
+            rows = [rows]
+        return _filter_windows_tree(rows, root_pid, watched)
+    except (OSError, subprocess.SubprocessError, ValueError, UnicodeError) as error:
+        return {'available': False,
+                'error': (type(error).__name__ + ': ' + str(error))[:512]}
+
+
+def stop(process, diagnostic_path=None):
     if process is None:
         return
     status = process.poll()
@@ -71,30 +131,68 @@ def stop(process):
                 f'process={status!r}'
             )
         return
-    # This runner is Windows-only. Retire only the launched PID's process tree.
+    # Diagnostic only. Unchanged decision: taskkill failure with nonzero exit
+    # must still FAIL, regardless of textual SUCCESS or a vanishing PID.
+    evidence = {'schema': 'webeeblocks-windows-owned-cleanup-v1',
+                'root_pid': process.pid,
+                'snapshot_limitations': 'Not an exhaustive process-lifetime monitor'}
+    if diagnostic_path is not None:
+        evidence['before'] = _windows_process_snapshot(process.pid)
     try:
-        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
-    except subprocess.CalledProcessError as failure:
-        # An exiting process can still be visible to poll() momentarily when
-        # taskkill races its shutdown. Wait a strictly bounded interval, but
-        # accept ONLY a proven zero exit; nonzero and still-running remain FAIL.
-        status = process.poll()
-        if status is None:
-            try:
-                status = process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                status = None
-        if status != 0:
-            detail = failure.output or b''
-            if isinstance(detail, bytes):
-                detail = detail.decode('utf-8', errors='replace')
-            raise RuntimeError(
-                f'Owned Windows PID {process.pid} cleanup unproven: '
-                f'taskkill={failure.returncode}, process={status!r}, '
-                f'output={detail[-512:]!r}'
-            ) from failure
-    process.wait(timeout=20)
+        try:
+            result = subprocess.run(
+                ['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+            evidence['taskkill_returncode'] = result.returncode
+            output = result.stdout or b''
+        except subprocess.CalledProcessError as failure:
+            evidence['taskkill_returncode'] = failure.returncode
+            output = failure.output or b''
+            evidence['taskkill_output'] = (
+                output.decode('utf-8', errors='replace') if isinstance(output, bytes)
+                else str(output))[:16384]
+            evidence['taskkill_output_truncated'] = len(output) > 16384
+            status = process.poll()
+            if status is None:
+                try:
+                    status = process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    status = None
+            evidence['process_after_taskkill'] = status
+            if status != 0:
+                detail = output.decode('utf-8', errors='replace') if isinstance(
+                    output, bytes) else str(output)
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup unproven: '
+                    f'taskkill={failure.returncode}, process={status!r}, '
+                    f'output={detail[-512:]!r}'
+                ) from failure
+        if diagnostic_path is not None and 'taskkill_output' not in evidence:
+            evidence['taskkill_output'] = (
+                output.decode('utf-8', errors='replace') if isinstance(output, bytes)
+                else str(output))[:16384]
+            evidence['taskkill_output_truncated'] = len(output) > 16384
+        evidence['wait_returncode'] = process.wait(timeout=20)
+    except Exception as error:
+        evidence['exception'] = (type(error).__name__ + ': ' + str(error))[:750]
+        raise
+    finally:
+        if diagnostic_path is not None:
+            before = evidence.get('before', {})
+            watched = [x['pid'] for x in before.get('owned', [])]
+            after = _windows_process_snapshot(process.pid, watched)
+            evidence['after'] = after
+            if before.get('available') and after.get('available'):
+                old = {(p['pid'], p['created']) for p in before['owned']
+                       if p['created'] is not None}
+                evidence['still_present_same_pid_and_creation'] = [
+                    p for p in after['watched']
+                    if (p['pid'], p['created']) in old]
+                evidence['identity_unproven'] = [
+                    p['pid'] for p in before['owned'] if p['created'] is None]
+            diagnostic_path.write_text(
+                json.dumps(evidence, sort_keys=True, indent=2) + '\n',
+                encoding='utf-8')
 
 
 def engine_environment(home, ambient):
@@ -137,7 +235,7 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
             yield process
         finally:
             try:
-                stop(process)
+                stop(process, diagnostic_path=stdout_path.parent / 'webots-process-cleanup.json')
             finally:
                 for thread in threads:
                     thread.join(timeout=20)

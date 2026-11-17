@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate, stop
+from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate, stop, _filter_windows_tree
 from tools.grand_prix.layout_u import generate
 from tools.grand_prix.package_windows_u import local_world
 
@@ -88,6 +88,95 @@ class EvidenceTests(unittest.TestCase):
         with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
             stop(already_stopped)
             run.assert_not_called()
+
+    def test_cleanup_snapshot_preserves_child_creation_identity_and_bounds(self):
+        rows = [
+            dict(ProcessId=77, ParentProcessId=2, CreationDate='20261117T200000',
+                 Name='webots-bin.exe'),
+            dict(ProcessId=78, ParentProcessId=77, CreationDate='20261117T200001',
+                 Name='QtWebEngineProcess.exe'),
+            dict(ProcessId=79, ParentProcessId=78, CreationDate='20261117T200002',
+                 Name='robot.exe'),
+            dict(ProcessId=80, ParentProcessId=4, CreationDate='20261117T200003',
+                 Name='unrelated.exe')
+        ]
+        seen = _filter_windows_tree(rows, 77)
+        self.assertTrue(seen['root_present'])
+        self.assertEqual([p['pid'] for p in seen['owned']], [77, 78, 79])
+        self.assertEqual(seen['watched'], [])
+        # After root disappears, a surviving descendant keeps its original
+        # identity even if its parent is no longer listed in the snapshot.
+        surviving = _filter_windows_tree(rows[2:], 77, watched=[77, 78, 79])
+        self.assertFalse(surviving['root_present'])
+        self.assertEqual(surviving['owned'], [])
+        self.assertEqual([p['pid'] for p in surviving['watched']], [79])
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([dict(ProcessId=True, ParentProcessId=77)], 77)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree(rows * 1025, 77)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree(rows, 77, watched=list(range(65)))
+
+    def test_taskkill_128_preserves_failure_and_full_evidence_not_just_tail(self):
+        command = ['taskkill', '/PID', '2232', '/T', '/F']
+        process = mock.Mock(pid=2232)
+        process.poll.side_effect = [None, 1]
+        failed = subprocess.CalledProcessError(
+            128, command,
+            output=b'ERROR: hypothetical missing child before successes\r\n'
+                   + b'SUCCESS: terminated child\r\n' * 40)
+        before = dict(available=True, owned=[
+            dict(pid=2232, parent=100, name='webots-bin.exe',
+                 created='t1'),
+            dict(pid=4520, parent=2232, name='child.exe',
+                 created='t2')])
+        after = dict(available=True, owned=[], watched=[
+            dict(pid=4520, parent=2232, name='child.exe', created='t2')])
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / 'webots-process-cleanup.json'
+            with mock.patch(
+                'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                side_effect=[before, after]) as snap, mock.patch(
+                'tools.ci.run_grand_prix_windows_native.subprocess.run',
+                side_effect=failed) as invoked:
+                with self.assertRaisesRegex(RuntimeError, 'cleanup unproven'):
+                    stop(process, diagnostic_path=evidence)
+                snap.assert_any_call(2232)
+                snap.assert_any_call(2232, [2232, 4520])
+                invoked.assert_called_once()
+                self.assertTrue(invoked.call_args.kwargs['check'])
+            record = json.loads(evidence.read_text(encoding='utf-8'))
+            self.assertEqual(record['taskkill_returncode'], 128)
+            self.assertEqual(record['process_after_taskkill'], 1)
+            self.assertIn('ERROR: hypothetical missing child',
+                          record['taskkill_output'])
+            self.assertFalse(record['taskkill_output_truncated'])
+            self.assertEqual(record['still_present_same_pid_and_creation'],
+                             after['watched'])
+            self.assertIn('cleanup unproven', record['exception'])
+        process.wait.assert_not_called()
+
+    def test_successful_taskkill_is_only_observed_not_manufactured(self):
+        process = mock.Mock(pid=456)
+        process.poll.return_value = None
+        process.wait.return_value = 1  # taskkill intentionally terminates process
+        before = dict(available=True, owned=[
+            dict(pid=456, parent=100, created='t1', name='native.exe')])
+        after = dict(available=True, owned=[], watched=[])
+        with tempfile.TemporaryDirectory() as tmp:
+            diagnostic = Path(tmp) / 'cleanup.json'
+            with mock.patch(
+                'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                side_effect=[before, after]), mock.patch(
+                'tools.ci.run_grand_prix_windows_native.subprocess.run',
+                return_value=subprocess.CompletedProcess(
+                    ['taskkill'], 0, stdout=b'SUCCESS: terminated')):
+                stop(process, diagnostic_path=diagnostic)
+            actual = json.loads(diagnostic.read_text(encoding='utf-8'))
+            self.assertEqual(actual['taskkill_returncode'], 0)
+            self.assertEqual(actual['wait_returncode'], 1)
+            self.assertEqual(actual['still_present_same_pid_and_creation'], [])
+        process.wait.assert_called_once_with(timeout=20)
 
     def test_offline_world_uses_exact_webots_floor_plane_not_box(self):
         # Upstream R2025a Floor.proto has a locked Solid/Plane collider.
