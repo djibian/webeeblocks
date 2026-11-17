@@ -62,13 +62,28 @@ def validate(directory, seed):
 
 def _filter_windows_tree(rows, root_pid, watched=()):
     """Bounded process-identity evidence; NEVER a successful-cleanup oracle."""
-    if not isinstance(rows, list) or len(rows) > 4096 or len(watched) > 64:
+    if (not isinstance(rows, list) or len(rows) > 4096 or len(watched) > 64 or
+            type(root_pid) is not int or root_pid <= 0 or
+            any(type(pid) is not int or pid <= 0 for pid in watched)):
         raise ValueError('Windows process snapshot is malformed or too large')
     by_pid = {}
+    system_idle_excluded = 0
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError('Malformed process row')
         pid, parent = row.get('ProcessId'), row.get('ParentProcessId')
+        # Win32_Process includes the reserved System Idle Process (PID 0).
+        # It can never belong to a launched positive-PID tree. Its parent is
+        # commonly 0 or null; reject any purported positive parent instead.
+        # Only this well-defined system row may be omitted. A malformed
+        # positive-PID row remains UNAVAILABLE, never evidence of cleanup.
+        if type(pid) is int and pid == 0:
+            if parent is not None and (type(parent) is not int or parent != 0):
+                raise ValueError('Malformed System Idle Process parent')
+            system_idle_excluded += 1
+            if system_idle_excluded > 1:
+                raise ValueError('Duplicate System Idle Process rows')
+            continue
         if type(pid) is not int or type(parent) is not int or pid <= 0 or parent < 0:
             raise ValueError('Malformed process identifiers')
         created = row.get('CreationDate')
@@ -87,6 +102,7 @@ def _filter_windows_tree(rows, root_pid, watched=()):
     else:
         raise ValueError('Windows process tree did not converge')
     return dict(available=True, root_present=root_pid in by_pid,
+                excluded_system_idle_rows=system_idle_excluded,
                 owned=[by_pid[pid] for pid in sorted(owned) if pid in by_pid],
                 watched=[by_pid[pid] for pid in sorted(set(watched))
                          if pid in by_pid])

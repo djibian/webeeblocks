@@ -117,6 +117,46 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _filter_windows_tree(rows, 77, watched=list(range(65)))
 
+    def test_system_idle_pid_zero_is_excluded_only_when_unrelated(self):
+        # Windows Win32_Process may include System Idle Process as PID 0,
+        # with ParentProcessId 0 or null. It is never an owned child of a
+        # positive PID and must not invalidate every useful CIM snapshot.
+        root = dict(ProcessId=77, ParentProcessId=4,
+                    CreationDate='20261117T201000', Name='webots-bin.exe')
+        child = dict(ProcessId=78, ParentProcessId=77,
+                     CreationDate='20261117T201001', Name='robot.exe')
+        for idle_parent in (0, None):
+            idle = dict(ProcessId=0, ParentProcessId=idle_parent,
+                        CreationDate=None, Name='System Idle Process')
+            before = _filter_windows_tree([idle, root, child], 77)
+            self.assertTrue(before['available'])
+            self.assertTrue(before['root_present'])
+            self.assertEqual(before['excluded_system_idle_rows'], 1)
+            self.assertEqual([p['pid'] for p in before['owned']], [77, 78])
+            after = _filter_windows_tree([idle, child], 77, watched=[77, 78])
+            self.assertFalse(after['root_present'])
+            self.assertEqual([p['pid'] for p in after['watched']], [78])
+            self.assertEqual(after['excluded_system_idle_rows'], 1)
+        # A counterfeit PID 0 with a real parent is not silently ignored.
+        for hostile in (77, True, '77'):
+            invalid = dict(ProcessId=0, ParentProcessId=hostile,
+                           Name='System Idle Process')
+            with self.assertRaises(ValueError):
+                _filter_windows_tree([invalid, root, child], 77)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([idle, idle, root], 77)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([idle, root], 0)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([idle, root], 77, watched=[0])
+        # Unrelated positive-PID malformed entries must still fail closed.
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([idle, root, dict(ProcessId=99,
+                ParentProcessId=None, Name='unknown.exe')], 77)
+        with self.assertRaises(ValueError):
+            _filter_windows_tree([idle, root, dict(ProcessId=True,
+                ParentProcessId=77, Name='spoof.exe')], 77)
+
     def test_taskkill_128_preserves_failure_and_full_evidence_not_just_tail(self):
         command = ['taskkill', '/PID', '2232', '/T', '/F']
         process = mock.Mock(pid=2232)
