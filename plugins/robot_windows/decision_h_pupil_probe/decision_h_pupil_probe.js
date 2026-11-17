@@ -3,6 +3,14 @@
 // across two actual native R2025a scenes. Not an activated pupil profile.
 // The scene-local C observer alone decides physical mission success/failure.
 let a4Reports=Promise.resolve();
+// CI-only bounded, metadata-only WWI evidence: no nonce, project or raw payload.
+const a4WwiFrames=[];
+function a4TraceFrame(direction,text){
+  const match=String(text).match(/^WEBEEBLOCKS_RUNTIME_V2 (REQUEST|RESPONSE) (\d+) ([A-Z_]+)(?:\s|$)/);
+  if(match&&a4WwiFrames.length<96)
+    a4WwiFrames.push({direction,id:Number(match[2]),kind:match[3],
+      monotonic_ms:Math.round(performance.now())});
+}
 function a4Report(event,detail){
   a4Reports=a4Reports.then(()=>fetch('http://127.0.0.1:8765/event',{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -154,10 +162,16 @@ window.addEventListener('unhandledrejection',e=>a4Report('A4_PUPIL_ERROR',{messa
       branches:2,sensor:'front',threshold_m:0.8});
     const module=await import('../blockly_v2/webots/RobotWindow.js');
     const bridge=new module.default();
-    const backend=new WebeeBlocksWwiBackend({send:text=>bridge.send(text)},
+    const backend=new WebeeBlocksWwiBackend({send:text=>{
+      a4TraceFrame('attempted_send',text);
+      return bridge.send(text);
+    }},
       {simulationScenes:true,simulationReset:true,timeoutMs:60000,
        outcomeSettleMs:95000});
-    bridge.receive=text=>backend.handleMessage(String(text));
+    bridge.receive=text=>{
+      a4TraceFrame('received',text);
+      return backend.handleMessage(String(text));
+    };
     await backend.waitUntilReady();
     await a4Report('A4_PUPIL_RUNTIME_READY',{native:true});
     for(const letter of ['a','b']){
@@ -189,9 +203,11 @@ window.addEventListener('unhandledrejection',e=>a4Report('A4_PUPIL_ERROR',{messa
         await a4Report('A4_PUPIL_NATIVE_RESET',{between:'a,b',same_project:true});
       }
     }
+    await a4Report('A4_PUPIL_WWI_TRACE',{frames:a4WwiFrames});
     await a4Report('A4_PUPIL_TEST_COMPLETE',{variants:['a','b'],
       same_wbb:true,native_oracle:true});
   }catch(error){
+    await a4Report('A4_PUPIL_WWI_TRACE',{frames:a4WwiFrames});
     await a4Report('A4_PUPIL_ERROR',{message:String(error&&(error.stack||error))});
   }finally{
     if(original)original.dispose();
