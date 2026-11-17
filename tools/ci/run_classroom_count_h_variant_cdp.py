@@ -78,6 +78,39 @@ class Chrome:
               JSON.stringify(Blockly.serialization.workspaces.save(workspace)) : null
           };
         })()""")
+    def install_nonempty_program(self):
+        # Real Blockly in the actual school Chrome page. This short, harmless
+        # takeoff/speed/land program is NOT an A6 solution and is never run.
+        # It tests nonempty student-like editing/serialization, not mouse drag.
+        return self.eval("""(() => {
+          if (!workspace || !window.WebeeBlocksProjectManager ||
+              runtimeProfile.id!=='progression-count-h-v1' ||
+              workspace.getAllBlocks(false).length!==0)
+            throw Error('A6 workspace was not empty and ready for nonempty witness');
+          const takeoff=workspace.newBlock('webeeblocks_v2_takeoff');
+          const height=workspace.newBlock('math_number');
+          height.setFieldValue('0.4','NUM');
+          takeoff.getInput('HEIGHT').connection.connect(height.outputConnection);
+          const speed=workspace.newBlock('webeeblocks_v2_speed');
+          speed.setFieldValue('0.2','SPEED');
+          const land=workspace.newBlock('webeeblocks_v2_land');
+          takeoff.nextConnection.connect(speed.previousConnection);
+          speed.nextConnection.connect(land.previousConnection);
+          const blocks=workspace.getAllBlocks(false);
+          if (blocks.length!==4 || workspace.getTopBlocks(false).length!==1)
+            throw Error('genuine Blockly nonempty witness was disconnected');
+          const bytes=window.WebeeBlocksProjectManager.encodeCurrent();
+          const project=JSON.parse(bytes);
+          if (project.activity.id!=='progression-count-h-v1' ||
+              !project.workspace || !project.workspace.blocks ||
+              !project.workspace.blocks.blocks ||
+              project.workspace.blocks.blocks.length!==1 ||
+              project.workspace.blocks.blocks[0].type!=='webeeblocks_v2_takeoff')
+            throw Error('genuine Blockly nonempty witness was not serialized');
+          return {blockCount:blocks.length,
+            workspace:JSON.stringify(Blockly.serialization.workspaces.save(workspace)),
+            project:bytes};
+        })()""")
     def verify_project_reopen(self):
         # Execute real in-browser ProjectFiles manager. No fake .wbb parser or
         # OS file picker: this is strictly a browser encode/openTemplateText
@@ -135,7 +168,7 @@ def run():
         raise AssertionError("wrong school WBT")
     process=None
     dev=None
-    result={"pass":False,"scope":"Actual Chrome UI plus native scenes and in-browser .wbb serializer/reopen; no OS Save/Open or Windows release"}
+    result={"pass":False,"scope":"Actual Chrome with short nonempty Blockly program, native scenes and in-browser .wbb roundtrip; no OS Save/Open, pupil gestures, flight or Windows release"}
     visits=[]
     project_bytes=None
     # Each native READY belongs to one scene incarnation, not to a previously
@@ -181,7 +214,18 @@ def run():
                             if not state["enabled"]:
                                 raise AssertionError("variant UI unavailable: "+str(state))
                             if original is None:
+                                installed=dev.install_nonempty_program()
+                                if (not installed or installed.get("blockCount")!=4 or
+                                    not installed.get("workspace") or
+                                    not installed.get("project")):
+                                    raise AssertionError("real Blockly nonempty program not installed")
+                                state=dev.state()
                                 original=state["program"]
+                                if (original!=installed["workspace"] or
+                                    state.get("project")!=installed["project"]):
+                                    raise AssertionError("nonempty Blockly project mutated on install")
+                                print("A6_REAL_BROWSER_NONEMPTY_BLOCKLY_CREATED blocks=4 "
+                                      "pupil_drag=UNPROVEN flight=UNPROVEN",flush=True)
                             if not original or original!=state["program"]:
                                 raise AssertionError("Blockly workspace changed during variant selection")
                             project=state.get("project")
