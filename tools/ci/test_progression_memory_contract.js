@@ -35,8 +35,8 @@ assert.strictEqual(pupilStarter.activity.id, 'progression-mini-grand-prix-v1');
 assert.deepStrictEqual(pupilStarter.workspace.blocks.blocks, [],
   'new Mini Grand Prix must start with an empty Blockly workspace');
 assert.strictEqual(Activities.DOCUMENT.activities.filter(p =>
-  p.id.startsWith('progression-') && p.starterVisible !== false).length, 8,
-  'there must be exactly eight visible pupil activities');
+  p.id.startsWith('progression-') && p.starterVisible !== false).length, 6,
+  'legacy A5/A6 must remain hidden until the approved replacement missions are qualified');
 assert.strictEqual(project.activity.id, 'progression-memory-v1');
 assert.deepStrictEqual(project.workspace.blocks.blocks, []);
 
