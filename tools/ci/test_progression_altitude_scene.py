@@ -31,6 +31,38 @@ class AltitudeSceneStaticProof(unittest.TestCase):
     def setUp(self):
         self.source = SCENE.read_text(encoding="utf-8")
 
+    def test_a2_adds_vertical_without_premature_sensor_or_logic_blocks(self):
+        # Guard the cumulative A1 -> A2 learning contract; geometry and
+        # success remain decided by Webots native physical observations.
+        activity_file = ROOT / "plugins/robot_windows/blockly/webeeblocks/activities.js"
+        entries = activity_file.read_text(encoding="utf-8")
+        for activity_id in ("progression-sequence-v1", "progression-altitude-v1",
+                            "progression-precise-movement-v1"):
+            self.assertEqual(entries.count(f"id: '{activity_id}'"), 1)
+        first = entries.split("id: 'progression-sequence-v1',", 1)[1].split(
+            "id: 'progression-altitude-v1',", 1)[0]
+        second = entries.split("id: 'progression-altitude-v1',", 1)[1].split(
+            "id: 'progression-precise-movement-v1',", 1)[0]
+
+        # First lesson remains a tiny sequence; second introduces relative up,
+        # not sensing, conditional behavior, loops or state variables.
+        for block in ("'webeeblocks_v2_takeoff'", "'webeeblocks_v2_move'",
+                      "'webeeblocks_v2_land'"):
+            self.assertIn(block, first)
+            self.assertIn(block, second)
+        self.assertNotIn("'webeeblocks_v2_vertical'", first)
+        self.assertIn("'webeeblocks_v2_vertical'", second)
+        self.assertIn("verticalDirections: [ 'up' ]", second)
+        self.assertIn("moveDirections: [ 'forward' ]", second)
+        for forbidden in ("'webeeblocks_v2_range'", "'controls_if'",
+                          "'controls_repeat_ext'", "'controls_whileUntil'",
+                          "'variables_set'", "'variables_get'", "'math_change'"):
+            self.assertNotIn(forbidden, second)
+        self.assertIn("scene: 'sequence-v1'", first)
+        self.assertIn("scene: 'altitude-v1'", second)
+        self.assertIn("oracle: 'progression-sequence-3d-v1'", first)
+        self.assertIn("oracle: 'progression-altitude-3d-v1'", second)
+
     def test_isolated_versioned_scene_with_four_explicit_colliders(self):
         self.assertTrue(self.source.startswith("DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {"))
         self.assertEqual(self.source.count(" Pose {"), 18)
