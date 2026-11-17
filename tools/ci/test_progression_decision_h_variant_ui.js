@@ -266,8 +266,8 @@ async function scenario(startProfileId, options={}){
     src.slice(start,end)+'\nreturn progressionProfiles();');
   const regular=Activities.getProfile('progression-sequence-v1');
   const school=Activities.getProfile('progression-count-h-v1');
-  assert.equal(realPicker(Activities,regular).length,8,
-    'ordinary classroom must retain all eight currently published starters');
+  assert.equal(realPicker(Activities,regular).length,6,
+    'ordinary classroom must offer exactly the six qualified current starters (1,2,3,4,7,8)');
   assert.deepEqual(realPicker(Activities,school),[],
     'hidden A6 Draft must not offer starters from the ordinary classroom world');
   const future=JSON.parse(JSON.stringify(Activities.DOCUMENT));
