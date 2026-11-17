@@ -476,6 +476,47 @@ if ($LASTEXITCODE -ne 0 -or $a6Validate -notmatch 'WEBEEBLOCKS_WINDOWS_LAUNCHER_
   throw 'Activity 6 experimental classroom launcher validation failed.'
 }
 
+# Adversarial A6 mode: a forged remote base and a missing canonical asset
+# must fail BEFORE Webots/Chrome launch, with the original ZIP restored.
+$originalCountHtml = [System.IO.File]::ReadAllBytes($countWindowHtmlPath)
+try {
+  $badBase = $countWindowHtml.Replace(
+    '<base href="../' + $robotWindowName + '/">',
+    '<base href="https://invalid.example/blocked/">')
+  Assert-Release ($badBase -cne $countWindowHtml) 'A6 negative base mutation did not apply.'
+  [System.IO.File]::WriteAllText($countWindowHtmlPath, $badBase, [System.Text.UTF8Encoding]::new($false))
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $null = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -ExperimentalCountH -WebotsHome $WebotsHome 2>&1 | Out-String
+    $negativeExit = $LASTEXITCODE
+  }
+  finally { $ErrorActionPreference = $oldPreference }
+  Assert-Release ($negativeExit -ne 0) 'A6 launcher admitted a remote HTML base.'
+}
+finally {
+  [System.IO.File]::WriteAllBytes($countWindowHtmlPath, $originalCountHtml)
+}
+$editorAsset = Join-Path $robotWindowRoot 'main.css'
+$missingAsset = Join-Path $robotWindowRoot 'main.css.missing-for-negative-test'
+Assert-Release (Test-Path -LiteralPath $editorAsset -PathType Leaf) 'A6 editor CSS missing before negative test.'
+Assert-Release (-not (Test-Path -LiteralPath $missingAsset)) 'A6 negative CSS backup already exists.'
+Move-Item -LiteralPath $editorAsset -Destination $missingAsset
+try {
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $null = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -ExperimentalCountH -WebotsHome $WebotsHome 2>&1 | Out-String
+    $negativeExit = $LASTEXITCODE
+  }
+  finally { $ErrorActionPreference = $oldPreference }
+  Assert-Release ($negativeExit -ne 0) 'A6 launcher admitted a missing canonical editor asset.'
+}
+finally {
+  Move-Item -LiteralPath $missingAsset -Destination $editorAsset -Force
+}
+Assert-Release ((Get-FileHash -LiteralPath $countWindowHtmlPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $countHtmlDigest) 'A6 HTML restoration changed its packaged digest.'
+
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
 # from the exact ZIP must load with the Webots controller libraries, the MinGW
