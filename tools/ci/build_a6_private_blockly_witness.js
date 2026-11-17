@@ -262,7 +262,7 @@ async function main(){
   const actualWbb=JSON.stringify({
     ...witness.project,
     activity:{id:actualProfile.id,semantics:witness.ast.semantics}
-  },null,2)+'\\n';
+  },null,2)+'\n';
   for(const scene of ['count-h-1-v1','count-h-2-v1','count-h-3-v1'])
     assert.equal(actualWbb.includes(scene),false,
       'product-profile pupil .wbb must not disclose the selected scene');
