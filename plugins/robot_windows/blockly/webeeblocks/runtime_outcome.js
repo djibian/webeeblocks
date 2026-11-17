@@ -68,6 +68,11 @@
     'wrong-pad': 'Atterrissage hors du damier'
   });
 
+  var A3_PUBLIC_REASONS = Object.freeze({
+    'route-incomplete': 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)',
+    'landing-timeout': 'Atterrissage non stabilisé dans le délai'
+  });
+
   var A4_PUBLIC_REASONS = Object.freeze({
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
@@ -95,6 +100,10 @@
         evaluation.oracle === 'progression-altitude-3d-v1' &&
         Object.prototype.hasOwnProperty.call(A2_PUBLIC_REASONS, reason))
       detail += ' — ' + A2_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-orientation-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A3_PUBLIC_REASONS, reason))
+      detail += ' — ' + A3_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))

@@ -342,6 +342,32 @@ function proveRealWebotsOutcomeFreshness() {
       ? 'Mission accomplie' : bad.status==='interrupted'
       ? 'Mission interrompue' : 'Mission non accomplie');
   }
+  // A3 reasons originate in its independent native pose/heading/landing
+  // oracle, not in the pupil AST or a guessed single wrong command.
+  const a3 = {type:'mission-state-v1', oracle:'progression-orientation-3d-v1'};
+  for (const [reason, french] of [
+    ['route-incomplete', 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)'],
+    ['landing-timeout', 'Atterrissage non stabilisé dans le délai']
+  ]) {
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, a3).detail,
+      'Mission non accomplie — ' + french);
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, evaluation).detail, 'Mission non accomplie');
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, a2).detail, 'Mission non accomplie');
+  }
+  for (const raw of [
+    {status:'achieved',reason:'route-incomplete'},
+    {status:'interrupted',reason:'landing-timeout'},
+    {status:'not-achieved',reason:'forged'},
+    {status:'not-achieved',reason:'__proto__'}
+  ]) {
+    const expected = raw.status==='achieved' ? 'Mission accomplie' :
+      raw.status==='interrupted' ? 'Mission interrompue' : 'Mission non accomplie';
+    assert.strictEqual(Outcome.classifyMission(raw,a3).detail, expected);
+  }
+
   const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
   assert.deepStrictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'obstacle-contact'},a4), {
