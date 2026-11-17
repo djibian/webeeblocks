@@ -31,7 +31,7 @@ function expectedAst(){
   // Sensor thresholds are hypotheses; native R2025a .wbb remains UNPROVEN.
   return {version:1,semantics:'webeeblocks-ast-v1',program:[
     {kind:'takeoff',height_m:.5},
-    {kind:'set_speed',speed_m_s:.15},
+    {kind:'set_speed',speed_m_s:.2},
     set('destination',range('left')),
     {kind:'while',mode:'WHILE',max_iterations:32,
       condition:cmp('GT',range('front'),.75),body:[forward(.1)]},
@@ -56,7 +56,7 @@ function privateProfile(){
     webeeblocks_v2_move:{DIRECTION:['forward']},
     webeeblocks_v2_turn:{DIRECTION:['left','right']}};
   p.parameterBounds={...p.parameterBounds,
-    webeeblocks_v2_speed:{SPEED:{min:.15,max:.15,step:.01}}};
+    webeeblocks_v2_speed:{SPEED:{min:.2,max:.2,step:.01}}};
   p.runtime.allowedStatementKinds=Array.from(
     new Set([...p.runtime.allowedStatementKinds,'while']));
   p.runtime.rangeDirections=['left','front'];
@@ -65,7 +65,7 @@ function privateProfile(){
     'move.distance_m':{min:.1,max:1.24},
     'move.forward.distance_m':{min:.1,max:1.24},
     'takeoff.height_m':{min:.5,max:.5},
-    'set_speed.speed_m_s':{min:.15,max:.15},
+    'set_speed.speed_m_s':{min:.2,max:.2},
     'turn.angle_deg_abs':{min:90,max:90},
     'while.max_iterations':{min:1,max:32}};
   return Profiles.resolveById({version:1,activities:[p]},p.id,
@@ -201,7 +201,7 @@ function virtualBackend(HFar,GLeft,opts={}){
       conditionalLoops:true,rangeDirections:['front','left'],
       moveDirections:['forward'],verticalDirections:[]},
     async takeoff(h){this.z=h;this.actions.push('takeoff');},
-    async setSpeed(s){assert.equal(s,.15);this.actions.push('speed');},
+    async setSpeed(s){assert.equal(s,.2);this.actions.push('speed');},
     async move(dir,d){
       assert.equal(dir,'forward');assert(d>=.1&&d<=1.24);
       this.x+=d*Math.cos(this.angle*Math.PI/180);
