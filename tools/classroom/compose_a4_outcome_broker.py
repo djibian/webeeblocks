@@ -42,7 +42,11 @@ def compose_classroom_outcome_broker(source: str) -> str:
       (reason == "obstacle-contact" || reason == "unsafe-clearance" ||
        reason == "early-finish" || reason == "landing-timeout" ||
        reason == "wrong-pad");
-    if (status != "not-achieved" || (!route && !classroom && !altitude))
+    const bool orientation =
+      oracle == "progression-orientation-3d-v1" &&
+      (reason == "route-incomplete" || reason == "landing-timeout");
+    if (status != "not-achieved" ||
+        (!route && !classroom && !altitude && !orientation))
       return false;
   }
 """
