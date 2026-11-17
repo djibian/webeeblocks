@@ -40,6 +40,15 @@ static void initialize(void) {
   WbFieldRef title=wi?wb_supervisor_node_get_field(wi,"title"):NULL;
   const char *name=title?wb_supervisor_field_get_sf_string(title):NULL;
   const char *prefix="WEBEEBLOCKS_A5_FACTOR_NATIVE_";
+  /* A5_FEEDER_INIT_DIAG_SENSOR_V5: distinguish an uncalled WWI wrapper
+   * from an invoked wrapper whose native WorldInfo title was not admitted.
+   * This isolated CI pilot never ships in the physical/product binary. */
+  fprintf(stderr,"WEBEEBLOCKS_A5_FACTOR_FEEDER_HOOK_DIAGNOSTIC "
+          "self=%d world=%d title=%d marker=%d t=%.6f\\n",
+          wb_supervisor_node_get_self()!=NULL,wi!=NULL,title!=NULL,
+          name&&strncmp(name,prefix,strlen(prefix))==0,
+          wb_robot_get_time());
+  fflush(stderr);
   if(!name||strncmp(name,prefix,strlen(prefix)))return;
   const char *flag=name+strlen(prefix);
   if(strcmp(flag,"positive")&&strcmp(flag,"blind")){
