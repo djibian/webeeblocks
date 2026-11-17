@@ -1,3 +1,6 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
 /* Private CI-only WWI command feeder for A5 H-fixed / G-variable worlds.
  * When the opt-in environment flag is ABSENT, this wrapper is a transparent
  * relay to the genuine Webots WWI functions; the browser path is unchanged.
