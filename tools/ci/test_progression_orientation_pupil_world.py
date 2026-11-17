@@ -24,6 +24,22 @@ class OrientationPupilWorldTests(unittest.TestCase):
         cls.runner=(ROOT/'tools/ci/run_classroom_orientation_pupil.py').read_text(encoding='utf-8')
         cls.wrapper=(ROOT/'tools/ci/run_classroom_neutral_start.py').read_text(encoding='utf-8')
 
+    def test_public_mission_asks_for_pattern_discovery_not_solution(self):
+        catalog = (ROOT/'plugins/robot_windows/blockly/webeeblocks/activities.js').read_text(encoding='utf-8')
+        self.assertEqual(catalog.count("id: 'progression-orientation-3d-v1'"), 1)
+        profile = catalog.split("id: 'progression-orientation-3d-v1',", 1)[1].split(
+            "id: 'progression-repeat-v1',", 1)[0]
+        mission_line = next(line for line in profile.splitlines() if "mission: '" in line)
+        brief = mission_line.split("mission: '", 1)[1].rsplit("'", 1)[0]
+        self.assertIn('Avant de programmer, observe les étapes du trajet', brief)
+        self.assertIn('qu’ont-elles en commun ?', brief)
+        # Neither an expected Blockly structure nor a solution sequence is
+        # disclosed in the pupil-visible mission.
+        for prescribed in ('REPEAT(', 'répète deux fois', 'tourne à droite puis',
+                           'avance de 0,45', 'controls_repeat_ext'):
+            self.assertNotIn(prescribed, brief)
+        self.assertIn("'controls_repeat_ext'", profile)
+
     def test_composition_requires_exact_unloaded_school_world(self):
         world=pupil.compose(self.start)
         self.assertEqual(world.count(pupil.MARKER),1)
