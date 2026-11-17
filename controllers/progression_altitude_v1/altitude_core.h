@@ -161,13 +161,16 @@ static inline wb_alt_verdict wb_alt_sample_mission(wb_alt_mission *m,
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
-  if (s->obstacle_contact) {
-    m->collision_seen = 1;
-    m->reason = WB_ALT_REASON_CONTACT;
+  /* A collision may justify a public cause only on a fresh, valid
+   * native observation. Invalid or repeated timestamps still fail closed,
+   * without inventing a physical contact. */
+  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
-  if (s->time < 0.0 || (m->sampled && s->time <= m->last_time)) {
+  if (s->obstacle_contact) {
+    m->collision_seen = 1;
+    m->reason = WB_ALT_REASON_CONTACT;
     m->result = WB_ALT_NOT_ACHIEVED;
     return m->result;
   }
