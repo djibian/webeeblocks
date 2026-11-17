@@ -111,6 +111,44 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertNotIn("tools/ci/build_a5_private_blockly_witness.js",
                          original)
 
+    def test_actual_loopback_get_has_exactly_one_cors_origin_header(self):
+        # Handler inherits an end_headers() which already appends ACAO.
+        # Two identical '*' fields are INVALID in Chrome CORS and make the
+        # otherwise genuine browser /variant fetch fail before any takeoff.
+        import json
+        import threading
+        import urllib.request
+        import urllib.error
+        import run_classroom_reactive_L_factor_motor as trial
+
+        handler=trial.Handler
+        old_mode,old_variant=handler.mode,handler.variant
+        handler.mode="positive"
+        handler.variant="A"
+        server=trial.events.http.server.ThreadingHTTPServer(
+            ("127.0.0.1",0),handler)
+        thread=threading.Thread(target=server.serve_forever,daemon=True)
+        try:
+            thread.start()
+            base="http://127.0.0.1:"+str(server.server_address[1])
+            request=urllib.request.Request(base+"/variant",
+                         headers={"Origin":"http://localhost:1234"})
+            with urllib.request.urlopen(request,timeout=5) as response:
+                self.assertEqual(response.status,200)
+                origins=response.headers.get_all("Access-Control-Allow-Origin")
+                self.assertEqual(origins,["*"],"duplicate ACAO breaks Chrome")
+                self.assertEqual(json.load(response),
+                                 {"variant":"A","mode":"positive"})
+            with self.assertRaises(urllib.error.HTTPError) as failed:
+                urllib.request.urlopen(base+"/a5-private-wbb",timeout=5)
+            self.assertEqual(failed.exception.code,404,
+                             "private WBB must not be served in positive mode")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+            handler.mode,handler.variant=old_mode,old_variant
+
     def test_native_pid_has_7_physical_obstacle_contact_streams(self):
         directory=ROOT/"controllers/progression_reactive_L_factor_motor_pilot"
         make=(directory/"Makefile").read_text()
