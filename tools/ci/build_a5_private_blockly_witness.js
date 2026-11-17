@@ -42,6 +42,8 @@ function expectedAst(){
       turn(-90),forward(.6),turn(90),forward(.85),forward(.8),
       iff(cmp('LTE',v('destination'),.8),[turn(90),forward(1.24)])
     ]),
+    // Calibrated by actual R2025a front ray; keep native pad gate intact.
+    forward(.1),
     {kind:'land'}
   ]};
 }
@@ -210,7 +212,7 @@ function virtualBackend(HFar,GLeft,opts={}){
     },
     async turn(a){assert(Math.abs(a)===90);this.angle+=a;this.actions.push('turn');},
     async readRange(direction){
-      if(direction==='front'){this.frontReads++;return Math.max(.01,Math.min(2,3.25-this.x));}
+      if(direction==='front'){this.frontReads++;return Math.max(.01,Math.min(2,3.065-this.x));}
       assert.equal(direction,'left');
       if(this.x<2){this.initialLeft++;return opts.blindH?.54:(HFar?1.14:.54);}
       this.lateLeft++;return opts.blindG?1.41:(GLeft?1.41:.54);

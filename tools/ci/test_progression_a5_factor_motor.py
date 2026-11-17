@@ -86,6 +86,10 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn("node tools/ci/build_a5_private_blockly_witness.js",workflow)
         self.assertIn("ci-artifacts/progression-reactive-L-factor-blockly/",workflow)
         self.assertIn("node-version: '22'",workflow)
+        # Real front ray stops the loop one 0.1m step before the old model.
+        # The correction changes the private pupil AST, never native Floor.
+        self.assertIn("Math.min(2,3.065-this.x)",source)
+        self.assertIn("forward(.1),\n    {kind:'land'}",source)
         module=(ROOT/"plugins/robot_windows/a5_alias_motor_probe"/
                 "a5_private_blockly_probe.js").read_text()
         native=(ROOT/"tools/ci/run_classroom_reactive_L_factor_motor.py").read_text()

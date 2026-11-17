@@ -129,6 +129,21 @@ physical Floor landing. The Python runner refuses a false success unless
 all source SHA, fresh front-loop readings, two real left measurements,
 correct physical pad, and native-land conditions agree.
 
+**Native R2025a counterexample and bounded trajectory correction (not yet retested).**
+On HEAD `10446484397725d00e930e40de97daed1caaedb7`, the private
+Blockly `.wbb` reopened and genuinely flew through the G-left opening in
+Webots, with 25 fresh front range readings and two genuine left readings.
+Native C reported `premature_floor_contact` at t=244.384 s: last x
+was about 4.040 m while the unaltered Floor target admits
+4.05 <= x <= 4.25 m. The measured front rays 0.764743 m and
+0.665220 m show that the loop ended one 0.1 m move earlier than
+the original mock predicted. The virtual front-ray intercept is
+therefore corrected to 3.065 m and the SAME PRIVATE .wbb adds
+one shared final 0.10 m move after the G branch before LAND.
+Original 7-box swept collision tests, native Floor/pad bounds, PID and
+Webots assets stay unchanged. This is a new falsifiable HYPOTHESIS,
+not a claim that the revised native WBB flies successfully.
+
 **A passing Node model test is not proof of this native experiment.**
 The native four-world CI step is required to reach
 `WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_WBB_NATIVE_PASS`; any failure
