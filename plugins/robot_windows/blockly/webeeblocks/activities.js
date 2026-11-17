@@ -324,6 +324,9 @@
         }
       },
       {
+        // Former A5 warehouse prototype: keep Open(.wbb), not Start activity.
+        // The approved A5 L-corner mission has not yet passed V5/teacher gates.
+        starterVisible: false,
         id: 'progression-reactive-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {
@@ -370,6 +373,9 @@
         }
       },
       {
+        // Former A6 warehouse prototype: do not present it as counting H.
+        // Historical student files remain valid and openable by their ID.
+        starterVisible: false,
         id: 'progression-combined-decisions-v1',
         world: 'worlds/crazyflie_runtime_obstacle.wbt',
         brief: {

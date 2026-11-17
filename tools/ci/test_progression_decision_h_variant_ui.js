@@ -280,7 +280,7 @@ async function scenario(startProfileId, options={}){
     'runProgram finally must notify project UI after native verdict');
   assert.equal(Activities.DOCUMENT.activities.filter(p=>p.id==='progression-decision-h-v1').length,1);
   assert.deepEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&
-    p.starterVisible!==false).length,8);
+    p.starterVisible!==false).length,6);
   const a4=await scenario('progression-decision-h-v1');
   const pending=await scenario('progression-decision-h-v1',{outcomePending:true});
   const mini=await scenario('progression-mini-grand-prix-v1');

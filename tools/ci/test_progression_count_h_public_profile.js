@@ -80,8 +80,8 @@ assert(!profile.toolbox.includes('webeeblocks_v2_vertical'),'A6 must not add an 
 const starter=Files.parseProject(Files.createStarterText(id));
 assert.equal(starter.activity.id,id);
 assert.deepEqual(starter.workspace.blocks.blocks,[],'pupil starter must have no hidden solution');
-assert.equal(Activities.DOCUMENT.activities.filter(x=>x.id.startsWith('progression-')&&x.starterVisible!==false).length,8,
-  'an unqualified A6 profile must not appear in the pupil Start catalogue');
+assert.equal(Activities.DOCUMENT.activities.filter(x=>x.id.startsWith('progression-')&&x.starterVisible!==false).length,6,
+  'only current qualified activities 1,2,3,4,7,8 appear in Start until A5/A6 release');
 
 // A6 world-identity bootstrap regression: the school WBT cannot be assumed compatible with the legacy default profile merely because its
 // native 1/2/3-H motor pilot succeeds. Keep the rejection fail-closed until

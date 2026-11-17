@@ -67,7 +67,8 @@ jobs:
             tools.ci.test_progression_count_h_oracle \
             tools.ci.test_progression_count_h_rear_range \
             tools.ci.test_progression_count_h_dual_motor_sensor \
-            tools.ci.test_progression_count_h_motor_flight
+            tools.ci.test_progression_count_h_motor_flight \
+            tools.ci.test_progression_count_h_windows_packaging
       - name: Require Draft witness remains outside integration gates
         run: |
           python3 -m unittest -v tools.ci.test_workflow_contract.WorkflowTests.test_activity6_draft_witness_is_scoped_and_non_decision

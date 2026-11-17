@@ -72,6 +72,8 @@ $altitudeObserverDir = Join-Path $repoRoot 'controllers\progression_altitude_v1'
 $orientationObserverDir = Join-Path $repoRoot 'controllers\progression_orientation_3d'
 $decisionObserverDir = Join-Path $repoRoot 'controllers\progression_decision_h_v1'
 $miniObserverDir = Join-Path $repoRoot 'controllers\progression_mini_grand_prix_v1'
+# A6 observer is independent of the physical runtime and A8 mission oracle.
+$countObserverDir = Join-Path $repoRoot 'controllers\progression_count_h_flight_observer'
 $oldWebotsHome = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 try {
@@ -125,6 +127,10 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "Activity 7 native observer clean failed: $LASTEXITCODE" }
   & $make -C $miniObserverDir
   if ($LASTEXITCODE -ne 0) { throw "Activity 7 native observer build failed: $LASTEXITCODE" }
+  & $make -C $countObserverDir clean
+  if ($LASTEXITCODE -ne 0) { throw "Activity 6 native observer clean failed: $LASTEXITCODE" }
+  & $make -C $countObserverDir
+  if ($LASTEXITCODE -ne 0) { throw "Activity 6 native observer build failed: $LASTEXITCODE" }
 }
 finally {
   $env:WEBOTS_HOME = $oldWebotsHome
@@ -157,6 +163,10 @@ if (-not (Test-Path -LiteralPath $decisionObserverBinary -PathType Leaf) -or (Ge
 $miniObserverBinary = Join-Path $miniObserverDir 'progression_mini_grand_prix_v1.exe'
 if (-not (Test-Path -LiteralPath $miniObserverBinary -PathType Leaf) -or (Get-Item $miniObserverBinary).Length -le 0) {
   throw 'The official Webots Windows build produced no Activity 7 native supervisor executable.'
+}
+$countObserverBinary = Join-Path $countObserverDir 'progression_count_h_flight_observer.exe'
+if (-not (Test-Path -LiteralPath $countObserverBinary -PathType Leaf) -or (Get-Item $countObserverBinary).Length -le 0) {
+  throw 'The official Webots Windows build produced no Activity 6 native observer executable.'
 }
 
 # Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
@@ -235,7 +245,13 @@ if ($progressionStarters.Count -eq 0) {
 }
 $progressionTarget = Join-Path $packageDir 'Activites'
 foreach ($starter in $progressionStarters) {
-  Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
+  # The two old 5/6 warehouse prototypes are still openable, not current
+  # activities; never advertise their blank files beside the new curriculum.
+  $subdirectory = if (@('05-reactive.wbb', '06-multi-perception.wbb') -contains $starter.Name) {
+    'Historique'
+  } else { '' }
+  $targetDirectory = if ($subdirectory) { Join-Path $progressionTarget $subdirectory } else { $progressionTarget }
+  Copy-RequiredFile $starter.FullName (Join-Path $targetDirectory $starter.Name)
 }
 
 # Archived original Activity 2 remains distributed separately for historical
@@ -363,6 +379,33 @@ Move-Item `
 $blocklyTarget = $robotWindowReleaseRoot
 $blocklyHtmlPath = $robotWindowHtmlTarget
 
+# A6 stays hidden in the public Start menu, but its separate teacher/test WBT
+# needs a complete, offline and content-addressed Robot Window.  The source
+# document is the exact canonical Blockly shell plus one bootstrap hint.
+$countWindowSource = Join-Path $repoRoot 'plugins\robot_windows\blockly_count_h\blockly_count_h.html'
+$countHtml = Get-Content -LiteralPath $countWindowSource -Raw
+$sourceBase = '<base href="../blockly_v2/">'
+if (($countHtml.Split($sourceBase).Count - 1) -ne 1) {
+  throw 'Activity 6 Robot Window lost the exact canonical base href.'
+}
+$countHtml = $countHtml.Replace($sourceBase, ('<base href="../' + $robotWindowReleaseName + '/">'))
+if ($countHtml -notmatch "WebeeBlocksInitialActivityId = 'progression-count-h-v1'" -or
+    $countHtml -match '"(?:https?|webots)://') {
+  throw 'Activity 6 Robot Window is not the trusted offline bootstrap.'
+}
+$countHtmlHasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $digestBytes = $countHtmlHasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($countHtml))
+}
+finally { $countHtmlHasher.Dispose() }
+$countHtmlDigest = -join ($digestBytes | ForEach-Object { $_.ToString('x2') })
+$countWindowReleaseName = "blockly_count_h_$($countHtmlDigest.Substring(0, 16))"
+$countWindowReleaseDir = Join-Path $robotWindowsRoot $countWindowReleaseName
+if (Test-Path -LiteralPath $countWindowReleaseDir) {
+  throw "Activity 6 Robot Window already exists: $countWindowReleaseDir"
+}
+Write-Utf8NoBom (Join-Path $countWindowReleaseDir "$countWindowReleaseName.html") $countHtml
+
 $packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
 Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
 $runtimeIni = @'
@@ -386,6 +429,8 @@ Copy-RequiredFile $orientationObserverBinary (Join-Path $packageDir 'controllers
 Copy-RequiredFile $decisionObserverBinary (Join-Path $packageDir 'controllers\progression_decision_h_v1\progression_decision_h_v1.exe')
 # Activity 7 has its own isolated physics oracle, not the physical runtime.
 Copy-RequiredFile $miniObserverBinary (Join-Path $packageDir 'controllers\progression_mini_grand_prix_v1\progression_mini_grand_prix_v1.exe')
+# Simulation-only A6 native independent observer; never the physical runtime.
+Copy-RequiredFile $countObserverBinary (Join-Path $packageDir 'controllers\progression_count_h_flight_observer\progression_count_h_flight_observer.exe')
 
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
@@ -481,7 +526,7 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'decision-h-a-v1.wbo', 'decision-h-b-v1.wbo', 'mini-grand-prix-l-v1.wbo', 'mini-grand-prix-r-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo', 'decision-h-a-v1.wbo', 'decision-h-b-v1.wbo', 'mini-grand-prix-l-v1.wbo', 'mini-grand-prix-r-v1.wbo', 'count-h-1-v1.wbo', 'count-h-2-v1.wbo', 'count-h-3-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "worlds\scenes\$scene") `
     (Join-Path $packageDir "worlds\scenes\$scene")
@@ -489,6 +534,43 @@ foreach ($scene in @('sequence-v1.wbo', 'altitude-v1.wbo', 'orientation-v1.wbo',
 Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
+
+# Package the dedicated blue-origin A6 classroom start as a separate optional
+# Webots world, never as the default start or as an activity 8 mutation.
+$countWorldSource = Join-Path $repoRoot 'worlds\crazyflie_classroom_count_h_start.wbt'
+$countWorldText = Get-Content -LiteralPath $countWorldSource -Raw
+if (($countWorldText.Split($remotePrefix).Count - 1) -ne 4 -or
+    ($countWorldText.Split('window "blockly_count_h"').Count - 1) -ne 1 -or
+    ($countWorldText.Split('controller "crazyflie_classroom_v2"').Count - 1) -ne 1 -or
+    ($countWorldText.Split('translation -1.40 0 0.055').Count - 1) -ne 1 -or
+    $countWorldText -notmatch 'basicTimeStep 32') {
+  throw 'Activity 6 world provenance / blue-origin / browser identity changed.'
+}
+$countWorldText = $countWorldText.Replace(
+  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"',
+  'EXTERNPROTO "../protos/Crazyflie.proto"'
+)
+foreach ($line in @(
+  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"',
+  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"',
+  'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"'
+)) {
+  $countWorldText = $countWorldText.Replace("$line`r`n", '').Replace("$line`n", '')
+}
+$countWorldText = $countWorldText.Replace('TexturedBackground { }', 'Background { skyColor [ 0.75 0.83 0.92 ] }')
+$countWorldText = $countWorldText.Replace('TexturedBackgroundLight { }', 'DirectionalLight { direction -0.4 -0.5 -1 intensity 1.5 }')
+if (($countWorldText.Split('Floor { size 4 4 }').Count - 1) -ne 1) {
+  throw 'Activity 6 source Floor changed; do not remove collision by substitution.'
+}
+$countWorldText = $countWorldText.Replace('Floor { size 4 4 }', $floor.TrimEnd())
+$countWorldText = $countWorldText.Replace('window "blockly_count_h"', ('window "' + $countWindowReleaseName + '"'))
+if ($countWorldText -match '"(?:https?|webots)://' -or
+    $countWorldText -notmatch 'controller "crazyflie_classroom_v2"' -or
+    $countWorldText -notmatch 'translation -1.40 0 0.055') {
+  throw 'Activity 6 portable world contains a remote or noncanonical asset.'
+}
+Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_classroom_count_h_start.wbt') $countWorldText
+Copy-RequiredFile (Join-Path $repoRoot 'worlds\.crazyflie_classroom_count_h_start.wbproj') (Join-Path $packageDir 'worlds\.crazyflie_classroom_count_h_start.wbproj')
 
 $manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')
