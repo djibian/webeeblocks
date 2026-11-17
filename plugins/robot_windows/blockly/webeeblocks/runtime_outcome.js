@@ -78,11 +78,28 @@
     'invalid-start': 'Départ non conforme à la zone bleue'
   });
 
+  var A7_PUBLIC_REASONS = Object.freeze({
+    'obstacle-contact': 'Contact avec un obstacle',
+    'invalid-start': 'Départ non conforme à la zone bleue',
+    'unsafe-h-crossing': 'Franchissement du H hors du passage autorisé',
+    'route-incomplete': 'Passage du H non entièrement franchi',
+    'wrong-heading': 'Orientation incorrecte après le virage',
+    'course-boundary': 'Limite du parcours dépassée',
+    'early-finish': 'Programme terminé avant la fin du parcours',
+    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'wrong-pad': 'Atterrissage hors du damier'
+  });
+
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
+    // Object.freeze does not remove inherited Object.prototype properties:
+    // "__proto__" and "constructor" are not mission states. Reject all
+    // non-string inputs before lookup to avoid implicit coercion of objects.
+    if (typeof status !== 'string' ||
+        !Object.prototype.hasOwnProperty.call(MISSION_STATES, status))
+      throw new Error('runtime outcome: invalid mission state: ' +
+        (typeof status === 'string' ? status : typeof status));
     var presentation = MISSION_STATES[status];
-    if (!presentation)
-      throw new Error('runtime outcome: invalid mission state: ' + String(status));
     var detail = presentation.detail;
     // A reason is displayable only on the authorized Grand Prix oracle's
     // negative result, not on generic statuses or transport TIME_LIMIT.
@@ -99,6 +116,10 @@
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))
       detail += ' — ' + A4_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-mini-grand-prix-v1' &&
+        Object.prototype.hasOwnProperty.call(A7_PUBLIC_REASONS, reason))
+      detail += ' — ' + A7_PUBLIC_REASONS[reason];
     return {status: status, state: presentation.state, detail: detail};
   }
 

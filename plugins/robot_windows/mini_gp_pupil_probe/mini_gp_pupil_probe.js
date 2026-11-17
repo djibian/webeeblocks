@@ -85,6 +85,21 @@ function workspace(){
   chain([takeoff,speed,climb,decision,create('webeeblocks_v2_land')]);
   return ws;
 }
+/* CI-only independent negative pupil program: short authentic motor flight,
+ * premature LAND before reaching H. The C oracle, never Blockly, judges it. */
+function failingWorkspace(){
+  const ws=new Blockly.Workspace();
+  function create(kind){return ws.newBlock(kind);}
+  const takeoff=create('webeeblocks_v2_takeoff');
+  number(ws,takeoff,'HEIGHT',0.50);
+  const speed=create('webeeblocks_v2_speed');
+  speed.setFieldValue('0.1','SPEED');
+  const forward=create('webeeblocks_v2_move');
+  forward.setFieldValue('forward','DIRECTION');
+  number(ws,forward,'DISTANCE',0.20);
+  chain([takeoff,speed,forward,create('webeeblocks_v2_land')]);
+  return ws;
+}
 function options(profile){
   return{Blockly,profiles:WebeeBlocksActivityProfiles,
     activitiesDocument:WebeeBlocksActivities.DOCUMENT,
@@ -181,8 +196,49 @@ window.addEventListener('unhandledrejection',e=>report('A7_PUPIL_ERROR',{message
         await report('A7_PUPIL_NATIVE_RESET',{between:'l,r',same_project:true});
       }
     }
+    /* Third native attempt: a separate genuine Blockly program takes off,
+     * moves, then lands before H. Read an independently published C verdict,
+     * never synthesize the negative reason from these program blocks. */
+    await backend.resetSimulation();
+    await backend.prepareActivity(left);
+    await new Promise(resolve=>setTimeout(resolve,1600));
+    reopened=failingWorkspace();
+    WebeeBlocksActivityContract.applyFieldBounds(left,reopened);
+    WebeeBlocksActivityContract.preflightWorkspace(left,reopened);
+    const failingAst=WebeeBlocksSemanticAst.compileWorkspace(reopened);
+    check(failingAst.program.length===4 &&
+      failingAst.program[2].kind==='move' &&
+      failingAst.program[2].distance_m===0.20 &&
+      failingAst.program[3].kind==='land',
+      'negative case does not move and land using genuine Blockly');
+    const failingExecuted=await WebeeBlocksActivityContract.execute(
+      left,reopened,WebeeBlocksSemanticAst,WebeeBlocksInterpreter,backend);
+    check(JSON.stringify(failingExecuted)===JSON.stringify(failingAst),
+      'negative pupil AST was not run by the real interpreter');
+    await backend.completeActivityMission(left.evaluation);
+    const negativeRaw=await backend.readActivityOutcome(left.evaluation);
+    const feedback=WebeeBlocksRuntimeOutcome.classifyMission(
+      negativeRaw,left.evaluation);
+    const expected='Mission non accomplie — Programme terminé avant la fin du parcours';
+    check(negativeRaw.status==='not-achieved' &&
+      negativeRaw.reason==='early-finish' &&
+      feedback.state==='MISSION NON RÉUSSIE' &&
+      feedback.detail===expected,
+      'native failure reason did not reach the real product classifier');
+    const visible=document.createElement('p');
+    visible.id='a7NativeReason';
+    visible.setAttribute('role','status');
+    visible.textContent=feedback.state+' — '+feedback.detail;
+    document.body.appendChild(visible);
+    check(document.getElementById('a7NativeReason')===visible &&
+      visible.isConnected && visible.textContent.includes(expected),
+      'French A7 feedback was not rendered in the real Chrome window');
+    await report('A7_PUPIL_NEGATIVE_NATIVE_REASON',{
+      variant:'l',status:negativeRaw.status,reason:negativeRaw.reason,
+      detail:feedback.detail,visible:true,scripted_solution:false});
+    reopened.dispose();reopened=null;
     await report('A7_PUPIL_TEST_COMPLETE',{variants:['l','r'],
-      same_wbb:true,native_oracle:true});
+      same_wbb:true,native_oracle:true,negative_native_reason:true});
   }catch(error){
     await report('A7_PUPIL_ERROR',{message:String(error&&(error.stack||error))});
   }finally{

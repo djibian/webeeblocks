@@ -191,11 +191,26 @@ def run()->int:
                      e['detail'].get('variant')==variant)]
         observed.append(candidates[0][0] if len(candidates)==1 else -1)
     in_order=(all(i>=0 for i in observed) and observed==sorted(observed))
+    negative=[e.get('detail') for e in ack.EVENTS
+              if e.get('event')=='A7_PUPIL_NEGATIVE_NATIVE_REASON']
+    expected_french='Mission non accomplie — Programme terminé avant la fin du parcours'
+    negative_ui_ok=(len(negative)==1 and isinstance(negative[0],dict) and
+      negative[0].get('variant')=='l' and
+      negative[0].get('status')=='not-achieved' and
+      negative[0].get('reason')=='early-finish' and
+      negative[0].get('detail')==expected_french and
+      negative[0].get('visible') is True)
     # Only the independent C observer can award a mission. Browser events
     # and successful PID commands are necessary but never sufficient evidence.
     outcomes=re.findall(
         r'WB_MINI_NATIVE_RESULT variant=([LR]) attempt=([0-9]+) '
         r'status=([a-z-]+) crossed=([01]) turned=([01])',text)
+    negative_reasons=re.findall(
+        r'WB_MINI_NATIVE_RESULT variant=L attempt=3 status=not-achieved '
+        r'crossed=0 turned=0 reason=([a-z-]+)',text)
+    # Terminal events may be logged on multiple native ticks; every token
+    # must agree with the same exact third-attempt irreversible C verdict.
+    native_negative_ok=bool(negative_reasons) and set(negative_reasons)=={'early-finish'}
     rays=[float(v) for v in re.findall(
         r'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=([0-9.]+)',text)]
     moves=re.findall(
@@ -211,23 +226,27 @@ def run()->int:
                 'mini_gp_pupil_probe.html' in browser_text)
     valid=(not missing and ordered and in_order and
            events.count('A7_PUPIL_ERROR')==0 and
-           project_ok and browser_ok and
-           outcomes==[('L','1','achieved','1','1'),('R','2','achieved','1','1')] and
+           project_ok and browser_ok and negative_ui_ok and native_negative_ok and
+           len(outcomes)>=3 and
+           outcomes[:2]==[('L','1','achieved','1','1'),('R','2','achieved','1','1')] and
+           all(x==('L','3','not-achieved','0','0') for x in outcomes[2:]) and
            len(rays)==2 and 0.4<=rays[0]<=0.80 and 0.78<=rays[1]<=1.20 and
            rays[1]-rays[0]>=0.20 and
            moves==['0.800000000','0.800000000','0.800000000','0.150000000',
                    '0.800000000','0.800000000','0.300000000',
-                   '0.800000000','0.150000000'] and
+                   '0.800000000','0.150000000','0.200000000'] and
            vertical==[('up','0.250000000'),('down','0.350000000')]*2 and
            turns==['90.000000000','-90.000000000'] and
-           text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.500000000 stop=1')==2 and
-           text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1')==2 and
+           text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.500000000 stop=1')==3 and
+           text.count('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1')==3 and
            text.count('WB_MINI_NATIVE_READY variant=L oracle=progression-mini-grand-prix-v1')>=1 and
            text.count('WB_MINI_NATIVE_READY variant=R oracle=progression-mini-grand-prix-v1')>=1 and
            'WB_MINI_NATIVE_FATAL' not in text and
            'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in text)
     summary={'pass':valid,'required_missing':missing,'ordered':ordered,
              'events_ordered':in_order,'native_outcomes':outcomes,
+             'negative_ui':negative,'negative_native_reasons':negative_reasons,
+             'negative_native_and_ui_attested':negative_ui_ok and native_negative_ok,
              'rays_m':rays,'moves':moves,'vertical':vertical,'turns':turns,
              'motorized_flight':valid,'same_pupil_wbb':project_ok and in_order,
              'browser_start_mode':browser_origin,'http_probe':browser_probe,
@@ -241,7 +260,7 @@ def run()->int:
         print('FAIL A7 same native .wbb on L/R: '+json.dumps(summary),file=sys.stderr)
         print(text[-13500:],file=sys.stderr)
         return 1
-    print('PASS A7 same .wbb on L/R; genuine native sensors, actual PID motors, 90-degree turn, LAND and C oracle achieved in both worlds',flush=True)
+    print('PASS A7 same .wbb on L/R and motorized early-finish negative: native C reason transferred to product French classifier in real Chrome',flush=True)
     return 0
 
 if __name__=='__main__':
