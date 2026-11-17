@@ -85,7 +85,7 @@
     'route-incomplete': 'Passage du H non entièrement franchi',
     'wrong-heading': 'Orientation incorrecte après le virage',
     'course-boundary': 'Limite du parcours dépassée',
-    'early-finish': 'Programme terminé avant la fin du parcours',
+    'early-finish': 'Fin de parcours ou zone de pose non validée',
     'landing-timeout': 'Atterrissage non stabilisé dans le délai',
     'wrong-pad': 'Atterrissage hors du damier'
   });

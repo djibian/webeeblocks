@@ -320,6 +320,20 @@ static void completion_away_from_pad_x(char v) {
   wb_mini_sample a=sample(6,x+.40,y,.40,yaw,1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+/* Once the open H and turn have been completed, a genuine Floor landing
+ * just outside the final-pad capture envelope is NOT an early route step.
+ * Preserve the native terminal rejection and use a neutral pupil-facing
+ * explanation covering both unfinished route and wrong final position. */
+static void completion_off_pad_after_full_route(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  assert(m.crossed && m.turned);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(6,x+.17,y,.015,wb_mini_heading(v),1);
+  assert(a.floor_contact==1 && a.contact==0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_EARLY);
+  assert(!strcmp(wb_mini_reason_token(m.reason),"early-finish"));
+}
 /* A small and correctly oriented settling drift after COMPLETE is allowed:
  * do not over-constrain a child using the native landing PID. */
 static void completion_near_pad_can_settle(char v) {
@@ -521,6 +535,7 @@ int main(void) {
   fresh_blue_reset('L');fresh_blue_reset('R');
   completion_away_from_pad_y('L');completion_away_from_pad_y('R');
   completion_away_from_pad_x('L');completion_away_from_pad_x('R');
+  completion_off_pad_after_full_route('L');completion_off_pad_after_full_route('R');
   completion_near_pad_can_settle('L');completion_near_pad_can_settle('R');
   backtrack_lateral_bypass('L');backtrack_lateral_bypass('R');
   swept_lateral_bypass('L');swept_lateral_bypass('R');

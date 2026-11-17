@@ -442,7 +442,7 @@ function proveRealWebotsOutcomeFreshness() {
     oracle:'progression-mini-grand-prix-v1',
     raw:{status:'not-achieved',reason:'early-finish'},
     state:'MISSION NON RÉUSSIE',
-    detail:'Mission non accomplie — Programme terminé avant la fin du parcours'
+    detail:'Mission non accomplie — Fin de parcours ou zone de pose non validée'
   });
   // A7-only causes must not be transposed onto a different oracle, and
   // A4-only causes must not leak into A7's reason catalogue.
