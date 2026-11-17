@@ -40,6 +40,13 @@ const pAlt = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1'
 assert.deepStrictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'altitude-v1').map(p => p.id),[pAlt.id]);
 assert.strictEqual(pAlt.starterVisible, undefined);
 assert.strictEqual(Profiles.validateProfile(pAlt, Activities.BLOCK_CATALOG),true);
+// The A2 pupil brief invites observing two conflicting heights, not an
+// ordered block solution, a numeric flight recipe, or a speed objective.
+assert.match(pAlt.brief.mission,/Avant de programmer, compare la hauteur libre sous l’auvent et au-dessus de l’obstacle/);
+assert.match(pAlt.brief.mission,/que remarques-tu \?/);
+assert.doesNotMatch(pAlt.brief.mission,/monte de|avance de|répète|vitesse|bloc|\b0[.,][0-9]+\s*m\b/i);
+assert(pAlt.toolbox.includes('webeeblocks_v2_vertical'),
+  'A2 retains the relative vertical tool, unlike the simple A1 mission');
 
 // Native A3 orientation and repeat are now offered as one pupil mission.
 const pOrient = Profiles.resolveById(Activities.DOCUMENT, 'progression-orientation-3d-v1', Activities.BLOCK_CATALOG);
