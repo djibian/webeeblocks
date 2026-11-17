@@ -111,6 +111,10 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn("WEBEEBLOCKS_A5_FACTOR_H_BLIND_NATIVE_REJECTED",runner)
         self.assertIn('"real_wrong_pad_floor":contact',runner)
         self.assertIn('"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace',runner)
+        self.assertIn('land.get("nativeReply") is True',runner)
+        self.assertIn('finished.get("missionOracle") is False',runner)
+        self.assertIn('"mission_oracle":False',runner)
+        self.assertNotIn('"A5_FACTOR_MOTOR_LAND_ACK" not in names',runner)
         self.assertIn('--blind-h',
                       (ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text())
         self.assertIn('far?1.18:.58',scene)

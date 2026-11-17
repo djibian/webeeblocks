@@ -275,6 +275,11 @@ def run(variant,mode="positive"):
         h=observed("A5_FACTOR_MOTOR_H_OBSERVATION")
         g=observed("A5_FACTOR_MOTOR_G_OBSERVATION")
         pad=observed("A5_FACTOR_MOTOR_PAD_SELECTED")
+        # LAND ACK attests execution of a primitive, not a successful
+        # classroom mission. A wrong-pad flight can acknowledge LAND and
+        # complete its private script while the native observer rejects it.
+        land=observed("A5_FACTOR_MOTOR_LAND_ACK")
+        finished=observed("A5_FACTOR_MOTOR_TEST_COMPLETE")
         good=(contact is not None and all(math.isfinite(v) for v in contact) and
               abs(contact[0]-4.15)<.10 and abs(contact[1]-.62)<.10 and
               0<=contact[2]<=.025 and contact[3]>2 and
@@ -295,14 +300,19 @@ def run(variant,mode="positive"):
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_OBSTACLE_CONTACT" not in trace and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_SWEPT_COLLISION" not in trace and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace and
-              "A5_FACTOR_MOTOR_LAND_ACK" not in names and
-              "A5_FACTOR_MOTOR_TEST_COMPLETE" not in names)
+              isinstance(land,dict) and land.get("nativeReply") is True and
+              isinstance(finished,dict) and
+              finished.get("nativeReply") is True and
+              finished.get("pupilWbb") is False and
+              finished.get("missionOracle") is False)
         summary={"schema":"webeeblocks-a5-hblind-native-negative-v1",
                  "variant":variant,"mode":mode,"pass":good,
                  "real_wrong_pad_floor":contact,"h_sensor_seen":h,
                  "g_sensor_seen":g,"pad_selected":pad,
                  "no_false_mission_success":good,"student_wbb":False,
-                 "events":names}
+                 "land_command_ack":land,
+                 "private_program_completed":finished,
+                 "mission_oracle":False,"events":names}
         summary_path.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
         if not good:
             print("A5_FACTOR_H_BLIND_NATIVE_REJECTION_UNPROVEN "+

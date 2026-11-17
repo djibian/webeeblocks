@@ -77,8 +77,14 @@ seven authentic Solid contacts/swept intersections checked at every
 on H-far/G-left deliberately ignores the genuine initial H reading and
 selects the left damier; independent native Floor contact must certify this
 as the **wrong pad** and fail terminally, without any positive LAND verdict.
-This refutes only a simple blind destination strategy. It does **not**
-rule out late re-reading or control-flow branching without a variable.
+This refutes only a simple blind destination strategy. The native
+`premature_floor_contact` is mission failure even when the normal
+`LAND` primitive returns an ACK and the private JS script finishes
+successfully. The CI counterexample requires the *real* wrong-pad Floor
+contact, the irrevocable native failure and absence of any independent
+successful native pad marker; a `LAND` ACK is never a mission oracle.
+It does **not** rule out late re-reading or control-flow branching
+without a variable.
 The native-only A/B feeder regression remains mandatory, as does
 the native-only A/B feeder regression, and no physical product,
 public activity starter, safety threshold or Grand Prix A8 is changed.
