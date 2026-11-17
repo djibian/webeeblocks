@@ -93,6 +93,24 @@ class PupilA7Tests(unittest.TestCase):
         self.assertIn("parsed.get('activity',{}).get('id')=='progression-mini-grand-prix-v1'",
                       RUN.read_text(encoding="utf-8"))
 
+    def test_public_a7_terminal_h_question_never_prescribes_an_algorithm(self):
+        catalog=ACTIVITIES.read_text(encoding="utf-8")
+        self.assertEqual(catalog.count("id: 'progression-mini-grand-prix-v1'"),1)
+        profile=catalog.split("id: 'progression-mini-grand-prix-v1',",1)[1].split(
+            "id: 'progression-memory-v1',",1)[0]
+        mission=[line.strip() for line in profile.splitlines()
+                 if line.strip().startswith("mission: '")]
+        self.assertEqual(len(mission),1)
+        brief=mission[0].split("mission: '",1)[1].rsplit("'",1)[0]
+        self.assertIn("comment ton drone saura-t-il qu’il s’approche du H fermé ?",brief)
+        self.assertIn("un seul programme enregistré, sans le modifier",brief)
+        # An open question must not reveal a sensor, syntax, threshold or path.
+        for solution in ("télémètre","mesure la distance","SI/SINON",
+                         "controls_if","controls_repeat_ext","variables_get",
+                         "0,75","0.75","répète"):
+            with self.subTest(solution=solution):
+                self.assertNotIn(solution,brief)
+
     def test_motor_runner_requires_native_oracle_real_sensors_and_immutable_file(self):
         for path in (PREP,RUN):
             src=path.read_text(encoding="utf-8")
