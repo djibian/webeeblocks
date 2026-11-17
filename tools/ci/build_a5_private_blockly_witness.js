@@ -36,14 +36,14 @@ function expectedAst(){
     {kind:'while',mode:'WHILE',max_iterations:32,
       condition:cmp('GT',range('front'),.75),body:[forward(.1)]},
     iff(cmp('GT',range('left'),1),[
-      turn(90),forward(.6),turn(-90),forward(.85),forward(.8),
+      turn(90),forward(.6),turn(-90),forward(.85),forward(.8),forward(.1),
       iff(cmp('GT',v('destination'),.8),[turn(-90),forward(1.24)])
     ],[
-      turn(-90),forward(.6),turn(90),forward(.85),forward(.8),
+      turn(-90),forward(.6),turn(90),forward(.85),forward(.8),forward(.1),
       iff(cmp('LTE',v('destination'),.8),[turn(90),forward(1.24)])
     ]),
-    // Calibrated by actual R2025a front ray; keep native pad gate intact.
-    forward(.1),
+    // The 0.1m forward correction is inside BOTH G branches, BEFORE
+    // the optional 90° lateral shift; the Floor oracle is unchanged.
     {kind:'land'}
   ]};
 }

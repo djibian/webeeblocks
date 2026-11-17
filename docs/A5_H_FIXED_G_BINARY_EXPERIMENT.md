@@ -138,8 +138,13 @@ was about 4.040 m while the unaltered Floor target admits
 4.05 <= x <= 4.25 m. The measured front rays 0.764743 m and
 0.665220 m show that the loop ended one 0.1 m move earlier than
 the original mock predicted. The virtual front-ray intercept is
-therefore corrected to 3.065 m and the SAME PRIVATE .wbb adds
-one shared final 0.10 m move after the G branch before LAND.
+therefore corrected to 3.065 m. The first attempt at a 0.10 m
+correction placed the move after both G branches, but the deterministic
+model correctly rejected it because the optional pad shift leaves
+the heading lateral. The next candidate inserts the same 0.10 m
+forward movement inside each G branch **before** any 90-degree
+lateral correction, without using any scene ID or changing safety
+oracles.
 Original 7-box swept collision tests, native Floor/pad bounds, PID and
 Webots assets stay unchanged. This is a new falsifiable HYPOTHESIS,
 not a claim that the revised native WBB flies successfully.
