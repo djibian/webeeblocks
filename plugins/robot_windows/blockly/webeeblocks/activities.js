@@ -72,7 +72,7 @@
         brief: {
           visible: true,
           title: '2 — Maîtriser l’altitude',
-          mission: 'Depuis la zone bleue sous l’auvent, franchis l’obstacle sans toucher le toit ni les parois, puis pose le drone entièrement sur le damier vert. Tu peux ajuster la hauteur de décollage, les distances et la vitesse.'
+          mission: 'Depuis la zone bleue sous l’auvent, franchis l’obstacle sans toucher le toit ni les parois, puis pose le drone entièrement sur le damier vert. Avant de programmer, compare la hauteur libre sous l’auvent et au-dessus de l’obstacle : que remarques-tu ?'
         },
         pedagogy: {
           objective: 'Découvrir le déplacement vertical relatif pendant le vol : quitter le départ à basse altitude puis monter pour franchir un obstacle. Le verdict dépend du vol réel simulé, non de la forme du programme.'
@@ -146,7 +146,7 @@
         brief: {
           visible: true,
           title: '3 — S’orienter et organiser son trajet',
-          mission: 'Parcours les balises A, B et C dans l’ordre, en respectant le cap indiqué et les hauteurs du circuit, puis pose le drone entièrement et immobile sur le damier.'
+          mission: 'Parcours les balises A, B et C dans l’ordre, en respectant le cap indiqué et les hauteurs du circuit, puis pose le drone entièrement et immobile sur le damier. Avant de programmer, observe les étapes du trajet : qu’ont-elles en commun ?'
         },
         pedagogy: {
           objective: 'Comprendre la rotation relative et les déplacements dans le repère local, puis identifier un motif de trajet utile à répéter.'
