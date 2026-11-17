@@ -203,7 +203,7 @@ const visibleIds=Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progr
 assert.deepStrictEqual(visibleIds,[
   'progression-sequence-v1','progression-altitude-v1',
   'progression-orientation-3d-v1','progression-decision-h-v1',
-  'progression-mini-grand-prix-v1','progression-autonomous-v1'
+  'progression-mini-grand-prix-v1','progression-autonomous-strategy-v1'
 ], 'offer only the qualified current missions; A5/A6 are still under development');
 assert.match(fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'), /profile\.starterVisible !== false/);
 assert.strictEqual(p1.brief.title, '1 — Prendre son envol en 3D');
