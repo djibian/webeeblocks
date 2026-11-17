@@ -45,7 +45,7 @@ suivi par #476 ; ne l’interprétez pas comme une régression du broker Firefox
 
 ## Démarrer une activité de la progression
 
-L’archive contient dans `Activites` les six modèles `.wbb` actuellement
+L’archive contient dans le dossier `Activites` les six modèles `.wbb` actuellement
 proposés aux élèves : 01, 02, 03, 04, 07 et 08. Les anciens modèles 05 et 06,
 ainsi que les autres versions historiques, sont conservés dans
 `Activites/Historique` sans modifier leurs projets. Les nouvelles activités 5
