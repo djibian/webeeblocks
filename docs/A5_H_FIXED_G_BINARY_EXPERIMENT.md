@@ -73,7 +73,13 @@ A scene identity is used only to select the private fixture;
 All four flights must obtain native MOVE/TAKEOFF/TURN/LAND acknowledgments,
 independent physical Floor contact at the correct H destination and all
 seven authentic Solid contacts/swept intersections checked at every
-32-ms step. The old blind-right negative remains mandatory, as does
+32-ms step. The old blind-right negative remains mandatory. A second CI-only adversary
+on H-far/G-left deliberately ignores the genuine initial H reading and
+selects the left damier; independent native Floor contact must certify this
+as the **wrong pad** and fail terminally, without any positive LAND verdict.
+This refutes only a simple blind destination strategy. It does **not**
+rule out late re-reading or control-flow branching without a variable.
+The native-only A/B feeder regression remains mandatory, as does
 the native-only A/B feeder regression, and no physical product,
 public activity starter, safety threshold or Grand Prix A8 is changed.
 A green run proves feasibility of this private JS *only*, not a

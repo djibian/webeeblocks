@@ -105,10 +105,21 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn("side:targetRight?'right':'left'",js)
         self.assertIn("await backend.turn(targetRight?-90:90)",js)
         self.assertIn("a5-factor-hfar-g-",js)
+        self.assertIn("config.mode==='blind_h'?false:initialH>.80",js)
+        self.assertIn("config.mode==='blind_h'?'blind_fixed_left'",js)
+        self.assertIn("if mode==\"blind_h\" and variant!=\"C\":",runner)
+        self.assertIn("WEBEEBLOCKS_A5_FACTOR_H_BLIND_NATIVE_REJECTED",runner)
+        self.assertIn('"real_wrong_pad_floor":contact',runner)
+        self.assertIn('"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace',runner)
+        self.assertIn('--blind-h',workflow)
         self.assertIn('far?1.18:.58',scene)
         self.assertIn('far?1.38:.78',scene)
         self.assertIn('target_y=far_h?-.62:.62',trace)
         self.assertIn("if(near==far_h)return 0",trace)
+        # A distant H must still reject a wrong pad on genuine Floor contact.
+        self.assertIn("if(airborne&&floor&&!target)",trace)
+        self.assertIn("WEBEEBLOCKS_A5_FACTOR_MOTOR_WRONG_PAD_NATIVE",trace)
+        self.assertIn("position[2]>=0&&position[2]<=.025",trace)
         # C shares real G-left with A; D shares G-right with B.
         # The old 'variant == A' shortcut falsely mirrored C's swept
         # obstacle and refused an otherwise legitimate left-gate flight.

@@ -93,7 +93,7 @@ jobs:
             -w /workspace/controllers/progression_reactive_L_factor_motor_pilot \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_reactive_L_factor_motor_pilot'
-      - name: Native motorized H/G A B C D from the same private JS and rejected blind B
+      - name: Motorized H/G A B C D plus blind G and wrong H landing pad
         timeout-minutes: 18
         run: |
           set -euo pipefail
@@ -117,6 +117,7 @@ jobs:
               test -x /usr/bin/google-chrome
               python3 tools/ci/run_classroom_reactive_L_factor_motor.py
               python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind
+              python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind-h
             '
       - name: Preserve C physical monitor, real steps and browser events even on failure
         if: always()

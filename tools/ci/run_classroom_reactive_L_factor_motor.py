@@ -142,11 +142,14 @@ def native_collision_coverage(transcript,variant):
             "conservative_swept_boxes_per_step":True}
 
 def run(variant,mode="positive"):
-    if variant not in ("A","B","C","D") or mode not in ("positive","blind"):
+    if variant not in ("A","B","C","D") or mode not in ("positive","blind","blind_h"):
         raise ValueError("wrong factorial H/G native test")
     if mode=="blind" and variant!="B":
         raise ValueError("blind gate rejection tested only against G-right")
-    folder=ARTIFACT/("blind-B" if mode=="blind" else variant)
+    if mode=="blind_h" and variant!="C":
+        raise ValueError("blind H rejection tested only against far-H / G-left")
+    folder=ARTIFACT/("blind-B" if mode=="blind" else
+                     "blind-h-C" if mode=="blind_h" else variant)
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -257,6 +260,58 @@ def run(variant,mode="positive"):
             raise AssertionError("blind G-right did not prove physical invalidity")
         print("WEBEEBLOCKS_A5_FACTOR_MOTOR_BLIND_NATIVE_REJECTED "
               "variant=B collider=G test_only=true",flush=True)
+        return summary
+    if mode=="blind_h":
+        # The wrong pad is attested ONLY by actual native Floor contact and
+        # physical XYZ in the independent C monitor, never by JavaScript.
+        wrong=re.findall(
+            r"(?m)^WEBEEBLOCKS_A5_FACTOR_MOTOR_WRONG_PAD_NATIVE "
+            r"variant=C x=(-?[0-9.]+) y=(-?[0-9.]+) "
+            r"z=(-?[0-9.]+) t=([0-9.]+)$",trace)
+        contact=list(map(float,wrong[0])) if len(wrong)==1 else None
+        def observed(key):
+            matches=[e.get("detail") for e in events.EVENTS if e.get("event")==key]
+            return matches[0] if len(matches)==1 else None
+        h=observed("A5_FACTOR_MOTOR_H_OBSERVATION")
+        g=observed("A5_FACTOR_MOTOR_G_OBSERVATION")
+        pad=observed("A5_FACTOR_MOTOR_PAD_SELECTED")
+        good=(contact is not None and all(math.isfinite(v) for v in contact) and
+              abs(contact[0]-4.15)<.10 and abs(contact[1]-.62)<.10 and
+              0<=contact[2]<=.025 and contact[3]>2 and
+              isinstance(h,dict) and
+              isinstance(h.get("left_m"),(float,int)) and
+              abs(h["left_m"]-1.14)<.12 and
+              h.get("destination")=="left" and
+              h.get("decision_source")=="blind_fixed_left" and
+              isinstance(g,dict) and
+              isinstance(g.get("left_m"),(float,int)) and
+              abs(g["left_m"]-1.41)<.12 and
+              g.get("route")=="left" and
+              g.get("decision_source")=="late_left_only" and
+              isinstance(pad,dict) and pad.get("side")=="left" and
+              pad.get("decision_source")=="blind_fixed_left" and
+              "A5_FACTOR_MOTOR_GATE_PASSED" in names and
+              "WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL reason=premature_floor_contact" in trace and
+              "WEBEEBLOCKS_A5_FACTOR_MOTOR_OBSTACLE_CONTACT" not in trace and
+              "WEBEEBLOCKS_A5_FACTOR_MOTOR_SWEPT_COLLISION" not in trace and
+              "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace and
+              "A5_FACTOR_MOTOR_LAND_ACK" not in names and
+              "A5_FACTOR_MOTOR_TEST_COMPLETE" not in names)
+        summary={"schema":"webeeblocks-a5-hblind-native-negative-v1",
+                 "variant":variant,"mode":mode,"pass":good,
+                 "real_wrong_pad_floor":contact,"h_sensor_seen":h,
+                 "g_sensor_seen":g,"pad_selected":pad,
+                 "no_false_mission_success":good,"student_wbb":False,
+                 "events":names}
+        summary_path.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+        if not good:
+            print("A5_FACTOR_H_BLIND_NATIVE_REJECTION_UNPROVEN "+
+                  json.dumps(summary),file=sys.stderr)
+            print(trace[-6500:],file=sys.stderr)
+            raise AssertionError("blind H did not reach a genuine wrong Floor pad")
+        print("WEBEEBLOCKS_A5_FACTOR_H_BLIND_NATIVE_REJECTED "
+              "variant=C wrong_pad=left H_requires_right true_floor=true",
+              flush=True)
         return summary
     missing=[k for k in REQUIRED if names.count(k)!=1]
     ordered=not missing and [names.index(k) for k in REQUIRED]==sorted(
@@ -385,8 +440,14 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",choices=["A","B","C","D","both"],default="both")
     parser.add_argument("--blind",action="store_true")
+    parser.add_argument("--blind-h",action="store_true")
     args=parser.parse_args()
-    if args.blind:
+    if args.blind and args.blind_h:
+        parser.error("negative modes are mutually exclusive")
+    if args.blind_h:
+        if args.variant!="both":parser.error("--blind-h checks only H-far G-left")
+        run("C","blind_h")
+    elif args.blind:
         if args.variant!="both":parser.error("--blind checks only G-right")
         run("B","blind")
     elif args.variant=="both":main()

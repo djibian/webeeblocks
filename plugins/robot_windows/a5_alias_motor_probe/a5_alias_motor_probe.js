@@ -24,7 +24,8 @@ window.addEventListener('unhandledrejection',e=>
   const config=await response.json();
   if(!config||!['A','B','C','D'].includes(config.variant))
     throw Error('unexpected A5 gate experiment variant');
-  if(config.mode!=='positive'&&config.mode!=='blind')
+  if(config.mode!=='positive'&&config.mode!=='blind'&&
+     config.mode!=='blind_h')
     throw Error('unexpected A5 test mode');
   await report('A5_FACTOR_MOTOR_JS_STARTED',{testOnly:true});
   const mod=await import('../blockly_v2/webots/RobotWindow.js');
@@ -49,10 +50,12 @@ window.addEventListener('unhandledrejection',e=>
   const initialH=await backend.readRange('left');
   if(!Number.isFinite(initialH)||initialH<0||initialH>2.001)
     throw Error('missing genuine initial H observation');
-  const targetRight=initialH>.80;
+  // CI-only counterexample: keep genuine initial H evidence, ignore its value.
+  const targetRight=config.mode==='blind_h'?false:initialH>.80;
   await report('A5_FACTOR_MOTOR_H_OBSERVATION',{
     left_m:initialH,destination:targetRight?'right':'left',
-    decision_source:'initial_left_only',testOnly:true
+    decision_source:config.mode==='blind_h'?'blind_fixed_left':'initial_left_only',
+    testOnly:true
   });
   // Move in the shared corridor BEFORE observing the gate G.
   await backend.move('forward',1.20);
@@ -84,7 +87,8 @@ window.addEventListener('unhandledrejection',e=>
   }
   await report('A5_FACTOR_MOTOR_PAD_SELECTED',{
     side:targetRight?'right':'left',
-    decision_source:'initial_left_only',testOnly:true
+    decision_source:config.mode==='blind_h'?'blind_fixed_left':'initial_left_only',
+    testOnly:true
   });
   await backend.land();
   await report('A5_FACTOR_MOTOR_LAND_ACK',{nativeReply:true});

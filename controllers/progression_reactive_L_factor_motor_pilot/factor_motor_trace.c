@@ -193,6 +193,16 @@ int __wrap_wb_robot_step(int duration) {
   const int target=fabs(position[0]-4.15)<=.10&&
                    fabs(position[1]-target_y)<=.10;
   if(airborne&&floor&&!target) {
+    /* Diagnose a genuinely grounded wrong checkerboard, not a spoofed
+     * low GPS hover: floor is the independent native contact stream. */
+    if(fabs(position[0]-4.15)<=.10&&
+       fabs(position[1]+target_y)<=.10&&
+       position[2]>=0&&position[2]<=.025) {
+      printf("WEBEEBLOCKS_A5_FACTOR_MOTOR_WRONG_PAD_NATIVE "
+             "variant=%c x=%.9f y=%.9f z=%.9f t=%.6f\n",
+             variant,position[0],position[1],position[2],t);
+      fflush(stdout);
+    }
     fatal("premature_floor_contact",t);
     return result;
   }
