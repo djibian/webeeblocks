@@ -11,11 +11,11 @@
 #include <webots/robot.h>
 #include <webots/supervisor.h>
 #include <math.h>
-#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 extern const char *__real_wb_robot_wwi_receive_text(void);
+extern void __real_wb_robot_wwi_send(const char *, int);
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
 static const char NONCE[] =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -105,19 +105,26 @@ const char *__wrap_wb_robot_wwi_receive_text(void){
   fflush(stdout);
   return request;
 }
-void __wrap_wb_robot_wwi_send_text(const char *message){
+/* In Webots R2025a wb_robot_wwi_send_text is a macro, NOT a function:
+ * #define wb_robot_wwi_send_text(t) wb_robot_wwi_send(t,strlen(t)+1).
+ * The product FileBroker C interposition first observes the response, then
+ * invokes wb_robot_wwi_send(bytes,size) as a real outbound symbol.
+ * Interpose precisely THAT symbol; never bypass the product broker.
+ */
+void __wrap_wb_robot_wwi_send(const char *data,int size){
   initialize();
   if(!enabled){
-    /* The Webots R2025a controller may expose its WWI send function via
-     * its loaded shared library, not as a link-time __real_ symbol.
-     * Preserve original browser transport ONLY if an actual dynamic
-     * implementation is available; fail closed rather than fake delivery. */
-    void (*relay)(const char *)=
-      (void (*)(const char *))dlsym(RTLD_NEXT,"wb_robot_wwi_send_text");
-    if(!relay){fail("real_wwi_send_passthrough_unavailable");return;}
-    relay(message);
+    /* Preserve original WWI traffic with original bytes/length when this is
+     * not the exact private laboratory world. */
+    __real_wb_robot_wwi_send(data,size);
     return;
   }
+  if(!data||size<1||size>512||data[size-1]!='\\0'||
+     strlen(data)!=(size_t)size-1){
+    fail("malformed_native_wwi_send");
+    return;
+  }
+  const char *message=data;
   if(!message||strncmp(message,PREFIX " RESPONSE ",strlen(PREFIX " RESPONSE ")))return;
   int id=-1;
   char kind[24]={0};
