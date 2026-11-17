@@ -101,7 +101,7 @@ def run(variant,mode):
         wrong=re.findall(
             r"(?m)^WEBEEBLOCKS_A5_FACTOR_FEEDER_LATE_RANGE variant=B "
             r"left_m=([0-9.]+) route=left mode=blind$",data)
-        failed=(startup==[""] and len(wrong)==1 and float(wrong[0])<.70 and
+        failed=(len(startup)==1 and len(wrong)==1 and float(wrong[0])<.70 and
                 len(collisions)>=1 and collisions[0][0] in ("G_SIDE_ARM","G_UPPER") and
                 "WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL reason=swept_physical_box_intersection" in data and
                 "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in data and

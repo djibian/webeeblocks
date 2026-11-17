@@ -15,6 +15,8 @@ on:
       - 'plugins/robot_windows/a5_alias_motor_probe/**'
       - 'tools/ci/prepare_classroom_reactive_L_factor_motor.py'
       - 'tools/ci/run_classroom_reactive_L_factor_motor.py'
+      - 'tools/ci/run_classroom_reactive_L_factor_native_feeder.py'
+      - 'tools/ci/test_progression_a5_factor_native_feeder.py'
       - 'tools/ci/test_progression_a5_factor_motor.py'
       - 'tools/ci/test_progression_a5_factorized_geometries.py'
       - 'tools/ci/test_workflow_contract.py'
@@ -102,5 +104,45 @@ jobs:
         with:
           name: a5-hfixed-gbinary-real-motor-draft
           path: ci-artifacts/progression-reactive-L-factor-motor/
+          if-no-files-found: warn
+  a5-factor-g-native-pid-feeder-draft-only:
+    name: A5 native WWI feeder product PID through G (no Chrome, not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reject feeder bypass of safety, sensor or mission authority
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_a5_factor_native_feeder
+      - name: Compile unchanged product R2025a PID plus opt-in C command feeder
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_factor_motor_pilot \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_factor_motor_pilot'
+      - name: Native G-left and G-right motor + Floor, then wrong-gap negative
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_factor_native_feeder.py; python3 tools/ci/run_classroom_reactive_L_factor_native_feeder.py --blind'
+      - name: Preserve real native commands, contacts, Floor and counterexamples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-hfixed-gbinary-real-native-feeder-draft
+          path: ci-artifacts/progression-reactive-L-factor-native-feeder/
           if-no-files-found: warn
 
