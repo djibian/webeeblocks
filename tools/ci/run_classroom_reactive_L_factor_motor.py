@@ -162,6 +162,8 @@ def run(variant,mode="positive"):
         thread=threading.Thread(target=server.serve_forever,daemon=True)
         thread.start()
         env["WEBOTS_WEB_BROWSER"]="/workspace/tools/ci/webots_runtime_v2_browser.sh"
+        # Capture the actual Chrome-launch boundary in the per-run archive.
+        env["WEBEEBLOCKS_CI_ARTIFACT_DIR"]=str(folder)
         env["LIBGL_ALWAYS_SOFTWARE"]="true"
         env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"
         wbt,_=world.paths(variant)
@@ -172,6 +174,8 @@ def run(variant,mode="positive"):
             cwd=ROOT,env=env,stdout=stream,stderr=subprocess.STDOUT,
             start_new_session=True)
         deadline=time.monotonic()+175
+        startup_deadline=time.monotonic()+28
+        launch_log=folder/"browser-launch.log"
         while time.monotonic()<deadline:
             stream.flush()
             trace=log.read_text(encoding="utf-8",errors="replace")
@@ -182,6 +186,12 @@ def run(variant,mode="positive"):
                           "WEBEEBLOCKS_RUNTIME_V2 FATAL" in trace)
             browser_error=any(v.get("event")=="A5_FACTOR_MOTOR_ERROR"
                               for v in events.EVENTS)
+            if time.monotonic()>=startup_deadline and not events.EVENTS:
+                print("WEBEEBLOCKS_A5_FACTOR_MOTOR_BROWSER_BOUNDARY_MISSING "
+                      f"variant={variant} launched={launch_log.exists()} "
+                      f"runtime_ready={'WEBEEBLOCKS_RUNTIME_V2 READY' in trace} "
+                      "no_browser_event=true",file=sys.stderr,flush=True)
+                break
             if (finished and floor) or native_fatal or browser_error or proc.poll() is not None:
                 break
             time.sleep(.25)
@@ -206,6 +216,17 @@ def run(variant,mode="positive"):
         world.cleanup(variant,original=body)
     trace=log.read_text(encoding="utf-8",errors="replace")
     names=[v["event"] for v in events.EVENTS]
+    if not names:
+        # Do not reinterpret a missing browser as a motor or physics failure.
+        launch=folder/"browser-launch.log"
+        diagnostic={"schema":"webeeblocks-a5-browser-boundary-v1",
+                    "variant":variant,"mode":mode,
+                    "runtime_ready":"WEBEEBLOCKS_RUNTIME_V2 READY" in trace,
+                    "web_browser_invoked":launch.exists(),
+                    "browser_events":0,"native_motor_attempted":False,
+                    "physical_gate_refuted":False}
+        summary_path.write_text(json.dumps(diagnostic,indent=2,sort_keys=True)+"\n")
+        raise AssertionError("browser boundary unobserved; motor trial NOT RUN")
     if mode=="blind":
         # A fixed left-side G choice in G-right MUST physically hit a Solid.
         collision=re.search(

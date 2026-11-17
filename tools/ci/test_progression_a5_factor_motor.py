@@ -70,6 +70,10 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertLess(js.index("A5_FACTOR_MOTOR_APPROACH"),
                         js.index("await backend.readRange('left')"))
         self.assertEqual(js.count("await backend.readRange("),1)
+        self.assertIn("WEBEEBLOCKS_A5_FACTOR_MOTOR_BROWSER_BOUNDARY_MISSING",runner)
+        self.assertIn('"web_browser_invoked":launch.exists()',runner)
+        self.assertIn('"native_motor_attempted":False',runner)
+        self.assertIn("env[\"WEBEEBLOCKS_CI_ARTIFACT_DIR\"]=str(folder)",runner)
         for required in ("native_collision_coverage(trace,variant)",
                          "swept_boxes_checked=7",
                          "WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE left",
