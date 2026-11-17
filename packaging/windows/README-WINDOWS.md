@@ -45,11 +45,14 @@ suivi par #476 ; ne l’interprétez pas comme une régression du broker Firefox
 
 ## Démarrer une activité de la progression
 
-L’archive contient le dossier `Activites` avec les huit fichiers `.wbb` de la
-progression pédagogique active, numérotés de 01 à 08. L'ancienne activité
-« 2 — Livrer le colis fragile » reste disponible dans `Activites/Historique` :
-les anciens projets conservent leurs profils, scènes et programmes d’origine.
-L’enseignant peut distribuer tout ou partie des modèles actifs.
+L’archive contient dans `Activites` les six modèles `.wbb` actuellement
+proposés aux élèves : 01, 02, 03, 04, 07 et 08. Les anciens modèles 05 et 06,
+ainsi que les autres versions historiques, sont conservés dans
+`Activites/Historique` sans modifier leurs projets. Les nouvelles activités 5
+et 6 ne sont pas encore publiées dans « Démarrer une activité ».
+Le monde expérimental de l’activité 6 présent dans l’archive n’est pas encore
+un parcours Windows validé pour les élèves ; son lancement demeure réservé
+aux essais techniques. L’enseignant peut distribuer les six modèles actifs.
 
 Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir l’activité
 dans la liste intégrée : le fichier `.wbb` de départ est créé automatiquement,

@@ -53,21 +53,40 @@ $robotWindowHtml = Join-Path $robotWindowRoot "${robotWindowName}.html"
 Assert-Release (Test-Path -LiteralPath $robotWindowHtml -PathType Leaf) 'Content-addressed Robot Window HTML is missing.'
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $robotWindowsRoot 'blockly_v2') -PathType Container)) 'Stable blockly_v2 package path defeats top-level cache isolation.'
 
+# A6 has its own hash; it is added after the canonical Blockly digest.
+$countWindowCandidates = @(Get-ChildItem -LiteralPath $robotWindowsRoot -Directory | Where-Object {
+  $_.Name -match '^blockly_count_h_[0-9a-f]{16}$'
+})
+Assert-Release ($countWindowCandidates.Count -eq 1) 'Expected exactly one content-addressed A6 Robot Window.'
+$countWindowName = $countWindowCandidates[0].Name
+$countWindowRoot = $countWindowCandidates[0].FullName
+$countWindowHtmlPath = Join-Path $countWindowRoot "$countWindowName.html"
+Assert-Release (Test-Path -LiteralPath $countWindowHtmlPath -PathType Leaf) 'Missing A6 Robot Window HTML.'
+$countHtmlDigest = (Get-FileHash -LiteralPath $countWindowHtmlPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Assert-Release ($countWindowName -ceq "blockly_count_h_$($countHtmlDigest.Substring(0, 16))") 'A6 Robot Window digest differs from packaged HTML bytes.'
+$countWindowHtml = Get-Content -LiteralPath $countWindowHtmlPath -Raw
+Assert-Release ($countWindowHtml.Contains('<base href="../' + $robotWindowName + '/">')) 'A6 Robot Window does not bind the content-addressed Blockly editor.'
+Assert-Release ($countWindowHtml.Contains("WebeeBlocksInitialActivityId = 'progression-count-h-v1'")) 'A6 Robot Window bootstrap identity lost.'
+Assert-Release ($countWindowHtml -notmatch '"(?:https?|webots)://') 'A6 Robot Window requires remote runtime assets.'
+
 # Reconstruct the canonical pre-rename plugin tree and independently verify that
 # the packaged Robot Window name is exactly the digest derived by the builder.
 $identityEntries = @(Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($robotWindowsRoot, $_.FullName).Replace('\', '/')
-  $prefix = "$robotWindowName/"
-  if ($relative.StartsWith($prefix, [System.StringComparison]::Ordinal)) {
-    $tail = $relative.Substring($prefix.Length)
-    if ($tail -eq "${robotWindowName}.html") {
-      $tail = 'blockly_v2.html'
+  # Only canonical Blockly/contract bytes belong to the original digest.
+  if (-not $relative.StartsWith("$countWindowName/", [System.StringComparison]::Ordinal)) {
+    $prefix = "$robotWindowName/"
+    if ($relative.StartsWith($prefix, [System.StringComparison]::Ordinal)) {
+      $tail = $relative.Substring($prefix.Length)
+      if ($tail -eq "${robotWindowName}.html") {
+        $tail = 'blockly_v2.html'
+      }
+      $relative = 'blockly_v2/' + $tail
     }
-    $relative = 'blockly_v2/' + $tail
-  }
-  [PSCustomObject]@{
-    Relative = $relative
-    Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    [PSCustomObject]@{
+      Relative = $relative
+      Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
   }
 })
 $identityLines = @($identityEntries | Sort-Object Relative | ForEach-Object { "$($_.Hash)  $($_.Relative)" })
@@ -124,11 +143,59 @@ $required = @(
   'Activites\07-mini-grand-prix.wbb',
   'Activites\Historique\07-memory.wbb',
   'worlds\scenes\legacy-scene-v1.wbo',
-  'worlds\scenes\legacy-evaluators-v1.wbo'
+  'worlds\scenes\legacy-evaluators-v1.wbo',
+  'controllers\progression_count_h_flight_observer\progression_count_h_flight_observer.exe',
+  'worlds\crazyflie_classroom_count_h_start.wbt',
+  'worlds\.crazyflie_classroom_count_h_start.wbproj',
+  'worlds\scenes\count-h-1-v1.wbo',
+  'worlds\scenes\count-h-2-v1.wbo',
+  'worlds\scenes\count-h-3-v1.wbo',
+  "plugins\robot_windows\$countWindowName\$countWindowName.html",
+  'Activites\Historique\05-reactive.wbb',
+  'Activites\Historique\06-multi-perception.wbb'
 )
 foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
 }
+
+# Exact source-to-archive partition. All eight source projects are unmodified;
+# the old 05/06 files cannot reappear beside the six learner starters.
+$releaseRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$activeStarterNames = @('01-sequence.wbb', '02-altitude.wbb', '03-orientation.wbb',
+  '04-observer-decision.wbb', '07-mini-grand-prix.wbb', '08-autonomous-strategy.wbb')
+$historicalStarterNames = @('02-precise-movement.wbb', '03-repeat.wbb',
+  '04-simple-decision.wbb', '05-reactive.wbb',
+  '06-multi-perception.wbb', '07-memory.wbb')
+$actualActiveNames = @(Get-ChildItem -LiteralPath (Join-Path $testRoot 'Activites') -File -Filter '*.wbb' | ForEach-Object { $_.Name } | Sort-Object)
+$actualHistoricalNames = @(Get-ChildItem -LiteralPath (Join-Path $testRoot 'Activites\Historique') -File -Filter '*.wbb' | ForEach-Object { $_.Name } | Sort-Object)
+Assert-Release (($actualActiveNames -join ';') -ceq (($activeStarterNames | Sort-Object) -join ';')) 'Windows active starter directory contains missing or unexpected .wbb files.'
+Assert-Release (($actualHistoricalNames -join ';') -ceq (($historicalStarterNames | Sort-Object) -join ';')) 'Windows historical directory contains missing or unexpected .wbb files.'
+foreach ($name in @($activeStarterNames + @('05-reactive.wbb', '06-multi-perception.wbb'))) {
+  $source = Join-Path $releaseRepo "activities\progression\$name"
+  $subdir = if (@('05-reactive.wbb', '06-multi-perception.wbb') -ccontains $name) { 'Activites\Historique' } else { 'Activites' }
+  $target = Join-Path (Join-Path $testRoot $subdir) $name
+  Assert-Release (Test-Path -LiteralPath $source -PathType Leaf) "Missing canonical classroom starter: $name"
+  Assert-Release (Test-Path -LiteralPath $target -PathType Leaf) "Missing packaged classroom starter: $name"
+  Assert-Release ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ceq (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) "Windows classroom starter bytes changed: $name"
+}
+# Native observer and physical scenes must be the exact compiled/source bytes.
+$countObserverRelative = 'controllers\progression_count_h_flight_observer\progression_count_h_flight_observer.exe'
+$countObserverSource = Join-Path $releaseRepo $countObserverRelative
+$countObserverPackaged = Join-Path $testRoot $countObserverRelative
+Assert-Release ((Get-FileHash -LiteralPath $countObserverSource -Algorithm SHA256).Hash -ceq (Get-FileHash -LiteralPath $countObserverPackaged -Algorithm SHA256).Hash) 'Packaged A6 observer differs from the exact Windows R2025a build.'
+$countObserverBytes = [System.IO.File]::ReadAllBytes($countObserverPackaged)
+Assert-Release ($countObserverBytes.Length -gt 2 -and $countObserverBytes[0] -eq 0x4d -and $countObserverBytes[1] -eq 0x5a) 'Activity 6 observer is not a Windows PE executable.'
+foreach ($number in @(1,2,3)) {
+  $name = "count-h-$number-v1.wbo"
+  $source = Join-Path $releaseRepo "worlds\scenes\$name"
+  $target = Join-Path $testRoot "worlds\scenes\$name"
+  Assert-Release ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ceq (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) "Packaged A6 scene bytes changed: $name"
+}
+$countWorld = Get-Content -LiteralPath (Join-Path $testRoot 'worlds\crazyflie_classroom_count_h_start.wbt') -Raw
+Assert-Release ($countWorld.Contains('window "' + $countWindowName + '"')) 'A6 WBT does not select the content-addressed A6 Robot Window.'
+Assert-Release ($countWorld.Contains('translation -1.40 0 0.055')) 'A6 WBT lost the qualified blue origin.'
+Assert-Release ($countWorld.Contains('controller "crazyflie_classroom_v2"')) 'A6 WBT must run the school native controller.'
+Assert-Release ($countWorld -notmatch '"(?:https?|webots)://') 'A6 packaged world contains remote references.'
 
 $sceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\sequence-v1.wbo'
 $scenePackaged = Join-Path $testRoot 'worlds\scenes\sequence-v1.wbo'

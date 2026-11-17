@@ -240,6 +240,24 @@ if (-not (Test-Path -LiteralPath $progressionSource -PathType Container)) {
   throw "Progression starter directory is missing: $progressionSource"
 }
 $progressionStarters = @(Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name)
+# Refuse missing, additional or renamed source files instead of silently
+# promoting a legacy or unqualified mission as a pupil activity.
+$expectedProgressionNames = @(
+  '01-sequence.wbb',
+  '02-altitude.wbb',
+  '03-orientation.wbb',
+  '04-observer-decision.wbb',
+  '05-reactive.wbb',
+  '06-multi-perception.wbb',
+  '07-mini-grand-prix.wbb',
+  '08-autonomous-strategy.wbb'
+)
+$actualProgressionNames = @($progressionStarters | ForEach-Object { $_.Name })
+if ($actualProgressionNames.Count -ne $expectedProgressionNames.Count -or
+    ($actualProgressionNames -join ';') -cne ($expectedProgressionNames -join ';')) {
+  throw 'Progression starter inventory differs from the approved eight source files.'
+}
+$archivedIntermediateNames = @('05-reactive.wbb', '06-multi-perception.wbb')
 if ($progressionStarters.Count -eq 0) {
   throw 'No progression starter project is available for the classroom release.'
 }
@@ -247,7 +265,7 @@ $progressionTarget = Join-Path $packageDir 'Activites'
 foreach ($starter in $progressionStarters) {
   # The two old 5/6 warehouse prototypes are still openable, not current
   # activities; never advertise their blank files beside the new curriculum.
-  $subdirectory = if (@('05-reactive.wbb', '06-multi-perception.wbb') -contains $starter.Name) {
+  $subdirectory = if ($archivedIntermediateNames -ccontains $starter.Name) {
     'Historique'
   } else { '' }
   $targetDirectory = if ($subdirectory) { Join-Path $progressionTarget $subdirectory } else { $progressionTarget }

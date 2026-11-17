@@ -31,6 +31,15 @@ class Activity6WindowsPackagingContract(unittest.TestCase):
         self.assertIn("'06-multi-perception.wbb'",self.script)
         self.assertIn("'Historique'",self.script)
         self.assertIn("Copy-RequiredFile $starter.FullName",self.script)
+        self.assertIn("$expectedProgressionNames",self.script)
+        self.assertIn("$actualProgressionNames.Count -ne $expectedProgressionNames.Count",self.script)
+        self.assertIn("$archivedIntermediateNames -ccontains $starter.Name",self.script)
+        witness=(ROOT/'tools/ci/test_windows_classroom_release.ps1').read_text(encoding='utf-8')
+        for marker in ("Windows classroom starter bytes changed",
+                       "$actualActiveNames", "$actualHistoricalNames",
+                       "A6 WBT does not select the content-addressed A6 Robot Window",
+                       "Activity 6 observer is not a Windows PE executable"):
+            self.assertIn(marker,witness)
 
     def test_windows_compiles_native_a6_observer_and_contains_exact_scenes(self):
         for expected in (

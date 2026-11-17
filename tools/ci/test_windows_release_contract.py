@@ -236,13 +236,31 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("'decision-h-b-v1.wbo'",packager)
         self.assertIn("Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name", packager)
         self.assertIn("$progressionTarget = Join-Path $packageDir 'Activites'", packager)
-        # The 8 byte-preserved progression templates still ship; only the two
-        # deprecated A5/A6 starters move to Historique instead of appearing as
-        # active classroom projects. Detect a missing or broadened routing rule.
-        self.assertIn(
-            "$subdirectory = if (@('05-reactive.wbb', '06-multi-perception.wbb') -contains $starter.Name)",
-            packager,
-        )
+        # All eight source projects must remain byte-identical and exactly
+        # six public names must go to Activites; no unknown ninth starter.
+        expected_names = re.search(
+            r"(?s)\$expectedProgressionNames\s*=\s*@\((.*?)\)", packager)
+        self.assertIsNotNone(expected_names)
+        self.assertEqual(re.findall(r"'([^']+\.wbb)'", expected_names.group(1)),
+                         list(expected))
+        archive_names = re.search(
+            r"(?s)\$archivedIntermediateNames\s*=\s*@\((.*?)\)", packager)
+        self.assertIsNotNone(archive_names)
+        self.assertEqual(re.findall(r"'([^']+\.wbb)'", archive_names.group(1)),
+                         ["05-reactive.wbb", "06-multi-perception.wbb"])
+        self.assertIn("$actualProgressionNames.Count -ne $expectedProgressionNames.Count", packager)
+        self.assertIn("($actualProgressionNames -join ';') -cne ($expectedProgressionNames -join ';')", packager)
+        self.assertIn("$subdirectory = if ($archivedIntermediateNames -ccontains $starter.Name)", packager)
+        release_check = (ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(encoding="utf-8")
+        for required in (
+            "$activeStarterNames", "$historicalStarterNames",
+            "$actualActiveNames", "$actualHistoricalNames",
+            "Windows classroom starter bytes changed",
+            "count-h-$number-v1.wbo",
+            "Activity 6 observer is not a Windows PE executable",
+            "A6 WBT does not select the content-addressed A6 Robot Window",
+        ):
+            self.assertIn(required, release_check)
         self.assertIn(
             "$targetDirectory = if ($subdirectory) { Join-Path $progressionTarget $subdirectory } else { $progressionTarget }",
             packager,
