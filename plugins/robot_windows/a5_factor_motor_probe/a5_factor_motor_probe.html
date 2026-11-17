@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>CI privée — A5 obstacle G, vol moteur privé</title>
+<script>
+window.WB_A5_FACTOR_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
+ method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({event:'A5_FACTOR_HTML_LOADED',wall_ms:Date.now()})
+}).then(r=>({ok:r.ok})).catch(e=>({ok:false,error:String(e)}));
+</script>
+<script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head><body><script src="a5_factor_motor_probe.js"></script></body></html>
