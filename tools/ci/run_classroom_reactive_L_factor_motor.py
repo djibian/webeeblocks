@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draft-only physical motor/PID feasibility in new A5 information-alias worlds.
+"""Draft-only physical motor/PID feasibility in A5 independently varying physical G worlds.
 
 This intentionally runs a private same-JS pilot against two genuine Webots
 R2025a worlds. The independent Webots Floor contact and normal WWI LAND ACK
@@ -22,7 +22,7 @@ import run_classroom_altitude_scene_ack as events
 import prepare_classroom_reactive_L_factor_motor as world
 
 ROOT=world.ROOT
-ARTIFACT=ROOT/"ci-artifacts/progression-reactive-L-alias-motor"
+ARTIFACT=ROOT/"ci-artifacts/progression-reactive-L-factor-motor"
 REQUIRED=(
     "A5_FACTOR_HTML_LOADED","A5_FACTOR_MOTOR_JS_STARTED",
     "A5_FACTOR_MOTOR_READY","A5_FACTOR_MOTOR_SCENE_ACK",

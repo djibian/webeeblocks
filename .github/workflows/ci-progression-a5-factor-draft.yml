@@ -10,6 +10,11 @@ on:
       - 'controllers/progression_reactive_L_factor_probe/**'
       - 'tools/ci/run_classroom_reactive_L_factor_probe.py'
       - 'tools/ci/test_progression_a5_factor_native.py'
+      - 'controllers/progression_reactive_L_factor_motor_pilot/**'
+      - 'plugins/robot_windows/a5_factor_motor_probe/**'
+      - 'tools/ci/prepare_classroom_reactive_L_factor_motor.py'
+      - 'tools/ci/run_classroom_reactive_L_factor_motor.py'
+      - 'tools/ci/test_progression_a5_factor_motor.py'
       - 'tools/ci/test_progression_a5_factorized_geometries.py'
       - 'tools/ci/test_workflow_contract.py'
 permissions:
@@ -57,3 +62,44 @@ jobs:
           name: a5-hfixed-gbinary-real-sensors-draft
           path: ci-artifacts/progression-reactive-L-factor/
           if-no-files-found: warn
+a5-factor-g-motor-draft-only:
+    name: A5 genuine PID G-left G-right motor feasibility (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reject malformed seven-Solid worlds and missing native monitor
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_a5_factor_motor
+      - name: Compile the unmodified R2025a product motor/PID and native monitor
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_factor_motor_pilot \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_factor_motor_pilot'
+      - name: Native motorized gates A and B plus physically rejected blind B
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_factor_motor.py; python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind'
+      - name: Preserve C physical monitor, real steps and browser events even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-hfixed-gbinary-real-motor-draft
+          path: ci-artifacts/progression-reactive-L-factor-motor/
+          if-no-files-found: warn
+
