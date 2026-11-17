@@ -236,7 +236,25 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("'decision-h-b-v1.wbo'",packager)
         self.assertIn("Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name", packager)
         self.assertIn("$progressionTarget = Join-Path $packageDir 'Activites'", packager)
-        self.assertIn("Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)", packager)
+        # The 8 byte-preserved progression templates still ship; only the two
+        # deprecated A5/A6 starters move to Historique instead of appearing as
+        # active classroom projects. Detect a missing or broadened routing rule.
+        self.assertIn(
+            "$subdirectory = if (@('05-reactive.wbb', '06-multi-perception.wbb') -contains $starter.Name)",
+            packager,
+        )
+        self.assertIn(
+            "$targetDirectory = if ($subdirectory) { Join-Path $progressionTarget $subdirectory } else { $progressionTarget }",
+            packager,
+        )
+        self.assertIn(
+            "Copy-RequiredFile $starter.FullName (Join-Path $targetDirectory $starter.Name)",
+            packager,
+        )
+        self.assertNotIn(
+            "Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)",
+            packager,
+        )
         self.assertIn('id="projectActivity"', html)
         self.assertIn("async openTemplate()", project_files)
         self.assertIn("targetHandle = null", project_files)
