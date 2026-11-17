@@ -75,6 +75,19 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("parsed.get('activity',{}).get('id')=='progression-decision-h-v1'",run)
         self.assertNotIn("id:'ci-decision-h-conditional-v1'",js)
 
+    def test_ci_wwi_trace_is_bounded_and_does_not_weaken_oracle(self):
+        js=JS.read_text(encoding='utf-8')
+        run=RUN.read_text(encoding='utf-8')
+        self.assertIn('const a4WwiFrames=[]',js)
+        self.assertIn('a4WwiFrames.length<96',js)
+        self.assertIn("a4TraceFrame('attempted_send',text)",js)
+        self.assertIn("a4TraceFrame('received',text)",js)
+        self.assertIn("'A4_PUPIL_WWI_TRACE',{frames:a4WwiFrames}",js)
+        self.assertNotIn("a4WwiFrames.push({text",js)
+        self.assertIn("'wwi_frames':wwi_frames",run)
+        self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",run)
+        self.assertIn("events.count('A4_PUPIL_ERROR')==0",run)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
