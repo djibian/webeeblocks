@@ -79,10 +79,10 @@ def run_one(variant):
                 cwd=ROOT,env=env,stdout=handle,stderr=subprocess.STDOUT,
                 start_new_session=True)
             end=time.monotonic()+460
-            for index in range(variant):
+            # First enter A, then reopen the saved program BEFORE selecting B/C.
+            # A .wbb intentionally contains the activity, never its session scene.
+            for index in range(1):
                 n=index+1
-                if index:
-                    _click_real_button(dev,"activityVariant")
                 while time.monotonic()<end:
                     trace=content(log)
                     if any(f in trace for f in FATAL) or process.poll() is not None:
@@ -131,19 +131,55 @@ def run_one(variant):
             })()""")
             if (not opened or
                 opened.get("profile")!="progression-count-h-v1" or
-                opened.get("scene")!=SCENES[variant-1] or
-                opened.get("nativeScene")!=SCENES[variant-1] or
+                opened.get("scene")!=SCENES[0] or
+                opened.get("nativeScene")!=SCENES[0] or
                 opened.get("blocks",0)<20 or
                 not isinstance(opened.get("project"),str)):
                 raise AssertionError("private generic .wbb not loaded by genuine Blockly")
             if ACK.findall(content(log))!=baseline:
                 raise AssertionError("idempotent generic project open imported new scene")
             encoded=opened["project"]
+            # The newly opened project defaults safely to A. Now select
+            # the target B/C from the visible pupil variant button. A fresh
+            # scene token/observer is mandatory for each actual transition.
+            for index in range(1,variant):
+                n=index+1
+                _click_real_button(dev,"activityVariant")
+                while time.monotonic()<end:
+                    trace=content(log)
+                    if any(f in trace for f in FATAL) or process.poll() is not None:
+                        raise AssertionError("native A6 failed during private scene selection")
+                    if dev is None:
+                        url=browser_url()
+                        if url:
+                            dev=Chrome(url)
+                    if dev is not None:
+                        state=dev.state()
+                        witness=attest_visit(trace,index,n,observers,nonces)
+                        if (state and witness and
+                            state["id"]=="progression-count-h-v1" and
+                            state["scene"]==SCENES[n-1] and
+                            state["ack"]==SCENES[n-1] and
+                            state["status"]=="PRÊT" and state["enabled"]):
+                            observers[n]=witness["ready_count"]
+                            nonces.add(witness["nonce"])
+                            break
+                    time.sleep(0.25)
+                else:
+                    raise AssertionError("private generic A6 product scene not natively admitted")
+
             if any(scene in encoded for scene in SCENES):
                 raise AssertionError("private generic student project leaked scene ID")
             state=_browser_state(dev)
-            if state["status"]!="PRÊT" or not state["run_available"]:
-                raise AssertionError("Run unavailable after loading generic Blockly")
+            if (state["status"]!="PRÊT" or not state["run_available"] or
+                state["scene"]!=SCENES[variant-1] or
+                state["native_scene"]!=SCENES[variant-1] or
+                state["project"]!=encoded):
+                raise AssertionError("private generic project changed during post-open scene selection: "+
+                                     json.dumps({"status":state["status"],
+                                                 "scene":state["scene"],
+                                                 "native_scene":state["native_scene"],
+                                                 "same_wbb":state["project"]==encoded}))
             result["block_count"]=opened["blocks"]
             result["product_wbb_sha256"]=hashlib.sha256(encoded.encode()).hexdigest()
             print("A6_PRIVATE_GENERIC_REAL_BROWSER_LOADED n="+str(variant)+
