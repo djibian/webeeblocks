@@ -64,6 +64,19 @@ class CountHSchoolStartTest(unittest.TestCase):
         self.assertIn('a6-real-profile-ci-only.wbb',workflow)
         self.assertIn('starterVisible: false,\n        id: \'progression-count-h-v1\'',profile)
 
+    def test_private_generic_real_ui_requires_actual_c_oracle_and_is_draft_only(self):
+        workflow=(ROOT/'.github/workflows/ci-progression-a6-draft.yml').read_text(encoding='utf-8')
+        runner=(ROOT/'tools/ci/run_classroom_count_h_private_generic_cdp.py').read_text(
+            encoding='utf-8')
+        self.assertIn('a6-private-generic-product-ui-draft-only:',workflow)
+        self.assertIn('count: [1, 2, 3]',workflow)
+        self.assertIn('WEBEEBLOCKS_A6_PRIVATE_GENERIC_PRODUCT_UI_PASS',runner)
+        self.assertIn('WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved',runner)
+        self.assertIn('MISSION RÉUSSIE',runner)
+        self.assertIn('manager.openTemplateText',runner)
+        self.assertIn('_click_real_button(dev,"submit")',runner)
+        self.assertNotIn('starterVisible: true',runner)
+
     def test_real_chrome_browser_project_roundtrip_is_observed_and_scoped(self):
         # The actual A6 CDP runner must exercise the real browser project
         # manager, not merely compare an empty workspace across variants.
