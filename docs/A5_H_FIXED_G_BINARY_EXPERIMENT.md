@@ -105,17 +105,42 @@ the identical checked AST; without conditional-loop backend capability,
 execution must refuse **before takeoff**. The emitted `.wbb` and
 `summary.json` are private CI artifacts, not activity starters.
 
-**The four checks in this stage use a DETERMINISTIC VIRTUAL SENSOR/MOTION
-MODEL**, deliberately labelled `native_2x2_from_this_wbb:false`.
+**The four Node model checks in this stage use a DETERMINISTIC VIRTUAL
+SENSOR/MOTION MODEL**, deliberately labelled `native_2x2_from_this_wbb:false`.
 They establish expressibility and Save/Open serialization within Node, not
 genuine Webots R2025a collisions, real Robot Window, native scene
 selection, native oracle verdicts, Chrome or OS Save/Open dialogs. The
 historical `progression-reactive-v1` profile remains hidden, still
 describes a warehouse mission, and cannot be treated as the new A5.
 The original H×G motor sensor evidence remains an **independent** chain.
-All real H/G worlds, changing L-length/direction, native while-loop
-trajectory, return/backtracking adversary and teacher usability therefore
-remain unproven until tested directly. No AST syntax is imposed as a
+
+### Separate native Webots R2025a experiment for these exact .wbb bytes
+
+The same Draft workflow additionally serves the **canonical private .wbb
+bytes** over a single fixed loopback-only endpoint and reopens them inside
+the original Webots Robot Window. A private browser module uses the genuine
+Blockly 13.2.1 AST interpreter and authentic Webots WWI backend. Four worlds
+are launched using only the pre-existing CI-only native scene selector;
+the student's AST receives **neither** the variant ID, evaluator answer,
+Supervisor pose nor source WBO. The browser reports measured sensor events
+for diagnostics, while the independent C monitor is the only authority
+for physical 32-ms step continuity, seven collider/swept streams and
+physical Floor landing. The Python runner refuses a false success unless
+all source SHA, fresh front-loop readings, two real left measurements,
+correct physical pad, and native-land conditions agree.
+
+**A passing Node model test is not proof of this native experiment.**
+The native four-world CI step is required to reach
+`WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_WBB_NATIVE_PASS`; any failure
+remains a physical or integration falsification, not permission to change
+the oracle or skip a variant. Even a later Webots PASS would not establish
+the intended activity 5's repeated L-corner-following world, the need
+for a particular AST syntax, an OS Save/Open dialog, a public pupil
+profile, the alternative return/backtracking strategy, or a teacher
+acceptance.
+
+Changing L-length/direction, return/backtracking adversary and teacher
+usability remain unproven until tested directly. No AST syntax is imposed as a
 condition of future mission success.
 
 ## Native R2025a falsification checkpoints, in order

@@ -37,13 +37,22 @@ class Handler(events.Handler):
     variant="A"
     mode="positive"
     def do_GET(self):
-        if self.path!="/variant":
+        if self.path=="/a5-private-wbb" and self.mode=="blockly":
+            source=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
+                "a5-private-loop-state-ci-only.wbb")
+            if not source.is_file() or not 100<=source.stat().st_size<=1048576:
+                self.send_error(404,"bounded canonical private WBB absent")
+                return
+            raw=source.read_bytes()
+        elif self.path=="/variant":
+            raw=json.dumps({"variant":self.variant,"mode":self.mode}).encode("utf-8")
+        else:
             self.send_error(404)
             return
-        raw=json.dumps({"variant":self.variant,"mode":self.mode}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type","application/json")
         self.send_header("Cache-Control","no-store")
+        self.send_header("Access-Control-Allow-Origin","*")
         self.send_header("Content-Length",str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
@@ -142,14 +151,15 @@ def native_collision_coverage(transcript,variant):
             "conservative_swept_boxes_per_step":True}
 
 def run(variant,mode="positive"):
-    if variant not in ("A","B","C","D") or mode not in ("positive","blind","blind_h"):
+    if variant not in ("A","B","C","D") or mode not in ("positive","blind","blind_h","blockly"):
         raise ValueError("wrong factorial H/G native test")
     if mode=="blind" and variant!="B":
         raise ValueError("blind gate rejection tested only against G-right")
     if mode=="blind_h" and variant!="C":
         raise ValueError("blind H rejection tested only against far-H / G-left")
     folder=ARTIFACT/("blind-B" if mode=="blind" else
-                     "blind-h-C" if mode=="blind_h" else variant)
+                     "blind-h-C" if mode=="blind_h" else
+                     "blockly-"+variant if mode=="blockly" else variant)
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -323,6 +333,100 @@ def run(variant,mode="positive"):
               "variant=C wrong_pad=left H_requires_right true_floor=true",
               flush=True)
         return summary
+    if mode=="blockly":
+        # The REAL Webots Robot Window reloads canonical file bytes and runs
+        # official Blockly -> AST -> interpreter -> genuine WWI/32ms product.
+        # Mission cannot pass from browser events without independent C Floor.
+        wbb=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
+            "a5-private-loop-state-ci-only.wbb")
+        expected_sha=hashlib.sha256(wbb.read_bytes()).hexdigest()
+        def single(name):
+            found=[e.get("detail") for e in events.EVENTS if e.get("event")==name]
+            return found[0] if len(found)==1 else None
+        reopened=single("A5_FACTOR_MOTOR_WBB_REOPENED")
+        h=single("A5_FACTOR_MOTOR_H_OBSERVATION")
+        approach=single("A5_FACTOR_MOTOR_APPROACH")
+        g=single("A5_FACTOR_MOTOR_G_OBSERVATION")
+        passed=single("A5_FACTOR_MOTOR_GATE_PASSED")
+        pad=single("A5_FACTOR_MOTOR_PAD_SELECTED")
+        land=single("A5_FACTOR_MOTOR_LAND_ACK")
+        finished=single("A5_FACTOR_MOTOR_TEST_COMPLETE")
+        left_reads=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE left value=([0-9.]+)$",
+            trace)
+        front_reads=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=([0-9.]+)$",
+            trace)
+        contact=re.findall(
+            rf"(?m)^WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR variant={variant} "
+            r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+) t=([0-9.]+)$",trace)
+        xyz=[float(v) for v in contact[0]] if len(contact)==1 else None
+        coverage=native_collision_coverage(trace,variant)
+        expected_h=.54 if variant in ("A","B") else 1.14
+        expected_g=1.41 if variant in ("A","C") else .54
+        route="left" if variant in ("A","C") else "right"
+        destination="left" if variant in ("A","B") else "right"
+        good=(
+            reopened is not None and reopened.get("sha256")==expected_sha and
+            reopened.get("one_variable") is True and
+            reopened.get("fresh_front_loop") is True and
+            isinstance(h,dict) and isinstance(h.get("left_m"),(float,int)) and
+            abs(h["left_m"]-expected_h)<.12 and
+            h.get("destination")==destination and
+            isinstance(approach,dict) and
+            approach.get("fresh_condition") is True and
+            isinstance(g,dict) and isinstance(g.get("left_m"),(float,int)) and
+            abs(g["left_m"]-expected_g)<.12 and
+            g.get("route")==route and
+            isinstance(passed,dict) and passed.get("route")==route and
+            isinstance(pad,dict) and pad.get("side")==destination and
+            isinstance(land,dict) and land.get("nativeReply") is True and
+            isinstance(finished,dict) and
+            finished.get("sha256")==expected_sha and
+            finished.get("blockly") is True and
+            finished.get("missionOracle") is False and
+            len(left_reads)==2 and
+            all(math.isfinite(float(v)) for v in left_reads) and
+            abs(float(left_reads[0])-h["left_m"])<1e-6 and
+            abs(float(left_reads[1])-g["left_m"])<1e-6 and
+            21<=len(front_reads)<=33 and
+            approach.get("front_reads")==len(front_reads) and
+            finished.get("front_reads")==len(front_reads) and
+            xyz is not None and abs(xyz[0]-4.15)<.10 and
+            abs(xyz[1]-(.62 if destination=="left" else -.62))<.10 and
+            0<=xyz[2]<=.025 and
+            coverage is not None and
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF" in trace and
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in trace and
+            f"WEBEEBLOCKS_A5_FACTOR_MOTOR_SCENE_OK variant={variant}" in trace and
+            "WEBEEBLOCKS_RUNTIME_V2 READY" in trace and
+            "A5_FACTOR_MOTOR_ERROR" not in names and
+            not any(marker in trace for marker in (
+                "WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL",
+                "WEBEEBLOCKS_RUNTIME_V2 FATAL",
+                "WEBEEBLOCKS_A5_FACTOR_MOTOR_OBSTACLE_CONTACT",
+                "WEBEEBLOCKS_A5_FACTOR_MOTOR_SWEPT_COLLISION"))
+        )
+        summary={"schema":"webeeblocks-a5-hg-private-real-wbb-r2025a-v1",
+                 "variant":variant,"mode":mode,"pass":bool(good),
+                 "sha256":expected_sha,"source":"real Blockly .wbb",
+                 "front_native_reads":len(front_reads),
+                 "left_native_reads":len(left_reads),
+                 "native_floor_xyzt":xyz,"collision_coverage":coverage,
+                 "native_motor_attempted":True,
+                 "pupil_published":False,"mission_oracle_proven":False,
+                 "windows_save_open_proven":False,"events":names}
+        summary_path.write_text(json.dumps(summary,sort_keys=True,indent=2)+"\n")
+        if not good:
+            print("WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_UNPROVEN "+
+                  json.dumps(summary),file=sys.stderr,flush=True)
+            print(trace[-8500:],file=sys.stderr)
+            raise AssertionError("A5 genuine private WBB flight not fully proven")
+        print("WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_PASS "+
+              f"variant={variant} real_floor=true loop_read_front={len(front_reads)} "+
+              "same_wbb=true physical_swept_7=true pupil_published=false",
+              flush=True)
+        return summary
     missing=[k for k in REQUIRED if names.count(k)!=1]
     ordered=not missing and [names.index(k) for k in REQUIRED]==sorted(
         names.index(k) for k in REQUIRED)
@@ -451,10 +555,18 @@ if __name__=="__main__":
     parser.add_argument("--variant",choices=["A","B","C","D","both"],default="both")
     parser.add_argument("--blind",action="store_true")
     parser.add_argument("--blind-h",action="store_true")
+    parser.add_argument("--blockly",action="store_true")
     args=parser.parse_args()
-    if args.blind and args.blind_h:
-        parser.error("negative modes are mutually exclusive")
-    if args.blind_h:
+    if int(args.blind)+int(args.blind_h)+int(args.blockly)>1:
+        parser.error("modes are mutually exclusive")
+    if args.blockly:
+        if args.variant!="both":parser.error("--blockly tests four H/G variants")
+        results=[run(v,"blockly") for v in "ABCD"]
+        if len({r["sha256"] for r in results})!=1:
+            raise AssertionError("A5 four real .wbb files differ")
+        print("WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_WBB_NATIVE_PASS "+
+              "same_wbb=true real_webots=true pupil_unpublished=true",flush=True)
+    elif args.blind_h:
         if args.variant!="both":parser.error("--blind-h checks only H-far G-left")
         run("C","blind_h")
     elif args.blind:

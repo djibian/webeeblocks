@@ -19,6 +19,7 @@ on:
       - 'tools/ci/test_progression_a5_factor_native_feeder.py'
       - 'tools/ci/test_progression_a5_factor_motor.py'
       - 'tools/ci/build_a5_private_blockly_witness.js'
+      - 'plugins/robot_windows/a5_alias_motor_probe/a5_private_blockly_probe.js'
       - 'tools/ci/test_progression_a5_factorized_geometries.py'
       - 'tools/ci/test_workflow_contract.py'
 permissions:
@@ -128,6 +129,7 @@ jobs:
               python3 tools/ci/run_classroom_reactive_L_factor_motor.py
               python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind
               python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind-h
+              python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blockly
             '
       - name: Preserve C physical monitor, real steps and browser events even on failure
         if: always()
