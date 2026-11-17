@@ -52,11 +52,24 @@ def compose(variant,scene=None):
         raise ValueError("native pilot must be unique and test-only")
     return text
 
-def prepare(variant):
+def native_feeder_world(variant,mode):
+    # Only a generated private WBT carries this marker. Product worlds retain
+    # their original title and never opt into the command feeder.
+    if mode not in ("positive","blind") or (mode=="blind" and variant!="B"):
+        raise ValueError("invalid native G test mode")
+    text=compose(variant)
+    original='  title "WebeeBlocks — accueil"'
+    if text.count(original)!=1:
+        raise ValueError("cannot uniquely attest source WorldInfo title")
+    marker=f'  title "WEBEEBLOCKS_A5_FACTOR_NATIVE_{mode}"'
+    return text.replace(original,marker,1)
+
+def prepare(variant,feeder_mode=None):
     world,project=paths(variant)
     if world.exists() or project.exists() or world.is_symlink() or project.is_symlink():
         raise FileExistsError("refusing to overwrite preexisting A5 native flight")
-    data=compose(variant)
+    data=(compose(variant) if feeder_mode is None else
+          native_feeder_world(variant,feeder_mode))
     world.write_text(data,encoding="utf-8")
     project.write_text(PROJECT_TEXT,encoding="utf-8")
     print("WEBEEBLOCKS_A5_FACTOR_MOTOR_WORLD_SHA256 "+

@@ -2,7 +2,7 @@
 #define _GNU_SOURCE 1
 #endif
 /* Private CI-only WWI command feeder for A5 H-fixed / G-variable worlds.
- * When the opt-in environment flag is ABSENT, this wrapper is a transparent
+ * When the exact WorldInfo marker is ABSENT, this wrapper is a transparent
  * relay to the genuine Webots WWI functions; the browser path is unchanged.
  * When enabled, the unmodified runtime/PID processes the exact native
  * REQUEST protocol. No student Blockly, Robot Window, physical radio or
@@ -33,9 +33,18 @@ static void fail(const char *why) {
 static void initialize(void) {
   if(initialized)return;
   initialized=1;
-  const char *flag=getenv("WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER");
-  if(!flag||!flag[0])return;
-  if(strcmp(flag,"positive")&&strcmp(flag,"blind")){fail("unknown feeder mode");return;}
+  /* The real Webots controller does not reliably inherit host flags.
+   * Only this exact laboratory WorldInfo title enables command injection. */
+  WbNodeRef wi=wb_supervisor_node_get_from_def(
+    "WEBEEBLOCKS_CLASSROOM_START_WORLD");
+  WbFieldRef title=wi?wb_supervisor_node_get_field(wi,"title"):NULL;
+  const char *name=title?wb_supervisor_field_get_sf_string(title):NULL;
+  const char *prefix="WEBEEBLOCKS_A5_FACTOR_NATIVE_";
+  if(!name||strncmp(name,prefix,strlen(prefix)))return;
+  const char *flag=name+strlen(prefix);
+  if(strcmp(flag,"positive")&&strcmp(flag,"blind")){
+    fail("untrusted laboratory world activation");return;
+  }
   enabled=1;blind=!strcmp(flag,"blind");
   const int L=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_FACTOR_GL_SCENE")!=NULL;
   const int R=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_FACTOR_GR_SCENE")!=NULL;
