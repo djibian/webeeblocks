@@ -31,6 +31,18 @@ class A5FactorMotorTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     motor.compose(v,scene=changed)
 
+    def test_known_working_robot_window_isolated_alias(self):
+        html=(ROOT/"plugins/robot_windows/a5_alias_motor_probe"/
+              "a5_alias_motor_probe.html").read_text()
+        copied=(ROOT/"plugins/robot_windows/a5_alias_motor_probe"/
+                "a5_alias_motor_probe.js").read_bytes()
+        canonical=(ROOT/"plugins/robot_windows/a5_factor_motor_probe"/
+                   "a5_factor_motor_probe.js").read_bytes()
+        self.assertEqual(copied,canonical)
+        self.assertIn('script src="a5_alias_motor_probe.js"',html)
+        self.assertIn('window "a5_alias_motor_probe"',motor.PILOT_WINDOW)
+        self.assertIn("WB_A5_FACTOR_BOOTSTRAP",html)
+
     def test_native_pid_has_7_physical_obstacle_contact_streams(self):
         directory=ROOT/"controllers/progression_reactive_L_factor_motor_pilot"
         make=(directory/"Makefile").read_text()

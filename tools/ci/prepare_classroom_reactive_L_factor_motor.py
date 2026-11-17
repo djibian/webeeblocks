@@ -15,7 +15,7 @@ PROJECT_TEXT="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBl
 SOURCE_CONTROLLER='controller "crazyflie_classroom_v2"'
 PILOT_CONTROLLER='controller "progression_reactive_L_factor_motor_pilot"'
 SOURCE_WINDOW='window "altitude_scene_ack_probe"'
-PILOT_WINDOW='window "a5_factor_motor_probe"'
+PILOT_WINDOW='window "a5_alias_motor_probe"'
 
 def scene_file(variant):
     return ROOT/("worlds/scenes/reactive-L-factor-hnear-g"+("left" if variant=="A" else "right")+"-proto.wbo")

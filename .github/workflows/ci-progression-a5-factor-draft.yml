@@ -12,6 +12,7 @@ on:
       - 'tools/ci/test_progression_a5_factor_native.py'
       - 'controllers/progression_reactive_L_factor_motor_pilot/**'
       - 'plugins/robot_windows/a5_factor_motor_probe/**'
+      - 'plugins/robot_windows/a5_alias_motor_probe/**'
       - 'tools/ci/prepare_classroom_reactive_L_factor_motor.py'
       - 'tools/ci/run_classroom_reactive_L_factor_motor.py'
       - 'tools/ci/test_progression_a5_factor_motor.py'

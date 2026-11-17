@@ -215,6 +215,13 @@ def run(variant,mode="positive"):
                               encoding="utf-8")
         world.cleanup(variant,original=body)
     trace=log.read_text(encoding="utf-8",errors="replace")
+    # The Webots GUI may discard env vars when launching Chrome. Preserve
+    # the wrapper's fallback launch record rather than claiming launch=false.
+    fallback=ROOT/"ci-artifacts/runtime-v2-webots/browser-launch.log"
+    local=folder/"browser-launch.log"
+    if fallback.exists() and not local.exists():
+        import shutil
+        shutil.copy2(fallback,local)
     names=[v["event"] for v in events.EVENTS]
     if not names:
         # Do not reinterpret a missing browser as a motor or physics failure.
