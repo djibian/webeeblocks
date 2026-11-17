@@ -50,7 +50,7 @@ def _click_real_button(dev, button_id):
 
 _ACK = re.compile(r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([0-9]+) SCENE_OK ([0-9a-f]{64})$")
 _READY = re.compile(r"(?m)^WEBEEBLOCKS_A6_MOTOR_READY n=1 ")
-_OUTCOME = re.compile(r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([0-9]+) STATE not-achieved(?: reason=[a-z-]+)?$")
+_REJECT = re.compile(r"(?m)^WEBEEBLOCKS_A6_MOTOR_REJECT attempt=([1-9][0-9]*) behavioral_oracle=1$")
 
 
 def negative_flight_then_reset(dev, process, log, read_text, fatal_markers):
@@ -68,6 +68,8 @@ def negative_flight_then_reset(dev, process, log, read_text, fatal_markers):
     baseline = read_text(log)
     ack_before = _ACK.findall(baseline)
     ready_before = len(_READY.findall(baseline))
+    if _REJECT.search(baseline):
+        raise AssertionError("stale A6 native rejected attempt before student flight")
     if len(ack_before)!=4 or len({n for _,n in ack_before})!=4 or ready_before!=2:
         raise AssertionError("A/B/C/A native epochs absent before pupil run")
     program_bytes=state["project"]
@@ -86,10 +88,13 @@ def negative_flight_then_reset(dev, process, log, read_text, fatal_markers):
         if state["status"] in ("ERREUR","ARRÊTÉ","À CORRIGER"):
             raise AssertionError("A6 native flight failed instead of judging mission: "+str(state))
         if state["terminal"] and not state["running"] and not state["pending"]:
+            # Native A6 oracle reports MOTOR_REJECT, not a fictional
+            # RESPONSE STATE not-achieved packet. Require the one *new*
+            # first-attempt reject after clicking the actual Run button.
+            rejects=_REJECT.findall(trace)
             if (state["status"]!="MISSION NON RÉUSSIE" or
-                not state["reset_available"] or
-                not _OUTCOME.search(trace)):
-                raise AssertionError("A6 missing native not-achieved outcome or RESET: "+str(state))
+                not state["reset_available"] or rejects!=["1"]):
+                raise AssertionError("A6 missing fresh native MOTOR_REJECT or RESET: "+str(state))
             if (state["workspace"]!=workspace_bytes or
                 state["project"]!=program_bytes):
                 raise AssertionError("negative native flight altered nonempty Blockly")
