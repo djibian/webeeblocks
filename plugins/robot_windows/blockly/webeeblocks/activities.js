@@ -430,7 +430,7 @@
         brief: {
           visible: true,
           title: '7 — Mini Grand Prix',
-          mission: 'Depuis la zone bleue, franchis le H ouvert sans contact, négocie le virage à angle droit puis pose entièrement le drone sur le damier avant le H fermé. Fais réussir les parcours gauche et droite avec un seul programme enregistré, sans le modifier.'
+          mission: 'Depuis la zone bleue, franchis le H ouvert sans contact, négocie le virage à angle droit puis pose entièrement le drone sur le damier avant le H fermé. Fais réussir les parcours gauche et droite avec un seul programme enregistré, sans le modifier. Avant de programmer, réfléchis : comment ton drone saura-t-il qu’il s’approche du H fermé ?'
         },
         pedagogy: {
           objective: 'Réinvestir déplacements 3D, rotations, observations, conditions, boucles et mémoire dans une mission autonome sans fournir l’algorithme solution.'
