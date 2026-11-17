@@ -43,6 +43,10 @@ on:
       - 'plugins/robot_windows/count_h_flight_probe/**'
       - 'controllers/progression_count_h_v1/**'
       - 'worlds/scenes/count-h-*.wbo'
+      - 'tools/build_windows_classroom_release.ps1'
+      - 'tools/ci/test_windows_classroom_release.ps1'
+      - 'tools/ci/test_windows_release_contract.py'
+      - 'packaging/windows/README-WINDOWS.md'
 
 permissions:
   contents: read
@@ -486,4 +490,76 @@ jobs:
         with:
           name: a6-private-generic-product-ui-n${{ matrix.count }}
           path: ci-artifacts/progression-count-h-private-product-ui/n${{ matrix.count }}/
+          if-no-files-found: warn
+
+  a6-windows-archive-draft-only:
+    name: A6 actual Windows R2025a classroom ZIP build (Draft, not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Cache pinned Webots R2025a installer
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\webots-R2025a_setup.exe
+          key: webots-R2025a-windows-9e326a54c104fc5
+      - name: Install official Webots R2025a with exact SHA-256 verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          $expected = '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          }
+          $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            Remove-Item -LiteralPath $installer -Force
+            throw "Unexpected Webots installer hash $actual"
+          }
+          $home = Join-Path $env:ProgramFiles 'Webots'
+          $webots = Join-Path $home 'msys64\mingw64\bin\webots.exe'
+          if (-not (Test-Path -LiteralPath $webots -PathType Leaf)) {
+            $proc = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
+            if ($proc.ExitCode -ne 0) { throw "Webots installer exit $($proc.ExitCode)" }
+          }
+          if (-not (Test-Path -LiteralPath $webots -PathType Leaf)) { throw 'Native Webots R2025a missing' }
+          $version = (& $webots --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') { throw "Wrong Webots version: $version" }
+          "WEBOTS_HOME=$home" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Compile exact Windows native A6 and assemble portable school archive
+        shell: pwsh
+        run: |
+          ./tools/build_windows_classroom_release.ps1 -WebotsHome $env:WEBOTS_HOME -WebotsProjectsPath '.ci-webots-r2025a\projects' -OutputDirectory 'ci-artifacts\windows-a6-draft'
+      - name: Unpack real ZIP and verify native MZ binaries, source WBO, windows and SHA manifest
+        shell: pwsh
+        run: |
+          ./tools/ci/test_windows_classroom_release.ps1 -ArchivePath 'ci-artifacts\windows-a6-draft\WebeeBlocks-Windows-R2025a.zip' -WebotsHome $env:WEBOTS_HOME
+      - name: Archive Windows evidence even when validation fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-draft-real-windows-school-archive
+          path: |
+            ci-artifacts/windows-a6-draft/WebeeBlocks-Windows-R2025a.zip
+            ci-artifacts/windows-a6-draft/WebeeBlocks-Windows-R2025a/MANIFEST.sha256
           if-no-files-found: warn

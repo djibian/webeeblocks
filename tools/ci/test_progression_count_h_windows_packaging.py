@@ -83,5 +83,23 @@ class Activity6WindowsPackagingContract(unittest.TestCase):
         self.assertIn("Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256",self.script)
         self.assertIn("'MANIFEST.sha256'",self.script)
 
+    def test_real_windows_archive_job_is_draft_only_and_has_native_zip_gates(self):
+        flow = (ROOT/'.github/workflows/ci-progression-a6-draft.yml').read_text(encoding='utf-8')
+        segment = flow.split('\n  a6-windows-archive-draft-only:\n', 1)[1]
+        self.assertIn('if: github.event.pull_request.draft == true', segment)
+        self.assertIn('runs-on: windows-2022', segment)
+        self.assertIn('ref: ${{ github.event.pull_request.head.sha }}', segment)
+        self.assertIn('persist-credentials: false', segment)
+        self.assertIn('c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b', segment)
+        self.assertIn('9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7', segment)
+        self.assertIn('Get-FileHash -LiteralPath $installer -Algorithm SHA256', segment)
+        self.assertIn('build_windows_classroom_release.ps1', segment)
+        self.assertIn('test_windows_classroom_release.ps1', segment)
+        self.assertIn('if: always()', segment)
+        self.assertIn('a6-draft-real-windows-school-archive', segment)
+        self.assertNotIn('continue-on-error', segment)
+        self.assertNotIn('name: CI Gate\n', segment)
+
+
 if __name__=='__main__':
     unittest.main()
