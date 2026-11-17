@@ -114,7 +114,14 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn('land.get("nativeReply") is True',runner)
         self.assertIn('finished.get("missionOracle") is False',runner)
         self.assertIn('"mission_oracle":False',runner)
-        self.assertNotIn('"A5_FACTOR_MOTOR_LAND_ACK" not in names',runner)
+        g_negative=runner.split('    if mode=="blind":',1)[1].split(
+            '    if mode=="blind_h":',1)[0]
+        h_negative=runner.split('    if mode=="blind_h":',1)[1].split(
+            '    missing=[k for k in REQUIRED',1)[0]
+        self.assertIn('"A5_FACTOR_MOTOR_LAND_ACK" not in names',g_negative)
+        self.assertNotIn('"A5_FACTOR_MOTOR_LAND_ACK" not in names',h_negative)
+        self.assertIn('land.get("nativeReply") is True',h_negative)
+        self.assertIn('finished.get("missionOracle") is False',h_negative)
         self.assertIn('--blind-h',
                       (ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text())
         self.assertIn('far?1.18:.58',scene)
