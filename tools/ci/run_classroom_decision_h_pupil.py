@@ -158,7 +158,15 @@ def run()->int:
            text.count('WEBEEBLOCKS_DECISION_H_READY scene=decision-h-b-v1')>=1 and
            'WEBEEBLOCKS_DECISION_H_FATAL' not in text and
            'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in text)
+    # Diagnostic-only: request metadata captured at the actual Chrome bridge.
+    # An attempted browser send does NOT prove native receipt; missing native
+    # response is not interpreted as a flight failure cause by this probe.
+    trace_events=[e.get('detail') for e in ack.EVENTS
+                  if e.get('event')=='A4_PUPIL_WWI_TRACE']
+    wwi_frames=(trace_events[0].get('frames') if len(trace_events)==1 and
+                isinstance(trace_events[0],dict) else None)
     summary={'pass':valid,'required_missing':missing,'ordered':ordered,
+             'wwi_frames':wwi_frames,
              'events_ordered':in_order,'native_outcomes':outcomes,
              'rays_m':rays,'moves':moves,'vertical':vertical,
              'browser':browser_ok,'one_project':project_ok,
