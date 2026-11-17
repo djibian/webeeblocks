@@ -111,7 +111,8 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn("WEBEEBLOCKS_A5_FACTOR_H_BLIND_NATIVE_REJECTED",runner)
         self.assertIn('"real_wrong_pad_floor":contact',runner)
         self.assertIn('"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace',runner)
-        self.assertIn('--blind-h',workflow)
+        self.assertIn('--blind-h',
+                      (ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text())
         self.assertIn('far?1.18:.58',scene)
         self.assertIn('far?1.38:.78',scene)
         self.assertIn('target_y=far_h?-.62:.62',trace)
