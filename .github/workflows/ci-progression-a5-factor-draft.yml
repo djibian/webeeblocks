@@ -18,6 +18,7 @@ on:
       - 'tools/ci/run_classroom_reactive_L_factor_native_feeder.py'
       - 'tools/ci/test_progression_a5_factor_native_feeder.py'
       - 'tools/ci/test_progression_a5_factor_motor.py'
+      - 'tools/ci/build_a5_private_blockly_witness.js'
       - 'tools/ci/test_progression_a5_factorized_geometries.py'
       - 'tools/ci/test_workflow_contract.py'
 permissions:
@@ -79,12 +80,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v tools.ci.test_progression_a5_factor_motor
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Prepare pinned Runtime v2 Robot Window assets for Chrome
         run: |
           set -euo pipefail
           ./tools/prepare_runtime_v2.sh
           test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
           test -s plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+      - name: Prove one private real Blockly 13 loop-and-memory project in a virtual model
+        run: |
+          set -euo pipefail
+          node tools/ci/build_a5_private_blockly_witness.js
+          test -s ci-artifacts/progression-reactive-L-factor-blockly/a5-private-loop-state-ci-only.wbb
+          test -s ci-artifacts/progression-reactive-L-factor-blockly/summary.json
       - name: Compile the unmodified R2025a product motor/PID and native monitor
         run: |
           set -euo pipefail
@@ -124,7 +134,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: a5-hfixed-gbinary-real-motor-draft
-          path: ci-artifacts/progression-reactive-L-factor-motor/
+          path: |
+            ci-artifacts/progression-reactive-L-factor-motor/
+            ci-artifacts/progression-reactive-L-factor-blockly/
           if-no-files-found: warn
   a5-factor-g-native-pid-feeder-draft-only:
     name: A5 native WWI feeder product PID through G (no Chrome, not CI Gate)

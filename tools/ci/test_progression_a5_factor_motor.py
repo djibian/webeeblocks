@@ -60,6 +60,31 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertNotIn("google-chrome-stable_current_amd64.deb",feeder)
         self.assertNotIn("prepare_runtime_v2.sh",feeder)
 
+    def test_private_wbb_model_has_real_blockly_not_fake_native_authority(self):
+        source=(ROOT/"tools/ci/build_a5_private_blockly_witness.js").read_text()
+        workflow=(ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text()
+        original=(ROOT/"plugins/robot_windows/blockly/webeeblocks/activities.js").read_text()
+        for token in ("Blockly.serialization.workspaces.load",
+                      "ProjectFiles.encodeProject",
+                      "ProjectFiles.validateProjectText",
+                      "Semantic.compileWorkspace",
+                      "Interpreter.run",
+                      "controls_whileUntil",
+                      "variables_set",
+                      "set('destination',range('left'))",
+                      "frontReads>=21",
+                      "conditional loops unavailable on this backend",
+                      "native_2x2_from_this_wbb:false",
+                      "pupil_activity_published:false",
+                      "os_save_open:false"):
+            self.assertIn(token,source)
+        self.assertIn("node tools/ci/build_a5_private_blockly_witness.js",workflow)
+        self.assertIn("ci-artifacts/progression-reactive-L-factor-blockly/",workflow)
+        self.assertIn("node-version: '22'",workflow)
+        self.assertNotIn("progression-reactive-hg-private-ci-only",original)
+        self.assertNotIn("tools/ci/build_a5_private_blockly_witness.js",
+                         original)
+
     def test_native_pid_has_7_physical_obstacle_contact_streams(self):
         directory=ROOT/"controllers/progression_reactive_L_factor_motor_pilot"
         make=(directory/"Makefile").read_text()

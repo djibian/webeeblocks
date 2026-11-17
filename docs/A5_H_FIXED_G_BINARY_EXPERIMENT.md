@@ -1,6 +1,6 @@
 # Activity 5 — independent H-fixed / G-binary first hypothesis
 
-**NOT QUALIFIED — source-only Draft experiment, not a pupil activity, GO, or native PASS.**
+**NOT QUALIFIED for pupils — Draft-only evidence, not an activity, GO or native pupil PASS.** The four H×G motor flights plus blind-G and blind-H physical refusals passed R2025a in [run #44161235547](https://github.com/djibian/webeeblocks/actions/runs/44161235547) on earlier HEAD `15ae2da`; those proofs concern the **private two-reading JS pilot only**, not any Blockly `.wbb` or an accessible activity 5.
 
 The approved activity 5 introduces repeated observation and then one useful state
 variable. Historical #980 and #1025 show that a second L or a late detour can
@@ -85,13 +85,38 @@ contact, the irrevocable native failure and absence of any independent
 successful native pad marker; a `LAND` ACK is never a mission oracle.
 It does **not** rule out late re-reading or control-flow branching
 without a variable.
-The native-only A/B feeder regression remains mandatory, as does
-the native-only A/B feeder regression, and no physical product,
+The native-only A/B feeder regression remains mandatory; no physical product,
 public activity starter, safety threshold or Grand Prix A8 is changed.
 A green run proves feasibility of this private JS *only*, not a
 student-editable Blockly `.wbb`, a reactive loop, a mission oracle,
 a memory requirement or a 4e/3e PASS. Re-reading H by an accessible
 detour and duplicating branches remain adversaries to test explicitly.
+
+## Private genuine Blockly 13 model witness — not the pupil mission
+
+The experimental job runs `tools/ci/build_a5_private_blockly_witness.js`
+using the actual project's Blockly 13.2.1, semantic AST compiler, activity
+preflight, interpreter and canonical `.wbb` serializer. It constructs the
+same **single private project** for all four combinations, with a bounded
+`while` loop repeatedly measuring `front` during approach, and one
+variable storing the starting H-distance. The late G choice always reads
+`left` afresh. The canonical serialization must be reloaded and reproduce
+the identical checked AST; without conditional-loop backend capability,
+execution must refuse **before takeoff**. The emitted `.wbb` and
+`summary.json` are private CI artifacts, not activity starters.
+
+**The four checks in this stage use a DETERMINISTIC VIRTUAL SENSOR/MOTION
+MODEL**, deliberately labelled `native_2x2_from_this_wbb:false`.
+They establish expressibility and Save/Open serialization within Node, not
+genuine Webots R2025a collisions, real Robot Window, native scene
+selection, native oracle verdicts, Chrome or OS Save/Open dialogs. The
+historical `progression-reactive-v1` profile remains hidden, still
+describes a warehouse mission, and cannot be treated as the new A5.
+The original H×G motor sensor evidence remains an **independent** chain.
+All real H/G worlds, changing L-length/direction, native while-loop
+trajectory, return/backtracking adversary and teacher usability therefore
+remain unproven until tested directly. No AST syntax is imposed as a
+condition of future mission success.
 
 ## Native R2025a falsification checkpoints, in order
 
