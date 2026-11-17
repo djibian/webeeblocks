@@ -62,7 +62,7 @@ jobs:
           name: a5-hfixed-gbinary-real-sensors-draft
           path: ci-artifacts/progression-reactive-L-factor/
           if-no-files-found: warn
-a5-factor-g-motor-draft-only:
+  a5-factor-g-motor-draft-only:
     name: A5 genuine PID G-left G-right motor feasibility (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
