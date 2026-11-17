@@ -85,6 +85,12 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("'A4_PUPIL_WWI_TRACE',{frames:a4WwiFrames}",js)
         self.assertNotIn("a4WwiFrames.push({text",js)
         self.assertIn("'wwi_frames':wwi_frames",run)
+        self.assertIn("'wwi_trace_attested':trace_ok",run)
+        self.assertIn("valid=valid and trace_ok",run)
+        self.assertIn("1<=len(wwi_frames)<=96",run)
+        self.assertIn("f['id']==7 and f['kind']=='VERTICAL'",run)
+        self.assertIn("f['id']==7 and f['kind']=='OK'",run)
+        self.assertIn("sent<received",run)
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",run)
         self.assertIn("events.count('A4_PUPIL_ERROR')==0",run)
 
