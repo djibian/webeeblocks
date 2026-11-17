@@ -24,6 +24,11 @@ FORCE_FULL = (
     # These native Windows composition fixtures are exercised only by the
     # full-gated runtime-v2-windows-release job, not the partial Runtime suite.
     "tools/ci/fixtures/gp_u_*",
+    # These probes are exercised by the installed native Windows U campaign,
+    # which runs ONLY when inputs.full is true. The generic grand_prix Runtime
+    # path selection otherwise gives a green Gate with that job skipped.
+    "tools/ci/run_grand_prix_windows_native.py",
+    "tools/ci/test_grand_prix_windows_native.py",
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
