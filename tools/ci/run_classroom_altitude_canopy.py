@@ -22,6 +22,18 @@ ARTIFACT = world.ROOT / 'ci-artifacts' / Path(
     os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR',
                    '/workspace/ci-artifacts/progression-neutral-start')
 ).name / 'altitude-canopy-flight'
+def high_fail_safe_event_order(contact, fatal, error_response, first_reset, low_success):
+    """Both unsafe native signals must follow physical contact and precede RESET.
+
+    The Qt/WWI response and native FATAL have no guaranteed relative log order:
+    either can be flushed first. Both are required, never just one.
+    """
+    stamps = (contact, fatal, error_response, first_reset, low_success)
+    return (all(value >= 0 for value in stamps) and
+            contact < fatal < first_reset < low_success and
+            contact < error_response < first_reset)
+
+
 REQUIRED = (
     'CANOPY_HTML_LOADED','CANOPY_JS_STARTED','CANOPY_RUNTIME_READY',
     'CANOPY_SCENE_ACK','CANOPY_HIGH_REJECTED','CANOPY_RESET_FRESH',
@@ -104,10 +116,13 @@ def run() -> int:
     native_fatal_matches = list(re.finditer(
         r'[^\n]*WEBEEBLOCKS_RUNTIME_V2 FATAL[^\n]*',transcript))
     native_fatals = [match.group().strip() for match in native_fatal_matches]
+    high_error_responses = list(re.finditer(
+        re.escape('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR UNSAFE_OR_TIMEOUT'),
+        transcript))
     positions = (
         actual_contact.start() if actual_contact else -1,
-        transcript.find(expected_fatal),
-        transcript.find('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR UNSAFE_OR_TIMEOUT'),
+        native_fatal_matches[0].start() if native_fatal_matches else -1,
+        high_error_responses[0].start() if len(high_error_responses) == 1 else -1,
         transcript.find('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET'),
         low_success.start() if low_success else -1,
     )
@@ -116,6 +131,30 @@ def run() -> int:
     blind_sequence = bool(low_success and blind_rejection and
                           second_reset > low_success.start() and
                           blind_rejection.start() > second_reset)
+    # Independently cross-check the true C oracle log and the result presented
+    # by the actual Robot Window browser through the existing WWI channel.
+    high_causes = [e.get('detail') or {} for e in ack.EVENTS
+                   if e.get('event') == 'CANOPY_HIGH_REJECTED']
+    blind_causes = [e.get('detail') or {} for e in ack.EVENTS
+                    if e.get('event') == 'CANOPY_BLIND_NO_ASCENT_REJECTED']
+    high_native_cause = re.search(
+        r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=1 status=not-achieved\b[^\n]*\breason=obstacle-contact\b',
+        transcript)
+    blind_native_cause = re.search(
+        r'WEBEEBLOCKS_ALTITUDE_RESULT attempt=3 status=not-achieved\b[^\n]*\breason=(unsafe-clearance|obstacle-contact)\b',
+        transcript)
+    high_diagnosed = (len(high_causes) == 1 and
+                      high_causes[0].get('reason') == 'obstacle-contact' and
+                      high_causes[0].get('studentMessage') ==
+                        'Mission non accomplie — Contact avec un obstacle' and
+                      high_native_cause is not None)
+    blind_diagnosed = (len(blind_causes) == 1 and
+                       blind_causes[0].get('reason') in
+                         ('unsafe-clearance','obstacle-contact') and
+                       isinstance(blind_causes[0].get('studentMessage'),str) and
+                       blind_causes[0]['studentMessage'].startswith('Mission non accomplie — ') and
+                       blind_native_cause is not None and
+                       blind_causes[0]['reason'] == blind_native_cause.group(1))
     # The no-ascent attempt may trigger the same original runtime safeguard.
     # Allow only that second, exactly identified FATAL and only AFTER reset;
     # all other fatal reasons and additional FATAL lines still fail closed.
@@ -123,13 +162,12 @@ def run() -> int:
         native_fatals == [expected_fatal,expected_fatal] and
         blind_sequence and native_fatal_matches[1].start() > second_reset)
     high_fail_safe_verified = (
-        known_fatals and
-        all(index >= 0 for index in positions) and
-        all(left < right for left, right in zip(positions, positions[1:]))
+        known_fatals and high_fail_safe_event_order(*positions)
     )
     fatal = ('CANOPY_ERROR' in observed or
              'WEBEEBLOCKS_ALTITUDE_FATAL' in transcript or
              not high_fail_safe_verified or
+             not high_diagnosed or not blind_diagnosed or
              'ERROR:' in transcript)
     (ARTIFACT/'summary.json').write_text(json.dumps({
         'required_events_missing':missing,
@@ -138,6 +176,8 @@ def run() -> int:
         'no_ascent_native_rejection':bool(blind_sequence),
         'browser_launched':launched,
         'high_fail_safe_verified':high_fail_safe_verified,
+        'high_native_reason_displayed':high_diagnosed,
+        'blind_native_reason_displayed':blind_diagnosed,
         'fatal':fatal,'observed':observed
     },indent=2,sort_keys=True)+'\n',encoding='utf-8')
     if (missing or not native_ready or not actual_contact or not low_success or

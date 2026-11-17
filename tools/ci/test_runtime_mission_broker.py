@@ -269,6 +269,40 @@ int main() {
   process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 65 OUTCOME progression-decision-h-v1"});
   assert(sent_text.back() ==
     "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 65 ERR OUTCOME_UNAVAILABLE");
+
+  // A2 first-cause diagnostics are permitted in the school executable only.
+  // The physical shared broker and Grand Prix route-only parser remain sealed.
+  reset_harness();
+  const std::string a2 =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-clearance";
+  custom_data = a2;
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 80 COMPLETE progression-altitude-3d-v1",
+           "WEBEEBLOCKS_RUNTIME_V2 REQUEST 81 OUTCOME progression-altitude-3d-v1"});
+  assert(custom_data == a2);
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 81 STATE not-achieved reason=unsafe-clearance");
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=achieved reason=unsafe-clearance",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=forged",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=unsafe-clearance",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-clearance trailing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-clearance"
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 82 OUTCOME progression-altitude-3d-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 82 STATE not-achieved reason=unsafe-clearance");
+  }
+  reset_harness();
+  custom_data = a2;
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 83 RESET");
+  assert(webeeblocks_file_broker_receive_text() != nullptr);
+  const std::string a2_reset = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 83 OK";
+  webeeblocks_file_broker_send(a2_reset.c_str(), static_cast<int>(a2_reset.size() + 1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 84 OUTCOME progression-altitude-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 84 ERR OUTCOME_UNAVAILABLE");
 #endif
 
   expect_unavailable_after_complete(
