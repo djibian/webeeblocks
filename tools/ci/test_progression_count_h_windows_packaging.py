@@ -93,6 +93,8 @@ class Activity6WindowsPackagingContract(unittest.TestCase):
         self.assertIn('c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b', segment)
         self.assertIn('9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7', segment)
         self.assertIn('Get-FileHash -LiteralPath $installer -Algorithm SHA256', segment)
+        self.assertIn("$webotsHome = Join-Path $env:ProgramFiles 'Webots'", segment)
+        self.assertNotIn("$home = Join-Path $env:ProgramFiles 'Webots'", segment)
         self.assertIn('build_windows_classroom_release.ps1', segment)
         self.assertIn('test_windows_classroom_release.ps1', segment)
         self.assertIn('if: always()', segment)
