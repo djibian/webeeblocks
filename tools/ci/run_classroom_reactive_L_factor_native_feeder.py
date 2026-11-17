@@ -35,7 +35,9 @@ def runtime_env(mode):
         raise FileNotFoundError("real private motor/PID and linked Webots libraries required")
     env=dict(os.environ)
     env["LD_LIBRARY_PATH"]=":".join([str(qt),str(ctl),env.get("LD_LIBRARY_PATH","")]).rstrip(":")
-    env["WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER"]=mode
+    # The real Webots controller uses an exact WBT WorldInfo title, not a
+    # host environment variable that Webots may discard on process startup.
+    env.pop("WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER",None)
     env["LIBGL_ALWAYS_SOFTWARE"]="true"
     env["WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE"]="true"
     # Native-only: browser integration stays a DISTINCT, still-red job.
@@ -53,12 +55,12 @@ def run(variant,mode):
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     resultfile=folder/"result.json"
-    expected=world.compose(variant)
+    expected=world.native_feeder_world(variant,mode)
     env=runtime_env(mode)
     wbt,proj=world.paths(variant)
     proc=stream=None
     try:
-        world.prepare(variant)
+        world.prepare(variant,feeder_mode=mode)
         (folder/"world.sha256").write_text(hashlib.sha256(expected.encode()).hexdigest()+"\n")
         stream=log.open("w",encoding="utf-8")
         proc=subprocess.Popen(
@@ -67,12 +69,17 @@ def run(variant,mode):
             cwd=ROOT,env=env,stdout=stream,stderr=subprocess.STDOUT,
             start_new_session=True)
         deadline=time.monotonic()+140
+        startup_deadline=time.monotonic()+24
         while time.monotonic()<deadline:
             stream.flush()
             raw=log.read_text(errors="replace")
             done="WEBEEBLOCKS_A5_FACTOR_FEEDER_DONE" in raw
             floor=f"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR variant={variant}" in raw
             fail=any(k in raw for k in (PREFIX+"FATAL",FATAL,OTHER_FATAL))
+            if time.monotonic()>startup_deadline and "WEBEEBLOCKS_A5_FACTOR_FEEDER_INIT" not in raw:
+                print("WEBEEBLOCKS_A5_FACTOR_NATIVE_WORLD_ACTIVATION_MISSING "
+                      f"variant={variant} mode={mode}",file=sys.stderr,flush=True)
+                break
             if (done and floor) or fail or proc.poll() is not None:break
             time.sleep(.20)
     finally:

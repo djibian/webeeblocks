@@ -15,7 +15,9 @@ class NativeFeederTests(unittest.TestCase):
                 "factor_motor_feeder.c").read_text()
         make=(ROOT/"controllers/progression_reactive_L_factor_motor_pilot"/
               "Makefile").read_text()
-        self.assertIn('getenv("WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER")',source)
+        self.assertIn('wb_supervisor_field_get_sf_string(title)',source)
+        self.assertIn('WEBEEBLOCKS_A5_FACTOR_NATIVE_',source)
+        self.assertNotIn('getenv("WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER")',source)
         self.assertIn('if(!enabled)return __real_wb_robot_wwi_receive_text()',source)
         self.assertIn('if(!enabled){',source)
         self.assertIn('dlsym(RTLD_NEXT,"wb_robot_wwi_send_text")',source)
@@ -47,7 +49,10 @@ class NativeFeederTests(unittest.TestCase):
     def test_native_result_cannot_pass_on_browser_or_missing_floor(self):
         body=(ROOT/"tools/ci/run_classroom_reactive_L_factor_native_feeder.py").read_text()
         for token in (
-            'env["WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER"]=mode',
+            'env.pop("WEBEEBLOCKS_A5_FACTOR_NATIVE_FEEDER",None)',
+            'world.native_feeder_world(variant,mode)',
+            'world.prepare(variant,feeder_mode=mode)',
+            'WEBEEBLOCKS_A5_FACTOR_NATIVE_WORLD_ACTIVATION_MISSING',
             'startup=re.findall(',
             'len(startup)==1 and len(wrong)==1',
             'WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR',
@@ -66,6 +71,21 @@ class NativeFeederTests(unittest.TestCase):
                 self.assertIn(token,body)
         self.assertNotIn('continue-on-error',body)
         self.assertNotIn("|| true",body)
+
+    def test_exact_private_world_title_not_original_world_activates_feeder(self):
+        import prepare_classroom_reactive_L_factor_motor as lab
+        for variant,mode in (("A","positive"),("B","positive"),("B","blind")):
+            exact=lab.native_feeder_world(variant,mode)
+            self.assertIn('title "WEBEEBLOCKS_A5_FACTOR_NATIVE_'+mode+'"',exact)
+            self.assertNotIn('title "WebeeBlocks — accueil"',exact)
+            self.assertEqual(exact.count(" Solid {"),7)
+            self.assertEqual(exact.count("boundingObject Box"),7)
+            ordinary=lab.compose(variant)
+            self.assertIn('title "WebeeBlocks — accueil"',ordinary)
+            self.assertNotIn('WEBEEBLOCKS_A5_FACTOR_NATIVE_',ordinary)
+        for variant,mode in (("A","blind"),("B","invalid"),("C","positive")):
+            with self.assertRaises(ValueError):
+                lab.native_feeder_world(variant,mode)
 
     def test_invalid_variant_and_blind_are_refused_before_world_creation(self):
         for args in (("C","positive"),("A","blind"),("AB","positive"),
