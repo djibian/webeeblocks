@@ -90,7 +90,7 @@ class A5FactorMotorTests(unittest.TestCase):
                          "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR"):
             self.assertIn(required,trace)
         for required in ("await backend.readRange('left')",
-                         "const targetRight=initialH>.80",
+                         "const targetRight=config.mode==='blind_h'?false:initialH>.80",
                          "const chooseLeft=config.mode==='blind'?true:left>1.0",
                          "await backend.move('forward',.60)",
                          "await backend.move('forward',1.24)",
