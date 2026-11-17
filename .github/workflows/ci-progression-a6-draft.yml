@@ -387,7 +387,40 @@ jobs:
 
   # Dedicated falsification of private generic Blockly in the *real* A6 school UI.
   # Deliberately Draft-only: no student starter, Ready decision or CI Gate.
+  # Produce ONE byte-for-byte authoritative private WBB for the three real UI jobs.
+  # The artifact is CI-only and is NEVER an activity starter or Windows release.
+  a6-private-generic-wbb-build-draft-only:
+    name: A6 one canonical private product-profile WBB for three native UI probes
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Qualify and write exact private A6 product-profile WBB once
+        run: |
+          set -euo pipefail
+          bash ./tools/prepare_runtime_v2.sh
+          mkdir -p ci-artifacts/progression-count-h-private-blockly
+          node tools/ci/build_a6_private_blockly_witness.js \
+            ci-artifacts/progression-count-h-private-blockly/a6-private.wbb \
+            ci-artifacts/progression-count-h-private-blockly/a6-real-profile-ci-only.wbb
+          cd ci-artifacts/progression-count-h-private-blockly
+          sha256sum a6-real-profile-ci-only.wbb > a6-real-profile-ci-only.wbb.sha256
+      - name: Share exact signed-by-digest private WBB without publishing pupil starter
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-private-real-profile-canonical-wbb
+          path: ci-artifacts/progression-count-h-private-blockly/
+          if-no-files-found: error
+
   a6-private-generic-product-ui-draft-only:
+    needs: a6-private-generic-wbb-build-draft-only
     name: A6 private generic Blockly in real school UI H=${{ matrix.count }} (Draft only)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
@@ -404,14 +437,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Prepare pinned genuine Blockly and private real-profile WBB
+      - uses: actions/download-artifact@v4
+        with:
+          name: a6-private-real-profile-canonical-wbb
+          path: ci-artifacts/progression-count-h-private-blockly
+      - name: Prepare pinned genuine Blockly; verify the EXACT shared candidate
         run: |
           set -euo pipefail
           bash ./tools/prepare_runtime_v2.sh
-          mkdir -p ci-artifacts/progression-count-h-private-blockly
-          node tools/ci/build_a6_private_blockly_witness.js \
-            ci-artifacts/progression-count-h-private-blockly/a6-private.wbb \
-            ci-artifacts/progression-count-h-private-blockly/a6-real-profile-ci-only.wbb
+          cd ci-artifacts/progression-count-h-private-blockly
+          sha256sum -c a6-real-profile-ci-only.wbb.sha256
+          cd -
           python3 -m py_compile tools/ci/run_classroom_count_h_private_generic_cdp.py
       - name: Real Webots R2025a and real Blockly browser, independently scored
         timeout-minutes: 16

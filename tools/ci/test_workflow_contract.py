@@ -24,7 +24,7 @@ EXPECTED = {
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Draft-only A6 C/source witness: no flight/native physics, gate or merge authority.
     "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-replay-draft-only",
-                                    "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-product-ui-draft-only"},
+                                    "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
@@ -186,7 +186,7 @@ class WorkflowTests(unittest.TestCase):
             encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
-        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-product-ui-draft-only"})
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only"})
         for required in (
             "  pull_request:\n",
             "  types: [opened, synchronize, reopened]\n",

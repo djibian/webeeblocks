@@ -65,11 +65,20 @@ class CountHSchoolStartTest(unittest.TestCase):
         self.assertIn('starterVisible: false,\n        id: \'progression-count-h-v1\'',profile)
 
     def test_private_generic_real_ui_requires_actual_c_oracle_and_is_draft_only(self):
+        # Three jobs must share ONE generated WBB, not independently random Blockly IDs.
         workflow=(ROOT/'.github/workflows/ci-progression-a6-draft.yml').read_text(encoding='utf-8')
         runner=(ROOT/'tools/ci/run_classroom_count_h_private_generic_cdp.py').read_text(
             encoding='utf-8')
         self.assertIn('a6-private-generic-product-ui-draft-only:',workflow)
         self.assertIn('count: [1, 2, 3]',workflow)
+        self.assertIn('a6-private-generic-wbb-build-draft-only:',workflow)
+        self.assertIn('needs: a6-private-generic-wbb-build-draft-only',workflow)
+        self.assertIn('actions/download-artifact@v4',workflow)
+        self.assertIn('sha256sum -c a6-real-profile-ci-only.wbb.sha256',workflow)
+        # No matrix job is allowed to regenerate randomized Blockly IDs.
+        matrix=workflow.split('  a6-private-generic-product-ui-draft-only:',1)[1]
+        self.assertNotIn('node tools/ci/build_a6_private_blockly_witness.js',matrix)
+
         self.assertIn('WEBEEBLOCKS_A6_PRIVATE_GENERIC_PRODUCT_UI_PASS',runner)
         self.assertIn('WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved',runner)
         self.assertIn('MISSION RÉUSSIE',runner)
