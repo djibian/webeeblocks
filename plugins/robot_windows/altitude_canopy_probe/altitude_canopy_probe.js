@@ -56,8 +56,16 @@ window.addEventListener('unhandledrejection', e => report('CANOPY_ERROR',{messag
     let highError = null;
     try { await backend.takeoff(0.80); }
     catch (error) { highError = String(error && error.code || error && error.message || error); }
-    await outcome(backend,'not-achieved',80000);
-    await report('CANOPY_HIGH_REJECTED',{status:'not-achieved',takeoffError:highError});
+    const high = await outcome(backend,'not-achieved',80000);
+    if (high.reason !== 'obstacle-contact')
+      throw new Error('missing native canopy contact cause '+JSON.stringify(high));
+    const highDiagnostic = WebeeBlocksRuntimeOutcome.classifyMission(high,ORACLE);
+    if (highDiagnostic.detail !== 'Mission non accomplie — Contact avec un obstacle')
+      throw new Error('incorrect canopy pupil message '+JSON.stringify(highDiagnostic));
+    await report('CANOPY_HIGH_REJECTED',{
+      status:'not-achieved',takeoffError:highError,
+      reason:high.reason,studentMessage:highDiagnostic.detail
+    });
 
     await backend.resetSimulation();
     await fresh(backend);
@@ -95,9 +103,15 @@ window.addEventListener('unhandledrejection', e => report('CANOPY_ERROR',{messag
     catch (error) {
       blindError = String(error && (error.code || error.message) || error);
     }
-    await outcome(backend,'not-achieved',80000);
+    const blind = await outcome(backend,'not-achieved',80000);
+    if (blind.reason !== 'unsafe-clearance' && blind.reason !== 'obstacle-contact')
+      throw new Error('blind path rejected without native obstacle cause '+JSON.stringify(blind));
+    const blindDiagnostic = WebeeBlocksRuntimeOutcome.classifyMission(blind,ORACLE);
+    if (!blindDiagnostic.detail.startsWith('Mission non accomplie — '))
+      throw new Error('blind path has no native pupil explanation '+JSON.stringify(blindDiagnostic));
     await report('CANOPY_BLIND_NO_ASCENT_REJECTED',{
-      status:'not-achieved',movementError:blindError
+      status:'not-achieved',movementError:blindError,
+      reason:blind.reason,studentMessage:blindDiagnostic.detail
     });
 
     await report('CANOPY_TEST_COMPLETE',{

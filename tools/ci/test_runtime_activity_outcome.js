@@ -315,6 +315,33 @@ function proveRealWebotsOutcomeFreshness() {
   assert.deepStrictEqual(achieved, {
     status:'achieved', state:'MISSION RÉUSSIE', detail:'Mission accomplie'
   });
+  // A2 exposes only reasons attested by its native mission oracle.
+  const a2 = {type:'mission-state-v1', oracle:'progression-altitude-3d-v1'};
+  for (const [reason, french] of [
+    ['obstacle-contact', 'Contact avec un obstacle'],
+    ['unsafe-clearance', 'Hauteur ou passage dangereux près de l’obstacle'],
+    ['early-finish', 'Parcours non franchi avant la fin du programme'],
+    ['landing-timeout', 'Atterrissage non stabilisé dans le délai'],
+    ['wrong-pad', 'Atterrissage hors du damier']
+  ]) {
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, a2).detail,
+      'Mission non accomplie — ' + french);
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, evaluation).detail,
+      'Mission non accomplie', 'A2 reason must not leak to other oracles');
+  }
+  for (const bad of [
+    {status:'not-achieved',reason:'forged'},
+    {status:'not-achieved',reason:'__proto__'},
+    {status:'achieved',reason:'wrong-pad'},
+    {status:'interrupted',reason:'wrong-pad'}
+  ]) {
+    const got = Outcome.classifyMission(bad,a2);
+    assert.strictEqual(got.detail, bad.status==='achieved'
+      ? 'Mission accomplie' : bad.status==='interrupted'
+      ? 'Mission interrompue' : 'Mission non accomplie');
+  }
   const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
   assert.deepStrictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'obstacle-contact'},a4), {

@@ -40,6 +40,13 @@ const pAlt = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1'
 assert.deepStrictEqual(Activities.DOCUMENT.activities.filter(p => p.runtime.scene === 'altitude-v1').map(p => p.id),[pAlt.id]);
 assert.strictEqual(pAlt.starterVisible, undefined);
 assert.strictEqual(Profiles.validateProfile(pAlt, Activities.BLOCK_CATALOG),true);
+// The A2 pupil brief invites observing two conflicting heights, not an
+// ordered block solution, a numeric flight recipe, or a speed objective.
+assert.match(pAlt.brief.mission,/Avant de programmer, compare la hauteur libre sous l’auvent et au-dessus de l’obstacle/);
+assert.match(pAlt.brief.mission,/que remarques-tu \?/);
+assert.doesNotMatch(pAlt.brief.mission,/monte de|avance de|répète|vitesse|bloc|\b0[.,][0-9]+\s*m\b/i);
+assert(pAlt.toolbox.includes('webeeblocks_v2_vertical'),
+  'A2 retains the relative vertical tool, unlike the simple A1 mission');
 
 // Native A3 orientation and repeat are now offered as one pupil mission.
 const pOrient = Profiles.resolveById(Activities.DOCUMENT, 'progression-orientation-3d-v1', Activities.BLOCK_CATALOG);
@@ -183,7 +190,28 @@ assert.strictEqual(p1.world, initialProfile.world);
 assert.strictEqual(p2.world, initialProfile.world);
 assert.strictEqual(pAlt.world, initialProfile.world);
 assert.strictEqual(p2.starterVisible, false);
-assert.strictEqual(Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-')&&p.starterVisible!==false).length,8);
+// Unqualified new A5/A6 scenes must never be replaced in Start by obsolete
+// warehouse missions. Those older projects still open by their stable IDs.
+const archivedIntermediate = [
+  ['progression-reactive-v1','05-reactive.wbb'],
+  ['progression-combined-decisions-v1','06-multi-perception.wbb']
+];
+for (const [id,starter] of archivedIntermediate) {
+  const profile = Profiles.resolveById(Activities.DOCUMENT,id,Activities.BLOCK_CATALOG);
+  assert.strictEqual(profile.starterVisible,false,'obsolete intermediate lesson offered in Start: '+id);
+  assert.strictEqual(profile.runtime.scene,'legacy-v1');
+  assert(Profiles.validateProfile(profile,Activities.BLOCK_CATALOG));
+  const file=JSON.parse(fs.readFileSync(path.join(ROOT,'activities/progression',starter),'utf8'));
+  assert.deepStrictEqual(file,JSON.parse(ProjectFiles.createStarterText(id)),
+    'archived student .wbb must remain openable with unchanged activity ID');
+}
+const visibleIds=Activities.DOCUMENT.activities.filter(p=>p.id.startsWith('progression-') &&
+  p.starterVisible!==false).map(p=>p.id);
+assert.deepStrictEqual(visibleIds,[
+  'progression-sequence-v1','progression-altitude-v1',
+  'progression-orientation-3d-v1','progression-decision-h-v1',
+  'progression-mini-grand-prix-v1','progression-autonomous-strategy-v1'
+], 'offer only the qualified current missions; A5/A6 are still under development');
 assert.match(fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'), /profile\.starterVisible !== false/);
 assert.strictEqual(p1.brief.title, '1 — Prendre son envol en 3D');
 assert.strictEqual(p2.brief.title, '2 — Livrer le colis fragile');
