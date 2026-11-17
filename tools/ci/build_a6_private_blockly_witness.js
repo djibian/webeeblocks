@@ -252,6 +252,30 @@ async function main(){
   assert(!serialized.includes('count-h-2-v1'));
   assert(!serialized.includes('count-h-3-v1'));
   assert.equal(serialized.includes('progression-count-h-private-ci-only'),true);
+  // Do not mistake a permissive private adapter for proof that the genuine
+  // hidden A6 product profile admits these blocks and this .wbb. Validate
+  // the SAME real Blockly 13 serialization against the actual activity
+  // constraints, with the profile ID changed ONLY in the private test copy.
+  const actualProfile=Activities.getProfile('progression-count-h-v1');
+  assert.equal(actualProfile.starterVisible,false,
+    'real A6 pupil profile must remain hidden throughout this experiment');
+  const actualWbb=JSON.stringify({
+    ...witness.project,
+    activity:{id:actualProfile.id,semantics:witness.ast.semantics}
+  },null,2)+'\\n';
+  for(const scene of ['count-h-1-v1','count-h-2-v1','count-h-3-v1'])
+    assert.equal(actualWbb.includes(scene),false,
+      'product-profile pupil .wbb must not disclose the selected scene');
+  const actualOptions={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:Semantic,
+    activityContract:Contract};
+  const actualValidated=ProjectFiles.validateProjectText(
+    actualWbb,actualProfile,actualOptions);
+  assert.deepStrictEqual(actualValidated.ast,witness.ast,
+    'genuine A6 product profile changed/denied the private Blockly program');
+  Contract.preflightAst(actualProfile,witness.ast);
+  console.log('WEBEEBLOCKS_A6_REAL_PROFILE_PRIVATE_WBB_VALID '+
+    'schema=true hidden=true same_ast=true scene_leak=false native_flight=UNPROVEN');
   const pads=[0,.55,-.55];
   const noLoopCapability=virtualSensorBackend(1);
   noLoopCapability.capabilities.conditionalLoops=false;
