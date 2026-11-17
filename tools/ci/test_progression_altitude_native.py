@@ -116,6 +116,31 @@ int main(void) {
   assert(m.reason == WB_ALT_REASON_CONTACT);
   assert(!strcmp(wb_alt_reason_token(m.reason), "obstacle-contact"));
 
+  /* A physical reason MUST NOT be inferred from invalid native time.
+   * Both first-frame negative time and reused/backward timestamps fail
+   * terminally but keep the public reason unknown. Fresh contact still wins
+   * on a new attempt, with no stale error carried across RESET. */
+  wb_alt_reset(&m, 401, 0.0);
+  assert(step(&m, -0.032, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_NONE && !m.collision_seen);
+  assert(step(&m, 1.0, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_NONE && !m.collision_seen);
+
+  normal_takeoff(&m, 402);
+  assert(fabs(m.last_time - 1.0) < 1e-9 && m.sampled);
+  assert(step(&m, 1.0, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_NONE && !m.collision_seen);
+
+  normal_takeoff(&m, 403);
+  assert(step(&m, 0.968, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_NONE && !m.collision_seen);
+
+  normal_takeoff(&m, 404);
+  assert(step(&m, 1.032, 0.3, 0, 0.48, 0, 1, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_CONTACT && m.collision_seen);
+  assert(step(&m, 1.040, 0.3, 0, 0.48, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_CONTACT && m.collision_seen);
+
   /* No contact evidence is NOT permission to grant success. */
   normal_takeoff(&m, 5);
   assert(step(&m, 1.1, 0.3, 0, 0.48, 0, -1, 0) == WB_ALT_NOT_ACHIEVED);
