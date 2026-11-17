@@ -347,7 +347,7 @@ function proveRealWebotsOutcomeFreshness() {
   const a3 = {type:'mission-state-v1', oracle:'progression-orientation-3d-v1'};
   for (const [reason, french] of [
     ['route-incomplete', 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)'],
-    ['landing-timeout', 'Atterrissage non stabilisé dans le délai']
+    ['landing-timeout', 'Pose sur le damier non validée dans le délai']
   ]) {
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, a3).detail,

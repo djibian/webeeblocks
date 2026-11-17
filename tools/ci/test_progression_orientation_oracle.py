@@ -206,6 +206,19 @@ int main(void) {
  route(&m);
  assert(step(&m,4,.99,-.9,.03,0,0,1)==WB_ORIENT_WAIT);
  assert(step(&m,6,.99,-.9,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ // The drone can land fully and stably, but OUTSIDE the marked damier.
+ // The public reason must not say "unstable landing" for this physical case.
+ wb_orient_reset(&m,23,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.030,0,0,1,1)==WB_ORIENT_WAIT);
+ for (int tick=1;tick<=47;++tick) {
+  wb_orient_verdict outcome=step_contact(&m,4.000+.032*tick,
+                                          1.10,-.90,.030,0,0,0,1);
+  assert(outcome==(tick==47?WB_ORIENT_NOT_ACHIEVED:WB_ORIENT_WAIT));
+ }
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
+ assert(strcmp(wb_orient_reason_name(&m),"landing-timeout")==0);
+ assert(!m.stable_since_valid);
  // Invalid orientation/observations are fail-closed, not success.
  wb_orient_reset(&m,10,0);
  route(&m);

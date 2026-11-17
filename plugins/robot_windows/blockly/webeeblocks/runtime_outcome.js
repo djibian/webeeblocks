@@ -70,7 +70,7 @@
 
   var A3_PUBLIC_REASONS = Object.freeze({
     'route-incomplete': 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai'
+    'landing-timeout': 'Pose sur le damier non validée dans le délai'
   });
 
   var A4_PUBLIC_REASONS = Object.freeze({
