@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""R2025a native A5 fixed-H/G-binary sensor experiment, NOT a motor test.
+"""R2025a native A5 H-near/far × G-left/right 2x2 sensor experiment, NOT a motor test.
 
-Two physically distinct WBOs, original Crazyflie/Deck and native ray values.
+Four physically distinct WBOs, original Crazyflie/Deck and native ray values.
 The Supervisor sets sample poses; no pupil Blockly, mission oracle or real drone.
 """
 from pathlib import Path
@@ -25,7 +25,7 @@ PROJECT="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\
 PHASES=(("early",0.,0.),("approach",2.50,0.),
         ("gap_left",2.50,.80),("gap_right",2.50,-.80))
 SAMPLE=re.compile(
-    r"WEBEEBLOCKS_A5_FACTOR_SAMPLE variant=([LR]) "
+    r"WEBEEBLOCKS_A5_FACTOR_SAMPLE variant=([LR]) cue=([NF]) "
     r"phase=(early|approach|gap_left|gap_right) "
     r"front=([0-9.]+) left=([0-9.]+) right=([0-9.]+) "
     r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=(-?[0-9.]+) time=([0-9.]+)")
@@ -35,16 +35,17 @@ DONE=re.compile(
 FATAL="WEBEEBLOCKS_A5_FACTOR_FATAL"
 
 def scene_path(variant):
-    if not isinstance(variant,str) or variant not in ("L","R"):
-        raise ValueError("only fixed-H G-left/G-right are authorized")
-    suffix="left" if variant=="L" else "right"
-    return ROOT/f"worlds/scenes/reactive-L-factor-hnear-g{suffix}-proto.wbo"
+    if type(variant) is not str or variant not in ("L","R","FL","FR"):
+        raise ValueError("only H-near/far × G-left/right factors allowed")
+    suffix="left" if variant[-1]=="L" else "right"
+    cue="far" if variant.startswith("F") else "near"
+    return ROOT/f"worlds/scenes/reactive-L-factor-h{cue}-g{suffix}-proto.wbo"
 
 def compose(variant,scene=None):
     base=classroom.compose(classroom.SOURCE.read_text(encoding="utf-8"))
     content=(scene_path(variant).read_text(encoding="utf-8")
              if scene is None else scene)
-    expected=f"DEF WEBEEBLOCKS_A5_FACTOR_G{variant}_SCENE Group"
+    expected=f"DEF WEBEEBLOCKS_A5_FACTOR_G{variant[-1]}_SCENE Group"
     if (base.count(SOURCE_CONTROLLER)!=1 or base.count(SOURCE_WINDOW)!=1
         or base.count(classroom.MARKER)!=1
         or base.count("Floor { size 4 4 }")!=1
@@ -53,7 +54,7 @@ def compose(variant,scene=None):
         content.count("boundingObject Box")!=7 or
         "Robot {" in content or 'controller "' in content or
         any(f"WEBEEBLOCKS_A5_FACTOR_G{other}_SCENE" in content
-            for other in "LR" if other!=variant)):
+            for other in "LR" if other!=variant[-1])):
         raise ValueError("original world or physical G fixture untrusted")
     base=base.replace(SOURCE_CONTROLLER,SENSOR_CONTROLLER,1)
     base=base.replace("Floor { size 4 4 }","Floor { size 12 6 }",1)
@@ -117,14 +118,16 @@ def run_one(variant):
             project.unlink()
     text=(folder/"webots.log").read_text(encoding="utf-8",errors="replace")
     rows=SAMPLE.findall(text)
-    if (FATAL in text or DONE.findall(text)!=[variant] or len(rows)!=4 or
-        [(v,phase) for v,phase,*_ in rows]!=
-        [(variant,name) for name,_,_ in PHASES]):
+    gate=variant[-1]
+    cue="F" if variant.startswith("F") else "N"
+    if (FATAL in text or DONE.findall(text)!=[gate] or len(rows)!=4 or
+        [(v,c,phase) for v,c,phase,*_ in rows]!=
+        [(gate,cue,name) for name,_,_ in PHASES]):
         raise AssertionError("missing real R2025a H-fixed G-binary measurements")
     samples=[]
     previous_time=-1.0
     for row,(name,x0,y0) in zip(rows,PHASES):
-        v,phase,*raw=row
+        v,c,phase,*raw=row
         front,left,right,x,y,z,now=map(float,raw)
         if (not all(math.isfinite(q) for q in
                     (front,left,right,x,y,z,now)) or
@@ -136,7 +139,7 @@ def run_one(variant):
                             right_m=right,x=x,y=y,z=z,time=now))
         previous_time=now
     (folder/"samples.json").write_text(json.dumps({
-        "variant":variant,"native_original_multiranger":True,
+        "variant":variant,"cue":cue,"gate":gate,"native_original_multiranger":True,
         "physical_Solids_attested":True,"motorized":False,
         "samples":samples},sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(f"WEBEEBLOCKS_A5_FACTOR_NATIVE variant={variant} "
@@ -145,8 +148,9 @@ def run_one(variant):
     return samples
 
 def main():
-    data={v:run_one(v) for v in ("L","R")}
+    data={v:run_one(v) for v in ("L","R","FL","FR")}
     L,R=data["L"],data["R"]
+    FL,FR=data["FL"],data["FR"]
     early=max(abs(L[0][d]-R[0][d]) for d in
               ("front_m","left_m","right_m"))
     approach=abs(L[1]["left_m"]-R[1]["left_m"])
@@ -154,7 +158,27 @@ def main():
     # G-L opens on the left; G-R opens on the right. Do not invert this sign.
     gap_left=L[2]["front_m"]-R[2]["front_m"]
     gap_right=R[3]["front_m"]-L[3]["front_m"]
-    report=dict(schema="webeeblocks-a5-gfactor-native-v1",
+    dims=("front_m","left_m","right_m")
+    early_far=max(abs(FL[0][d]-FR[0][d]) for d in dims)
+    approach_far=abs(FL[1]["left_m"]-FR[1]["left_m"])
+    gap_left_far=FL[2]["front_m"]-FR[2]["front_m"]
+    gap_right_far=FR[3]["front_m"]-FL[3]["front_m"]
+    h_initial_left_deltas=[abs(data[n][0]["left_m"]-data[f][0]["left_m"])
+                           for n,f in (("L","FL"),("R","FR"))]
+    h_initial_other_delta=max(abs(data[n][0][d]-data[f][0][d])
+                              for n,f in (("L","FL"),("R","FR"))
+                              for d in ("front_m","right_m"))
+    h_late_delta=max(abs(data[n][i][d]-data[f][i][d])
+                     for n,f in (("L","FL"),("R","FR"))
+                     for i in (1,2,3) for d in dims)
+    report=dict(schema="webeeblocks-a5-hg-factor-2x2-native-v1",
+                h_initial_left_deltas_m=h_initial_left_deltas,
+                h_initial_other_delta_m=h_initial_other_delta,
+                h_late_local_delta_m=h_late_delta,
+                early_far_max_delta_m=early_far,
+                approach_far_left_delta_m=approach_far,
+                gap_left_far_front_delta_m=gap_left_far,
+                gap_right_far_front_delta_m=gap_right_far,
                 early_max_delta_m=early,
                 approach_left_delta_m=approach,
                 gap_left_front_delta_m=gap_left,
@@ -171,6 +195,16 @@ def main():
         L[0]["front_m"]<1.95 or R[0]["front_m"]<1.95 or
         approach<.35 or gap_left<.35 or gap_right<.35):
         raise AssertionError("G information leaks at start or gate is not natively distinguishable")
+    if (early_far>.035 or approach_far<.35 or
+        gap_left_far<.35 or gap_right_far<.35 or
+        min(h_initial_left_deltas)<.35 or
+        max(h_initial_left_deltas)>1.50 or
+        h_initial_other_delta>.035 or h_late_delta>.035):
+        raise AssertionError("H/G independence refuted by genuine R2025a rays")
+    print("WEBEEBLOCKS_A5_FACTOR_HG_2X2_NATIVE_PASS "
+          "early_H_observed=true late_H_local_alias=true "
+          "G_observed_after_approach=true teleport_only=true "
+          "motor_Hfactor_unproven=true pupil_wbb=false",flush=True)
     print("WEBEEBLOCKS_A5_FACTOR_G_NATIVE_PASS "
           "early_indistinguishable=true later_observable=true "
           "motorized=false pupil_wbb=false",flush=True)

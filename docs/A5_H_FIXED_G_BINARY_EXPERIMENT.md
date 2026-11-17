@@ -30,6 +30,33 @@ activity or independently validate collision avoidance. The experimental
 classroom Floor must be enlarged by an isolated CI world composer before
 motorized trials, not by changing the official Grand Prix world.
 
+
+## Extension 2×2 H proche/loin × G gauche/droite — hypothèse, pas PASS
+
+Deux nouvelles scènes CI (`hfar-gleft`, `hfar-gright`) conservent
+**strictement les mêmes** obstacles G et les deux damiers que leurs
+homologues H proches. Les deux `Solid` H seuls sont décalés de +0,60 m
+en y (0,58/0,78 vers 1,18/1,38). Le contrôleur télémétrique natif
+R2025a vérifie les boîtes physiques exactes et le Crazyflie original.
+
+Le nouveau test 2×2 doit établir simultanément : H proche/lointain
+distinct depuis le départ par `range_left` ; G gauche/droite invisible
+depuis ce même départ à H constant ; H non distinguable localement par
+`front/left/right` aux trois positions de décision G ; et G discriminable
+à l'approche et aux deux ouvertures, quelle que soit la valeur de H.
+Tolérance d'égalité **0,035 m**, contraste **strictement supérieur à
+0,35 m**. Un échec garde la campagne native rouge et archive les
+valeurs brutes plutôt que de modifier une assertion.
+
+**Ce test est strictement une expérimentation par poses Supervisor et
+télémètres d'origine**, pas un vol motorisé sur H loin ni un test de
+l'impossibilité d'un retour pour relire H. Les vols moteur existants ne
+qualifient que H proche ; il manque toujours un vrai projet élève
+Blockly `.wbb` identique sur les quatre mondes, le test des solutions
+sans variable, le contact/atterrissage et l'acceptation personnelle
+4e/3e. L'alias local à trois rayons ne prouve pas l'alias global de
+toutes les stratégies motorisées possibles.
+
 ## Native R2025a falsification checkpoints, in order
 
 1. Embed each WBO in an isolated original-Crazyflie Webots R2025a world and

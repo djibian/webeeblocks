@@ -1,12 +1,12 @@
-# A5 R2025a original sensors, private H-fixed G-binary experiment only.
-name: Activity 5 H-fixed G-binary sensor probe (non-decision)
+# A5 R2025a original sensors, private H-near/far × G-left/right sensor experiment.
+name: Activity 5 independent H-G factors sensor probe (non-decision)
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
     paths:
       - '.github/workflows/ci-progression-a5-factor-draft.yml'
-      - 'worlds/scenes/reactive-L-factor-hnear-g*-proto.wbo'
+      - 'worlds/scenes/reactive-L-factor-h*-g*-proto.wbo'
       - 'controllers/progression_reactive_L_factor_probe/**'
       - 'tools/ci/run_classroom_reactive_L_factor_probe.py'
       - 'tools/ci/test_progression_a5_factor_native.py'

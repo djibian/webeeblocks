@@ -27,7 +27,7 @@ static int box(const char *id,const double center[3],const double size[3]) {
 }
 static int sample(WbNodeRef self,WbFieldRef tr,WbFieldRef rot,
                   WbDeviceTag front,WbDeviceTag left,WbDeviceTag right,
-                  char variant,const char *phase,double x,double y,int step) {
+                  char variant,char cue,const char *phase,double x,double y,int step) {
   const double desired[3]={x,y,.50},yaw[4]={0,0,1,0};
   wb_supervisor_field_set_sf_vec3f(tr,desired);
   wb_supervisor_field_set_sf_rotation(rot,yaw);
@@ -42,10 +42,10 @@ static int sample(WbNodeRef self,WbFieldRef tr,WbFieldRef rot,
      fabs(p[2]-.5)>.09||fabs(orientation[0]-1)>.10||
      !isfinite(f)||!isfinite(l)||!isfinite(r)||
      f<0||l<0||r<0||f>2.001||l>2.001||r>2.001)return 0;
-  printf("WEBEEBLOCKS_A5_FACTOR_SAMPLE variant=%c phase=%s "
+  printf("WEBEEBLOCKS_A5_FACTOR_SAMPLE variant=%c cue=%c phase=%s "
          "front=%.9f left=%.9f right=%.9f "
          "x=%.9f y=%.9f z=%.9f time=%.9f\n",
-         variant,phase,f,l,r,p[0],p[1],p[2],wb_robot_get_time());
+         variant,cue,phase,f,l,r,p[0],p[1],p[2],wb_robot_get_time());
   fflush(stdout);return 1;
 }
 int main(void) {
@@ -63,6 +63,7 @@ int main(void) {
   if(!children||wb_supervisor_field_get_count(children)!=11)
     return refuse("source group or child count altered");
   const double h1[3]={0,.58,.55},h2[3]={.20,.78,.55};
+  const double fh1[3]={0,1.18,.55},fh2[3]={.20,1.38,.55};
   const double lower[3]={3.10,L?-.55:-1.16,.55};
   const double upper[3]={3.10,L?1.16:.55,.55};
   const double arm[3]={2.45,L?-.58:.58,.55};
@@ -70,8 +71,13 @@ int main(void) {
   const double sh1[3]={.40,.08,1.10},sh2[3]={.08,.48,1.10};
   const double sl[3]={.08,L?1.70:.48,1.10},su[3]={.08,L?.48:1.70,1.10};
   const double sa[3]={.70,.08,1.10},sw[3]={2.40,.08,1.10};
-  if(!box("A5_FACTOR_H_CUE_ARM",h1,sh1)||
-     !box("A5_FACTOR_H_CUE_TIP",h2,sh2)||
+  const int near=box("A5_FACTOR_H_CUE_ARM",h1,sh1)&&
+    box("A5_FACTOR_H_CUE_TIP",h2,sh2);
+  const int far=box("A5_FACTOR_H_CUE_ARM",fh1,sh1)&&
+    box("A5_FACTOR_H_CUE_TIP",fh2,sh2);
+  if(near==far)return refuse("H cue must have one exact physical position");
+  const char cue=near?'N':'F';
+  if(
      !box("A5_FACTOR_G_LOWER",lower,sl)||
      !box("A5_FACTOR_G_UPPER",upper,su)||
      !box("A5_FACTOR_G_SIDE_ARM",arm,sa)||
@@ -90,10 +96,10 @@ int main(void) {
   wb_distance_sensor_enable(left,step);
   wb_distance_sensor_enable(right,step);
   if(wb_robot_step(step)==-1)return refuse("sensor activation failed");
-  if(!sample(self,tr,rot,front,left,right,variant,"early",0,0,step)||
-     !sample(self,tr,rot,front,left,right,variant,"approach",2.50,0,step)||
-     !sample(self,tr,rot,front,left,right,variant,"gap_left",2.50,.80,step)||
-     !sample(self,tr,rot,front,left,right,variant,"gap_right",2.50,-.80,step))
+  if(!sample(self,tr,rot,front,left,right,variant,cue,"early",0,0,step)||
+     !sample(self,tr,rot,front,left,right,variant,cue,"approach",2.50,0,step)||
+     !sample(self,tr,rot,front,left,right,variant,cue,"gap_left",2.50,.80,step)||
+     !sample(self,tr,rot,front,left,right,variant,cue,"gap_right",2.50,-.80,step))
     return refuse("missing native sample or pose");
   printf("WEBEEBLOCKS_A5_FACTOR_DONE variant=%c samples=4 "
          "teleport_only=true motorized=false\n",variant);fflush(stdout);

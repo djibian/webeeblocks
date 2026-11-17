@@ -1,0 +1,53 @@
+# A5 isolated source prototype: H far / G left, NOT a pupil scene.
+# Real R2025a sensor and motor tests are REQUIRED; coordinates are a hypothesis.
+# H far (+0.60m): pads and G remain identical to the near-H/same-G scene.
+DEF WEBEEBLOCKS_A5_FACTOR_GL_SCENE Group {
+ children [
+  Pose { translation 0.000 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.200 0.200 0.004 } } ] }
+  Pose { translation 2.500 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 4.150 0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  Pose { translation 4.150 -0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  DEF A5_FACTOR_H_CUE_ARM Solid {
+    translation 0.000 1.180 0.550
+    name "A5_FACTOR_H_CUE_ARM"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.400 0.080 1.100 } } ]
+    boundingObject Box { size 0.400 0.080 1.100 }
+  }
+  DEF A5_FACTOR_H_CUE_TIP Solid {
+    translation 0.200 1.380 0.550
+    name "A5_FACTOR_H_CUE_TIP"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.480 1.100 } } ]
+    boundingObject Box { size 0.080 0.480 1.100 }
+  }
+  DEF A5_FACTOR_G_LOWER Solid {
+    translation 3.100 -0.550 0.550
+    name "A5_FACTOR_G_LOWER"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 0.080 1.700 1.100 } } ]
+    boundingObject Box { size 0.080 1.700 1.100 }
+  }
+  DEF A5_FACTOR_G_UPPER Solid {
+    translation 3.100 1.160 0.550
+    name "A5_FACTOR_G_UPPER"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 0.080 0.480 1.100 } } ]
+    boundingObject Box { size 0.080 0.480 1.100 }
+  }
+  DEF A5_FACTOR_G_SIDE_ARM Solid {
+    translation 2.450 -0.580 0.550
+    name "A5_FACTOR_G_SIDE_ARM"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 0.700 0.080 1.100 } } ]
+    boundingObject Box { size 0.700 0.080 1.100 }
+  }
+  DEF A5_FACTOR_G_LEFT_BOUNDARY Solid {
+    translation 3.000 1.450 0.550
+    name "A5_FACTOR_G_LEFT_BOUNDARY"
+    children [ Shape { appearance PBRAppearance { baseColor 0.45 0.45 0.45 roughness 0.6 } geometry Box { size 2.400 0.080 1.100 } } ]
+    boundingObject Box { size 2.400 0.080 1.100 }
+  }
+  DEF A5_FACTOR_G_RIGHT_BOUNDARY Solid {
+    translation 3.000 -1.450 0.550
+    name "A5_FACTOR_G_RIGHT_BOUNDARY"
+    children [ Shape { appearance PBRAppearance { baseColor 0.45 0.45 0.45 roughness 0.6 } geometry Box { size 2.400 0.080 1.100 } } ]
+    boundingObject Box { size 2.400 0.080 1.100 }
+  }
+ ]
+}
