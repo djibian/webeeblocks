@@ -12,12 +12,13 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
-assert.strictEqual(Activities.DOCUMENT.activities.length, 14, 'retain historical A4/A7 while activating native profiles');
+assert.strictEqual(Activities.DOCUMENT.activities.length, 15, 'retain all historical profiles plus the hidden native A6 school profile');
 for (const activity of Activities.DOCUMENT.activities) {
   const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' :
     activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
     activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' :
     activity.id === 'progression-decision-h-v1' ? 'decision-h-a-v1' :
+    activity.id === 'progression-count-h-v1' ? 'count-h-1-v1' :
     activity.id === 'progression-mini-grand-prix-v1' ? 'mini-grand-prix-l-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
@@ -31,7 +32,7 @@ for (const activity of Activities.DOCUMENT.activities) {
     const changed = JSON.parse(JSON.stringify(activity));
     changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
-      /runtime.scene must be sequence-v1, legacy-v1, altitude-v1, orientation-v1, decision-h-a-v1, decision-h-b-v1, mini-grand-prix-l-v1 or mini-grand-prix-r-v1/, 'ambiguous scene accepted for ' + activity.id);
+      /runtime.scene must name a supported versioned classroom scene/, 'ambiguous scene accepted for ' + activity.id);
   }
 }
 
@@ -277,6 +278,7 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-simple-decision-v1' &&
   profile.id !== 'progression-reactive-v1' &&
   profile.id !== 'progression-combined-decisions-v1' &&
+  profile.id !== 'progression-count-h-v1' &&
   profile.id !== 'progression-memory-v1' &&
   profile.id !== 'progression-mini-grand-prix-v1' &&
   profile.id !== 'progression-autonomous-strategy-v1');
