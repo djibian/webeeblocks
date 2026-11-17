@@ -43,6 +43,23 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn('window "a5_alias_motor_probe"',motor.PILOT_WINDOW)
         self.assertIn("WB_A5_FACTOR_BOOTSTRAP",html)
 
+    def test_browser_job_prepares_the_actual_original_robot_window(self):
+        workflow=(ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text()
+        motor=workflow.split("  a5-factor-g-motor-draft-only:",1)[1].split(
+            "  a5-factor-g-native-pid-feeder-draft-only:",1)[0]
+        feeder=workflow.split("  a5-factor-g-native-pid-feeder-draft-only:",1)[1]
+        for required in ("./tools/prepare_runtime_v2.sh",
+                         "python3 /workspace/tools/prepare_webots_apt.py",
+                         "google-chrome-stable_current_amd64.deb",
+                         "Webots-R2025a.conf",
+                         "[RobotWindow]",
+                         "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh",
+                         "test -x /usr/bin/google-chrome",
+                         "python3 tools/ci/run_classroom_reactive_L_factor_motor.py"):
+            self.assertIn(required,motor)
+        self.assertNotIn("google-chrome-stable_current_amd64.deb",feeder)
+        self.assertNotIn("prepare_runtime_v2.sh",feeder)
+
     def test_native_pid_has_7_physical_obstacle_contact_streams(self):
         directory=ROOT/"controllers/progression_reactive_L_factor_motor_pilot"
         make=(directory/"Makefile").read_text()

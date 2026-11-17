@@ -79,6 +79,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v tools.ci.test_progression_a5_factor_motor
+      - name: Prepare pinned Runtime v2 Robot Window assets for Chrome
+        run: |
+          set -euo pipefail
+          ./tools/prepare_runtime_v2.sh
+          test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
+          test -s plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
       - name: Compile the unmodified R2025a product motor/PID and native monitor
         run: |
           set -euo pipefail
@@ -97,7 +103,21 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
-            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_factor_motor.py; python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind'
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics /workspace/ci-artifacts/progression-reactive-L-factor-motor
+              printf "%s\\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              test -x /usr/bin/google-chrome
+              python3 tools/ci/run_classroom_reactive_L_factor_motor.py
+              python3 tools/ci/run_classroom_reactive_L_factor_motor.py --blind
+            '
       - name: Preserve C physical monitor, real steps and browser events even on failure
         if: always()
         uses: actions/upload-artifact@v4
