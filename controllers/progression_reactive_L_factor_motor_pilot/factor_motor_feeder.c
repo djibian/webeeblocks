@@ -44,7 +44,7 @@ static void initialize(void) {
    * from an invoked wrapper whose native WorldInfo title was not admitted.
    * This isolated CI pilot never ships in the physical/product binary. */
   fprintf(stderr,"WEBEEBLOCKS_A5_FACTOR_FEEDER_HOOK_DIAGNOSTIC "
-          "self=%d world=%d title=%d marker=%d t=%.6f\\n",
+          "self=%d world=%d title=%d marker=%d t=%.6f\n",
           wb_supervisor_node_get_self()!=NULL,wi!=NULL,title!=NULL,
           name&&strncmp(name,prefix,strlen(prefix))==0,
           wb_robot_get_time());
