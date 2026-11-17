@@ -119,7 +119,7 @@ void __wrap_wb_robot_wwi_send(const char *data,int size){
     __real_wb_robot_wwi_send(data,size);
     return;
   }
-  if(!data||size<1||size>512||data[size-1]!='\\0'||
+  if(!data||size<1||size>512||data[size-1]!=0||
      strlen(data)!=(size_t)size-1){
     fail("malformed_native_wwi_send");
     return;
