@@ -8,11 +8,11 @@
 #include <webots/robot.h>
 #include <webots/supervisor.h>
 #include <math.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 extern const char *__real_wb_robot_wwi_receive_text(void);
-extern void __real_wb_robot_wwi_send_text(const char *);
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
 static const char NONCE[] =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -86,7 +86,17 @@ const char *__wrap_wb_robot_wwi_receive_text(void){
 }
 void __wrap_wb_robot_wwi_send_text(const char *message){
   initialize();
-  if(!enabled){__real_wb_robot_wwi_send_text(message);return;}
+  if(!enabled){
+    /* The Webots R2025a controller may expose its WWI send function via
+     * its loaded shared library, not as a link-time __real_ symbol.
+     * Preserve original browser transport ONLY if an actual dynamic
+     * implementation is available; fail closed rather than fake delivery. */
+    void (*relay)(const char *)=
+      (void (*)(const char *))dlsym(RTLD_NEXT,"wb_robot_wwi_send_text");
+    if(!relay){fail("real_wwi_send_passthrough_unavailable");return;}
+    relay(message);
+    return;
+  }
   if(!message||strncmp(message,PREFIX " RESPONSE ",strlen(PREFIX " RESPONSE ")))return;
   int id=-1;
   char kind[24]={0};
