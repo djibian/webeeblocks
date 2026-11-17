@@ -257,6 +257,25 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(legacy.webots)
         self.assertFalse(legacy.full)
 
+    def test_windows_u_cleanup_runner_and_tests_cannot_skip_installed_campaign(self) -> None:
+        # Installed Windows U campaign is behind inputs.full in ci-runtime.yml.
+        # A single-script edit must still exercise that full owner.
+        for path in (
+            "tools/ci/run_grand_prix_windows_native.py",
+            "tools/ci/test_grand_prix_windows_native.py",
+        ):
+            with self.subTest(path=path):
+                selected = select([path])
+                self.assertTrue(selected.runtime)
+                self.assertTrue(selected.webots)
+                self.assertTrue(selected.full, "Windows U native job would be skipped")
+                self.assertEqual(selected.outputs()["full"], "true")
+
+        # No blanket escalation of unrelated Grand Prix tests or documentation.
+        for path in ("tools/ci/test_grand_prix_u_timeout_probe.py",
+                     "docs/ROADMAP.md"):
+            self.assertFalse(select([path]).full)
+
     def test_native_windows_gp_u_fixtures_require_full_release_validation(self) -> None:
         # The Windows-only composed C/C++ test lives behind inputs.full.
         # Running just the partial Runtime suite silently skips that job.
