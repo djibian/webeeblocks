@@ -24,6 +24,8 @@ EXPECTED = {
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
+    # Explicitly isolated A7 late-sensor hypothesis; Draft only, no CI Gate.
+    "ci-a7-terminal-info-draft.yml": {"a7-terminal-info"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
     "grand-prix-variable-windows.yml": {"windows-variable-route-experimental"},
     "ci-runtime.yml": {
@@ -177,6 +179,32 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("name: CI Gate\n", source)
         self.assertNotIn("pull-requests: write", source)
         self.assertNotIn("issues: write", source)
+
+    def test_private_a7_terminal_information_workflow_is_non_decision(self):
+        path = WORKFLOWS / "ci-a7-terminal-info-draft.yml"
+        source = path.read_text(encoding="utf-8")
+        self.assertEqual(job_ids(source), {"a7-terminal-info"})
+        self.assertIn("  pull_request:\n", source)
+        self.assertIn("  types: [opened, synchronize, reopened]\n", source)
+        self.assertIn("permissions:\n  contents: read\n", source)
+        self.assertIn("if: github.event.pull_request.draft == true", source)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", source)
+        self.assertIn("persist-credentials: false", source)
+        for required in (
+            "tools.ci.test_a7_terminal_info_probe",
+            "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+            "python3 tools/ci/run_a7_terminal_info_probe.py",
+            "ci-artifacts/a7-terminal-information/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, source)
+        for forbidden in (
+            "\n  push:", "\n  schedule:", "\n  workflow_dispatch:",
+            "\n  workflow_call:", "continue-on-error",
+            "contents: write", "actions: write", "pull-requests: write",
+            "issues: write", "checks: write", "name: CI Gate\n", "if: false",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_inventory_rejects_extra_or_missing_workflows(self):
         with tempfile.TemporaryDirectory() as temp:
