@@ -50,6 +50,55 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertIn("all_five_native_rays_compared_at_0_415m_and_0_015m",runner)
         self.assertNotIn("wb_motor_set_",source)
 
+    def test_cardinal_turns_falsify_late_count_leak_on_native_rays(self):
+        # These intentionally forged arrays only test the fail-closed parser;
+        # the actual 90/180/270-degree readings must come from R2025a.
+        import copy
+        reference={
+            n:{(pad,phase,yaw):(2.0,2.0,2.0,2.0,2.0)
+               for pad in range(3)
+               for phase in ("approach","landed")
+               for yaw in (90,180,270)}
+            for n in (1,2,3)
+        }
+        self.assertTrue(diagnostic.validate_heading_indistinguishability(reference))
+        for phase in ("approach","landed"):
+            for yaw in diagnostic.TERMINAL_HEADINGS:
+                for channel in range(5):
+                    wrong=copy.deepcopy(reference)
+                    values=list(wrong[3][(2,phase,yaw)])
+                    values[channel]=1.80
+                    wrong[3][(2,phase,yaw)]=tuple(values)
+                    with self.subTest(phase=phase,yaw=yaw,channel=channel), self.assertRaisesRegex(
+                            AssertionError,"leaks H count"):
+                        diagnostic.validate_heading_indistinguishability(wrong)
+        missing=copy.deepcopy(reference)
+        del missing[1][(0,"approach",180)]
+        with self.assertRaisesRegex(AssertionError,"missing native cardinal sense"):
+            diagnostic.validate_heading_indistinguishability(missing)
+        invalid=copy.deepcopy(reference)
+        invalid[2][(1,"landed",270)]=(float("nan"),2.,2.,2.,2.)
+        with self.assertRaisesRegex(AssertionError,"invalid native cardinal sense"):
+            diagnostic.validate_heading_indistinguishability(invalid)
+        source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        runner=(diagnostic.ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
+            encoding="utf-8")
+        for token in ("for(int heading=1;heading<=3;++heading)",
+                      "wb_supervisor_node_get_orientation(self)",
+                      "fabs(heading_matrix[0]-cos(yaw))",
+                      "fabs(heading_matrix[3]-sin(yaw))",
+                      "WEBEEBLOCKS_COUNT_H_HEADING_RANGES variant=%d"):
+            self.assertIn(token,source)
+        for token in ("TERMINAL_HEADINGS=(90,180,270)",
+                      "len(heading_rows)!=len(PADS)*len(TERMINAL_STAGES)*len(TERMINAL_HEADINGS)",
+                      "validate_heading_indistinguishability(full_headings)",
+                      "A6_CARDINAL_MULTIRANGER_NATIVE_INVARIANT",
+                      "cardinal_turns_90_180_270_tested_at_both_low_phases"):
+            self.assertIn(token,runner)
+        self.assertNotIn("wb_motor_set_",source)
+        self.assertNotIn("continue-on-error",runner)
+
     def test_genuine_upward_ray_samples_every_H_without_a_pupil_algorithm(self):
         source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")

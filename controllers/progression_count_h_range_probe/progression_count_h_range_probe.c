@@ -136,6 +136,47 @@ int main(void) {
              variant,pad,phase_names[phase],ranges[0],ranges[1],
              ranges[2],ranges[3],ranges[4],seen[0],seen[1],seen[2]);
       fflush(stdout);
+      /* Falsification only: a student could turn at the terminal pad and
+       * reread genuine rays. Unlike the previous fixed-heading test, measure
+       * three additional cardinal directions at both low phases. This does
+       * NOT claim motorized turning or that all possible paths are covered. */
+      const double quarter_pi=3.14159265358979323846/2.0;
+      for(int heading=1;heading<=3;++heading) {
+        const double yaw=heading*quarter_pi;
+        const double rotated[4]={0.0,0.0,1.0,yaw};
+        wb_supervisor_field_set_sf_vec3f(pos,low_pose);
+        wb_supervisor_field_set_sf_rotation(rot,rotated);
+        wb_supervisor_node_reset_physics(self);
+        if(wb_robot_step(step)<0)
+          return invalid("cardinal terminal sensor sample unavailable");
+        const double *heading_pose=wb_supervisor_node_get_position(self);
+        const double *heading_matrix=wb_supervisor_node_get_orientation(self);
+        if(!heading_pose||!heading_matrix||
+           !isfinite(heading_pose[0])||!isfinite(heading_pose[1])||
+           !isfinite(heading_pose[2])||
+           fabs(heading_pose[0]-low_pose[0])>.035||
+           fabs(heading_pose[1]-low_pose[1])>.035||
+           fabs(heading_pose[2]-low_pose[2])>.045||
+           !isfinite(heading_matrix[0])||!isfinite(heading_matrix[3])||
+           fabs(heading_matrix[0]-cos(yaw))>.080||
+           fabs(heading_matrix[3]-sin(yaw))>.080)
+          return invalid("cardinal terminal pose or heading unattested");
+        double heading_ranges[5];
+        for(int channel=0;channel<5;++channel) {
+          heading_ranges[channel]=wb_distance_sensor_get_value(sensors[channel])/1000.0;
+          if(!isfinite(heading_ranges[channel])||
+             heading_ranges[channel]<0||heading_ranges[channel]>2.001)
+            return invalid("cardinal terminal ray invalid");
+        }
+        printf("WEBEEBLOCKS_COUNT_H_HEADING_RANGES variant=%d pad=%d phase=%s "
+               "yaw_deg=%d front_m=%.9f back_m=%.9f left_m=%.9f right_m=%.9f "
+               "up_m=%.9f pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
+               variant,pad,phase_names[phase],heading*90,
+               heading_ranges[0],heading_ranges[1],heading_ranges[2],
+               heading_ranges[3],heading_ranges[4],
+               heading_pose[0],heading_pose[1],heading_pose[2]);
+        fflush(stdout);
+      }
     }
   }
   /* RESEARCH ONLY: genuine upward Multi-ranger ray at the same altitude

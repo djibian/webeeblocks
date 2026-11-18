@@ -24,6 +24,7 @@ EXPECTED={1:(0.12,0.31),2:(0.12,0.31),3:(0.12,0.31)}
 PADS=(0.0,0.55,-0.55)
 TERMINAL_STAGES={"approach":0.415,"landed":0.015}
 TERMINAL_CHANNELS=("front","back","left","right","up")
+TERMINAL_HEADINGS=(90,180,270)
 TOKEN="WEBEEBLOCKS_COUNT_H_SWEEP_PASS"
 
 
@@ -55,6 +56,38 @@ def validate_terminal_indistinguishability(terminal):
                     raise AssertionError(
                         f"A6 terminal {label} leaks H count at pad={pad}, "
                         f"stage={stage}: {observed}")
+    return True
+
+
+def validate_heading_indistinguishability(headings):
+    """Falsify memory need against terminal 90/180/270-degree sensor views.
+
+    Strictly tests matched TEST-ONLY poses, never proves every reachable
+    no-memory control strategy fails. Pure-Python mocks are not native evidence.
+    """
+    if set(headings)!=set(EXPECTED):
+        raise AssertionError("missing A6 count variant for cardinal senses")
+    for pad in range(len(PADS)):
+        for stage in TERMINAL_STAGES:
+            for yaw in TERMINAL_HEADINGS:
+                key=(pad,stage,yaw)
+                measurements=[]
+                for n in EXPECTED:
+                    if key not in headings[n]:
+                        raise AssertionError(f"missing native cardinal sense {n}:{key}")
+                    values=headings[n][key]
+                    if (type(values) not in (tuple,list) or
+                        len(values)!=len(TERMINAL_CHANNELS) or
+                        any(type(v) not in (int,float) or not 0<=v<=2.001 or
+                            not math.isfinite(v) for v in values)):
+                        raise AssertionError(f"invalid native cardinal sense {n}:{key}")
+                    measurements.append(values)
+                for channel,label in enumerate(TERMINAL_CHANNELS):
+                    observed=[values[channel] for values in measurements]
+                    if max(observed)-min(observed)>.025:
+                        raise AssertionError(
+                            f"A6 cardinal {label} leaks H count at pad={pad}, "
+                            f"stage={stage}, yaw={yaw}: {observed}")
     return True
 
 
@@ -159,6 +192,31 @@ def run_one(n):
             abs(xyz[2]-TERMINAL_STAGES[stage])>.045):
             raise AssertionError("mismatched actual terminal Multi-ranger pose or channel: "+str(log))
         terminal[(pad,stage)]=readings
+    heading_rows=re.findall(
+        r"WEBEEBLOCKS_COUNT_H_HEADING_RANGES variant=(\d) pad=(\d) "
+        r"phase=(approach|landed) yaw_deg=(90|180|270) "
+        r"front_m=([0-9.]+) back_m=([0-9.]+) "
+        r"left_m=([0-9.]+) right_m=([0-9.]+) up_m=([0-9.]+) "
+        r"pose_x=([0-9.]+) pose_y=(-?[0-9.]+) pose_z=([0-9.]+)",txt)
+    if len(heading_rows)!=len(PADS)*len(TERMINAL_STAGES)*len(TERMINAL_HEADINGS):
+        raise AssertionError("cardinal native Multi-ranger samples missing: "+str(log))
+    headings={}
+    for index,row in enumerate(heading_rows):
+        ntext,ptext,stage,yaw_text,*numeric=row
+        expected_pad=index//(len(TERMINAL_STAGES)*len(TERMINAL_HEADINGS))
+        expected_phase=list(TERMINAL_STAGES)[
+            (index//len(TERMINAL_HEADINGS))%len(TERMINAL_STAGES)]
+        expected_yaw=TERMINAL_HEADINGS[index%len(TERMINAL_HEADINGS)]
+        readings=tuple(float(x) for x in numeric[:5])
+        xyz=tuple(float(x) for x in numeric[5:])
+        if (ntext!=str(n) or int(ptext)!=expected_pad or
+            stage!=expected_phase or int(yaw_text)!=expected_yaw or
+            any(not math.isfinite(v) or not 0<=v<=2.001 for v in readings) or
+            any(not math.isfinite(v) for v in xyz) or
+            abs(xyz[0]-1.48)>.035 or abs(xyz[1]-PADS[expected_pad])>.035 or
+            abs(xyz[2]-TERMINAL_STAGES[stage])>.045):
+            raise AssertionError("native cardinal Multi-ranger pose/heading mismatch: "+str(log))
+        headings[(expected_pad,stage,expected_yaw)]=readings
     upper_rows=re.findall(
         r"WEBEEBLOCKS_COUNT_H_UP_SAMPLE variant=(\d) gate=(\d) phase=(\d) "
         r"range_m=([0-9.]+) pose_x=(-?[0-9.]+) "
@@ -208,7 +266,7 @@ def run_one(n):
         readings.append(reading)
         coordinates.append(xyz)
         print(f"A6_BACK_RANGE_MASKED n={n} pad={i} meters={reading:.9f}",flush=True)
-    return readings,coordinates,upper_samples,terminal
+    return readings,coordinates,upper_samples,terminal,headings
 
 
 def main():
@@ -225,10 +283,13 @@ def main():
         all_values.append(values)
     full_terminal={n:observations[n][3] for n in EXPECTED}
     validate_terminal_indistinguishability(full_terminal)
+    full_headings={n:observations[n][4] for n in EXPECTED}
+    validate_heading_indistinguishability(full_headings)
     payload={
-        "schema":"webeeblocks-a6-terminal-multiranger-v2",
+        "schema":"webeeblocks-a6-terminal-multiranger-v3",
         "native_rear_mask_observed_at_0_75m":True,
         "all_five_native_rays_compared_at_0_415m_and_0_015m":True,
+        "cardinal_turns_90_180_270_tested_at_both_low_phases":True,
         "not_an_information_security_proof":True,
         "not_a_pedagogical_or_flight_pass":True,
         "upward_sensor_observability_only":True,
@@ -238,12 +299,20 @@ def main():
                      "native_up_before_under_after_m":observations[n][2],
                      "terminal_multiranger_m":{
                        f"pad{pad}_{stage}":list(observations[n][3][(pad,stage)])
-                       for pad in range(len(PADS)) for stage in TERMINAL_STAGES}}
+                       for pad in range(len(PADS)) for stage in TERMINAL_STAGES},
+                     "cardinal_multiranger_m":{
+                       f"pad{pad}_{stage}_{yaw}deg":list(observations[n][4][(pad,stage,yaw)])
+                       for pad in range(len(PADS)) for stage in TERMINAL_STAGES
+                       for yaw in TERMINAL_HEADINGS}}
                     for n in EXPECTED]
     }
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
     (ARTIFACTS/"summary.json").write_text(
         json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    print("A6_CARDINAL_MULTIRANGER_NATIVE_INVARIANT "
+          "counts=1,2,3 pads=0,+0.55,-0.55 stages=approach,landed "
+          "yaw_deg=90,180,270 channels=front,back,left,right,up "
+          "same_pose_and_heading=true pupil_flight=UNPROVEN",flush=True)
     print("A6_TERMINAL_MULTIRANGER_NATIVE_INVARIANT "
           "counts=1,2,3 pads=0,+0.55,-0.55 stages=approach,landed "
           "channels=front,back,left,right,up same_pose_per_pad=true "
