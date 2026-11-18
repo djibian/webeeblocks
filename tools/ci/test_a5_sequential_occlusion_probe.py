@@ -9,10 +9,10 @@ class A5SequentialTest(unittest.TestCase):
     def test_only_second_L_differs_and_original_drone_retained(self):
         a=probe.scene_file("A").read_text()
         b=probe.scene_file("B").read_text()
-        self.assertEqual(a.count(" Solid {"),7)
-        self.assertEqual(b.count(" Solid {"),7)
-        self.assertEqual(a.count("boundingObject Box"),7)
-        self.assertEqual(b.count("boundingObject Box"),7)
+        self.assertEqual(a.count(" Solid {"),9)
+        self.assertEqual(b.count(" Solid {"),9)
+        self.assertEqual(a.count("boundingObject Box"),9)
+        self.assertEqual(b.count("boundingObject Box"),9)
         changed=a.replace("3.200 0.450","3.200 -0.450").replace(
             "2.850 1.050","2.850 -1.050").replace(
             "experiment A:","experiment B:").replace(
@@ -62,6 +62,20 @@ class A5SequentialTest(unittest.TestCase):
                              (1.8,-1.26,.55,4.3,.08,1.1))
             self.assertEqual(solid_box(source,"A5_SEQ_TERMINAL"),
                              (3.92,0,.55,.08,2.3,1.1))
+            roof=solid_box(source,"A5_SEQ_CORRIDOR_ROOF")
+            rear=solid_box(source,"A5_SEQ_CORRIDOR_BACK")
+            self.assertEqual(roof,(1.79,0,1.26,4.4,2.6,.12))
+            self.assertEqual(rear,(-.35,0,.55,.08,2.6,1.1))
+            # This only refutes the documented straight overflight inside
+            # the closed corridor, not arbitrary Webots motorized strategies.
+            top_of_L=.55+1.1/2
+            roof_underside=roof[2]-roof[5]/2
+            self.assertGreater(roof_underside,top_of_L)
+            self.assertLess(roof_underside-top_of_L,2*.09)
+            # Roof overlaps both ends and both sidewalls of the tunnel.
+            self.assertLessEqual(roof[0]-roof[3]/2,rear[0]-rear[3]/2)
+            self.assertGreaterEqual(roof[0]+roof[3]/2,3.92+.08/2)
+            self.assertGreaterEqual(roof[4]/2,1.26+.08/2)
         radius=.09
         corridor_max_y=1.26-.08/2-radius
         def blocked(post):

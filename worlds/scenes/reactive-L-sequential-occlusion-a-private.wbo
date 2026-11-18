@@ -47,6 +47,24 @@ DEF WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE Group {
         geometry Box { size 4.300 0.080 1.100 } } ]
       boundingObject Box { size 4.300 0.080 1.100 }
     }
+    # Private covered corridor: the 0.10 m space over the Ls is narrower
+    # than the conservative 0.18 m high craft envelope. A rear wall makes
+    # the roof impossible to bypass by backing out before takeoff.
+    # Supervisor-only research geometry, never a pupil-facing mission.
+    DEF A5_SEQ_CORRIDOR_BACK Solid {
+      name "A5_SEQ_CORRIDOR_BACK"
+      translation -0.350 0.000 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.30 0.34 0.45 roughness 0.65 }
+        geometry Box { size 0.080 2.600 1.100 } } ]
+      boundingObject Box { size 0.080 2.600 1.100 }
+    }
+    DEF A5_SEQ_CORRIDOR_ROOF Solid {
+      name "A5_SEQ_CORRIDOR_ROOF"
+      translation 1.790 0.000 1.260
+      children [ Shape { appearance PBRAppearance { baseColor 0.38 0.45 0.50 roughness 0.65 }
+        geometry Box { size 4.400 2.600 0.120 } } ]
+      boundingObject Box { size 4.400 2.600 0.120 }
+    }
     # Common screen bounds front-range reading in the late scene.
     # Neither it nor this entire private experiment awards a pupil verdict.
     DEF A5_SEQ_TERMINAL Solid {
