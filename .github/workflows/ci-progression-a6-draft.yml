@@ -299,7 +299,8 @@ jobs:
             bash -lc '
               set -e
               cd controllers/progression_count_h_school_pilot
-              make clean && make
+              make clean
+              make A6_B_HOLDOUT_TEST_ONLY=1
               cd /workspace/controllers/progression_count_h_flight_observer
               make clean
               make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"

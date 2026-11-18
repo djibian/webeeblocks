@@ -29,6 +29,13 @@ else
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)" -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
 endif
 
+# Only this experimental CI invocation may admit the owner's private B
+# holdouts. Ordinary school pilot, Runtime v2, and hardware builds are
+# strictly unchanged when this opt-in is absent.
+ifeq ($(A6_B_HOLDOUT_TEST_ONLY),1)
+ CFLAGS += -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+endif
+
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))

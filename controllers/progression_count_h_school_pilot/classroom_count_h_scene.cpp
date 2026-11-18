@@ -14,6 +14,16 @@
 namespace {
 bool admitted = false;
 int admittedVariant = 0;
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+/* Only the separate Draft witness binary may admit these exact private
+ * positions. Each genuine Solid is still verified in actual_scene(), and
+ * the independent native C observer repeats its own collision attestation.
+ * The ordinary school pilot rejects these holdouts by default. */
+constexpr double bPrivateH[2][3][3]={
+  {{.36,0,0},{-.85,.36,0},{-.85,-.31,.36}},
+  {{.48,0,0},{-.80,.48,0},{-.80,-.16,.48}}
+};
+#endif
 // CI-only independent observer; no native flight program lives in it.
 // Do not preload a second Robot at startup: Webots must open the authentic
 // Crazyflie Robot Window before the SCENE request creates this observer.
@@ -128,8 +138,23 @@ bool actual_scene(int variant) {
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE")||
      wb_supervisor_node_get_from_def("WEBEEBLOCKS_ORIENTATION_SCENE"))return false;
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+  char lastBar[80];
+  std::snprintf(lastBar,sizeof lastBar,"ACTIVITY6_%d_H_%d_BAR",variant,variant);
+  WbNodeRef lastNode=wb_supervisor_node_get_from_def(lastBar);
+  const double *lastPosition=lastNode?
+    wb_supervisor_node_get_position(lastNode):nullptr;
+  if(!lastPosition||!std::isfinite(lastPosition[0]))return false;
+  const int bFamily=approx(lastPosition[0],.36)?0:
+                    approx(lastPosition[0],.48)?1:-1;
+  if(bFamily<0)return false;
+#endif
   for(int i=1;i<=variant;++i) {
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+    const double x=bPrivateH[bFamily][variant-1][i-1];
+#else
     const double x=-0.850+0.850*(i-1);
+#endif
     char left[48],right[48],bar[48];
     std::snprintf(left,sizeof(left),"ACTIVITY6_%d_H_%d_LEFT",variant,i);
     std::snprintf(right,sizeof(right),"ACTIVITY6_%d_H_%d_RIGHT",variant,i);
