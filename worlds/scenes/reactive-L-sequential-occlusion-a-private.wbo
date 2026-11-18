@@ -1,0 +1,35 @@
+# A5 PRIVATE two-successive-L native visibility experiment A: not pupil-facing.
+# Original R2025a Crazyflie, real solids, no motor program or student mission oracle.
+# L1 identical; only the x-location of L2 changes by 0.50m.
+DEF WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE Group {
+  children [
+    DEF A5_SEQ_L1_POST Solid {
+      name "A5_SEQ_L1_POST"
+      translation 1.000 -0.300 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.74 0.20 0.12 roughness 0.6 }
+        geometry Box { size 0.080 1.150 1.100 } } ]
+      boundingObject Box { size 0.080 1.150 1.100 }
+    }
+    DEF A5_SEQ_L1_ARM Solid {
+      name "A5_SEQ_L1_ARM"
+      translation 0.650 0.275 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.74 0.20 0.12 roughness 0.6 }
+        geometry Box { size 0.700 0.080 1.100 } } ]
+      boundingObject Box { size 0.700 0.080 1.100 }
+    }
+    DEF A5_SEQ_L2_POST Solid {
+      name "A5_SEQ_L2_POST"
+      translation 2.500 0.450 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.85 0.43 0.13 roughness 0.6 }
+        geometry Box { size 0.080 1.200 1.100 } } ]
+      boundingObject Box { size 0.080 1.200 1.100 }
+    }
+    DEF A5_SEQ_L2_ARM Solid {
+      name "A5_SEQ_L2_ARM"
+      translation 2.150 1.050 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.85 0.43 0.13 roughness 0.6 }
+        geometry Box { size 0.700 0.080 1.100 } } ]
+      boundingObject Box { size 0.700 0.080 1.100 }
+    }
+  ]
+}

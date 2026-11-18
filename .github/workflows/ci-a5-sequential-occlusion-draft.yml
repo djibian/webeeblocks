@@ -1,0 +1,57 @@
+# PRIVATE A5 original native geometry; no pupil or canonical CI Gate.
+name: Activity 5 sequential L occlusion native experiment (non-decision)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/ci-a5-sequential-occlusion-draft.yml'
+      - 'worlds/scenes/reactive-L-sequential-occlusion-*-private.wbo'
+      - 'controllers/progression_a5_seq_occ_probe/**'
+      - 'tools/ci/run_a5_sequential_occlusion_probe.py'
+      - 'tools/ci/test_a5_sequential_occlusion_probe.py'
+permissions:
+  contents: read
+jobs:
+  a5-sequential-occlusion:
+    name: A5 real five-ray two-L information test (Draft only)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Falsify source scene identity and comparator contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_a5_sequential_occlusion_probe
+      - name: Compile genuine R2025a Crazyflie five-ray probe
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/workspace" \
+            -w /workspace/controllers/progression_a5_seq_occ_probe \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; make clean; make; test -s progression_a5_seq_occ_probe'
+      - name: Compare native real rays before and after common first L
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          docker run --rm -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "$PWD:/workspace" -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              python3 tools/ci/run_a5_sequential_occlusion_probe.py
+            '
+      - name: Keep raw real-native rays even if hypothesis is refuted
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-two-L-original-native-ray-experiment
+          path: ci-artifacts/a5-sequential-occlusion/
+          if-no-files-found: error
