@@ -94,7 +94,9 @@ class MiniGrandPrixNativeContract(unittest.TestCase):
                       "completed_token(data,mission.attempt)",
                       "wb_mini_sample_mission(&mission,&sample)",
                       "WB_MINI_NATIVE_FIRST", "WB_MINI_NATIVE_RESULT",
-                      "WB_MINI_NATIVE_FATAL"):
+                      "WB_MINI_NATIVE_FATAL",
+                      "wb_mini_reason_token(m->reason)",
+                      "reason=%s"):
             self.assertIn(token, native)
         for forbidden in ("wb_motor_set_", "wb_supervisor_node_reset_physics",
                           "radio_link", "Blockly.", "wb_robot_set_mode"):

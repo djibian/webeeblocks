@@ -51,6 +51,11 @@ class PupilA7Tests(unittest.TestCase):
         html=HTML.read_text(encoding="utf-8")
         self.assertIn("WB_A7_PUPIL_BOOTSTRAP",html)
         self.assertIn("mini_gp_pupil_probe.js",html)
+        self.assertIn("runtime_outcome.js",html)
+        self.assertIn("failingWorkspace()",js)
+        self.assertIn("WebeeBlocksRuntimeOutcome.classifyMission(",js)
+        self.assertIn("A7_PUPIL_NEGATIVE_NATIVE_REASON",js)
+        self.assertIn("visible.textContent=feedback.state",js)
         for resource in ("blockly_compressed.js","blocks_compressed.js",
                          "semantic_ast.js","interpreter.js","activity_contract.js",
                          "project_files.js","wwi_backend.js"):
@@ -119,6 +124,10 @@ class PupilA7Tests(unittest.TestCase):
         for token in ("A7_PUPIL_WBB_CHUNK","pupil-project.wbb",
                       "hashlib.sha256(project.encode('utf-8')).hexdigest()",
                       "A7_PUPIL_NATIVE_RESET","A7_PUPIL_NATIVE_ACHIEVED",
+                      "negative_native_and_ui_attested",
+                      "native_negative_ok=bool(negative_reasons)",
+                      "'A7_PUPIL_NEGATIVE_NATIVE_REASON'",
+                      "set(negative_reasons)=={'early-finish'}",
                       "WB_MINI_NATIVE_RESULT variant=([LR]) attempt=([0-9]+)",
                       "WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front",
                       "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1",
