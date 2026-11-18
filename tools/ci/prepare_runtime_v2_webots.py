@@ -136,6 +136,38 @@ wait_end_replacement = r'''        trace_wait(active_value, now - action_start);
 if wait_end_needle not in controller:
     raise SystemExit('Runtime v2 WAIT end instrumentation point not found')
 controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
+# CI-only heartbeat for native MOVE, injected into the temporary checkout.
+# #1065: a browser-side timeout alone cannot tell a stalled Webots clock from
+# a drone that keeps moving but never satisfies STOP_WINDOW/position bounds.
+# Emit at most one sample per *simulated* second; normal production code,
+# limits (ACTION_TIMEOUT, 35 s WWI), physics, oracles and effects are unchanged.
+move_progress_needle = '''    } else if (command == CMD_MOVE) {
+      const double error_x = target_x - x;'''
+move_progress_replacement = r'''    } else if (command == CMD_MOVE) {
+      /* CI-only: one observation per simulated second, never a completion ACK.
+       * The host log timestamp supplies independent wall-time progress.
+       * Keep this before the unchanged PID/controller decision.
+       */
+      if ((long)(now - action_start) > (long)(previous_time - action_start)) {
+        printf(PREFIX " CI MOVE_PROGRESS id=%d sim_time=%.9f elapsed_sim_s=%.9f "
+               "x=%.9f y=%.9f z=%.9f target_x=%.9f target_y=%.9f target_z=%.9f "
+               "error_xy=%.9f vx=%.9f vy=%.9f vz=%.9f roll=%.9f pitch=%.9f "
+               "yaw=%.9f yaw_rate=%.9f stable_sim_s=%.9f\n",
+               active_id, now, now - action_start,
+               x, y, z, target_x, target_y, target_z,
+               hypot(target_x - x, target_y - y),
+               vx_global, vy_global, vz, actual.roll, actual.pitch,
+               yaw, actual.yaw_rate,
+               stable_since < 0.0 ? -1.0 : now - stable_since);
+        fflush(stdout);
+      }
+      const double error_x = target_x - x;'''
+if controller.count(move_progress_needle) != 1:
+    raise SystemExit('Runtime v2 CI MOVE progress injection point not unique')
+controller = controller.replace(move_progress_needle, move_progress_replacement, 1)
+if controller.count(" CI MOVE_PROGRESS id=") != 1:
+    raise SystemExit('Runtime v2 CI MOVE progress marker not unique')
+
 controller_path.write_text(controller, encoding='utf-8')
 
 # The native controller is deliberately held back until 12 simulated seconds,
