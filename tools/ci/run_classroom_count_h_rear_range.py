@@ -277,7 +277,7 @@ def run_one(n):
     print(f"A6_UP_RANGE_NATIVE_OBSERVED n={n} before_under_after={upper_samples} "
           "flight=NOT_TESTED pedagogy=UNPROVEN",flush=True)
     checkpoint_rows=re.findall(
-        r"WEBEEBLOCKS_COUNT_H_FIXED_CHECKPOINT variant=(\\d) slot=(\\d) "
+        r"WEBEEBLOCKS_COUNT_H_FIXED_CHECKPOINT variant=([0-9]) slot=([0-9]) "
         r"front_m=([0-9.]+) up_m=([0-9.]+) "
         r"pose_x=(-?[0-9.]+) pose_y=(-?[0-9.]+) pose_z=([0-9.]+)",txt)
     if len(checkpoint_rows)!=len(FIXED_CHECKPOINT_X):
