@@ -183,7 +183,7 @@ async function proveWwiOutcomeTransport() {
   assert.strictEqual(sent.length, beforeInvalidOracle, 'invalid oracle unexpectedly emitted a WWI request');
 }
 
-async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxSteps) {
+async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxSteps, terminal) {
   const elements = {};
   function element(id) {
     if (!elements[id]) {
@@ -236,7 +236,8 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
   vm.createContext(context);
   vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
 
-  context.runtimeProfile = {runtime, evaluation:{type:'mission-state-v1', oracle:'world-observation-v1'}};
+  context.runtimeProfile = {runtime, evaluation:{type:'mission-state-v1',
+    oracle:terminal ? terminal.oracle : 'world-observation-v1'}};
   context.workspace = {};
   context.runtimeBackend = {
     ready:true,
@@ -268,10 +269,14 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
   assert.strictEqual(executeCalls, 1, 'pending mission outcome allowed a second program execution');
   assert.strictEqual(resetCalls, 0, 'pending mission outcome allowed a simulation reset');
 
-  pendingOutcome.resolve({status:'achieved'});
+  pendingOutcome.resolve(terminal ? terminal.raw : {status:'achieved'});
   await run;
-  assert.strictEqual(element('runtimeState').textContent, 'MISSION RÉUSSIE');
-  assert.strictEqual(element('runtimeDetail').textContent, 'Mission accomplie');
+  assert.strictEqual(element('runtimeState').textContent,
+    terminal ? terminal.state : 'MISSION RÉUSSIE',
+    'actual product main.js must display the exact native-oracle terminal state');
+  assert.strictEqual(element('runtimeDetail').textContent,
+    terminal ? terminal.detail : 'Mission accomplie',
+    'actual product main.js must display the exact authorized causal reason');
   assert.strictEqual(element('resetSimulation').disabled, false, 'Reset should reopen only after the mission outcome is presented');
 }
 
@@ -419,12 +424,63 @@ function proveRealWebotsOutcomeFreshness() {
   assert.strictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'obstacle-contact'},evaluation).detail,
     'Mission non accomplie','another oracle cannot claim A4 causes');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'unsafe-h-crossing'},a2).detail,
+    'Mission non accomplie','A7-only reason must not leak into A2');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'route-incomplete'},a2).detail,
+    'Mission non accomplie','A4/A7-only reason must not leak into A2');
+  const a7={type:'mission-state-v1',oracle:'progression-mini-grand-prix-v1'};
+  assert.deepStrictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'unsafe-h-crossing'},a7), {
+    status:'not-achieved',state:'MISSION NON RÉUSSIE',
+    detail:'Mission non accomplie — Franchissement du H hors du passage autorisé'
+  });
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},a7).detail,
+    'Mission non accomplie — Drone pas entièrement sur le damier',
+    'A7 must explain grounded partial-pad overhang without claiming the craft is fully outside');
+  for(const status of ['achieved','interrupted'])
+    assert.strictEqual(Outcome.classifyMission(
+      {status,reason:'unsafe-h-crossing'},a7).detail,
+      status==='achieved'?'Mission accomplie':'Mission interrompue');
+  for(const reason of ['unknown','__proto__',null])
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason},a7).detail,'Mission non accomplie');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'unsafe-h-crossing'},a4).detail,
+    'Mission non accomplie','A7 reason cannot impersonate A4');
   assert.deepStrictEqual(Outcome.classifyMission('not-achieved'), {
     status:'not-achieved', state:'MISSION NON RÉUSSIE', detail:'Mission non accomplie'
   });
   assert.deepStrictEqual(Outcome.classifyMission({status:'interrupted'}), {
     status:'interrupted', state:'MISSION INTERROMPUE', detail:'Mission interrompue'
   });
+
+  // Object.freeze preserves inherited properties. Unknown states must never
+  // become an undefined/success-looking product status through prototype
+  // lookup, even for raw strings or malformed object-shaped responses.
+  for (const invalid of [
+    '__proto__','constructor','toString','hasOwnProperty','valueOf',
+    'mystery',null,undefined,0,true,[],{},
+    Object.create(null),new String('achieved')
+  ]) {
+    assert.throws(() => Outcome.classifyMission(invalid, a7),
+      /invalid mission state/, 'invalid raw mission state must be refused');
+    assert.throws(() => Outcome.classifyMission({status:invalid}, a7),
+      /invalid mission state/, 'invalid field state must be refused');
+  }
+  let coerced = false;
+  const forged = {toString(){coerced=true;return 'achieved';}};
+  assert.throws(() => Outcome.classifyMission({status:forged}, a7),
+    /invalid mission state/,
+    'non-string status must not be coerced into a successful terminal state');
+  assert.strictEqual(coerced,false, 'status validation must avoid untrusted coercion');
+  // The three actual own statuses retain their exact public presentations.
+  for (const valid of ['achieved','not-achieved','interrupted'])
+    assert.deepStrictEqual(
+      Outcome.classifyMission({status:valid},a7),Outcome.classifyMission(valid,a7)
+    );
 
   await assert.rejects(
     () => Outcome.evaluateMission({evaluation}, {}),
@@ -468,6 +524,30 @@ function proveRealWebotsOutcomeFreshness() {
   await require('./test_runtime_outcome_settling.js')();
   await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);
+  // Exercise the unmodified production runProgram / setRuntimeStatus path
+  // using the exact A7 terminal token proved independently by motorized C
+  // and WWI in the native Chrome witness. This DOM is Node VM-only; do not
+  // mistake the unit test for a live Webots student-window qualification.
+  await provePendingMissionOutcomeKeepsActionsGated({}, 1000, {
+    oracle:'progression-mini-grand-prix-v1',
+    raw:{status:'not-achieved',reason:'early-finish'},
+    state:'MISSION NON RÉUSSIE',
+    detail:'Mission non accomplie — Fin de parcours ou zone de pose non validée'
+  });
+  // A7-only causes must not be transposed onto a different oracle, and
+  // A4-only causes must not leak into A7's reason catalogue.
+  await provePendingMissionOutcomeKeepsActionsGated({}, 1000, {
+    oracle:'progression-decision-h-v1',
+    raw:{status:'not-achieved',reason:'unsafe-h-crossing'},
+    state:'MISSION NON RÉUSSIE',
+    detail:'Mission non accomplie'
+  });
+  await provePendingMissionOutcomeKeepsActionsGated({}, 1000, {
+    oracle:'progression-mini-grand-prix-v1',
+    raw:{status:'not-achieved',reason:'unsafe-clearance'},
+    state:'MISSION NON RÉUSSIE',
+    detail:'Mission non accomplie'
+  });
   await proveMissionFailure();
   proveRealWebotsOutcomeFreshness();
   const nativeScope = process.env.WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE === 'sharded'

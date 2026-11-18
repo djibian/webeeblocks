@@ -32,6 +32,7 @@ static void observed_dwell(wb_mini_mission *m,double t,double x,
   }
   a=sample(t+0.032*8,x,y,z,yaw,0);
   assert(wb_mini_sample_mission(m,&a)==WB_MINI_ACHIEVED);
+  assert(m->reason==WB_MINI_REASON_NONE); /* No reason on success. */
 }
 static void positive(char v) {
   wb_mini_mission m;blue_start(&m,v,1);
@@ -57,6 +58,7 @@ static void bypass(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(3,h,v=='L'?.55:-.55,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_H_CLEARANCE);
 }
 /* Exact previously reproduced NO_GO: gate centre, retreat upstream,
  * lateral bypass outside the opening, then jump to downstream. */
@@ -128,8 +130,10 @@ static void absent_blue_start(char v) {
   const double h=wb_mini_h_x(v);
   wb_mini_sample a=sample(1,h-.18,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_INVALID_START);
   a=sample(2,h,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_INVALID_START);
 }
 /* Do not accept a spoofed starting sample with wrong pose, vertical state,
  * motion, yaw, or a prematurely published completion pulse. */
@@ -224,6 +228,7 @@ static void skip_gate(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(2,wb_mini_turn_x(v),0,.40,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_ROUTE);
 }
 static void no_turn(char v) {
   wb_mini_mission m;blue_start(&m,v,1);
@@ -235,11 +240,14 @@ static void no_turn(char v) {
   a=sample(5,x,0,.40,0,0);wb_mini_sample_mission(&m,&a);
   a=sample(6,x,y,.015,0,1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_EARLY);
 }
 static void contact_and_stale(void) {
   wb_mini_mission m;wb_mini_reset(&m,1,'L',.015);
   wb_mini_sample a=sample(1,-1.4,0,.40,0,0);a.contact=1;
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_CONTACT);
+  assert(!strcmp(wb_mini_reason_token(m.reason),"obstacle-contact"));
   a=sample(2,-1.4,0,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
   blue_start(&m,'L',2);
@@ -312,6 +320,20 @@ static void completion_away_from_pad_x(char v) {
   wb_mini_sample a=sample(6,x+.40,y,.40,yaw,1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
+/* Once the open H and turn have been completed, a genuine Floor landing
+ * just outside the final-pad capture envelope is NOT an early route step.
+ * Preserve the native terminal rejection and use a neutral pupil-facing
+ * explanation covering both unfinished route and wrong final position. */
+static void completion_off_pad_after_full_route(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  assert(m.crossed && m.turned);
+  const double x=wb_mini_turn_x(v),y=wb_mini_pad_y(v);
+  wb_mini_sample a=sample(6,x+.17,y,.015,wb_mini_heading(v),1);
+  assert(a.floor_contact==1 && a.contact==0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_EARLY);
+  assert(!strcmp(wb_mini_reason_token(m.reason),"early-finish"));
+}
 /* A small and correctly oriented settling drift after COMPLETE is allowed:
  * do not over-constrain a child using the native landing PID. */
 static void completion_near_pad_can_settle(char v) {
@@ -361,6 +383,7 @@ static void terminal_timeout(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(7.51,x,y,.40,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_LANDING);
   a=sample(8,x,y,.015,wb_mini_heading(v),0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
@@ -385,6 +408,7 @@ static void yaw_reversal_lateral_slide(char v) {
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
   a=sample(5.50,x,y*.50,.40,0,0);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_WRONG_HEADING);
   a=sample(6.00,x,y,.015,wb_mini_heading(v),1);
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
 }
@@ -449,11 +473,51 @@ static void invalid_floor_contact_must_fail(char v) {
                            .015,wb_mini_heading(v),1);
   a.floor_contact=-1;
   assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_NONE);
+}
+/* Causal reason checks: different valid native observations must yield
+ * distinct irreversible diagnoses. No new motion or success condition. */
+static void boundary_after_turn_must_explain(char v) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  wb_mini_sample a=sample(5.032,wb_mini_turn_x(v),
+      v=='L'?1.28:-1.28,.40,wb_mini_heading(v),0);
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==WB_MINI_REASON_BOUNDARY);
+  assert(!strcmp(wb_mini_reason_token(m.reason),"course-boundary"));
+}
+/* A landed craft on the wrong part of the real Floor is not a touchdown
+ * success; the same off-pad pose with NO Floor contact is only a timeout.
+ * Both must run 32-ms native-equivalent samples until 1.5-s deadline. */
+static void explain_off_pad_at_deadline(char v,int actual_floor_contact) {
+  wb_mini_mission m;ready_for_completion(&m,v);
+  const double x=wb_mini_turn_x(v);
+  const double y=wb_mini_pad_y(v)+(v=='L'?-0.10:0.10);
+  wb_mini_sample a=sample(6.0,x,y,.015,wb_mini_heading(v),1);
+  a.floor_contact=actual_floor_contact;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  for(int i=1;i<47;++i) {
+    a=sample(6.0+.032*i,x,y,.015,wb_mini_heading(v),0);
+    a.floor_contact=actual_floor_contact;
+    assert(wb_mini_sample_mission(&m,&a)==WB_MINI_WAIT);
+  }
+  a=sample(6.0+.032*47,x,y,.015,wb_mini_heading(v),0);
+  a.floor_contact=actual_floor_contact;
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==(actual_floor_contact?
+    WB_MINI_REASON_WRONG_PAD:WB_MINI_REASON_LANDING));
+  assert(wb_mini_sample_mission(&m,&a)==WB_MINI_FAILED);
+  assert(m.reason==(actual_floor_contact?
+    WB_MINI_REASON_WRONG_PAD:WB_MINI_REASON_LANDING));
 }
 int main(void) {
   assert(fabs(WB_MINI_LAND_Z-0.070)<1e-12);
   assert(fabs(WB_MINI_LAND_ABSOLUTE_Z-0.020)<1e-12);
   positive('L');positive('R');
+  boundary_after_turn_must_explain('L');boundary_after_turn_must_explain('R');
+  explain_off_pad_at_deadline('L',1);explain_off_pad_at_deadline('R',1);
+  explain_off_pad_at_deadline('L',0);explain_off_pad_at_deadline('R',0);
+  assert(wb_mini_reason_token(WB_MINI_REASON_NONE)==NULL);
+  assert(wb_mini_reason_token((wb_mini_reason)999)==NULL);
   no_floor_contact_landing_must_fail('L');no_floor_contact_landing_must_fail('R');
   intermittent_floor_contact_restarts_dwell('L');intermittent_floor_contact_restarts_dwell('R');
   invalid_floor_contact_must_fail('L');invalid_floor_contact_must_fail('R');
@@ -471,6 +535,7 @@ int main(void) {
   fresh_blue_reset('L');fresh_blue_reset('R');
   completion_away_from_pad_y('L');completion_away_from_pad_y('R');
   completion_away_from_pad_x('L');completion_away_from_pad_x('R');
+  completion_off_pad_after_full_route('L');completion_off_pad_after_full_route('R');
   completion_near_pad_can_settle('L');completion_near_pad_can_settle('R');
   backtrack_lateral_bypass('L');backtrack_lateral_bypass('R');
   swept_lateral_bypass('L');swept_lateral_bypass('R');
