@@ -186,7 +186,7 @@ class WorkflowTests(unittest.TestCase):
             encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
-        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"})
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"})
         for required in (
             "  pull_request:\n",
             "  types: [opened, synchronize, reopened]\n",
@@ -198,6 +198,9 @@ class WorkflowTests(unittest.TestCase):
             "tools.ci.test_progression_count_h_scene",
             "tools.ci.test_progression_count_h_oracle",
             "tools.ci.test_a6_b_sampling_holdout",
+            "tools.ci.test_a6_b_native_ranges",
+            "a6-b-native-ray-draft-only:",
+            "run_a6_b_native_ranges.py",
             "'tools/ci/test_a6_b_sampling_holdout.py'",
             "tools.ci.test_progression_count_h_rear_range",
             "cyberbotics/webots:R2025a-ubuntu22.04",

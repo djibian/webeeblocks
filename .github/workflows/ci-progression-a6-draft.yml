@@ -15,6 +15,7 @@ on:
       - 'tools/ci/test_progression_count_h_*.py'
       - 'tools/ci/test_a6_b_matched_tail_geometry.py'
       - 'tools/ci/test_a6_b_sampling_holdout.py'
+      - 'tools/ci/test_a6_b_native_ranges.py'
       - 'tools/ci/run_a6_b_native_ranges.py'
       - 'controllers/progression_count_h_b_probe/**'
       - 'tools/ci/fixtures/a6-b/**'
@@ -76,6 +77,7 @@ jobs:
             tools.ci.test_progression_count_h_scene \
             tools.ci.test_a6_b_matched_tail_geometry \
             tools.ci.test_a6_b_sampling_holdout \
+            tools.ci.test_a6_b_native_ranges \
             tools.ci.test_progression_count_h_oracle \
             tools.ci.test_progression_count_h_rear_range \
             tools.ci.test_progression_count_h_dual_motor_sensor \

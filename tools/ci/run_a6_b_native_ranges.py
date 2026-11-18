@@ -6,7 +6,7 @@ ROOT=original.ROOT
 OUT=ROOT/"ci-artifacts/a6-b-native-range"
 FAMILY={"matched":"matched-tail","sampling":"sampling-holdout"}
 TOKEN="A6_B_NATIVE_RANGE_PASS"
-ROW=re.compile(r"A6_B_NATIVE_RAY family=(\d) n=(\d) slot=(\d) kind=(\d) "
+ROW=re.compile(r"A6_B_NATIVE_RAY family=(\d) n=(\d) slot=(\d+) kind=(\d) "
                r"gate=(\d+) offset=(-?\d) x=(-?[0-9.]+) up=([0-9.]+) "
                r"front=([0-9.]+) contact=(\d+)")
 def compose(family,n):
