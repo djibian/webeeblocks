@@ -20,6 +20,8 @@ EXPECTED = {
     "ci-optimization.yml": {"analyze"},
     # Isolated native Floor-contact A2 diagnostic, Draft-only and never CI Gate.
     "ci-progression-a2-draft.yml": {"a2-grounded-flight-draft"},
+    # Dedicated A5 two-L physical rays; Draft only, never CI Gate.
+    "ci-a5-sequential-occlusion-draft.yml": {"a5-sequential-occlusion"},
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
@@ -126,6 +128,28 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(must, workflow)
         self.assertEqual(workflow.count("if: always()"), 2)
         self.assertEqual(workflow.count("if-no-files-found: warn"), 2)
+
+    def test_a5_sequential_occlusion_is_native_draft_only(self):
+        source = (WORKFLOWS / "ci-a5-sequential-occlusion-draft.yml").read_text(
+            encoding="utf-8")
+        self.assertEqual(job_ids(source), {"a5-sequential-occlusion"})
+        self.assertIn("  pull_request:\n", source)
+        self.assertIn("  types: [opened, synchronize, reopened]\n", source)
+        self.assertIn("permissions:\n  contents: read\n", source)
+        self.assertIn("if: github.event.pull_request.draft == true", source)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("cyberbotics/webots@sha256:", source)
+        self.assertIn("test_a5_sequential_occlusion_probe", source)
+        self.assertIn("run_a5_sequential_occlusion_probe.py", source)
+        self.assertIn("if: always()", source)
+        self.assertIn("if-no-files-found: error", source)
+        for forbidden in (
+            "\n  push:", "\n  schedule:", "\n  workflow_call:",
+            "continue-on-error: true", "contents: write", "actions: write",
+            "pull-requests: write", "checks: write", "issues: write",
+            "name: CI Gate\n", "if: false"):
+            self.assertNotIn(forbidden, source)
 
     def test_activity4_draft_witness_is_scoped_and_non_decision(self):
         workflow = (WORKFLOWS / "ci-progression-a4-draft.yml").read_text(encoding="utf-8")
