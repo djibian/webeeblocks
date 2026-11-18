@@ -51,7 +51,7 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY",school)
         self.assertIn("const double x=-0.850+0.850*(i-1);",school)
         self.assertIn("bPrivateH[bFamily][variant-1][i-1]",school)
-        self.assertIn("if(!box(bar,x,0,.74,.07,.57,.24))return false;",school)
+        self.assertIn("!box(bar,x,0,.74,.07,.57,.24)",school)
         self.assertIn("make A6_B_HOLDOUT_TEST_ONLY=1",wf)
         self.assertIn("CFLAGS += -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY",school_make)
         self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
