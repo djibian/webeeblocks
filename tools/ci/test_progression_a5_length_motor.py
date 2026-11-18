@@ -21,7 +21,9 @@ class LengthMotorSourceContract(unittest.TestCase):
             self.assertEqual(text.count('window "a5_length_motor_probe"'),1)
             self.assertEqual(text.count(" Solid {"),7)
             self.assertEqual(text.count("boundingObject Box"),7)
-            self.assertEqual(text.count(" Pose {"),4)
+            # The composed original classroom world contains other Poses.
+            # The four additional visual markers belong to the isolated WBO.
+            self.assertEqual(composer.scene_file(v).read_text().count(" Pose {"),4)
             self.assertEqual(text.count("Crazyflie {\n  name \"Crazyflie WebeeBlocks\""),1)
             self.assertNotIn('controller "crazyflie_classroom_v2"',text)
             self.assertIn(composer.MARKER,text)

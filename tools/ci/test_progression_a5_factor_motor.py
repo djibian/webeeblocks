@@ -51,7 +51,8 @@ class A5FactorMotorTests(unittest.TestCase):
         workflow=(ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text()
         motor=workflow.split("  a5-factor-g-motor-draft-only:",1)[1].split(
             "  a5-factor-g-native-pid-feeder-draft-only:",1)[0]
-        feeder=workflow.split("  a5-factor-g-native-pid-feeder-draft-only:",1)[1]
+        feeder=workflow.split("  a5-factor-g-native-pid-feeder-draft-only:",1)[1].split(
+            "  a5-length-native-sensor-draft-only:",1)[0]
         for required in ("./tools/prepare_runtime_v2.sh",
                          "python3 /workspace/tools/prepare_webots_apt.py",
                          "google-chrome-stable_current_amd64.deb",
