@@ -36,6 +36,15 @@ function statelessAst(){
     ],[
       forward(.5),forward(.5),forward(.48)
     ]),
+    // Real R2025a MOVE acknowledgements tolerate a small final position
+    // error. Independent native pad oracle requires true pad containment:
+    // use a NEW genuine front reading to close the terminal offset.
+    // No variable, world identity or professor solution is exposed.
+    {kind:'if',condition:{kind:'compare',op:'GT',
+      left:{kind:'range',direction:'front',unit:'m'},right:number(.42)},
+      then:[{kind:'move',direction:'forward',distance_m:{
+        kind:'arithmetic',op:'MINUS',
+        left:{kind:'range',direction:'front',unit:'m'},right:number(.36)}}]},
     {kind:'land'}
   ]};
 }
@@ -58,6 +67,7 @@ function mockBackend(n,{missingUp=false,alwaysClear=false}={}){
       moves.push([direction,distance]);
     },
     async readRange(direction){
+      if(direction==='front')return Math.max(.01,Math.min(2.,1.86-this.x));
       assert.equal(direction,'up');
       if(missingUp)return Number.NaN;
       const observed=!alwaysClear&&gates.some(g=>Math.abs(this.x-g)<.025);
@@ -128,7 +138,7 @@ async function main(){
   }
   console.log('A6_STATELESS_CHECKPOINT_BLOCKLY_MOCK_PASS '+
     'variants=1,2,3 variables=0 observations=1,2,2 '+
-    'same_wbb_sha256='+hash+' '+
+    'same_wbb_sha256='+hash+' terminal_front_correction=bounded '+
     'real_webots_motor=UNPROVEN school_pass=UNPROVEN');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});
