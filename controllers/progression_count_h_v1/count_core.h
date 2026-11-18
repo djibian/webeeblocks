@@ -66,8 +66,19 @@ typedef struct {
   wb_count_verdict verdict;
 } wb_count_mission;
 
+/* A distinct, opt-in CI-only binary may use the independently attested
+ * B holdout positions. The ordinary C oracle's geometry and semantics are
+ * byte-for-byte unchanged when the test-only macro is absent. Never enable
+ * this mode in a product, pupil or physical-Crazyflie build. */
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+extern double wb_count_b_private_gate_x[WB_COUNT_MAX_GATES];
+#endif
 static inline double wb_count_gate_x(unsigned index) {
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+  return index < WB_COUNT_MAX_GATES ? wb_count_b_private_gate_x[index] : NAN;
+#else
   return -0.850 + 0.850 * (double)index;
+#endif
 }
 
 static inline double wb_count_target_y(unsigned variant) {

@@ -19,6 +19,11 @@ MARKER="# WEBEEBLOCKS_COUNT_H_MOTOR_CI_ONLY"
 PROJECT_BYTES="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 SCENES={n:ROOT/f"worlds/scenes/count-h-{n}-v1.wbo" for n in (1,2,3)}
 SCENE=SCENES[1]
+# These are CI-only reserves, never wired into the pupil scene selector.
+B_PRIVATE_FAMILIES={
+    "matched":"matched-tail",
+    "sampling":"sampling-holdout",
+}
 def compose(start=None,scene=None,variant=1):
     if type(variant) is not int or variant not in SCENES:
         raise ValueError('invalid bounded A6 count variant')
@@ -60,10 +65,32 @@ def compose(start=None,scene=None,variant=1):
         raise ValueError("unexpected product runtime or contaminating evaluator")
     return output
 
-def prepare(variant=1):
+def prepare(variant=1,family=None):
     if WORLD.exists() or PROJECT.exists():
         raise FileExistsError("refusing to overwrite A6 physical test world")
-    data=compose(variant=variant)
+    if family is None:
+        data=compose(variant=variant)
+    else:
+        if family not in B_PRIVATE_FAMILIES or type(variant) is not int or variant not in SCENES:
+            raise ValueError("unknown private B motor family or count")
+        from tools.ci.test_a6_b_matched_tail_geometry import validate_scene, EXPECTED
+        from tools.ci.test_a6_b_sampling_holdout import SECOND, CLASSIFIER_POSTS, GATE_HALF_X
+        fixture=ROOT/"tools/ci/fixtures/a6-b"/(
+            f"count-h-{variant}-{B_PRIVATE_FAMILIES[family]}-private.wbo")
+        if not fixture.is_file() or fixture.is_symlink():
+            raise ValueError("missing true private B WBO fixture")
+        body=fixture.read_text(encoding="utf-8")
+        if family=="matched":
+            validate_scene(body,variant)
+        else:
+            validate_scene(body,variant,expected_positions=SECOND[variant],
+                           checked_checkpoints=CLASSIFIER_POSTS,
+                           checkpoint_margin=GATE_HALF_X,terminal_h=.48)
+        data=compose(variant=variant,scene=body)
+        if data.count("PRIVATE A6 CHOICE B")!=1:
+            raise ValueError("private B identity was not preserved")
+        print(f"WEBEEBLOCKS_A6_B_MOTOR_PRIVATE_SCENE family={family} "
+              f"n={variant} colliders={3*variant+2}",flush=True)
     WORLD.write_text(data,encoding="utf-8")
     PROJECT.write_text(PROJECT_BYTES,encoding="utf-8")
     print(f"WEBEEBLOCKS_A6_MOTOR_WORLD_VARIANT {variant}",flush=True)

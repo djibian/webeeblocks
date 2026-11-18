@@ -11,6 +11,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+/* TEST-ONLY coordinates, never obtained from AST, browser, scene name or
+ * command arguments. The genuine physics colliders must match exactly
+ * before any of these coordinates may be used by the independent oracle. */
+double wb_count_b_private_gate_x[WB_COUNT_MAX_GATES]={NAN,NAN,NAN};
+static const double kBPositions[2][3][3]={
+  {{.36,0,0},{-.85,.36,0},{-.85,-.31,.36}},
+  {{.48,0,0},{-.80,.48,0},{-.80,-.16,.48}}
+};
+#endif
+
 static WbNodeRef find_craft(void) {
   WbNodeRef root=wb_supervisor_node_get_root();
   WbFieldRef children=root?wb_supervisor_node_get_field(root,"children"):NULL;
@@ -109,6 +120,22 @@ int main(void) {
     }
   }
   if(!variant)return fail("no numbered physical scene");
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+  /* A compiled test-only witness refuses public A6 scenes. Select the B
+   * family from the LAST GENUINE BAR, then independently attest ALL bars,
+   * posts and the screen with box() below. No world/AST marker grants GO. */
+  char last_def[64];
+  snprintf(last_def,sizeof last_def,"ACTIVITY6_%d_H_%d_BAR",variant,variant);
+  WbNodeRef last_bar=wb_supervisor_node_get_from_def(last_def);
+  const double *last_pos=last_bar?wb_supervisor_node_get_position(last_bar):NULL;
+  if(!last_pos||!isfinite(last_pos[0]))
+    return fail("missing physical B last-bar identity");
+  int b_family=fabs(last_pos[0]-.36)<.000001?0:
+               fabs(last_pos[0]-.48)<.000001?1:-1;
+  if(b_family<0)return fail("unrecognized physical B holdout family");
+  for(int i=0;i<variant;i++)
+    wb_count_b_private_gate_x[i]=kBPositions[b_family][variant-1][i];
+#endif
   WbNodeRef obstacle[11]={0};
   int collider_count=0;
   for(int n=1;n<=variant;++n) {
@@ -129,6 +156,12 @@ int main(void) {
      !box(terminal,1.86,0,.55,.06,1.48,1.10,&obstacle[collider_count++])||
      collider_count!=3*variant+2)
     return fail("finish screen, terminal or collider count not attested");
+#ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
+  printf("WEBEEBLOCKS_A6_B_MOTOR_GEOMETRY_ATTESTED family=%d n=%d "
+         "verified_colliders=%d test_only=true\\n",
+         b_family,variant,collider_count);
+  fflush(stdout);
+#endif
   WbNodeRef craft=find_craft();
   const double *origin=craft?wb_supervisor_node_get_position(craft):NULL;
   const double *start_velocity=craft?wb_supervisor_node_get_velocity(craft):NULL;
