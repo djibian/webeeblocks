@@ -178,6 +178,43 @@ class A5FactorMotorTests(unittest.TestCase):
             thread.join(timeout=5)
             handler.mode,handler.variant=old_mode,old_variant
 
+    def test_blind_h_native_land_reply_is_real_and_fail_closed(self):
+        """A native false-pad termination can pre-empt a Chrome ACK.
+
+        Accept only a uniquely attested touchdown -> LAND stop -> native OK
+        from the real flight runtime; never promote a synthetic UI event.
+        """
+        import run_classroom_reactive_L_factor_motor as trial
+        complete=(
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=90.816000000\n"
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 14 OK\n")
+        self.assertAlmostEqual(
+            trial.native_completed_land_timestamp(complete),90.816)
+        corrupted=(
+            complete.replace("RESPONSE 14 OK","RESPONSE 14 ERR"),
+            complete.replace("TRACE LAND stop=1","TRACE LAND stop=0"),
+            complete.replace("TRACE LAND_TOUCHDOWN","TRACE LAND_FAKE"),
+            complete.replace("time=90.816000000","time=nan"),
+            complete.replace("RESPONSE 14 OK",""),
+            complete+complete,
+            complete.replace("TRACE LAND stop=1\n",
+                             "TRACE LAND stop=1\nOTHER LOG\n"),
+        )
+        for text in corrupted:
+            with self.subTest(text=text[-75:]):
+                self.assertIsNone(trial.native_completed_land_timestamp(text))
+        source=(ROOT/"tools/ci/run_classroom_reactive_L_factor_motor.py").read_text()
+        blind_h=source.split('    if mode=="blind_h":',1)[1].split(
+            '    if mode in ("blockly","blockly_fixed"):',1)[0]
+        self.assertIn("abs(native_land_time-contact[3])<=.032",blind_h)
+        self.assertIn("land is None and finished is None",blind_h)
+        self.assertIn('"A5_FACTOR_MOTOR_ERROR" not in names',blind_h)
+        self.assertIn('"WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace',blind_h)
+        self.assertIn('"WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL reason=premature_floor_contact"',blind_h)
+        self.assertIn('"browser_completion_evidence"',blind_h)
+        self.assertNotIn('return {"status":"achieved"}',blind_h)
+
     def test_native_pid_has_7_physical_obstacle_contact_streams(self):
         directory=ROOT/"controllers/progression_reactive_L_factor_motor_pilot"
         make=(directory/"Makefile").read_text()

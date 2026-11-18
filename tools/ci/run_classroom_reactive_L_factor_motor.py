@@ -2,8 +2,10 @@
 """Draft-only physical motor/PID feasibility in A5 independently varying H/G worlds.
 
 This intentionally runs a private same-JS pilot against four genuine Webots
-R2025a worlds. The independent Webots Floor contact and normal WWI LAND ACK
-are required: a browser-side success or a low GPS altitude alone never passes.
+R2025a worlds. Positive tests require independent Webots Floor contact and
+normal WWI LAND ACK; the deliberately fatal wrong-pad negative requires
+independent Floor evidence and native LAND/OK (browser ACK may be preempted).
+A browser-side success or a low GPS altitude alone never passes.
 No student .wbb, no runtime product activity profile, no behavioral oracle.
 """
 from pathlib import Path
@@ -57,6 +59,24 @@ class Handler(events.Handler):
         self.send_header("Content-Length",str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+def native_completed_land_timestamp(trace):
+    """Require one actual native touchdown, LAND stop and successful response.
+
+    The C monitor fails fast at real wrong-pad Floor contact and can stop
+    Chrome before the optional browser events. Never invent their ACK.
+    Duplicate, missing, or failed native replies remain unproven.
+    """
+    matches=re.findall(
+        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN "
+        r"time=([0-9]+(?:[.][0-9]+)?)\n"
+        r"WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+        r"WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([0-9]+) OK$",
+        trace)
+    if len(matches)!=1:
+        return None
+    value=float(matches[0][0])
+    return value if math.isfinite(value) and value>0 else None
 
 def native_loader_env():
     """Validate the isolated C++ Qt dependencies BEFORE launching Webots.
@@ -288,11 +308,32 @@ def run(variant,mode="positive"):
         h=observed("A5_FACTOR_MOTOR_H_OBSERVATION")
         g=observed("A5_FACTOR_MOTOR_G_OBSERVATION")
         pad=observed("A5_FACTOR_MOTOR_PAD_SELECTED")
-        # LAND ACK attests execution of a primitive, not a successful
-        # classroom mission. A wrong-pad flight can acknowledge LAND and
-        # complete its private script while the native observer rejects it.
+        # The independent C monitor is intentionally fail-fast on a real
+        # wrong-pad Floor contact. It can stop the Webots/WWI process BEFORE
+        # Chrome emits LAND_ACK or TEST_COMPLETE. Never turn a missing browser
+        # event into an invented ACK: require the actual native touchdown,
+        # native LAND completion and native OK reply AFTER that touchdown.
+        # A script-level ACK may exist only as an optional, corroborating
+        # observation; any such event must still be internally consistent.
         land=observed("A5_FACTOR_MOTOR_LAND_ACK")
         finished=observed("A5_FACTOR_MOTOR_TEST_COMPLETE")
+        native_land_time=native_completed_land_timestamp(trace)
+        browser_finished=(
+            isinstance(land,dict) and land.get("nativeReply") is True and
+            isinstance(finished,dict) and
+            finished.get("nativeReply") is True and
+            finished.get("pupilWbb") is False and
+            finished.get("missionOracle") is False
+        )
+        browser_cut_off=(
+            land is None and finished is None and
+            "A5_FACTOR_MOTOR_ERROR" not in names
+        )
+        transport_consistent=(
+            native_land_time is not None and
+            contact is not None and abs(native_land_time-contact[3])<=.032 and
+            (browser_finished or browser_cut_off)
+        )
         good=(contact is not None and all(math.isfinite(v) for v in contact) and
               abs(contact[0]-4.15)<.10 and abs(contact[1]-.62)<.10 and
               0<=contact[2]<=.025 and contact[3]>2 and
@@ -313,16 +354,19 @@ def run(variant,mode="positive"):
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_OBSTACLE_CONTACT" not in trace and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_SWEPT_COLLISION" not in trace and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace and
-              isinstance(land,dict) and land.get("nativeReply") is True and
-              isinstance(finished,dict) and
-              finished.get("nativeReply") is True and
-              finished.get("pupilWbb") is False and
-              finished.get("missionOracle") is False)
+              transport_consistent and
+              "A5_FACTOR_MOTOR_ERROR" not in names and
+              "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace)
         summary={"schema":"webeeblocks-a5-hblind-native-negative-v1",
                  "variant":variant,"mode":mode,"pass":good,
                  "real_wrong_pad_floor":contact,"h_sensor_seen":h,
                  "g_sensor_seen":g,"pad_selected":pad,
                  "no_false_mission_success":good,"student_wbb":False,
+                 "native_land_completed":native_land_time is not None,
+                 "browser_completion_evidence":(
+                     "observed" if browser_finished else
+                     "cut_off_by_native_rejection" if browser_cut_off else
+                     "contradictory"),
                  "land_command_ack":land,
                  "private_program_completed":finished,
                  "mission_oracle":False,"events":names}

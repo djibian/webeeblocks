@@ -136,3 +136,58 @@ CI must pass on the exact commit before drawing conclusions. Even a later
 success would not qualify the full owner-approved L-corner pedagogy, the
 necessity of any particular AST variable syntax, Windows pupil Save/Open,
 human classroom acceptance or physical flight authorization.
+
+## Résultats réellement observés — 18 novembre 2026
+
+La preuve ci-dessous **supplante les états « UNPROVEN » des sections
+préparatoires ci-dessus**, sans qualifier pour autant l'activité élève.
+HEAD expérimental `05cf8409dd0f6075cb18155a35b898b1866c53af` :
+[run #44265683691](https://github.com/djibian/webeeblocks/actions/runs/44265683691),
+[job moteur #134669496728](https://github.com/djibian/webeeblocks/actions/runs/44265683691/job/134669496728)
+`completed/success`.
+
+Trois **véritables projets Blockly .wbb privés**, chaque fois identiques
+entre A/B/C/D et soumis au même PID Webots R2025a, aux sept solides
+collisionnables, aux contrôles swept à 32 ms et à une véritable pose Floor :
+
+- **Réactif** : 4/4 poses autorisées, 23/23/27/27 lectures frontales ;
+  mesure réévaluée en boucle.
+- **Aveugle fixe** : 4/4 rejets physiques à une pose X intermédiaire ;
+  zéro lecture frontale.
+- **Un relevé ponctuel** : 4/4 poses autorisées, **une seule** lecture
+  frontale à x≈1,80 m, puis `SI/SINON` et 4/8 avances complémentaires.
+  Empreinte du même .wbb :
+  `2326fb5a5edfca58581c764715c595c49d1a5bbd92095319c32642ca88707245`.
+
+**Réfutation pédagogique** : ces quatre mondes statiques n'établissent
+**pas** l'utilité fonctionnelle spécifique d'une **boucle de réobservation**
+au-delà du relevé ponctuel déjà maîtrisé en A4. La variable
+`destination` ne varie pas non plus : l'indice initial H est toujours
+« proche », et la destination reste toujours à gauche. Exiger la syntaxe
+`WHILE` ou `variables_set` serait artificiel. Il faut éprouver de
+nouvelles informations découvertes pendant le déplacement **et**
+une destination dépendant d'un indice initial réellement variable,
+puis des adversaires sans mémoire et à lecture unique. Sur un ensemble
+fini de mondes, on ne peut pas prouver l'impossibilité logique de toutes
+les stratégies à nombre fini de tests ; la qualification doit aussi
+mesurer la valeur cognitive en classe de la stratégie enseignée.
+
+**Autre échec distinct dans le même run** :
+[job H×G #134669497020](https://github.com/djibian/webeeblocks/actions/runs/44265683691/job/134669497020)
+`completed/failure`. Le moniteur C a correctement mesuré une vraie
+pose au mauvais damier `C blind_h` à
+`x=4.091320447, y=0.598925165, z=0.012652966, t=90.816`,
+puis `FATAL premature_floor_contact`. La trace native confirme
+`LAND_TOUCHDOWN`, `LAND stop=1` et `RESPONSE 14 OK`.
+Le navigateur a été interrompu **avant** ses événements `LAND_ACK`
+et `TEST_COMPLETE`, exigés à tort par le test négatif. Un nouveau
+test peut accepter ce cas **uniquement** si le mauvais contact Floor,
+le fatal natif, la réponse native LAND et leurs temps sont attestés,
+avec absence de succès élève ; aucune preuve ne doit être synthétisée.
+L'ancien run **reste rouge** et la réparation n'est pas qualifiée tant
+qu'un nouveau HEAD n'a pas été éprouvé.
+
+**Statut de livraison : NO_GO pédagogique A5**, bien que les expériences
+natives soient utiles. Aucun projet solution n'est publié dans le
+catalogue, aucun PASS enseignant, aucune modification de l'activité 8,
+des PID de vol, de l'oracle Grand Prix ou de la sécurité matérielle.
