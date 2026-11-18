@@ -92,14 +92,20 @@ static int observe_floor_contact(WbNodeRef craft) {
 
 static void publish(WbFieldRef channel, const wb_seq_mission *m) {
   const char *status = (m->result == WB_SEQ_ACHIEVED) ? "achieved" : "not-achieved";
+  const char *reason = m->result == WB_SEQ_NOT_ACHIEVED
+    ? wb_seq_reason_token(m->reason) : NULL;
   char result[180];
-  const int size = snprintf(result, sizeof(result),
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-      m->attempt, WB_SEQ_ORACLE, status);
+  const int size = reason
+    ? snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+        m->attempt, WB_SEQ_ORACLE, status, reason)
+    : snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+        m->attempt, WB_SEQ_ORACLE, status);
   if (size < 1 || (size_t)size >= sizeof(result)) return;
   wb_supervisor_field_set_sf_string(channel, result);
-  printf("WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=%llu status=%s\n",
-         m->attempt, status);
+  printf("WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=%llu status=%s reason=%s\n",
+         m->attempt, status, reason ? reason : "none");
   fflush(stdout);
 }
 
