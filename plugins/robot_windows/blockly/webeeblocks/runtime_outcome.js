@@ -70,7 +70,7 @@
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Hauteur ou passage dangereux près de l’obstacle',
     'early-finish': 'Parcours non franchi avant la fin du programme',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'landing-timeout': 'Pose sur le damier non confirmée dans le délai',
     'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
@@ -84,7 +84,7 @@
     'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
     'route-incomplete': 'Franchissement des obstacles incomplet',
     'early-finish': 'Programme terminé avant la fin du parcours',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'landing-timeout': 'Pose sur la zone d’arrivée non confirmée dans le délai',
     'wrong-pad': 'Drone pas entièrement sur la zone d’arrivée',
     'invalid-start': 'Départ non conforme à la zone bleue'
   });

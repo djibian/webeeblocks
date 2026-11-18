@@ -344,7 +344,7 @@ function proveRealWebotsOutcomeFreshness() {
     ['obstacle-contact', 'Contact avec un obstacle'],
     ['unsafe-clearance', 'Hauteur ou passage dangereux près de l’obstacle'],
     ['early-finish', 'Parcours non franchi avant la fin du programme'],
-    ['landing-timeout', 'Atterrissage non stabilisé dans le délai'],
+    ['landing-timeout', 'Pose sur le damier non confirmée dans le délai'],
     ['wrong-pad', 'Drone pas entièrement sur le damier']
   ]) {
     assert.strictEqual(Outcome.classifyMission(
@@ -378,14 +378,14 @@ function proveRealWebotsOutcomeFreshness() {
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, evaluation).detail, 'Mission non accomplie');
     const a2Expected = reason === 'landing-timeout'
-      ? 'Mission non accomplie — Atterrissage non stabilisé dans le délai'
+      ? 'Mission non accomplie — Pose sur le damier non confirmée dans le délai'
       : 'Mission non accomplie';
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, a2).detail, a2Expected,
       'A3 reason must retain its A2 interpretation under the A2 oracle');
     const a4Expected = reason === 'route-incomplete'
       ? 'Mission non accomplie — Franchissement des obstacles incomplet'
-      : 'Mission non accomplie — Atterrissage non stabilisé dans le délai';
+      : 'Mission non accomplie — Pose sur la zone d’arrivée non confirmée dans le délai';
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason},
       {type:'mission-state-v1',oracle:'progression-decision-h-v1'}).detail,
@@ -403,6 +403,13 @@ function proveRealWebotsOutcomeFreshness() {
   }
 
   const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
+  // A missing Floor contact is not proof that a landing occurred but was unstable.
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'landing-timeout'},a4).detail,
+    'Mission non accomplie — Pose sur la zone d’arrivée non confirmée dans le délai');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'landing-timeout'},evaluation).detail,
+    'Mission non accomplie', 'A4 landing reason must not leak to another oracle');
   // The footprint may overhang the target while the drone centre still touches it.
   assert.strictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'wrong-pad'},a4).detail,
