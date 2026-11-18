@@ -78,7 +78,7 @@ class A5SequentialTest(unittest.TestCase):
                  for phase,_,_ in probe.PHASES} for v in ("A","B")}
         for phase in ("after_far","after_near"):good["B"][phase]["front"]=1.5
         self.assertTrue(probe.validate_observations(good))
-        for phase in ("before_far","before_near"):
+        for phase in ("before_far","before_near","before_peek"):
             for ch in probe.CHANNELS:
                 bad=copy.deepcopy(good);bad["B"][phase][ch]+=.05
                 with self.subTest(phase=phase,ch=ch),self.assertRaisesRegex(
@@ -106,6 +106,7 @@ class A5SequentialTest(unittest.TestCase):
         for device in ("range_front","range_back","range_left",
                        "range_right","range_up"):
             self.assertIn('"'+device+'"',source)
+        self.assertIn('"before_peek",.60,.45,step',source)
         for requirement in ("wb_distance_sensor_enable",
                             "wb_distance_sensor_get_value",
                             "wb_supervisor_node_reset_physics",

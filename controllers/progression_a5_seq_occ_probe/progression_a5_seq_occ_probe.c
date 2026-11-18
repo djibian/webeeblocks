@@ -98,10 +98,11 @@ int main(void) {
     return invalid("native_startup_or_pose_missing");
   if(!sample(self,trans,rot,devices,v,"before_far",.40,0,step)||
      !sample(self,trans,rot,devices,v,"before_near",.70,0,step)||
+     !sample(self,trans,rot,devices,v,"before_peek",.60,.45,step)||
      !sample(self,trans,rot,devices,v,"after_far",1.50,.60,step)||
      !sample(self,trans,rot,devices,v,"after_near",1.80,.60,step))
     return invalid("native_sensor_or_pose_sample_missing");
-  printf("A5_SEQ_OCC_DONE variant=%c samples=4 native_multiranger=true "
+  printf("A5_SEQ_OCC_DONE variant=%c samples=5 native_multiranger=true "
          "supervisor_only=true motorized=false pupil_pass=false\n",v);
   fflush(stdout);wb_robot_cleanup();return 0;
 }
