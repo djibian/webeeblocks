@@ -277,17 +277,18 @@ class WindowsReleaseContractTests(unittest.TestCase):
                     activity_id)
                 self.assertRegex(
                     activities,
-                    rf"starterVisible:\\s*false,\\s*id:\\s*'{re.escape(activity_id)}'")
+                    rf"starterVisible:\s*false,\s*id:\s*'{re.escape(activity_id)}'")
                 self.assertIn("'Activites\\\\Historique'", release_test)
                 self.assertIn(filename, release_test)
                 self.assertIn(filename, readme)
         self.assertIn("seules les activités 01, 02, 03, 04 et 07", readme)
         self.assertNotIn("huit fichiers `.wbb` de la", readme)
-        # Activity 8 is retained unchanged by this bounded packaging correction.
-        self.assertIn("08-autonomous-strategy.wbb", packager + readme +
-                      "\\n" + str(ROOT / "activities/progression/08-autonomous-strategy.wbb"))
-
-    def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
+           # Preserve the existing A8 identity without changing its packaging.
+        a8 = ROOT / "activities/progression/08-autonomous-strategy.wbb"
+        self.assertEqual(
+            json.loads(a8.read_text(encoding="utf-8"))["activity"]["id"],
+            "progression-autonomous-strategy-v1")
+        self.assertIn("Le modèle 08", readme)   def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
