@@ -1,4 +1,4 @@
-"""Deterministic A2/A4 school-only broker composition; NEVER mutate physical broker."""
+"""Deterministic A2/A3/A4/A7 school-only broker composition; NEVER mutate physical broker."""
 from pathlib import Path
 import sys
 
@@ -45,8 +45,15 @@ def compose_classroom_outcome_broker(source: str) -> str:
     const bool orientation =
       oracle == "progression-orientation-3d-v1" &&
       (reason == "route-incomplete" || reason == "landing-timeout");
+    const bool mini =
+      oracle == "progression-mini-grand-prix-v1" &&
+      (reason == "obstacle-contact" || reason == "invalid-start" ||
+       reason == "unsafe-h-crossing" || reason == "route-incomplete" ||
+       reason == "wrong-heading" || reason == "course-boundary" ||
+       reason == "early-finish" || reason == "landing-timeout" ||
+       reason == "wrong-pad");
     if (status != "not-achieved" ||
-        (!route && !classroom && !altitude && !orientation))
+        (!route && !classroom && !altitude && !orientation && !mini))
       return false;
   }
 """
