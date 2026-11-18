@@ -34,13 +34,21 @@ def assert_visual_box_matches_collider(source: str, name: str) -> None:
     an apparently empty passage must never contain an unseen collider, and
     a painted obstacle must not silently become smaller than its collision.
     """
+    marker = f"DEF {name} Solid {{"
+    start = source.find(marker)
+    if start < 0:
+        raise AssertionError(f"missing named native obstacle {name}")
+    # Bound the parser to this Solid. Otherwise deleting its visible Shape
+    # could accidentally pair the next obstacle's two matching boxes.
+    next_solid = source.find("\n    DEF ", start + len(marker))
+    block = source[start:next_solid if next_solid >= 0 else len(source)]
     pattern = (
-        rf"DEF {re.escape(name)} Solid \{{"
+        rf"^DEF {re.escape(name)} Solid \{{"
         r"[\s\S]*?children \[\s*Shape \{"
         r"[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}"
         r"\s*\}\s*\]\s*boundingObject Box \{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}"
     )
-    match = re.search(pattern, source)
+    match = re.search(pattern, block)
     if match is None:
         raise AssertionError(f"missing direct visual Box or native collider for {name}")
     visible = tuple(map(float, match.groups()[:3]))
