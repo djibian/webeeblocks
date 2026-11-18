@@ -89,6 +89,18 @@
     'invalid-start': 'Départ non conforme à la zone bleue'
   });
 
+  var A7_PUBLIC_REASONS = Object.freeze({
+    'obstacle-contact': 'Contact avec un obstacle',
+    'invalid-start': 'Départ non conforme à la zone bleue',
+    'unsafe-h-crossing': 'Franchissement du H hors du passage autorisé',
+    'route-incomplete': 'Passage du H non entièrement franchi',
+    'wrong-heading': 'Orientation incorrecte après le virage',
+    'course-boundary': 'Limite du parcours dépassée',
+    'early-finish': 'Fin de parcours ou zone de pose non validée',
+    'landing-timeout': 'Pose sur le damier non confirmée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur le damier'
+  });
+
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
     // Refuse inherited keys and non-string statuses before consulting the
@@ -123,6 +135,10 @@
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))
       detail += ' — ' + A4_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-mini-grand-prix-v1' &&
+        Object.prototype.hasOwnProperty.call(A7_PUBLIC_REASONS, reason))
+      detail += ' — ' + A7_PUBLIC_REASONS[reason];
     return {status: status, state: presentation.state, detail: detail};
   }
 
