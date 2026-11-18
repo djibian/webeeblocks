@@ -212,6 +212,26 @@ assert.deepStrictEqual(visibleIds,[
   'progression-orientation-3d-v1','progression-decision-h-v1',
   'progression-mini-grand-prix-v1','progression-autonomous-strategy-v1'
 ], 'offer only the qualified current missions; A5/A6 are still under development');
+// Public 4e/3e starting projects must be truly blank. A passing native CI
+// witness is never an algorithm to ship to pupils. This guard is limited
+// to the currently published activities 1–4 and 7, not Activity 8.
+const pupilBlankStarters = [
+  ['01-sequence.wbb', 'progression-sequence-v1'],
+  ['02-altitude.wbb', 'progression-altitude-v1'],
+  ['03-orientation.wbb', 'progression-orientation-3d-v1'],
+  ['04-observer-decision.wbb', 'progression-decision-h-v1'],
+  ['07-mini-grand-prix.wbb', 'progression-mini-grand-prix-v1']
+];
+for (const [filename, id] of pupilBlankStarters) {
+  const profile = Profiles.resolveById(Activities.DOCUMENT, id, Activities.BLOCK_CATALOG);
+  assert.notStrictEqual(profile.starterVisible, false, 'published lesson hidden: ' + id);
+  const pupilProject = JSON.parse(fs.readFileSync(
+    path.join(ROOT, 'activities/progression', filename), 'utf8'));
+  assert.deepStrictEqual(pupilProject, JSON.parse(ProjectFiles.createStarterText(id)),
+    'public pupil starter diverges from the actual embedded Start behavior: ' + filename);
+  assert.deepStrictEqual(pupilProject.workspace.blocks.blocks, [],
+    'pupil starter leaks prebuilt Blockly code: ' + filename);
+}
 assert.match(fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'), /profile\.starterVisible !== false/);
 assert.strictEqual(p1.brief.title, '1 — Prendre son envol en 3D');
 assert.strictEqual(p2.brief.title, '2 — Livrer le colis fragile');
