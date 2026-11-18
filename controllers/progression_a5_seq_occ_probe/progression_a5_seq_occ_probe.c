@@ -77,11 +77,11 @@ int main(void) {
   const double arm_y=v=='A'?1.05:-1.05;
   if(!box("A5_SEQ_L1_POST",1.,-.30,.55,.08,1.15,1.1)||
      !box("A5_SEQ_L1_ARM",.65,.275,.55,.70,.08,1.1)||
-     !box("A5_SEQ_L2_POST",2.5,second_y,.55,.08,1.20,1.1)||
-     !box("A5_SEQ_L2_ARM",2.15,arm_y,.55,.70,.08,1.1)||
-     !box("A5_SEQ_CORRIDOR_POS",1.5,1.26,.55,3.9,.08,1.1)||
-     !box("A5_SEQ_CORRIDOR_NEG",1.5,-1.26,.55,3.9,.08,1.1)||
-     !box("A5_SEQ_TERMINAL",3.2,0,.55,.08,2.3,1.1))
+     !box("A5_SEQ_L2_POST",3.2,second_y,.55,.08,1.20,1.1)||
+     !box("A5_SEQ_L2_ARM",2.85,arm_y,.55,.70,.08,1.1)||
+     !box("A5_SEQ_CORRIDOR_POS",1.8,1.26,.55,4.3,.08,1.1)||
+     !box("A5_SEQ_CORRIDOR_NEG",1.8,-1.26,.55,4.3,.08,1.1)||
+     !box("A5_SEQ_TERMINAL",3.92,0,.55,.08,2.3,1.1))
     return invalid("physical_colliders_or_dimensions_modified");
   WbNodeRef self=wb_supervisor_node_get_self();
   WbFieldRef trans=self?wb_supervisor_node_get_field(self,"translation"):NULL;
@@ -99,8 +99,8 @@ int main(void) {
   if(!sample(self,trans,rot,devices,v,"before_far",.40,0,step)||
      !sample(self,trans,rot,devices,v,"before_near",.70,0,step)||
      !sample(self,trans,rot,devices,v,"before_peek",.60,.45,step)||
-     !sample(self,trans,rot,devices,v,"after_far",1.50,.60,step)||
-     !sample(self,trans,rot,devices,v,"after_near",1.80,.60,step))
+     !sample(self,trans,rot,devices,v,"after_far",2.00,.60,step)||
+     !sample(self,trans,rot,devices,v,"after_near",2.30,.60,step))
     return invalid("native_sensor_or_pose_sample_missing");
   printf("A5_SEQ_OCC_DONE variant=%c samples=5 native_multiranger=true "
          "supervisor_only=true motorized=false pupil_pass=false\n",v);

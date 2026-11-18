@@ -11,7 +11,7 @@ SOURCE='controller "crazyflie_classroom_v2"'
 PROBE='controller "progression_a5_seq_occ_probe"'
 PHASES=(("before_far",.40,0.),("before_near",.70,0.),
         ("before_peek",.60,.45),  # accessible ahead of the first L
-        ("after_far",1.50,.60),("after_near",1.80,.60))
+        ("after_far",2.00,.60),("after_near",2.30,.60))
 CHANNELS=("front","back","left","right","up")
 RAYS=re.compile(
     r"(?m)^A5_SEQ_OCC_RAYS variant=([AB]) "

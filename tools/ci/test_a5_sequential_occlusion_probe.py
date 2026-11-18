@@ -13,8 +13,8 @@ class A5SequentialTest(unittest.TestCase):
         self.assertEqual(b.count(" Solid {"),7)
         self.assertEqual(a.count("boundingObject Box"),7)
         self.assertEqual(b.count("boundingObject Box"),7)
-        changed=a.replace("2.500 0.450","2.500 -0.450").replace(
-            "2.150 1.050","2.150 -1.050").replace(
+        changed=a.replace("3.200 0.450","3.200 -0.450").replace(
+            "2.850 1.050","2.850 -1.050").replace(
             "experiment A:","experiment B:").replace(
             "WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE",
             "WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE")
@@ -48,16 +48,20 @@ class A5SequentialTest(unittest.TestCase):
         scenes={v:probe.scene_file(v).read_text() for v in ("A","B")}
         posts={v:solid_box(scene,"A5_SEQ_L2_POST") for v,scene in scenes.items()}
         self.assertEqual(posts["A"][0],posts["B"][0])
-        self.assertEqual(posts["A"][0],2.5)
+        self.assertEqual(posts["A"][0],3.2)
         self.assertEqual(posts["A"][1],.45)
         self.assertEqual(posts["B"][1],-.45)
+        # A possible pre-L1 lateral peek at x <= 1.05 remains beyond
+        # the ideal 2 m forward sensor range after this displacement.
+        # Native R2025a must independently falsify that approximation.
+        self.assertGreater(posts["A"][0]-posts["A"][3]/2-1.05,2.05)
         for source in scenes.values():
             self.assertEqual(solid_box(source,"A5_SEQ_CORRIDOR_POS"),
-                             (1.5,1.26,.55,3.9,.08,1.1))
+                             (1.8,1.26,.55,4.3,.08,1.1))
             self.assertEqual(solid_box(source,"A5_SEQ_CORRIDOR_NEG"),
-                             (1.5,-1.26,.55,3.9,.08,1.1))
+                             (1.8,-1.26,.55,4.3,.08,1.1))
             self.assertEqual(solid_box(source,"A5_SEQ_TERMINAL"),
-                             (3.2,0,.55,.08,2.3,1.1))
+                             (3.92,0,.55,.08,2.3,1.1))
         radius=.09
         corridor_max_y=1.26-.08/2-radius
         def blocked(post):
