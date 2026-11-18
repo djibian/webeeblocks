@@ -92,13 +92,16 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
     return ack is not None and int(ack[1])>=20
 
 
-def run(variant=1,mode="reference"):
+def run(variant=1,mode="reference",family=None):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
     if mode not in ("reference","sensor","blockly","replay"):
         raise ValueError("invalid bounded A6 pilot mode")
+    if family is not None and (family not in ("matched","sampling") or mode!="reference"):
+        raise ValueError("B private geometry witness accepts reference pilot only")
     global ARTIFACT
-    ARTIFACT=(world.ARTIFACT/f"n{variant}" if mode=="reference"
+    ARTIFACT=(world.ARTIFACT/f"b-{family}-reference-n{variant}" if family is not None
+              else world.ARTIFACT/f"n{variant}" if mode=="reference"
               else world.ARTIFACT/f"{mode}-n{variant}")
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     if mode=="blockly":
@@ -119,7 +122,7 @@ def run(variant=1,mode="reference"):
         ):
             if not path.is_file() or not path.stat().st_size:
                 raise FileNotFoundError("native motor flight binary unavailable: "+str(path))
-        world.prepare(variant=variant)
+        world.prepare(variant=variant,family=family)
         A6VariantHandler.variant=variant
         A6VariantHandler.mode=mode
         server=observer.http.server.ThreadingHTTPServer(("127.0.0.1",8765),A6VariantHandler)
@@ -385,9 +388,32 @@ def run(variant=1,mode="reference"):
                and "WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt
                and "WEBEEBLOCKS_RUNTIME_V2 FATAL" not in txt
                and "ERROR:" not in txt)
+    # This separate B geometric flight is not an algorithm/counting PASS.
+    # Old up/dual-sensor diagnostic parsers assume historical H locations;
+    # here ONLY the physically attested C oracle, true motors and Floor
+    # contact can decide. Never treat an AST or scene title as authority.
+    if family is not None:
+        b_attested=(
+            f"WEBEEBLOCKS_A6_B_MOTOR_GEOMETRY_ATTESTED family="
+            f"{0 if family=='matched' else 1} n={variant} "
+            f"verified_colliders={3*variant+2} test_only=true" in txt)
+        succeeded=(
+            b_attested and native_achieved and
+            not missing and ordered and events.count("A6_ERROR")==0 and
+            reference_protocol and
+            f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt and
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt and
+            "LAND_TOUCHDOWN" in txt and browser and
+            "WEBEEBLOCKS_A6_MOTOR_FATAL" not in txt and
+            "WEBEEBLOCKS_RUNTIME_V2 FATAL" not in txt and
+            "WEBEEBLOCKS_A6_MOTOR_REJECT" not in txt and
+            "ERROR:" not in txt and not early_browser_refusal)
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
         "pass":bool(succeeded),"variant":variant,"mode":mode,
+        "b_private_family":family,
+        "b_native_holdout_geometry_test_only":family is not None,
+        "b_no_variable_or_counter_qualification":family is not None,
         "sensor_command_program_pass":bool(sensor_protocol if mode in ("sensor","blockly")
                                           else False),
         "private_blockly_webots_pass":bool(succeeded and mode=="blockly"),
@@ -431,20 +457,26 @@ def run(variant=1,mode="reference"):
         print(f"WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS n={variant} "
               f"count={sensor_count} project_sha256={hashlib.sha256(project.read_bytes()).hexdigest()} "
               "native_PID=true Blockly13=true pupil_product=UNPROVEN",flush=True)
-    print(f"WEBEEBLOCKS_A6_TWO_SENSOR_COUNT_OK native={variant} "
-          f"count={dual['count']} terminal={dual['terminal_detected']} "
-          "controller=real_motor sensor_only=true pupil_wbb=UNPROVEN",flush=True)
-    print(f"WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED n={variant} "
-          f"gates={len(up_motor['gates'])} samples={up_motor['total_32ms_samples']} "
-          "sensor=authentic_range_up pupil_wbb=UNPROVEN",flush=True)
-    print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
-          "corridor=real_PID_and_motors contacts=none screen=passed "
-          "pupil_wbb=UNPROVEN",flush=True)
+    if family is None:
+        print(f"WEBEEBLOCKS_A6_TWO_SENSOR_COUNT_OK native={variant} "
+              f"count={dual['count']} terminal={dual['terminal_detected']} "
+              "controller=real_motor sensor_only=true pupil_wbb=UNPROVEN",flush=True)
+        print(f"WEBEEBLOCKS_A6_UP_MOTOR_OBSERVED n={variant} "
+              f"gates={len(up_motor['gates'])} samples={up_motor['total_32ms_samples']} "
+              "sensor=authentic_range_up pupil_wbb=UNPROVEN",flush=True)
+        print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
+              "corridor=real_PID_and_motors contacts=none screen=passed "
+              "pupil_wbb=UNPROVEN",flush=True)
+    else:
+        print(f"WEBEEBLOCKS_A6_B_PRIVATE_REFERENCE_MOTOR_PASS family={family} "
+              f"n={variant} real_PID=true native_contact_oracle=achieved "
+              "counter_and_blockly=UNPROVEN",flush=True)
     return 0
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
+    parser.add_argument("--family",choices=("matched","sampling"),default=None)
     parser.add_argument("--mode",choices=("reference","sensor","blockly","replay"),default="reference")
     args=parser.parse_args()
-    raise SystemExit(run(variant=args.variant,mode=args.mode))
+    raise SystemExit(run(variant=args.variant,mode=args.mode,family=args.family))

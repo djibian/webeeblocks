@@ -158,7 +158,7 @@ int main(void) {
     return fail("finish screen, terminal or collider count not attested");
 #ifdef WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY
   printf("WEBEEBLOCKS_A6_B_MOTOR_GEOMETRY_ATTESTED family=%d n=%d "
-         "verified_colliders=%d test_only=true\\n",
+         "verified_colliders=%d test_only=true\n",
          b_family,variant,collider_count);
   fflush(stdout);
 #endif

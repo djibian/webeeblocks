@@ -33,6 +33,15 @@ class BMotorGeometrySourceTests(unittest.TestCase):
                     self.assertEqual(combined.count(" Solid {"),3*n+2)
                     self.assertEqual(combined.count('controller "progression_count_h_school_pilot"'),1)
                     self.assertEqual(combined.count('controller "progression_count_h_flight_observer"'),0)
+    def test_holdout_runner_cannot_claim_counter_or_blockly(self):
+        source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        self.assertIn('family is not None and (family not in ("matched","sampling") or mode!="reference")',source)
+        self.assertIn('world.prepare(variant=variant,family=family)',source)
+        self.assertIn('b_native_holdout_geometry_test_only',source)
+        self.assertIn('counter_and_blockly=UNPROVEN',source)
+        self.assertIn('"WEBEEBLOCKS_A6_MOTOR_REJECT" not in txt',source)
+        self.assertIn('up_motor["native_motor_ray_observed"] and',source)
+
     def test_unknown_or_adversarial_source_rejected(self):
         with self.assertRaises(ValueError):
             motor.compose(variant=4)
