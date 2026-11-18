@@ -175,9 +175,13 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         self.assertAlmostEqual((cx, cy, cz)[0], 0.0)
         self.assertAlmostEqual(cy, 0.0)
         self.assertAlmostEqual(lower, 0.58)
-        self.assertAlmostEqual(upper, 0.66)
+        self.assertAlmostEqual(upper, 0.90)
         self.assertGreater(lower - (NOMINAL_TAKEOFF_M + CRAFT_NATIVE_HALF_HEIGHT_M), 0.08)
         self.assertLess(lower, 0.80)
+        # The maximum allowed A2 takeoff must remain BELOW the roof's upper
+        # surface: after native collision the drone cannot park on top of a
+        # thin platform while strict RESET correctly refuses to teleport it.
+        self.assertGreater(upper, 0.80 + CRAFT_NATIVE_HALF_HEIGHT_M + 0.05)
         self.assertGreater(cx + w / 2, 0.0)
         self.assertGreater(depth / 2, 0.4)
         # Escape forward first, then ascend *before* entering the barrier

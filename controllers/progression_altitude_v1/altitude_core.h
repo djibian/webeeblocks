@@ -24,14 +24,16 @@
 #define WB_ALT_BARRIER_HALF_Y 0.42
 #define WB_ALT_BARRIER_TOP 0.62
 #define WB_ALT_CRAFT_CLEARANCE 0.09
-/* Fixed visible start canopy: undersurface 0.58 m, upper face 0.66 m.
+/* Fixed visible start canopy: undersurface 0.58 m, upper face 0.90 m.
+ * A thick collider prevents a 0.80-m high takeoff perching on the roof.
+ * Do not relax RESET or represent a collision as a successful restart.
  * A high takeoff must cause an actual contact; there is no AST restriction.
  */
 #define WB_ALT_CANOPY_X 0.0
 #define WB_ALT_CANOPY_HALF_X 0.17
 #define WB_ALT_CANOPY_HALF_Y 0.43
 #define WB_ALT_CANOPY_BOTTOM 0.58
-#define WB_ALT_CANOPY_TOP 0.66
+#define WB_ALT_CANOPY_TOP 0.90
 #define WB_ALT_SETTLE_SEC 1.5
 /* Consecutive native simulation time, never a single slow pose sample. */
 #define WB_ALT_LAND_DWELL_SEC 0.250

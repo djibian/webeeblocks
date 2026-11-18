@@ -68,8 +68,8 @@ Node canopyBox{"","Box","",true,0};
 Node barrierBox{"","Box","",true,0};
 Node leftBox{"","Box","",true,0};
 Node rightBox{"","Box","",true,0};
-double canopyPosition[3]={0.0,0.0,0.62},barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
-double canopySize[3]={0.34,0.86,0.08},barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
+double canopyPosition[3]={0.0,0.0,0.74},barrierPosition[3]={0.62,0.0,0.31},leftPosition[3]={0.68,0.51,0.425},rightPosition[3]={0.68,-0.51,0.425};
+double canopySize[3]={0.34,0.86,0.32},barrierSize[3]={0.12,0.84,0.62},leftSize[3]={1.65,0.08,0.85},rightSize[3]={1.65,0.08,0.85};
 std::vector<Node*> all{&viewpoint,&legacy,&evaluators,&sequence,&altitude,&orientScene,&canopy,&barrier,&left,&right};
 int rootChildren=0, position=0, orientation=0;
 double pos[3]={-2,-2,2},rot[4]={0,0,1,1};
@@ -258,8 +258,8 @@ int main(int argc,char**argv){
  badDimensions=mode=="wrong-box-size";
  badRotation=mode=="wrong-box-rotation";
  if(badCanopyShape)canopyBox.type="Sphere";
- if(badCanopyPosition)canopyPosition[2]=0.70; // stale pre-repair geometry must be refused
- if(badCanopySize)canopySize[2]=0.18;
+ if(badCanopyPosition)canopyPosition[2]=0.62; // stale thin-roof geometry must be refused
+ if(badCanopySize)canopySize[2]=0.08; // stale thin-roof collider must be refused
  if(badShape)barrierBox.type="Sphere";
  if(badPosition)barrierPosition[0]=0.81;
  if(badDimensions)barrierSize[0]=0.30;

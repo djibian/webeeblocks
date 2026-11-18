@@ -509,9 +509,9 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn("Pose { translation 1.35 0 0.002", text)
         self.assertIn("DEF ACTIVITY2_LOW_BARRIER Solid", text)
         self.assertIn("DEF ACTIVITY2_START_CANOPY Solid", text)
-        self.assertIn("boundingObject Box { size 0.34 0.86 0.08 }", text)
+        self.assertIn("boundingObject Box { size 0.34 0.86 0.32 }", text)
         self.assertIn("WB_ALT_CANOPY_BOTTOM 0.58", core)
-        self.assertIn("WB_ALT_CANOPY_TOP 0.66", core)
+        self.assertIn("WB_ALT_CANOPY_TOP 0.90", core)
 
 
 if __name__ == "__main__":

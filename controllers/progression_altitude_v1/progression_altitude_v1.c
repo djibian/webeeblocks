@@ -60,8 +60,8 @@ static int verify_scene(void) {
       wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE"))
     return 0;
 
-  const double canopy_pos[3] = {0.0, 0.0, 0.62};
-  const double canopy_size[3] = {0.34, 0.86, 0.08};
+  const double canopy_pos[3] = {0.0, 0.0, 0.74};
+  const double canopy_size[3] = {0.34, 0.86, 0.32};
   const double barrier_pos[3] = {0.62, 0.0, 0.31};
   const double barrier_size[3] = {0.12, 0.84, 0.62};
   const double left_pos[3] = {0.68, 0.51, 0.425};

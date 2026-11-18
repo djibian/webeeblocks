@@ -68,7 +68,7 @@ bool altitudeColliders() {
     double size[3];
   };
   const Expected colliders[] = {
-    {"ACTIVITY2_START_CANOPY", {0.0, 0.0, 0.62}, {0.34, 0.86, 0.08}},
+    {"ACTIVITY2_START_CANOPY", {0.0, 0.0, 0.74}, {0.34, 0.86, 0.32}},
     {"ACTIVITY2_LOW_BARRIER", {0.62, 0.0, 0.31}, {0.12, 0.84, 0.62}},
     {"ACTIVITY2_LEFT_WALL", {0.68, 0.51, 0.425}, {1.65, 0.08, 0.85}},
     {"ACTIVITY2_RIGHT_WALL", {0.68, -0.51, 0.425}, {1.65, 0.08, 0.85}}
