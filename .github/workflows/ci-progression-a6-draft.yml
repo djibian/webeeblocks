@@ -335,8 +335,78 @@ jobs:
           name: a6-b-native-reference-motor-${{ matrix.family }}-n${{ matrix.count }}
           path: ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/
           if-no-files-found: warn
-  a6-replay-draft-only:
-    name: A6 same-world n=${{ matrix.count }} negative RESET positive RESET positive (not CI Gate)
+  a6-b-blockly-count-draft-only:
+    needs: a6-private-generic-wbb-build-draft-only
+    name: A6-B real private Blockly count family=${{ matrix.family }} H=${{ matrix.count }} stride=${{ matrix.step_cm }}cm (Draft only)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 13
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [matched, sampling]
+        count: [1, 2, 3]
+        step_cm: [8, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: a6-private-real-profile-canonical-wbb
+          path: ci-artifacts/progression-count-h-private-blockly
+      - name: Verify ONE shared signed-by-digest private Blockly WBB for every scene
+        run: |
+          set -euo pipefail
+          cd ci-artifacts/progression-count-h-private-blockly
+          printf -v step '%02d' '${{ matrix.step_cm }}'
+          sha256sum -c "a6-b-step${step}-ci-only.wbb.sha256"
+      - name: Compile original school PID and independently attested native B mission
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" \
+            -w /workspace cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              cd controllers/progression_count_h_school_pilot
+              make clean
+              make A6_B_HOLDOUT_TEST_ONLY=1
+              cd /workspace/controllers/progression_count_h_flight_observer
+              make clean
+              make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"
+              test -s progression_count_h_flight_observer
+            '
+      - name: Native R2025a physical B flight with SAME WBB and true C oracle
+        run: |
+          docker run --rm -e LIBGL_ALWAYS_SOFTWARE=true \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              python3 /workspace/tools/test_prepare_webots_apt.py
+              python3 /workspace/tools/prepare_webots_apt.py
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/run_classroom_count_h_motor_flight.py \
+                --variant ${{ matrix.count }} --family ${{ matrix.family }} \
+                --mode blockly --step-cm ${{ matrix.step_cm }}
+            '
+      - name: Preserve true 8/4-cm counts, PID contacts and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-b-blockly-${{ matrix.family }}-n${{ matrix.count }}-step${{ matrix.step_cm }}
+          path: ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-blockly-n${{ matrix.count }}-step*/
+          if-no-files-found: warn
+
+  a6-replay-draft-only:    name: A6 same-world n=${{ matrix.count }} negative RESET positive RESET positive (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     strategy:
