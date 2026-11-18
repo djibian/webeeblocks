@@ -1,6 +1,7 @@
 /* A5 PRIVATE: real Webots R2025a five Multi-ranger sensors, two Ls.
  * Supervisor-only pose study, no motors, student algorithm or mission oracle.
- * The two worlds differ solely in the physical X-position of the second L.
+ * The two worlds differ by the lateral opening of the second L only.
+ * Native-attested lateral walls and terminal are shared laboratory fixtures.
  */
 #include <webots/robot.h>
 #include <webots/distance_sensor.h>
@@ -70,13 +71,17 @@ int main(void) {
   WbNodeRef group=A?A:B;
   WbFieldRef children=wb_supervisor_node_get_field(group,"children");
   if(strcmp(wb_supervisor_node_get_type_name(group),"Group")||!children||
-     wb_supervisor_field_get_count(children)!=4)
+     wb_supervisor_field_get_count(children)!=7)
     return invalid("untrusted_group");
-  const double second=v=='A'?2.5:3.0;
+  const double second_y=v=='A'?.45:-.45;
+  const double arm_y=v=='A'?1.05:-1.05;
   if(!box("A5_SEQ_L1_POST",1.,-.30,.55,.08,1.15,1.1)||
      !box("A5_SEQ_L1_ARM",.65,.275,.55,.70,.08,1.1)||
-     !box("A5_SEQ_L2_POST",second,.45,.55,.08,1.20,1.1)||
-     !box("A5_SEQ_L2_ARM",second-.35,1.05,.55,.70,.08,1.1))
+     !box("A5_SEQ_L2_POST",2.5,second_y,.55,.08,1.20,1.1)||
+     !box("A5_SEQ_L2_ARM",2.15,arm_y,.55,.70,.08,1.1)||
+     !box("A5_SEQ_CORRIDOR_POS",1.5,1.26,.55,3.9,.08,1.1)||
+     !box("A5_SEQ_CORRIDOR_NEG",1.5,-1.26,.55,3.9,.08,1.1)||
+     !box("A5_SEQ_TERMINAL",3.2,0,.55,.08,2.3,1.1))
     return invalid("physical_colliders_or_dimensions_modified");
   WbNodeRef self=wb_supervisor_node_get_self();
   WbFieldRef trans=self?wb_supervisor_node_get_field(self,"translation"):NULL;

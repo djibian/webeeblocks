@@ -9,12 +9,12 @@ class A5SequentialTest(unittest.TestCase):
     def test_only_second_L_differs_and_original_drone_retained(self):
         a=probe.scene_file("A").read_text()
         b=probe.scene_file("B").read_text()
-        self.assertEqual(a.count(" Solid {"),4)
-        self.assertEqual(b.count(" Solid {"),4)
-        self.assertEqual(a.count("boundingObject Box"),4)
-        self.assertEqual(b.count("boundingObject Box"),4)
-        changed=a.replace("2.500 0.450","3.000 0.450").replace(
-            "2.150 1.050","2.650 1.050").replace(
+        self.assertEqual(a.count(" Solid {"),7)
+        self.assertEqual(b.count(" Solid {"),7)
+        self.assertEqual(a.count("boundingObject Box"),7)
+        self.assertEqual(b.count("boundingObject Box"),7)
+        changed=a.replace("2.500 0.450","2.500 -0.450").replace(
+            "2.150 1.050","2.150 -1.050").replace(
             "experiment A:","experiment B:").replace(
             "WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE",
             "WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE")
@@ -29,6 +29,48 @@ class A5SequentialTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.compose("A",scene=a.replace(" Solid {"," Robot {",1))
         with self.assertRaises(ValueError):probe.compose("B",scene=b+b)
+
+    def test_no_common_fixed_lane_through_opposite_L_openings(self):
+        # ANALYTICAL ONLY: no motorized trajectory, no pupil .wbb, no oracle.
+        # Radius-inflated lateral spans must block every SAME-Y passage
+        # at x=2.5 across both A and B within the collision corridor.
+        import re
+        def solid_box(source, name):
+            section=source.split(f"DEF {name} Solid {{",1)
+            self.assertEqual(len(section),2,name)
+            part=section[1].split("boundingObject Box { size ",1)
+            self.assertEqual(len(part),2,name)
+            pos=re.search(r"translation (-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+)",part[0])
+            size=re.match(r"([0-9.]+) ([0-9.]+) ([0-9.]+)",part[1])
+            self.assertIsNotNone(pos,name)
+            self.assertIsNotNone(size,name)
+            return tuple(float(x) for x in pos.groups()+size.groups())
+        scenes={v:probe.scene_file(v).read_text() for v in ("A","B")}
+        posts={v:solid_box(scene,"A5_SEQ_L2_POST") for v,scene in scenes.items()}
+        self.assertEqual(posts["A"][0],posts["B"][0])
+        self.assertEqual(posts["A"][0],2.5)
+        self.assertEqual(posts["A"][1],.45)
+        self.assertEqual(posts["B"][1],-.45)
+        for source in scenes.values():
+            self.assertEqual(solid_box(source,"A5_SEQ_CORRIDOR_POS"),
+                             (1.5,1.26,.55,3.9,.08,1.1))
+            self.assertEqual(solid_box(source,"A5_SEQ_CORRIDOR_NEG"),
+                             (1.5,-1.26,.55,3.9,.08,1.1))
+            self.assertEqual(solid_box(source,"A5_SEQ_TERMINAL"),
+                             (3.2,0,.55,.08,2.3,1.1))
+        radius=.09
+        corridor_max_y=1.26-.08/2-radius
+        def blocked(post):
+            return post[1]-post[4]/2-radius,post[1]+post[4]/2+radius
+        a_low,a_high=blocked(posts["A"])
+        b_low,b_high=blocked(posts["B"])
+        self.assertLessEqual(b_low,-corridor_max_y)
+        self.assertGreaterEqual(a_high,corridor_max_y)
+        self.assertLessEqual(a_low,b_high)
+        self.assertEqual((round(a_low,2),round(a_high,2)),(-.24,1.14))
+        self.assertEqual((round(b_low,2),round(b_high,2)),(-1.14,.24))
+        # No single fixed lane exists. Other approaches, overhead flight
+        # and actual Crazyflie dynamics remain unqualified.
 
     def test_any_early_leak_or_late_ambiguity_is_red(self):
         # Fake arrays exercise only validator rejection, not physical evidence.

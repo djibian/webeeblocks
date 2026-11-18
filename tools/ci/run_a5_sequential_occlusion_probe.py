@@ -39,9 +39,10 @@ def compose(v,scene=None):
         base.count('name "Crazyflie WebeeBlocks"')!=1 or
         body.count(f"DEF WEBEEBLOCKS_A5_SEQ_OCC_{v}_SCENE Group")!=1 or
         f"WEBEEBLOCKS_A5_SEQ_OCC_{other}_SCENE" in body or
-        body.count(" Solid {")!=4 or body.count("boundingObject Box")!=4 or
+        body.count(" Solid {")!=7 or body.count("boundingObject Box")!=7 or
         any(f"DEF A5_SEQ_{name} Solid" not in body
-            for name in ("L1_POST","L1_ARM","L2_POST","L2_ARM")) or
+            for name in ("L1_POST","L1_ARM","L2_POST","L2_ARM",
+                         "CORRIDOR_POS","CORRIDOR_NEG","TERMINAL")) or
         "Robot {" in body or 'controller "' in body or
         "WEBEEBLOCKS_LEGACY_SCENE" in body):
         raise ValueError("untrusted original classroom world or collision L")
