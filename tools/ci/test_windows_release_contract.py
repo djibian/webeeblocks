@@ -278,7 +278,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
                 self.assertRegex(
                     activities,
                     rf"starterVisible:\s*false,\s*id:\s*'{re.escape(activity_id)}'")
-                self.assertIn("'Activites\\\\Historique'", release_test)
+                self.assertIn(r"'Activites\Historique'", release_test)
                 self.assertIn(filename, release_test)
                 self.assertIn(filename, readme)
         self.assertIn("seules les activités 01, 02, 03, 04 et 07", readme)
