@@ -1,4 +1,20 @@
-# Sous-scènes de simulation — prototype #587
+# Sous-scènes de simulation — prototype historique #587
+
+> **État du produit au 18 novembre 2026 (matrice #587 / PR #972).** Le texte ci-dessous décrit le **prototype historique** de sélection de scènes initialement limité à `sequence-v1` et `legacy-v1`. Il ne représente plus la liste fermée ni les profils élèves actuels. Pour les contrats exécutables, consulter `plugins/robot_windows/blockly/webeeblocks/activities.js`, les tests de sélection native et la [matrice pédagogique approuvée](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
+>
+> **Parmi les activités 1 à 7**, celles actuellement exposées choisissent les scènes suivantes via `runtime.scene` (la scène est sélectionnée avant l'application du projet, avec accusé natif vérifié) :
+>
+> | Activité | Profil élève | Sous-scène versionnée |
+> | --- | --- | --- |
+> | 1 — Prendre son envol en 3D | `progression-sequence-v1` | `sequence-v1` |
+> | 2 — Maîtriser l'altitude | `progression-altitude-v1` | `altitude-v1` |
+> | 3 — S'orienter et organiser son trajet | `progression-orientation-3d-v1` | `orientation-v1` |
+> | 4 — Observer pour décider | `progression-decision-h-v1` | `decision-h-a-v1` / `decision-h-b-v1` (variante de séance) |
+> | 7 — Mini Grand Prix | `progression-mini-grand-prix-v1` | `mini-grand-prix-l-v1` / `mini-grand-prix-r-v1` (variante de séance) |
+>
+> Les activités **5 et 6 révisées** sont en PR expérimentales **#980/#981**, non publiées aux élèves ; les anciens exercices correspondants restent réouvrables par leur identifiant historique sans être proposés comme nouvelle progression. Les variantes A/B et L/R relèvent de la sélection de scène, **sans injection de variante dans le fichier `.wbb`**. Chaque scène et son oracle restent soumis aux vérifications natives, au cycle Blockly/Save/Open et au PASS pédagogique de l'enseignant ; aucune qualification de vol réel n'en résulte. L'activité 8 et le chantier performance sont hors périmètre de cette actualisation.
+
+---
 
 Le monde de lancement reste `worlds/crazyflie_runtime_v2.wbt`. Le bouton
 « Démarrer une activité » et l'ouverture d'un projet sélectionnent la scène avant
