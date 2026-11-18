@@ -104,7 +104,7 @@ export async function runPrivateBlockly(backend,report,options={}) {
              moves:acknowledgedMoves,front_m:front,variables:0,testOnly:true
            });
            await report('A6_CORRIDOR_DONE',{stateless:true,moves:acknowledgedMoves});
-           await report('A6_PAD_SELECTED',{stateless:true,padByNativeOracle:true});
+           await report('A6_PAD_SELECTED',{stateless:true,nativeOraclePending:true});
            return;
          }
          // Independent final native sample only for CI attestation, not

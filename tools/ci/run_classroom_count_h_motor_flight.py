@@ -52,7 +52,7 @@ class A6VariantHandler(observer.Handler):
     def do_GET(self):
         if self.path == "/a6-private-wbb":
             project=self.private_wbb_path
-            if (self.mode!="blockly" or not project.is_file() or project.is_symlink()
+            if (self.mode not in ("blockly","stateless") or not project.is_file() or project.is_symlink()
                     or project.stat().st_size<100 or project.stat().st_size>1048576):
                 self.send_error(404)
                 return
@@ -77,7 +77,7 @@ REQUIRED=("A6_HTML_LOADED","A6_JS_STARTED","A6_RUNTIME_READY",
 
 def terminal_native_ack_logged(native_log, variant, mode="reference"):
     """Never kill Webots between C physical success and native LAND ACK."""
-    if variant not in (1,2,3) or mode not in ("reference","sensor","blockly"):
+    if variant not in (1,2,3) or mode not in ("reference","sensor","blockly","stateless"):
         return False
     if f"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n={variant} " not in native_log:
         return False
@@ -96,14 +96,16 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
 def run(variant=1,mode="reference",family=None,step_cm=None):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
-    if mode not in ("reference","sensor","blockly","replay"):
+    if mode not in ("reference","sensor","blockly","replay","stateless"):
         raise ValueError("invalid bounded A6 pilot mode")
+    if mode=="stateless" and family is None:
+        raise ValueError("stateless no-variable comparator needs private B family")
     if family is None:
         if step_cm is not None:
             raise ValueError("the ordinary native A6 witness has no B step selector")
-    elif (family not in ("matched","sampling") or mode not in ("reference","blockly") or
+    elif (family not in ("matched","sampling") or mode not in ("reference","blockly","stateless") or
           (mode=="blockly" and step_cm not in (4,8)) or
-          (mode=="reference" and step_cm is not None)):
+          (mode in ("reference","stateless") and step_cm is not None)):
         raise ValueError("invalid private B family/mode/4-or-8-cm step")
     global ARTIFACT
     ARTIFACT=(world.ARTIFACT/(
@@ -114,9 +116,10 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
               else world.ARTIFACT/f"{mode}-n{variant}")
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     private=None
-    if mode=="blockly":
+    if mode in ("blockly","stateless"):
         private=(world.ROOT/"ci-artifacts/progression-count-h-private-blockly"/
-                 (f"a6-b-step{step_cm:02}-ci-only.wbb" if family is not None
+                 ("a6-b-stateless-ci-only.wbb" if mode=="stateless" else
+                  f"a6-b-step{step_cm:02}-ci-only.wbb" if family is not None
                   else "a6-private.wbb"))
         if (not private.is_file() or private.is_symlink() or
             private.stat().st_size<100 or private.stat().st_size>1048576):
@@ -334,6 +337,20 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
                     if e.get("event")=="A6_SENSOR_COUNT"]
     sensor_detail=(sensor_records[0].get("detail") or {}
                    if len(sensor_records)==1 else {})
+    stateless_records=[item for item in observer.EVENTS
+                       if item.get("event")=="A6_STATELESS_OBSERVATION"]
+    stateless_detail=(stateless_records[0].get("detail") or {}
+                      if len(stateless_records)==1 else {})
+    stateless_protocol=(
+        len(stateless_records)==1 and len(sensor_records)==0 and
+        stateless_detail.get("variables")==0 and
+        type(stateless_detail.get("moves")) is int and
+        3<=stateless_detail["moves"]<=14 and
+        type(stateless_detail.get("front_m")) in (int,float) and
+        .30<=stateless_detail["front_m"]<=.82 and
+        len(all_response_ids)>=12 and
+        all_response_ids==[str(i) for i in range(1,len(all_response_ids)+1)] and
+        len(moves)==stateless_detail["moves"])
     sensor_steps=sensor_detail.get("steps")
     sensor_count=sensor_detail.get("count")
     sensor_front=sensor_detail.get("front_m")
@@ -416,7 +433,8 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
             b_attested and native_achieved and
             not missing and ordered and events.count("A6_ERROR")==0 and
             (reference_protocol if mode=="reference" else
-             sensor_protocol and sensor_count==variant and
+             (stateless_protocol if mode=="stateless" else
+              sensor_protocol and sensor_count==variant) and
              events.count("A6_PRIVATE_WBB_REOPENED")==1) and
             f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt and
             "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt and
@@ -431,13 +449,17 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
         "b_private_family":family,
         "b_private_step_cm":step_cm,
         "b_native_holdout_geometry_test_only":family is not None,
-        "b_no_variable_or_counter_qualification":family is not None and mode!="blockly",
+        "b_no_variable_or_counter_qualification":family is not None and mode=="reference",
+        "b_stateless_native_comparator_pass":bool(succeeded and mode=="stateless"),
+        "b_stateless_protocol":bool(stateless_protocol if mode=="stateless" else False),
         "sensor_command_program_pass":bool(sensor_protocol if mode in ("sensor","blockly")
                                           else False),
-        "private_blockly_webots_pass":bool(succeeded and mode=="blockly"),
+        "private_blockly_webots_pass":bool(succeeded and mode in ("blockly","stateless")),
         "private_wbb_sha256":(
-            hashlib.sha256(private.read_bytes()).hexdigest() if mode=="blockly" else None),
+            hashlib.sha256(private.read_bytes()).hexdigest()
+            if mode in ("blockly","stateless") else None),
         "sensor_reported_count":sensor_count if mode in ("sensor","blockly") else None,
+        "stateless_observation":stateless_detail if mode=="stateless" else None,
         "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
         "variant_blind_two_sensor_count_correct":bool(
             dual.get("terminal_detected",False) and dual.get("count")==variant),
@@ -468,7 +490,7 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
         print(f"WEBEEBLOCKS_A6_SENSOR_COMMANDS_PASS n={variant} "
               f"count={sensor_count} moves={sensor_steps} "
               "same_test_pilot=true pupil_wbb=UNPROVEN",flush=True)
-    if mode=="blockly":
+    if mode in ("blockly","stateless"):
         project=private
         print(f"WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS n={variant} "
               f"count={sensor_count} project_sha256={hashlib.sha256(project.read_bytes()).hexdigest()} "
@@ -483,6 +505,11 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
         print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
               "corridor=real_PID_and_motors contacts=none screen=passed "
               "pupil_wbb=UNPROVEN",flush=True)
+    elif mode=="stateless":
+        print(f"WEBEEBLOCKS_A6_B_STATELESS_MOTOR_PASS family={family} "
+              f"n={variant} variables=0 "
+              f"same_wbb_sha256={hashlib.sha256(private.read_bytes()).hexdigest()} "
+              "native_C_floor=achieved real_PID=true CI_only=true",flush=True)
     elif mode=="blockly":
         print(f"WEBEEBLOCKS_A6_B_BLOCKLY_COUNT_MOTOR_PASS family={family} "
               f"n={variant} step_cm={step_cm} counted={sensor_count} "
@@ -499,7 +526,7 @@ if __name__=="__main__":
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
     parser.add_argument("--family",choices=("matched","sampling"),default=None)
     parser.add_argument("--step-cm",type=int,choices=(4,8),default=None)
-    parser.add_argument("--mode",choices=("reference","sensor","blockly","replay"),default="reference")
+    parser.add_argument("--mode",choices=("reference","sensor","blockly","replay","stateless"),default="reference")
     args=parser.parse_args()
     raise SystemExit(run(variant=args.variant,mode=args.mode,family=args.family,
                          step_cm=args.step_cm))
