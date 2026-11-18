@@ -136,6 +136,34 @@ wait_end_replacement = r'''        trace_wait(active_value, now - action_start);
 if wait_end_needle not in controller:
     raise SystemExit('Runtime v2 WAIT end instrumentation point not found')
 controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
+# CI-only evidence for the late TAKEOFF acknowledgement in Ready run #44406127864.
+# Read physical convergence and simulated-time progress without changing physics,
+# timeout, STOP_WINDOW, WWI replies, or the checked-in product controller.
+takeoff_progress_needle = '''    if (command == CMD_TAKEOFF) {
+      desired.altitude = target_z;'''
+takeoff_progress_replacement = r'''    if (command == CMD_TAKEOFF) {
+      /* Initial sample and then at most once per simulated second.
+       * The host log timestamp provides independent wall-time correlation.
+       */
+      if (now - action_start < 0.100 ||
+          (long)(now - action_start) > (long)(previous_time - action_start)) {
+        printf(PREFIX " CI TAKEOFF_PROGRESS id=%d sim_time=%.9f elapsed_sim_s=%.9f "
+               "z=%.9f target_z=%.9f error_z=%.9f vz=%.9f vx=%.9f vy=%.9f "
+               "roll=%.9f pitch=%.9f yaw_rate=%.9f stable_sim_s=%.9f\n",
+               active_id, now, now - action_start,
+               z, target_z, target_z - z, vz, actual.vx, actual.vy,
+               actual.roll, actual.pitch, actual.yaw_rate,
+               stable_since < 0.0 ? -1.0 : now - stable_since);
+        fflush(stdout);
+      }
+      desired.altitude = target_z;'''
+if controller.count(takeoff_progress_needle) != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF progress injection point not unique')
+controller = controller.replace(takeoff_progress_needle,
+                                takeoff_progress_replacement, 1)
+if controller.count(" CI TAKEOFF_PROGRESS id=") != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF progress marker not unique')
+
 # CI-only heartbeat for native MOVE, injected into the temporary checkout.
 # #1065: a browser-side timeout alone cannot tell a stalled Webots clock from
 # a drone that keeps moving but never satisfies STOP_WINDOW/position bounds.
