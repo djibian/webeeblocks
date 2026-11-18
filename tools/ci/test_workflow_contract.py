@@ -23,7 +23,7 @@ EXPECTED = {
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
     # Draft-only A6 C/source and separate physical SENSOR witnesses: no student flight or merge authority.
-    "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-b-motor-draft-only", "a6-b-blockly-count-draft-only", "a6-replay-draft-only",
+    "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-b-motor-draft-only", "a6-b-blockly-count-draft-only", "a6-b-stateless-draft-only", "a6-replay-draft-only",
                                     "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
@@ -186,7 +186,7 @@ class WorkflowTests(unittest.TestCase):
             encoding="utf-8")
         self.assertTrue(workflow.startswith(
             "# Non-decision evidence for the Activity 6 Draft's independent C oracle."))
-        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-b-motor-draft-only", "a6-b-blockly-count-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"})
+        self.assertEqual(job_ids(workflow), {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-b-motor-draft-only", "a6-b-blockly-count-draft-only", "a6-b-stateless-draft-only", "a6-replay-draft-only", "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"})
         for required in (
             "  pull_request:\n",
             "  types: [opened, synchronize, reopened]\n",
@@ -200,6 +200,8 @@ class WorkflowTests(unittest.TestCase):
             "tools.ci.test_a6_b_sampling_holdout",
             "tools.ci.test_a6_b_motor_geometry",
             "a6-b-blockly-count-draft-only:",
+            "a6-b-stateless-draft-only:",
+            "a6-b-stateless-ci-only.wbb.sha256",
             "a6-b-step${step}-ci-only.wbb.sha256",
             "a6-b-motor-draft-only:",
             "WEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY",
