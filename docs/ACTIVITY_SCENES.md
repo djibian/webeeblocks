@@ -2,7 +2,7 @@
 
 > **État du produit au 18 novembre 2026 (matrice #587 / PR #972).** Le texte ci-dessous décrit le **prototype historique** de sélection de scènes initialement limité à `sequence-v1` et `legacy-v1`. Il ne représente plus la liste fermée ni les profils élèves actuels. Pour les contrats exécutables, consulter `plugins/robot_windows/blockly/webeeblocks/activities.js`, les tests de sélection native et la [matrice pédagogique approuvée](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
 >
-> Les activités scolaires **actuellement exposées** choisissent les scènes suivantes via `runtime.scene` (la scène est sélectionnée avant l'application du projet, avec accusé natif vérifié) :
+> **Parmi les activités 1 à 7**, celles actuellement exposées choisissent les scènes suivantes via `runtime.scene` (la scène est sélectionnée avant l'application du projet, avec accusé natif vérifié) :
 >
 > | Activité | Profil élève | Sous-scène versionnée |
 > | --- | --- | --- |

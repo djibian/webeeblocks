@@ -236,7 +236,7 @@
         brief: {
           visible: true,
           title: '4 — Observer pour décider',
-          mission: 'Deux parcours présentent des obstacles différents. Depuis la zone bleue, rejoins le damier vert en franchissant le passage sans collision puis pose le drone immobile. Ton même programme doit réussir sur les deux parcours.'
+          mission: 'Dans le couloir, un portique en H à franchir par-dessous et un obstacle bas se présentent dans un ordre différent sur les parcours A et B. Depuis la zone bleue, rejoins le damier vert sans collision et pose le drone entièrement dessus, immobile. Le même programme doit réussir les deux parcours. Avant de programmer, qu’est-ce que le drone pourrait observer pour les distinguer ?'
         },
         pedagogy: {
           objective: 'Mesurer une distance réelle, comparer une valeur à un seuil et prendre une décision SI/SINON pendant le vol, en réutilisant les mouvements et orientations précédents.'
