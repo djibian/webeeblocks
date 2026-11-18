@@ -3,8 +3,8 @@
  * receives NO variant, scene identity, GPS, supervisor or pupil AST.
  * It does NOT activate the A6 product/pupil profile or authorize hardware.
  */
-export async function runPrivateBlockly(backend,report,options={}) {
-  const stateless=options.stateless===true;
+export async function runPrivateBlockly(backend,report,settings={}) {
+  const stateless=settings.stateless===true;
   const response=await fetch('http://127.0.0.1:8765/a6-private-wbb',{cache:'no-store'});
   if(!response.ok)throw Error('private canonical Blockly file unavailable');
   const bytes=await response.text();

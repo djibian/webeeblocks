@@ -74,6 +74,10 @@ jobs:
       - name: Compile and falsify isolated C oracle + three source scenes
         run: |
           set -euo pipefail
+          # Browser modules run as ESM; detect duplicate declarations
+          # BEFORE costly native Webots launches on every Draft update.
+          node --input-type=module --check < plugins/robot_windows/count_h_flight_probe/count_h_private_blockly_probe.js
+          node --input-type=module --check < plugins/robot_windows/count_h_flight_probe/count_h_flight_probe.js
           cc --version | head -n 1
           python3 -m unittest -v \
             tools.ci.test_progression_count_h_scene \

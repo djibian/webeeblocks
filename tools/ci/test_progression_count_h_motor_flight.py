@@ -107,7 +107,7 @@ class CountHMotorFlightTests(unittest.TestCase):
                       "backend.readRange(direction)",
                       "backend.move(direction,distance)"):
             self.assertIn(token,source)
-        for token in ("project.is_symlink()", 'self.mode!="blockly"',
+        for token in ("project.is_symlink()", 'self.mode not in ("blockly","stateless")',
                       '"private_wbb_sha256"', '"private_blockly_webots_pass"',
                       "WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS"):
             self.assertIn(token,runner)

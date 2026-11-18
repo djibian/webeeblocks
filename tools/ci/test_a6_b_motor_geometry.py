@@ -37,7 +37,7 @@ class BMotorGeometrySourceTests(unittest.TestCase):
                     self.assertEqual(combined.count('controller "progression_count_h_flight_observer"'),0)
     def test_holdout_runner_cannot_claim_counter_or_blockly(self):
         source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
-        self.assertIn('family not in ("matched","sampling") or mode not in ("reference","blockly")',source)
+        self.assertIn('family not in ("matched","sampling") or mode not in ("reference","blockly","stateless")',source)
         self.assertIn('world.prepare(variant=variant,family=family)',source)
         self.assertIn('b_native_holdout_geometry_test_only',source)
         self.assertIn('counter_and_blockly=UNPROVEN',source)
@@ -78,6 +78,9 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("private Blockly sensor count invalid before native LAND",probe)
         self.assertIn("A6_STATELESS_OBSERVATION",probe)
         self.assertIn("workspace.getVariableMap().getAllVariables().length!==0",probe)
+        self.assertIn("runPrivateBlockly(backend,report,settings={})",probe)
+        self.assertIn("const stateless=settings.stateless===true",probe)
+        self.assertIn("node --input-type=module --check <",wf)
         self.assertIn("nativeOraclePending:true",probe)
         self.assertIn("mode in (\"blockly\",\"stateless\")",source)
         self.assertIn("b_stateless_native_comparator_pass",source)
@@ -91,6 +94,17 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("stateless no-variable comparator needs private B family",source)
         self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
         self.assertIn('ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/',wf)
+
+    def test_stateless_comparator_rejects_unscoped_execution_before_webots(self):
+        import run_classroom_count_h_motor_flight as runner
+        with self.assertRaisesRegex(ValueError,"requires|needs private"):
+            runner.run(variant=1,mode="stateless",family=None)
+        for family in ("matched","sampling"):
+            with self.subTest(family=family):
+                with self.assertRaisesRegex(ValueError,"invalid private B"):
+                    runner.run(variant=1,mode="stateless",family=family,step_cm=4)
+                with self.assertRaisesRegex(ValueError,"invalid private B"):
+                    runner.run(variant=1,mode="replay",family=family)
 
     def test_b_private_artifact_names_are_path_safe(self):
         # Catches Path + str before all 18 actual R2025a motor jobs.
