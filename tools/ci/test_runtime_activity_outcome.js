@@ -370,7 +370,8 @@ function proveRealWebotsOutcomeFreshness() {
   const a3 = {type:'mission-state-v1', oracle:'progression-orientation-3d-v1'};
   for (const [reason, french] of [
     ['route-incomplete', 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)'],
-    ['landing-timeout', 'Pose sur le damier non validée dans le délai']
+    ['landing-timeout', 'Pose sur le damier non validée dans le délai'],
+    ['wrong-pad', 'Drone pas entièrement sur le damier']
   ]) {
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, a3).detail,
@@ -379,12 +380,16 @@ function proveRealWebotsOutcomeFreshness() {
       {status:'not-achieved',reason}, evaluation).detail, 'Mission non accomplie');
     const a2Expected = reason === 'landing-timeout'
       ? 'Mission non accomplie — Pose sur le damier non confirmée dans le délai'
+      : reason === 'wrong-pad'
+      ? 'Mission non accomplie — Drone pas entièrement sur le damier'
       : 'Mission non accomplie';
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, a2).detail, a2Expected,
       'A3 reason must retain its A2 interpretation under the A2 oracle');
     const a4Expected = reason === 'route-incomplete'
       ? 'Mission non accomplie — Franchissement des obstacles incomplet'
+      : reason === 'wrong-pad'
+      ? 'Mission non accomplie — Drone pas entièrement sur la zone d’arrivée'
       : 'Mission non accomplie — Pose sur la zone d’arrivée non confirmée dans le délai';
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason},
@@ -393,7 +398,9 @@ function proveRealWebotsOutcomeFreshness() {
   }
   for (const raw of [
     {status:'achieved',reason:'route-incomplete'},
+    {status:'achieved',reason:'wrong-pad'},
     {status:'interrupted',reason:'landing-timeout'},
+    {status:'interrupted',reason:'wrong-pad'},
     {status:'not-achieved',reason:'forged'},
     {status:'not-achieved',reason:'__proto__'}
   ]) {

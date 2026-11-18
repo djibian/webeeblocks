@@ -76,7 +76,8 @@
 
   var A3_PUBLIC_REASONS = Object.freeze({
     'route-incomplete': 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)',
-    'landing-timeout': 'Pose sur le damier non validée dans le délai'
+    'landing-timeout': 'Pose sur le damier non validée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
   var A4_PUBLIC_REASONS = Object.freeze({
