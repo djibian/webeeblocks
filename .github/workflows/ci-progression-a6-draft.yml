@@ -406,7 +406,8 @@ jobs:
           path: ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-blockly-n${{ matrix.count }}-step*/
           if-no-files-found: warn
 
-  a6-replay-draft-only:    name: A6 same-world n=${{ matrix.count }} negative RESET positive RESET positive (not CI Gate)
+  a6-replay-draft-only:
+    name: A6 same-world n=${{ matrix.count }} negative RESET positive RESET positive (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     strategy:
