@@ -20,7 +20,7 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
     if(!configResponse.ok)throw new Error('A6 CI variant unavailable');
     const config=await configResponse.json();
     const mode=config&&config.mode;
-    if(mode!=='reference'&&mode!=='sensor'&&mode!=='blockly'&&mode!=='replay')
+    if(mode!=='reference'&&mode!=='sensor'&&mode!=='blockly'&&mode!=='replay'&&mode!=='stateless')
       throw new Error('invalid private A6 CI probe mode');
     const variant=config&&config.variant;
     if(!Number.isInteger(variant)||variant<1||variant>3)
@@ -48,9 +48,9 @@ window.addEventListener('unhandledrejection',e=>report('A6_ERROR',{message:Strin
       await pilot.runSensorOnly(backend,report);
       return;
     }
-    if(mode==='blockly') {
+    if(mode==='blockly'||mode==='stateless') {
       const pupil=await import('./count_h_private_blockly_probe.js');
-      await pupil.runPrivateBlockly(backend,report);
+      await pupil.runPrivateBlockly(backend,report,{stateless:mode==='stateless'});
       return;
     }
     await backend.setSpeed(0.20);

@@ -3,7 +3,8 @@
  * receives NO variant, scene identity, GPS, supervisor or pupil AST.
  * It does NOT activate the A6 product/pupil profile or authorize hardware.
  */
-export async function runPrivateBlockly(backend,report) {
+export async function runPrivateBlockly(backend,report,options={}) {
+  const stateless=options.stateless===true;
   const response=await fetch('http://127.0.0.1:8765/a6-private-wbb',{cache:'no-store'});
   if(!response.ok)throw Error('private canonical Blockly file unavailable');
   const bytes=await response.text();
@@ -47,6 +48,10 @@ export async function runPrivateBlockly(backend,report) {
     WebeeBlocksActivityContract.preflightAst(profile,reopened);
     if(JSON.stringify(reopened)!==JSON.stringify(parsed.ast))
       throw Error('canonical .wbb semantic AST altered after reopening');
+    if(stateless &&
+      (workspace.getVariableMap().getAllVariables().length!==0||
+       !reopened.program.some(node=>node.kind==='if')))
+      throw Error('stateless private comparator requires zero variables and actual conditions');
     await report('A6_PRIVATE_WBB_REOPENED',{chars:bytes.length,
       statement_count:reopened.program.length,same_private_project:true,testOnly:true});
     // Native scene admitted already by test adapter. Product A6 registry is
@@ -54,6 +59,7 @@ export async function runPrivateBlockly(backend,report) {
     // CI-only command counters prove the physical repeat count without
     // adding a third variable to the two-variable Blockly program.
     let acknowledgedSteps=0;
+    let acknowledgedMoves=0;
     const native={
       capabilities:Object.assign({},backend.capabilities,{simulationScenes:false}),
       takeoff:async height=>{
@@ -63,6 +69,7 @@ export async function runPrivateBlockly(backend,report) {
       setSpeed:speed=>backend.setSpeed(speed),
       move:async(direction,distance)=>{
         await backend.move(direction,distance);
+        acknowledgedMoves++;
         // CI-only command attestation, NOT a mission oracle or pupil AST rule.
         // The B experiment compares a 4-cm and 8-cm program. Both use the
         // same true native backend and can be counted as fresh MOVE ACKs.
@@ -84,6 +91,22 @@ export async function runPrivateBlockly(backend,report) {
          if(context.node.kind!=='land')return;
          const variables=context.variables||{};
          const count=variables.count,steps=acknowledgedSteps;
+         if(stateless) {
+           // Do not require an absent counter, or infer the target from the
+           // private scene. The existing native C oracle alone scores LAND.
+           const front=await backend.readRange('front');
+           if(acknowledgedMoves<3||acknowledgedMoves>14||
+             !Number.isFinite(front)||front<.30||front>.82)
+             throw Error('private stateless commands invalid before LAND '+
+               'moves='+String(acknowledgedMoves)+' front_m='+String(front));
+           counted=true;
+           await report('A6_STATELESS_OBSERVATION',{
+             moves:acknowledgedMoves,front_m:front,variables:0,testOnly:true
+           });
+           await report('A6_CORRIDOR_DONE',{stateless:true,moves:acknowledgedMoves});
+           await report('A6_PAD_SELECTED',{stateless:true,padByNativeOracle:true});
+           return;
+         }
          // Independent final native sample only for CI attestation, not
          // passed into the learner AST or used to select the landing pad.
          const front=await backend.readRange('front');
@@ -106,6 +129,7 @@ export async function runPrivateBlockly(backend,report) {
     await backend.completeActivityMission({type:'mission-state-v1',oracle:'progression-count-h-v1'});
     await report('A6_NATIVE_COMPLETION_ACK',{nativeReply:true,testOnly:true});
     await report('A6_TEST_COMPLETE',{testOnly:true,blockly:true,
+      statelessComparator:stateless,
       samePrivateWbb:true,productA6Unqualified:true});
   } finally {workspace.dispose();}
 }
