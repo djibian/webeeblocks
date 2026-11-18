@@ -39,6 +39,10 @@ def run()->int:
     server=None
     process=None
     output=None
+    # Diagnostic only: never treat an incomplete native A/B trace as a PASS.
+    stop_reason='not-started'
+    native_exit_before_cleanup=None
+    wall_elapsed_s=None
     try:
         for rel in ('controllers/crazyflie_classroom_v2/crazyflie_classroom_v2',
                     'controllers/progression_decision_h_v1/progression_decision_h_v1'):
@@ -58,18 +62,31 @@ def run()->int:
             env=env,start_new_session=True)
         started=time.monotonic()
         deadline=started+525
+        stop_reason='deadline'
         while time.monotonic()<deadline:
             events=[e.get('event') for e in ack.EVENTS]
-            if ('A4_PUPIL_TEST_COMPLETE' in events or
-                'A4_PUPIL_ERROR' in events or process.poll() is not None):
+            if 'A4_PUPIL_TEST_COMPLETE' in events:
+                stop_reason='browser-reported-complete'
+                break
+            if 'A4_PUPIL_ERROR' in events:
+                stop_reason='browser-reported-error'
+                break
+            native_exit_before_cleanup=process.poll()
+            if native_exit_before_cleanup is not None:
+                stop_reason='native-process-exited'
                 break
             # The browser is mandatory, and native readiness alone is not it.
             if time.monotonic()-started>45 and 'A4_PUPIL_HTML_LOADED' not in events:
+                stop_reason='browser-bootstrap-timeout'
                 print('A4_PUPIL_FATAL browser bootstrap missing after 45s',
                       file=sys.stderr,flush=True)
                 break
             time.sleep(.25)
+        wall_elapsed_s=round(time.monotonic()-started,3)
     finally:
+        if process is not None:
+            # Poll BEFORE our own SIGTERM: teardown exit is not a native crash.
+            native_exit_before_cleanup=process.poll()
         if process is not None and process.poll() is None:
             os.killpg(process.pid,signal.SIGTERM)
             try:process.wait(timeout=8)
@@ -186,7 +203,15 @@ def run()->int:
                        f['id']==7 and f['kind']=='OK'),None)
         trace_ok=(sent is not None and received is not None and sent<received)
     valid=valid and trace_ok
+    # Browser errors are diagnostic, not independent mission verdicts.
+    # Bounded text keeps CI logs useful without copying the pupil .wbb.
+    browser_errors=[str(e.get('detail'))[:512] for e in ack.EVENTS
+                    if e.get('event')=='A4_PUPIL_ERROR'][:3]
     summary={'pass':valid,'required_missing':missing,'ordered':ordered,
+             'stop_reason':stop_reason,
+             'webots_exit_before_cleanup':native_exit_before_cleanup,
+             'wall_elapsed_s':wall_elapsed_s,
+             'browser_errors':browser_errors,
              'wwi_frames':wwi_frames,'wwi_trace_attested':trace_ok,
              'events_ordered':in_order,'native_outcomes':outcomes,
              'rays_m':rays,'moves':moves,'vertical':vertical,
