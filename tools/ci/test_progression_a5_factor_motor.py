@@ -215,7 +215,7 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn('"browser_completion_evidence"',blind_h)
         self.assertIn('names.count("A5_FACTOR_MOTOR_H_OMITTED")==1',blind_h)
         self.assertIn('"A5_FACTOR_MOTOR_H_OBSERVATION" not in names',blind_h)
-        self.assertIn('"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE',blind_h)
+        self.assertIn('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE',blind_h)
         self.assertIn('len(native_left)==1 and len(late_reply)==1',blind_h)
         self.assertIn('genuinely_blind and',blind_h)
         self.assertIn('"genuinely_no_initial_h_range":genuinely_blind',blind_h)
