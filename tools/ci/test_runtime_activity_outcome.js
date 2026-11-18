@@ -413,6 +413,10 @@ function proveRealWebotsOutcomeFreshness() {
     status:'not-achieved',state:'MISSION NON RÉUSSIE',
     detail:'Mission non accomplie — Franchissement du H hors du passage autorisé'
   });
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},a7).detail,
+    'Mission non accomplie — Drone pas entièrement sur le damier',
+    'A7 must explain grounded partial-pad overhang without claiming the craft is fully outside');
   for(const status of ['achieved','interrupted'])
     assert.strictEqual(Outcome.classifyMission(
       {status,reason:'unsafe-h-crossing'},a7).detail,

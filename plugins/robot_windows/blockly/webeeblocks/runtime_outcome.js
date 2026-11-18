@@ -92,7 +92,7 @@
     'course-boundary': 'Limite du parcours dépassée',
     'early-finish': 'Fin de parcours ou zone de pose non validée',
     'landing-timeout': 'Atterrissage non stabilisé dans le délai',
-    'wrong-pad': 'Atterrissage hors du damier'
+    'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
   function classifyMission(raw, evaluation) {
