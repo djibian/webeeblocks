@@ -6,6 +6,10 @@ ROOT=original.ROOT
 OUT=ROOT/"ci-artifacts/a6-b-native-range"
 FAMILY={"matched":"matched-tail","sampling":"sampling-holdout"}
 TOKEN="A6_B_NATIVE_RANGE_PASS"
+# Exact private scene positions, separately checked by C against native Boxes.
+EXPECTED_X={"matched":{1:(.36,),2:(-.85,.36),3:(-.85,-.31,.36)},
+            "sampling":{1:(.48,),2:(-.80,.48),3:(-.80,-.16,.48)}}
+FIXED_X=(-.85,-.31,0.,.85,1.48)
 ROW=re.compile(r"A6_B_NATIVE_RAY family=(\d) n=(\d) slot=(\d+) kind=(\d) "
                r"gate=(\d+) offset=(-?\d) x=(-?[0-9.]+) up=([0-9.]+) "
                r"front=([0-9.]+) contact=(\d+)")
@@ -39,8 +43,13 @@ def validate(text,family,n):
   if slot<3*n:
    if i[3:]!=[1,slot//3,slot%3-1] or slot%3==1 and u>.55:
     raise AssertionError("physical H center/ray unavailable")
-  elif i[3:]!=[0,n+slot-3*n,-1]:
-   raise AssertionError("wrong physical checkpoint")
+   expected_x=EXPECTED_X[family][n][slot//3]+.04*(slot%3-1)
+  else:
+   if i[3:]!=[0,n+slot-3*n,-1]:
+    raise AssertionError("wrong physical checkpoint")
+   expected_x=FIXED_X[slot-3*n]
+  if abs(x-expected_x)>.035:
+   raise AssertionError("native ray sampled at wrong physical x coordinate")
   data.append({"x":x,"up_m":u,"front_m":f})
  return {"family":family,"count":n,"real_webots":True,"motor":False,
          "pupil":False,"samples":data}

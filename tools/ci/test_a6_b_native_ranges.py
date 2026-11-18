@@ -39,4 +39,22 @@ class NativeRayParser(unittest.TestCase):
               s.replace("A6_B_NATIVE_RANGE_PASS","A6_B_NATIVE_FATAL",1)):
    with self.subTest(case=bad[-90:]):
     with self.assertRaises(AssertionError):validate(bad,"sampling",3)
+ def test_wrong_physical_sampling_coordinates_fail_closed(self):
+  genuine=witness("sampling",3)
+  # A correct count, label, sensor and native PASS marker cannot substitute
+  # for the exact actual position. Check a two-digit terminal slot too.
+  for before,after in (
+   ("slot=4 kind=1 gate=1 offset=0 x=-0.160000000",
+    "slot=4 kind=1 gate=1 offset=0 x=-0.060000000"),
+   ("slot=10 kind=0 gate=4 offset=-1 x=-0.310000000",
+    "slot=10 kind=0 gate=4 offset=-1 x=0.500000000"),
+   ("slot=13 kind=0 gate=7 offset=-1 x=1.480000000",
+    "slot=13 kind=0 gate=7 offset=-1 x=1.200000000"),
+  ):
+   with self.subTest(site=before):
+    self.assertIn(before,genuine)
+    corrupted=genuine.replace(before,after,1)
+    with self.assertRaisesRegex(AssertionError,"wrong physical x"):
+     validate(corrupted,"sampling",3)
+
 if __name__=="__main__":unittest.main()
