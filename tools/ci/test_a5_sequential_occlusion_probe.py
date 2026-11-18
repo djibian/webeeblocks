@@ -36,7 +36,7 @@ class A5SequentialTest(unittest.TestCase):
             self.assertEqual(scenes[v].count(" Solid {"),9)
             self.assertEqual(scenes[v].count("boundingObject Box"),9)
             self.assertIn(f"DEF WEBEEBLOCKS_A5_SEQ_OCC_{v}_SCENE Group",scenes[v])
-            first_y=" -0.300 " if v in ("A","B") else " 0.300 "
+            first_y=" -0.480 " if v in ("A","B") else " 0.480 "
             first_arm=" 0.275 " if v in ("A","B") else " -0.275 "
             second_y=" 0.450 " if v in ("A","C") else " -0.450 "
             second_arm=" 1.125 " if v in ("A","C") else " -1.125 "
@@ -59,8 +59,8 @@ class A5SequentialTest(unittest.TestCase):
                 "experiment "+original+":","experiment "+mirrored+":").replace(
                 f"WEBEEBLOCKS_A5_SEQ_OCC_{original}_SCENE",
                 f"WEBEEBLOCKS_A5_SEQ_OCC_{mirrored}_SCENE").replace(
-                "translation 1.000 -0.300 0.550",
-                "translation 1.000 0.300 0.550").replace(
+                "translation 1.000 -0.480 0.550",
+                "translation 1.000 0.480 0.550").replace(
                 "translation 0.650 0.275 0.550",
                 "translation 0.650 -0.275 0.550")
             self.assertEqual(expected,scenes[mirrored])
@@ -68,6 +68,38 @@ class A5SequentialTest(unittest.TestCase):
         self.assertNotEqual(scenes["A"],scenes["C"])
         for bad in ("E",None,"A+D"):
             with self.assertRaises(ValueError):probe.phases_for(bad)
+
+    def test_first_L_outer_bypass_closed_by_real_overlapping_boxes(self):
+        # Source-level geometry: the previous L1 post did not reach the
+        # sidewall, allowing a common fixed corridor in opposite L1 worlds.
+        # No motor/PID or pupil-completion claim is made by this inequality.
+        import re
+        limits={}
+        inner_wall=1.26-.08/2
+        for v in probe.VARIANTS:
+            src=probe.scene_file(v).read_text()
+            part=src.split("DEF A5_SEQ_L1_POST Solid {",1)[1].split(
+                "DEF A5_SEQ_L1_ARM Solid {",1)[0]
+            m=re.search(r"translation 1\.000 (-?[0-9.]+) 0\.550",part)
+            size=re.search(
+                r"boundingObject Box \{ size 0\.080 ([0-9.]+) 1\.100 \}",part)
+            self.assertIsNotNone(m,v)
+            self.assertIsNotNone(size,v)
+            y=float(m[1]);width=float(size[1])
+            self.assertAlmostEqual(abs(y),.480)
+            self.assertAlmostEqual(width,1.520)
+            self.assertGreaterEqual(abs(y)+width/2-inner_wall,.015)
+            # Negative mutant: narrowing the post to the previous 1.150 m
+            # would reopen a gap, even with the new centre position.
+            self.assertLess(abs(y)+1.150/2,inner_wall)
+            limits[v]=(y-width/2,y+width/2)
+        for positive,negative in (("A","C"),("B","D")):
+            left,right=limits[positive],limits[negative]
+            self.assertLessEqual(left[0],-inner_wall)
+            self.assertGreaterEqual(right[1],inner_wall)
+            self.assertGreaterEqual(left[1],right[0])
+            self.assertLess(left[1],inner_wall)
+            self.assertGreater(right[0],-inner_wall)
 
     def test_no_common_fixed_lane_through_opposite_L_openings(self):
         # ANALYTICAL ONLY: no motorized trajectory, no pupil .wbb, no oracle.
@@ -183,6 +215,7 @@ class A5SequentialTest(unittest.TestCase):
         self.assertIn('"after_far",2.00,sample_late,step',source)
         self.assertIn('!!C',source)
         self.assertIn('!!D',source)
+        self.assertIn('1.,first_y,.55,.08,1.52,1.1',source)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking",source)
         self.assertIn("wb_supervisor_node_get_contact_points",source)
         self.assertIn("contacts!=0",source)

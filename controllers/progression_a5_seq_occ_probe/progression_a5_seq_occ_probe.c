@@ -82,13 +82,13 @@ int main(void) {
     return invalid("untrusted_group");
   const int first_positive=(v=='A'||v=='B');
   const int second_positive=(v=='A'||v=='C');
-  const double first_y=first_positive?-.30:.30;
+  const double first_y=first_positive?-.48:.48;
   const double first_arm_y=first_positive?.275:-.275;
   const double sample_side=first_positive?.45:-.45;
   const double sample_late=first_positive?.60:-.60;
   const double second_y=second_positive?.45:-.45;
   const double arm_y=second_positive?1.125:-1.125;
-  if(!box("A5_SEQ_L1_POST",1.,first_y,.55,.08,1.15,1.1)||
+  if(!box("A5_SEQ_L1_POST",1.,first_y,.55,.08,1.52,1.1)||
      !box("A5_SEQ_L1_ARM",.65,first_arm_y,.55,.70,.08,1.1)||
      !box("A5_SEQ_L2_POST",3.2,second_y,.55,.08,1.20,1.1)||
      !box("A5_SEQ_L2_ARM",2.85,arm_y,.55,.70,.23,1.1)||
