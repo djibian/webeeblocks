@@ -25,9 +25,17 @@ from run_classroom_count_h_variant_cdp import (
 )
 from a6_pupil_negative_cdp import _browser_state, _click_real_button
 
-OUT_BASE=ROOT/"ci-artifacts/progression-count-h-private-product-ui"
-PRIVATE_WBB=(ROOT/"ci-artifacts/progression-count-h-private-blockly/"
-             "a6-real-profile-ci-only.wbb")
+# Private candidate identity is selected only by CI, never by the student AST.
+CANDIDATE_MODE=os.environ.get("A6_PRIVATE_CANDIDATE","count")
+if CANDIDATE_MODE not in ("count","stateless"):
+    raise ValueError("unsupported private A6 candidate")
+OUT_BASE=ROOT/("ci-artifacts/progression-count-h-stateless-product-ui"
+              if CANDIDATE_MODE=="stateless"
+              else "ci-artifacts/progression-count-h-private-product-ui")
+PRIVATE_WBB=ROOT/"ci-artifacts/progression-count-h-private-blockly"/(
+    "a6-stateless-checkpoints-ci-only.wbb"
+    if CANDIDATE_MODE=="stateless"
+    else "a6-real-profile-ci-only.wbb")
 RESULT=re.compile(r"(?m)^WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=([123]) ")
 FLOOR=re.compile(r"(?m)^WEBEEBLOCKS_A6_MOTOR_NATIVE_FLOOR_CONTACT n=([123]) ")
 REJECT=re.compile(r"(?m)^WEBEEBLOCKS_A6_MOTOR_REJECT attempt=\d+ ")
@@ -59,7 +67,7 @@ def run_one(variant):
     browser=out/"browser-launch.log"
     if browser.exists() or log.exists():
         raise AssertionError("stale A6 native/browser trace in private UI job")
-    result={"pass":False,"variant":variant,
+    result={"pass":False,"variant":variant,"candidate_mode":CANDIDATE_MODE,
             "scope":"CI-only genuine hidden A6 product profile, Webots R2025a, Chrome Blockly, actual motor and C oracle; Windows/teacher/hardware UNPROVEN"}
     candidate=check_candidate()
     result["candidate_sha256"]=hashlib.sha256(candidate.encode()).hexdigest()
@@ -113,6 +121,7 @@ def run_one(variant):
             payload=json.dumps(candidate,ensure_ascii=False)
             opened=dev.eval("""(async () => {
               const text="""+payload+""";
+              const statelessMode="""+("true" if CANDIDATE_MODE=="stateless" else "false")+""";
               const manager=window.WebeeBlocksProjectManager;
               if(!manager || !runtimeBackend || !runtimeBackend.ready)
                 throw Error('genuine product browser/WWI not ready');
@@ -120,9 +129,14 @@ def run_one(variant):
               const ast=WebeeBlocksSemanticAst.compileWorkspace(workspace);
               WebeeBlocksActivityContract.preflightWorkspace(runtimeProfile,workspace);
               WebeeBlocksActivityContract.preflightAst(runtimeProfile,ast);
-              if(!ast || !ast.program || !ast.program.some(s=>s.kind==='while') ||
-                 workspace.getAllBlocks(false).length<20)
-                throw Error('private generic program absent/invalid in real Blockly');
+              if(!ast || !ast.program ||
+                 (statelessMode
+                   ? (!ast.program.some(s=>s.kind==='if') ||
+                      workspace.getVariableMap().getAllVariables().length!==0 ||
+                      workspace.getAllBlocks(false).length<15)
+                   : (!ast.program.some(s=>s.kind==='while') ||
+                      workspace.getAllBlocks(false).length<20)))
+                throw Error('private candidate missing or invalid in real Blockly');
               return {profile:runtimeProfile.id,
                 scene:runtimeProfile.runtime.scene,
                 nativeScene:runtimeBackend.sceneIdentity,
@@ -182,7 +196,7 @@ def run_one(variant):
                                                  "same_wbb":state["project"]==encoded}))
             result["block_count"]=opened["blocks"]
             result["product_wbb_sha256"]=hashlib.sha256(encoded.encode()).hexdigest()
-            print("A6_PRIVATE_GENERIC_REAL_BROWSER_LOADED n="+str(variant)+
+            print(("A6_PRIVATE_STATELESS_REAL_BROWSER_LOADED n=" if CANDIDATE_MODE=="stateless" else "A6_PRIVATE_GENERIC_REAL_BROWSER_LOADED n=")+str(variant)+
                   " Blockly_nonempty=true candidate_scene_leak=false",flush=True)
             _click_real_button(dev,"submit")
             terminal=None
@@ -214,7 +228,7 @@ def run_one(variant):
             result["pass"]=True
             result["native_result"]=matched
             result["same_wbb_after_flight"]=True
-            print("WEBEEBLOCKS_A6_PRIVATE_GENERIC_PRODUCT_UI_PASS n="+str(variant)+
+            print(("WEBEEBLOCKS_A6_PRIVATE_STATELESS_PRODUCT_UI_PASS n=" if CANDIDATE_MODE=="stateless" else "WEBEEBLOCKS_A6_PRIVATE_GENERIC_PRODUCT_UI_PASS n=")+str(variant)+
                   " native_C_oracle=achieved real_Chrome_student_Run=true "+
                   "exact_private_wbb_preserved=true",flush=True)
     except Exception as error:

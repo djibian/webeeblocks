@@ -420,8 +420,13 @@ jobs:
           node tools/ci/build_a6_private_blockly_witness.js \
             ci-artifacts/progression-count-h-private-blockly/a6-private.wbb \
             ci-artifacts/progression-count-h-private-blockly/a6-real-profile-ci-only.wbb
+          # Publish one unchanged private counterexample WBB to all three
+          # actual R2025a UI jobs; never expose it to the student catalogue.
+          node tools/ci/build_a6_stateless_checkpoint_counter.js \
+            ci-artifacts/progression-count-h-private-blockly/a6-stateless-checkpoints-ci-only.wbb
           cd ci-artifacts/progression-count-h-private-blockly
           sha256sum a6-real-profile-ci-only.wbb > a6-real-profile-ci-only.wbb.sha256
+          sha256sum a6-stateless-checkpoints-ci-only.wbb > a6-stateless-checkpoints-ci-only.wbb.sha256
       - name: Share exact signed-by-digest private WBB without publishing pupil starter
         uses: actions/upload-artifact@v4
         with:
@@ -431,7 +436,7 @@ jobs:
 
   a6-private-generic-product-ui-draft-only:
     needs: a6-private-generic-wbb-build-draft-only
-    name: A6 private generic Blockly in real school UI H=${{ matrix.count }} (Draft only)
+    name: A6 private ${{ matrix.candidate }} Blockly in real school UI H=${{ matrix.count }} (Draft only)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     timeout-minutes: 18
@@ -439,6 +444,9 @@ jobs:
       fail-fast: false
       matrix:
         count: [1, 2, 3]
+        candidate: [count, stateless]
+    env:
+      A6_PRIVATE_CANDIDATE: ${{ matrix.candidate }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -456,7 +464,11 @@ jobs:
           set -euo pipefail
           bash ./tools/prepare_runtime_v2.sh
           cd ci-artifacts/progression-count-h-private-blockly
-          sha256sum -c a6-real-profile-ci-only.wbb.sha256
+          if [ "$A6_PRIVATE_CANDIDATE" = stateless ]; then
+            sha256sum -c a6-stateless-checkpoints-ci-only.wbb.sha256
+          else
+            sha256sum -c a6-real-profile-ci-only.wbb.sha256
+          fi
           cd -
           python3 -m py_compile tools/ci/run_classroom_count_h_private_generic_cdp.py
       - name: Real Webots R2025a and real Blockly browser, independently scored
@@ -467,6 +479,7 @@ jobs:
           docker run --rm -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -e A6_VARIANT="$A6_VARIANT" \
+            -e A6_PRIVATE_CANDIDATE="$A6_PRIVATE_CANDIDATE" \
             -v "${{ github.workspace }}:/workspace" -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc '
@@ -493,8 +506,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a6-private-generic-product-ui-n${{ matrix.count }}
-          path: ci-artifacts/progression-count-h-private-product-ui/n${{ matrix.count }}/
+          name: a6-private-${{ matrix.candidate }}-product-ui-n${{ matrix.count }}
+          path: |
+            ci-artifacts/progression-count-h-private-product-ui/n${{ matrix.count }}/
+            ci-artifacts/progression-count-h-stateless-product-ui/n${{ matrix.count }}/
           if-no-files-found: warn
 
   a6-windows-archive-draft-only:
