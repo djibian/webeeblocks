@@ -605,7 +605,8 @@ jobs:
           # Publish one unchanged private counterexample WBB to all three
           # actual R2025a UI jobs; never expose it to the student catalogue.
           node tools/ci/build_a6_stateless_checkpoint_counter.js \
-            ci-artifacts/progression-count-h-private-blockly/a6-stateless-checkpoints-ci-only.wbb
+            ci-artifacts/progression-count-h-private-blockly/a6-stateless-checkpoints-ci-only.wbb \
+            ci-artifacts/progression-count-h-private-blockly/a6-b-stateless-ci-only.wbb
           # Exactly TWO canonically serialized B programs, 8/4 cm, once
           # per HEAD, for ALL native family/count jobs via the same artifact.
           node tools/ci/build_a6_b_step_wbb.js 8 \
@@ -615,6 +616,7 @@ jobs:
           cd ci-artifacts/progression-count-h-private-blockly
           sha256sum a6-real-profile-ci-only.wbb > a6-real-profile-ci-only.wbb.sha256
           sha256sum a6-stateless-checkpoints-ci-only.wbb > a6-stateless-checkpoints-ci-only.wbb.sha256
+          sha256sum a6-b-stateless-ci-only.wbb > a6-b-stateless-ci-only.wbb.sha256
           sha256sum a6-b-step08-ci-only.wbb > a6-b-step08-ci-only.wbb.sha256
           sha256sum a6-b-step04-ci-only.wbb > a6-b-step04-ci-only.wbb.sha256
       - name: Share exact signed-by-digest private WBB without publishing pupil starter

@@ -137,6 +137,22 @@ async function main(){
       motionBounds:profile.runtime.astBounds}),
     /sensor|finite|NaN|range|invalid|non-finite/i);
   assert.equal(bad.landed,false,'no native completion on invalid sensor');
+  if(process.argv[3]) {
+    // Same AST, separately serialized for the *private* Robot Window;
+    // this is NOT an A6 pupil profile, starter or released asset.
+    const privateWbb=witness.text;
+    assert.equal(JSON.parse(privateWbb).activity.id,witness.profile.id);
+    assert.notEqual(witness.profile.id,profile.id);
+    assert.equal(witness.variableCount,0);
+    assert(!/count-h-[123]-v1/.test(privateWbb));
+    const privateDest=path.resolve(process.argv[3]);
+    if(privateDest===path.resolve(process.argv[2]||"."))throw Error("private and student-profile outputs must differ");
+    fs.mkdirSync(path.dirname(privateDest),{recursive:true});
+    fs.writeFileSync(privateDest,privateWbb,{flag:'wx',encoding:'utf8'});
+    assert.equal(fs.readFileSync(privateDest,'utf8'),privateWbb);
+    console.log('A6_STATELESS_PRIVATE_CI_WBB_VALID variables=0 '+
+      'profile=private-only same_ast=true native_B=UNPROVEN');
+  }
   if(process.argv[2]){
     const dest=path.resolve(process.argv[2]);
     fs.mkdirSync(path.dirname(dest),{recursive:true});
