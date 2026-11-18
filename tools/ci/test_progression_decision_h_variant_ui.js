@@ -210,7 +210,7 @@ async function scenario(startProfileId, options={}){
   assert.match(a4Mission,/ordre différent sur les parcours A et B/);
   assert.match(a4Mission,/même programme doit réussir les deux parcours/);
   assert.match(a4Mission,/qu’est-ce que le drone pourrait observer/);
-  assert.doesNotMatch(a4Mission,/\\bsi\\b.+\\balors\\b|capteur frontal|télémètre frontal|avance de|monte de|descends de/i,
+  assert.doesNotMatch(a4Mission,/\bsi\b.+\balors\b|capteur frontal|télémètre frontal|avance de|monte de|descends de/i,
     'the A4 pupil brief must not prescribe a block algorithm or a flight recipe');
   assert.match(mainSrc,/runtimeOutcomePending = false;\s*\/\/ The terminal status is emitted before this flag clears; notify the\s*\/\/ project UI so it can restore Blockly editing only after adjudication\.\s*window\.dispatchEvent\(new CustomEvent\('webeeblocks-runtime-v2-outcome-settled'\)\)/,
     'runProgram finally must notify project UI after native verdict');
