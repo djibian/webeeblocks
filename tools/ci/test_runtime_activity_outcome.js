@@ -408,6 +408,13 @@ function proveRealWebotsOutcomeFreshness() {
   }
 
   const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
+  // The footprint may overhang the target while the drone centre still touches it.
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},a4).detail,
+    'Mission non accomplie — Drone pas entièrement sur la zone d’arrivée');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},evaluation).detail,
+    'Mission non accomplie', 'A4 pad cause must stay within its own oracle');
   assert.deepStrictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'obstacle-contact'},a4), {
     status:'not-achieved',state:'MISSION NON RÉUSSIE',
@@ -431,6 +438,13 @@ function proveRealWebotsOutcomeFreshness() {
     {status:'not-achieved',reason:'route-incomplete'},a2).detail,
     'Mission non accomplie','A4/A7-only reason must not leak into A2');
   const a7={type:'mission-state-v1',oracle:'progression-mini-grand-prix-v1'};
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'landing-timeout'},a7).detail,
+    'Mission non accomplie — Pose sur le damier non confirmée dans le délai',
+    'A7 terminal without Floor may still be airborne, not unstable on the ground');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'landing-timeout'},evaluation).detail,
+    'Mission non accomplie', 'A7 cause must not leak into unrelated oracles');
   assert.deepStrictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'unsafe-h-crossing'},a7), {
     status:'not-achieved',state:'MISSION NON RÉUSSIE',

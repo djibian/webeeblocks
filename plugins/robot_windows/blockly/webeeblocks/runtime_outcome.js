@@ -85,7 +85,7 @@
     'route-incomplete': 'Franchissement des obstacles incomplet',
     'early-finish': 'Programme terminé avant la fin du parcours',
     'landing-timeout': 'Atterrissage non stabilisé dans le délai',
-    'wrong-pad': 'Atterrissage hors de la zone prévue',
+    'wrong-pad': 'Drone pas entièrement sur la zone d’arrivée',
     'invalid-start': 'Départ non conforme à la zone bleue'
   });
 
@@ -97,7 +97,7 @@
     'wrong-heading': 'Orientation incorrecte après le virage',
     'course-boundary': 'Limite du parcours dépassée',
     'early-finish': 'Fin de parcours ou zone de pose non validée',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
+    'landing-timeout': 'Pose sur le damier non confirmée dans le délai',
     'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
