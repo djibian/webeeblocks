@@ -26,15 +26,20 @@ const iff=(condition,then,otherwise)=>({kind:'if',condition,then,
   ...(otherwise?.length?{else:otherwise}:{})});
 const forward=distance_m=>({kind:'move',direction:'forward',distance_m});
 const turn=angle_deg=>({kind:'turn',angle_deg});
-function expectedAst(){
+function expectedAst(strategy='reactive'){
+  if(!['reactive','fixed'].includes(strategy))throw Error('invalid private A5 strategy');
   // Unlike the previous private JS pilot, frontal sensing is repeated.
   // Sensor thresholds are hypotheses; native R2025a .wbb remains UNPROVEN.
   return {version:1,semantics:'webeeblocks-ast-v1',program:[
     {kind:'takeoff',height_m:.5},
     {kind:'set_speed',speed_m_s:.2},
     set('destination',range('left')),
-    {kind:'while',mode:'WHILE',max_iterations:32,
-      condition:cmp('GT',range('front'),.75),body:[forward(.1)]},
+    // Fixed-blind adversary intentionally NEVER reads front. The original
+    // four scenes have a common 2.4m approach: 12 × (2 × 0.10m).
+    strategy==='fixed'
+      ? {kind:'repeat',count:12,body:[forward(.1),forward(.1)]}
+      : {kind:'while',mode:'WHILE',max_iterations:32,
+          condition:cmp('GT',range('front'),.75),body:[forward(.1)]},
     iff(cmp('GT',range('left'),1),[
       turn(90),forward(.6),turn(-90),forward(.85),forward(.8),forward(.1),
       iff(cmp('GT',v('destination'),.8),[turn(-90),forward(1.24)])
@@ -47,12 +52,15 @@ function expectedAst(){
     {kind:'land'}
   ]};
 }
-function privateProfile(){
+function privateProfile(strategy='reactive'){
+  if(!['reactive','fixed'].includes(strategy))throw Error('invalid private A5 profile');
   const p=Activities.getProfile('reactive-obstacle-v2');
-  p.id='progression-reactive-hg-private-ci-only';
+  p.id=strategy==='fixed'?'progression-reactive-hg-fixed-blind-ci-only':
+    'progression-reactive-hg-private-ci-only';
   p.starterVisible=false;p.brief={visible:false,title:'PRIVATE CI ONLY',
     goal:'Test actual Blockly loops and memory without publishing a pupil solution'};
-  p.toolbox=Array.from(new Set([...p.toolbox,'controls_whileUntil']));
+  p.toolbox=Array.from(new Set([...p.toolbox,
+    strategy==='fixed'?'controls_repeat_ext':'controls_whileUntil']));
   p.fieldOptions={...p.fieldOptions,
     webeeblocks_v2_range:{DIRECTION:['left','front']},
     webeeblocks_v2_move:{DIRECTION:['forward']},
@@ -60,7 +68,7 @@ function privateProfile(){
   p.parameterBounds={...p.parameterBounds,
     webeeblocks_v2_speed:{SPEED:{min:.2,max:.2,step:.01}}};
   p.runtime.allowedStatementKinds=Array.from(
-    new Set([...p.runtime.allowedStatementKinds,'while']));
+    new Set([...p.runtime.allowedStatementKinds,strategy==='fixed'?'repeat':'while']));
   p.runtime.rangeDirections=['left','front'];
   p.runtime.moveDirections=['forward'];p.runtime.maxSteps=20000;
   p.runtime.astBounds={...p.runtime.astBounds,
@@ -73,8 +81,8 @@ function privateProfile(){
   return Profiles.resolveById({version:1,activities:[p]},p.id,
     Activities.BLOCK_CATALOG);
 }
-function build(){
-  const expected=expectedAst(),profile=privateProfile();
+function build(strategy='reactive'){
+  const expected=expectedAst(strategy),profile=privateProfile(strategy);
   const workspace=new Blockly.Workspace();
   function block(type,fields){
     const b=workspace.newBlock(type);
@@ -124,6 +132,10 @@ function build(){
         input(b,'IF0',expr(e.condition));
         if(e.then.length)input(b,'DO0',sequence(e.then));
         if(e.else&&e.else.length)input(b,'ELSE',sequence(e.else));
+      }else if(e.kind==='repeat'){
+        b=block('controls_repeat_ext');
+        input(b,'TIMES',expr(n(e.count)));
+        input(b,'DO',sequence(e.body));
       }else if(e.kind==='while'){
         b=block('controls_whileUntil',{
           MODE:e.mode,MAX_ITERATIONS:e.max_iterations});
@@ -225,12 +237,23 @@ async function main(){
   assert.equal(retired.starterVisible,false);
   assert(!retired.toolbox.includes('variables_set'));
   assert(!retired.toolbox.includes('controls_whileUntil'));
-  const w=build();assert.equal(w.variableCount,1);
+  const w=build('reactive'),fixed=build('fixed');
+  assert.equal(w.variableCount,1);
+  assert.equal(fixed.variableCount,1);
+  assert.equal(fixed.ast.program[3].kind,'repeat');
+  assert.equal(fixed.ast.program[3].count,12);
+  assert.equal(fixed.ast.program[3].body.length,2);
+  assert(!JSON.stringify(fixed.ast).includes('"direction":"front"'),
+    'blind fixed repeat must never read the front range');
+  assert.notEqual(fixed.text,w.text);
+  assert.equal(JSON.parse(fixed.text).activity.id,
+    'progression-reactive-hg-fixed-blind-ci-only');
   assert.equal(w.ast.program[3].kind,'while');
   assert(w.blockCount>18);
   assert(!/hfar-gleft|hfar-gright|reactive-L-factor-/.test(w.text));
   const bytes=w.text,hash=crypto.createHash('sha256').update(bytes).digest('hex');
-  const results=[];
+  const results=[],fixedResults=[];
+  const fixedSha=crypto.createHash('sha256').update(fixed.text).digest('hex');
   for(const H of [false,true])for(const G of [true,false]){
     const b=virtualBackend(H,G);
     const executed=await Interpreter.run(w.ast,b,{
@@ -245,6 +268,19 @@ async function main(){
     assert.equal(executed.variables.destination,H?1.14:.54);
     results.push({HFar:H,GLeft:G,frontReads:b.frontReads,
       initialValue:executed.variables.destination,x:b.x,y:b.y});
+    const blind=virtualBackend(H,G);
+    // A fixed repeat is permitted on a backend WITHOUT conditional loops.
+    blind.capabilities.conditionalLoops=false;
+    const blindRun=await Interpreter.run(fixed.ast,blind,{
+      maxSteps:fixed.profile.runtime.maxSteps,
+      motionBounds:fixed.profile.runtime.astBounds});
+    assert(blind.landed && blind.frontReads===0,
+      'the blind competitor must finish without a front-range reading');
+    assert(Math.abs(blind.x-b.x)<1e-9&&Math.abs(blind.y-b.y)<1e-9,
+      'the four original worlds cannot discriminate a fixed from a reactive approach');
+    assert.equal(blindRun.variables.destination,executed.variables.destination);
+    fixedResults.push({HFar:H,GLeft:G,frontReads:blind.frontReads,
+      finalX:blind.x,finalY:blind.y});
   }
   const blindH=virtualBackend(true,true,{blindH:true});
   await Interpreter.run(w.ast,blindH,{maxSteps:20000,
@@ -259,14 +295,23 @@ async function main(){
   const output=ROOT+'/ci-artifacts/progression-reactive-L-factor-blockly';
   fs.mkdirSync(output,{recursive:true});
   fs.writeFileSync(path.join(output,'a5-private-loop-state-ci-only.wbb'),bytes,'utf8');
+  fs.writeFileSync(path.join(output,'a5-private-fixed-front-ci-only.wbb'),
+    fixed.text,'utf8');
   fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify({
     schema:'webeeblocks-a5-private-blockly-loop-memory-v1',
     model_pass:true,sha256:hash,block_count:w.blockCount,
     variable_count:w.variableCount,variants:results,
     native_2x2_from_this_wbb:false,real_webots_oracle:false,
     pupil_activity_published:false,os_save_open:false,
-    blind_G_collision_rejection_from_this_wbb:false
+    blind_G_collision_rejection_from_this_wbb:false,
+    fixed_front_adversary_virtual_four_pass:true,
+    fixed_front_sha256:fixedSha,
+    fixed_front_four_native_proven:false,
+    fixed_front_virtual_variants:fixedResults
   },null,2)+'\n','utf8');
+  console.log('WEBEEBLOCKS_A5_PRIVATE_FIXED_FRONT_MODEL_PASS '+
+    'four_mock_variants=true no_front_range=true 12_x_2_moves=true '+
+    'native_fixed_worlds=UNPROVEN sha256='+fixedSha);
   console.log('WEBEEBLOCKS_A5_PRIVATE_BLOCKLY_LOOP_MEMORY_MODEL_PASS '+
     'wbb_roundtrip=true loop_front_fresh=true one_variable=true '+
     'four_mock_variants=true native_wbb_flight=UNPROVEN sha256='+hash);

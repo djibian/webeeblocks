@@ -37,8 +37,10 @@ class Handler(events.Handler):
     variant="A"
     mode="positive"
     def do_GET(self):
-        if self.path=="/a5-private-wbb" and self.mode=="blockly":
+        if self.path=="/a5-private-wbb" and self.mode in ("blockly","blockly_fixed"):
             source=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
+                "a5-private-fixed-front-ci-only.wbb" if
+                self.mode=="blockly_fixed" else
                 "a5-private-loop-state-ci-only.wbb")
             if not source.is_file() or not 100<=source.stat().st_size<=1048576:
                 self.send_error(404,"bounded canonical private WBB absent")
@@ -150,7 +152,8 @@ def native_collision_coverage(transcript,variant):
             "conservative_swept_boxes_per_step":True}
 
 def run(variant,mode="positive"):
-    if variant not in ("A","B","C","D") or mode not in ("positive","blind","blind_h","blockly"):
+    if variant not in ("A","B","C","D") or mode not in (
+            "positive","blind","blind_h","blockly","blockly_fixed"):
         raise ValueError("wrong factorial H/G native test")
     if mode=="blind" and variant!="B":
         raise ValueError("blind gate rejection tested only against G-right")
@@ -158,7 +161,8 @@ def run(variant,mode="positive"):
         raise ValueError("blind H rejection tested only against far-H / G-left")
     folder=ARTIFACT/("blind-B" if mode=="blind" else
                      "blind-h-C" if mode=="blind_h" else
-                     "blockly-"+variant if mode=="blockly" else variant)
+                     "blockly-"+variant if mode=="blockly" else
+                     "fixed-"+variant if mode=="blockly_fixed" else variant)
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -332,11 +336,12 @@ def run(variant,mode="positive"):
               "variant=C wrong_pad=left H_requires_right true_floor=true",
               flush=True)
         return summary
-    if mode=="blockly":
-        # The REAL Webots Robot Window reloads canonical file bytes and runs
-        # official Blockly -> AST -> interpreter -> genuine WWI/32ms product.
-        # Mission cannot pass from browser events without independent C Floor.
+    if mode in ("blockly","blockly_fixed"):
+        # Real pupil-format Blockly, never scene metadata or an AST shortcut.
+        # One adversary omits ALL front readings; same H/G/Pad C monitor.
+        fixed=mode=="blockly_fixed"
         wbb=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
+            "a5-private-fixed-front-ci-only.wbb" if fixed else
             "a5-private-loop-state-ci-only.wbb")
         expected_sha=hashlib.sha256(wbb.read_bytes()).hexdigest()
         def single(name):
@@ -368,12 +373,14 @@ def run(variant,mode="positive"):
         good=(
             reopened is not None and reopened.get("sha256")==expected_sha and
             reopened.get("one_variable") is True and
-            reopened.get("fresh_front_loop") is True and
+            reopened.get("fresh_front_loop") is (not fixed) and
+            reopened.get("fixed_front_blind") is fixed and
             isinstance(h,dict) and isinstance(h.get("left_m"),(float,int)) and
             abs(h["left_m"]-expected_h)<.12 and
             h.get("destination")==destination and
             isinstance(approach,dict) and
-            approach.get("fresh_condition") is True and
+            approach.get("fresh_condition") is (not fixed) and
+            approach.get("fixed_blind_front") is fixed and
             isinstance(g,dict) and isinstance(g.get("left_m"),(float,int)) and
             abs(g["left_m"]-expected_g)<.12 and
             g.get("route")==route and
@@ -383,12 +390,14 @@ def run(variant,mode="positive"):
             isinstance(finished,dict) and
             finished.get("sha256")==expected_sha and
             finished.get("blockly") is True and
+            finished.get("fixed_front_blind") is fixed and
             finished.get("missionOracle") is False and
             len(left_reads)==2 and
             all(math.isfinite(float(v)) for v in left_reads) and
             abs(float(left_reads[0])-h["left_m"])<1e-6 and
             abs(float(left_reads[1])-g["left_m"])<1e-6 and
-            21<=len(front_reads)<=33 and
+            (len(front_reads)==0 if fixed else
+             21<=len(front_reads)<=33) and
             approach.get("front_reads")==len(front_reads) and
             finished.get("front_reads")==len(front_reads) and
             xyz is not None and abs(xyz[0]-4.15)<.10 and
@@ -410,6 +419,7 @@ def run(variant,mode="positive"):
                  "variant":variant,"mode":mode,"pass":bool(good),
                  "sha256":expected_sha,"source":"real Blockly .wbb",
                  "front_native_reads":len(front_reads),
+                 "fixed_front_blind":fixed,
                  "left_native_reads":len(left_reads),
                  "native_floor_xyzt":xyz,"collision_coverage":coverage,
                  "native_motor_attempted":True,
@@ -421,8 +431,10 @@ def run(variant,mode="positive"):
                   json.dumps(summary),file=sys.stderr,flush=True)
             print(trace[-8500:],file=sys.stderr)
             raise AssertionError("A5 genuine private WBB flight not fully proven")
-        print("WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_PASS "+
-              f"variant={variant} real_floor=true loop_read_front={len(front_reads)} "+
+        marker=("WEBEEBLOCKS_A5_PRIVATE_FIXED_FRONT_NATIVE_PASS" if fixed
+                else "WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_PASS")
+        print(marker+" "+
+              f"variant={variant} real_floor=true front_reads={len(front_reads)} "+
               "same_wbb=true physical_swept_7=true pupil_published=false",
               flush=True)
         return summary
@@ -555,16 +567,26 @@ if __name__=="__main__":
     parser.add_argument("--blind",action="store_true")
     parser.add_argument("--blind-h",action="store_true")
     parser.add_argument("--blockly",action="store_true")
+    parser.add_argument("--blockly-fixed",action="store_true")
     args=parser.parse_args()
-    if int(args.blind)+int(args.blind_h)+int(args.blockly)>1:
+    if sum((args.blind,args.blind_h,args.blockly,args.blockly_fixed))>1:
         parser.error("modes are mutually exclusive")
-    if args.blockly:
-        if args.variant!="both":parser.error("--blockly tests four H/G variants")
-        results=[run(v,"blockly") for v in "ABCD"]
+    if args.blockly or args.blockly_fixed:
+        if args.variant!="both":parser.error("private Blockly must test all A/B/C/D")
+        mode="blockly_fixed" if args.blockly_fixed else "blockly"
+        results=[run(v,mode) for v in "ABCD"]
         if len({r["sha256"] for r in results})!=1:
-            raise AssertionError("A5 four real .wbb files differ")
-        print("WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_WBB_NATIVE_PASS "+
-              "same_wbb=true real_webots=true pupil_unpublished=true",flush=True)
+            raise AssertionError("A5 four real same-strategy .wbb files differ")
+        if args.blockly_fixed:
+            if any(r["front_native_reads"]!=0 or
+                   r["fixed_front_blind"] is not True for r in results):
+                raise AssertionError("fixed competitor unexpectedly used front")
+            print("WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_FIXED_WBB_NATIVE_PASS "+
+                  "same_wbb=true front_reads=0 real_webots=true "
+                  "pupil_unpublished=true",flush=True)
+        else:
+            print("WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_WBB_NATIVE_PASS "+
+                  "same_wbb=true real_webots=true pupil_unpublished=true",flush=True)
     elif args.blind_h:
         if args.variant!="both":parser.error("--blind-h checks only H-far G-left")
         run("C","blind_h")

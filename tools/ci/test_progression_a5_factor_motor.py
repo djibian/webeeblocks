@@ -64,6 +64,9 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertNotIn("google-chrome-stable_current_amd64.deb",feeder)
         self.assertNotIn("prepare_runtime_v2.sh",feeder)
         self.assertIn("run_classroom_reactive_L_factor_motor.py --blockly",motor)
+        self.assertIn("run_classroom_reactive_L_factor_motor.py --blockly-fixed",motor)
+        self.assertLess(motor.index(" --blockly\n"),
+                        motor.index(" --blockly-fixed"))
 
     def test_private_wbb_model_has_real_blockly_not_fake_native_authority(self):
         source=(ROOT/"tools/ci/build_a5_private_blockly_witness.js").read_text()
@@ -86,6 +89,17 @@ class A5FactorMotorTests(unittest.TestCase):
         self.assertIn("node tools/ci/build_a5_private_blockly_witness.js",workflow)
         self.assertIn("ci-artifacts/progression-reactive-L-factor-blockly/",workflow)
         self.assertIn("node-version: '22'",workflow)
+        self.assertIn("a5-private-fixed-front-ci-only.wbb",workflow)
+        # A truly blind front-range candidate must not receive a guessed
+        # success: same native R2025a monitor/7 Solids/Floor for both WBBs.
+        for token in ("'controls_repeat_ext'",
+                      "kind:'repeat',count:12",
+                      "fixed.frontReads===0",
+                      "fixed_front_adversary_virtual_four_pass:true"):
+            # Fixed mock uses 'blind', not 'fixed' as the backend variable.
+            if token=="fixed.frontReads===0":
+                token="blind.frontReads===0"
+            self.assertIn(token,source)
         # Real front ray stops the loop one 0.1m step before the old model.
         # The correction changes the private pupil AST, never native Floor.
         self.assertIn("Math.min(2,3.065-this.x)",source)
@@ -102,7 +116,10 @@ class A5FactorMotorTests(unittest.TestCase):
                     "fresh_front_loop:true",
                     "missionOracle:false",
                     "frontReads<21",
-                    "progression-reactive-hg-private-ci-only"):
+                    "progression-reactive-hg-private-ci-only",
+                    "progression-reactive-hg-fixed-blind-ci-only",
+                    "facts.ranges.has('front')",
+                    "fresh_front_loop:!fixed"):
             self.assertIn(key,module)
         for key in ("--blockly",
                     "WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_PASS",
@@ -110,10 +127,14 @@ class A5FactorMotorTests(unittest.TestCase):
                     "native_collision_coverage(trace,variant)",
                     "len(left_reads)==2",
                     "21<=len(front_reads)<=33",
-                    "mission_oracle_proven"):
+                    "mission_oracle_proven",
+                    "WEBEEBLOCKS_A5_PRIVATE_FOUR_REAL_FIXED_WBB_NATIVE_PASS",
+                    "len(front_reads)==0 if fixed",
+                    "fixed_front_blind"):
             self.assertIn(key,native)
 
         self.assertNotIn("progression-reactive-hg-private-ci-only",original)
+        self.assertNotIn("progression-reactive-hg-fixed-blind-ci-only",original)
         self.assertNotIn("tools/ci/build_a5_private_blockly_witness.js",
                          original)
 

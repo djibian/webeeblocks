@@ -187,3 +187,31 @@ reducing duplication and sharing a reactive loop, not universal necessity
 of a specific AST block. The native tests and the teacher's 4e/3e acceptance
 remain separate. This Draft changes no activity 8 world, oracle, performance,
 physical firmware, or classroom published starter.
+
+## Adversarial fixed-repeat real Blockly counterexample — Draft-only
+
+The first native four-world Blockly PASS is **not** evidence that the
+approach needs repeated front-range observation: the original four
+H-near/far × G-left/right worlds all have the **same approach length**.
+The fully private CI now builds a **second genuine Blockly 13.2.1 `.wbb`**
+with the same H memory and late G observation but **no `range(front)`**.
+It replaces the reactive approach by the literal bounded repeat
+`12 × [forward(0.10 m), forward(0.10 m)]`. The real Blockly compiler,
+serializer, `ProjectFiles` reader and AST interpreter must admit it, and
+the deterministic model must show the same positions in all four worlds
+with zero front readings. It is not a pupil starter or a recommendation.
+
+A separate `--blockly-fixed` native campaign must then independently
+reopen this second `.wbb` in the actual R2025a Robot Window, execute it
+on A/B/C/D under the **same original** Webots PID and C monitor, show
+exactly zero native front range replies, the same two genuine H/G left
+sensor observations, immutable WBB SHA across worlds, and physical
+collision-free Floor landing on the correct pad. The existing reactive
+four-world PASS and the G/H negative controls are still mandatory.
+A fixed-repeat **PASS** would be a decisive counterexample to treating
+these H×G worlds as a pedagogically complete Activity 5. A **FAIL** would
+need a physical trace and causal diagnosis before claiming reactivity is
+necessary. Neither outcome can establish the owner-approved variable
+L-corner lengths/directions or human usability. This new native run is
+**UNPROVEN** until the exact CI results are examined; do not relax the
+seven-Solid native collision or Floor tolerances to produce a PASS.
