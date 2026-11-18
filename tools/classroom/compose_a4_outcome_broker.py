@@ -44,7 +44,8 @@ def compose_classroom_outcome_broker(source: str) -> str:
        reason == "wrong-pad");
     const bool orientation =
       oracle == "progression-orientation-3d-v1" &&
-      (reason == "route-incomplete" || reason == "landing-timeout");
+      (reason == "route-incomplete" || reason == "landing-timeout" ||
+        reason == "wrong-pad");
     const bool sequence =
       oracle == "progression-sequence-3d-v1" &&
       (reason == "flight-not-observed" || reason == "wrong-pad" ||

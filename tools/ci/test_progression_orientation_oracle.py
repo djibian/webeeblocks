@@ -216,9 +216,23 @@ int main(void) {
                                           1.10,-.90,.030,0,0,0,1);
   assert(outcome==(tick==47?WB_ORIENT_NOT_ACHIEVED:WB_ORIENT_WAIT));
  }
- assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
- assert(strcmp(wb_orient_reason_name(&m),"landing-timeout")==0);
+ assert(m.reason==WB_ORIENT_REASON_WRONG_PAD);
+ assert(strcmp(wb_orient_reason_name(&m),"wrong-pad")==0);
  assert(!m.stable_since_valid);
+ // Same off-pad coordinates without physical Floor contact are NOT proof
+ // of landing outside the pad. Keep the honest generic deadline reason.
+ wb_orient_reset(&m,24,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.030,0,0,1,0)==WB_ORIENT_WAIT);
+ assert(step_contact(&m,5.504,1.10,-.90,.030,0,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
+ // Floor contact alone is insufficient if altitude is incompatible with
+ // a native low landing (defensive test against inconsistent observations).
+ wb_orient_reset(&m,25,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.40,0,0,1,1)==WB_ORIENT_WAIT);
+ assert(step_contact(&m,5.504,1.10,-.90,.40,0,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
  // Invalid orientation/observations are fail-closed, not success.
  wb_orient_reset(&m,10,0);
  route(&m);

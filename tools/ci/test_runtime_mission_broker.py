@@ -405,6 +405,25 @@ int main() {
     assert(sent_text.back() !=
       "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 87 STATE not-achieved reason=route-incomplete");
   }
+  // A3 physical off-pad verdict is transported only for its exact oracle.
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=wrong-pad";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 188 OUTCOME progression-orientation-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 188 STATE not-achieved reason=wrong-pad");
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=achieved reason=wrong-pad",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=other-oracle status=not-achieved reason=wrong-pad",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=2 oracle=progression-orientation-3d-v1 status=not-achieved reason=wrong-pad",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=wrong-pad trailing"
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 187 OUTCOME progression-orientation-3d-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 187 STATE not-achieved reason=wrong-pad");
+  }
   reset_harness();
   custom_data =
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=landing-timeout";
