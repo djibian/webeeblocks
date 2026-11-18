@@ -208,6 +208,35 @@ class CountHMotorFlightTests(unittest.TestCase):
                 variant))
         self.assertFalse(native.terminal_native_ack_logged("",4))
 
+    def test_private_stateless_ack_is_landing_bound_not_counter_length_bound(self):
+        import run_classroom_count_h_motor_flight as native
+        prefix="WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved n=1 crossed=1\n"
+        landed="WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+        ack="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 12 OK\n"
+        # No oracle result, no native LAND, no completion response: all fail.
+        self.assertFalse(native.terminal_native_ack_logged(landed+ack,1,"stateless"))
+        self.assertFalse(native.terminal_native_ack_logged(prefix+ack,1,"stateless"))
+        self.assertFalse(native.terminal_native_ack_logged(prefix+landed,1,"stateless"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+landed+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 12 ERR UNSAFE_OR_TIMEOUT\n",
+            1,"stateless"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+landed+"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 0 OK\n",1,"stateless"))
+        # A real short stateless program can be valid even with <20 commands.
+        self.assertTrue(native.terminal_native_ack_logged(
+            prefix+landed+ack,1,"stateless"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+landed+ack,2,"stateless"))
+        # Existing counter and sensor protocols retain their strict floor.
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+landed+ack,1,"blockly"))
+        self.assertFalse(native.terminal_native_ack_logged(
+            prefix+landed+ack,1,"sensor"))
+        src=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        self.assertIn('len(all_response_ids)>=stateless_detail["moves"]+4',src)
+        self.assertIn('all_response_ids==[str(i) for i in range(1,len(all_response_ids)+1)]',src)
+        self.assertIn('len(moves)==stateless_detail["moves"]',src)
+
     def test_same_sensor_command_pilot_is_exercised_on_all_three_native_worlds(self):
         workflow=(ROOT/".github/workflows/ci-progression-a6-draft.yml").read_text()
         script=(ROOT/"plugins/robot_windows/count_h_flight_probe/"

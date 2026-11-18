@@ -90,7 +90,11 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
     if pos<0:return False
     ack=re.search(r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) OK$",
                   native_log[pos:])
-    return ack is not None and int(ack[1])>=20
+    # A stateless conditional Blockly program may legitimately use fewer
+    # commands than a 20..80-step counter. The exact C-achieved verdict,
+    # native LAND trace, complete ordered ACKs and bounded pupil observations
+    # are checked separately; do not turn command count into an AST oracle.
+    return ack is not None and int(ack[1])>=(1 if mode=="stateless" else 20)
 
 
 def run(variant=1,mode="reference",family=None,step_cm=None):
@@ -348,7 +352,9 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
         3<=stateless_detail["moves"]<=14 and
         type(stateless_detail.get("front_m")) in (int,float) and
         .30<=stateless_detail["front_m"]<=.82 and
-        len(all_response_ids)>=12 and
+        # The genuine native responses must cover all attested MOVE ACKs plus
+        # at least SCENE, SPEED, TAKEOFF and LAND; no fixed 12-ACK floor.
+        len(all_response_ids)>=stateless_detail["moves"]+4 and
         all_response_ids==[str(i) for i in range(1,len(all_response_ids)+1)] and
         len(moves)==stateless_detail["moves"])
     sensor_steps=sensor_detail.get("steps")
