@@ -33,7 +33,11 @@ class NativeOrientationSmokeTests(unittest.TestCase):
         self.assertEqual(self.start.count('controller "crazyflie_runtime_v2"'), 2)
         self.assertEqual(self.scene.count(" Robot {"), 1)
         self.assertNotIn(" Solid {", self.scene)
-        self.assertEqual(self.scene.count("    Pose { translation "), 30)
+        # The historical 30 Pose nodes now have precisely three nested
+        # non-colliding label boards, one each for A, B and C.  The 24
+        # original top-level scene Pose markers remain guarded by compose().
+        self.assertEqual(self.scene.count("      Pose { translation 0 0 0.170"), 3)
+        self.assertEqual(self.scene.count("    Pose { translation "), 33)
 
     def test_deny_foreign_or_incomplete_worlds_and_observers(self):
         variants = (
