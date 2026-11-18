@@ -48,6 +48,7 @@ int main(void) {
   for (int tick=1;tick<=7;++tick)
     assert(step(&m,3.0+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
   assert(step(&m,3.256,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
+  assert(m.reason == WB_SEQ_REASON_NONE);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
 
   /* A complete flight at low altitude without a ground contact is not
@@ -107,6 +108,8 @@ int main(void) {
   assert(!m.airborne && !m.completion_seen && m.result == WB_SEQ_WAIT);
   assert(step(&m, 4, .35, .28, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
   assert(step(&m, 5.6, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
+  assert(m.reason == WB_SEQ_REASON_NO_FLIGHT);
+  assert(!strcmp(wb_seq_reason_token(m.reason), "flight-not-observed"));
 
   /* Old center-only logic accepted positions that overhang the pad. */
   for (unsigned int kind = 0; kind < 2; ++kind) {
@@ -115,6 +118,7 @@ int main(void) {
     const double y = kind ? .38 : .28;
     assert(step(&m, 2, x, y, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
     assert(step(&m, 3.6, x, y, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
+    assert(m.reason == WB_SEQ_REASON_WRONG_PAD);
   }
 
   /* Nonzero X and Y displacement well inside full-pad margins still pass. */
@@ -169,6 +173,7 @@ int main(void) {
   airborne(&m, 7);
   assert(step(&m, 2, .35, .28, .4, 0, 0, 0, 1) == WB_SEQ_WAIT);
   assert(step(&m, 3.6, .35, .28, .4, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
+  assert(m.reason == WB_SEQ_REASON_LANDING_TIMEOUT);
   assert(step(&m, 4, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
 
   /* An unknown postcompletion physical state is never a success. */
@@ -178,9 +183,11 @@ int main(void) {
   assert(wb_seq_sample_mission(&m, &bad) == WB_SEQ_NOT_ACHIEVED);
 
   wb_seq_reset(&m, 9, 0);
+  assert(m.reason == WB_SEQ_REASON_NONE);
   assert(wb_seq_sample_mission(&m, NULL) == WB_SEQ_WAIT);
   wb_seq_sample completed_bad = {2, NAN, .28, .02, 0, 0, 0, 1, 0};
   assert(wb_seq_sample_mission(&m, &completed_bad) == WB_SEQ_NOT_ACHIEVED);
+  assert(m.reason == WB_SEQ_REASON_NONE);
   assert(wb_seq_sample_mission(NULL, &bad) == WB_SEQ_NOT_ACHIEVED);
 
   puts("PASS pure C Activity 1: fresh flight, complete, footprint, negative, settle");
@@ -214,6 +221,12 @@ class NativeSequence3D(unittest.TestCase):
             encoding="utf8")
         self.assertIn('#include "sequence_core.h"', source)
         self.assertIn("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY", source)
+        # School-only generated broker supports A1 diagnoses; the shared
+        # hash-locked physical broker and Grand Prix allowlist are untouched.
+        school = (ROOT / "tools/classroom/compose_a4_outcome_broker.py").read_text(encoding="utf8")
+        self.assertIn('oracle == "progression-sequence-3d-v1"', school)
+        for reason in ("flight-not-observed", "wrong-pad", "landing-timeout"):
+            self.assertIn('reason == "' + reason + '"', school)
         self.assertNotIn("WEBEEBLOCKS_SEQUENCE_3D_NATIVE_C_READY",
                          (NATIVE / "progression_sequence_3d.py").read_text(encoding="utf8"))
         self.assertIn("wb_supervisor_node_get_position(craft)", source)
