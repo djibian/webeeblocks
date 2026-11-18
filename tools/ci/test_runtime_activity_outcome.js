@@ -403,6 +403,13 @@ function proveRealWebotsOutcomeFreshness() {
   }
 
   const a4 = {type:'mission-state-v1', oracle:'progression-decision-h-v1'};
+  // The footprint may overhang the target while the drone centre still touches it.
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},a4).detail,
+    'Mission non accomplie — Drone pas entièrement sur la zone d’arrivée');
+  assert.strictEqual(Outcome.classifyMission(
+    {status:'not-achieved',reason:'wrong-pad'},evaluation).detail,
+    'Mission non accomplie', 'A4 pad cause must stay within its own oracle');
   assert.deepStrictEqual(Outcome.classifyMission(
     {status:'not-achieved',reason:'obstacle-contact'},a4), {
     status:'not-achieved',state:'MISSION NON RÉUSSIE',

@@ -316,6 +316,9 @@ int main(void) {
     double vx=k==3?.35:0;
     assert(tick(&m,8,x,y,z,vx,0,1)==WB_DH_WAIT);
     assert(tick(&m,10,x,y,z,vx,0,0)==WB_DH_NOT_ACHIEVED);
+    /* At x+0.10 m or y+0.12 m the centre still touches the 34-cm pad,
+     * but the conservative 9-cm craft footprint lies outside it. */
+    assert(m.reason == (k < 2 ? WB_DH_REASON_WRONG_PAD : WB_DH_REASON_LANDING));
   }
   // An instantaneous valid landing sample must never earn a mission PASS.
   completed_route(&m,26,WB_DH_SCENE_A);

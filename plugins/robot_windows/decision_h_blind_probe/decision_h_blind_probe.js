@@ -110,7 +110,7 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       'missing real DOM target for wrong pad');
     padTarget.textContent=padDisplay.state+' — '+padDisplay.detail;
     assert(padResult.reason==='wrong-pad' &&
-      padTarget.textContent==='MISSION NON RÉUSSIE — Mission non accomplie — Atterrissage hors de la zone prévue',
+      padTarget.textContent==='MISSION NON RÉUSSIE — Mission non accomplie — Drone pas entièrement sur la zone d’arrivée',
       'native wrong-pad cause or browser rendering missing');
     await report('A4_BLIND_WRONG_PAD_REFUSED',{variant:'a',reason:padResult.reason,
       status:padResult.status,renderedDetail:padTarget.textContent});

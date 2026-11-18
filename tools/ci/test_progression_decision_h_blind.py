@@ -57,7 +57,7 @@ class BlindNativeControls(unittest.TestCase):
         self.assertIn("await backend.move('left',0.35)",js)
         self.assertIn("padResult.reason==='wrong-pad'",js)
         self.assertIn("A4_BLIND_WRONG_PAD_REFUSED",js)
-        self.assertIn("Atterrissage hors de la zone prévue",js)
+        self.assertIn("Drone pas entièrement sur la zone d’arrivée",js)
         self.assertIn("await backend.move('forward',0.75)",js)
         self.assertIn("await backend.move('left',0.32)",js)
         self.assertIn("contactResult.reason==='obstacle-contact'",js)
