@@ -362,6 +362,13 @@ jobs:
           cd ci-artifacts/progression-count-h-private-blockly
           printf -v step '%02d' '${{ matrix.step_cm }}'
           sha256sum -c "a6-b-step${step}-ci-only.wbb.sha256"
+      - name: Prepare pinned Blockly 13 browser vendor for true B WBB execution
+        run: |
+          set -euo pipefail
+          bash ./tools/prepare_runtime_v2.sh
+          test -s plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js
+          test -s plugins/robot_windows/blockly_v2/vendor/blocks_compressed.js
+          test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
       - name: Compile original school PID and independently attested native B mission
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" \
