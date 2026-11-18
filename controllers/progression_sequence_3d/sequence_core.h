@@ -74,6 +74,15 @@ typedef struct {
   wb_seq_reason reason;
 } wb_seq_mission;
 
+/* One physical oracle serves two distinct transports. School diagnostic
+ * tokens must never be emitted into the hash-locked real-flight broker.
+ * Only the caller's independently attested school world/role may opt in. */
+static inline const char *wb_seq_reason_for_channel(const wb_seq_mission *m,
+                                                    int school_channel) {
+  return m && school_channel && m->result == WB_SEQ_NOT_ACHIEVED
+    ? wb_seq_reason_token(m->reason) : NULL;
+}
+
 static inline void wb_seq_reset(wb_seq_mission *m,
                                 unsigned long long attempt, double origin_z) {
   if (!m) return;

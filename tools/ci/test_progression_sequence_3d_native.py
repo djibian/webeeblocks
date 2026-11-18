@@ -49,6 +49,8 @@ int main(void) {
     assert(step(&m,3.0+.032*tick,.35,.28,.02,0,0,0,0)==WB_SEQ_WAIT);
   assert(step(&m,3.256,.35,.28,.02,0,0,0,0)==WB_SEQ_ACHIEVED);
   assert(m.reason == WB_SEQ_REASON_NONE);
+  assert(wb_seq_reason_for_channel(&m, 1) == NULL);
+  assert(wb_seq_reason_for_channel(&m, 0) == NULL);
   assert(step(&m, 9, 5, 5, 5, 9, 9, 9, 0) == WB_SEQ_ACHIEVED);
 
   /* A complete flight at low altitude without a ground contact is not
@@ -110,6 +112,9 @@ int main(void) {
   assert(step(&m, 5.6, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
   assert(m.reason == WB_SEQ_REASON_NO_FLIGHT);
   assert(!strcmp(wb_seq_reason_token(m.reason), "flight-not-observed"));
+  assert(!strcmp(wb_seq_reason_for_channel(&m, 1), "flight-not-observed"));
+  assert(wb_seq_reason_for_channel(&m, 0) == NULL);
+  assert(wb_seq_reason_for_channel(NULL, 1) == NULL);
 
   /* Old center-only logic accepted positions that overhang the pad. */
   for (unsigned int kind = 0; kind < 2; ++kind) {
@@ -119,6 +124,8 @@ int main(void) {
     assert(step(&m, 2, x, y, .02, 0, 0, 0, 1) == WB_SEQ_WAIT);
     assert(step(&m, 3.6, x, y, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
     assert(m.reason == WB_SEQ_REASON_WRONG_PAD);
+    assert(!strcmp(wb_seq_reason_for_channel(&m, 1), "wrong-pad"));
+    assert(wb_seq_reason_for_channel(&m, 0) == NULL);
   }
 
   /* Nonzero X and Y displacement well inside full-pad margins still pass. */
@@ -174,6 +181,8 @@ int main(void) {
   assert(step(&m, 2, .35, .28, .4, 0, 0, 0, 1) == WB_SEQ_WAIT);
   assert(step(&m, 3.6, .35, .28, .4, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
   assert(m.reason == WB_SEQ_REASON_LANDING_TIMEOUT);
+  assert(!strcmp(wb_seq_reason_for_channel(&m, 1), "landing-timeout"));
+  assert(wb_seq_reason_for_channel(&m, 0) == NULL);
   assert(step(&m, 4, .35, .28, .02, 0, 0, 0, 0) == WB_SEQ_NOT_ACHIEVED);
 
   /* An unknown postcompletion physical state is never a success. */
@@ -184,10 +193,12 @@ int main(void) {
 
   wb_seq_reset(&m, 9, 0);
   assert(m.reason == WB_SEQ_REASON_NONE);
+  assert(wb_seq_reason_for_channel(&m, 1) == NULL);
   assert(wb_seq_sample_mission(&m, NULL) == WB_SEQ_WAIT);
   wb_seq_sample completed_bad = {2, NAN, .28, .02, 0, 0, 0, 1, 0};
   assert(wb_seq_sample_mission(&m, &completed_bad) == WB_SEQ_NOT_ACHIEVED);
   assert(m.reason == WB_SEQ_REASON_NONE);
+  assert(wb_seq_reason_for_channel(&m, 1) == NULL);
   assert(wb_seq_sample_mission(NULL, &bad) == WB_SEQ_NOT_ACHIEVED);
 
   puts("PASS pure C Activity 1: fresh flight, complete, footprint, negative, settle");
@@ -233,6 +244,17 @@ class NativeSequence3D(unittest.TestCase):
         self.assertIn("wb_supervisor_node_get_velocity(craft)", source)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking", source)
         self.assertIn("wb_supervisor_node_get_contact_points", source)
+        # Only the native school launch WorldInfo AND actual school pilot may
+        # transmit reason tokens; legacy runtime_v2 stays status-only.
+        self.assertIn('wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD")', source)
+        self.assertIn('wb_supervisor_node_get_field(craft, "controller")', source)
+        self.assertIn('strcmp(controller_name, "crazyflie_classroom_v2") == 0', source)
+        self.assertIn("wb_seq_reason_for_channel(m, school_channel)", source)
+        self.assertIn("publish(channel, &mission, school_channel)", source)
+        self.assertIn("wb_seq_reason_for_channel(&m, 0) == NULL", DRIVER)
+        self.assertIn("if NEUTRAL_START else", runner)
+        self.assertIn('expected_reason = "wrong-pad" if NEUTRAL_START else "none"', runner)
+        self.assertIn('"PRECISE_UNDERSHOOT_NOT_ACHIEVED"', runner)
         self.assertIn("if (step != 32 || !verify_scene())", source)
         self.assertIn("#define WB_SEQ_MAX_LAND_SAMPLE_GAP 0.048", CORE.read_text(encoding="utf8"))
         self.assertIn("sample.floor_contact = observe_floor_contact(craft)", source)
