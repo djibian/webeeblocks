@@ -127,7 +127,7 @@ def main()->int:
       wrong_pad[0].get('status')=='not-achieved' and
       wrong_pad[0].get('reason')=='wrong-pad' and
       wrong_pad[0].get('renderedDetail')==
-        'MISSION NON RÉUSSIE — Mission non accomplie — Atterrissage hors de la zone prévue')
+        'MISSION NON RÉUSSIE — Mission non accomplie — Drone pas entièrement sur la zone d’arrivée')
     contact=[e.get('detail') for e in events if e.get('event')=='A4_BLIND_CONTACT_REFUSED']
     contact_ok=(len(contact)==1 and
       contact[0].get('variant')=='a' and
