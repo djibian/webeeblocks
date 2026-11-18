@@ -45,16 +45,23 @@ suivi par #476 ; ne l’interprétez pas comme une régression du broker Firefox
 
 ## Démarrer une activité de la progression
 
-L’archive contient le dossier `Activites` avec les huit fichiers `.wbb` de la
-progression pédagogique active, numérotés de 01 à 08. L'ancienne activité
-« 2 — Livrer le colis fragile » reste disponible dans `Activites/Historique` :
-les anciens projets conservent leurs profils, scènes et programmes d’origine.
-L’enseignant peut distribuer tout ou partie des modèles actifs.
+L’archive contient le dossier `Activites`. **Parmi les activités 1 à 7,
+seules les activités 01, 02, 03, 04 et 07 sont actuellement libérées pour la
+classe.** Les anciens modèles `05-reactive.wbb` et
+`06-multi-perception.wbb` restent dans `Activites/Historique` pour préserver
+la compatibilité des projets hérités : **ils ne sont pas les nouvelles
+activités 5 et 6**, encore en qualification pédagogique. Les anciens modèles
+02, 03, 04 et 07 sont également archivés à cet endroit. Le modèle 08 et son
+profil existants sont conservés, sans modification ni qualification nouvelle
+dans le cadre du chantier des activités 1 à 7. La présence d’un fichier `.wbb`
+dans l’archive ne vaut pas décision de publication pédagogique.
 
 Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir l’activité
 dans la liste intégrée : le fichier `.wbb` de départ est créé automatiquement,
-sans boîte de dialogue système. Les modèles correspondants restent également
-disponibles dans `Activites` pour une distribution par l’enseignant.
+sans boîte de dialogue système. Les modèles des activités 01, 02, 03, 04 et 07 restent également
+disponibles dans `Activites` pour une distribution par l’enseignant ;
+les prototypes archivés 05/06 ne doivent pas être distribués comme
+nouvelles activités élèves.
 Le titre, l’objectif, la boîte à outils et les contraintes sont appliqués par
 le profil de l'activité. Le fichier fourni est utilisé comme **modèle** : il ne
 devient pas la cible d’enregistrement de l’élève. Pour conserver son travail,
