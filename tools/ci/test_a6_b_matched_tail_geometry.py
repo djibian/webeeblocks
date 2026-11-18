@@ -85,6 +85,25 @@ def validate_scene(source: str, count: int) -> None:
         r"translation 1\.86 0 0\.55", source,
     ):
         raise AssertionError("shared terminal marker moved")
+    # Both terminal Solids must retain real visual AND collision volumes.
+    # A matching name/translation or a counted "boundingObject Box" token is
+    # not sufficient: a zero-depth terminal screen would defeat occlusion.
+    for name, expected_size in (
+        ("FINISH_SCREEN", (0.07, 1.48, 0.24)),
+        ("TERMINAL", (0.06, 1.48, 1.10)),
+    ):
+        heading = f"DEF ACTIVITY6_{count}_{name} Solid {{"
+        parts = source.split(heading)
+        if len(parts) != 2 or "\n  }\n" not in parts[1]:
+            raise AssertionError(f"missing/duplicated terminal solid {name}")
+        section = parts[1].split("\n  }\n", 1)[0]
+        for prefix in ("geometry", "boundingObject"):
+            boxes = re.findall(
+                rf"{prefix} Box \\{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \\}}",
+                section,
+            )
+            if len(boxes) != 1 or tuple(map(float, boxes[0])) != expected_size:
+                raise AssertionError(f"invalid terminal {name} {prefix} volume")
     # Confirm true collision volumes, not merely the number of named solids.
     # In particular a zero-thickness BAR must fail a negative mutation.
     for i in range(1, count + 1):
@@ -142,6 +161,15 @@ class MatchedTailDesignBTests(unittest.TestCase):
             original.replace(
                 "translation 1.86 0 0.55",
                 "translation 1.95 0 0.55", 1),
+            original.replace(
+                "boundingObject Box { size 0.07 1.48 0.24 }",
+                "boundingObject Box { size 0.07 1.48 0.00 }", 1),
+            original.replace(
+                "geometry Box { size 0.07 1.48 0.24 }",
+                "geometry Box { size 0.07 1.48 0.00 }", 1),
+            original.replace(
+                "boundingObject Box { size 0.06 1.48 1.10 }",
+                "boundingObject Box { size 0.06 1.48 0.00 }", 1),
         ):
             with self.subTest(mutant=damaged.count(" Solid {")):
                 with self.assertRaises(AssertionError):
