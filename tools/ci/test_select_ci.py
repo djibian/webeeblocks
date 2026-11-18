@@ -305,6 +305,32 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)
                 self.assertFalse(selection.full)
 
+    def test_a2_windows_classroom_native_inputs_require_full_release(self) -> None:
+        # The Windows ZIP compiles these native controllers and copies these
+        # exact WBO/WBT sources. A partial Runtime/Webots gate skips the real
+        # native Windows release/composition job.
+        distributed = (
+            "controllers/crazyflie_classroom_v2/classroom_scene.cpp",
+            "controllers/progression_altitude_v1/altitude_core.h",
+            "controllers/progression_altitude_v1/progression_altitude_v1.c",
+            "worlds/scenes/altitude-v1.wbo",
+            "worlds/crazyflie_classroom_start.wbt",
+        )
+        for path in distributed:
+            with self.subTest(path=path):
+                result = select([path])
+                self.assertTrue(result.full, "native Windows release job skipped")
+                self.assertTrue(result.runtime)
+                self.assertTrue(result.webots)
+                self.assertEqual(result.outputs()["full"], "true")
+        # Do not turn private, not-yet-distributed A5/A6 probes into global
+        # full-ci triggers; their draft physics witnesses retain own owners.
+        private = select([
+            "controllers/progression_count_h_school_pilot/school_pilot.c"
+        ])
+        self.assertFalse(private.full)
+        self.assertTrue(private.webots)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)

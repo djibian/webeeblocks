@@ -32,6 +32,14 @@ FORCE_FULL = (
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
+    # Native A2 classroom inputs are copied or compiled into the actual Windows
+    # archive. Without full selection, the only Windows *release* owner is
+    # skipped even on a Ready A2 scene/controller change. Keep CI-only A5/A6
+    # experiments scoped: this list names distributed A2 inputs only.
+    "controllers/crazyflie_classroom_v2/**",
+    "controllers/progression_altitude_v1/**",
+    "worlds/scenes/altitude-v1.wbo",
+    "worlds/crazyflie_classroom_start.wbt",
     "plugins/robot_windows/blockly_v2/webots/**",
     "tools/prepare_runtime_v2.*",
     # These U controller/evaluator inputs feed Runtime's native Grand Prix
