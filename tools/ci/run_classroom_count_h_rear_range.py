@@ -25,6 +25,7 @@ PADS=(0.0,0.55,-0.55)
 TERMINAL_STAGES={"approach":0.415,"landed":0.015}
 TERMINAL_CHANNELS=("front","back","left","right","up")
 TERMINAL_HEADINGS=(90,180,270)
+FIXED_CHECKPOINT_X=(0.0,0.85)
 TOKEN="WEBEEBLOCKS_COUNT_H_SWEEP_PASS"
 
 
@@ -90,6 +91,40 @@ def validate_heading_indistinguishability(headings):
                             f"stage={stage}, yaw={yaw}: {observed}")
     return True
 
+
+
+def validate_fixed_checkpoint_discrimination(checkpoints):
+    """Adversarial evidence about two fixed sites, NOT flight or AST necessity.
+
+    In world 1 the H at x=0 is absent; in worlds 2 and 3 it exists.
+    In world 3 the H at x=.85 exists; in worlds 1 and 2 it is absent.
+    No variable is injected into the pupil program. Every value must come
+    from the same authentic up/front sensors at the same tested poses.
+    """
+    if set(checkpoints)!=set(EXPECTED):
+        raise AssertionError("missing A6 fixed-checkpoint world")
+    for n in EXPECTED:
+        pair=checkpoints[n]
+        if type(pair) not in (tuple,list) or len(pair)!=len(FIXED_CHECKPOINT_X):
+            raise AssertionError("missing A6 fixed-checkpoint sample")
+        for rays in pair:
+            if type(rays) not in (tuple,list) or len(rays)!=2 or any(
+                type(v) not in (int,float) or not math.isfinite(v) or
+                not 0<=v<=2.001 for v in rays
+            ):
+                raise AssertionError("invalid A6 fixed-checkpoint sensor")
+    at_second={n:checkpoints[n][0][1] for n in EXPECTED}
+    at_third={n:checkpoints[n][1][1] for n in EXPECTED}
+    if not (
+        at_second[1]-max(at_second[2],at_second[3])>.30 and
+        abs(at_second[2]-at_second[3])<=.025 and
+        min(at_third[1],at_third[2])-at_third[3]>.30 and
+        abs(at_third[1]-at_third[2])<=.025
+    ):
+        raise AssertionError(
+            "native up rays do not distinguish the two known H locations: "+
+            str((at_second,at_third)))
+    return True
 
 def compose(n,source=None):
     if type(n) is not int or n not in EXPECTED:
@@ -241,6 +276,23 @@ def run_one(n):
         upper_samples.append(phases)
     print(f"A6_UP_RANGE_NATIVE_OBSERVED n={n} before_under_after={upper_samples} "
           "flight=NOT_TESTED pedagogy=UNPROVEN",flush=True)
+    checkpoint_rows=re.findall(
+        r"WEBEEBLOCKS_COUNT_H_FIXED_CHECKPOINT variant=(\\d) slot=(\\d) "
+        r"front_m=([0-9.]+) up_m=([0-9.]+) "
+        r"pose_x=(-?[0-9.]+) pose_y=(-?[0-9.]+) pose_z=([0-9.]+)",txt)
+    if len(checkpoint_rows)!=len(FIXED_CHECKPOINT_X):
+        raise AssertionError("missing real A6 fixed-checkpoint native observations: "+str(log))
+    fixed_checkpoints=[]
+    for slot,row in enumerate(checkpoint_rows):
+        variant_text,slot_text,*numbers=row
+        front_m,up_m,x,y,z=map(float,numbers)
+        if (variant_text!=str(n) or int(slot_text)!=slot or
+            any(not math.isfinite(v) for v in (front_m,up_m,x,y,z)) or
+            not 0<=front_m<=2.001 or not 0<=up_m<=2.001 or
+            abs(x-FIXED_CHECKPOINT_X[slot])>.035 or abs(y)>.035 or
+            abs(z-.415)>.045):
+            raise AssertionError("real A6 fixed-checkpoint pose/range invalid: "+str(log))
+        fixed_checkpoints.append((front_m,up_m))
     sweep=re.findall(r"WEBEEBLOCKS_COUNT_H_SWEEP_PASS variant=(\d) "
                      r"samples=(\d+) control_contacts=(\d+) low_z=([0-9.]+)",txt)
     if (len(sweep)!=1 or sweep[0][0]!=str(n) or
@@ -266,7 +318,7 @@ def run_one(n):
         readings.append(reading)
         coordinates.append(xyz)
         print(f"A6_BACK_RANGE_MASKED n={n} pad={i} meters={reading:.9f}",flush=True)
-    return readings,coordinates,upper_samples,terminal,headings
+    return readings,coordinates,upper_samples,terminal,headings,fixed_checkpoints
 
 
 def main():
@@ -285,8 +337,19 @@ def main():
     validate_terminal_indistinguishability(full_terminal)
     full_headings={n:observations[n][4] for n in EXPECTED}
     validate_heading_indistinguishability(full_headings)
+    fixed_checkpoints={n:observations[n][5] for n in EXPECTED}
+    validate_fixed_checkpoint_discrimination(fixed_checkpoints)
+    print("A6_FIXED_CHECKPOINT_UP_NATIVE_DISCRIMINATION "
+          "x=0.0,0.85 variants=1,2,3 "
+          "motorized=false blockly_counterexample=UNPROVEN "
+          "up_m="+json.dumps({n:[pair[1] for pair in fixed_checkpoints[n]]
+                             for n in EXPECTED},sort_keys=True),flush=True)
     payload={
         "schema":"webeeblocks-a6-terminal-multiranger-v3",
+        "fixed_checkpoint_two_positions_discriminate_h_count":True,
+        "no_variable_pupil_flight_still_unproven":True,
+        "fixed_checkpoint_native_front_up_m":{
+          str(n):[list(r) for r in fixed_checkpoints[n]] for n in EXPECTED},
         "native_rear_mask_observed_at_0_75m":True,
         "all_five_native_rays_compared_at_0_415m_and_0_015m":True,
         "cardinal_turns_90_180_270_tested_at_both_low_phases":True,

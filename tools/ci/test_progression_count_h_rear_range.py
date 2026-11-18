@@ -99,6 +99,43 @@ class CountHRearRangeWorldTests(unittest.TestCase):
         self.assertNotIn("wb_motor_set_",source)
         self.assertNotIn("continue-on-error",runner)
 
+    def test_fixed_checkpoint_up_sensor_can_distinguish_prefix_counts(self):
+        # Pure adversarial arrays are NOT native Webots success evidence.
+        reference={
+            1:[(2.0,2.0),(2.0,2.0)],
+            2:[(2.0,0.20),(2.0,2.0)],
+            3:[(2.0,0.20),(2.0,0.20)],
+        }
+        self.assertTrue(diagnostic.validate_fixed_checkpoint_discrimination(reference))
+        import copy
+        wrong=copy.deepcopy(reference)
+        wrong[2][0]=(2.0,2.0)
+        with self.assertRaisesRegex(AssertionError,"do not distinguish"):
+            diagnostic.validate_fixed_checkpoint_discrimination(wrong)
+        wrong=copy.deepcopy(reference)
+        wrong[3][1]=(2.0,2.0)
+        with self.assertRaisesRegex(AssertionError,"do not distinguish"):
+            diagnostic.validate_fixed_checkpoint_discrimination(wrong)
+        wrong=copy.deepcopy(reference)
+        del wrong[3][1]
+        with self.assertRaisesRegex(AssertionError,"missing A6 fixed-checkpoint"):
+            diagnostic.validate_fixed_checkpoint_discrimination(wrong)
+        wrong=copy.deepcopy(reference)
+        wrong[1][0]=(float("nan"),2.0)
+        with self.assertRaisesRegex(AssertionError,"invalid A6 fixed-checkpoint"):
+            diagnostic.validate_fixed_checkpoint_discrimination(wrong)
+        source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        runner=(diagnostic.ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
+            encoding="utf-8")
+        self.assertIn("WEBEEBLOCKS_COUNT_H_FIXED_CHECKPOINT variant=%d",source)
+        self.assertIn("for(int checkpoint=0;checkpoint<2;++checkpoint)",source)
+        self.assertIn("wb_distance_sensor_get_value(up)/1000.0",source)
+        self.assertIn("FIXED_CHECKPOINT_X=(0.0,0.85)",runner)
+        self.assertIn("validate_fixed_checkpoint_discrimination(fixed_checkpoints)",runner)
+        self.assertIn("A6_FIXED_CHECKPOINT_UP_NATIVE_DISCRIMINATION",runner)
+        self.assertNotIn("wb_motor_set_",source)
+
     def test_genuine_upward_ray_samples_every_H_without_a_pupil_algorithm(self):
         source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")

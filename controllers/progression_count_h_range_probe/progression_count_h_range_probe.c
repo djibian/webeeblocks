@@ -212,6 +212,40 @@ int main(void) {
     }
   }
 
+  /* PRIVATE A6: two fixed x-checkpoints can encode which H exists without
+   * a numeric Blockly counter. The exact same low, yaw=0 original-Crazyflie
+   * observation is made in ALL three worlds, including where no gate exists.
+   * This is SUPERVISOR sensing only, not a motorized pupil counter-program.
+   */
+  for(int checkpoint=0;checkpoint<2;++checkpoint) {
+    const double sample_pose[3]={checkpoint==0?0.0:0.850,0.0,0.415};
+    wb_supervisor_field_set_sf_vec3f(pos,sample_pose);
+    wb_supervisor_field_set_sf_rotation(rot,facing);
+    wb_supervisor_node_reset_physics(self);
+    if(wb_robot_step(step)<0)
+      return invalid("A6 fixed-checkpoint native step unavailable");
+    const double *observed=wb_supervisor_node_get_position(self);
+    int contact_count=-1;
+    const WbContactPoint *contacts=
+      wb_supervisor_node_get_contact_points(self,true,&contact_count);
+    const double front_m=wb_distance_sensor_get_value(front)/1000.0;
+    const double up_m=wb_distance_sensor_get_value(up)/1000.0;
+    if(!observed||!isfinite(observed[0])||!isfinite(observed[1])||
+       !isfinite(observed[2])||
+       fabs(observed[0]-sample_pose[0])>.035||
+       fabs(observed[1])>.035||
+       fabs(observed[2]-sample_pose[2])>.045||
+       !isfinite(front_m)||front_m<0||front_m>2.001||
+       !isfinite(up_m)||up_m<0||up_m>2.001||
+       contact_count!=0||(contact_count>0&&!contacts))
+      return invalid("A6 fixed-checkpoint pose, contact or native ray invalid");
+    printf("WEBEEBLOCKS_COUNT_H_FIXED_CHECKPOINT variant=%d slot=%d "
+           "front_m=%.9f up_m=%.9f pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
+           variant,checkpoint,front_m,up_m,
+           observed[0],observed[1],observed[2]);
+    fflush(stdout);
+  }
+
   /* Native *geometric* collision sweep only. The supervisor explicitly
    * positions the unmodified Crazyflie PROTO at 20-mm steps. No motors
    * act, so a PASS does NOT prove actual commanded flight or stability.
