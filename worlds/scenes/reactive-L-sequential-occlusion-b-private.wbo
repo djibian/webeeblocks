@@ -27,10 +27,11 @@ DEF WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE Group {
     }
     DEF A5_SEQ_L2_ARM Solid {
       name "A5_SEQ_L2_ARM"
-      translation 2.850 -1.050 0.550
+      # Extend the blocked side into the sidewall without moving its inner edge.
+      translation 2.850 -1.125 0.550
       children [ Shape { appearance PBRAppearance { baseColor 0.85 0.43 0.13 roughness 0.6 }
-        geometry Box { size 0.700 0.080 1.100 } } ]
-      boundingObject Box { size 0.700 0.080 1.100 }
+        geometry Box { size 0.700 0.230 1.100 } } ]
+      boundingObject Box { size 0.700 0.230 1.100 }
     }
     # Native collision corridor: neither exterior edge permits a 0.09 m craft bypass.
     DEF A5_SEQ_CORRIDOR_POS Solid {

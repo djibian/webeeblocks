@@ -14,7 +14,7 @@ class A5SequentialTest(unittest.TestCase):
         self.assertEqual(a.count("boundingObject Box"),9)
         self.assertEqual(b.count("boundingObject Box"),9)
         changed=a.replace("3.200 0.450","3.200 -0.450").replace(
-            "2.850 1.050","2.850 -1.050").replace(
+            "2.850 1.125","2.850 -1.125").replace(
             "experiment A:","experiment B:").replace(
             "WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE",
             "WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE")
@@ -32,8 +32,8 @@ class A5SequentialTest(unittest.TestCase):
 
     def test_no_common_fixed_lane_through_opposite_L_openings(self):
         # ANALYTICAL ONLY: no motorized trajectory, no pupil .wbb, no oracle.
-        # Radius-inflated lateral spans must block every SAME-Y passage
-        # at x=2.5 across both A and B within the collision corridor.
+        # The solid post and arm must reach the wall at a shared X section,
+        # without assuming an inflated lateral size for the drone.
         import re
         def solid_box(source, name):
             section=source.split(f"DEF {name} Solid {{",1)
@@ -78,19 +78,24 @@ class A5SequentialTest(unittest.TestCase):
             self.assertLessEqual(roof[0]-roof[3]/2,rear[0]-rear[3]/2)
             self.assertGreaterEqual(roof[0]+roof[3]/2,3.92+.08/2)
             self.assertGreaterEqual(roof[4]/2,1.26+.08/2)
-        radius=.09
-        corridor_max_y=1.26-.08/2-radius
-        def blocked(post):
-            return post[1]-post[4]/2-radius,post[1]+post[4]/2+radius
-        a_low,a_high=blocked(posts["A"])
-        b_low,b_high=blocked(posts["B"])
-        self.assertLessEqual(b_low,-corridor_max_y)
-        self.assertGreaterEqual(a_high,corridor_max_y)
-        self.assertLessEqual(a_low,b_high)
-        self.assertEqual((round(a_low,2),round(a_high,2)),(-.24,1.14))
-        self.assertEqual((round(b_low,2),round(b_high,2)),(-1.14,.24))
-        # No single fixed lane exists. Other approaches, overhead flight
-        # and actual Crazyflie dynamics remain unqualified.
+        section_x = 3.18
+        for variant, sign, wall_name in (("A", 1, "POS"), ("B", -1, "NEG")):
+            with self.subTest(variant=variant):
+                post = posts[variant]
+                arm = solid_box(scenes[variant], "A5_SEQ_L2_ARM")
+                wall = solid_box(scenes[variant], f"A5_SEQ_CORRIDOR_{wall_name}")
+                for box in (post, arm, wall):
+                    self.assertLess(abs(box[0] - section_x), box[3] / 2)
+                post_inner, post_outer = (sign * post[1] + edge * post[4] / 2 for edge in (-1, 1))
+                arm_inner, arm_outer = (sign * arm[1] + edge * arm[4] / 2 for edge in (-1, 1))
+                wall_inner = sign * wall[1] - wall[4] / 2
+                self.assertLess(post_inner, 0)
+                self.assertLess(arm_inner, post_outer)
+                self.assertGreaterEqual(arm_outer - wall_inner, .015)
+                self.assertLess(arm_inner, 1.155)
+                self.assertGreater(arm_outer, 1.155)
+        # The blocked intervals overlap across variants. The historical
+        # +/-1.155 m bypass intersects an actual arm, even at zero radius.
 
     def test_any_early_leak_or_late_ambiguity_is_red(self):
         # Fake arrays exercise only validator rejection, not physical evidence.

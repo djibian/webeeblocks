@@ -78,11 +78,11 @@ int main(void) {
      wb_supervisor_field_get_count(children)!=9)
     return invalid("untrusted_group");
   const double second_y=v=='A'?.45:-.45;
-  const double arm_y=v=='A'?1.05:-1.05;
+  const double arm_y=v=='A'?1.125:-1.125;
   if(!box("A5_SEQ_L1_POST",1.,-.30,.55,.08,1.15,1.1)||
      !box("A5_SEQ_L1_ARM",.65,.275,.55,.70,.08,1.1)||
      !box("A5_SEQ_L2_POST",3.2,second_y,.55,.08,1.20,1.1)||
-     !box("A5_SEQ_L2_ARM",2.85,arm_y,.55,.70,.08,1.1)||
+     !box("A5_SEQ_L2_ARM",2.85,arm_y,.55,.70,.23,1.1)||
      !box("A5_SEQ_CORRIDOR_POS",1.8,1.26,.55,4.3,.08,1.1)||
      !box("A5_SEQ_CORRIDOR_NEG",1.8,-1.26,.55,4.3,.08,1.1)||
      !box("A5_SEQ_CORRIDOR_BACK",-.35,0,.55,.08,2.6,1.1)||
