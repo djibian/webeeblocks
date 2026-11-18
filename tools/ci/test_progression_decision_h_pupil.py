@@ -94,6 +94,37 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",run)
         self.assertIn("events.count('A4_PUPIL_ERROR')==0",run)
 
+    def test_a4_runner_diagnoses_early_webots_exit_without_forging_success(self):
+        # Run only the pure, extracted classification function. No Webots
+        # mock can claim that A/B succeeded or silently relax the oracle.
+        source=RUN.read_text(encoding='utf-8')
+        tree=ast.parse(source,filename=str(RUN))
+        function=next(node for node in tree.body if
+                      isinstance(node,ast.FunctionDef) and
+                      node.name=='classify_live_watchdog')
+        namespace={}
+        exec(compile(ast.Module(body=[function],type_ignores=[]),
+                     str(RUN),'exec'),namespace)
+        classify=namespace['classify_live_watchdog']
+        self.assertIsNone(classify(['A4_PUPIL_HTML_LOADED'],None,80))
+        self.assertEqual(classify([],None,46),'browser_bootstrap_missing')
+        self.assertEqual(classify(['A4_PUPIL_HTML_LOADED'],None,526),
+                         'wall_deadline')
+        for code in (0,1,-11,124,137):
+            with self.subTest(exit=code):
+                self.assertEqual(classify(['A4_PUPIL_HTML_LOADED'],code,150),
+                                 'webots_terminated')
+        self.assertEqual(classify(['A4_PUPIL_ERROR'],0,150),'browser_error')
+        self.assertEqual(classify(['A4_PUPIL_TEST_COMPLETE'],None,120),
+                         'complete')
+        self.assertEqual(classify(['A4_PUPIL_ERROR','A4_PUPIL_TEST_COMPLETE'],
+                                  None,140),'browser_error')
+        self.assertIn("'runner_termination':termination",source)
+        self.assertIn("termination['pre_cleanup_exit_code']=process.poll()",source)
+        self.assertIn("A4_PUPIL_RUNNER_TERMINATION",source)
+        self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",source)
+        self.assertIn("valid=valid and trace_ok",source)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
