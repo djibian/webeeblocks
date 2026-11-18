@@ -32,6 +32,20 @@ REQUIRED=(
     'A4_PUPIL_TEST_COMPLETE',
 )
 
+def classify_live_watchdog(events, exit_code, elapsed_wall_s):
+    """Observe runner termination only; never infer a native mission verdict."""
+    if 'A4_PUPIL_ERROR' in events:
+        return 'browser_error'
+    if 'A4_PUPIL_TEST_COMPLETE' in events:
+        return 'complete'
+    if exit_code is not None:
+        return 'webots_terminated'
+    if elapsed_wall_s>45 and 'A4_PUPIL_HTML_LOADED' not in events:
+        return 'browser_bootstrap_missing'
+    if elapsed_wall_s>=525:
+        return 'wall_deadline'
+    return None
+
 def run()->int:
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     log_path=ARTIFACT/'webots.log'
@@ -39,6 +53,9 @@ def run()->int:
     server=None
     process=None
     output=None
+    started=None
+    termination={'reason':'not_started',
+                 'pre_cleanup_exit_code':None,'elapsed_wall_s':None}
     try:
         for rel in ('controllers/crazyflie_classroom_v2/crazyflie_classroom_v2',
                     'controllers/progression_decision_h_v1/progression_decision_h_v1'):
@@ -60,16 +77,26 @@ def run()->int:
         deadline=started+525
         while time.monotonic()<deadline:
             events=[e.get('event') for e in ack.EVENTS]
-            if ('A4_PUPIL_TEST_COMPLETE' in events or
-                'A4_PUPIL_ERROR' in events or process.poll() is not None):
-                break
-            # The browser is mandatory, and native readiness alone is not it.
-            if time.monotonic()-started>45 and 'A4_PUPIL_HTML_LOADED' not in events:
-                print('A4_PUPIL_FATAL browser bootstrap missing after 45s',
-                      file=sys.stderr,flush=True)
+            # Capture the process return code BEFORE deliberately killing
+            # Webots during cleanup. Missing COMPLETE is never a native PASS.
+            current_return_code=process.poll()
+            reason=classify_live_watchdog(
+                events,current_return_code,time.monotonic()-started)
+            if reason is not None:
+                termination['reason']=reason
+                termination['pre_cleanup_exit_code']=current_return_code
+                if reason=='browser_bootstrap_missing':
+                    print('A4_PUPIL_FATAL browser bootstrap missing after 45s',
+                          file=sys.stderr,flush=True)
                 break
             time.sleep(.25)
+        else:
+            termination['reason']='wall_deadline'
     finally:
+        if started is not None:
+            termination['elapsed_wall_s']=round(time.monotonic()-started,3)
+        if process is not None and termination['pre_cleanup_exit_code'] is None:
+            termination['pre_cleanup_exit_code']=process.poll()
         if process is not None and process.poll() is None:
             os.killpg(process.pid,signal.SIGTERM)
             try:process.wait(timeout=8)
@@ -193,10 +220,13 @@ def run()->int:
              'browser':browser_ok,'one_project':project_ok,
              'project_sha256':hashlib.sha256(project.encode('utf-8')).hexdigest() if project else None,
              'project_bytes':len(project.encode('utf-8')) if project else None,
-             'profile':'CI-only not registered in student activities.js'}
+             'profile':'CI-only not registered in student activities.js',
+             'runner_termination':termination}
     (ARTIFACT/'summary.json').write_text(
         json.dumps(summary,indent=2,sort_keys=True)+'\n',encoding='utf-8')
     if not valid:
+        print('A4_PUPIL_RUNNER_TERMINATION '+json.dumps(termination,sort_keys=True),
+              file=sys.stderr,flush=True)
         print('FAIL A4 same native .wbb on A/B: '+json.dumps(summary),file=sys.stderr)
         print(text[-13500:],file=sys.stderr)
         return 1
