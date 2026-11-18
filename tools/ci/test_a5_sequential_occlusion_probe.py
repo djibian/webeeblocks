@@ -168,6 +168,99 @@ class A5SequentialTest(unittest.TestCase):
         # The blocked intervals overlap across variants. The historical
         # +/-1.155 m bypass intersects an actual arm, even at zero radius.
 
+    def test_four_worlds_need_different_fixed_height_paths(self):
+        # Geometric research witness only. A blind, unchanged XY path would
+        # have to avoid the UNION of colliders from all four variants. Each
+        # world individually must nevertheless admit a passage: otherwise
+        # a negative universal path would just certify an impossible lesson.
+        # Neither grid reachability nor a particular path is a PID/Blockly
+        # flight or a proof that a loop/variable is required.
+        import math
+        import re
+        from collections import deque
+
+        names = (
+            "L1_POST", "L1_ARM", "L2_POST", "L2_ARM",
+            "CORRIDOR_POS", "CORRIDOR_NEG", "CORRIDOR_BACK",
+            "CORRIDOR_ROOF", "TERMINAL",
+        )
+
+        def physical_boxes(variant):
+            source = probe.scene_file(variant).read_text()
+            boxes = []
+            for name in names:
+                parts = source.split(f"DEF A5_SEQ_{name} Solid {{", 1)
+                self.assertEqual(len(parts), 2, (variant, name))
+                body = parts[1].split("boundingObject Box { size ", 1)
+                self.assertEqual(len(body), 2, (variant, name))
+                position = re.search(
+                    r"translation (-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+)",
+                    body[0],
+                )
+                dimensions = re.match(
+                    r"([0-9.]+) ([0-9.]+) ([0-9.]+)", body[1],
+                )
+                self.assertIsNotNone(position, (variant, name))
+                self.assertIsNotNone(dimensions, (variant, name))
+                boxes.append(tuple(float(v) for v in
+                                   position.groups() + dimensions.groups()))
+            return boxes
+
+        # XY grid at nominal flying centre height 0.50 m; 2 cm spacing.
+        # Search stays inside the physical sidewalls, from common blue
+        # takeoff (0,0) to x=3.50 before the terminal wall.
+        step = 0.02
+        nx, ny = 176, 119
+        start = (0, 59)
+        goal = (175, 59)
+
+        def reachable(boxes, radius):
+            blocked = set()
+            for ix in range(nx):
+                x = ix * step
+                for iy in range(ny):
+                    y = (iy - 59) * step
+                    for bx, by, bz, sx, sy, sz in boxes:
+                        # Vertical overlap with the tested flight plane.
+                        if not (bz - sz / 2 <= .50 <= bz + sz / 2):
+                            continue
+                        dx = max(abs(x - bx) - sx / 2, 0.)
+                        dy = max(abs(y - by) - sy / 2, 0.)
+                        if math.hypot(dx, dy) <= radius:
+                            blocked.add((ix, iy))
+                            break
+            self.assertNotIn(start, blocked)
+            self.assertNotIn(goal, blocked)
+            queue = deque([start])
+            seen = {start}
+            while queue:
+                x, y = queue.popleft()
+                if (x, y) == goal:
+                    return True
+                for point in ((x-1,y), (x+1,y), (x,y-1), (x,y+1)):
+                    px, py = point
+                    if (0 <= px < nx and 0 <= py < ny and
+                            point not in blocked and point not in seen):
+                        seen.add(point)
+                        queue.append(point)
+            return False
+
+        worlds = {v: physical_boxes(v) for v in probe.VARIANTS}
+        self.assertEqual(set(worlds), {"A", "B", "C", "D"})
+        for v, boxes in worlds.items():
+            self.assertEqual(len(boxes), 9)
+            with self.subTest(variant=v):
+                self.assertTrue(reachable(boxes, .07),
+                                "individual world cannot be traversed")
+        union = [box for boxes in worlds.values() for box in boxes]
+        # Even a point centre (zero-radius) has no universal fixed XY
+        # route: the mirrored L1 blockers overlap in opposite worlds.
+        self.assertFalse(reachable(union, 0.0))
+        self.assertFalse(reachable(union, .07))
+        # Adversarial control: collapsing all four choices to A MUST admit
+        # a common path. This proves the union test really uses variants.
+        self.assertTrue(reachable(worlds["A"] * 4, .07))
+
     def test_any_early_leak_or_late_ambiguity_is_red(self):
         # Fake arrays exercise only validator rejection, not physical evidence.
         good={v:{phase:dict.fromkeys(probe.CHANNELS,1.)
