@@ -37,12 +37,14 @@ class Handler(events.Handler):
     variant="A"
     mode="positive"
     def do_GET(self):
-        if self.path=="/a5-private-wbb" and self.mode in ("blockly","blockly_fixed","blockly_snapshot"):
+        if self.path=="/a5-private-wbb" and self.mode in ("blockly","blockly_fixed","blockly_snapshot","blockly_no_variable"):
             source=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
                 "a5-private-fixed-front-ci-only.wbb" if
                 self.mode=="blockly_fixed" else
                 "a5-private-single-snapshot-ci-only.wbb" if
                 self.mode=="blockly_snapshot" else
+                "a5-private-no-variable-ci-only.wbb" if
+                self.mode=="blockly_no_variable" else
                 "a5-private-loop-state-ci-only.wbb")
             if not source.is_file() or not 100<=source.stat().st_size<=1048576:
                 self.send_error(404,"bounded canonical private WBB absent")
@@ -154,9 +156,10 @@ def native_collision_coverage(transcript,variant):
             "conservative_swept_boxes_per_step":True}
 
 def run(variant,mode="positive"):
-    if variant not in ("A","B","C","D") or mode not in ("blockly","blockly_fixed","blockly_snapshot"):
+    if variant not in ("A","B","C","D") or mode not in ("blockly","blockly_fixed","blockly_snapshot","blockly_no_variable"):
         raise ValueError("only two private genuine Blockly length modes")
-    folder=ARTIFACT/("reactive-"+variant if mode=="blockly" else "fixed-"+variant)
+    folder=ARTIFACT/({"blockly":"reactive","blockly_fixed":"fixed",
+      "blockly_snapshot":"snapshot","blockly_no_variable":"no-variable"}[mode]+"-"+variant)
     folder.mkdir(parents=True,exist_ok=True)
     log=folder/"webots.log"
     event_path=folder/"events.json"
@@ -250,10 +253,12 @@ def run(variant,mode="positive"):
     # only the native independent C monitor can attest physical success/failure.
     fixed=mode=="blockly_fixed"
     snapshot=mode=="blockly_snapshot"
+    no_variable=mode=="blockly_no_variable"
     reactive=mode=="blockly"
     path=ROOT/"ci-artifacts/progression-reactive-L-factor-blockly"/(
         "a5-private-fixed-front-ci-only.wbb" if fixed else
         "a5-private-single-snapshot-ci-only.wbb" if snapshot else
+        "a5-private-no-variable-ci-only.wbb" if no_variable else
         "a5-private-loop-state-ci-only.wbb")
     if not path.is_file() or not 100<=path.stat().st_size<=1048576:
         raise AssertionError("expected private canonical WBB missing")
@@ -285,20 +290,27 @@ def run(variant,mode="positive"):
     expected_g=1.41 if side=="left" else .54
     cover=native_collision_coverage(trace,variant)
     common=(opened.get("sha256")==sha and
-       opened.get("one_variable") is True and
-       opened.get("fresh_front_loop") is reactive and
+       opened.get("one_variable") is (not no_variable) and
+       opened.get("no_variable") is no_variable and
+       opened.get("fresh_front_loop") is (reactive or no_variable) and
        opened.get("fixed_front_blind") is fixed and
        opened.get("single_front_snapshot") is snapshot and
-       isinstance(h.get("left_m"),(int,float)) and
-       abs(h["left_m"]-.54)<.12 and h.get("destination")=="left" and
+       ((not h and "A5_FACTOR_MOTOR_H_OBSERVATION" not in names)
+        if no_variable else
+        (isinstance(h.get("left_m"),(int,float)) and
+         abs(h["left_m"]-.54)<.12 and h.get("destination")=="left")) and
        isinstance(g.get("left_m"),(int,float)) and
        abs(g["left_m"]-expected_g)<.12 and g.get("route")==side and
-       approach.get("fresh_condition") is reactive and
+       approach.get("fresh_condition") is (reactive or no_variable) and
+       approach.get("no_variable") is no_variable and
        approach.get("fixed_blind_front") is fixed and
        approach.get("single_front_snapshot") is snapshot and
        passed.get("route")==side and pad.get("side")=="left" and
-       len(left)==2 and abs(left[0]-.54)<.12 and
-       abs(left[1]-expected_g)<.12 and
+       pad.get("decision_source")==("constant_left_no_H_read" if no_variable
+                                    else "initial_left_only") and
+       ((len(left)==1 and abs(left[0]-expected_g)<.12) if no_variable else
+        (len(left)==2 and abs(left[0]-.54)<.12 and
+         abs(left[1]-expected_g)<.12)) and
        (len(fronts)==0 if fixed else
         len(fronts)==1 if snapshot else 20<=len(fronts)<=32) and
        f"WEBEEBLOCKS_A5_LENGTH_MOTOR_SCENE_OK variant={variant} " in trace and
@@ -327,13 +339,14 @@ def run(variant,mode="positive"):
               complete.get("missionOracle") is False and
               complete.get("fixed_front_blind") is False and
               complete.get("single_front_snapshot") is snapshot and
+              complete.get("no_variable") is no_variable and
               "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1" in trace)
     summary={"schema":"webeeblocks-a5-length-motor-private-native-v1",
              "variant":variant,"mode":mode,"pass":bool(good),
              "sha256":sha,"target_x":target_x,
              "native_floor_xyzt":floor,"native_wrong_x_xyzt":wrong,
              "native_coverage":cover,"front_native_reads":len(fronts),
-             "left_native_reads":len(left),
+             "left_native_reads":len(left),"no_variable":no_variable,
              "pupil_published":False,"mission_oracle":False}
     summary_path.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
     if not good:
@@ -342,7 +355,8 @@ def run(variant,mode="positive"):
         print(trace[-8500:],file=sys.stderr,flush=True)
         raise AssertionError("length motorized experiment did not prove expected physical result")
     label=("WEBEEBLOCKS_A5_LENGTH_FIXED_PHYSICAL_REJECTED" if fixed
-           else "WEBEEBLOCKS_A5_LENGTH_SNAPSHOT_NATIVE_PASS" if snapshot
+           else "WEBEEBLOCKS_A5_LENGTH_NO_VARIABLE_NATIVE_PASS" if no_variable
+            else "WEBEEBLOCKS_A5_LENGTH_SNAPSHOT_NATIVE_PASS" if snapshot
            else "WEBEEBLOCKS_A5_LENGTH_REACTIVE_NATIVE_PASS")
     print(label+f" variant={variant} front_native_reads={len(fronts)} "
           "native_32ms=true swept_7=true pupil_unpublished=true",flush=True)
@@ -353,8 +367,19 @@ def main():
     # using exactly one front range read at a shared in-flight survey point.
     # The existing 8 positive/negative native trials remain unchanged.
     if len(sys.argv)>1:
+        if sys.argv[1:]==["--no-variable"]:
+            no_variable=[run(v,"blockly_no_variable") for v in "ABCD"]
+            if len({r["sha256"] for r in no_variable})!=1:
+                raise AssertionError("no-variable WBB changed between native worlds")
+            if any(r["left_native_reads"]!=1 or r["no_variable"] is not True
+                   for r in no_variable):
+                raise AssertionError("no-variable WBB read H or stored state")
+            print("WEBEEBLOCKS_A5_LENGTH_NO_VARIABLE_FOUR_PASS "
+                  "one_late_left_per_world=true same_wbb=true independent_floor=true "
+                  "native_32ms=true swept_7=true pupil_unpublished=true",flush=True)
+            return
         if sys.argv[1:]!=["--snapshot"]:
-            raise ValueError("only --snapshot private mode allowed")
+            raise ValueError("only --snapshot or --no-variable private mode allowed")
         snapshot=[run(v,"blockly_snapshot") for v in "ABCD"]
         if len({r["sha256"] for r in snapshot})!=1:
             raise AssertionError("snapshot WBB changed between four native worlds")

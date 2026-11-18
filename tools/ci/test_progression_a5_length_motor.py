@@ -2,7 +2,7 @@
 """A5 private short/long actual WBB motor experiment, strict source contracts.
 
 No positive verdict from text: the draft CI must compile both C units and
-actually fly the reactive, fixed-blind and single-snapshot Blockly projects
+actually fly the reactive, fixed-blind, snapshot and no-variable Blockly projects
 through the original R2025a PID and unchanged independent C monitor.
 """
 from pathlib import Path
@@ -81,7 +81,7 @@ class LengthMotorSourceContract(unittest.TestCase):
         for x in ("a5-private-loop-state-ci-only.wbb",
                   "a5-private-fixed-front-ci-only.wbb",
                   "a5-private-single-snapshot-ci-only.wbb",
-                  'mode not in ("blockly","blockly_fixed","blockly_snapshot")',
+                  'mode not in ("blockly","blockly_fixed","blockly_snapshot","blockly_no_variable")',
                   "len(fronts)==1 if snapshot",
                   "WEBEEBLOCKS_A5_LENGTH_SINGLE_SNAPSHOT_NATIVE_FOUR_PASS",
                   "len(fronts)==0 if fixed",
@@ -142,6 +142,36 @@ class LengthMotorSourceContract(unittest.TestCase):
         self.assertNotIn("name: CI Gate",job)
         self.assertNotIn("continue-on-error",job)
         self.assertNotIn("|| true",job)
+
+    def test_no_variable_physical_counterprogram_is_private_and_falsifiable(self):
+        runner=(ROOT/"tools/ci/run_classroom_reactive_L_length_motor.py").read_text()
+        builder=(ROOT/"tools/ci/build_a5_private_blockly_witness.js").read_text()
+        browser=(ROOT/"plugins/robot_windows/a5_alias_motor_probe/a5_private_blockly_probe.js").read_text()
+        probe=(ROOT/"plugins/robot_windows/a5_length_motor_probe/a5_length_motor_probe.js").read_text()
+        workflow=(ROOT/".github/workflows/ci-progression-a5-factor-draft.yml").read_text()
+        for source,tokens in (
+            (runner,("blockly_no_variable","--no-variable",
+                     "WEBEEBLOCKS_A5_LENGTH_NO_VARIABLE_FOUR_PASS",
+                     "left_native_reads","no_variable")),
+            (builder,("build('no-variable')","a5-private-no-variable-ci-only.wbb",
+                      "no_variable_native_four_worlds:'UNPROVEN'",
+                      "noVariable.variableCount,0")),
+            (browser,("strategy==='no-variable'","no_variable:noVariable",
+                      "leftReads===(noVariable?1:2)",
+                      "Object.keys(result.variables||{}).length!==0")),
+            (probe,("config.mode==='blockly_no_variable'","'no-variable'")),
+            (workflow,("a5-private-no-variable-ci-only.wbb",
+                       "run_classroom_reactive_L_length_motor.py --no-variable",
+                       "if: github.event.pull_request.draft == true"))
+        ):
+            for token in tokens:
+                with self.subTest(token=token):
+                    self.assertIn(token,source)
+        self.assertNotIn("a5-private-no-variable-ci-only",
+            (ROOT/"plugins/robot_windows/blockly/webeeblocks/activities.js").read_text())
+        self.assertNotIn("name: CI Gate",workflow)
+        self.assertNotIn("continue-on-error",workflow)
+
 
 if __name__=="__main__":
     unittest.main()

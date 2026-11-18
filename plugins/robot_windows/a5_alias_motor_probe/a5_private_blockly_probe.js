@@ -3,9 +3,10 @@
 // against the A5 independent native PID + Floor monitor. NEVER pupil material.
 // This module sees NO variant, scene identity, Supervisor node or oracle answer.
 export async function runPrivateBlockly(backend,report,strategy='reactive'){
-  if(!['reactive','fixed','snapshot'].includes(strategy))throw Error('unknown private strategy');
+  if(!['reactive','fixed','snapshot','no-variable'].includes(strategy))throw Error('unknown private strategy');
   const fixed=strategy==='fixed',snapshot=strategy==='snapshot';
-  const reactive=strategy==='reactive';
+  const noVariable=strategy==='no-variable';
+  const reactive=strategy==='reactive'||noVariable;
   const response=await fetch('http://127.0.0.1:8765/a5-private-wbb',
     {cache:'no-store'});
   if(!response.ok)throw Error('A5 canonical private .wbb was not served');
@@ -18,14 +19,17 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
   const Semantic=WebeeBlocksSemanticAst;
   Semantic.installConditionalLoopBounds(Blockly);
   const p=WebeeBlocksActivities.getProfile('reactive-obstacle-v2');
-  p.id=fixed?'progression-reactive-hg-fixed-blind-ci-only':
+  p.id=noVariable?'progression-reactive-hg-no-variable-ci-only':
+    fixed?'progression-reactive-hg-fixed-blind-ci-only':
     snapshot?'progression-reactive-hg-single-snapshot-ci-only':
     'progression-reactive-hg-private-ci-only';
   p.starterVisible=false;
   p.brief={visible:false,title:'PRIVATE CI ONLY',
     goal:'Test real Blockly loop and one memory variable'};
   p.toolbox=Array.from(new Set([...p.toolbox,
-    reactive?'controls_whileUntil':'controls_repeat_ext']));
+    reactive?'controls_whileUntil':'controls_repeat_ext']))
+    .filter(kind=>!noVariable||
+      !['variables_set','variables_get','math_change'].includes(kind));
   p.fieldOptions={...p.fieldOptions,
     webeeblocks_v2_range:{DIRECTION:['left','front']},
     webeeblocks_v2_move:{DIRECTION:['forward']},
@@ -33,7 +37,8 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
   p.parameterBounds={...p.parameterBounds,
     webeeblocks_v2_speed:{SPEED:{min:.2,max:.2,step:.01}}};
   p.runtime.allowedStatementKinds=Array.from(
-    new Set([...p.runtime.allowedStatementKinds,reactive?'while':'repeat']));
+    new Set([...p.runtime.allowedStatementKinds,reactive?'while':'repeat']))
+    .filter(kind=>!noVariable||kind!=='set_variable');
   p.runtime.rangeDirections=['left','front'];
   p.runtime.moveDirections=['forward'];p.runtime.maxSteps=20000;
   p.runtime.astBounds={...p.runtime.astBounds,
@@ -62,9 +67,9 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
     if(JSON.stringify(ast)!==JSON.stringify(validated.ast))
       throw Error('A5 serialized AST changed upon reopening');
     const vars=workspace.getVariableMap().getAllVariables().map(x=>x.name).sort();
-    if(vars.length!==1||vars[0]!=='destination')
+    if(noVariable?vars.length!==0:(vars.length!==1||vars[0]!=='destination'))
       throw Error('A5 private source has unexpected variables');
-    if(ast.program[3]?.kind!==(reactive?'while':'repeat'))
+    if(ast.program[noVariable?2:3]?.kind!==(reactive?'while':'repeat'))
       throw Error('A5 private source has wrong approach block');
     if(snapshot && (ast.program[3].count!==18 ||
        ast.program[3].body?.length!==1 ||
@@ -80,7 +85,8 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
     if(snapshot && !facts.ranges.has('front'))
       throw Error('single-snapshot must use one authentic front measurement');
     await report('A5_FACTOR_MOTOR_WBB_REOPENED',{
-      sha256:sha,bytes:data.length,one_variable:true,
+      sha256:sha,bytes:data.length,one_variable:!noVariable,
+      no_variable:noVariable,
       fresh_front_loop:reactive,fixed_front_blind:fixed,
       single_front_snapshot:snapshot,
       pupilWbb:false,testOnly:true});
@@ -103,18 +109,19 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
         }
         if(direction!=='left')throw Error('private AST requests unexpected sensor');
         leftReads++;
-        if(leftReads===1){
+        if(!noVariable&&leftReads===1){
           early=value;
           await report('A5_FACTOR_MOTOR_H_OBSERVATION',{
             left_m:early,destination:early>.8?'right':'left',
             decision_source:'initial_left_only',blockly:true});
-        }else if(leftReads===2){
+        }else if(leftReads===(noVariable?1:2)){
           late=value;
           if((reactive&&(frontReads<21||frontReads>33))||
              (fixed&&frontReads!==0)||(snapshot&&frontReads!==1))
             throw Error('native front observations contradict private approach');
           await report('A5_FACTOR_MOTOR_APPROACH',{
             front_reads:frontReads,fresh_condition:reactive,
+            no_variable:noVariable,
             fixed_blind_front:fixed,single_front_snapshot:snapshot,
             blockly:true});
           await report('A5_FACTOR_MOTOR_G_OBSERVATION',{
@@ -133,11 +140,12 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
         }
       },
       land:async()=>{
-        if(!gatePassed||early===null||late===null)
+        if(!gatePassed||(!noVariable&&early===null)||late===null)
           throw Error('LAND before native gate and H/G observations');
         await report('A5_FACTOR_MOTOR_PAD_SELECTED',{
-          side:early>.8?'right':'left',
-          decision_source:'initial_left_only',blockly:true});
+          side:noVariable?'left':early>.8?'right':'left',
+          decision_source:noVariable?'constant_left_no_H_read':'initial_left_only',
+          blockly:true});
         await backend.land();
         await report('A5_FACTOR_MOTOR_LAND_ACK',{nativeReply:true,blockly:true});
       }
@@ -145,14 +153,16 @@ export async function runPrivateBlockly(backend,report,strategy='reactive'){
     WebeeBlocksActivityContract.preflightBackend(profile,facts,native);
     const result=await WebeeBlocksInterpreter.run(ast,native,{
       maxSteps:profile.runtime.maxSteps,motionBounds:profile.runtime.astBounds});
-    if(result.variables.destination!==early||leftReads!==2||
+    if((noVariable?Object.keys(result.variables||{}).length!==0:
+         result.variables.destination!==early)||
+       leftReads!==(noVariable?1:2)||
        (reactive&&frontReads<21)||(fixed&&frontReads!==0)||
        (snapshot&&frontReads!==1))
       throw Error('real native .wbb result mismatches observed sensor state');
     await report('A5_FACTOR_MOTOR_TEST_COMPLETE',{
       nativeReply:true,pupilWbb:false,missionOracle:false,
       samePrivateWbb:true,blockly:true,fixed_front_blind:fixed,
-      single_front_snapshot:snapshot,sha256:sha,
+      single_front_snapshot:snapshot,no_variable:noVariable,sha256:sha,
       front_reads:frontReads,stored_initial_h:early,testOnly:true});
   }finally{workspace.dispose();}
 }
