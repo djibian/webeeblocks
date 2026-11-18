@@ -118,6 +118,7 @@ class LengthMotorSourceContract(unittest.TestCase):
                       "snapshot_front_reads_structurally_one:true",
                       "count:18,body:[forward(.1)]",
                       "cmp('GT',range('front'),1.25)",
+                      "iff(cmp('GT',range('front'),1.25),[forward(.8)],[forward(.4)])",
                       "snapshot_native_four_worlds: 'UNPROVEN'"):
             self.assertIn(token,generator)
         self.assertNotIn("config.variant",original)

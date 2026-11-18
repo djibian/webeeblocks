@@ -40,7 +40,7 @@ function expectedAst(strategy='reactive'){
     // distinguish short vs long; only motor/C oracle can test success.
     ...(strategy==='snapshot'
       ? [{kind:'repeat',count:18,body:[forward(.1)]},
-         iff(cmp('GT',range('front'),1.25),[forward(.9)],[forward(.5)])]
+         iff(cmp('GT',range('front'),1.25),[forward(.8)],[forward(.4)])]
       : [strategy==='fixed'
         ? {kind:'repeat',count:12,body:[forward(.1),forward(.1)]}
         : {kind:'while',mode:'WHILE',max_iterations:32,
