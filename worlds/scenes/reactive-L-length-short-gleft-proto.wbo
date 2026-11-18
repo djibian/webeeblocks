@@ -1,0 +1,53 @@
+# A5 DRAFT ONLY: original Crazyflie H-near, G-left, short physical L. Not published.
+# R2025a native sensor and motor evidence required; NOT an oracle or released activity.
+# Physical G L-arm starts x=1.350, terminates x=gate-0.300; length and gate position vary.
+DEF WEBEEBLOCKS_A5_LENGTH_SHORT_GL_SCENE Group {
+ children [
+  Pose { translation 0.000 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.8 } geometry Box { size 0.200 0.200 0.004 } } ] }
+  Pose { translation 2.300 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.65 0.82 roughness 0.8 } geometry Box { size 0.160 0.160 0.004 } } ] }
+  Pose { translation 3.950 0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  Pose { translation 3.950 -0.620 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.8 } geometry Box { size 0.300 0.300 0.004 } } ] }
+  DEF A5_FACTOR_H_CUE_ARM Solid {
+    translation 0.000 0.580 0.550
+    name "A5_FACTOR_H_CUE_ARM"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.400 0.080 1.100 } } ]
+    boundingObject Box { size 0.400 0.080 1.100 }
+  }
+  DEF A5_FACTOR_H_CUE_TIP Solid {
+    translation 0.200 0.780 0.550
+    name "A5_FACTOR_H_CUE_TIP"
+    children [ Shape { appearance PBRAppearance { baseColor 0.78 0.22 0.12 roughness 0.6 } geometry Box { size 0.080 0.480 1.100 } } ]
+    boundingObject Box { size 0.080 0.480 1.100 }
+  }
+  DEF A5_FACTOR_G_LOWER Solid {
+    translation 2.900 -0.550 0.550
+    name "A5_FACTOR_G_LOWER"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 0.080 1.700 1.100 } } ]
+    boundingObject Box { size 0.080 1.700 1.100 }
+  }
+  DEF A5_FACTOR_G_UPPER Solid {
+    translation 2.900 1.160 0.550
+    name "A5_FACTOR_G_UPPER"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 0.080 0.480 1.100 } } ]
+    boundingObject Box { size 0.080 0.480 1.100 }
+  }
+  DEF A5_FACTOR_G_SIDE_ARM Solid {
+    translation 1.975 -0.580 0.550
+    name "A5_FACTOR_G_SIDE_ARM"
+    children [ Shape { appearance PBRAppearance { baseColor 0.72 0.22 0.10 roughness 0.6 } geometry Box { size 1.250 0.080 1.100 } } ]
+    boundingObject Box { size 1.250 0.080 1.100 }
+  }
+  DEF A5_FACTOR_G_LEFT_BOUNDARY Solid {
+    translation 2.800 1.450 0.550
+    name "A5_FACTOR_G_LEFT_BOUNDARY"
+    children [ Shape { appearance PBRAppearance { baseColor 0.45 0.45 0.45 roughness 0.6 } geometry Box { size 2.400 0.080 1.100 } } ]
+    boundingObject Box { size 2.400 0.080 1.100 }
+  }
+  DEF A5_FACTOR_G_RIGHT_BOUNDARY Solid {
+    translation 2.800 -1.450 0.550
+    name "A5_FACTOR_G_RIGHT_BOUNDARY"
+    children [ Shape { appearance PBRAppearance { baseColor 0.45 0.45 0.45 roughness 0.6 } geometry Box { size 2.400 0.080 1.100 } } ]
+    boundingObject Box { size 2.400 0.080 1.100 }
+  }
+ ]
+}

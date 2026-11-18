@@ -7,6 +7,12 @@ on:
     paths:
       - '.github/workflows/ci-progression-a5-factor-draft.yml'
       - 'worlds/scenes/reactive-L-factor-h*-g*-proto.wbo'
+      - 'worlds/scenes/reactive-L-length-*-g*-proto.wbo'
+      - 'controllers/progression_reactive_L_length_probe/**'
+      - 'tools/ci/run_classroom_reactive_L_length_probe.py'
+      - 'tools/ci/test_progression_a5_length_sources.py'
+      - 'tools/ci/test_progression_a5_length_native.py'
+      - 'docs/A5_L_LENGTH_EXPERIMENT.md'
       - 'controllers/progression_reactive_L_factor_probe/**'
       - 'tools/ci/run_classroom_reactive_L_factor_probe.py'
       - 'tools/ci/test_progression_a5_factor_native.py'
@@ -183,5 +189,48 @@ jobs:
         with:
           name: a5-hfixed-gbinary-real-native-feeder-draft
           path: ci-artifacts/progression-reactive-L-factor-native-feeder/
+          if-no-files-found: warn
+
+
+  a5-length-native-sensor-draft-only:
+    name: A5 real R2025a variable-L length x side sensors (not CI Gate)
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Attest exact original seven-Solid L geometry and no public pupil profile
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tools.ci.test_progression_a5_length_sources
+          python3 -m unittest -v tools.ci.test_progression_a5_length_native
+      - name: Compile isolated C original R2025a Multi-ranger sensor controller
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/progression_reactive_L_length_probe \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'set -e; make clean; make; test -s progression_reactive_L_length_probe'
+      - name: Falsify short/long and left/right with genuine Webots native rays
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            bash -lc 'set -e; python3 tools/ci/run_classroom_reactive_L_length_probe.py'
+      - name: Preserve four physical source worlds and raw native measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-variable-L-length-native-sensors-draft
+          path: ci-artifacts/progression-reactive-L-length/
           if-no-files-found: warn
 
