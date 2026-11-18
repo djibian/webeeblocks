@@ -187,14 +187,21 @@ static int native_contact(WbNodeRef craft,
 }
 static void publish(WbFieldRef channel,const wb_mini_mission *m) {
   const char *status=m->verdict==WB_MINI_ACHIEVED?"achieved":"not-achieved";
+  const char *reason=m->verdict==WB_MINI_FAILED ?
+    wb_mini_reason_token(m->reason):NULL;
   char message[192];
-  const int n=snprintf(message,sizeof(message),
-    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-    m->attempt,WB_A7_ORACLE,status);
+  const int n=reason ?
+    snprintf(message,sizeof(message),
+      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+      m->attempt,WB_A7_ORACLE,status,reason) :
+    snprintf(message,sizeof(message),
+      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+      m->attempt,WB_A7_ORACLE,status);
   if(n>0&&(size_t)n<sizeof(message))
     wb_supervisor_field_set_sf_string(channel,message);
-  printf("WB_MINI_NATIVE_RESULT variant=%c attempt=%llu status=%s crossed=%d turned=%d\n",
-         m->variant,m->attempt,status,m->crossed,m->turned);
+  printf("WB_MINI_NATIVE_RESULT variant=%c attempt=%llu status=%s crossed=%d turned=%d reason=%s\n",
+         m->variant,m->attempt,status,m->crossed,m->turned,
+         reason?reason:"none");
   fflush(stdout);
 }
 int main(void) {

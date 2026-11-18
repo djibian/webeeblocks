@@ -312,6 +312,41 @@ int main() {
   assert(sent_text.back() ==
     "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 65 ERR OUTCOME_UNAVAILABLE");
 
+  // Activity 7 reasons are accepted ONLY by the composed school binary;
+  // the original physical broker and route-only composite remain unchanged.
+  reset_harness();
+  const std::string a7 =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-mini-grand-prix-v1 status=not-achieved reason=unsafe-h-crossing";
+  custom_data = a7;
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 66 COMPLETE progression-mini-grand-prix-v1",
+           "WEBEEBLOCKS_RUNTIME_V2 REQUEST 67 OUTCOME progression-mini-grand-prix-v1"});
+  assert(custom_data == a7);
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 67 STATE not-achieved reason=unsafe-h-crossing");
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-mini-grand-prix-v1 status=achieved reason=unsafe-h-crossing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-mini-grand-prix-v1 status=not-achieved reason=untrusted",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-mini-grand-prix-v1 status=not-achieved reason=unsafe-clearance",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=unsafe-h-crossing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-mini-grand-prix-v1 status=not-achieved reason=unsafe-h-crossing trailing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-mini-grand-prix-v1 status=not-achieved reason=unsafe-h-crossing",
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 68 OUTCOME progression-mini-grand-prix-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 68 STATE not-achieved reason=unsafe-h-crossing");
+  }
+  reset_harness();
+  custom_data = a7;
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 69 RESET");
+  assert(webeeblocks_file_broker_receive_text()!=nullptr);
+  const std::string reset_a7="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 69 OK";
+  webeeblocks_file_broker_send(reset_a7.c_str(),static_cast<int>(reset_a7.size()+1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 70 OUTCOME progression-mini-grand-prix-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 70 ERR OUTCOME_UNAVAILABLE");
+
   // A2 first-cause diagnostics are permitted in the school executable only.
   // The physical shared broker and Grand Prix route-only parser remain sealed.
   reset_harness();
@@ -326,6 +361,7 @@ int main() {
   for (const char *bad : {
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=achieved reason=unsafe-clearance",
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=forged",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-h-crossing",
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=unsafe-clearance",
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-clearance trailing",
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-altitude-3d-v1 status=not-achieved reason=unsafe-clearance"
