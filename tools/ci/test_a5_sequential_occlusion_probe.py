@@ -24,7 +24,7 @@ class A5SequentialTest(unittest.TestCase):
             self.assertEqual(w.count('controller "progression_a5_seq_occ_probe"'),1)
             self.assertEqual(w.count("Floor { size 8 4 }"),1)
             self.assertNotIn('controller "crazyflie_runtime_v2"',w)
-        for bad in ("C","",None,"A+B"):
+        for bad in ("E","",None,"A+B"):
             with self.assertRaises(ValueError):probe.compose(bad)
         with self.assertRaises(ValueError):
             probe.compose("A",scene=a.replace(" Solid {"," Robot {",1))
