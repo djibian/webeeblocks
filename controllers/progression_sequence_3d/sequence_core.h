@@ -35,6 +35,24 @@ typedef enum {
   WB_SEQ_NOT_ACHIEVED = 2
 } wb_seq_verdict;
 
+/* Only causes established by a valid native observation may be exposed.
+ * An unavailable/corrupt observation fails closed without a guessed cause. */
+typedef enum {
+  WB_SEQ_REASON_NONE = 0,
+  WB_SEQ_REASON_NO_FLIGHT,
+  WB_SEQ_REASON_WRONG_PAD,
+  WB_SEQ_REASON_LANDING_TIMEOUT
+} wb_seq_reason;
+
+static inline const char *wb_seq_reason_token(wb_seq_reason reason) {
+  switch (reason) {
+    case WB_SEQ_REASON_NO_FLIGHT: return "flight-not-observed";
+    case WB_SEQ_REASON_WRONG_PAD: return "wrong-pad";
+    case WB_SEQ_REASON_LANDING_TIMEOUT: return "landing-timeout";
+    default: return NULL;
+  }
+}
+
 typedef struct {
   double time, x, y, z, vx, vy, vz;
   int completed;
@@ -53,6 +71,7 @@ typedef struct {
   int airborne;
   int completion_seen;
   wb_seq_verdict result;
+  wb_seq_reason reason;
 } wb_seq_mission;
 
 static inline void wb_seq_reset(wb_seq_mission *m,
@@ -100,6 +119,15 @@ static inline wb_seq_verdict wb_seq_sample_mission(wb_seq_mission *m,
   if (!m->completion_seen) return WB_SEQ_WAIT;
   /* The post-completion deadline is terminal, even with a perfect pose. */
   if (s->time - m->completion_at >= WB_SEQ_SETTLE) {
+    /* At the terminal deadline classify only what the last valid physical
+     * sample proves; no AST inference or speculative obstacle cause. */
+    const int grounded = s->z <= m->origin_z + WB_SEQ_LAND_HEIGHT &&
+                         s->floor_contact == 1;
+    const int on_pad = fabs(s->x - WB_SEQ_X) <= WB_SEQ_X_TOL &&
+                       fabs(s->y - WB_SEQ_Y) <= WB_SEQ_Y_TOL;
+    m->reason = !m->airborne ? WB_SEQ_REASON_NO_FLIGHT
+                : grounded && !on_pad ? WB_SEQ_REASON_WRONG_PAD
+                : WB_SEQ_REASON_LANDING_TIMEOUT;
     m->result = WB_SEQ_NOT_ACHIEVED;
     return m->result;
   }
