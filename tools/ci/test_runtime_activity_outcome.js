@@ -320,7 +320,7 @@ function proveRealWebotsOutcomeFreshness() {
   const a1 = {type:'mission-state-v1', oracle:'progression-sequence-3d-v1'};
   for (const [reason, french] of [
     ['flight-not-observed', 'Décollage non confirmé'],
-    ['wrong-pad', 'Drone posé hors du damier'],
+    ['wrong-pad', 'Drone pas entièrement sur le damier'],
     ['landing-timeout', 'Pose immobile sur le damier non confirmée dans le délai']
   ]) {
     assert.strictEqual(Outcome.classifyMission(

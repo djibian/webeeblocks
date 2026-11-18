@@ -62,7 +62,7 @@
 
   var A1_PUBLIC_REASONS = Object.freeze({
     'flight-not-observed': 'Décollage non confirmé',
-    'wrong-pad': 'Drone posé hors du damier',
+    'wrong-pad': 'Drone pas entièrement sur le damier',
     'landing-timeout': 'Pose immobile sur le damier non confirmée dans le délai'
   });
 
