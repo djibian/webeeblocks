@@ -46,7 +46,7 @@ class A6SecondSamplingHoldout(unittest.TestCase):
                 validate_scene(
                     alternate, n, expected_positions=SECOND[n],
                     checked_checkpoints=CLASSIFIER_POSTS,
-                    terminal_h=0.48,
+                    terminal_h=0.48, checkpoint_margin=GATE_HALF_X,
                 )
                 self.assertIn("PRIVATE A6 CHOICE B", alternate)
                 self.assertIn("SAMPLING HOLDOUT", alternate)
@@ -110,7 +110,7 @@ class A6SecondSamplingHoldout(unittest.TestCase):
                     validate_scene(
                         broken, 3, expected_positions=SECOND[3],
                         checked_checkpoints=CLASSIFIER_POSTS,
-                        terminal_h=0.48,
+                        terminal_h=0.48, checkpoint_margin=GATE_HALF_X,
                     )
 
 

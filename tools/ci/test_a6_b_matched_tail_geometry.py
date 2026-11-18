@@ -55,7 +55,8 @@ def gate_centres(source: str, count: int) -> tuple[float, ...]:
 
 
 def validate_scene(source: str, count: int, *, expected_positions=None,
-                   checked_checkpoints=OLD_CHECKPOINTS, terminal_h=0.36) -> None:
+                   checked_checkpoints=OLD_CHECKPOINTS, checkpoint_margin=0.13,
+                   terminal_h=0.36) -> None:
     xs = gate_centres(source, count)
     expected = EXPECTED[count] if expected_positions is None else expected_positions
     if any(abs(a - b) > 1e-8 for a, b in zip(xs, expected)):
@@ -122,7 +123,7 @@ def validate_scene(source: str, count: int, *, expected_positions=None,
             if tuple(map(float, match.groups())) != expected_box:
                 raise AssertionError(f"invalid collision volume for {key}")
     for checkpoint in checked_checkpoints:
-        if any(abs(gate - checkpoint) <= 0.035 for gate in xs):
+        if any(abs(gate - checkpoint) <= checkpoint_margin for gate in xs):
             raise AssertionError(
                 f"old physical classifier checkpoint {checkpoint} still matches H"
             )
