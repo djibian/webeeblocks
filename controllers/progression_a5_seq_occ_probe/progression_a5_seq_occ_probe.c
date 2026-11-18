@@ -86,7 +86,7 @@ int main(void) {
      !box("A5_SEQ_CORRIDOR_POS",1.8,1.26,.55,4.3,.08,1.1)||
      !box("A5_SEQ_CORRIDOR_NEG",1.8,-1.26,.55,4.3,.08,1.1)||
      !box("A5_SEQ_CORRIDOR_BACK",-.35,0,.55,.08,2.6,1.1)||
-     !box("A5_SEQ_CORRIDOR_ROOF",1.79,0,1.26,4.4,2.6,.12)||
+     !box("A5_SEQ_CORRIDOR_ROOF",1.79,0,1.14,4.4,2.6,.12)||
      !box("A5_SEQ_TERMINAL",3.92,0,.55,.08,2.3,1.1))
     return invalid("physical_colliders_or_dimensions_modified");
   WbNodeRef self=wb_supervisor_node_get_self();

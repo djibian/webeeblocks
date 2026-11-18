@@ -47,9 +47,10 @@ DEF WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE Group {
         geometry Box { size 4.300 0.080 1.100 } } ]
       boundingObject Box { size 4.300 0.080 1.100 }
     }
-    # Private covered corridor: the 0.10 m space over the Ls is narrower
-    # than the conservative 0.18 m high craft envelope. A rear wall makes
-    # the roof impossible to bypass by backing out before takeoff.
+    # Private covered corridor: the roof underside z=1.080 overlaps
+    # the upper 0.020 m of every L (top z=1.100), eliminating the
+    # overflight slot without assuming a particular drone thickness.
+    # An end wall closes the corridor behind the takeoff area.
     # Supervisor-only research geometry, never a pupil-facing mission.
     DEF A5_SEQ_CORRIDOR_BACK Solid {
       name "A5_SEQ_CORRIDOR_BACK"
@@ -60,7 +61,7 @@ DEF WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE Group {
     }
     DEF A5_SEQ_CORRIDOR_ROOF Solid {
       name "A5_SEQ_CORRIDOR_ROOF"
-      translation 1.790 0.000 1.260
+      translation 1.790 0.000 1.140
       children [ Shape { appearance PBRAppearance { baseColor 0.38 0.45 0.50 roughness 0.65 }
         geometry Box { size 4.400 2.600 0.120 } } ]
       boundingObject Box { size 4.400 2.600 0.120 }

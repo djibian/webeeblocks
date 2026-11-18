@@ -64,14 +64,16 @@ class A5SequentialTest(unittest.TestCase):
                              (3.92,0,.55,.08,2.3,1.1))
             roof=solid_box(source,"A5_SEQ_CORRIDOR_ROOF")
             rear=solid_box(source,"A5_SEQ_CORRIDOR_BACK")
-            self.assertEqual(roof,(1.79,0,1.26,4.4,2.6,.12))
+            self.assertEqual(roof,(1.79,0,1.14,4.4,2.6,.12))
             self.assertEqual(rear,(-.35,0,.55,.08,2.6,1.1))
             # This only refutes the documented straight overflight inside
             # the closed corridor, not arbitrary Webots motorized strategies.
             top_of_L=.55+1.1/2
             roof_underside=roof[2]-roof[5]/2
-            self.assertGreater(roof_underside,top_of_L)
-            self.assertLess(roof_underside-top_of_L,2*.09)
+            # Solid vertical overlap: no nonzero clearance slot exists,
+            # independent of the exact rotor/body vertical envelope.
+            self.assertLess(roof_underside,top_of_L)
+            self.assertGreaterEqual(top_of_L-roof_underside,.015)
             # Roof overlaps both ends and both sidewalls of the tunnel.
             self.assertLessEqual(roof[0]-roof[3]/2,rear[0]-rear[3]/2)
             self.assertGreaterEqual(roof[0]+roof[3]/2,3.92+.08/2)
