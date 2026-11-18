@@ -85,6 +85,22 @@ def validate_scene(source: str, count: int) -> None:
         r"translation 1\.86 0 0\.55", source,
     ):
         raise AssertionError("shared terminal marker moved")
+    # Confirm true collision volumes, not merely the number of named solids.
+    # In particular a zero-thickness BAR must fail a negative mutation.
+    for i in range(1, count + 1):
+        for part in PARTS:
+            key = f"ACTIVITY6_{count}_H_{i}_{part}"
+            match = re.search(
+                rf"DEF {key} Solid \\{{[\\s\\S]*?boundingObject Box "
+                rf"\\{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \\}}",
+                source,
+            )
+            if not match:
+                raise AssertionError(f"missing collision box for {key}")
+            expected_box = ((0.07, 0.57, 0.24) if part == "BAR"
+                            else (0.07, 0.065, 1.00))
+            if tuple(map(float, match.groups())) != expected_box:
+                raise AssertionError(f"invalid collision volume for {key}")
     for checkpoint in OLD_CHECKPOINTS:
         if any(abs(gate - checkpoint) <= 0.13 for gate in xs):
             raise AssertionError(
