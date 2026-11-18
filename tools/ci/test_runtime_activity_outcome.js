@@ -365,6 +365,22 @@ function proveRealWebotsOutcomeFreshness() {
   assert.deepStrictEqual(Outcome.classifyMission({status:'interrupted'}), {
     status:'interrupted', state:'MISSION INTERROMPUE', detail:'Mission interrompue'
   });
+  // An unknown status must fail closed even when it names an inherited
+  // Object.prototype property or coerces to an otherwise valid state.
+  for (const invalidStatus of [
+    '__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty',
+    'mystery', '', null, undefined, 0, true, {},
+    {toString() { return 'achieved'; }}
+  ]) {
+    assert.throws(() => Outcome.classifyMission(
+      {status: invalidStatus, reason:'envelope-contact'}, evaluation),
+      /invalid mission state/, 'unexpected mission status was accepted');
+  }
+  assert.throws(() => Outcome.classifyMission('__proto__', evaluation),
+    /invalid mission state/, 'raw string status cannot use inherited lookup');
+  await assert.rejects(() => Outcome.evaluateMission({evaluation}, {
+    readActivityOutcome: async () => ({status:'constructor'})
+  }), /invalid mission state/, 'backend must not produce inherited statuses');
 
   await assert.rejects(
     () => Outcome.evaluateMission({evaluation}, {}),
