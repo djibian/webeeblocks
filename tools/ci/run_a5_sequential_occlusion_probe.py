@@ -13,29 +13,34 @@ PHASES=(("before_far",.40,0.),("before_near",.70,0.),
         ("before_peek",.60,.45),  # accessible ahead of the first L
         ("before_corner",.98,.45),  # clearance near but before L1 plane
         ("after_far",2.00,.60),("after_near",2.30,.60))
+VARIANTS=("A","B","C","D")
+def phases_for(v):
+    if v not in VARIANTS:raise ValueError("unsupported private A5 variant")
+    sign=1. if v in ("A","B") else -1.
+    return tuple((name,x,y*sign) for name,x,y in PHASES)
 CHANNELS=("front","back","left","right","up")
 RAYS=re.compile(
-    r"(?m)^A5_SEQ_OCC_RAYS variant=([AB]) "
+    r"(?m)^A5_SEQ_OCC_RAYS variant=([ABCD]) "
     r"phase=(before_far|before_near|before_peek|before_corner|after_far|after_near) "
     r"front=([0-9.]+) back=([0-9.]+) left=([0-9.]+) "
     r"right=([0-9.]+) up=([0-9.]+) "
     r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=([0-9.]+)$")
-DONE=re.compile(r"(?m)^A5_SEQ_OCC_DONE variant=([AB]) samples=6 "
+DONE=re.compile(r"(?m)^A5_SEQ_OCC_DONE variant=([ABCD]) samples=6 "
                 r"native_multiranger=true supervisor_only=true "
                 r"motorized=false pupil_pass=false$")
 FATAL="A5_SEQ_OCC_FATAL"
 
 def scene_file(v):
-    if type(v) is not str or v not in ("A","B"):
-        raise ValueError("only private variants A and B")
+    if type(v) is not str or v not in VARIANTS:
+        raise ValueError("only private A5 factorized variants A/B/C/D")
     return ROOT/f"worlds/scenes/reactive-L-sequential-occlusion-{v.lower()}-private.wbo"
 
 def compose(v,scene=None):
-    if type(v) is not str or v not in ("A","B"):
-        raise ValueError("unsupported private variant")
+    if type(v) is not str or v not in VARIANTS:
+        raise ValueError("unsupported private A5 variant")
     base=classroom.compose(classroom.SOURCE.read_text(encoding="utf8"))
     body=scene_file(v).read_text(encoding="utf8") if scene is None else scene
-    other="B" if v=="A" else "A"
+    other={"A":"B","B":"A","C":"D","D":"C"}[v]
     if (base.count(SOURCE)!=1 or base.count(classroom.MARKER)!=1 or
         base.count('Floor { size 4 4 }')!=1 or
         base.count('name "Crazyflie WebeeBlocks"')!=1 or
@@ -58,9 +63,9 @@ def compose(v,scene=None):
     return result
 
 def validate_observations(data):
-    """Pure fail-closed comparator; synthetic arrays here are NOT Webots evidence."""
-    if set(data)!={"A","B"}:raise AssertionError("missing actual variant")
-    for v in ("A","B"):
+    """Pure fail-closed comparator; only run_one supplies real Webots data."""
+    if set(data)!=set(VARIANTS):raise AssertionError("missing actual variant")
+    for v in VARIANTS:
         if set(data[v])!={p for p,_,_ in PHASES}:
             raise AssertionError("missing/duplicate native phase")
         for phase,_,_ in PHASES:
@@ -70,16 +75,27 @@ def validate_observations(data):
                 not math.isfinite(rays[ch]) or not 0<=rays[ch]<=2.001
                 for ch in CHANNELS):
                 raise AssertionError("missing/invalid genuine range channel")
-    for phase in ("before_far","before_near","before_peek","before_corner"):
-        for ch in CHANNELS:
-            delta=abs(data["A"][phase][ch]-data["B"][phase][ch])
-            if delta>.025:
-                raise AssertionError(f"L2 information leaks before L1: {phase}/{ch} {delta}")
-    for phase in ("after_far","after_near"):
-        a=data["A"][phase]["front"]
-        b=data["B"][phase]["front"]
-        if not (.05<a<1.9 and .05<b<1.9 and .30<=b-a<=.80):
-            raise AssertionError(f"L2 not discriminable after L1: {phase} {a},{b}")
+    # L2 must be invisible early within each shared L1 variant: A/B and C/D.
+    for first,second in (("A","B"),("C","D")):
+        for phase in ("before_far","before_near","before_peek","before_corner"):
+            for ch in CHANNELS:
+                delta=abs(data[first][phase][ch]-data[second][phase][ch])
+                if delta>.025:
+                    raise AssertionError(f"L2 information leaks before L1: {first}{second}/{phase}/{ch} {delta}")
+        # The second L is now detectable from the opposite side as required
+        # by the first L's opening. Sign may invert; contrast must remain real.
+        for phase in ("after_far","after_near"):
+            a=data[first][phase]["front"]
+            b=data[second][phase]["front"]
+            if not (.05<a<1.9 and .05<b<1.9 and .30<=abs(b-a)<=.80):
+                raise AssertionError(f"L2 not discriminable after L1: {first}{second}/{phase} {a},{b}")
+    # Before L1, at the same physical pose, two distinct initial obstacles
+    # must produce a real lateral-ray contrast; not an encoded scene identity.
+    for first,second in (("A","C"),("B","D")):
+        contrast=max(abs(data[first]["before_near"][ch]-data[second]["before_near"][ch])
+                     for ch in ("left","right"))
+        if contrast<.30:
+            raise AssertionError(f"L1 not discriminable before crossing: {first}{second} {contrast}")
     return True
 
 def run_one(v):
@@ -90,6 +106,7 @@ def run_one(v):
     world=compose(v)
     if wbt.exists() or project.exists() or wbt.is_symlink() or project.is_symlink():
         raise FileExistsError("native private WBT/proj exists")
+    phases=phases_for(v)
     log=folder/"webots.log"
     process=None
     try:
@@ -134,11 +151,11 @@ def run_one(v):
             project.unlink()
     text=log.read_text(encoding="utf8",errors="replace")
     rows=RAYS.findall(text)
-    if FATAL in text or DONE.findall(text)!=[v] or len(rows)!=len(PHASES):
+    if FATAL in text or DONE.findall(text)!=[v] or len(rows)!=len(phases):
         print(text[-6000:],file=sys.stderr,flush=True)
         raise AssertionError("real Webots sensor evidence absent")
     observed={}
-    for row,(phase,x,y) in zip(rows,PHASES):
+    for row,(phase,x,y) in zip(rows,phases):
         actual,label,*values=row
         read=list(map(float,values))
         if actual!=v or label!=phase or len(read)!=8:
@@ -155,16 +172,17 @@ def run_one(v):
     return observed
 
 def main():
-    evidence={v:run_one(v) for v in ("A","B")}
+    evidence={v:run_one(v) for v in VARIANTS}
     validate_observations(evidence)
     (ARTIFACT/"summary.json").write_text(json.dumps({
         "native_five_rays":True,
-        "same_rays_at_two_selected_early_poses":True,
+        "same_rays_within_first_L_pairs_at_four_early_poses":True,
+        "first_L_visible_from_common_pre_obstacle_pose":True,
         "later_front_discriminates_second_L":True,
         "no_global_occlusion_claim":True,
         "motorized":False,"pupil_wbb":False,"mission_oracle":False
     },sort_keys=True,indent=2)+"\n",encoding="utf8")
-    print("A5_SEQ_OCC_NATIVE_PASS five_rays=true early=4 later=2 "
+    print("A5_SEQ_OCC_NATIVE_PASS first_factors=2 second_factors=2 variants=4 five_rays=true early=4 later=2 "
           "motorized=false pupil_wbb=false",flush=True)
 
 if __name__=="__main__":main()

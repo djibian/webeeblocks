@@ -1,0 +1,80 @@
+# A5 PRIVATE two-successive-L native visibility experiment D: not pupil-facing.
+# Original R2025a Crazyflie, real solids, no motor program or student mission oracle.
+# L1, corridor and terminal screen identical; L2 blocks opposite lateral openings.
+# This is a private perception experiment, not a certified pupil mission.
+DEF WEBEEBLOCKS_A5_SEQ_OCC_D_SCENE Group {
+  children [
+    DEF A5_SEQ_L1_POST Solid {
+      name "A5_SEQ_L1_POST"
+      translation 1.000 0.300 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.74 0.20 0.12 roughness 0.6 }
+        geometry Box { size 0.080 1.150 1.100 } } ]
+      boundingObject Box { size 0.080 1.150 1.100 }
+    }
+    DEF A5_SEQ_L1_ARM Solid {
+      name "A5_SEQ_L1_ARM"
+      translation 0.650 -0.275 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.74 0.20 0.12 roughness 0.6 }
+        geometry Box { size 0.700 0.080 1.100 } } ]
+      boundingObject Box { size 0.700 0.080 1.100 }
+    }
+    DEF A5_SEQ_L2_POST Solid {
+      name "A5_SEQ_L2_POST"
+      translation 3.200 -0.450 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.85 0.43 0.13 roughness 0.6 }
+        geometry Box { size 0.080 1.200 1.100 } } ]
+      boundingObject Box { size 0.080 1.200 1.100 }
+    }
+    DEF A5_SEQ_L2_ARM Solid {
+      name "A5_SEQ_L2_ARM"
+      # Extend the blocked side into the sidewall without moving its inner edge.
+      translation 2.850 -1.125 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.85 0.43 0.13 roughness 0.6 }
+        geometry Box { size 0.700 0.230 1.100 } } ]
+      boundingObject Box { size 0.700 0.230 1.100 }
+    }
+    # Native collision corridor: neither exterior edge permits a 0.09 m craft bypass.
+    DEF A5_SEQ_CORRIDOR_POS Solid {
+      name "A5_SEQ_CORRIDOR_POS"
+      translation 1.800 1.260 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.30 0.34 0.45 roughness 0.65 }
+        geometry Box { size 4.300 0.080 1.100 } } ]
+      boundingObject Box { size 4.300 0.080 1.100 }
+    }
+    DEF A5_SEQ_CORRIDOR_NEG Solid {
+      name "A5_SEQ_CORRIDOR_NEG"
+      translation 1.800 -1.260 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.30 0.34 0.45 roughness 0.65 }
+        geometry Box { size 4.300 0.080 1.100 } } ]
+      boundingObject Box { size 4.300 0.080 1.100 }
+    }
+    # Private covered corridor: the roof underside z=1.080 overlaps
+    # the upper 0.020 m of every L (top z=1.100), eliminating the
+    # overflight slot without assuming a particular drone thickness.
+    # An end wall closes the corridor behind the takeoff area.
+    # Supervisor-only research geometry, never a pupil-facing mission.
+    DEF A5_SEQ_CORRIDOR_BACK Solid {
+      name "A5_SEQ_CORRIDOR_BACK"
+      translation -0.350 0.000 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.30 0.34 0.45 roughness 0.65 }
+        geometry Box { size 0.080 2.600 1.100 } } ]
+      boundingObject Box { size 0.080 2.600 1.100 }
+    }
+    DEF A5_SEQ_CORRIDOR_ROOF Solid {
+      name "A5_SEQ_CORRIDOR_ROOF"
+      translation 1.790 0.000 1.140
+      children [ Shape { appearance PBRAppearance { baseColor 0.38 0.45 0.50 roughness 0.65 }
+        geometry Box { size 4.400 2.600 0.120 } } ]
+      boundingObject Box { size 4.400 2.600 0.120 }
+    }
+    # Common screen bounds front-range reading in the late scene.
+    # Neither it nor this entire private experiment awards a pupil verdict.
+    DEF A5_SEQ_TERMINAL Solid {
+      name "A5_SEQ_TERMINAL"
+      translation 3.920 0.000 0.550
+      children [ Shape { appearance PBRAppearance { baseColor 0.16 0.62 0.64 roughness 0.65 }
+        geometry Box { size 0.080 2.300 1.100 } } ]
+      boundingObject Box { size 0.080 2.300 1.100 }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 /* A5 PRIVATE: real Webots R2025a five Multi-ranger sensors, two Ls.
  * Supervisor-only pose study, no motors, student algorithm or mission oracle.
- * The two worlds differ by the lateral opening of the second L only.
+ * Four worlds cross independently mirrored first and second L openings.
+ * Two bits of information are sampled at different places by real sensors.
  * Native-attested lateral walls and terminal are shared laboratory fixtures.
  */
 #include <webots/robot.h>
@@ -69,18 +70,26 @@ int main(void) {
   WbNodeRef world=wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
   WbNodeRef A=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE");
   WbNodeRef B=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE");
+  WbNodeRef C=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_SEQ_OCC_C_SCENE");
+  WbNodeRef D=wb_supervisor_node_get_from_def("WEBEEBLOCKS_A5_SEQ_OCC_D_SCENE");
   if(!world||strcmp(wb_supervisor_node_get_type_name(world),"WorldInfo")||
-     (!!A)+(!!B)!=1)return invalid("missing_or_ambiguous_world");
-  const char v=A?'A':'B';
-  WbNodeRef group=A?A:B;
+     (!!A)+(!!B)+(!!C)+(!!D)!=1)return invalid("missing_or_ambiguous_world");
+  const char v=A?'A':B?'B':C?'C':'D';
+  WbNodeRef group=A?A:B?B:C?C:D;
   WbFieldRef children=wb_supervisor_node_get_field(group,"children");
   if(strcmp(wb_supervisor_node_get_type_name(group),"Group")||!children||
      wb_supervisor_field_get_count(children)!=9)
     return invalid("untrusted_group");
-  const double second_y=v=='A'?.45:-.45;
-  const double arm_y=v=='A'?1.125:-1.125;
-  if(!box("A5_SEQ_L1_POST",1.,-.30,.55,.08,1.15,1.1)||
-     !box("A5_SEQ_L1_ARM",.65,.275,.55,.70,.08,1.1)||
+  const int first_positive=(v=='A'||v=='B');
+  const int second_positive=(v=='A'||v=='C');
+  const double first_y=first_positive?-.30:.30;
+  const double first_arm_y=first_positive?.275:-.275;
+  const double sample_side=first_positive?.45:-.45;
+  const double sample_late=first_positive?.60:-.60;
+  const double second_y=second_positive?.45:-.45;
+  const double arm_y=second_positive?1.125:-1.125;
+  if(!box("A5_SEQ_L1_POST",1.,first_y,.55,.08,1.15,1.1)||
+     !box("A5_SEQ_L1_ARM",.65,first_arm_y,.55,.70,.08,1.1)||
      !box("A5_SEQ_L2_POST",3.2,second_y,.55,.08,1.20,1.1)||
      !box("A5_SEQ_L2_ARM",2.85,arm_y,.55,.70,.23,1.1)||
      !box("A5_SEQ_CORRIDOR_POS",1.8,1.26,.55,4.3,.08,1.1)||
@@ -105,10 +114,10 @@ int main(void) {
   wb_supervisor_node_enable_contact_points_tracking(self,step,true);
   if(!sample(self,trans,rot,devices,v,"before_far",.40,0,step)||
      !sample(self,trans,rot,devices,v,"before_near",.70,0,step)||
-     !sample(self,trans,rot,devices,v,"before_peek",.60,.45,step)||
-     !sample(self,trans,rot,devices,v,"before_corner",.98,.45,step)||
-     !sample(self,trans,rot,devices,v,"after_far",2.00,.60,step)||
-     !sample(self,trans,rot,devices,v,"after_near",2.30,.60,step))
+     !sample(self,trans,rot,devices,v,"before_peek",.60,sample_side,step)||
+     !sample(self,trans,rot,devices,v,"before_corner",.98,sample_side,step)||
+     !sample(self,trans,rot,devices,v,"after_far",2.00,sample_late,step)||
+     !sample(self,trans,rot,devices,v,"after_near",2.30,sample_late,step))
     return invalid("native_sensor_or_pose_sample_missing");
   printf("A5_SEQ_OCC_DONE variant=%c samples=6 native_multiranger=true "
          "supervisor_only=true motorized=false pupil_pass=false\n",v);

@@ -19,7 +19,7 @@ class A5SequentialTest(unittest.TestCase):
             "WEBEEBLOCKS_A5_SEQ_OCC_A_SCENE",
             "WEBEEBLOCKS_A5_SEQ_OCC_B_SCENE")
         self.assertEqual(changed,b)
-        for v in ("A","B"):
+        for v in probe.VARIANTS:
             w=probe.compose(v)
             self.assertEqual(w.count('controller "progression_a5_seq_occ_probe"'),1)
             self.assertEqual(w.count("Floor { size 8 4 }"),1)
@@ -29,6 +29,45 @@ class A5SequentialTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             probe.compose("A",scene=a.replace(" Solid {"," Robot {",1))
         with self.assertRaises(ValueError):probe.compose("B",scene=b+b)
+
+    def test_two_independent_L_choices_have_four_noncolliding_worlds(self):
+        scenes={v:probe.scene_file(v).read_text() for v in probe.VARIANTS}
+        for v in probe.VARIANTS:
+            self.assertEqual(scenes[v].count(" Solid {"),9)
+            self.assertEqual(scenes[v].count("boundingObject Box"),9)
+            self.assertIn(f"DEF WEBEEBLOCKS_A5_SEQ_OCC_{v}_SCENE Group",scenes[v])
+            first_y=" -0.300 " if v in ("A","B") else " 0.300 "
+            first_arm=" 0.275 " if v in ("A","B") else " -0.275 "
+            second_y=" 0.450 " if v in ("A","C") else " -0.450 "
+            second_arm=" 1.125 " if v in ("A","C") else " -1.125 "
+            self.assertIn("translation 1.000"+first_y+"0.550",scenes[v])
+            self.assertIn("translation 0.650"+first_arm+"0.550",scenes[v])
+            self.assertIn("translation 3.200"+second_y+"0.550",scenes[v])
+            self.assertIn("translation 2.850"+second_arm+"0.550",scenes[v])
+            phases=probe.phases_for(v)
+            self.assertEqual(len(phases),6)
+            self.assertEqual(phases[0],("before_far",.40,0.))
+            self.assertEqual(phases[1],("before_near",.70,0.))
+            self.assertEqual(phases[3],("before_corner",.98,
+                                       .45 if v in ("A","B") else -.45))
+            self.assertEqual(phases[4],("after_far",2.00,
+                                       .60 if v in ("A","B") else -.60))
+        # The only A->C / B->D geometry changes are two L1 positions:
+        # the second L, roof, sidewalls and terminal stay identical.
+        for original,mirrored in (("A","C"),("B","D")):
+            expected=scenes[original].replace(
+                "experiment "+original+":","experiment "+mirrored+":").replace(
+                f"WEBEEBLOCKS_A5_SEQ_OCC_{original}_SCENE",
+                f"WEBEEBLOCKS_A5_SEQ_OCC_{mirrored}_SCENE").replace(
+                "translation 1.000 -0.300 0.550",
+                "translation 1.000 0.300 0.550").replace(
+                "translation 0.650 0.275 0.550",
+                "translation 0.650 -0.275 0.550")
+            self.assertEqual(expected,scenes[mirrored])
+        self.assertNotEqual(scenes["A"],scenes["B"])
+        self.assertNotEqual(scenes["A"],scenes["C"])
+        for bad in ("E",None,"A+D"):
+            with self.assertRaises(ValueError):probe.phases_for(bad)
 
     def test_no_common_fixed_lane_through_opposite_L_openings(self):
         # ANALYTICAL ONLY: no motorized trajectory, no pupil .wbb, no oracle.
@@ -100,19 +139,27 @@ class A5SequentialTest(unittest.TestCase):
     def test_any_early_leak_or_late_ambiguity_is_red(self):
         # Fake arrays exercise only validator rejection, not physical evidence.
         good={v:{phase:dict.fromkeys(probe.CHANNELS,1.)
-                 for phase,_,_ in probe.PHASES} for v in ("A","B")}
-        for phase in ("after_far","after_near"):good["B"][phase]["front"]=1.5
+                 for phase,_,_ in probe.PHASES} for v in probe.VARIANTS}
+        for phase in ("after_far","after_near"):
+            good["B"][phase]["front"]=1.5
+            good["D"][phase]["front"]=.5
+        for v in ("C","D"):good[v]["before_near"]["left"]=1.5
         self.assertTrue(probe.validate_observations(good))
-        for phase in ("before_far","before_near","before_peek","before_corner"):
-            for ch in probe.CHANNELS:
-                bad=copy.deepcopy(good);bad["B"][phase][ch]+=.05
-                with self.subTest(phase=phase,ch=ch),self.assertRaisesRegex(
-                    AssertionError,"information leaks"):
-                    probe.validate_observations(bad)
+        for first,second in (("A","B"),("C","D")):
+            for phase in ("before_far","before_near","before_peek","before_corner"):
+                for ch in probe.CHANNELS:
+                    bad=copy.deepcopy(good);bad[second][phase][ch]+=.05
+                    with self.subTest(pair=first+second,phase=phase,ch=ch),self.assertRaisesRegex(
+                        AssertionError,"information leaks"):
+                        probe.validate_observations(bad)
         for phase in ("after_far","after_near"):
             bad=copy.deepcopy(good);bad["B"][phase]["front"]=1.1
             with self.assertRaisesRegex(AssertionError,"not discriminable"):
                 probe.validate_observations(bad)
+        bad=copy.deepcopy(good)
+        for v in ("C","D"):bad[v]["before_near"]["left"]=1.
+        with self.assertRaisesRegex(AssertionError,"L1 not discriminable"):
+            probe.validate_observations(bad)
         for modify in (
             lambda x:x["A"].pop("after_far"),
             lambda x:x["B"]["before_far"].pop("up"),
@@ -131,8 +178,11 @@ class A5SequentialTest(unittest.TestCase):
         for device in ("range_front","range_back","range_left",
                        "range_right","range_up"):
             self.assertIn('"'+device+'"',source)
-        self.assertIn('"before_peek",.60,.45,step',source)
-        self.assertIn('"before_corner",.98,.45,step',source)
+        self.assertIn('"before_peek",.60,sample_side,step',source)
+        self.assertIn('"before_corner",.98,sample_side,step',source)
+        self.assertIn('"after_far",2.00,sample_late,step',source)
+        self.assertIn('!!C',source)
+        self.assertIn('!!D',source)
         self.assertIn("wb_supervisor_node_enable_contact_points_tracking",source)
         self.assertIn("wb_supervisor_node_get_contact_points",source)
         self.assertIn("contacts!=0",source)
