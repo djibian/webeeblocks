@@ -12,6 +12,9 @@
 
 #define WB_COUNT_BACK_SENSOR "range_back"
 #define WB_COUNT_UP_SENSOR "range_up"
+#define WB_COUNT_FRONT_SENSOR "range_front"
+#define WB_COUNT_LEFT_SENSOR "range_left"
+#define WB_COUNT_RIGHT_SENSOR "range_right"
 #define WB_COUNT_CRAFT_NAME "Crazyflie WebeeBlocks"
 
 static int invalid(const char *why) {
@@ -42,8 +45,11 @@ int main(void) {
   WbFieldRef rot=self?wb_supervisor_node_get_field(self,"rotation"):NULL;
   WbDeviceTag back=wb_robot_get_device(WB_COUNT_BACK_SENSOR);
   WbDeviceTag up=wb_robot_get_device(WB_COUNT_UP_SENSOR);
-  if(!self||!pos||!rot||!back||!up)
-    return invalid("missing supervisor pose or genuine rear range sensor");
+  WbDeviceTag front=wb_robot_get_device(WB_COUNT_FRONT_SENSOR);
+  WbDeviceTag left=wb_robot_get_device(WB_COUNT_LEFT_SENSOR);
+  WbDeviceTag right=wb_robot_get_device(WB_COUNT_RIGHT_SENSOR);
+  if(!self||!pos||!rot||!back||!up||!front||!left||!right)
+    return invalid("missing supervisor pose or genuine full Multi-ranger sensors");
 
   /* Probe ALL three possible pads in each world, before any pupil program.
    * The rear ray must see the same cyan finish ribbon independent of count.
@@ -53,6 +59,9 @@ int main(void) {
   const double facing[] = {0.0, 0.0, 1.0, 0.0};
   wb_distance_sensor_enable(back, step);
   wb_distance_sensor_enable(up, step);
+  wb_distance_sensor_enable(front, step);
+  wb_distance_sensor_enable(left, step);
+  wb_distance_sensor_enable(right, step);
   /* Track both genuine physical colliders before the experiment.
    * An all-zero contact stream cannot qualify a collision-free path. */
   char gate_def[80];
@@ -91,6 +100,43 @@ int main(void) {
            "range_m=%.9f pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
            variant, pad, range, world[0], world[1], world[2]);
     fflush(stdout);
+
+    /* The historical screen test at z=0.750 is NOT evidence about arrival:
+     * its physical cyan Solid occupies z=[0.640,0.880] whereas flight
+     * approaches the pad at z~0.415 and touches Floor at z~0.015.
+     * Falsify count leakage at both actual low phases with every genuine
+     * Multi-ranger channel, including back and up. Teleportation remains
+     * TEST ONLY and no native flight or memory result is claimed. */
+    const double stages[2]={0.415,0.015};
+    const char *phase_names[2]={"approach","landed"};
+    const WbDeviceTag sensors[5]={front,back,left,right,up};
+    for (int phase=0;phase<2;++phase) {
+      const double low_pose[3]={1.48,pad_y[pad],stages[phase]};
+      wb_supervisor_field_set_sf_vec3f(pos,low_pose);
+      wb_supervisor_field_set_sf_rotation(rot,facing);
+      wb_supervisor_node_reset_physics(self);
+      if (wb_robot_step(step)<0)
+        return invalid("terminal low-altitude Multi-ranger sampling failed");
+      const double *seen=wb_supervisor_node_get_position(self);
+      double ranges[5];
+      for (int channel=0;channel<5;++channel) {
+        ranges[channel]=wb_distance_sensor_get_value(sensors[channel])/1000.0;
+        if (!isfinite(ranges[channel]) ||
+            ranges[channel]<0 || ranges[channel]>2.001)
+          return invalid("terminal low-altitude sensor absent or out of range");
+      }
+      if (!seen || !isfinite(seen[0]) || !isfinite(seen[1]) ||
+          !isfinite(seen[2]) || fabs(seen[0]-low_pose[0])>0.035 ||
+          fabs(seen[1]-low_pose[1])>0.035 ||
+          fabs(seen[2]-low_pose[2])>0.045)
+        return invalid("terminal low-altitude pose unavailable or displaced");
+      printf("WEBEEBLOCKS_COUNT_H_TERMINAL_RANGES variant=%d pad=%d phase=%s "
+             "front_m=%.9f back_m=%.9f left_m=%.9f right_m=%.9f up_m=%.9f "
+             "pose_x=%.9f pose_y=%.9f pose_z=%.9f\n",
+             variant,pad,phase_names[phase],ranges[0],ranges[1],
+             ranges[2],ranges[3],ranges[4],seen[0],seen[1],seen[2]);
+      fflush(stdout);
+    }
   }
   /* RESEARCH ONLY: genuine upward Multi-ranger ray at the same altitude
    * and heading immediately before, under and after EACH physical H.

@@ -8,6 +8,7 @@ The test checks physical ray masking, NOT pupil coding or flight success.
 from pathlib import Path
 import hashlib
 import json
+import math
 import os
 import re
 import signal
@@ -21,7 +22,40 @@ MARKER="# WEBEEBLOCKS_A6_REAR_RANGE_NEGATIVE_CI_ONLY"
 PROJECT_TEXT="Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n"
 EXPECTED={1:(0.12,0.31),2:(0.12,0.31),3:(0.12,0.31)}
 PADS=(0.0,0.55,-0.55)
+TERMINAL_STAGES={"approach":0.415,"landed":0.015}
+TERMINAL_CHANNELS=("front","back","left","right","up")
 TOKEN="WEBEEBLOCKS_COUNT_H_SWEEP_PASS"
+
+
+def validate_terminal_indistinguishability(terminal):
+    """Refuse any single genuine terminal ray that distinguishes 1/2/3 H.
+
+    Called ONLY with native observations at matched 3D poses; mock arrays
+    are allowed in pure-Python adversarial tests but never give native PASS.
+    """
+    if set(terminal)!=set(EXPECTED):
+        raise AssertionError("missing A6 count variant for terminal senses")
+    for pad in range(len(PADS)):
+        for stage in TERMINAL_STAGES:
+            key=(pad,stage)
+            measurements=[]
+            for n in EXPECTED:
+                if key not in terminal[n]:
+                    raise AssertionError(f"missing native terminal sense {n}:{key}")
+                values=terminal[n][key]
+                if (type(values) not in (tuple,list) or
+                    len(values)!=len(TERMINAL_CHANNELS) or
+                    any(type(v) not in (int,float) or not 0<=v<=2.001 or
+                        not math.isfinite(v) for v in values)):
+                    raise AssertionError(f"invalid native terminal sense {n}:{key}")
+                measurements.append(values)
+            for channel, label in enumerate(TERMINAL_CHANNELS):
+                observed=[values[channel] for values in measurements]
+                if max(observed)-min(observed)>.025:
+                    raise AssertionError(
+                        f"A6 terminal {label} leaks H count at pad={pad}, "
+                        f"stage={stage}: {observed}")
+    return True
 
 
 def compose(n,source=None):
@@ -104,6 +138,27 @@ def run_one(n):
             project.unlink()
     txt=log.read_text(encoding="utf-8",errors="replace")
     findings=pattern.findall(txt)
+    terminal_rows=re.findall(
+        r"WEBEEBLOCKS_COUNT_H_TERMINAL_RANGES variant=(\d) pad=(\d) "
+        r"phase=(approach|landed) front_m=([0-9.]+) back_m=([0-9.]+) "
+        r"left_m=([0-9.]+) right_m=([0-9.]+) up_m=([0-9.]+) "
+        r"pose_x=([0-9.]+) pose_y=(-?[0-9.]+) pose_z=([0-9.]+)",txt)
+    if len(terminal_rows)!=len(PADS)*len(TERMINAL_STAGES):
+        raise AssertionError("native terminal full Multi-ranger samples missing: "+str(log))
+    terminal={}
+    for index,row in enumerate(terminal_rows):
+        ntext,ptext,stage,*numeric=row
+        pad=index//len(TERMINAL_STAGES)
+        expected_phase=list(TERMINAL_STAGES)[index%len(TERMINAL_STAGES)]
+        readings=tuple(float(x) for x in numeric[:5])
+        xyz=tuple(float(x) for x in numeric[5:])
+        if (ntext!=str(n) or int(ptext)!=pad or stage!=expected_phase or
+            any(not math.isfinite(v) or not 0<=v<=2.001 for v in readings) or
+            any(not math.isfinite(v) for v in xyz) or
+            abs(xyz[0]-1.48)>.035 or abs(xyz[1]-PADS[pad])>.035 or
+            abs(xyz[2]-TERMINAL_STAGES[stage])>.045):
+            raise AssertionError("mismatched actual terminal Multi-ranger pose or channel: "+str(log))
+        terminal[(pad,stage)]=readings
     upper_rows=re.findall(
         r"WEBEEBLOCKS_COUNT_H_UP_SAMPLE variant=(\d) gate=(\d) phase=(\d) "
         r"range_m=([0-9.]+) pose_x=(-?[0-9.]+) "
@@ -153,7 +208,7 @@ def run_one(n):
         readings.append(reading)
         coordinates.append(xyz)
         print(f"A6_BACK_RANGE_MASKED n={n} pad={i} meters={reading:.9f}",flush=True)
-    return readings,coordinates,upper_samples
+    return readings,coordinates,upper_samples,terminal
 
 
 def main():
@@ -168,23 +223,31 @@ def main():
             raise AssertionError(
                 f"count information still leaks at terminal pad {pad}: {values}")
         all_values.append(values)
+    full_terminal={n:observations[n][3] for n in EXPECTED}
+    validate_terminal_indistinguishability(full_terminal)
     payload={
-        "schema":"webeeblocks-a6-terminal-rear-range-mask-v1",
-        "native_rear_mask_observed":True,
+        "schema":"webeeblocks-a6-terminal-multiranger-v2",
+        "native_rear_mask_observed_at_0_75m":True,
+        "all_five_native_rays_compared_at_0_415m_and_0_015m":True,
         "not_an_information_security_proof":True,
         "not_a_pedagogical_or_flight_pass":True,
         "upward_sensor_observability_only":True,
         "variable_counting_or_generic_wbb_unproven":True,
         "variants":[{"count":n,"pad_readings_m":observations[n][0],
                      "pad_poses_xyz":[list(x) for x in observations[n][1]],
-                     "native_up_before_under_after_m":observations[n][2]}
+                     "native_up_before_under_after_m":observations[n][2],
+                     "terminal_multiranger_m":{
+                       f"pad{pad}_{stage}":list(observations[n][3][(pad,stage)])
+                       for pad in range(len(PADS)) for stage in TERMINAL_STAGES}}
                     for n in EXPECTED]
     }
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
     (ARTIFACTS/"summary.json").write_text(
         json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    print("A6_BACK_RANGE_NATIVE_MASK_CONFIRMED "
-          "counts=1,2,3 pads=0,+0.55,-0.55 same_pose_per_pad=true",flush=True)
+    print("A6_TERMINAL_MULTIRANGER_NATIVE_INVARIANT "
+          "counts=1,2,3 pads=0,+0.55,-0.55 stages=approach,landed "
+          "channels=front,back,left,right,up same_pose_per_pad=true "
+          "pupil_flight=UNPROVEN",flush=True)
 
 
 if __name__=="__main__":

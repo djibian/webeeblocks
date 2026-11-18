@@ -8,6 +8,48 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 import run_classroom_count_h_rear_range as diagnostic
 
 class CountHRearRangeWorldTests(unittest.TestCase):
+    def test_terminal_multiranger_checker_rejects_one_leaking_or_missing_ray(self):
+        # Adversarial arrays are only contract tests; they never count as
+        # real Webots evidence. Any one of five rays can refute the premise.
+        reference={
+            n:{(pad,stage):(2.0,2.0,2.0,2.0,2.0)
+               for pad in range(3) for stage in ("approach","landed")}
+            for n in (1,2,3)
+        }
+        self.assertTrue(diagnostic.validate_terminal_indistinguishability(reference))
+        for stage in ("approach","landed"):
+            for channel in range(5):
+                import copy
+                wrong=copy.deepcopy(reference)
+                values=list(wrong[3][(2,stage)])
+                values[channel]=1.8
+                wrong[3][(2,stage)]=tuple(values)
+                with self.subTest(stage=stage,channel=channel), self.assertRaisesRegex(
+                        AssertionError,"leaks H count"):
+                    diagnostic.validate_terminal_indistinguishability(wrong)
+        import copy
+        missing=copy.deepcopy(reference)
+        del missing[2][(1,"landed")]
+        with self.assertRaisesRegex(AssertionError,"missing native terminal sense"):
+            diagnostic.validate_terminal_indistinguishability(missing)
+        invalid=copy.deepcopy(reference)
+        invalid[2][(0,"landed")]=(2.0,2.0,float("nan"),2.0,2.0)
+        with self.assertRaisesRegex(AssertionError,"invalid native terminal"):
+            diagnostic.validate_terminal_indistinguishability(invalid)
+        source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
+                "progression_count_h_range_probe.c").read_text(encoding="utf-8")
+        runner=(diagnostic.ROOT/"tools/ci/run_classroom_count_h_rear_range.py").read_text(
+            encoding="utf-8")
+        for sensor in ("front","back","left","right","up"):
+            self.assertIn('"range_'+sensor+'"',source)
+            self.assertIn("wb_distance_sensor_enable("+sensor+", step)",source)
+        self.assertIn("const double stages[2]={0.415,0.015}",source)
+        self.assertIn("WEBEEBLOCKS_COUNT_H_TERMINAL_RANGES",source)
+        self.assertIn("len(terminal_rows)!=len(PADS)*len(TERMINAL_STAGES)",runner)
+        self.assertIn("validate_terminal_indistinguishability(full_terminal)",runner)
+        self.assertIn("all_five_native_rays_compared_at_0_415m_and_0_015m",runner)
+        self.assertNotIn("wb_motor_set_",source)
+
     def test_genuine_upward_ray_samples_every_H_without_a_pupil_algorithm(self):
         source=(diagnostic.ROOT/"controllers/progression_count_h_range_probe/"
                 "progression_count_h_range_probe.c").read_text(encoding="utf-8")
