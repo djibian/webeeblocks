@@ -14,6 +14,7 @@ on:
       - 'tools/ci/test_workflow_contract.py'
       - 'tools/ci/test_progression_count_h_*.py'
       - 'tools/ci/test_a6_b_matched_tail_geometry.py'
+      - 'tools/ci/test_a6_b_sampling_holdout.py'
       - 'tools/ci/fixtures/a6-b/**'
       - 'tools/ci/test_progression_count_h_public_profile.js'
       - 'plugins/robot_windows/blockly/webeeblocks/activities.js'

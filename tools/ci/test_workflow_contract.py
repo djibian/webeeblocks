@@ -197,6 +197,8 @@ class WorkflowTests(unittest.TestCase):
             "persist-credentials: false",
             "tools.ci.test_progression_count_h_scene",
             "tools.ci.test_progression_count_h_oracle",
+            "tools.ci.test_a6_b_sampling_holdout",
+            "'tools/ci/test_a6_b_sampling_holdout.py'",
             "tools.ci.test_progression_count_h_rear_range",
             "cyberbotics/webots:R2025a-ubuntu22.04",
             "make clean; make",
