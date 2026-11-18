@@ -99,7 +99,7 @@ def validate_scene(source: str, count: int) -> None:
         section = parts[1].split("\n  }\n", 1)[0]
         for prefix in ("geometry", "boundingObject"):
             boxes = re.findall(
-                rf"{prefix} Box \\{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \\}}",
+                rf"{prefix} Box \{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}}",
                 section,
             )
             if len(boxes) != 1 or tuple(map(float, boxes[0])) != expected_size:
