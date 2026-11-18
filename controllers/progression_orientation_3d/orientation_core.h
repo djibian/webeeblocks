@@ -50,7 +50,8 @@ typedef enum {
 typedef enum {
   WB_ORIENT_REASON_NONE = 0,
   WB_ORIENT_REASON_ROUTE_INCOMPLETE,
-  WB_ORIENT_REASON_LANDING_TIMEOUT
+  WB_ORIENT_REASON_LANDING_TIMEOUT,
+  WB_ORIENT_REASON_WRONG_PAD
 } wb_orient_failure;
 
 typedef struct {
@@ -105,6 +106,8 @@ static inline const char *wb_orient_reason_name(const wb_orient_mission *m) {
     return "route-incomplete";
   if (m->reason == WB_ORIENT_REASON_LANDING_TIMEOUT)
     return "landing-timeout";
+  if (m->reason == WB_ORIENT_REASON_WRONG_PAD)
+    return "wrong-pad";
   return NULL;
 }
 
@@ -161,9 +164,15 @@ static inline wb_orient_verdict wb_orient_sample_mission(
   /* The 1.5 s completion window is terminal, including its boundary.
    * Do not promote a newly stable sample after that deadline. */
   if (s->time - m->completion_at >= WB_ORIENT_SETTLE) {
-    /* Full route attested, but not enough consecutive on-pad floor-contact
-     * samples arrived before the unchanged terminal deadline. */
-    m->reason = WB_ORIENT_REASON_LANDING_TIMEOUT;
+    /* Diagnose a wrong pad only when the current native sample actually
+     * attests Floor contact at landing height outside the WHOLE-craft pad.
+     * No contact, hovering, or ambiguous observations remain generic. */
+    const int off_pad =
+      fabs(s->x - WB_ORIENT_LAND_X) > WB_ORIENT_LAND_TOL ||
+      fabs(s->y - WB_ORIENT_LAND_Y) > WB_ORIENT_LAND_TOL;
+    m->reason = s->floor_contact == 1 &&
+      s->z - m->origin_z <= WB_ORIENT_LAND_HEIGHT && off_pad
+      ? WB_ORIENT_REASON_WRONG_PAD : WB_ORIENT_REASON_LANDING_TIMEOUT;
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
