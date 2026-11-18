@@ -101,6 +101,34 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         self.assertLess(wall_inner - barrier_outer, CRAFT_HALF_SPAN_M)
         self.assertGreater(left[5], sz)
 
+    def test_relative_ascent_is_needed_for_every_feasible_takeoff_height(self):
+        # A constant-height A1-style path must not solve A2 simply by
+        # selecting a larger takeoff value. The real craft has finite size:
+        # it must leave the start *below* the canopy, yet traverse the
+        # corridor *above* the physical barrier. No Blockly syntax is tested.
+        canopy = solid(self.source, "ACTIVITY2_START_CANOPY")
+        barrier = solid(self.source, "ACTIVITY2_LOW_BARRIER")
+        canopy_bottom = canopy[2] - canopy[5] / 2
+        barrier_top = barrier[2] + barrier[5] / 2
+        highest_clear_start = canopy_bottom - CRAFT_HALF_SPAN_M
+        lowest_clear_crossing = barrier_top + CRAFT_HALF_SPAN_M
+
+        self.assertAlmostEqual(highest_clear_start, 0.57)
+        self.assertAlmostEqual(lowest_clear_crossing, 0.71)
+        self.assertGreater(lowest_clear_crossing - highest_clear_start, 0.10)
+        # Both physical height bands intersect the profile's general
+        # 0.4..0.8 m takeoff range. The distinction is geometric, not an
+        # arbitrary AST ban on high takeoff.
+        self.assertGreater(highest_clear_start, 0.4)
+        self.assertLess(lowest_clear_crossing, 0.8)
+
+        # There is physical room to climb between clearing the canopy
+        # and encountering the barrier. Otherwise we would prove only an
+        # impossible exercise rather than a meaningful new learning goal.
+        canopy_exit = canopy[0] + canopy[3] / 2 + CRAFT_HALF_SPAN_M
+        barrier_entry = barrier[0] - barrier[3] / 2 - CRAFT_HALF_SPAN_M
+        self.assertGreater(barrier_entry - canopy_exit, 0.15)
+
     def test_start_canopy_blocks_high_takeoff_but_leaves_a_climb_window(self):
         canopy = solid(self.source, "ACTIVITY2_START_CANOPY")
         barrier = solid(self.source, "ACTIVITY2_LOW_BARRIER")
