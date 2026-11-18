@@ -26,7 +26,7 @@ window.addEventListener('unhandledrejection',e=>
     throw Error('unexpected A5 gate experiment variant');
   if(config.mode!=='positive'&&config.mode!=='blind'&&
      config.mode!=='blind_h'&&config.mode!=='blockly'&&
-     config.mode!=='blockly_fixed')
+     config.mode!=='blockly_fixed'&&config.mode!=='blockly_snapshot')
     throw Error('unexpected A5 test mode');
   await report('A5_FACTOR_MOTOR_JS_STARTED',{testOnly:true});
   const mod=await import('../blockly_v2/webots/RobotWindow.js');
@@ -45,10 +45,12 @@ window.addEventListener('unhandledrejection',e=>
     (gateLeft?'left':'right')+'-proto';
   await backend._request(['SCENE',scene]);
   await report('A5_FACTOR_MOTOR_SCENE_ACK',{testOnly:true});
-  if(config.mode==='blockly'||config.mode==='blockly_fixed'){
+  if(config.mode==='blockly'||config.mode==='blockly_fixed'||
+     config.mode==='blockly_snapshot'){
     const witness=await import('../a5_alias_motor_probe/a5_private_blockly_probe.js');
     await witness.runPrivateBlockly(backend,report,
-      config.mode==='blockly_fixed'?'fixed':'reactive');
+      config.mode==='blockly_fixed'?'fixed':
+      config.mode==='blockly_snapshot'?'snapshot':'reactive');
     return;
   }
   await backend.setSpeed(.16);

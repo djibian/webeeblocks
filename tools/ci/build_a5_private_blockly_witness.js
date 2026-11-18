@@ -27,7 +27,7 @@ const iff=(condition,then,otherwise)=>({kind:'if',condition,then,
 const forward=distance_m=>({kind:'move',direction:'forward',distance_m});
 const turn=angle_deg=>({kind:'turn',angle_deg});
 function expectedAst(strategy='reactive'){
-  if(!['reactive','fixed'].includes(strategy))throw Error('invalid private A5 strategy');
+  if(!['reactive','fixed','snapshot'].includes(strategy))throw Error('invalid private A5 strategy');
   // Unlike the previous private JS pilot, frontal sensing is repeated.
   // Sensor thresholds are hypotheses; native R2025a .wbb remains UNPROVEN.
   return {version:1,semantics:'webeeblocks-ast-v1',program:[
@@ -36,10 +36,15 @@ function expectedAst(strategy='reactive'){
     set('destination',range('left')),
     // Fixed-blind adversary intentionally NEVER reads front. The original
     // four scenes have a common 2.4m approach: 12 × (2 × 0.10m).
-    strategy==='fixed'
-      ? {kind:'repeat',count:12,body:[forward(.1),forward(.1)]}
-      : {kind:'while',mode:'WHILE',max_iterations:32,
-          condition:cmp('GT',range('front'),.75),body:[forward(.1)]},
+    // A single front snapshot at the same x≈1.80 m in every world may
+    // distinguish short vs long; only motor/C oracle can test success.
+    ...(strategy==='snapshot'
+      ? [{kind:'repeat',count:18,body:[forward(.1)]},
+         iff(cmp('GT',range('front'),1.25),[forward(.9)],[forward(.5)])]
+      : [strategy==='fixed'
+        ? {kind:'repeat',count:12,body:[forward(.1),forward(.1)]}
+        : {kind:'while',mode:'WHILE',max_iterations:32,
+            condition:cmp('GT',range('front'),.75),body:[forward(.1)]}]),
     iff(cmp('GT',range('left'),1),[
       turn(90),forward(.6),turn(-90),forward(.85),forward(.8),forward(.1),
       iff(cmp('GT',v('destination'),.8),[turn(-90),forward(1.24)])
@@ -53,14 +58,15 @@ function expectedAst(strategy='reactive'){
   ]};
 }
 function privateProfile(strategy='reactive'){
-  if(!['reactive','fixed'].includes(strategy))throw Error('invalid private A5 profile');
+  if(!['reactive','fixed','snapshot'].includes(strategy))throw Error('invalid private A5 profile');
   const p=Activities.getProfile('reactive-obstacle-v2');
   p.id=strategy==='fixed'?'progression-reactive-hg-fixed-blind-ci-only':
+    strategy==='snapshot'?'progression-reactive-hg-single-snapshot-ci-only':
     'progression-reactive-hg-private-ci-only';
   p.starterVisible=false;p.brief={visible:false,title:'PRIVATE CI ONLY',
     goal:'Test actual Blockly loops and memory without publishing a pupil solution'};
   p.toolbox=Array.from(new Set([...p.toolbox,
-    strategy==='fixed'?'controls_repeat_ext':'controls_whileUntil']));
+    strategy==='reactive'?'controls_whileUntil':'controls_repeat_ext']));
   p.fieldOptions={...p.fieldOptions,
     webeeblocks_v2_range:{DIRECTION:['left','front']},
     webeeblocks_v2_move:{DIRECTION:['forward']},
@@ -68,7 +74,7 @@ function privateProfile(strategy='reactive'){
   p.parameterBounds={...p.parameterBounds,
     webeeblocks_v2_speed:{SPEED:{min:.2,max:.2,step:.01}}};
   p.runtime.allowedStatementKinds=Array.from(
-    new Set([...p.runtime.allowedStatementKinds,strategy==='fixed'?'repeat':'while']));
+    new Set([...p.runtime.allowedStatementKinds,strategy==='reactive'?'while':'repeat']));
   p.runtime.rangeDirections=['left','front'];
   p.runtime.moveDirections=['forward'];p.runtime.maxSteps=20000;
   p.runtime.astBounds={...p.runtime.astBounds,
@@ -237,7 +243,19 @@ async function main(){
   assert.equal(retired.starterVisible,false);
   assert(!retired.toolbox.includes('variables_set'));
   assert(!retired.toolbox.includes('controls_whileUntil'));
-  const w=build('reactive'),fixed=build('fixed');
+  const w=build('reactive'),fixed=build('fixed'),snapshot=build('snapshot');
+  assert.equal(snapshot.variableCount,1);
+  assert.equal(snapshot.ast.program[3].kind,'repeat');
+  assert.equal(snapshot.ast.program[3].count,18);
+  assert.equal(snapshot.ast.program[3].body.length,1);
+  assert.equal(snapshot.ast.program[4].kind,'if');
+  assert.equal((JSON.stringify(snapshot.ast).match(/"direction":"front"/g)||[]).length,1,
+    'snapshot adversary must read front precisely once, never inside loop');
+  assert(!JSON.stringify(snapshot.ast.program[3]).includes('"direction":"front"'));
+  assert.notEqual(snapshot.text,w.text);
+  assert.notEqual(snapshot.text,fixed.text);
+  assert.equal(JSON.parse(snapshot.text).activity.id,
+    'progression-reactive-hg-single-snapshot-ci-only');
   assert.equal(w.variableCount,1);
   assert.equal(fixed.variableCount,1);
   assert.equal(fixed.ast.program[3].kind,'repeat');
@@ -297,6 +315,8 @@ async function main(){
   fs.writeFileSync(path.join(output,'a5-private-loop-state-ci-only.wbb'),bytes,'utf8');
   fs.writeFileSync(path.join(output,'a5-private-fixed-front-ci-only.wbb'),
     fixed.text,'utf8');
+  fs.writeFileSync(path.join(output,'a5-private-single-snapshot-ci-only.wbb'),
+    snapshot.text,'utf8');
   fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify({
     schema:'webeeblocks-a5-private-blockly-loop-memory-v1',
     model_pass:true,sha256:hash,block_count:w.blockCount,
@@ -306,9 +326,15 @@ async function main(){
     blind_G_collision_rejection_from_this_wbb:false,
     fixed_front_adversary_virtual_four_pass:true,
     fixed_front_sha256:fixedSha,
+    single_snapshot_sha256:crypto.createHash('sha256').update(snapshot.text).digest('hex'),
+    snapshot_front_reads_structurally_one:true,
+    snapshot_native_four_worlds: 'UNPROVEN',
     fixed_front_four_native_proven:false,
     fixed_front_virtual_variants:fixedResults
   },null,2)+'\n','utf8');
+  console.log('WEBEEBLOCKS_A5_PRIVATE_SNAPSHOT_PROJECT_BUILT one_front_read=true '+
+    'source_roundtrip=true native_four_worlds=UNPROVEN sha256='+
+    crypto.createHash('sha256').update(snapshot.text).digest('hex'));
   console.log('WEBEEBLOCKS_A5_PRIVATE_FIXED_FRONT_MODEL_PASS '+
     'four_mock_variants=true no_front_range=true 12_x_2_moves=true '+
     'native_fixed_worlds=UNPROVEN sha256='+fixedSha);

@@ -114,14 +114,14 @@ class A5FactorMotorTests(unittest.TestCase):
                     "Blockly.serialization.workspaces.load",
                     "WebeeBlocksInterpreter.run",
                     "WebeeBlocksActivityContract.preflightBackend",
-                    "fresh_front_loop:!fixed",
+                    "fresh_front_loop:reactive",
                     "fixed_front_blind:fixed",
                     "missionOracle:false",
                     "frontReads<21",
                     "progression-reactive-hg-private-ci-only",
                     "progression-reactive-hg-fixed-blind-ci-only",
                     "facts.ranges.has('front')",
-                    "fresh_front_loop:!fixed"):
+                    "fresh_front_loop:reactive"):
             self.assertIn(key,module)
         for key in ("--blockly",
                     "WEBEEBLOCKS_A5_PRIVATE_REAL_WBB_NATIVE_PASS",

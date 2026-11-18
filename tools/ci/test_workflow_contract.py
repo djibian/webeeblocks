@@ -112,7 +112,8 @@ class WorkflowTests(unittest.TestCase):
                        "a5-variable-L-length-native-sensors-draft",
                        "test_progression_a5_length_motor",
                        "run_classroom_reactive_L_length_motor.py",
-                       "a5-length-x-side-two-real-blockly-motors-draft",
+                       "run_classroom_reactive_L_length_motor.py --snapshot",
+                       "a5-length-x-side-reactive-fixed-snapshot-motors-draft",
                        "if: always()"):
             self.assertIn(needed,source)
         for forbidden in ("name: CI Gate","\n  push:","\n  schedule:",

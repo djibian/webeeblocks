@@ -2,7 +2,8 @@
 """A5 private short/long actual WBB motor experiment, strict source contracts.
 
 No positive verdict from text: the draft CI must compile both C units and
-actually fly both real Blockly files through the original R2025a PID.
+actually fly the reactive, fixed-blind and single-snapshot Blockly projects
+through the original R2025a PID and unchanged independent C monitor.
 """
 from pathlib import Path
 import ast
@@ -79,7 +80,10 @@ class LengthMotorSourceContract(unittest.TestCase):
         ast.parse(runner)
         for x in ("a5-private-loop-state-ci-only.wbb",
                   "a5-private-fixed-front-ci-only.wbb",
-                  'mode not in ("blockly","blockly_fixed")',
+                  "a5-private-single-snapshot-ci-only.wbb",
+                  'mode not in ("blockly","blockly_fixed","blockly_snapshot")',
+                  "len(fronts)==1 if snapshot",
+                  "WEBEEBLOCKS_A5_LENGTH_SINGLE_SNAPSHOT_NATIVE_FOUR_PASS",
                   "len(fronts)==0 if fixed",
                   "WRONG_X_NATIVE",
                   "WEBEEBLOCKS_A5_LENGTH_MOTOR_NATIVE_FLOOR",
@@ -106,6 +110,16 @@ class LengthMotorSourceContract(unittest.TestCase):
         self.assertIn("a5_length_motor_probe.js",html)
         self.assertIn("WebeeBlocksInterpreter.run",original)
         self.assertIn("WebeeBlocksProjectFiles.validateProjectText",original)
+        self.assertIn("single_front_snapshot:snapshot", original)
+        self.assertIn("config.mode==='blockly_snapshot'", script)
+        self.assertIn("snapshot&&frontReads!==1",original)
+        generator=(ROOT/"tools/ci/build_a5_private_blockly_witness.js").read_text()
+        for token in ("a5-private-single-snapshot-ci-only.wbb",
+                      "snapshot_front_reads_structurally_one:true",
+                      "count:18,body:[forward(.1)]",
+                      "cmp('GT',range('front'),1.25)",
+                      "snapshot_native_four_worlds: 'UNPROVEN'"):
+            self.assertIn(token,generator)
         self.assertNotIn("config.variant",original)
         self.assertNotIn("a5-length-short",original)
         catalog=(ROOT/"plugins/robot_windows/blockly/webeeblocks/activities.js").read_text()
@@ -120,6 +134,9 @@ class LengthMotorSourceContract(unittest.TestCase):
         self.assertIn("run_classroom_reactive_L_length_motor.py",job)
         self.assertIn("test_progression_a5_length_motor",job)
         self.assertIn("build_a5_private_blockly_witness.js",job)
+        self.assertIn("a5-private-single-snapshot-ci-only.wbb",job)
+        self.assertIn("run_classroom_reactive_L_length_motor.py --snapshot",job)
+        self.assertIn("a5-length-x-side-reactive-fixed-snapshot-motors-draft",job)
         self.assertIn("cyberbotics/webots@sha256:",job)
         self.assertNotIn("name: CI Gate",job)
         self.assertNotIn("continue-on-error",job)

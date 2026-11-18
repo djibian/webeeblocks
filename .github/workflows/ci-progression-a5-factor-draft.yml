@@ -239,7 +239,7 @@ jobs:
           path: ci-artifacts/progression-reactive-L-length/
           if-no-files-found: warn
   a5-length-real-blockly-motor-draft-only:
-    name: A5 genuine short-long motorized two WBBs (not CI Gate)
+    name: A5 short-long motorized reactive fixed and snapshot WBB (not CI Gate)
     if: github.event.pull_request.draft == true
     runs-on: ubuntu-22.04
     timeout-minutes: 32
@@ -267,6 +267,7 @@ jobs:
           node tools/ci/build_a5_private_blockly_witness.js
           test -s ci-artifacts/progression-reactive-L-factor-blockly/a5-private-loop-state-ci-only.wbb
           test -s ci-artifacts/progression-reactive-L-factor-blockly/a5-private-fixed-front-ci-only.wbb
+          test -s ci-artifacts/progression-reactive-L-factor-blockly/a5-private-single-snapshot-ci-only.wbb
           test -s ci-artifacts/progression-reactive-L-factor-blockly/summary.json
       - name: Compile the unmodified R2025a product motor/PID and native monitor
         run: |
@@ -276,7 +277,7 @@ jobs:
             -w /workspace/controllers/progression_reactive_L_length_motor_pilot \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make; test -s progression_reactive_L_length_motor_pilot'
-      - name: Real motorized short-long L reactive and fixed blind two WBBs
+      - name: Real motorized short-long L reactive, fixed and single-front snapshot
         timeout-minutes: 26
         run: |
           set -euo pipefail
@@ -299,12 +300,13 @@ jobs:
               printf "%s\\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
               test -x /usr/bin/google-chrome
               python3 tools/ci/run_classroom_reactive_L_length_motor.py
+              python3 tools/ci/run_classroom_reactive_L_length_motor.py --snapshot
             '
       - name: Preserve C physical monitor, real steps and browser events even on failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a5-length-x-side-two-real-blockly-motors-draft
+          name: a5-length-x-side-reactive-fixed-snapshot-motors-draft
           path: |
             ci-artifacts/progression-reactive-L-length-motor/
             ci-artifacts/progression-reactive-L-factor-blockly/
