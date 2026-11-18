@@ -91,8 +91,8 @@ def validate_scene(source: str, count: int) -> None:
         for part in PARTS:
             key = f"ACTIVITY6_{count}_H_{i}_{part}"
             match = re.search(
-                rf"DEF {key} Solid \\{{[\\s\\S]*?boundingObject Box "
-                rf"\\{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \\}}",
+                rf"DEF {key} Solid \{{[\s\S]*?boundingObject Box "
+                rf"\{{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}}",
                 source,
             )
             if not match:
