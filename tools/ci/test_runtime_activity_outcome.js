@@ -437,6 +437,31 @@ function proveRealWebotsOutcomeFreshness() {
     'unknown mission states must not be presented as success'
   );
 
+  // Hostile or inherited status names must never become valid outcomes.
+  for (const invalidStatus of [
+    '__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty',
+    'mystery', '', null, undefined, 0, true, {}, Object.create(null)
+  ]) {
+    assert.throws(() => Outcome.classifyMission(
+      {status: invalidStatus, reason:'envelope-contact'}, evaluation),
+      /invalid mission state/,
+      'unknown, inherited and non-string statuses must fail closed');
+  }
+  let coercions = 0;
+  const hostile = {toString() {
+    coercions += 1;
+    throw new Error('hostile toString executed');
+  }};
+  assert.throws(() => Outcome.classifyMission({status:hostile}, evaluation),
+    /invalid mission state: object/,
+    'rejected status must not execute user-provided coercion');
+  assert.strictEqual(coercions, 0, 'invalid status triggered hostile toString');
+  assert.throws(() => Outcome.classifyMission({status:Symbol('bad')}, evaluation),
+    /invalid mission state: symbol/);
+  await assert.rejects(() => Outcome.evaluateMission({evaluation}, {
+    readActivityOutcome: async () => ({status:'constructor'})
+  }), /invalid mission state/, 'backend must reject inherited states');
+
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
