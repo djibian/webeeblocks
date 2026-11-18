@@ -90,8 +90,8 @@ function privateProfile(){
     Activities.BLOCK_CATALOG);
 }
 
-function build(){
-  const expected=expectedAst(),profile=privateProfile();
+function build(expected=expectedAst(),expectedVariableNames=['count','under']){
+  const profile=privateProfile();
   const workspace=new Blockly.Workspace();
   function block(type,fields){
     const b=workspace.newBlock(type);
@@ -171,7 +171,7 @@ function build(){
     }
     assert.deepStrictEqual(
       variables.getAllVariables().map(x=>x.name).sort(),
-      ['count','under'],'compact Blockly must serialize exactly two variables');
+      expectedVariableNames,'private Blockly must serialize only intended state');
     Contract.preflightWorkspace(profile,workspace);
     const ast=Semantic.compileWorkspace(workspace);
     Contract.preflightAst(profile,ast);
@@ -334,3 +334,4 @@ async function main(){
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});
 module.exports={expectedAst,privateProfile,build};
+

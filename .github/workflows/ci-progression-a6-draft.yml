@@ -36,6 +36,7 @@ on:
       - 'tools/ci/count_h_cdp_evidence.py'
       - 'tools/ci/webots_count_h_variant_cdp.sh'
       - 'tools/ci/build_a6_private_blockly_witness.js'
+      - 'tools/ci/build_a6_stateless_checkpoint_counter.js'
       - 'tools/ci/test_progression_count_h_sensor_only_mock.js'
       - 'tools/ci/run_classroom_count_h_rotation_mutant.py'
       - 'controllers/progression_count_h_school_pilot/**'
@@ -102,6 +103,10 @@ jobs:
           # JS module. True R2025a PID/motor, oracle and same-pupil-WBB
           # qualification remain separate, stronger requirements.
           node tools/ci/test_progression_count_h_sensor_only_mock.js
+      - name: Falsify A6 numeric-variable necessity with private Blockly checkpoint branching (mock only)
+        run: |
+          set -euo pipefail
+          node tools/ci/build_a6_stateless_checkpoint_counter.js ci-artifacts/progression-count-h-private-blockly/a6-stateless-checkpoints-ci-only.wbb
       - name: Preserve private A6 Blockly artifact for review (never pupil starter)
         if: always()
         uses: actions/upload-artifact@v4
