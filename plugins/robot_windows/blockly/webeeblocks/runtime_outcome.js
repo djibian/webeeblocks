@@ -68,6 +68,11 @@
     'wrong-pad': 'Atterrissage hors du damier'
   });
 
+  var A3_PUBLIC_REASONS = Object.freeze({
+    'route-incomplete': 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)',
+    'landing-timeout': 'Pose sur le damier non validée dans le délai'
+  });
+
   var A4_PUBLIC_REASONS = Object.freeze({
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
@@ -80,13 +85,14 @@
 
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
-    // Only the three explicit mission states are legal. Inherited Object
-    // properties (e.g. __proto__, constructor) must never appear as outcomes.
+    // Refuse inherited keys and non-string statuses before consulting the
+    // presentation table. Never coerce an untrusted object when reporting it.
     var presentation = typeof status === 'string' &&
       Object.prototype.hasOwnProperty.call(MISSION_STATES, status)
         ? MISSION_STATES[status] : null;
     if (!presentation)
-      throw new Error('runtime outcome: invalid mission state: ' + String(status));
+      throw new Error('runtime outcome: invalid mission state: ' +
+        (typeof status === 'string' ? status : typeof status));
     var detail = presentation.detail;
     // A reason is displayable only on the authorized Grand Prix oracle's
     // negative result, not on generic statuses or transport TIME_LIMIT.
@@ -99,6 +105,10 @@
         evaluation.oracle === 'progression-altitude-3d-v1' &&
         Object.prototype.hasOwnProperty.call(A2_PUBLIC_REASONS, reason))
       detail += ' — ' + A2_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-orientation-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A3_PUBLIC_REASONS, reason))
+      detail += ' — ' + A3_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))

@@ -45,6 +45,14 @@ typedef enum {
   WB_ORIENT_NOT_ACHIEVED = 2
 } wb_orient_verdict;
 
+/* A3 outcomes identify only independently demonstrated causes; a missing or
+ * invalid native observation deliberately has no classroom explanation. */
+typedef enum {
+  WB_ORIENT_REASON_NONE = 0,
+  WB_ORIENT_REASON_ROUTE_INCOMPLETE,
+  WB_ORIENT_REASON_LANDING_TIMEOUT
+} wb_orient_failure;
+
 typedef struct {
   double time, x, y, z, vx, vy, vz, yaw;
   int completed;
@@ -58,6 +66,7 @@ typedef struct {
   int stable_since_valid, sampled;
   int airborne, stage, completion_seen;
   wb_orient_verdict result;
+  wb_orient_failure reason;
 } wb_orient_mission;
 
 static inline void wb_orient_reset(wb_orient_mission *mission,
@@ -88,6 +97,15 @@ static inline int wb_orient_yaw(const double orientation[9], double *out) {
 
 static inline double wb_orient_angular_error(double actual, double target) {
   return fabs(atan2(sin(actual - target), cos(actual - target)));
+}
+
+static inline const char *wb_orient_reason_name(const wb_orient_mission *m) {
+  if (!m || m->result != WB_ORIENT_NOT_ACHIEVED) return NULL;
+  if (m->reason == WB_ORIENT_REASON_ROUTE_INCOMPLETE)
+    return "route-incomplete";
+  if (m->reason == WB_ORIENT_REASON_LANDING_TIMEOUT)
+    return "landing-timeout";
+  return NULL;
 }
 
 static inline wb_orient_verdict wb_orient_sample_mission(
@@ -134,12 +152,18 @@ static inline wb_orient_verdict wb_orient_sample_mission(
   if (!m->completion_seen)
     return WB_ORIENT_WAIT;
   if (!m->airborne || m->stage != WB_ORIENT_WAYPOINTS) {
+    /* The completed attempt did not attest all ordered 3D beacons. The
+     * missing cause (height, heading, position, order) is NOT inferred. */
+    m->reason = WB_ORIENT_REASON_ROUTE_INCOMPLETE;
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
   /* The 1.5 s completion window is terminal, including its boundary.
    * Do not promote a newly stable sample after that deadline. */
   if (s->time - m->completion_at >= WB_ORIENT_SETTLE) {
+    /* Full route attested, but not enough consecutive on-pad floor-contact
+     * samples arrived before the unchanged terminal deadline. */
+    m->reason = WB_ORIENT_REASON_LANDING_TIMEOUT;
     m->result = WB_ORIENT_NOT_ACHIEVED;
     return m->result;
   }
