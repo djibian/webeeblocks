@@ -45,8 +45,12 @@ def compose_classroom_outcome_broker(source: str) -> str:
     const bool orientation =
       oracle == "progression-orientation-3d-v1" &&
       (reason == "route-incomplete" || reason == "landing-timeout");
+    const bool sequence =
+      oracle == "progression-sequence-3d-v1" &&
+      (reason == "flight-not-observed" || reason == "wrong-pad" ||
+       reason == "landing-timeout");
     if (status != "not-achieved" ||
-        (!route && !classroom && !altitude && !orientation))
+        (!route && !classroom && !altitude && !orientation && !sequence))
       return false;
   }
 """

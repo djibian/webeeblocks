@@ -315,6 +315,29 @@ function proveRealWebotsOutcomeFreshness() {
   assert.deepStrictEqual(achieved, {
     status:'achieved', state:'MISSION RÉUSSIE', detail:'Mission accomplie'
   });
+  // A1 is the simplest lesson: only evidenced takeoff / floor-pad / dwell
+  // diagnoses, never an AST-prescribed answer or a guessed collision cause.
+  const a1 = {type:'mission-state-v1', oracle:'progression-sequence-3d-v1'};
+  for (const [reason, french] of [
+    ['flight-not-observed', 'Décollage non confirmé'],
+    ['wrong-pad', 'Drone pas entièrement sur le damier'],
+    ['landing-timeout', 'Pose immobile sur le damier non confirmée dans le délai']
+  ]) {
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, a1).detail,
+      'Mission non accomplie — ' + french);
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, evaluation).detail,
+      'Mission non accomplie', 'A1 reason must not leak to unrelated oracles');
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'achieved',reason}, a1).detail, 'Mission accomplie');
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'interrupted',reason}, a1).detail, 'Mission interrompue');
+  }
+  for (const reason of ['__proto__','constructor','forged','obstacle-contact']) {
+    assert.strictEqual(Outcome.classifyMission(
+      {status:'not-achieved',reason}, a1).detail, 'Mission non accomplie');
+  }
   // A2 exposes only reasons attested by its native mission oracle.
   const a2 = {type:'mission-state-v1', oracle:'progression-altitude-3d-v1'};
   for (const [reason, french] of [

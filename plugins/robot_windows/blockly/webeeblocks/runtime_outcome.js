@@ -60,6 +60,12 @@
     'time-limit': 'Durée maximale de 210 secondes dépassée'
   });
 
+  var A1_PUBLIC_REASONS = Object.freeze({
+    'flight-not-observed': 'Décollage non confirmé',
+    'wrong-pad': 'Drone pas entièrement sur le damier',
+    'landing-timeout': 'Pose immobile sur le damier non confirmée dans le délai'
+  });
+
   var A2_PUBLIC_REASONS = Object.freeze({
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Hauteur ou passage dangereux près de l’obstacle',
@@ -101,6 +107,10 @@
         evaluation.oracle === 'grand-prix-route-v2' &&
         Object.prototype.hasOwnProperty.call(GRAND_PRIX_PUBLIC_REASONS, reason))
       detail += ' — ' + GRAND_PRIX_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-sequence-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A1_PUBLIC_REASONS, reason))
+      detail += ' — ' + A1_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-altitude-3d-v1' &&
         Object.prototype.hasOwnProperty.call(A2_PUBLIC_REASONS, reason))

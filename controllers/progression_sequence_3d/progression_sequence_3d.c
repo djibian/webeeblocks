@@ -90,16 +90,36 @@ static int observe_floor_contact(WbNodeRef craft) {
   return floor_seen;
 }
 
-static void publish(WbFieldRef channel, const wb_seq_mission *m) {
+/* The school controller identity is validated independently of the mission
+ * signal. A legacy/physical Crazyflie must continue to receive status-only
+ * A1 outcomes through its locked broker, without relaxing any allowlist. */
+static int school_reason_channel(WbNodeRef craft) {
+  WbNodeRef world =
+    wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
+  const char *world_type = world ? wb_supervisor_node_get_type_name(world) : NULL;
+  WbFieldRef controller = craft ? wb_supervisor_node_get_field(craft, "controller") : NULL;
+  const char *controller_name =
+    controller ? wb_supervisor_field_get_sf_string(controller) : NULL;
+  return world_type && strcmp(world_type, "WorldInfo") == 0 &&
+         controller_name && strcmp(controller_name, "crazyflie_classroom_v2") == 0;
+}
+
+static void publish(WbFieldRef channel, const wb_seq_mission *m,
+                    int school_channel) {
   const char *status = (m->result == WB_SEQ_ACHIEVED) ? "achieved" : "not-achieved";
+  const char *reason = wb_seq_reason_for_channel(m, school_channel);
   char result[180];
-  const int size = snprintf(result, sizeof(result),
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-      m->attempt, WB_SEQ_ORACLE, status);
+  const int size = reason
+    ? snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+        m->attempt, WB_SEQ_ORACLE, status, reason)
+    : snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+        m->attempt, WB_SEQ_ORACLE, status);
   if (size < 1 || (size_t)size >= sizeof(result)) return;
   wb_supervisor_field_set_sf_string(channel, result);
-  printf("WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=%llu status=%s\n",
-         m->attempt, status);
+  printf("WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt=%llu status=%s reason=%s\n",
+         m->attempt, status, reason ? reason : "none");
   fflush(stdout);
 }
 
@@ -122,6 +142,7 @@ int main(void) {
     return 2;
   }
   const double origin_z = origin[2];
+  const int school_channel = school_reason_channel(craft);
   wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_seq_mission mission = {0};
   unsigned long long last_attempt = 0;
@@ -155,7 +176,7 @@ int main(void) {
     const wb_seq_verdict before = mission.result;
     wb_seq_sample_mission(&mission, &sample);
     if (before == WB_SEQ_WAIT && mission.result != WB_SEQ_WAIT)
-      publish(channel, &mission);
+      publish(channel, &mission, school_channel);
   }
   wb_robot_cleanup();
   return 0;

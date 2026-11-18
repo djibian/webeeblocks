@@ -234,6 +234,48 @@ int main() {
 
 
 #ifdef WB_CLASSROOM_A4_REASON_TEST
+  // Activity 1 reports only a physically established school-simulation
+  // negative cause. These tokens must never escape through another oracle,
+  // a stale attempt, a malformed suffix, or the locked physical broker.
+  for (const char *cause : {"flight-not-observed", "wrong-pad", "landing-timeout"}) {
+    reset_harness();
+    const std::string a1 =
+      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=" +
+      std::string(cause);
+    custom_data = a1;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 COMPLETE progression-sequence-3d-v1",
+             "WEBEEBLOCKS_RUNTIME_V2 REQUEST 92 OUTCOME progression-sequence-3d-v1"});
+    assert(custom_data == a1);
+    assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 92 STATE not-achieved reason=" +
+                               std::string(cause));
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 93 OUTCOME progression-altitude-3d-v1"});
+    assert(sent_text.back() ==
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 93 ERR OUTCOME_MISMATCH");
+  }
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=achieved reason=wrong-pad",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=forged",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-route-v2 status=not-achieved reason=flight-not-observed",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad trailing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=0 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad",
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 94 OUTCOME progression-sequence-3d-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 94 STATE not-achieved reason=wrong-pad");
+  }
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad";
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 95 RESET");
+  assert(webeeblocks_file_broker_receive_text() != nullptr);
+  const std::string a1_reset = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 95 OK";
+  webeeblocks_file_broker_send(a1_reset.c_str(), static_cast<int>(a1_reset.size()+1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 96 OUTCOME progression-sequence-3d-v1"});
+  assert(sent_text.back() == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 96 ERR OUTCOME_UNAVAILABLE");
+
   reset_harness();
   const std::string a4 =
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-decision-h-v1 status=not-achieved reason=obstacle-contact";
@@ -340,6 +382,17 @@ int main() {
   process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 OUTCOME progression-orientation-3d-v1"});
   assert(sent_text.back() ==
     "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 ERR OUTCOME_UNAVAILABLE");
+#endif
+
+#ifndef WB_CLASSROOM_A4_REASON_TEST
+  // Neither the shared physical broker nor the Grand Prix-only comparison
+  // broker may transport A1 school-specific reason tokens.
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 97 OUTCOME progression-sequence-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 97 ERR OUTCOME_UNAVAILABLE");
 #endif
 
   expect_unavailable_after_complete(
