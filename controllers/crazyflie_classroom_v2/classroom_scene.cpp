@@ -497,7 +497,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_ALTITUDE_SCENE");
-    const double p[] = {-1.8, -1.6, 1.7};
+    // Keep the blue start, all three suspended beacons and the landing pad in view.
+    const double p[] = {-1.88, -2.44, 2.55};
     const double o[] = {-0.45, 0.47, 0.76, 1.05};
     wb_supervisor_field_set_sf_vec3f(position, p);
     wb_supervisor_field_set_sf_rotation(orientation, o);

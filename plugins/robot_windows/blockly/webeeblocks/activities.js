@@ -146,7 +146,7 @@
         brief: {
           visible: true,
           title: '3 — S’orienter et organiser son trajet',
-          mission: 'Parcours les balises A, B et C dans l’ordre, en respectant le cap indiqué et les hauteurs du circuit, puis pose le drone entièrement et immobile sur le damier. Avant de programmer, observe les étapes du trajet : qu’ont-elles en commun ?'
+          mission: 'Franchis les balises dans l’ordre A, B, C. Pour chacune, passe dans la zone colorée à sa hauteur, avec le drone orienté dans le sens de la flèche. Pose ensuite le drone entièrement et immobile sur le damier. Avant de programmer, observe les étapes du trajet : qu’ont-elles en commun ?'
         },
         pedagogy: {
           objective: 'Comprendre la rotation relative et les déplacements dans le repère local, puis identifier un motif de trajet utile à répéter.'
