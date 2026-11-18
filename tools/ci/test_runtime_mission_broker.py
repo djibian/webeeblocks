@@ -303,6 +303,43 @@ int main() {
   process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 84 OUTCOME progression-altitude-3d-v1"});
   assert(sent_text.back() ==
     "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 84 ERR OUTCOME_UNAVAILABLE");
+
+  // A3 reason is accepted only for the current school-only oracle and attempt.
+  reset_harness();
+  const std::string a3 =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=route-incomplete";
+  custom_data = a3;
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 85 COMPLETE progression-orientation-3d-v1",
+           "WEBEEBLOCKS_RUNTIME_V2 REQUEST 86 OUTCOME progression-orientation-3d-v1"});
+  assert(custom_data == a3);
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 86 STATE not-achieved reason=route-incomplete");
+  for (const char *bad : {
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=achieved reason=route-incomplete",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=fake",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=other-oracle status=not-achieved reason=route-incomplete",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=route-incomplete trailing",
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=+1 oracle=progression-orientation-3d-v1 status=not-achieved reason=route-incomplete"
+  }) {
+    reset_harness();
+    custom_data = bad;
+    process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 87 OUTCOME progression-orientation-3d-v1"});
+    assert(sent_text.back() !=
+      "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 87 STATE not-achieved reason=route-incomplete");
+  }
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-orientation-3d-v1 status=not-achieved reason=landing-timeout";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 88 OUTCOME progression-orientation-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 88 STATE not-achieved reason=landing-timeout");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 89 RESET");
+  assert(webeeblocks_file_broker_receive_text() != nullptr);
+  const std::string a3_reset = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 89 OK";
+  webeeblocks_file_broker_send(a3_reset.c_str(), static_cast<int>(a3_reset.size()+1));
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 OUTCOME progression-orientation-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 ERR OUTCOME_UNAVAILABLE");
 #endif
 
   expect_unavailable_after_complete(

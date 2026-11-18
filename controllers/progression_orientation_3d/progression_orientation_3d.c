@@ -96,10 +96,15 @@ static int observe_floor_contact(WbNodeRef craft) {
 static void publish(WbFieldRef channel, const wb_orient_mission *m) {
   const char *status =
     m->result == WB_ORIENT_ACHIEVED ? "achieved" : "not-achieved";
-  char result[180];
-  int size = snprintf(result, sizeof(result),
-      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
-      m->attempt, WB_ORIENT_ORACLE, status);
+  char result[220];
+  const char *reason = wb_orient_reason_name(m);
+  int size = reason
+    ? snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s reason=%s",
+        m->attempt, WB_ORIENT_ORACLE, status, reason)
+    : snprintf(result, sizeof(result),
+        "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s",
+        m->attempt, WB_ORIENT_ORACLE, status);
   if (size < 1 || (size_t)size >= sizeof(result)) return;
   wb_supervisor_field_set_sf_string(channel, result);
   printf("WEBEEBLOCKS_ORIENTATION_3D_RESULT attempt=%llu status=%s checkpoints=%d\n",
