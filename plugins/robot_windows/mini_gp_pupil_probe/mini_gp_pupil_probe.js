@@ -219,7 +219,7 @@ window.addEventListener('unhandledrejection',e=>report('A7_PUPIL_ERROR',{message
     const negativeRaw=await backend.readActivityOutcome(left.evaluation);
     const feedback=WebeeBlocksRuntimeOutcome.classifyMission(
       negativeRaw,left.evaluation);
-    const expected='Mission non accomplie — Programme terminé avant la fin du parcours';
+    const expected='Mission non accomplie — Fin de parcours ou zone de pose non validée';
     check(negativeRaw.status==='not-achieved' &&
       negativeRaw.reason==='early-finish' &&
       feedback.state==='MISSION NON RÉUSSIE' &&

@@ -28,7 +28,7 @@ PROJECT=ROOT/"worlds/.ci_classroom_mini_gp_product_ui.wbproj"
 MARKER="# WEBEEBLOCKS_A7_PRODUCT_WINDOW_NATIVE_CI_ONLY"
 WINDOW='window "mini_gp_pupil_probe"'
 PRODUCT='window "blockly_v2"'
-EXPECTED="Mission non accomplie — Programme terminé avant la fin du parcours"
+EXPECTED="Mission non accomplie — Fin de parcours ou zone de pose non validée"
 
 # Reuse the repository's existing Chrome DevTools client, tested with genuine
 # Webots product UI. The package is provided by python3-websocket in the job.

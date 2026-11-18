@@ -193,7 +193,7 @@ def run()->int:
     in_order=(all(i>=0 for i in observed) and observed==sorted(observed))
     negative=[e.get('detail') for e in ack.EVENTS
               if e.get('event')=='A7_PUPIL_NEGATIVE_NATIVE_REASON']
-    expected_french='Mission non accomplie — Programme terminé avant la fin du parcours'
+    expected_french='Mission non accomplie — Fin de parcours ou zone de pose non validée'
     negative_ui_ok=(len(negative)==1 and isinstance(negative[0],dict) and
       negative[0].get('variant')=='l' and
       negative[0].get('status')=='not-achieved' and
