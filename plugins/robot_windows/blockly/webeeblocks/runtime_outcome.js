@@ -85,9 +85,14 @@
 
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
-    var presentation = MISSION_STATES[status];
+    // Refuse inherited keys and non-string statuses before consulting the
+    // presentation table. Never coerce an untrusted object when reporting it.
+    var presentation = typeof status === 'string' &&
+      Object.prototype.hasOwnProperty.call(MISSION_STATES, status)
+        ? MISSION_STATES[status] : null;
     if (!presentation)
-      throw new Error('runtime outcome: invalid mission state: ' + String(status));
+      throw new Error('runtime outcome: invalid mission state: ' +
+        (typeof status === 'string' ? status : typeof status));
     var detail = presentation.detail;
     // A reason is displayable only on the authorized Grand Prix oracle's
     // negative result, not on generic statuses or transport TIME_LIMIT.
