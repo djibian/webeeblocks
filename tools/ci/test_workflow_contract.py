@@ -25,7 +25,8 @@ EXPECTED = {
     # A5 source / native G experiment, Draft-only, not CI Gate.
     "ci-progression-a5-factor-draft.yml": {"a5-factor-g-native-draft-only",
                                              "a5-factor-g-motor-draft-only",
-                                             "a5-factor-g-native-pid-feeder-draft-only"},
+                                             "a5-factor-g-native-pid-feeder-draft-only",
+                                             "a5-length-native-sensor-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
     # Independent Draft-only Windows evidence; no CI Gate or release authority.
