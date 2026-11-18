@@ -42,9 +42,20 @@ function candidate(stepCm) {
   const validated=ProjectFiles.validateProjectText(product,real,options);
   assert.deepStrictEqual(validated.ast,ast);
   Contract.preflightAst(real,ast);
+  // Two distinct authorities, intentionally NOT interchangeable:
+  //   1. real A6 hidden pupil profile: validated above, never published;
+  //   2. dedicated CI-only Robot Window: expects the private profile id
+  //      used by the already proven ordinary private A6 WBB witness.
+  // Rewriting the flight document to real.id was falsely refused by the
+  // browser's resolveById BEFORE TAKEOFF in run #44380702503.
+  assert.notEqual(witness.profile.id,real.id,
+    'pupil and CI-only identities must remain distinct');
+  assert.equal(witness.project.activity.id,witness.profile.id);
+  const flightWbb=witness.text;
+  assert.equal(JSON.parse(flightWbb).activity.id,witness.profile.id);
   assert(!['count-h-1-v1','count-h-2-v1','count-h-3-v1']
-    .some(id=>product.includes(id)),'private WBB must not encode a session scene');
-  return {ast,product,witness};
+    .some(id=>flightWbb.includes(id)),'private WBB must not encode a session scene');
+  return {ast,product:flightWbb,witness};
 }
 function idealBackend(gates) {
   return {
