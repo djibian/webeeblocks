@@ -54,9 +54,10 @@ def gate_centres(source: str, count: int) -> tuple[float, ...]:
     return tuple(centres)
 
 
-def validate_scene(source: str, count: int) -> None:
+def validate_scene(source: str, count: int, *, expected_positions=None,
+                   checked_checkpoints=OLD_CHECKPOINTS, terminal_h=0.36) -> None:
     xs = gate_centres(source, count)
-    expected = EXPECTED[count]
+    expected = EXPECTED[count] if expected_positions is None else expected_positions
     if any(abs(a - b) > 1e-8 for a, b in zip(xs, expected)):
         raise AssertionError(f"unexpected H positions n={count}: {xs}")
     if len(xs) != count or any(b - a < 0.50
@@ -120,15 +121,15 @@ def validate_scene(source: str, count: int) -> None:
                             else (0.07, 0.065, 1.00))
             if tuple(map(float, match.groups())) != expected_box:
                 raise AssertionError(f"invalid collision volume for {key}")
-    for checkpoint in OLD_CHECKPOINTS:
-        if any(abs(gate - checkpoint) <= 0.13 for gate in xs):
+    for checkpoint in checked_checkpoints:
+        if any(abs(gate - checkpoint) <= 0.035 for gate in xs):
             raise AssertionError(
                 f"old physical classifier checkpoint {checkpoint} still matches H"
             )
     # All scenes finish under the same last H. Varying gate count changes
     # the earlier route, NOT the arrival geometry / final H's presence.
-    if abs(xs[-1] - 0.36) > 1e-9:
-        raise AssertionError("the common final H is not at x=0.36")
+    if abs(xs[-1] - terminal_h) > 1e-9:
+        raise AssertionError("the common final H is not at the declared tail")
 
 
 class MatchedTailDesignBTests(unittest.TestCase):

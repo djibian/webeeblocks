@@ -1,0 +1,68 @@
+# PRIVATE A6 CHOICE B: SAMPLING HOLDOUT geometry; not a public scene.
+# PRIVATE dynamic 8-cm stepping adversary, not R2025a evidence.
+# EXPERIMENT ONLY: native range/PID/oracle validation required before promotion.
+# Activity 6: exactly 1 actual open H crossings on one straight axis.
+# The terminal landing cannot encode the count; observe and remember crossings.
+# Future native oracle must verify unique directed crossings, low-flight bands,
+# body clearance, contact-free pose and count-dependent landing across variants.
+DEF WEBEEBLOCKS_COUNT_1_SCENE Group {
+ children [
+  Pose { translation -1.40 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.90 roughness 0.85 } geometry Box { size 0.18 0.30 0.004 } } ] } # blue start
+  # Decorative corridor limits stop before the cyan finish screen (x=1.235),
+  # leaving a clearly open lateral exit towards the three landing pads.
+  # No collider: actual crossing constraints belong to the native oracle.
+  Pose { translation -0.220 0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 2.760 0.012 0.004 } } ] }
+  Pose { translation -0.220 -0.385 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.18 0.14 roughness 0.88 } geometry Box { size 2.760 0.012 0.004 } } ] }
+  Pose { translation 1.48 0.000 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 1
+  Pose { translation 1.420000 -0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.060000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.48 0.550 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 2
+  Pose { translation 1.420000 0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.48 -0.550 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 0.85 } geometry Box { size 0.30 0.30 0.004 } } ] } # destination 3
+  Pose { translation 1.420000 -0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.420000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.610000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.96 0.96 0.96 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 1.540000 -0.490000 0.0042 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.06 0.06 roughness 0.85 } geometry Box { size 0.12 0.12 0.004 } } ] } # checker
+  Pose { translation 0.480 0 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.76 0.12 roughness 0.85 } geometry Box { size 0.40 0.48 0.004 } } ] } # low altitude band
+  DEF ACTIVITY6_1_H_1_LEFT Solid {
+    translation 0.480 0.300 0.50
+    name "ACTIVITY6_1_H_1_LEFT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY6_1_H_1_RIGHT Solid {
+    translation 0.480 -0.300 0.50
+    name "ACTIVITY6_1_H_1_RIGHT"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.065 1.00 } } ]
+    boundingObject Box { size 0.07 0.065 1.00 }
+  }
+  DEF ACTIVITY6_1_H_1_BAR Solid {
+    translation 0.480 0 0.74
+    name "ACTIVITY6_1_H_1_BAR"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.07 0.57 0.24 } } ]
+    boundingObject Box { size 0.07 0.57 0.24 }
+  }
+# Common cyan finish ribbon, NOT one of the 1 red H arches to count.
+# A fixed terminal sight-screen at the landing zone occludes all old H bars
+# from range_back, while its underside (z=0.64) leaves the same safe low path.
+# Physical passability and information leakage require R2025a qualification.
+  DEF ACTIVITY6_1_FINISH_SCREEN Solid {
+    translation 1.235 0 0.76
+    name "ACTIVITY6_1_FINISH_SCREEN"
+    children [ Shape { appearance PBRAppearance { baseColor 0.05 0.76 0.70 roughness 0.82 } geometry Box { size 0.07 1.48 0.24 } } ]
+    boundingObject Box { size 0.07 1.48 0.24 }
+  }
+# A single terminal marker is in the same position on all variants.
+  DEF ACTIVITY6_1_TERMINAL Solid {
+    translation 1.86 0 0.55
+    name "ACTIVITY6_1_TERMINAL"
+    children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.12 roughness 0.70 } geometry Box { size 0.06 1.48 1.10 } } ]
+    boundingObject Box { size 0.06 1.48 1.10 }
+  }
+ ]
+}
