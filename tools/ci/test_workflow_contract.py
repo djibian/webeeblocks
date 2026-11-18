@@ -22,8 +22,8 @@ EXPECTED = {
     "ci-progression-a2-draft.yml": {"a2-grounded-flight-draft"},
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
     "ci-progression-a4-draft.yml": {"a4-native-draft-only"},
-    # Draft-only A6 C/source witness: no flight/native physics, gate or merge authority.
-    "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-replay-draft-only",
+    # Draft-only A6 C/source and separate physical SENSOR witnesses: no student flight or merge authority.
+    "ci-progression-a6-draft.yml": {"a6-core-draft-only", "a6-b-native-ray-draft-only", "a6-replay-draft-only",
                                     "a6-school-window-draft-only", "a6-real-variant-cdp-draft-only", "a6-private-generic-wbb-build-draft-only", "a6-private-generic-product-ui-draft-only", "a6-windows-archive-draft-only"},
     # Independent A7 diagnostics remain Draft-only, without CI Gate authority.
     "ci-progression-a7-draft.yml": {"a7-draft-source-only"},
