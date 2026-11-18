@@ -41,6 +41,10 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn('counter_and_blockly=UNPROVEN',source)
         self.assertIn('"WEBEEBLOCKS_A6_MOTOR_REJECT" not in txt',source)
         self.assertIn('up_motor["native_motor_ray_observed"] and',source)
+        wf=(ROOT/'.github/workflows/ci-progression-a6-draft.yml').read_text()
+        self.assertIn('a6-b-motor-draft-only:',wf)
+        self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
+        self.assertIn('ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/',wf)
 
     def test_unknown_or_adversarial_source_rejected(self):
         with self.assertRaises(ValueError):
