@@ -30,7 +30,14 @@ function statelessAst(){
     // Both moves start from the SAME origin; no world ID, counter, GPS or
     // variant-specific serialization. The branch itself carries the state.
     decide([
-      forward(.45),forward(.4),
+      forward(.45),
+      // The fixed .40-m leg could stop just before the real x=.85 H3
+      // observation, despite the earlier Supervisor probe at exact x=.85.
+      // Calibrate from the genuinely sensed final panel (x=1.86, with
+      // about 0.03 m front sensor offset), then use the unchanged up ray.
+      // This remains a private, bounded no-counter experiment.
+      forward({kind:'arithmetic',op:'MINUS',
+        left:{kind:'range',direction:'front',unit:'m'},right:number(.98)}),
       decide([forward(.63),lateral('right',.55)],
              [forward(.63),lateral('left',.55)])
     ],[
@@ -67,7 +74,7 @@ function mockBackend(n,{missingUp=false,alwaysClear=false}={}){
       moves.push([direction,distance]);
     },
     async readRange(direction){
-      if(direction==='front')return Math.max(.01,Math.min(2.,1.86-this.x));
+      if(direction==='front')return Math.max(.01,Math.min(2.,1.83-this.x));
       assert.equal(direction,'up');
       if(missingUp)return Number.NaN;
       const observed=!alwaysClear&&gates.some(g=>Math.abs(this.x-g)<.025);
