@@ -177,10 +177,12 @@ int main(void) {
   cross_higher(&m);
   assert(step(&m, 6.0, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_WRONG_PAD);
   normal_takeoff(&m, 12);
   cross_higher(&m);
   assert(step(&m, 6.0, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_WRONG_PAD);
   /* A legitimate landing at small but nonzero errors still succeeds. */
   normal_takeoff(&m, 13);
   cross_higher(&m);

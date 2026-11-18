@@ -345,7 +345,7 @@ function proveRealWebotsOutcomeFreshness() {
     ['unsafe-clearance', 'Hauteur ou passage dangereux près de l’obstacle'],
     ['early-finish', 'Parcours non franchi avant la fin du programme'],
     ['landing-timeout', 'Atterrissage non stabilisé dans le délai'],
-    ['wrong-pad', 'Atterrissage hors du damier']
+    ['wrong-pad', 'Drone pas entièrement sur le damier']
   ]) {
     assert.strictEqual(Outcome.classifyMission(
       {status:'not-achieved',reason}, a2).detail,
