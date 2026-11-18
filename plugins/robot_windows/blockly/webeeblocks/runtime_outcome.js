@@ -80,7 +80,11 @@
 
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
-    var presentation = MISSION_STATES[status];
+    // Only the three explicit mission states are legal. Inherited Object
+    // properties (e.g. __proto__, constructor) must never appear as outcomes.
+    var presentation = typeof status === 'string' &&
+      Object.prototype.hasOwnProperty.call(MISSION_STATES, status)
+        ? MISSION_STATES[status] : null;
     if (!presentation)
       throw new Error('runtime outcome: invalid mission state: ' + String(status));
     var detail = presentation.detail;
