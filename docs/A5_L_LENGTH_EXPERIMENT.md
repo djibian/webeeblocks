@@ -101,3 +101,38 @@ avec des détours. Cela ne saurait être imposé par l'inspection
 syntaxique de l'AST. Les véritables boutons et dialogues Save/Open,
 les limites d'une salle Windows ancienne et le PASS personnel du
 professeur restent des étapes séparées.
+
+## Second private experiment — real two-WBB motorized short/long L (UNPROVEN)
+
+The separate Draft-only CI job **a5-length-real-blockly-motor-draft-only**
+must reopen the **two existing genuine Blockly 13.2.1 .wbb projects** from
+the successful H×G experiment and fly them in the **four new** L worlds.
+
+C++ admission checks the genuine Crazyflie, 32-ms step, unique scene,
+11 children, visual pads and all **seven exact native collision boxes**.
+A separate C physics monitor inspects obstacle/craft contact streams and
+conservative swept intersections on every 32-ms step. The physical Floor
+target is x=3.95 m for short, x=4.35 m for long, y=+0.62 m for both,
+with the same ±0.10 m and z≤0.025 m acceptance as the earlier experiment.
+The product PID, original sensors and original Webots flight runtime stay
+unchanged.
+
+Two independent native outcomes are required:
+
+- The same reactive WBB SHA in all four worlds, fresh front readings,
+  two genuine left readings, successful physical Floor on the appropriate
+  pad and full seven-Solid swept coverage.
+- The same fixed-repeat WBB SHA in all four worlds, **zero** native front
+  readings, genuine H/G left observations, an attempted LAND and a **real
+  wrong-X Floor contact** attested by the independent C code, with native
+  FATAL premature_floor_contact and no native positive Floor marker.
+
+The browser's LAND ACK cannot create mission success. Timeouts, spurious
+collisions, a missing robot window or runtime failures do not count as a
+confirmed fixed-repeat physical counterexample.
+
+**No new native motor result is claimed by the source itself.** The Draft
+CI must pass on the exact commit before drawing conclusions. Even a later
+success would not qualify the full owner-approved L-corner pedagogy, the
+necessity of any particular AST variable syntax, Windows pupil Save/Open,
+human classroom acceptance or physical flight authorization.

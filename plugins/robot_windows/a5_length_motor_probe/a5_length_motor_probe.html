@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>CI privée — A5 obstacle G, vol moteur privé</title>
+<script>
+window.WB_A5_FACTOR_BOOTSTRAP=fetch('http://127.0.0.1:8765/event',{
+ method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({event:'A5_FACTOR_HTML_LOADED',wall_ms:Date.now()})
+}).then(r=>({ok:r.ok})).catch(e=>({ok:false,error:String(e)}));
+</script>
+<!-- Private CI-only Blockly runtime; not a pupil application or starter. -->
+<script src="../blockly_v2/vendor/blockly_compressed.js"></script>
+<script src="../blockly_v2/vendor/blocks_compressed.js"></script>
+<script src="../blockly_v2/vendor/msg/fr.js"></script>
+<script src="../blockly/webeeblocks/crazyflie_v2.js"></script>
+<script src="../blockly/webeeblocks/activity_profiles.js"></script>
+<script src="../blockly/webeeblocks/activities.js"></script>
+<script src="../blockly/webeeblocks/semantic_ast.js"></script>
+<script src="../blockly/webeeblocks/interpreter.js"></script>
+<script src="../blockly/webeeblocks/activity_contract.js"></script>
+<script src="../blockly/webeeblocks/project_files.js"></script>
+<script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head><body><script src="a5_length_motor_probe.js"></script></body></html>
