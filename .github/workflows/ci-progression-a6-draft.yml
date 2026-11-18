@@ -13,6 +13,8 @@ on:
       - '.github/workflows/ci-progression-a6-draft.yml'
       - 'tools/ci/test_workflow_contract.py'
       - 'tools/ci/test_progression_count_h_*.py'
+      - 'tools/ci/test_a6_b_matched_tail_geometry.py'
+      - 'tools/ci/fixtures/a6-b/**'
       - 'tools/ci/test_progression_count_h_public_profile.js'
       - 'plugins/robot_windows/blockly/webeeblocks/activities.js'
       - 'plugins/robot_windows/blockly_v2/project_ui.js'
@@ -69,6 +71,7 @@ jobs:
           cc --version | head -n 1
           python3 -m unittest -v \
             tools.ci.test_progression_count_h_scene \
+            tools.ci.test_a6_b_matched_tail_geometry \
             tools.ci.test_progression_count_h_oracle \
             tools.ci.test_progression_count_h_rear_range \
             tools.ci.test_progression_count_h_dual_motor_sensor \
