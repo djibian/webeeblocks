@@ -38,12 +38,12 @@ class NativeOrientationSmokeTests(unittest.TestCase):
         # "    Pose" also includes six-space child labels and can hide a
         # changed top-level scene when nested visual labels are introduced.
         self.assertEqual(
-            len(re.findall(r"^    Pose \\{ translation ", self.scene, re.MULTILINE)), 24)
+            len(re.findall(r"^    Pose \{ translation ", self.scene, re.MULTILINE)), 24)
         self.assertEqual(
-            len(re.findall(r"^      Pose \\{ translation ", self.scene, re.MULTILINE)), 9)
+            len(re.findall(r"^      Pose \{ translation ", self.scene, re.MULTILINE)), 9)
         # Exactly three physical-scene-independent, visual-only letter boards.
         self.assertEqual(
-            len(re.findall(r"^      Pose \\{ translation 0 0 0\\.170",
+            len(re.findall(r"^      Pose \{ translation 0 0 0\.170",
                            self.scene, re.MULTILINE)), 3)
 
     def test_deny_foreign_or_incomplete_worlds_and_observers(self):
