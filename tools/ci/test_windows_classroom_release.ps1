@@ -516,6 +516,11 @@ finally {
   Move-Item -LiteralPath $missingAsset -Destination $editorAsset -Force
 }
 Assert-Release ((Get-FileHash -LiteralPath $countWindowHtmlPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $countHtmlDigest) 'A6 HTML restoration changed its packaged digest.'
+# The two *expected* rejected powershell.exe child processes leave a native
+# $LASTEXITCODE of 1. Their nonzero exits have already been asserted above.
+# Clear only the stale shell status so the parent Windows CI does not report
+# failure after the release checker itself completes and prints PASS.
+$global:LASTEXITCODE = 0
 
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
