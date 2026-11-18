@@ -106,8 +106,9 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
           (mode=="reference" and step_cm is not None)):
         raise ValueError("invalid private B family/mode/4-or-8-cm step")
     global ARTIFACT
-    ARTIFACT=(world.ARTIFACT/f"b-{family}-{mode}-n{variant}"+
-              (f"-step{step_cm:02}" if step_cm is not None else "")
+    ARTIFACT=(world.ARTIFACT/(
+              f"b-{family}-{mode}-n{variant}"+
+              (f"-step{step_cm:02}" if step_cm is not None else ""))
               if family is not None else
               world.ARTIFACT/f"n{variant}" if mode=="reference"
               else world.ARTIFACT/f"{mode}-n{variant}")

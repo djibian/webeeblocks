@@ -37,7 +37,7 @@ class BMotorGeometrySourceTests(unittest.TestCase):
                     self.assertEqual(combined.count('controller "progression_count_h_flight_observer"'),0)
     def test_holdout_runner_cannot_claim_counter_or_blockly(self):
         source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
-        self.assertIn('family is not None and (family not in ("matched","sampling") or mode!="reference")',source)
+        self.assertIn('family not in ("matched","sampling") or mode not in ("reference","blockly")',source)
         self.assertIn('world.prepare(variant=variant,family=family)',source)
         self.assertIn('b_native_holdout_geometry_test_only',source)
         self.assertIn('counter_and_blockly=UNPROVEN',source)
@@ -66,6 +66,26 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("A6_B_BLOCKLY_COUNT_MOTOR_PASS",source)
         self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
         self.assertIn('ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/',wf)
+
+    def test_b_private_artifact_names_are_path_safe(self):
+        # Catches Path + str before all 18 actual R2025a motor jobs.
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        import run_classroom_count_h_motor_flight as runner
+        # The flight function is deliberately NOT run in a unit test.
+        source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        self.assertIn('ARTIFACT=(world.ARTIFACT/(',source)
+        self.assertIn('f"-step{step_cm:02}" if step_cm is not None else ""',source)
+        for family in ("matched","sampling"):
+            for mode in ("reference","blockly"):
+                for n in (1,2,3):
+                    for step in ((None,) if mode=="reference" else (4,8)):
+                        expected=f"b-{family}-{mode}-n{n}"
+                        if step is not None:
+                            expected+=f"-step{step:02}"
+                        actual=motor.ARTIFACT/expected
+                        self.assertTrue(actual.is_relative_to(motor.ARTIFACT))
+                        self.assertFalse(".." in actual.parts)
 
     def test_prepare_private_world_from_protected_checkout(self):
         with tempfile.TemporaryDirectory() as directory:
