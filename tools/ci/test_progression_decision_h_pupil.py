@@ -94,6 +94,27 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",run)
         self.assertIn("events.count('A4_PUPIL_ERROR')==0",run)
 
+    def test_a4_probe_preserves_failed_trace_stop_cause(self):
+        # V5: a missing second native answer is never accepted as a success.
+        run=RUN.read_text(encoding='utf-8')
+        ast.parse(run,filename=str(RUN))
+        for reason in ('browser-reported-complete', 'browser-reported-error',
+                       'native-process-exited', 'browser-bootstrap-timeout',
+                       'deadline'):
+            self.assertIn(reason,run)
+        for diagnostic in ("'stop_reason':stop_reason",
+                           "'webots_exit_before_cleanup':native_exit_before_cleanup",
+                           "'wall_elapsed_s':wall_elapsed_s",
+                           "'browser_errors':browser_errors"):
+            self.assertIn(diagnostic,run)
+        self.assertIn('native_exit_before_cleanup=process.poll()',run)
+        self.assertIn('if process is not None and process.poll() is None:',run)
+        self.assertIn('if not valid:',run)
+        self.assertIn("'A4_PUPIL_TEST_COMPLETE'",run)
+        self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",run)
+        self.assertIn('valid=valid and trace_ok',run)
+        self.assertIn("events.count('A4_PUPIL_ERROR')==0",run)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
