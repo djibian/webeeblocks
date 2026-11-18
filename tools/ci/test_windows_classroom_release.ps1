@@ -156,6 +156,23 @@ $miniStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\07-mini-
 Assert-Release ($miniStarter.activity.id -eq 'progression-mini-grand-prix-v1') 'Active Activity 7 unexpectedly maps to historical memory.'
 Assert-Release ($miniStarter.workspace.blocks.blocks.Count -eq 0) 'Activity 7 public starter contains an algorithm solution.'
 Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'Activites\07-memory.wbb') -PathType Leaf)) 'Legacy Activity 7 must not be an active template.'
+# A5/A6 warehouse files are historical projects, not teacher-distributable
+# starters for the currently unqualified A5/A6 L/H lessons.
+$progressionSourceDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'activities\progression'
+$legacyStarterIds = @{
+  '05-reactive.wbb' = 'progression-reactive-v1'
+  '06-multi-perception.wbb' = 'progression-combined-decisions-v1'
+}
+foreach ($hiddenStarterName in @('05-reactive.wbb', '06-multi-perception.wbb')) {
+  $legacySource = Join-Path $progressionSourceDir $hiddenStarterName
+  $legacyPackaged = Join-Path (Join-Path $testRoot 'Activites\Historique') $hiddenStarterName
+  $wrongActivePath = Join-Path (Join-Path $testRoot 'Activites') $hiddenStarterName
+  Assert-Release (Test-Path -LiteralPath $legacyPackaged -PathType Leaf) "Missing archived A5/A6 project: $hiddenStarterName"
+  Assert-Release (-not (Test-Path -LiteralPath $wrongActivePath -PathType Leaf)) "Unqualified A5/A6 project offered as active starter: $hiddenStarterName"
+  Assert-Release ((Get-FileHash -LiteralPath $legacySource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $legacyPackaged -Algorithm SHA256).Hash) "Archived A5/A6 project was modified: $hiddenStarterName"
+  $legacyProject = Get-Content -LiteralPath $legacyPackaged -Raw | ConvertFrom-Json
+  Assert-Release ($legacyProject.activity.id -eq $legacyStarterIds[$hiddenStarterName]) "Archived A5/A6 profile identity changed: $hiddenStarterName"
+}
 $orientationStarter = Get-Content -LiteralPath (Join-Path $testRoot 'Activites\03-orientation.wbb') -Raw | ConvertFrom-Json
 Assert-Release ($orientationStarter.activity.id -eq 'progression-orientation-3d-v1') 'Active Activity 3 still maps to the legacy profile.'
 Assert-Release ($orientationStarter.workspace.blocks.blocks.Count -eq 0) 'Classroom Activity 3 starter contains an algorithm solution.'
