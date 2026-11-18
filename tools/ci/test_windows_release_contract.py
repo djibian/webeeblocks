@@ -288,7 +288,9 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertEqual(
             json.loads(a8.read_text(encoding="utf-8"))["activity"]["id"],
             "progression-autonomous-strategy-v1")
-        self.assertIn("Le modèle 08", readme)   def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
+        self.assertIn("Le modèle 08", readme)
+
+    def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
