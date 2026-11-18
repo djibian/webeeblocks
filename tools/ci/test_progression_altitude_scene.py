@@ -27,6 +27,29 @@ def solid(source: str, name: str):
     return tuple(map(float, match.groups()))
 
 
+def assert_visual_box_matches_collider(source: str, name: str) -> None:
+    """A2 pupil-visible obstacle and native collision box must coincide in size.
+
+    Fail closed if the direct visual Shape or boundingObject changes form:
+    an apparently empty passage must never contain an unseen collider, and
+    a painted obstacle must not silently become smaller than its collision.
+    """
+    pattern = (
+        rf"DEF {re.escape(name)} Solid \{{"
+        r"[\s\S]*?children \[\s*Shape \{"
+        r"[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}"
+        r"\s*\}\s*\]\s*boundingObject Box \{ size ([0-9.]+) ([0-9.]+) ([0-9.]+) \}"
+    )
+    match = re.search(pattern, source)
+    if match is None:
+        raise AssertionError(f"missing direct visual Box or native collider for {name}")
+    visible = tuple(map(float, match.groups()[:3]))
+    physical = tuple(map(float, match.groups()[3:]))
+    if visible != physical:
+        raise AssertionError(
+            f"visual/collision mismatch for {name}: visual={visible}, physical={physical}")
+
+
 class AltitudeSceneStaticProof(unittest.TestCase):
     def setUp(self):
         self.source = SCENE.read_text(encoding="utf-8")
@@ -129,6 +152,32 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         roof_outer = cy + depth / 2
         self.assertGreater(wall_inner, roof_outer)
         self.assertLess(wall_inner - roof_outer, CRAFT_HALF_SPAN_M)
+
+
+    def test_visible_obstacle_boxes_match_native_colliders(self):
+        # Earlier geometry tests checked collision boxes only. A change to
+        # visible Box dimensions alone would mislead A2 pupils, even while
+        # the mission oracle and all four physical obstacle checks still pass.
+        names = (
+            "ACTIVITY2_START_CANOPY", "ACTIVITY2_LOW_BARRIER",
+            "ACTIVITY2_LEFT_WALL", "ACTIVITY2_RIGHT_WALL",
+        )
+        for name in names:
+            with self.subTest(obstacle=name):
+                assert_visual_box_matches_collider(self.source, name)
+                # Deliberately corrupt just the first *visual* dimension,
+                # leaving boundingObject untouched. The guard must reject it.
+                marker = re.search(
+                    rf"(DEF {re.escape(name)} Solid \{{[\s\S]*?geometry Box \{{ size )([0-9.]+)",
+                    self.source)
+                self.assertIsNotNone(marker)
+                mutated = (
+                    self.source[:marker.start(2)] +
+                    f"{float(marker.group(2)) + 0.01:.3f}" +
+                    self.source[marker.end(2):]
+                )
+                with self.assertRaisesRegex(AssertionError, "visual/collision mismatch"):
+                    assert_visual_box_matches_collider(mutated, name)
 
     def test_start_and_target_are_separate_noncolliding_marks(self):
         self.assertIn("Pose { translation 0 0 0.002", self.source)
