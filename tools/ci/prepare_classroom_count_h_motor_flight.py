@@ -8,6 +8,7 @@ A6 pupil profile or physical qualification.
 from pathlib import Path
 import hashlib
 import json
+import sys
 import prepare_classroom_altitude_scene_ack as classroom
 
 ROOT=classroom.ROOT
@@ -73,6 +74,11 @@ def prepare(variant=1,family=None):
     else:
         if family not in B_PRIVATE_FAMILIES or type(variant) is not int or variant not in SCENES:
             raise ValueError("unknown private B motor family or count")
+        # When invoked as an executable by the real Webots Docker job,
+        # sys.path[0] is tools/ci, not the repository root. Resolve only
+        # the already trusted checkout root, never a network/source path.
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0,str(ROOT))
         from tools.ci.test_a6_b_matched_tail_geometry import validate_scene, EXPECTED
         from tools.ci.test_a6_b_sampling_holdout import SECOND, CLASSIFIER_POSTS, GATE_HALF_X
         fixture=ROOT/"tools/ci/fixtures/a6-b"/(

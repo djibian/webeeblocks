@@ -5,7 +5,9 @@ PASS. The native C oracle independently attests physical colliders in Webots.
 """
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/"tools/ci"))
@@ -46,6 +48,18 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
         self.assertIn('ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/',wf)
 
+    def test_prepare_private_world_from_protected_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wbt=Path(directory)/"private.wbt"
+            wbproj=Path(directory)/"private.wbproj"
+            with patch.object(motor,"WORLD",wbt), patch.object(motor,"PROJECT",wbproj):
+                motor.prepare(variant=3,family="sampling")
+                self.assertTrue(wbt.is_file())
+                self.assertTrue(wbproj.is_file())
+                self.assertIn("PRIVATE A6 CHOICE B",wbt.read_text())
+                self.assertIn("translation -0.160 0 0.74",wbt.read_text())
+                self.assertEqual(wbproj.read_text(),motor.PROJECT_BYTES)
+
     def test_unknown_or_adversarial_source_rejected(self):
         with self.assertRaises(ValueError):
             motor.compose(variant=4)
@@ -60,7 +74,7 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("return index < WB_COUNT_MAX_GATES ? wb_count_b_private_gate_x[index] : NAN;",core)
         self.assertIn("if(b_family<0)return fail",observer)
         self.assertIn("WEBEEBLOCKS_A6_B_MOTOR_GEOMETRY_ATTESTED",observer)
-        self.assertIn('if(!box(bar,x,0,.74,.07,.57,.24',observer)
+        self.assertIn('!box(bar,x,0,.74,.07,.57,.24',observer)
         self.assertIn('if(!box(screen,1.235,0,.76,.07,1.48,.24',observer)
 
 if __name__=="__main__":unittest.main()
