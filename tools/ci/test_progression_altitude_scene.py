@@ -11,7 +11,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENE = ROOT / "worlds/scenes/altitude-v1.wbo"
-CRAFT_HALF_SPAN_M = 0.09
+CRAFT_HALF_SPAN_M = 0.09  # conservative XY margin for safe corridor/pad
+# Pinned R2025a Crazyflie.proto: Cylinder boundingObject height 0.030 m,
+# z-axis aligned, so the actual native collider half-height is 0.015 m.
+CRAFT_NATIVE_HALF_HEIGHT_M = 0.015
 NOMINAL_TAKEOFF_M = 0.45
 
 
@@ -113,8 +116,8 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         self.assertAlmostEqual(x, 0.62)
         self.assertAlmostEqual(y, 0.0)
         self.assertAlmostEqual(z + sz / 2, 0.62)
-        self.assertGreater(z + sz / 2, NOMINAL_TAKEOFF_M + CRAFT_HALF_SPAN_M)
-        self.assertLess(z + sz / 2 + CRAFT_HALF_SPAN_M, 0.85)
+        self.assertGreater(z + sz / 2, NOMINAL_TAKEOFF_M + CRAFT_NATIVE_HALF_HEIGHT_M)
+        self.assertLess(z + sz / 2 + CRAFT_NATIVE_HALF_HEIGHT_M, 0.85)
         self.assertLess(sx, 0.20)
         self.assertGreater(sy, 0.6)
 
@@ -141,12 +144,12 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         barrier = solid(self.source, "ACTIVITY2_LOW_BARRIER")
         canopy_bottom = canopy[2] - canopy[5] / 2
         barrier_top = barrier[2] + barrier[5] / 2
-        highest_clear_start = canopy_bottom - CRAFT_HALF_SPAN_M
-        lowest_clear_crossing = barrier_top + CRAFT_HALF_SPAN_M
+        highest_clear_start = canopy_bottom - CRAFT_NATIVE_HALF_HEIGHT_M
+        lowest_clear_crossing = barrier_top + CRAFT_NATIVE_HALF_HEIGHT_M
 
-        self.assertAlmostEqual(highest_clear_start, 0.57)
-        self.assertAlmostEqual(lowest_clear_crossing, 0.71)
-        self.assertGreater(lowest_clear_crossing - highest_clear_start, 0.10)
+        self.assertAlmostEqual(highest_clear_start, 0.565)
+        self.assertAlmostEqual(lowest_clear_crossing, 0.635)
+        self.assertGreater(lowest_clear_crossing - highest_clear_start, 0.06)
         # Both physical height bands intersect the profile's general
         # 0.4..0.8 m takeoff range. The distinction is geometric, not an
         # arbitrary AST ban on high takeoff.
@@ -171,9 +174,9 @@ class AltitudeSceneStaticProof(unittest.TestCase):
         upper = cz + height / 2
         self.assertAlmostEqual((cx, cy, cz)[0], 0.0)
         self.assertAlmostEqual(cy, 0.0)
-        self.assertAlmostEqual(lower, 0.66)
-        self.assertAlmostEqual(upper, 0.74)
-        self.assertGreater(lower - (NOMINAL_TAKEOFF_M + CRAFT_HALF_SPAN_M), 0.08)
+        self.assertAlmostEqual(lower, 0.58)
+        self.assertAlmostEqual(upper, 0.66)
+        self.assertGreater(lower - (NOMINAL_TAKEOFF_M + CRAFT_NATIVE_HALF_HEIGHT_M), 0.08)
         self.assertLess(lower, 0.80)
         self.assertGreater(cx + w / 2, 0.0)
         self.assertGreater(depth / 2, 0.4)

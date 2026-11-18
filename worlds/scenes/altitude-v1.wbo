@@ -44,13 +44,13 @@ DEF WEBEEBLOCKS_ALTITUDE_SCENE Group {
       boundingObject Box { size 0.12 0.84 0.62 }
     }
     # The clearly visible start canopy forbids launching directly above the
-    # barrier (0.80 m). A 0.45-0.50 m takeoff fits underneath (bottom=0.66 m).
+    # barrier (0.80 m). A 0.45 m takeoff fits underneath (bottom=0.58 m).
     # Its X face ends at +0.17 m; a 0.09 m craft must move beyond x=0.26
     # before climbing, while the barrier envelope begins at x=0.47.
     # At Y=+/-0.43 m the corridor wall begins at +/-0.47 m: the 4 cm
     # side slit is narrower than the craft's conservative 9 cm half-span.
     DEF ACTIVITY2_START_CANOPY Solid {
-      translation 0 0 0.70
+      translation 0 0 0.62
       name "Activity 2 visible low start canopy"
       children [ Shape { appearance PBRAppearance { baseColor 0.93 0.65 0.15 roughness 0.75 }
         geometry Box { size 0.34 0.86 0.08 } } ]

@@ -100,8 +100,8 @@ int main(void) {
   const double ground[3] = {0, 0, 0};
   const double bar[3] = {0.62, 0, 0.4};
   const double wall[3] = {0.68, 0.51, 0.4};
-  const double canopy[3] = {0, 0, 0.66};
-  const double canopy_side[3] = {0, 0.43, 0.70};
+  const double canopy[3] = {0, 0, 0.62};
+  const double canopy_side[3] = {0, 0.43, 0.62};
   const double outside_canopy[3] = {0.26, 0, 0.70};
   const double invalid[3] = {NAN, 0, 0};
   assert(wb_alt_obstacle_point(ground) == 0);
@@ -510,8 +510,8 @@ class NativeAltitudeContract(unittest.TestCase):
         self.assertIn("DEF ACTIVITY2_LOW_BARRIER Solid", text)
         self.assertIn("DEF ACTIVITY2_START_CANOPY Solid", text)
         self.assertIn("boundingObject Box { size 0.34 0.86 0.08 }", text)
-        self.assertIn("WB_ALT_CANOPY_BOTTOM 0.66", core)
-        self.assertIn("WB_ALT_CANOPY_TOP 0.74", core)
+        self.assertIn("WB_ALT_CANOPY_BOTTOM 0.58", core)
+        self.assertIn("WB_ALT_CANOPY_TOP 0.66", core)
 
 
 if __name__ == "__main__":
