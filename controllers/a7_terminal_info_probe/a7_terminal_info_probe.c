@@ -62,7 +62,7 @@ static int sample(WbNodeRef self,WbFieldRef translation,WbFieldRef rotation,
   int contacts=-1;
   const WbContactPoint *points=wb_supervisor_node_get_contact_points(
       self,true,&contacts);
-  if(!p||!o||contacts!=0||points==NULL&&contacts>0||
+  if(!p||!o||contacts!=0||(points==NULL&&contacts>0)||
      fabs(p[0]-x)>.035||fabs(p[1]-y)>.035||fabs(p[2]-.50)>.09||
      fabs(o[0]-cos(yaw))>.12||fabs(o[3]-sin(yaw))>.12)
     return 0;
