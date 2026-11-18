@@ -384,6 +384,17 @@ int main() {
     "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 ERR OUTCOME_UNAVAILABLE");
 #endif
 
+#ifndef WB_CLASSROOM_A4_REASON_TEST
+  // Neither the shared physical broker nor the Grand Prix-only comparison
+  // broker may transport A1 school-specific reason tokens.
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-sequence-3d-v1 status=not-achieved reason=wrong-pad";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 97 OUTCOME progression-sequence-3d-v1"});
+  assert(sent_text.back() ==
+    "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 97 ERR OUTCOME_UNAVAILABLE");
+#endif
+
   expect_unavailable_after_complete(
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=0 oracle=progression-precise-movement-v1 status=not-achieved");
   expect_unavailable_after_complete(
