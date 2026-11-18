@@ -53,17 +53,25 @@ window.addEventListener('unhandledrejection',e=>
   await backend.setSpeed(.16);
   await backend.takeoff(.50);
   await report('A5_FACTOR_MOTOR_TAKEOFF',{height_m:.50,testOnly:true});
-  // The future landing pad comes from an actual sensor, not scene metadata.
-  const initialH=await backend.readRange('left');
-  if(!Number.isFinite(initialH)||initialH<0||initialH>2.001)
-    throw Error('missing genuine initial H observation');
-  // CI-only counterexample: keep genuine initial H evidence, ignore its value.
+  // Positive witness: early H must be observed and remembered for its pad.
+  // Negative witness: omit the read itself, not merely its later use.
+  // The latter cannot claim to be a genuinely blind program otherwise.
+  let initialH=null;
+  if(config.mode!=='blind_h'){
+    initialH=await backend.readRange('left');
+    if(!Number.isFinite(initialH)||initialH<0||initialH>2.001)
+      throw Error('missing genuine initial H observation');
+  }
   const targetRight=config.mode==='blind_h'?false:initialH>.80;
-  await report('A5_FACTOR_MOTOR_H_OBSERVATION',{
-    left_m:initialH,destination:targetRight?'right':'left',
-    decision_source:config.mode==='blind_h'?'blind_fixed_left':'initial_left_only',
-    testOnly:true
-  });
+  if(config.mode==='blind_h')
+    await report('A5_FACTOR_MOTOR_H_OMITTED',{
+      initial_range_requested:false,destination:'left',testOnly:true
+    });
+  else
+    await report('A5_FACTOR_MOTOR_H_OBSERVATION',{
+      left_m:initialH,destination:targetRight?'right':'left',
+      decision_source:'initial_left_only',testOnly:true
+    });
   // Move in the shared corridor BEFORE observing the gate G.
   await backend.move('forward',1.20);
   await backend.move('forward',1.20);
@@ -94,7 +102,7 @@ window.addEventListener('unhandledrejection',e=>
   }
   await report('A5_FACTOR_MOTOR_PAD_SELECTED',{
     side:targetRight?'right':'left',
-    decision_source:config.mode==='blind_h'?'blind_fixed_left':'initial_left_only',
+    decision_source:config.mode==='blind_h'?'blind_no_initial_read':'initial_left_only',
     testOnly:true
   });
   await backend.land();

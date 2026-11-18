@@ -305,9 +305,32 @@ def run(variant,mode="positive"):
         def observed(key):
             matches=[e.get("detail") for e in events.EVENTS if e.get("event")==key]
             return matches[0] if len(matches)==1 else None
-        h=observed("A5_FACTOR_MOTOR_H_OBSERVATION")
+        h=observed("A5_FACTOR_MOTOR_H_OMITTED")
         g=observed("A5_FACTOR_MOTOR_G_OBSERVATION")
         pad=observed("A5_FACTOR_MOTOR_PAD_SELECTED")
+        # A no-memory negative is meaningful only if the pupil-side
+        # primitive NEVER asks the real sensor for the initial H. In this
+        # exact WWI command sequence, G must be the only RANGE left (id 7).
+        native_left=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE left value=([0-9.]+)$",
+            trace)
+        late_reply=re.findall(
+            r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE ([0-9.]+)$",
+            trace)
+        genuinely_blind=(
+            names.count("A5_FACTOR_MOTOR_H_OMITTED")==1 and
+            "A5_FACTOR_MOTOR_H_OBSERVATION" not in names and
+            isinstance(h,dict) and h.get("initial_range_requested") is False and
+            h.get("destination")=="left" and
+            len(native_left)==1 and len(late_reply)==1 and
+            isinstance(g,dict) and
+            isinstance(g.get("left_m"),(float,int)) and
+            all(math.isfinite(float(v)) for v in native_left+late_reply) and
+            abs(float(native_left[0])-g["left_m"])<1e-6 and
+            abs(float(late_reply[0])-g["left_m"])<1e-6 and
+            names.index("A5_FACTOR_MOTOR_H_OMITTED") <
+            names.index("A5_FACTOR_MOTOR_G_OBSERVATION")
+        )
         # The independent C monitor is intentionally fail-fast on a real
         # wrong-pad Floor contact. It can stop the Webots/WWI process BEFORE
         # Chrome emits LAND_ACK or TEST_COMPLETE. Never turn a missing browser
@@ -337,18 +360,14 @@ def run(variant,mode="positive"):
         good=(contact is not None and all(math.isfinite(v) for v in contact) and
               abs(contact[0]-4.15)<.10 and abs(contact[1]-.62)<.10 and
               0<=contact[2]<=.025 and contact[3]>2 and
-              isinstance(h,dict) and
-              isinstance(h.get("left_m"),(float,int)) and
-              abs(h["left_m"]-1.14)<.12 and
-              h.get("destination")=="left" and
-              h.get("decision_source")=="blind_fixed_left" and
+              genuinely_blind and
               isinstance(g,dict) and
               isinstance(g.get("left_m"),(float,int)) and
               abs(g["left_m"]-1.41)<.12 and
               g.get("route")=="left" and
               g.get("decision_source")=="late_left_only" and
               isinstance(pad,dict) and pad.get("side")=="left" and
-              pad.get("decision_source")=="blind_fixed_left" and
+              pad.get("decision_source")=="blind_no_initial_read" and
               "A5_FACTOR_MOTOR_GATE_PASSED" in names and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_FATAL reason=premature_floor_contact" in trace and
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_OBSTACLE_CONTACT" not in trace and
@@ -359,7 +378,12 @@ def run(variant,mode="positive"):
               "WEBEEBLOCKS_A5_FACTOR_MOTOR_NATIVE_FLOOR" not in trace)
         summary={"schema":"webeeblocks-a5-hblind-native-negative-v1",
                  "variant":variant,"mode":mode,"pass":good,
-                 "real_wrong_pad_floor":contact,"h_sensor_seen":h,
+                 "real_wrong_pad_floor":contact,
+                 "initial_h_sensor_read":False,
+                 "genuinely_no_initial_h_range":genuinely_blind,
+                 "h_sensor_omission_event":h,
+                 "late_g_native_reads":native_left,
+                 "late_g_native_replies":late_reply,
                  "g_sensor_seen":g,"pad_selected":pad,
                  "no_false_mission_success":good,"student_wbb":False,
                  "native_land_completed":native_land_time is not None,
@@ -377,7 +401,8 @@ def run(variant,mode="positive"):
             print(trace[-6500:],file=sys.stderr)
             raise AssertionError("blind H did not reach a genuine wrong Floor pad")
         print("WEBEEBLOCKS_A5_FACTOR_H_BLIND_NATIVE_REJECTED "
-              "variant=C wrong_pad=left H_requires_right true_floor=true",
+              "variant=C initial_h_reads=0 g_reads=1 "
+              "wrong_pad=left H_requires_right true_floor=true",
               flush=True)
         return summary
     if mode in ("blockly","blockly_fixed"):
