@@ -47,10 +47,11 @@ class A6VariantHandler(observer.Handler):
     """Only CI launch configuration; native Webots re-attests identity."""
     variant = 1
     mode = "reference"
+    private_wbb_path=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
 
     def do_GET(self):
         if self.path == "/a6-private-wbb":
-            project=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+            project=self.private_wbb_path
             if (self.mode!="blockly" or not project.is_file() or project.is_symlink()
                     or project.stat().st_size<100 or project.stat().st_size>1048576):
                 self.send_error(404)
@@ -92,20 +93,30 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
     return ack is not None and int(ack[1])>=20
 
 
-def run(variant=1,mode="reference",family=None):
+def run(variant=1,mode="reference",family=None,step_cm=None):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
     if mode not in ("reference","sensor","blockly","replay"):
         raise ValueError("invalid bounded A6 pilot mode")
-    if family is not None and (family not in ("matched","sampling") or mode!="reference"):
-        raise ValueError("B private geometry witness accepts reference pilot only")
+    if family is None:
+        if step_cm is not None:
+            raise ValueError("the ordinary native A6 witness has no B step selector")
+    elif (family not in ("matched","sampling") or mode not in ("reference","blockly") or
+          (mode=="blockly" and step_cm not in (4,8)) or
+          (mode=="reference" and step_cm is not None)):
+        raise ValueError("invalid private B family/mode/4-or-8-cm step")
     global ARTIFACT
-    ARTIFACT=(world.ARTIFACT/f"b-{family}-reference-n{variant}" if family is not None
-              else world.ARTIFACT/f"n{variant}" if mode=="reference"
+    ARTIFACT=(world.ARTIFACT/f"b-{family}-{mode}-n{variant}"+
+              (f"-step{step_cm:02}" if step_cm is not None else "")
+              if family is not None else
+              world.ARTIFACT/f"n{variant}" if mode=="reference"
               else world.ARTIFACT/f"{mode}-n{variant}")
     ARTIFACT.mkdir(parents=True,exist_ok=True)
+    private=None
     if mode=="blockly":
-        private=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+        private=(world.ROOT/"ci-artifacts/progression-count-h-private-blockly"/
+                 (f"a6-b-step{step_cm:02}-ci-only.wbb" if family is not None
+                  else "a6-private.wbb"))
         if (not private.is_file() or private.is_symlink() or
             private.stat().st_size<100 or private.stat().st_size>1048576):
             raise FileNotFoundError("canonical private Blockly CI witness missing")
@@ -125,6 +136,7 @@ def run(variant=1,mode="reference",family=None):
         world.prepare(variant=variant,family=family)
         A6VariantHandler.variant=variant
         A6VariantHandler.mode=mode
+        A6VariantHandler.private_wbb_path=private
         server=observer.http.server.ThreadingHTTPServer(("127.0.0.1",8765),A6VariantHandler)
         threading.Thread(target=server.serve_forever,daemon=True).start()
         env=dict(os.environ)
@@ -332,7 +344,9 @@ def run(variant=1,mode="reference",family=None):
         len(all_response_ids)>50 and
         all_response_ids==[str(i) for i in range(1,len(all_response_ids)+1)] and
         len(moves)==sensor_steps+1+(1 if variant!=1 else 0) and
-        moves[:sensor_steps]==[("forward","0.080000000")]*sensor_steps and
+        moves[:sensor_steps]==[
+            ("forward","0.040000000" if step_cm==4 else "0.080000000")
+        ]*sensor_steps and
         moves[sensor_steps][0]=="forward" and
         .10<=float(moves[sensor_steps][1])<=.70 and
         moves[sensor_steps+1:]==(
@@ -400,7 +414,9 @@ def run(variant=1,mode="reference",family=None):
         succeeded=(
             b_attested and native_achieved and
             not missing and ordered and events.count("A6_ERROR")==0 and
-            reference_protocol and
+            (reference_protocol if mode=="reference" else
+             sensor_protocol and sensor_count==variant and
+             events.count("A6_PRIVATE_WBB_REOPENED")==1) and
             f"WEBEEBLOCKS_A6_FLIGHT_SCENE_OK variant={variant} native_colliders={3*variant+2}" in txt and
             "WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF height=0.400000000 stop=1" in txt and
             "LAND_TOUCHDOWN" in txt and browser and
@@ -412,15 +428,14 @@ def run(variant=1,mode="reference",family=None):
         "schema":"webeeblocks-a6-native-motor-physics-draft-v1",
         "pass":bool(succeeded),"variant":variant,"mode":mode,
         "b_private_family":family,
+        "b_private_step_cm":step_cm,
         "b_native_holdout_geometry_test_only":family is not None,
-        "b_no_variable_or_counter_qualification":family is not None,
+        "b_no_variable_or_counter_qualification":family is not None and mode!="blockly",
         "sensor_command_program_pass":bool(sensor_protocol if mode in ("sensor","blockly")
                                           else False),
         "private_blockly_webots_pass":bool(succeeded and mode=="blockly"),
         "private_wbb_sha256":(
-            hashlib.sha256((world.ROOT/
-              "ci-artifacts/progression-count-h-private-blockly/a6-private.wbb")
-              .read_bytes()).hexdigest() if mode=="blockly" else None),
+            hashlib.sha256(private.read_bytes()).hexdigest() if mode=="blockly" else None),
         "sensor_reported_count":sensor_count if mode in ("sensor","blockly") else None,
         "native_up_during_motor_flight":bool(up_motor["native_motor_ray_observed"]),
         "variant_blind_two_sensor_count_correct":bool(
@@ -453,7 +468,7 @@ def run(variant=1,mode="reference",family=None):
               f"count={sensor_count} moves={sensor_steps} "
               "same_test_pilot=true pupil_wbb=UNPROVEN",flush=True)
     if mode=="blockly":
-        project=world.ROOT/"ci-artifacts/progression-count-h-private-blockly/a6-private.wbb"
+        project=private
         print(f"WEBEEBLOCKS_A6_PRIVATE_WBB_MOTOR_PASS n={variant} "
               f"count={sensor_count} project_sha256={hashlib.sha256(project.read_bytes()).hexdigest()} "
               "native_PID=true Blockly13=true pupil_product=UNPROVEN",flush=True)
@@ -467,6 +482,11 @@ def run(variant=1,mode="reference",family=None):
         print(f"WEBEEBLOCKS_A6_MOTOR_PASS native={variant} count={variant} "
               "corridor=real_PID_and_motors contacts=none screen=passed "
               "pupil_wbb=UNPROVEN",flush=True)
+    elif mode=="blockly":
+        print(f"WEBEEBLOCKS_A6_B_BLOCKLY_COUNT_MOTOR_PASS family={family} "
+              f"n={variant} step_cm={step_cm} counted={sensor_count} "
+              f"same_wbb_sha256={hashlib.sha256(private.read_bytes()).hexdigest()} "
+              "native_C_floor=achieved real_PID=true CI_only=true",flush=True)
     else:
         print(f"WEBEEBLOCKS_A6_B_PRIVATE_REFERENCE_MOTOR_PASS family={family} "
               f"n={variant} real_PID=true native_contact_oracle=achieved "
@@ -477,6 +497,8 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--variant",type=int,choices=(1,2,3),default=1)
     parser.add_argument("--family",choices=("matched","sampling"),default=None)
+    parser.add_argument("--step-cm",type=int,choices=(4,8),default=None)
     parser.add_argument("--mode",choices=("reference","sensor","blockly","replay"),default="reference")
     args=parser.parse_args()
-    raise SystemExit(run(variant=args.variant,mode=args.mode,family=args.family))
+    raise SystemExit(run(variant=args.variant,mode=args.mode,family=args.family,
+                         step_cm=args.step_cm))
