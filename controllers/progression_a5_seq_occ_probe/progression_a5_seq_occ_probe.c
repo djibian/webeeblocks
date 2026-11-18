@@ -45,7 +45,11 @@ static int sample(WbNodeRef self,WbFieldRef tr,WbFieldRef rot,
   for(int i=0;i<2;i++)if(wb_robot_step(step)<0)return 0;
   const double *p=wb_supervisor_node_get_position(self);
   const double *o=wb_supervisor_node_get_orientation(self);
-  if(!p||!o||fabs(p[0]-x)>.035||fabs(p[1]-y)>.035||
+  int contacts=-1;
+  const WbContactPoint *points=wb_supervisor_node_get_contact_points(
+      self,true,&contacts);
+  if(contacts!=0||(contacts>0&&points==NULL)||!p||!o||
+     fabs(p[0]-x)>.035||fabs(p[1]-y)>.035||
      fabs(p[2]-.5)>.09||fabs(o[0]-1)>.1||fabs(o[3])>.1)return 0;
   double a[5];
   for(int i=0;i<5;i++) {
@@ -96,13 +100,15 @@ int main(void) {
   }
   if(!self||!trans||!rot||wb_robot_step(step)<0)
     return invalid("native_startup_or_pose_missing");
+  wb_supervisor_node_enable_contact_points_tracking(self,step,true);
   if(!sample(self,trans,rot,devices,v,"before_far",.40,0,step)||
      !sample(self,trans,rot,devices,v,"before_near",.70,0,step)||
      !sample(self,trans,rot,devices,v,"before_peek",.60,.45,step)||
+     !sample(self,trans,rot,devices,v,"before_corner",.98,.45,step)||
      !sample(self,trans,rot,devices,v,"after_far",2.00,.60,step)||
      !sample(self,trans,rot,devices,v,"after_near",2.30,.60,step))
     return invalid("native_sensor_or_pose_sample_missing");
-  printf("A5_SEQ_OCC_DONE variant=%c samples=5 native_multiranger=true "
+  printf("A5_SEQ_OCC_DONE variant=%c samples=6 native_multiranger=true "
          "supervisor_only=true motorized=false pupil_pass=false\n",v);
   fflush(stdout);wb_robot_cleanup();return 0;
 }

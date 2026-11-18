@@ -11,15 +11,16 @@ SOURCE='controller "crazyflie_classroom_v2"'
 PROBE='controller "progression_a5_seq_occ_probe"'
 PHASES=(("before_far",.40,0.),("before_near",.70,0.),
         ("before_peek",.60,.45),  # accessible ahead of the first L
+        ("before_corner",.98,.45),  # clearance near but before L1 plane
         ("after_far",2.00,.60),("after_near",2.30,.60))
 CHANNELS=("front","back","left","right","up")
 RAYS=re.compile(
     r"(?m)^A5_SEQ_OCC_RAYS variant=([AB]) "
-    r"phase=(before_far|before_near|before_peek|after_far|after_near) "
+    r"phase=(before_far|before_near|before_peek|before_corner|after_far|after_near) "
     r"front=([0-9.]+) back=([0-9.]+) left=([0-9.]+) "
     r"right=([0-9.]+) up=([0-9.]+) "
     r"x=(-?[0-9.]+) y=(-?[0-9.]+) z=([0-9.]+)$")
-DONE=re.compile(r"(?m)^A5_SEQ_OCC_DONE variant=([AB]) samples=5 "
+DONE=re.compile(r"(?m)^A5_SEQ_OCC_DONE variant=([AB]) samples=6 "
                 r"native_multiranger=true supervisor_only=true "
                 r"motorized=false pupil_pass=false$")
 FATAL="A5_SEQ_OCC_FATAL"
@@ -68,7 +69,7 @@ def validate_observations(data):
                 not math.isfinite(rays[ch]) or not 0<=rays[ch]<=2.001
                 for ch in CHANNELS):
                 raise AssertionError("missing/invalid genuine range channel")
-    for phase in ("before_far","before_near","before_peek"):
+    for phase in ("before_far","before_near","before_peek","before_corner"):
         for ch in CHANNELS:
             delta=abs(data["A"][phase][ch]-data["B"][phase][ch])
             if delta>.025:
@@ -162,7 +163,7 @@ def main():
         "no_global_occlusion_claim":True,
         "motorized":False,"pupil_wbb":False,"mission_oracle":False
     },sort_keys=True,indent=2)+"\n",encoding="utf8")
-    print("A5_SEQ_OCC_NATIVE_PASS five_rays=true early=3 later=2 "
+    print("A5_SEQ_OCC_NATIVE_PASS five_rays=true early=4 later=2 "
           "motorized=false pupil_wbb=false",flush=True)
 
 if __name__=="__main__":main()
