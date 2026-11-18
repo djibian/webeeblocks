@@ -63,7 +63,11 @@ export async function runPrivateBlockly(backend,report) {
       setSpeed:speed=>backend.setSpeed(speed),
       move:async(direction,distance)=>{
         await backend.move(direction,distance);
-        if(direction==='forward'&&Math.abs(distance-.08)<1e-8)
+        // CI-only command attestation, NOT a mission oracle or pupil AST rule.
+        // The B experiment compares a 4-cm and 8-cm program. Both use the
+        // same true native backend and can be counted as fresh MOVE ACKs.
+        if(direction==='forward'&&
+          (Math.abs(distance-.08)<1e-8||Math.abs(distance-.04)<1e-8))
           acknowledgedSteps++;
       },
       readRange:direction=>backend.readRange(direction),
@@ -86,7 +90,9 @@ export async function runPrivateBlockly(backend,report) {
          if(!Number.isInteger(count)||count<1||count>3||
             !Number.isInteger(steps)||steps<20||steps>80||
             !Number.isFinite(front)||front<.30||front>.82)
-           throw Error('private Blockly sensor count invalid before native LAND');
+           throw Error('private Blockly sensor count invalid before native LAND '+
+             'count='+String(count)+' steps='+String(steps)+
+             ' front_m='+String(front));
          counted=true;
          await report('A6_SENSOR_COUNT',{count,steps,front_m:front,
            sceneBlind:true,testOnly:true,compiledFromPrivateWbb:true});

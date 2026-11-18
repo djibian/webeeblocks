@@ -67,6 +67,11 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn("--mode blockly --step-cm ${{ matrix.step_cm }}",wf)
         self.assertIn("if: always()",wf)
         self.assertIn("A6_B_BLOCKLY_COUNT_MOTOR_PASS",source)
+        probe=(ROOT/"plugins/robot_windows/count_h_flight_probe/count_h_private_blockly_probe.js").read_text()
+        self.assertIn("Math.abs(distance-.08)<1e-8||Math.abs(distance-.04)<1e-8",probe)
+        self.assertIn("steps<20||steps>80",probe)
+        self.assertIn("count<1||count>3",probe)
+        self.assertIn("private Blockly sensor count invalid before native LAND",probe)
         self.assertIn('make CFLAGS="-I../progression_count_h_v1 -DWEBEEBLOCKS_A6_B_PRIVATE_MOTOR_TEST_ONLY"',wf)
         self.assertIn('ci-artifacts/progression-count-h-motor/b-${{ matrix.family }}-reference-n${{ matrix.count }}/',wf)
 
