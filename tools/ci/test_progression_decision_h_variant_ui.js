@@ -258,6 +258,16 @@ async function scenario(startProfileId, options={}){
     status:'PASS',nativeRequests:backendCalls.length};
 }
 (async()=>{
+  // A4's first sensor activity must expose the problem, not an algorithm.
+  // The two real worlds swap the order of an open H and a low obstacle.
+  const a4Mission=Activities.getProfile('progression-decision-h-v1').brief.mission;
+  assert.match(a4Mission,/portique en H à franchir par-dessous/);
+  assert.match(a4Mission,/obstacle bas/);
+  assert.match(a4Mission,/ordre différent sur les parcours A et B/);
+  assert.match(a4Mission,/même programme doit réussir les deux parcours/);
+  assert.match(a4Mission,/qu’est-ce que le drone pourrait observer/);
+  assert.doesNotMatch(a4Mission,/\bsi\b.+\balors\b|capteur frontal|télémètre frontal|avance de|monte de|descends de/i,
+    'the A4 pupil brief must not prescribe a block algorithm or a flight recipe');
   // Evaluate the actual picker selection function, not a duplicated filter.
   const start=src.indexOf('  function progressionProfiles() {');
   const end=src.indexOf('\n  function chooseActivityProfile() {',start);

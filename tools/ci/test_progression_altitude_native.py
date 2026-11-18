@@ -160,6 +160,15 @@ int main(void) {
   assert(step(&m, 7.6, 1.35, 0, 0.02, 0.25, 0, 1) == WB_ALT_NOT_ACHIEVED);
   assert(m.reason == WB_ALT_REASON_LANDING);
 
+  /* A2 landing-timeout also covers NO landing: at 6 cm and no genuine Floor,
+   * the evaluator cannot claim the drone has landed but was unstable. */
+  normal_takeoff(&m, 801);
+  cross_higher(&m);
+  assert(step_with_floor(&m, 6.0, 1.35, 0, 0.06, 0, 0, 1, 0) == WB_ALT_WAIT);
+  assert(step_with_floor(&m, 7.6, 1.35, 0, 0.06, 0, 0, 0, 0) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_LANDING);
+  assert(!strcmp(wb_alt_reason_token(m.reason), "landing-timeout"));
+
   /* Takeoff without a physical crossing cannot certify climbing. */
   normal_takeoff(&m, 9);
   assert(step(&m, 3.0, 1.35, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
@@ -177,10 +186,12 @@ int main(void) {
   cross_higher(&m);
   assert(step(&m, 6.0, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.45, 0, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_WRONG_PAD);
   normal_takeoff(&m, 12);
   cross_higher(&m);
   assert(step(&m, 6.0, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_WAIT);
   assert(step(&m, 7.6, 1.35, 0.10, 0.02, 0, 0, 1) == WB_ALT_NOT_ACHIEVED);
+  assert(m.reason == WB_ALT_REASON_WRONG_PAD);
   /* A legitimate landing at small but nonzero errors still succeeds. */
   normal_takeoff(&m, 13);
   cross_higher(&m);

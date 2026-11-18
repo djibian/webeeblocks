@@ -50,11 +50,15 @@ int main(void) {
  for (int tick=1;tick<=7;++tick)
   assert(step(&m,4.0+.032*tick,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,4.256,.90,-.90,.03,0,0,0)==WB_ORIENT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_NONE);
+ assert(wb_orient_reason_name(&m)==NULL);
  assert(step(&m,5,5,5,5,0,0,0)==WB_ORIENT_ACHIEVED);
  // RESET does not inherit achievement, stage, flight or completion.
  wb_orient_reset(&m,2,0);
  assert(!m.stage && !m.airborne && !m.completion_seen && !m.stable_since_valid);
  assert(step(&m,4,.9,-.9,.03,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_ROUTE_INCOMPLETE);
+ assert(strcmp(wb_orient_reason_name(&m),"route-incomplete")==0);
  // Wrong cap at first beacon, with otherwise valid location.
  wb_orient_reset(&m,3,0);
  assert(step(&m,1,.45,0,.63,0,0,0)==WB_ORIENT_WAIT && m.stage==0);
@@ -117,6 +121,8 @@ int main(void) {
  assert(step(&m,5.248,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,5.496,.90,-.90,.03,0,0,0)==WB_ORIENT_WAIT);
  assert(step(&m,5.504,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
+ assert(strcmp(wb_orient_reason_name(&m),"landing-timeout")==0);
  assert(step(&m,5.512,.90,-.90,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
  // Exact deadline equality refuses a new success.
  wb_orient_reset(&m,16,0);
@@ -152,6 +158,8 @@ int main(void) {
  wb_orient_reset(&m,19,0);
  route(&m);
  assert(step_contact(&m,4,.90,-.90,.030,0,0,1,-1)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_NONE);
+ assert(wb_orient_reason_name(&m)==NULL);
  // Two isolated floor contacts cannot claim 250 ms of continuously
  // measured landing. A new series of native 32-ms samples is necessary.
  wb_orient_reset(&m,20,0);
@@ -198,6 +206,33 @@ int main(void) {
  route(&m);
  assert(step(&m,4,.99,-.9,.03,0,0,1)==WB_ORIENT_WAIT);
  assert(step(&m,6,.99,-.9,.03,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ // The drone can land fully and stably, but OUTSIDE the marked damier.
+ // The public reason must not say "unstable landing" for this physical case.
+ wb_orient_reset(&m,23,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.030,0,0,1,1)==WB_ORIENT_WAIT);
+ for (int tick=1;tick<=47;++tick) {
+  wb_orient_verdict outcome=step_contact(&m,4.000+.032*tick,
+                                          1.10,-.90,.030,0,0,0,1);
+  assert(outcome==(tick==47?WB_ORIENT_NOT_ACHIEVED:WB_ORIENT_WAIT));
+ }
+ assert(m.reason==WB_ORIENT_REASON_WRONG_PAD);
+ assert(strcmp(wb_orient_reason_name(&m),"wrong-pad")==0);
+ assert(!m.stable_since_valid);
+ // Same off-pad coordinates without physical Floor contact are NOT proof
+ // of landing outside the pad. Keep the honest generic deadline reason.
+ wb_orient_reset(&m,24,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.030,0,0,1,0)==WB_ORIENT_WAIT);
+ assert(step_contact(&m,5.504,1.10,-.90,.030,0,0,0,0)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
+ // Floor contact alone is insufficient if altitude is incompatible with
+ // a native low landing (defensive test against inconsistent observations).
+ wb_orient_reset(&m,25,0);
+ route(&m);
+ assert(step_contact(&m,4.000,1.10,-.90,.40,0,0,1,1)==WB_ORIENT_WAIT);
+ assert(step_contact(&m,5.504,1.10,-.90,.40,0,0,0,1)==WB_ORIENT_NOT_ACHIEVED);
+ assert(m.reason==WB_ORIENT_REASON_LANDING_TIMEOUT);
  // Invalid orientation/observations are fail-closed, not success.
  wb_orient_reset(&m,10,0);
  route(&m);

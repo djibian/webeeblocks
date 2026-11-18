@@ -60,12 +60,24 @@
     'time-limit': 'Durée maximale de 210 secondes dépassée'
   });
 
+  var A1_PUBLIC_REASONS = Object.freeze({
+    'flight-not-observed': 'Décollage non confirmé',
+    'wrong-pad': 'Drone pas entièrement sur le damier',
+    'landing-timeout': 'Pose immobile sur le damier non confirmée dans le délai'
+  });
+
   var A2_PUBLIC_REASONS = Object.freeze({
     'obstacle-contact': 'Contact avec un obstacle',
     'unsafe-clearance': 'Hauteur ou passage dangereux près de l’obstacle',
     'early-finish': 'Parcours non franchi avant la fin du programme',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
-    'wrong-pad': 'Atterrissage hors du damier'
+    'landing-timeout': 'Pose sur le damier non confirmée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur le damier'
+  });
+
+  var A3_PUBLIC_REASONS = Object.freeze({
+    'route-incomplete': 'Certaines balises ne sont pas validées (ordre, cap ou hauteur à vérifier)',
+    'landing-timeout': 'Pose sur le damier non validée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
   var A4_PUBLIC_REASONS = Object.freeze({
@@ -73,16 +85,33 @@
     'unsafe-clearance': 'Zone ou hauteur de franchissement non respectée',
     'route-incomplete': 'Franchissement des obstacles incomplet',
     'early-finish': 'Programme terminé avant la fin du parcours',
-    'landing-timeout': 'Atterrissage non stabilisé dans le délai',
-    'wrong-pad': 'Atterrissage hors de la zone prévue',
+    'landing-timeout': 'Pose sur la zone d’arrivée non confirmée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur la zone d’arrivée',
     'invalid-start': 'Départ non conforme à la zone bleue'
+  });
+
+  var A7_PUBLIC_REASONS = Object.freeze({
+    'obstacle-contact': 'Contact avec un obstacle',
+    'invalid-start': 'Départ non conforme à la zone bleue',
+    'unsafe-h-crossing': 'Franchissement du H hors du passage autorisé',
+    'route-incomplete': 'Passage du H non entièrement franchi',
+    'wrong-heading': 'Orientation incorrecte après le virage',
+    'course-boundary': 'Limite du parcours dépassée',
+    'early-finish': 'Fin de parcours ou zone de pose non validée',
+    'landing-timeout': 'Pose sur le damier non confirmée dans le délai',
+    'wrong-pad': 'Drone pas entièrement sur le damier'
   });
 
   function classifyMission(raw, evaluation) {
     var status = typeof raw === 'string' ? raw : raw && raw.status;
-    var presentation = MISSION_STATES[status];
+    // Refuse inherited keys and non-string statuses before consulting the
+    // presentation table. Never coerce an untrusted object when reporting it.
+    var presentation = typeof status === 'string' &&
+      Object.prototype.hasOwnProperty.call(MISSION_STATES, status)
+        ? MISSION_STATES[status] : null;
     if (!presentation)
-      throw new Error('runtime outcome: invalid mission state: ' + String(status));
+      throw new Error('runtime outcome: invalid mission state: ' +
+        (typeof status === 'string' ? status : typeof status));
     var detail = presentation.detail;
     // A reason is displayable only on the authorized Grand Prix oracle's
     // negative result, not on generic statuses or transport TIME_LIMIT.
@@ -92,13 +121,25 @@
         Object.prototype.hasOwnProperty.call(GRAND_PRIX_PUBLIC_REASONS, reason))
       detail += ' — ' + GRAND_PRIX_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-sequence-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A1_PUBLIC_REASONS, reason))
+      detail += ' — ' + A1_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-altitude-3d-v1' &&
         Object.prototype.hasOwnProperty.call(A2_PUBLIC_REASONS, reason))
       detail += ' — ' + A2_PUBLIC_REASONS[reason];
     if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-orientation-3d-v1' &&
+        Object.prototype.hasOwnProperty.call(A3_PUBLIC_REASONS, reason))
+      detail += ' — ' + A3_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
         evaluation.oracle === 'progression-decision-h-v1' &&
         Object.prototype.hasOwnProperty.call(A4_PUBLIC_REASONS, reason))
       detail += ' — ' + A4_PUBLIC_REASONS[reason];
+    if (status === 'not-achieved' && evaluation &&
+        evaluation.oracle === 'progression-mini-grand-prix-v1' &&
+        Object.prototype.hasOwnProperty.call(A7_PUBLIC_REASONS, reason))
+      detail += ' — ' + A7_PUBLIC_REASONS[reason];
     return {status: status, state: presentation.state, detail: detail};
   }
 

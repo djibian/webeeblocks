@@ -670,11 +670,19 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
                      "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
             if details[name] != {"status": "achieved"}:
                 return fail(f"unexpected achieved event {name}: {details[name]}")
-        for name in ("SEQUENCE_NOT_ACHIEVED", "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED",
-                     "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
+        # A1 and the legacy precision oracle share a physical C observer but
+        # not the same outcome transport. A1 reasons belong exclusively to
+        # the school broker; the hash-locked physical broker must still see
+        # the original status-only A1 and precision negatives.
+        for name in ("SEQUENCE_NOT_ACHIEVED", "SEQUENCE_FORWARD_ONLY_NOT_ACHIEVED"):
+            expected = ({"status": "not-achieved", "reason": "wrong-pad"}
+                        if NEUTRAL_START else {"status": "not-achieved"})
+            if details[name] != expected:
+                return fail(f"unexpected A1 negative event {name}: {details[name]}")
+        for name in ("PRECISE_UNDERSHOOT_NOT_ACHIEVED",
                      "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
             if details[name] != {"status": "not-achieved"}:
-                return fail(f"unexpected negative event {name}: {details[name]}")
+                return fail(f"unexpected precision negative event {name}: {details[name]}")
         if details["PRECISE_COLLISION_NOT_ACHIEVED"] != {
             "status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT", "completion_preserved":True
         }:
@@ -695,6 +703,15 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "lateral": "not-achieved", "collision": "not-achieved", "alternative": "achieved"
         }:
             return fail(f"unexpected precise mission summary: {details['PRECISE_MISSION_TEST_COMPLETE']}")
+
+        # Require actual native C transport selection in BOTH completed A1
+        # negative flights, not merely the browser's formatted outcome.
+        expected_reason = "wrong-pad" if NEUTRAL_START else "none"
+        for attempt in (3, 4):
+            line = (f"WEBEEBLOCKS_SEQUENCE_3D_RESULT attempt={attempt} "
+                    f"status=not-achieved reason={expected_reason}")
+            if not re.search(r"(?m)^" + re.escape(line) + r"$", webots_log):
+                return fail(f"unexpected native A1 channel/attempt: {line}", webots_log[-14000:])
 
         for marker in (
             "WEBEEBLOCKS_SEQUENCE_3D_READY target_x=0.350 target_y=0.280",

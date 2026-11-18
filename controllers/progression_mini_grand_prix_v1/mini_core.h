@@ -48,6 +48,34 @@
  * Pausing Webots freezes simulation time and never creates a false gap. */
 #define WB_MINI_MAX_LANDING_SAMPLE_GAP 0.040
 typedef enum { WB_MINI_WAIT=0, WB_MINI_ACHIEVED=1, WB_MINI_FAILED=2 } wb_mini_verdict;
+/* A7: only independent, terminal observations can justify a pupil reason.
+ * NONE = evidence is unavailable or insufficient; do not speculate. */
+typedef enum {
+  WB_MINI_REASON_NONE=0,
+  WB_MINI_REASON_CONTACT,
+  WB_MINI_REASON_INVALID_START,
+  WB_MINI_REASON_H_CLEARANCE,
+  WB_MINI_REASON_ROUTE,
+  WB_MINI_REASON_WRONG_HEADING,
+  WB_MINI_REASON_BOUNDARY,
+  WB_MINI_REASON_EARLY,
+  WB_MINI_REASON_LANDING,
+  WB_MINI_REASON_WRONG_PAD
+} wb_mini_reason;
+static inline const char *wb_mini_reason_token(wb_mini_reason r) {
+  switch(r) {
+    case WB_MINI_REASON_CONTACT: return "obstacle-contact";
+    case WB_MINI_REASON_INVALID_START: return "invalid-start";
+    case WB_MINI_REASON_H_CLEARANCE: return "unsafe-h-crossing";
+    case WB_MINI_REASON_ROUTE: return "route-incomplete";
+    case WB_MINI_REASON_WRONG_HEADING: return "wrong-heading";
+    case WB_MINI_REASON_BOUNDARY: return "course-boundary";
+    case WB_MINI_REASON_EARLY: return "early-finish";
+    case WB_MINI_REASON_LANDING: return "landing-timeout";
+    case WB_MINI_REASON_WRONG_PAD: return "wrong-pad";
+    default: return NULL;
+  }
+}
 typedef struct {
   double time,x,y,z,vx,vy,vz,yaw;
   int contact,completed;
@@ -63,6 +91,7 @@ typedef struct {
   int airborne,armed,center_seen,crossed,turned,completion_seen;
   int stable_since_valid,previous_valid;
   wb_mini_verdict verdict;
+  wb_mini_reason reason; /* Latched at first irreversible native failure. */
 } wb_mini_mission;
 static inline double wb_mini_h_x(char v) {return v=='L' ? -0.750 : -0.450;}
 static inline double wb_mini_turn_x(char v) {return v=='L' ? 0.200 : 0.500;}
@@ -91,7 +120,12 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
   if(!m||!m->attempt||(m->variant!='L'&&m->variant!='R')||
      !isfinite(m->origin_z))return WB_MINI_FAILED;
   if(m->verdict!=WB_MINI_WAIT)return m->verdict;
-  if(!wb_mini_valid(s)||s->contact||s->time<=m->last_time||s->time<0) {
+  if(!wb_mini_valid(s)||s->time<=m->last_time||s->time<0) {
+    /* Invalid evidence fails closed, but cannot yield a claimed cause. */
+    m->verdict=WB_MINI_FAILED;return m->verdict;
+  }
+  if(s->contact) {
+    m->reason=WB_MINI_REASON_CONTACT;
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
   /* A fresh attempt must be observed on the blue marker, on the ground,
@@ -107,6 +141,18 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
       fabs(s->vz)>WB_MINI_START_SPEED||
       wb_mini_yaw_error(s->yaw,0)>WB_MINI_YAW_TOL||
       s->completed)) {
+    /* At valid launch pose, immediate COMPLETE is premature, not an
+     * incorrectly placed start. Both are observations, not AST rules. */
+    const int invalid_start=
+      fabs(m->origin_z-WB_MINI_GROUND_CENTER_Z)>WB_MINI_GROUND_TOL||
+      fabs(s->z-WB_MINI_GROUND_CENTER_Z)>WB_MINI_GROUND_TOL||
+      fabs(s->x-WB_MINI_START_X)>WB_MINI_START_XY_TOL||
+      fabs(s->y)>WB_MINI_START_XY_TOL||
+      fabs(s->z-m->origin_z)>WB_MINI_START_Z_TOL||
+      hypot(s->vx,s->vy)>WB_MINI_START_SPEED||
+      fabs(s->vz)>WB_MINI_START_SPEED||
+      wb_mini_yaw_error(s->yaw,0)>WB_MINI_YAW_TOL;
+    m->reason=invalid_start?WB_MINI_REASON_INVALID_START:WB_MINI_REASON_EARLY;
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
   /* A sparse sequence of identical poses is not continuous evidence.
@@ -146,6 +192,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
         m->previous_z+b*(s->z-m->previous_z) : s->z;
       if(fabs(ya)>WB_MINI_H_Y_TOL||fabs(yb)>WB_MINI_H_Y_TOL||
          za>WB_MINI_H_Z_MAX||zb>WB_MINI_H_Z_MAX) {
+        m->reason=WB_MINI_REASON_H_CLEARANCE;
         m->verdict=WB_MINI_FAILED;return m->verdict;
       }
     }
@@ -163,6 +210,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
        wb_mini_yaw_error(s->yaw,0)<=WB_MINI_YAW_TOL)m->center_seen=1;
     if(s->x>=h+WB_MINI_H_ENVELOPE+0.01) {
       if(!m->armed||!m->center_seen) {
+        m->reason=WB_MINI_REASON_ROUTE;
         m->verdict=WB_MINI_FAILED;return m->verdict;
       }
       m->crossed=1;
@@ -180,9 +228,11 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
    * Near-corner adjustments remain free until the second leg begins. */
   if(m->turned && fabs(s->y)>WB_MINI_TURN_TOL &&
      wb_mini_yaw_error(s->yaw,wb_mini_heading(m->variant))>WB_MINI_YAW_TOL) {
+    m->reason=WB_MINI_REASON_WRONG_HEADING;
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
   if(m->crossed && (m->variant=='L'?s->y>1.26:s->y< -1.26)) {
+    m->reason=WB_MINI_REASON_BOUNDARY;
     m->verdict=WB_MINI_FAILED;return m->verdict;
   }
   /* Like the native Activity 1/3 controllers, completion is an event, NOT
@@ -197,6 +247,7 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
     if(!m->airborne||!m->crossed||!m->turned||
        fabs(s->x-turn_x)>WB_MINI_COMPLETION_CAPTURE_TOL||
        fabs(s->y-wb_mini_pad_y(m->variant))>WB_MINI_COMPLETION_CAPTURE_TOL) {
+      m->reason=WB_MINI_REASON_EARLY;
       m->verdict=WB_MINI_FAILED;return m->verdict;
     }
   }
@@ -204,6 +255,14 @@ static inline wb_mini_verdict wb_mini_sample_mission(wb_mini_mission *m,
     /* At the deadline (including equality), failure is terminal.
      * A completed dwell cannot promote a late sample to success. */
     if(s->time-m->completion_at>=WB_MINI_SETTLE) {
+      /* Call the pad wrong only when genuine floor contact and current
+       * position independently show that the whole craft is off target. */
+      const int grounded=s->floor_contact==1 &&
+        s->z<=WB_MINI_LAND_ABSOLUTE_Z;
+      const int outside=fabs(s->x-turn_x)>WB_MINI_LAND_TOL ||
+        fabs(s->y-wb_mini_pad_y(m->variant))>WB_MINI_LAND_TOL;
+      m->reason=grounded&&outside ?
+        WB_MINI_REASON_WRONG_PAD:WB_MINI_REASON_LANDING;
       m->verdict=WB_MINI_FAILED;return m->verdict;
     }
     const int stable =

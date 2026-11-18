@@ -158,7 +158,36 @@ def run()->int:
            text.count('WEBEEBLOCKS_DECISION_H_READY scene=decision-h-b-v1')>=1 and
            'WEBEEBLOCKS_DECISION_H_FATAL' not in text and
            'WEBEEBLOCKS_RUNTIME_V2 FATAL' not in text)
+    # Diagnostic-only: request metadata captured at the actual Chrome bridge.
+    # An attempted browser send does NOT prove native receipt; missing native
+    # response is not interpreted as a flight failure cause by this probe.
+    trace_events=[e.get('detail') for e in ack.EVENTS
+                  if e.get('event')=='A4_PUPIL_WWI_TRACE']
+    wwi_frames=(trace_events[0].get('frames') if len(trace_events)==1 and
+                isinstance(trace_events[0],dict) else None)
+    # Positive native evidence must be observable at BOTH browser bridge ends.
+    # On failure, still archive incomplete frames; they are diagnostic, never
+    # a substitute for a real physical mission result.
+    trace_ok=(isinstance(wwi_frames,list) and 1<=len(wwi_frames)<=96 and
+              all(isinstance(f,dict) and
+                  set(f)=={'direction','id','kind','monotonic_ms'} and
+                  f.get('direction') in ('attempted_send','received') and
+                  type(f.get('id')) is int and f['id']>=1 and
+                  type(f.get('monotonic_ms')) is int and
+                  f['monotonic_ms']>=0 and
+                  isinstance(f.get('kind'),str) and bool(f['kind'])
+                  for f in wwi_frames))
+    if trace_ok:
+        sent=next((i for i,f in enumerate(wwi_frames)
+                   if f['direction']=='attempted_send' and
+                   f['id']==7 and f['kind']=='VERTICAL'),None)
+        received=next((i for i,f in enumerate(wwi_frames)
+                       if f['direction']=='received' and
+                       f['id']==7 and f['kind']=='OK'),None)
+        trace_ok=(sent is not None and received is not None and sent<received)
+    valid=valid and trace_ok
     summary={'pass':valid,'required_missing':missing,'ordered':ordered,
+             'wwi_frames':wwi_frames,'wwi_trace_attested':trace_ok,
              'events_ordered':in_order,'native_outcomes':outcomes,
              'rays_m':rays,'moves':moves,'vertical':vertical,
              'browser':browser_ok,'one_project':project_ok,
