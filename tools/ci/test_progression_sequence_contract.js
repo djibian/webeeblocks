@@ -56,6 +56,9 @@ assert.strictEqual(pOrient.starterVisible, undefined);
 assert.strictEqual(pRepeatLegacy.starterVisible, false);
 assert.strictEqual(pRepeatLegacy.runtime.scene, 'legacy-v1');
 assert.strictEqual(pOrient.evaluation.oracle,'progression-orientation-3d-v1');
+assert.match(pOrient.brief.mission, /dans l’ordre A, B, C/);
+assert.match(pOrient.brief.mission, /dans la zone colorée à sa hauteur/);
+assert.match(pOrient.brief.mission, /orienté dans le sens de la flèche/);
 assert.deepStrictEqual(pOrient.toolbox,[
   'webeeblocks_v2_takeoff','webeeblocks_v2_speed','webeeblocks_v2_move',
   'webeeblocks_v2_turn','webeeblocks_v2_vertical','controls_repeat_ext',

@@ -82,6 +82,19 @@ class OrientationSceneStaticTest(unittest.TestCase):
         self.assertEqual(self.text.count("geometry Box { size 0.14 0.018 0.004 }"), 3)
         self.assertEqual(self.text.count("geometry Box { size 0.064 0.064 0.0002 }"), 16)
 
+    def test_beacons_have_two_sided_letters_and_shadowless_arrows(self):
+        for label, end_marker in zip("ABC", ("# CHECKPOINT B:", "# CHECKPOINT C:", "# ARRIVAL:")):
+            with self.subTest(label=label):
+                start = self.text.index(f"# CHECKPOINT {label}:")
+                arrow_start = self.text.index(f"# DIRECTION {label}:", start)
+                target = self.text[start:arrow_start]
+                glyph = f"WEBEEBLOCKS_ORIENTATION_LABEL_{label}"
+                self.assertIn(f"DEF {glyph} Shape {{\n          castShadows FALSE", target)
+                self.assertIn(f"rotation 0 0 1 3.141593 children [ USE {glyph} ]", target)
+                arrows = self.text[arrow_start:self.text.index(end_marker, arrow_start)]
+                self.assertEqual(arrows.count("Shape { castShadows FALSE"), 3)
+                self.assertEqual(arrows.count("Shape {"), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
