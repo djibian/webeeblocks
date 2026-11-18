@@ -85,7 +85,7 @@
     'route-incomplete': 'Franchissement des obstacles incomplet',
     'early-finish': 'Programme terminé avant la fin du parcours',
     'landing-timeout': 'Atterrissage non stabilisé dans le délai',
-    'wrong-pad': 'Atterrissage hors de la zone prévue',
+    'wrong-pad': 'Drone pas entièrement sur la zone d’arrivée',
     'invalid-start': 'Départ non conforme à la zone bleue'
   });
 
