@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,11 +34,17 @@ class NativeOrientationSmokeTests(unittest.TestCase):
         self.assertEqual(self.start.count('controller "crazyflie_runtime_v2"'), 2)
         self.assertEqual(self.scene.count(" Robot {"), 1)
         self.assertNotIn(" Solid {", self.scene)
-        # The historical 30 Pose nodes now have precisely three nested
-        # non-colliding label boards, one each for A, B and C.  The 24
-        # original top-level scene Pose markers remain guarded by compose().
-        self.assertEqual(self.scene.count("      Pose { translation 0 0 0.170"), 3)
-        self.assertEqual(self.scene.count("    Pose { translation "), 33)
+        # Preserve both hierarchy levels separately. A substring count of
+        # "    Pose" also includes six-space child labels and can hide a
+        # changed top-level scene when nested visual labels are introduced.
+        self.assertEqual(
+            len(re.findall(r"^    Pose \\{ translation ", self.scene, re.MULTILINE)), 24)
+        self.assertEqual(
+            len(re.findall(r"^      Pose \\{ translation ", self.scene, re.MULTILINE)), 9)
+        # Exactly three physical-scene-independent, visual-only letter boards.
+        self.assertEqual(
+            len(re.findall(r"^      Pose \\{ translation 0 0 0\\.170",
+                           self.scene, re.MULTILINE)), 3)
 
     def test_deny_foreign_or_incomplete_worlds_and_observers(self):
         variants = (
