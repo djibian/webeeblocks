@@ -87,8 +87,8 @@ class PhysicalLSourceContract(unittest.TestCase):
                 # H cue is kept exactly at its initial physical position.
                 self.assertIn("translation 0.000 0.580 0.550",s)
                 self.assertIn("translation 0.200 0.780 0.550",s)
-        self.assertEqual(float(CONFIG["long"]["width"])-
-                         float(CONFIG["short"]["width"]),.4)
+        self.assertAlmostEqual(float(CONFIG["long"]["width"])-
+                               float(CONFIG["short"]["width"]),.4,places=7)
         self.assertAlmostEqual(float(CONFIG["long"]["wall"])-
                                float(CONFIG["short"]["wall"]),.4)
 

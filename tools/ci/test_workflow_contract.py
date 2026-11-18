@@ -89,7 +89,8 @@ class WorkflowTests(unittest.TestCase):
         source=(WORKFLOWS/"ci-progression-a5-factor-draft.yml").read_text()
         self.assertEqual(job_ids(source),{"a5-factor-g-native-draft-only",
                                              "a5-factor-g-motor-draft-only",
-                                             "a5-factor-g-native-pid-feeder-draft-only"})
+                                             "a5-factor-g-native-pid-feeder-draft-only",
+                                             "a5-length-native-sensor-draft-only"})
         for needed in ("  pull_request:\n",
                        "if: github.event.pull_request.draft == true",
                        "persist-credentials: false",
@@ -102,6 +103,10 @@ class WorkflowTests(unittest.TestCase):
                        "a5-hfixed-gbinary-real-motor-draft",
                        "test_progression_a5_factor_native_feeder",
                        "a5-hfixed-gbinary-real-native-feeder-draft",
+                       "test_progression_a5_length_sources",
+                       "test_progression_a5_length_native",
+                       "run_classroom_reactive_L_length_probe.py",
+                       "a5-variable-L-length-native-sensors-draft",
                        "if: always()"):
             self.assertIn(needed,source)
         for forbidden in ("name: CI Gate","\n  push:","\n  schedule:",
