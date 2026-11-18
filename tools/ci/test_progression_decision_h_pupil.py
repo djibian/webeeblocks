@@ -120,7 +120,7 @@ class PupilA4Tests(unittest.TestCase):
         self.assertEqual(classify(['A4_PUPIL_ERROR','A4_PUPIL_TEST_COMPLETE'],
                                   None,140),'browser_error')
         self.assertIn("'runner_termination':termination",source)
-        self.assertIn("'pre_cleanup_exit_code':process.poll()",source)
+        self.assertIn("termination['pre_cleanup_exit_code']=process.poll()",source)
         self.assertIn("A4_PUPIL_RUNNER_TERMINATION",source)
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",source)
         self.assertIn("valid=valid and trace_ok",source)
