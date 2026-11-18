@@ -39,6 +39,30 @@ class NativeRayParser(unittest.TestCase):
               s.replace("A6_B_NATIVE_RANGE_PASS","A6_B_NATIVE_FATAL",1)):
    with self.subTest(case=bad[-90:]):
     with self.assertRaises(AssertionError):validate(bad,"sampling",3)
+ def test_off_center_false_positive_rejected_at_both_sides(self):
+  genuine=witness("sampling",3)
+  for marker in (
+   "slot=0 kind=1 gate=0 offset=-1 x=-0.840000000",
+   "slot=2 kind=1 gate=0 offset=1 x=-0.760000000",
+   "slot=6 kind=1 gate=2 offset=-1 x=0.440000000",
+   "slot=8 kind=1 gate=2 offset=1 x=0.520000000",
+  ):
+   with self.subTest(marker=marker):
+    old=marker+" up=2.000000000"
+    new=marker+" up=0.200000000"
+    self.assertIn(old,genuine)
+    corrupted=genuine.replace(old,new,1)
+    with self.assertRaisesRegex(AssertionError,"off-center H falsely detected"):
+     validate(corrupted,"sampling",3)
+
+ def test_sub_five_mm_position_guard_at_bar_edges(self):
+  genuine=witness("sampling",3)
+  old="slot=0 kind=1 gate=0 offset=-1 x=-0.840000000"
+  replacement="slot=0 kind=1 gate=0 offset=-1 x=-0.836000000"
+  self.assertIn(old,genuine)
+  with self.assertRaisesRegex(AssertionError,"wrong physical x"):
+   validate(genuine.replace(old,replacement,1),"sampling",3)
+
  def test_wrong_physical_sampling_coordinates_fail_closed(self):
   genuine=witness("sampling",3)
   # A correct count, label, sensor and native PASS marker cannot substitute

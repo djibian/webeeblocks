@@ -41,14 +41,19 @@ def validate(text,family,n):
       math.isfinite(v) for v in (x,u,f)) or not 0<=u<=2.001 or not 0<=f<=2.001:
    raise AssertionError("native ray identity/range/contact invalid")
   if slot<3*n:
-   if i[3:]!=[1,slot//3,slot%3-1] or slot%3==1 and u>.55:
+   if i[3:]!=[1,slot//3,slot%3-1] or (slot%3==1 and u>.55):
     raise AssertionError("physical H center/ray unavailable")
+   if slot%3!=1 and u<1.50:
+    raise AssertionError("off-center H falsely detected in native ray")
    expected_x=EXPECTED_X[family][n][slot//3]+.04*(slot%3-1)
   else:
    if i[3:]!=[0,n+slot-3*n,-1]:
     raise AssertionError("wrong physical checkpoint")
    expected_x=FIXED_X[slot-3*n]
-  if abs(x-expected_x)>.035:
+  # The clearance at +/-40mm around a 70mm BAR is only 5mm.
+  # A 35mm position error would invalidate the aliasing experiment.
+  tolerance=.003 if slot<3*n else .035
+  if abs(x-expected_x)>tolerance:
    raise AssertionError("native ray sampled at wrong physical x coordinate")
   data.append({"x":x,"up_m":u,"front_m":f})
  return {"family":family,"count":n,"real_webots":True,"motor":False,

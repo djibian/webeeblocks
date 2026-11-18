@@ -79,11 +79,16 @@ int main(void){
   double u=wb_distance_sensor_get_value(up)/1000.;
   double f=wb_distance_sensor_get_value(front)/1000.;
   int contacts=-1;wb_supervisor_node_get_contact_points(craft,true,&contacts);
-  if(!actual||!eq(actual[0],x,.035)||!eq(actual[1],0,.035)||
+  if(!actual||!eq(actual[0],x,gate?.003:.035)||!eq(actual[1],0,.035)||
      !eq(actual[2],.415,.045)||!isfinite(u)||u<0||u>2.001||
      !isfinite(f)||f<0||f>2.001||contacts!=0)
     return fatal("pose/contact/sensor invalid");
   if(gate&&j==1&&u>.55)return fatal("H center not seen by real range_up");
+  /* Exactly +/-40 mm from a 70-mm thick bar leaves only 5 mm clearance.
+   * Require a truly unoccluded reading and sub-5-mm actual-position accuracy,
+   * or the 8-cm under-sampling conclusion is not physically established.
+   */
+  if(gate&&j!=1&&u<1.50)return fatal("off-center H falsely detected");
   printf("A6_B_NATIVE_RAY family=%d n=%d slot=%d kind=%d gate=%d offset=%d "
          "x=%.9f up=%.9f front=%.9f contact=%d\n",
          family,n,slot,gate,k,j-1,actual[0],u,f,contacts);
