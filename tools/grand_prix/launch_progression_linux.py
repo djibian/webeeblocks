@@ -15,7 +15,9 @@ from tools.grand_prix.launch_linux import (
     classroom_perspective, launch_graphical, prepare_route_native, render_route,
     webots_home,
 )
-from tools.grand_prix.route_courses_v2 import active_course_from_identifier
+from tools.grand_prix.route_courses_v2 import (
+    active_course_from_identifier, active_progression_activities,
+)
 
 ROBOT_WINDOW = 'grand_prix_route_v2'
 SETUP_TAG = '<script src="setup.js"></script>'
@@ -61,8 +63,8 @@ def prepare_lesson_project(project, activity):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Prévisualisation enseignante Linux du Grand Prix pédagogique')
-    parser.add_argument('--activity', type=int, choices=(1,), default=1,
-                        help='activité disponible dans ce candidat (A1)')
+    parser.add_argument('--activity', type=int, choices=active_progression_activities(), default=1,
+                        help='numéro d’activité (A1 par défaut)')
     parser.add_argument('--webots-home', help='installation officielle Webots R2025a')
     parser.add_argument('--preflight-only', action='store_true',
                         help='préparer le monde et le pilote sans ouvrir la simulation')
@@ -75,7 +77,7 @@ def main(argv=None):
             home = webots_home(args.webots_home)
             env = prepare_route_native(home)
             if args.preflight_only:
-                print('Préflight A1 terminé. Aucun vol simulé exécuté.')
+                print(f'Préflight A{args.activity} terminé. Aucun vol simulé exécuté.')
                 return 0
             return launch_graphical(home, world, env, mode='realtime').returncode
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
