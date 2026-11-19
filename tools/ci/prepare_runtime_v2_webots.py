@@ -142,11 +142,18 @@ controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
 takeoff_progress_needle = '''    if (command == CMD_TAKEOFF) {
       desired.altitude = target_z;'''
 takeoff_progress_replacement = r'''    if (command == CMD_TAKEOFF) {
-      /* Initial sample and then at most once per simulated second.
-       * The host log timestamp provides independent wall-time correlation.
+      /* Exactly one first sample per request id, then only at integer
+       * simulated-second crossings. A 32-ms native step must not cause a
+       * burst of synchronous stdout/fflush near TAKEOFF start.
+       * This static state is diagnostic only and never affects any ACK/PID.
        */
-      if (now - action_start < 0.100 ||
-          (long)(now - action_start) > (long)(previous_time - action_start)) {
+      static int diag_takeoff_request_id = -1;
+      static long diag_takeoff_last_second = -1;
+      const long diag_takeoff_second = (long)(now - action_start);
+      if (diag_takeoff_request_id != active_id ||
+          diag_takeoff_second > diag_takeoff_last_second) {
+        diag_takeoff_request_id = active_id;
+        diag_takeoff_last_second = diag_takeoff_second;
         printf(PREFIX " CI TAKEOFF_PROGRESS id=%d sim_time=%.9f elapsed_sim_s=%.9f "
                "z=%.9f target_z=%.9f error_z=%.9f vz=%.9f vx=%.9f vy=%.9f "
                "roll=%.9f pitch=%.9f yaw_rate=%.9f stable_sim_s=%.9f\n",
