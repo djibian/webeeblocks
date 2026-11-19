@@ -14,7 +14,11 @@ from tools.grand_prix.route_v2 import Route, build_route
 LOW_BEFORE = 0.55
 LOW_AFTER = 0.55
 
-_ACTIVE_LESSONS = {"gp-progression-v1-a1-v1": 1, "gp-progression-v1-a2-v1": 2}
+_ACTIVE_LESSONS = {
+    "gp-progression-v1-a1-v1": 1,
+    "gp-progression-v1-a2-v1": 2,
+    "gp-progression-v1-a3-v1": 3,
+}
 
 
 @dataclass(frozen=True)
@@ -82,7 +86,7 @@ def active_course_from_identifier(identifier):
     return course_from_identifier(identifier)
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def _active_progression_course(activity):
     from tools.grand_prix.progression_courses import progression_course
     return progression_course(activity)

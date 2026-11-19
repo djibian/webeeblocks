@@ -125,7 +125,34 @@ async function activityTwo() {
   await waitForForcedLanding(2);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo};
+async function activityThree() {
+  await takeoff(.88);
+  async function traverseGate() {
+    await backend.turn(90);
+    await backend.move('forward', .44);
+    await backend.vertical('down', .41);
+    await backend.move('forward', .74);
+    await backend.vertical('up', .41);
+  }
+  for (let leg = 0; leg < 2; leg++) {
+    await traverseGate();
+    await backend.move('forward', .32);
+  }
+  await traverseGate();
+  await backend.move('forward', .095);
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await takeoff(.88);
+  await backend.turn(-90);
+  await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'course-boundary'});
+  await waitForForcedLanding(1);
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {
