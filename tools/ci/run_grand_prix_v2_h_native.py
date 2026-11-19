@@ -28,7 +28,8 @@ CLAIM = "full-course-native-H-rays-and-contact-no-flight"
 DIRECTIONS = {"front", "back", "left", "right"}
 
 
-def probe_scene(course):
+def probe_scene(index, *, activity=None):
+    course = reference_course(index) if activity is None else progression_course(activity, index)
     text = static_course_world(course)
     corners = 2 * len(course.route.corners)
     count = corners + 4 + 3 * course.count
@@ -232,7 +233,7 @@ def native_run(home, indexes, *, output_root=None, activity=None):
         course = reference_course(index) if activity is None else progression_course(activity, index)
         case = invocation / f"{position:02d}-{course.identifier}"
         case.mkdir()
-        source = probe_scene(course)
+        source = probe_scene(index, activity=activity)
         with tempfile.NamedTemporaryFile(
                 mode="w", prefix="ci_gp_v2_h_", suffix=".wbt",
                 dir=ROOT / "worlds", encoding="utf-8", delete=False) as target:
