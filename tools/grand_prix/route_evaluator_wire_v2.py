@@ -10,7 +10,7 @@ import re
 
 from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 
-_CONFIG = r"(?P<config>gp-route-v2-[A-Za-z0-9-]+|gp-progression-v1-a1-v1)"
+_CONFIG = r"(?P<config>gp-route-v2-[A-Za-z0-9-]+|gp-progression-v1-a[123]-v1)"
 _NUMBER = r"(0|[1-9][0-9]*)"
 _CHALLENGE = re.compile(
     r"GP_ROUTE_CHALLENGE_V1 attempt=(?P<attempt>[1-9][0-9]*) config="
