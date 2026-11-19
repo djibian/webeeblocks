@@ -15,6 +15,7 @@ from tools.grand_prix.oracle_leg_cursor_v2 import (
     LegCursor, advance_leg_cursor, start_leg_cursor,
 )
 from tools.grand_prix.route_courses_v2 import CoursePlan
+from tools.grand_prix.route_v2 import Route
 
 
 class CourseProgressError(ValueError):
@@ -66,9 +67,11 @@ def advance_course_progress(state, observed_pose):
     if (type(state) is not CoupledCourseProgress or
             type(state.leg) is not LegCursor or
             type(state.gates) is not DirectedGateProgress or
-            type(state.course) is not CoursePlan):
+            type(state.course) is not CoursePlan or
+            type(state.course.route) is not Route):
         raise CourseProgressError('fresh coupled host state required')
     previous = _finite_pose(state.pose)
+    leg_count = len(state.course.route.legs)
     if (state.leg.course != state.course or
             state.gates.course != state.course or
             state.leg.xy != previous[:2] or
@@ -76,7 +79,7 @@ def advance_course_progress(state, observed_pose):
             type(state.gates.cursor) is not int or
             not 0 <= state.gates.cursor <= len(state.course.gates) or
             type(state.leg.active_leg) is not int or
-            state.leg.active_leg not in (0, 1, 2)):
+            not 0 <= state.leg.active_leg < leg_count):
         raise CourseProgressError('incoherent host cursors or sample')
     pending = state.next_gates
     if pending is not None:
@@ -85,7 +88,7 @@ def advance_course_progress(state, observed_pose):
                 pending.active_leg != state.leg.active_leg + 1 or
                 pending.cursor != state.gates.cursor or pending.crossed or
                 type(pending.armed) is not bool or
-                state.leg.active_leg >= 2):
+                state.leg.active_leg >= leg_count - 1):
             raise CourseProgressError('incoherent next-leg gate witness')
         box = state.course.route.legs[pending.active_leg].bounds()
         if not (box[0] <= previous[0] <= box[2] and box[1] <= previous[1] <= box[3]):
@@ -108,7 +111,7 @@ def advance_course_progress(state, observed_pose):
         # correctly waits for exclusive entry. Do not invent arm authority at
         # promotion, and never count a gate or promote a leg in this overlap.
         next_index = new_leg.active_leg + 1
-        if next_index < 3:
+        if next_index < leg_count:
             box = state.course.route.legs[next_index].bounds()
             in_next = box[0] <= observed[0] <= box[2] and box[1] <= observed[1] <= box[3]
         else:

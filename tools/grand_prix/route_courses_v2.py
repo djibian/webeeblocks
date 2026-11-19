@@ -44,6 +44,9 @@ class CoursePlan:
             raise ValueError('pad is not present in this course')
         return self.route.landing_target(pad, distance_from_h=self.pad_distance_from_h)
 
+    def landing_goal(self):
+        return self.landing_position(self.count if self.required_pad is None else self.required_pad)
+
 
 def course_from_identifier(identifier):
     """Reconstruct one canonical host configuration, never pupil AST data.

@@ -9,7 +9,8 @@ The student AST and Blockly must never receive CoursePlan or landing targets.
 from dataclasses import dataclass, replace
 import math
 
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.route_courses_v2 import CoursePlan
+from tools.grand_prix.progression_courses import require_canonical_course_geometry
 from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
@@ -41,8 +42,7 @@ def _canonical(course):
     if type(course) is not CoursePlan:
         raise TerminalDwellError('canonical host CoursePlan required')
     try:
-        if course_from_identifier(course.identifier) != course:
-            raise TerminalDwellError('forged CoursePlan')
+        require_canonical_course_geometry(course)
     except (TypeError, ValueError, AttributeError) as error:
         raise TerminalDwellError('forged CoursePlan') from error
     return course
@@ -69,17 +69,18 @@ def start_terminal_dwell(course, attempt, origin_z, start_ms):
 def _eligible(state, progress, velocity, airborne):
     pose = _finite_xyz(progress.pose, 'position')
     speed = _finite_xyz(velocity, 'velocity')
+    last_leg = len(state.course.route.legs) - 1
     if (progress.leg.course != state.course or
             progress.gates.course != state.course or
             progress.leg.active_leg != progress.gates.active_leg or
             progress.leg.xy != pose[:2] or
             type(progress.leg.active_leg) is not int or
-            progress.leg.active_leg not in (0, 1, 2) or
+            not 0 <= progress.leg.active_leg <= last_leg or
             type(progress.gates.cursor) is not int or
             not 0 <= progress.gates.cursor <= state.course.count):
         raise TerminalDwellError('incoherent native course progression')
-    target = state.course.route.landing_target(state.course.count)
-    return (airborne and progress.leg.active_leg == 2 and
+    target = state.course.landing_goal()
+    return (airborne and progress.leg.active_leg == last_leg and
             progress.gates.cursor == state.course.count and
             state.origin_z - .02 <= pose[2] <= state.origin_z + .07 and
             abs(pose[0] - target[0]) <= LANDING_TOL and

@@ -6,6 +6,7 @@ from tools.grand_prix.oracle_attempt_v2 import (
     fail_pure_attempt, observe_pure_attempt, start_pure_attempt,
     _hits_mission_body,
 )
+from tools.grand_prix.progression_courses import progression_course
 from tools.grand_prix.route_courses_v2 import reference_course
 
 
@@ -31,40 +32,82 @@ def travel(state, target):
     return state
 
 
+def follow_course(course, pad=None):
+    """Drive the shared host oracles with synthetic positions, never actuators."""
+    state = start_pure_attempt(course, 41, .015, 0)
+    state = travel(state, (*course.route.legs[0].start, .75))
+    terminal = course.route.legs[-1]
+    for leg in course.route.legs:
+        gate = next((g for g in course.gates if g.leg_index == leg.index), None)
+        if gate:
+            state = travel(state, (*leg.at(gate.along-.35), .75))
+            state = travel(state, (*leg.at(gate.along-.35), .35))
+            state = travel(state, (*leg.at(gate.along+.35), .35))
+            state = travel(state, (*leg.at(gate.along+.35), .75))
+        if leg != terminal:
+            state = travel(state, (*leg.end, .75))
+    target = course.landing_goal() if pad is None else course.landing_position(pad)
+    # Enter the wider terminal area via the centreline; a diagonal chord
+    # would cut across the concave boundary.
+    state = travel(state, (*terminal.at(terminal.length-course.pad_distance_from_h), .75))
+    state = travel(state, (*target, .75))
+    return travel(state, (*target, .05))
+
+
+def dwell(state, duration_ms):
+    state = observe(state, state.attempt, state.last_ms+8,
+                    state.progress.pose, (0., 0., 0.), completed=True)
+    for _ in range(math.ceil(duration_ms / 8)):
+        state = observe(state, state.attempt, state.last_ms+8,
+                        state.progress.pose, (0., 0., 0.))
+    return state
+
+
 class PureVariableAttemptTests(unittest.TestCase):
+    def test_progression_attempts_require_their_directed_legs_gates_and_pad(self):
+        for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
+            for variant in range(1, count+1):
+                course = progression_course(activity, variant)
+                with self.subTest(course=course.identifier):
+                    state = follow_course(course)
+                    self.assertEqual(state.progress.count, course.count)
+                    self.assertEqual(state.progress.leg.active_leg, len(course.route.legs)-1)
+                    state = dwell(state, 504)
+                    self.assertEqual(state.result.status, 'achieved')
+                    self.assertEqual(state.result.crossings, course.count)
+                    self.assertLess(state.result.elapsed_ms, 210000)
+
+    def test_a5_wrong_visible_pad_fails_for_both_turn_directions(self):
+        for variant in (1, 2):
+            course = progression_course(5, variant)
+            wrong_pad, = set(course.pads) - {course.required_pad}
+            state = dwell(follow_course(course, wrong_pad), 1504)
+            self.assertEqual(state.result.status, 'not-achieved')
+            self.assertEqual(state.result.reason, 'wrong-landing')
+
+    def test_progression_refuses_closed_h_contact_and_deadline(self):
+        course = progression_course(1)
+        state = start_pure_attempt(course, 41, .015, 0)
+        state = travel(state, (0., 0., .75))
+        for leg in course.route.legs[:-1]:
+            state = travel(state, (*leg.end, .75))
+        leg = course.route.legs[-1]
+        state = travel(state, (*leg.at(leg.length-.16), .75))
+        ended = observe(state, 41, state.last_ms+160,
+                        (*leg.at(leg.length-.105), .75), (0., 0., 0.))
+        self.assertEqual(ended.result.reason, 'envelope-contact')
+        ended = observe(state, 41, 210000, state.progress.pose, (0., 0., 0.))
+        self.assertEqual(ended.result.reason, 'time-limit')
+
     def test_reference_courses_can_reach_landing_dwell_without_any_ready_grant(self):
         """Only an ideal synthetic host trace, never a native pupil solution."""
         for index in range(12):
             course = reference_course(index)
             with self.subTest(course=course.identifier):
-                state = start_pure_attempt(course, 41, .015, 0)
-                # Prove the bounded initial takeoff before any horizontal travel.
-                state = travel(state, (*course.route.legs[0].start, .75))
-                for leg in course.route.legs:
-                    gate = next((g for g in course.gates if
-                                 g.leg_index == leg.index), None)
-                    if gate:
-                        state = travel(state, (*leg.at(gate.along-.35), .75))
-                        state = travel(state, (*leg.at(gate.along-.35), .35))
-                        state = travel(state, (*leg.at(gate.along+.35), .35))
-                        state = travel(state, (*leg.at(gate.along+.35), .75))
-                    if leg.index < 2:
-                        state = travel(state, (*leg.end, .75))
-                    else:
-                        target = course.route.landing_target(course.count)
-                        # Arrive on the centreline before entering the wider
-                        # terminal pad: a diagonal cut from far upstream is
-                        # not a legal shortcut past a concave boundary.
-                        state = travel(state, (*leg.at(leg.length-.70), .75))
-                        state = travel(state, (*target, .75))
-                        state = travel(state, (*target, .05))
+                state = follow_course(course)
                 self.assertEqual(state.progress.count, course.count)
                 self.assertEqual(state.progress.leg.active_leg, 2)
-                state = observe(state, 41, state.last_ms+8,
-                    state.progress.pose, (0.,0.,0.), completed=True)
-                for _ in range(63):
-                    state = observe(state, 41, state.last_ms+8,
-                        state.progress.pose, (0.,0.,0.))
+                state = dwell(state, 504)
                 self.assertIsNotNone(state.result)
                 self.assertEqual(state.result.status, 'achieved')
                 self.assertEqual(state.result.crossings, course.count)

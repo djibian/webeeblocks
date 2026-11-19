@@ -8,7 +8,9 @@ irreversible 210000-ms LAND authority. Never expose CoursePlan to Blockly.
 from dataclasses import dataclass, replace
 import math
 
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.route_courses_v2 import CoursePlan
+from tools.grand_prix.progression_courses import require_canonical_course_geometry
+from tools.grand_prix.route_v2 import Route
 
 CRAFT_RADIUS = .09
 FRAME_CLEAR = .24 + CRAFT_RADIUS
@@ -40,8 +42,7 @@ def start_directed_gates(course):
     if type(course) is not CoursePlan:
         raise GateProgressError('canonical CoursePlan required')
     try:
-        if course_from_identifier(course.identifier) != course:
-            raise GateProgressError('forged or inconsistent CoursePlan')
+        require_canonical_course_geometry(course)
     except (TypeError, ValueError) as error:
         raise GateProgressError('canonical CoursePlan required') from error
     return DirectedGateProgress(course)
@@ -81,15 +82,17 @@ def advance_directed_gates(progress, leg_index, before, after):
         raise GateProgressError('fresh gate cursor required')
     _point(before)
     _point(after)
-    if (type(leg_index) is not int or leg_index not in (0, 1, 2) or
-            leg_index < progress.active_leg or
-            leg_index > progress.active_leg + 1):
-        raise GateProgressError('non-monotonic or unproven leg transition')
     course = progress.course
-    if (type(course) is not CoursePlan or
+    if (type(course) is not CoursePlan or type(course.route) is not Route or
             type(progress.cursor) is not int or
             not 0 <= progress.cursor <= len(course.gates)):
         raise GateProgressError('invalid host cursor')
+    if (type(leg_index) is not int or not 0 <= leg_index < len(course.route.legs) or
+            type(progress.active_leg) is not int or
+            not 0 <= progress.active_leg < len(course.route.legs) or
+            leg_index < progress.active_leg or
+            leg_index > progress.active_leg + 1):
+        raise GateProgressError('non-monotonic or unproven leg transition')
     # A previously counted H can never be crossed backwards on its own leg.
     for gate in course.gates[:progress.cursor]:
         if gate.leg_index == leg_index:
