@@ -231,12 +231,13 @@ variable positions, one ordinary identical Blockly/.wbb/AST program,
 three correctly chosen landing zones, observed crossing/altitude oracles
 and independent exact LAND at 210 s, per the existing #587 contract.
 
-**Phase 1 — endpoints before intermediates:** finalize #589 (minimal
+**Historical Phase 1 — former start gate, superseded 2026-11-19:** finalize #589 (minimal
 Activity 1, blue start, non-colliding checkered arrival, accessible camera)
 and #591 (Grand Prix) in native R2025a; obtain exact Ready-HEAD CI,
 independent V5 review and explicit **personal owner pedagogical acceptance
 of each** after classroom-style testing. CI/GO alone is not pedagogical
-acceptance. No redesign of Activities 2–7 before BOTH personal acceptances.
+acceptance. The requirement to obtain both PASS before starting A2–A7
+was **superseded on 2026-11-19**; personal final acceptance is still required.
 Independent technical repairs/main-health work may proceed.
 
 The owner [personally accepted Activity 1 through #619](https://github.com/djibian/webeeblocks/issues/619#issuecomment-6230830327)
@@ -246,8 +247,8 @@ step mode and `.wbb`/scene restoration workflow were accepted. The separately qu
 an [owner-authoritative PASS on #632](https://github.com/djibian/webeeblocks/issues/632#issuecomment-6247199523)
 for exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`; #621 is closed.
 That later result does not change #619's original scope. **Grand Prix personal
-acceptance is still required before Phase 2**; neither PASS accepts Activities
-2–7 or flight.
+acceptance was required before starting Phase 2 under the **historical gate,
+now superseded 2026-11-19**; neither PASS accepts the new Activities 2–7 or flight.
 The Grand Prix pupil-program feasibility evidence now additionally requires
 a real editable `.wbb`, reproducible structural/cognitive-complexity measures,
 reasoning that its essential concepts are teachable in the preceding activities,
@@ -272,10 +273,11 @@ the same ordinary Blockly project across unknown configurations, negative
 counterexamples and independent LAND at exactly 210 s. The proposed longer
 course and detectable drift-correction landmarks are **feasibility questions**,
 not approved geometry changes. The checkpoint #635 is closed FAIL, not a pending
-or reusable PASS; #619 remains independently accepted and Phase 2 stays gated.
+or reusable PASS; #619 remains independently accepted; the former Phase 2 **start** gate was
+subsequently superseded on 2026-11-19.
 
-**Phase 2 — approved revised redesign of Activities 1–7, 2026-11-12:**
-Build and qualify the [cumulative approved matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md):
+**Historical Phase 2 — superseded A1–A7 design, 2026-11-12:**
+The formerly approved plan used:
 `new concept -> world property -> pupil mission -> prerequisite skills ->
 observable outcome`. Develop scenes in **parallel** where code and native
 validation can remain safely independent, with no artificial stage-by-stage
@@ -297,8 +299,8 @@ qualify hardware, permit a checkpoint or authorize flight.
 reconstruct GitHub, select bounded useful endpoints or independent review
 work, use isolated branches, stable Ready candidates, canonical exact-HEAD
 CI and independent review; no Controller authors its own GO or uses
-agent ownership/locks/queues. After the personal endpoint gates, the
-owner-approved eight-activity matrix constrains the bounded PR work,
+agent ownership/locks/queues. The current 2026-11-19 A1–A7 matrix constrains bounded PR work without
+waiting for an earlier start gate,
 without a Controller allocation plan or parallel status database.
 Preserve #487/#587 decisions, prior grand-prix variants and existing
 oracles/tests/evidence as appropriately scoped history.

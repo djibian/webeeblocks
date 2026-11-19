@@ -161,9 +161,11 @@ required hidden configurations. Classroom-style usability and the owner's
 independent technical GO. Deliver the accepted simulation progression before
 speculatively broadening hardware or features. Independent, safety-qualified
 #157/#72 physical work may continue when useful, but no simulation success
-authorizes flight. The Phase 2 rule remains: do not redesign Activities 2–7
-officially before both endpoint acceptances. V5 and all mission/safety
-invariants are unchanged. See #587 and its owner decision of 2026-10-22.
+authorizes flight. The former Phase 2 **start gate** requiring both endpoint
+acceptances was superseded by the owner decision of 2026-11-19 (#587):
+implementation of A1–A7 may begin before full A8 acceptance, but final
+personal pedagogical acceptance remains necessary. V5 and all mission/safety
+invariants are unchanged.
 
 ## Student experience
 
@@ -254,8 +256,9 @@ monitoring, margins and recovery remain unqualified and gated by #157/#72.
 See the falsifiable simulation design in
 docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
 historical gp-v2/v3/v4 native results remain scoped to their older worlds,
-not acceptance of the new course. Do not redesign intermediate activities before
-explicit personal acceptance of both Activity 1 and Activity 8.
+not acceptance of the new course. **Historical gate (2026-10-22,
+superseded 2026-11-19):** intermediate redesign previously required both
+personal endpoint acceptances; this start restriction no longer applies.
 
 **Superseding owner pedagogical decision (#587, 2026-10-15):**
 #487 and the integrated progression 1–8 established technical capability,
@@ -270,7 +273,7 @@ Windows project do **not** yet replace that installed catalog entry.
 This is the implementation state, not a change to the official pedagogical
 target.
 
-**Phase 1 — personally validate both endpoints.** Finalize Activity 1 (#589)
+**Historical Phase 1 — personally validate both endpoints (former start prerequisite).** Finalize Activity 1 (#589)
 and Grand Prix (#591) with real Webots R2025a tests, exact Ready-HEAD CI,
 independent V5 reviews and applicable oracles; then obtain the owner's
 **explicit personal pedagogical acceptance of each**. Activity 1 received the
