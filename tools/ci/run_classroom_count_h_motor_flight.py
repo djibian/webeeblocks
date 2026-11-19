@@ -97,6 +97,31 @@ def terminal_native_ack_logged(native_log, variant, mode="reference"):
     return ack is not None and int(ack[1])>=(1 if mode=="stateless" else 20)
 
 
+def terminal_native_rejection_logged(native_log, variant, mode="reference"):
+    """Stop observing a *rejected* stateless counterexample, never award PASS.
+
+    The pupil comparator has finished, authentic LAND has returned OK, and
+    the independent C oracle has rejected its actual physical trajectory.
+    Missing, fatal or successful native evidence cannot end the wait this way.
+    The caller still writes pass=false and returns a nonzero exit status.
+    """
+    if mode != "stateless" or variant not in (2, 3):
+        return False
+    if "WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1" not in native_log:
+        return False
+    if "WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved" in native_log:
+        return False
+    if ("WEBEEBLOCKS_A6_MOTOR_FATAL" in native_log or
+            "WEBEEBLOCKS_RUNTIME_V2 FATAL" in native_log):
+        return False
+    pos = native_log.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")
+    if pos < 0 or "LAND_TOUCHDOWN" not in native_log:
+        return False
+    return re.search(
+        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([1-9][0-9]*) OK$",
+        native_log[pos:]) is not None
+
+
 def run(variant=1,mode="reference",family=None,step_cm=None):
     if type(variant) is not int or variant not in (1,2,3):
         raise ValueError("A6 experimental motor variant must be 1/2/3")
@@ -207,7 +232,9 @@ def run(variant=1,mode="reference",family=None,step_cm=None):
                           "seconds=60",flush=True)
                     break
             if ((("A6_TEST_COMPLETE" in seen and
-                  terminal_native_ack_logged(txt,variant,mode)) or
+                  (terminal_native_ack_logged(txt,variant,mode) or
+                   (family is not None and
+                    terminal_native_rejection_logged(txt,variant,mode)))) or
                  (mode=="replay" and "A6_REPLAY_TEST_COMPLETE" in seen and
                   "WEBEEBLOCKS_A6_MOTOR_NATIVE_COMPLETION attempt=3 " in txt))
                 or "A6_ERROR" in seen
