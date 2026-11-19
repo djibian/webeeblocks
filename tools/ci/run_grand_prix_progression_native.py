@@ -1,4 +1,5 @@
-"""Real R2025a A1 mission and refusals via the ordinary WWI protocol."""
+"""Real R2025a Grand Prix lesson missions and refusals via the ordinary WWI protocol."""
+import argparse
 import os
 from pathlib import Path
 import re
@@ -12,15 +13,18 @@ from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry/route-a1-native'
+OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3)}
 
 
-def run_native(home, env):
+def run_native(home, env, activity):
+    forced_attempts = FORCED_LAND_ATTEMPTS[activity]
+    out = OUT / f'route-a{activity}-native'
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
-        raise RuntimeError('A1 requires the real R2025a engine')
-    OUT.mkdir(parents=True, exist_ok=True)
+        raise RuntimeError('The progression requires the real R2025a engine')
+    out.mkdir(parents=True, exist_ok=True)
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
-    with tempfile.TemporaryDirectory(prefix='gp-a1-native-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
         folder = Path(temporary)
         for key, name in (('XDG_CONFIG_HOME', 'config'), ('XDG_CACHE_HOME', 'cache'),
                           ('XDG_RUNTIME_DIR', 'runtime')):
@@ -33,26 +37,26 @@ def run_native(home, env):
         (folder / 'worlds').mkdir()
         for name in ('controllers', 'plugins'):
             (folder / name).symlink_to(ROOT / name, target_is_directory=True)
-        world = folder / 'worlds/a1.wbt'
-        world.write_text(active_course_world(progression_course(1)), encoding='utf-8')
-        (OUT / 'world.wbt').write_bytes(world.read_bytes())
+        world = folder / f'worlds/a{activity}.wbt'
+        world.write_text(active_course_world(progression_course(activity)), encoding='utf-8')
+        (out / 'world.wbt').write_bytes(world.read_bytes())
         command = [str(home / 'webots'), '--batch', '--stdout',
                    '--stderr', '--mode=fast', '--minimize', '--no-rendering',
                    f'--port={port}', str(world)]
         if not env.get('DISPLAY'):
-            command[:0] = ['xvfb-run', '-a', '-e', str(OUT / 'xvfb.log')]
-        journal = OUT / 'webots.log'
-        with journal.open('w') as native, (OUT / 'wwi.log').open('w') as wwi:
+            command[:0] = ['xvfb-run', '-a', '-e', str(out / 'xvfb.log')]
+        journal = out / 'webots.log'
+        with journal.open('w') as native, (out / 'wwi.log').open('w') as wwi:
             process = subprocess.Popen(command, cwd=folder, env=env, stdout=native,
                                        stderr=subprocess.STDOUT, start_new_session=True)
             try:
                 limit = time.monotonic() + 45
                 while 'WEBEEBLOCKS_RUNTIME_V2 READY' not in journal.read_text(errors='replace'):
                     if process.poll() is not None or time.monotonic() >= limit:
-                        raise RuntimeError(f'Webots A1 did not start: {journal}')
+                        raise RuntimeError(f'Webots A{activity} did not start: {journal}')
                     time.sleep(.10)
-                subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_a1_node_probe.js'),
-                                str(port)], cwd=ROOT, env=env, stdout=wwi,
+                subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
+                                str(port), str(activity)], cwd=ROOT, env=env, stdout=wwi,
                                stderr=subprocess.STDOUT, check=True, timeout=450)
             finally:
                 try:
@@ -66,20 +70,25 @@ def run_native(home, env):
                     process.wait(timeout=5)
     log = journal.read_text(errors='replace')
     if re.search(r'^ERROR:|^Traceback \(most recent call last\)', log, re.M):
-        raise RuntimeError('Native Webots error in A1')
+        raise RuntimeError(f'Native Webots error in A{activity}')
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)
-    if [int(attempt) for attempt, _ in starts] != [1, 2, 3, 4, 5] or len(deadlines) != 4:
-        raise RuntimeError('Missing exact A1 admission/RESET and forced LAND sequence')
-    start_ms = [int(stamp) for _, stamp in starts]
-    elapsed_to_land = [int(stamp) - start_ms[attempt - 1]
-                       for (stamp, _), attempt in zip(deadlines, (2, 3, 4, 5))]
-    if not (all(0 < elapsed < 210000 for elapsed in elapsed_to_land[:-1]) and
-            elapsed_to_land[-1] == 210000):
-        raise RuntimeError('A1 forced LAND timestamps violate the 210000 ms deadline')
-    print('PASS native R2025a A1: finish, RESET, low flight, closed H, STOP and 210000-ms LAND')
+    if ([int(attempt) for attempt, _ in starts] != list(range(1, forced_attempts[-1] + 1)) or
+            len(deadlines) != len(forced_attempts)):
+        raise RuntimeError(f'Missing exact A{activity} admission/RESET and forced LAND sequence')
+    origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
+    elapsed = [int(stamp) - origin_times[attempt] for (stamp, _), attempt in
+               zip(deadlines, forced_attempts)]
+    early_landings = elapsed[:-1] if activity == 1 else elapsed
+    if (not all(0 < stamp < 210000 for stamp in early_landings) or
+            (activity == 1 and elapsed[-1] != 210000)):
+        raise RuntimeError(f'A{activity} forced LAND violates the 210000 ms deadline')
+    print(f'PASS native R2025a A{activity} mission, refusals and confirmed LAND')
 
 
 if __name__ == '__main__':
-    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
+    args = parser.parse_args()
+    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity)
