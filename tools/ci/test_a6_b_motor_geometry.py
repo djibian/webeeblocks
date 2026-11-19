@@ -116,10 +116,10 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn('return 1',source)
 
         native=(
-            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\\n"
-            "LAND_TOUCHDOWN\\n"
-            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK\\n"
-            "WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1\\n"
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+            "LAND_TOUCHDOWN\n"
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK\n"
+            "WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1\n"
         )
         for count in (2,3):
             self.assertTrue(runner.terminal_native_rejection_logged(
@@ -137,9 +137,9 @@ class BMotorGeometrySourceTests(unittest.TestCase):
             native.replace("TRACE LAND stop=1","TRACE LAND stop=0"),
             native.replace("RESPONSE 17 OK","RESPONSE 17 ERR"),
             native.replace("RESPONSE 17 OK","RESPONSE 0 OK"),
-            native+"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved\\n",
-            native+"WEBEEBLOCKS_RUNTIME_V2 FATAL native\\n",
-            native+"WEBEEBLOCKS_A6_MOTOR_FATAL physics\\n",
+            native+"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved\n",
+            native+"WEBEEBLOCKS_RUNTIME_V2 FATAL native\n",
+            native+"WEBEEBLOCKS_A6_MOTOR_FATAL physics\n",
         )
         for i,bad in enumerate(mutants):
             with self.subTest(mutant=i):
