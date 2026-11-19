@@ -6,6 +6,7 @@ Reuse the gp-route-v2 segment frames so subsequent scene and oracle work can
 consume identical directed gate coordinates.
 """
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import re
 from tools.grand_prix.route_v2 import Route, build_route
@@ -69,6 +70,19 @@ def course_from_identifier(identifier):
     if course.identifier != identifier:
         raise ValueError('course identifier is not canonical')
     return course
+
+
+def active_course_from_identifier(identifier):
+    """Resolve only routes enabled for the native evaluator and pilot."""
+    if type(identifier) is str and identifier == "gp-progression-v1-a1-v1":
+        return _active_a1_course()
+    return course_from_identifier(identifier)
+
+
+@lru_cache(maxsize=1)
+def _active_a1_course():
+    from tools.grand_prix.progression_courses import progression_course
+    return progression_course(1)
 
 
 def plan_course(seed, lengths, turns, gate_count):
