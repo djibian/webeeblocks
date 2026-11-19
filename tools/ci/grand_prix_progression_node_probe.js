@@ -139,7 +139,7 @@ async function activityThree() {
     await backend.move('forward', .32);
   }
   await traverseGate();
-  await backend.move('forward', .095);
+  await backend.move('forward', .10);
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
