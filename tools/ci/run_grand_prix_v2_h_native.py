@@ -78,6 +78,47 @@ def check_native(result, course):
             not .07 < terminal["low"]["front"] < .55 or
             not .07 < terminal["high"]["front"] < .55):
         raise RuntimeError("native terminal H ray evidence missing")
+    if course.progression is not None and course.progression[0] == 5:
+        memory = result.get("a5_memory")
+        if type(memory) is not dict or set(memory) != {"at_turn", "at_choice"}:
+            raise RuntimeError("missing A5 native memory evidence")
+        at_turn, at_choice = memory["at_turn"], memory["at_choice"]
+        detected, clear = ("right", "left") if course.route.turns == ("G",) else ("left", "right")
+        if (not _rays(at_turn) or not .20 < at_turn[detected] < .35 or
+                at_turn[clear] < 1.999):
+            raise RuntimeError("A5 turn cue not visible from the native lateral rays")
+        if (type(at_choice) is not list or len(at_choice) != 3 or
+                any(not _rays(rays) or rays["back"] < 1.999 or
+                    not .07 < rays["front"] < .30 for rays in at_choice)):
+            raise RuntimeError("A5 terminal range exposes the turn cue or misses the terminal H")
+    if course.progression is not None and course.progression[0] == 6:
+        check_a6_discrimination(result.get("a6_discrimination"), bool(course.gates))
+
+
+def check_a6_discrimination(data, has_open_h):
+    expected = {"start", "closed", "open", "after"} if has_open_h else {"start", "closed"}
+    if type(data) is not dict or set(data) != expected:
+        raise RuntimeError("missing or noncanonical A6 native rays")
+    first = data["start"]
+    # 25-mm measured margin at the nominal aligned 0.75 m pose. This
+    # stopped-vehicle witness says nothing about the pilot's takeoff error.
+    limit = 1.25 if has_open_h else 1.975
+    if not _rays(first) or not .10 < first["front"] < limit:
+        raise RuntimeError("A6 first obstacle not visible with the expected frontal margin")
+    if has_open_h:
+        opened, after = data["open"], data["after"]
+        if (not _rays(opened) or not _rays(after) or
+                not all(.20 < opened[d] < .35 for d in ("left", "right")) or
+                not .50 < after["front"] < 1.50):
+            raise RuntimeError("A6 open-H side rays or post-traversal frontal ray missing")
+    closed = data["closed"]
+    if type(closed) is not list or len(closed) != 3 or not all(map(_rays, closed)):
+        raise RuntimeError("A6 terminal counterexamples missing")
+    for rays, pattern in zip(closed, ((True, False), (False, False), (False, True))):
+        if (not .10 < rays["front"] < .40 or
+                tuple(.20 < rays[d] < .35 for d in ("left", "right")) != pattern or
+                any(rays[d] < 1.999 for d, close in zip(("left", "right"), pattern) if not close)):
+            raise RuntimeError("A6 one-sided terminal H counterexample missing")
 
 
 def check_contacts(result, course):

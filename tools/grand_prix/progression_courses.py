@@ -26,7 +26,10 @@ _VARIANTS = {
     4: tuple(_Variant((length,), pads=(2,), required_pad=2)
              for length in (1., 1.4, 1.8)),
     5: tuple(_Variant((length, 2.5), (turn,), pads=(2, 3),
-                      required_pad=3 if turn == 'G' else 2)
+                      required_pad=3 if turn == 'G' else 2,
+                      # At 0.70 m before the H, +/-12 degrees of yaw could
+                      # make the rear ray pick up the last corner arm again.
+                      pad_distance_from_h=.17)
              for length, turn in ((1., 'G'), (1.2, 'D'), (1.4, 'G'),
                                   (1.6, 'D'), (1.8, 'G'))),
     6: (

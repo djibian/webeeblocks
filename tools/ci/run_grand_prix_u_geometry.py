@@ -136,6 +136,9 @@ def run_native(home, tcp=False):
     for activity in (1, 2, 3):
         run_h(home, (1,), activity=activity,
               output_root=OUT / 'progression-h-native' / f'a{activity}')
+    for activity in (5, 6):
+        run_h(home, tuple(range(1, 6)), activity=activity,
+              output_root=OUT / 'progression-h-native' / f'a{activity}')
     manifest = {p.relative_to(OUT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in OUT.rglob('*') if p.is_file() and p != OUT/'sha256.json'}
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
