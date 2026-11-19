@@ -171,6 +171,44 @@ controller = controller.replace(takeoff_progress_needle,
 if controller.count(" CI TAKEOFF_PROGRESS id=") != 1:
     raise SystemExit('Runtime v2 CI TAKEOFF progress marker not unique')
 
+# Source-bound, deterministic cadence regression for the pinned 32-ms
+# Webots steps. The original <0.100 guard would emit three times before 100ms
+# and must not silently return; the diagnostic is not a flight acceptance test.
+takeoff_rate_guard = '''      static int diag_takeoff_request_id = -1;
+      static long diag_takeoff_last_second = -1;
+      const long diag_takeoff_second = (long)(now - action_start);
+      if (diag_takeoff_request_id != active_id ||
+          diag_takeoff_second > diag_takeoff_last_second) {
+        diag_takeoff_request_id = active_id;
+        diag_takeoff_last_second = diag_takeoff_second;'''
+if controller.count(takeoff_rate_guard) != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF rate guard changed')
+if 'now - action_start < 0.100' in takeoff_progress_replacement:
+    raise SystemExit('Runtime v2 CI TAKEOFF burst mutant reintroduced')
+
+def takeoff_diagnostic_replay(ticks, ids):
+    """Model the source-bound two-value C guard, not the Webots pilot."""
+    latest_id, latest_second = -1, -1
+    times = []
+    for now, active_id in zip(ticks, ids):
+        second = int(now)
+        if latest_id != active_id or second > latest_second:
+            latest_id, latest_second = active_id, second
+            times.append(now)
+    return times
+
+ticks_32ms = [i * 0.032 for i in range(95)]
+if takeoff_diagnostic_replay(ticks_32ms, [32] * len(ticks_32ms)) != [
+        0.0, 1.024, 2.016, 3.008]:
+    raise SystemExit('Runtime v2 CI TAKEOFF 32-ms cadence regression')
+# An unrelated later request ID must start with one first sample again.
+if takeoff_diagnostic_replay([0., .032, .064, 0., .032],
+                            [32, 32, 32, 34, 34]) != [0., 0.]:
+    raise SystemExit('Runtime v2 CI TAKEOFF request identity regression')
+# Falsifier: the previous time<0.100 condition emits >1 time per 100 ms.
+if sum(0 <= t < .100 for t in ticks_32ms) <= 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF burst mutant not discriminated')
+
 # CI-only heartbeat for native MOVE, injected into the temporary checkout.
 # #1065: a browser-side timeout alone cannot tell a stalled Webots clock from
 # a drone that keeps moving but never satisfies STOP_WINDOW/position bounds.
