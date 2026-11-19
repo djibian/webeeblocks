@@ -80,8 +80,15 @@ class VariableRouteTests(unittest.TestCase):
             a5 = progression_course(5, variant)
             self.assertEqual(a5.route.lengths[-1], 2.5)
             self.assertEqual(a5.pads, (2, 3))
-            offset = a5.route.legs[-1].local(a5.landing_position(a5.required_pad))[1]
+            leg = a5.route.legs[-1]
+            along, offset = leg.local(a5.landing_position(a5.required_pad))
             self.assertEqual(offset, -.5 if a5.route.turns == ('G',) else .5)
+            # Even the longitudinal lower bound is past the 2 m native ray
+            # range. Verify it against the physical L extents, not its label.
+            for box in course_physical_boxes(a5)[:2]:
+                centre, _ = leg.local(box.position[:2])
+                half_span = box.size[leg.direction % 2] / 2
+                self.assertGreater(along - centre - half_span, 2.)
         self.assertEqual([progression_course(6, v).count for v in range(1, 6)],
                          [1, 1, 1, 0, 0])
         a7 = [progression_course(7, v) for v in range(1, 8)]

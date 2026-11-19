@@ -17,7 +17,7 @@ from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, verify_native_boxes,
 )
 from tools.grand_prix.progression_courses import progression_course
-from tools.grand_prix.route_courses_v2 import reference_course
+from tools.grand_prix.route_courses_v2 import LOW_AFTER, reference_course
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
 from tools.grand_prix.route_terminal_v2 import terminal_boxes
 
@@ -46,9 +46,9 @@ def witness():
         device.enable(step)
         sensors[direction] = device
 
-    def sample(leg, along, height):
+    def sample(leg, along, height, *, yaw_offset=0.):
         x, y = leg.at(along)
-        yaw = leg.direction * math.pi / 2
+        yaw = leg.direction * math.pi / 2 + yaw_offset
         translation.setSFVec3f([x, y, height])
         rotation.setSFRotation([0, 0, 1, yaw])
         self_node.resetPhysics()
@@ -87,6 +87,22 @@ def witness():
     if not (.07 < terminal_low["front"] < .55 and
             .07 < terminal_high["front"] < .55):
         raise RuntimeError("terminal closed H not detected in native rays")
+    memory = None
+    if course.progression is not None and course.progression[0] == 5:
+        decision = leg.length - course.pad_distance_from_h
+        memory = dict(at_turn=sample(leg, 0., .90),
+                      at_choice=[sample(leg, decision, .90, yaw_offset=math.radians(yaw))
+                                 for yaw in (-12, 0, 12)])
+    discrimination = None
+    if course.progression is not None and course.progression[0] == 6:
+        discrimination = dict(start=sample(leg, 0., .75),
+                              closed=[sample(leg, leg.length - .22, .90,
+                                             yaw_offset=math.radians(yaw))
+                                      for yaw in (-45, 0, 45)])
+        if course.gates:
+            gate, = course.gates
+            discrimination["open"] = sample(leg, gate.along - .16, .90)
+            discrimination["after"] = sample(leg, gate.along + LOW_AFTER, .75)
     # Physical counter-test on the same pinned, unpowered full course: an
     # open H passage at 0.4 m must have NO real contact, while its overhead
     # beam at its actual height, and the closed terminal panel at 0.4 m,
@@ -216,6 +232,10 @@ def witness():
                     contact_source="Robot+Solid.getContactPoints R2025a",
                     contact_witnesses=contact_witnesses,
                     post_witnesses=post_witnesses)
+    if memory is not None:
+        evidence["a5_memory"] = memory
+    if discrimination is not None:
+        evidence["a6_discrimination"] = discrimination
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(evidence, allow_nan=False, sort_keys=True) + "\n")
     print("GP_V2_H_NATIVE " + json.dumps(evidence, allow_nan=False, sort_keys=True),
