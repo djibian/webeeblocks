@@ -11,13 +11,17 @@ const backend = new Backend({send}, {
   routeTakeoffTimeoutMs: 90000
 });
 const evaluation = {type: 'mission-state-v1', oracle: 'grand-prix-route-v2'};
+let forcedLandings = 0;
 
 socket.onmessage = event => {
   for (const line of String(event.data).split(/\r?\n/)) {
     if (line.startsWith('robot:')) {
       const reply = JSON.parse(line.slice(6));
-      if (reply.name === robot)
-        backend.handleMessage(reply.message);
+      if (reply.name !== robot)
+        continue;
+      if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
+        forcedLandings++;
+      backend.handleMessage(reply.message);
     }
   }
 };
@@ -39,8 +43,16 @@ async function approachLastLeg() {
   await backend.turn(-90);
 }
 
+// RESET is explicitly fenced until the independent forced LAND has finished.
+async function waitForForcedLanding(expectedCount) {
+  const deadline = Date.now() + 35000;
+  while (forcedLandings < expectedCount && Date.now() < deadline)
+    await delay(50);
+  assert.equal(forcedLandings, expectedCount, 'native forced LAND did not complete');
+}
+
 async function outcome(expected) {
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + (expected.reason === 'time-limit' ? 240000 : 15000);
   while (Date.now() < deadline) {
     try {
       const actual = await backend.readActivityOutcome(evaluation);
@@ -72,20 +84,24 @@ socket.onopen = async () => {
     await takeoff(.4);
     await assert.rejects(backend.move('forward', .8), {code: 'TIME_LIMIT'});
     await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+    await waitForForcedLanding(1);
 
     await backend.resetSimulation();
     await approachLastLeg();
     await assert.rejects(backend.move('forward', 1.6), {code: 'TIME_LIMIT'});
     await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+    await waitForForcedLanding(2);
 
     await backend.resetSimulation();
     await takeoff(.9);
     await backend.stopSimulation();
     await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+    await waitForForcedLanding(3);
 
     await backend.resetSimulation();
     await takeoff(.9);
     await outcome({status: 'not-achieved', reason: 'time-limit'});
+    await waitForForcedLanding(4);
     await assert.rejects(backend.move('forward', .2), {code: 'TIME_LIMIT'});
   } catch (error) {
     console.error(error);

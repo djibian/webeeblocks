@@ -70,9 +70,14 @@ def run_native(home, env):
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)
-    if ([int(attempt) for attempt, _ in starts] != [1, 2, 3, 4, 5] or
-            len(deadlines) != 1 or int(deadlines[0][0]) - int(starts[-1][1]) != 210000):
-        raise RuntimeError('Missing exact A1 admission/RESET sequence and 210000 ms LAND')
+    if [int(attempt) for attempt, _ in starts] != [1, 2, 3, 4, 5] or len(deadlines) != 4:
+        raise RuntimeError('Missing exact A1 admission/RESET and forced LAND sequence')
+    start_ms = [int(stamp) for _, stamp in starts]
+    elapsed_to_land = [int(stamp) - start_ms[attempt - 1]
+                       for (stamp, _), attempt in zip(deadlines, (2, 3, 4, 5))]
+    if not (all(0 < elapsed < 210000 for elapsed in elapsed_to_land[:-1]) and
+            elapsed_to_land[-1] == 210000):
+        raise RuntimeError('A1 forced LAND timestamps violate the 210000 ms deadline')
     print('PASS native R2025a A1: finish, RESET, low flight, closed H, STOP and 210000-ms LAND')
 
 
