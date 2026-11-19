@@ -27,10 +27,22 @@ class CoursePlan:
     route: Route
     gates: tuple[GatePlacement, ...]
     count: int
+    progression: tuple[int, int] | None = None
+    pads: tuple[int, ...] = (1, 2, 3)
+    required_pad: int | None = None
+    pad_distance_from_h: float = .70
 
     @property
     def identifier(self):
+        if self.progression is not None:
+            activity, variant = self.progression
+            return f"gp-progression-v1-a{activity}-v{variant}"
         return f"{self.route.identifier}-H{self.count}"
+
+    def landing_position(self, pad):
+        if type(pad) is not int or pad not in self.pads:
+            raise ValueError('pad is not present in this course')
+        return self.route.landing_target(pad, distance_from_h=self.pad_distance_from_h)
 
 
 def course_from_identifier(identifier):

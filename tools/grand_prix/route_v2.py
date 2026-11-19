@@ -84,10 +84,10 @@ class Corner:
 @dataclass(frozen=True)
 class Route:
     seed: int
-    lengths: tuple[float, float, float]
-    turns: tuple[str, str]
-    legs: tuple[Leg, Leg, Leg]
-    corners: tuple[Corner, Corner]
+    lengths: tuple[float, ...]
+    turns: tuple[str, ...]
+    legs: tuple[Leg, ...]
+    corners: tuple[Corner, ...]
 
     @property
     def identifier(self):
@@ -98,11 +98,11 @@ class Route:
     def terminal(self):
         return self.legs[-1].end
 
-    def landing_target(self, crossings):
+    def landing_target(self, crossings, *, distance_from_h=.70):
         """Terminal landing frame; 2=left, 3=right of final forward axis."""
         if type(crossings) is not int or crossings not in (1, 2, 3):
             raise ValueError('crossings must be 1, 2, or 3')
-        return self.legs[-1].at(self.legs[-1].length - .70,
+        return self.legs[-1].at(self.legs[-1].length - distance_from_h,
                                 {1: 0.0, 2: .50, 3: -.50}[crossings])
 
 
@@ -132,20 +132,26 @@ def build_route(seed, lengths, turns):
     if not isinstance(turns, (tuple, list)) or len(turns) != 2 or any(
             type(t) is not str or t not in ('G', 'D') for t in turns):
         raise ValueError('exactly two independent G/D turns required')
+    return _build_route(seed, lengths, turns)
+
+
+def _build_route(seed, lengths, turns, *, first_direction=0):
+    """Assemble directed geometry for an already validated course profile."""
     lengths, turns = tuple(float(n) for n in lengths), tuple(turns)
     legs = []
     position = (0., 0.)
-    direction = 0
+    direction = first_direction
     for i, length in enumerate(lengths):
         end = _add(position, _scale(UNITS[direction], length))
         legs.append(Leg(i, position, end, direction, length))
         position = end
-        if i < 2:
+        if i < len(turns):
             direction = (direction + (1 if turns[i] == 'G' else -1)) % 4
     corners = tuple(_outside_corner(i, turns[i], legs[i], legs[i + 1])
-                    for i in range(2))
+                    for i in range(len(turns)))
     # Never permit a course with the first and last corridor overlapping.
-    a, b = legs[0].bounds(), legs[2].bounds()
-    if min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1]):
-        raise ValueError('nonadjacent corridors overlap')
+    if len(legs) == 3:
+        a, b = legs[0].bounds(), legs[2].bounds()
+        if min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1]):
+            raise ValueError('nonadjacent corridors overlap')
     return Route(seed, lengths, turns, tuple(legs), corners)

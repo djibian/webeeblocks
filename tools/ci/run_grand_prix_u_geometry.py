@@ -131,6 +131,11 @@ def run_native(home, tcp=False):
     # The existing geometry artifact retains its per-run native JSON/log bytes.
     from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
     run_h(home, (5,), output_root=OUT / 'route-h-native')
+    # Exercise the new zero-, single- and three-open-H geometries before
+    # recording the aggregate digest; keep the A8 H campaign above intact.
+    for activity in (1, 2, 3):
+        run_h(home, (1,), activity=activity,
+              output_root=OUT / 'progression-h-native' / f'a{activity}')
     manifest = {p.relative_to(OUT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in OUT.rglob('*') if p.is_file() and p != OUT/'sha256.json'}
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')

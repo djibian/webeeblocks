@@ -16,6 +16,7 @@ from controller import Supervisor
 from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, verify_native_boxes,
 )
+from tools.grand_prix.progression_courses import progression_course
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
 from tools.grand_prix.route_terminal_v2 import terminal_boxes
@@ -23,7 +24,8 @@ from tools.grand_prix.route_terminal_v2 import terminal_boxes
 
 def witness():
     index = int(os.environ["GP_V2_H_NATIVE_INDEX"])
-    course = reference_course(index)
+    activity = os.environ.get("GP_V2_H_NATIVE_ACTIVITY")
+    course = reference_course(index) if activity is None else progression_course(int(activity), index)
     output = Path(os.environ["GP_V2_H_NATIVE_OUT"])
     robot = Supervisor()
     step = int(robot.getBasicTimeStep())

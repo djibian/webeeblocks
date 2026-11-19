@@ -8,7 +8,7 @@ its separately attempt-bound readiness with the native flight controller.
 from dataclasses import dataclass
 from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 import math
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.progression_courses import require_canonical_course_geometry
 from tools.grand_prix.route_solid_v2 import corner_boxes, HEIGHT as CORNER_HEIGHT
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
 from tools.grand_prix.route_terminal_v2 import terminal_boxes
@@ -23,13 +23,10 @@ class NativeBox:
 
 
 def required_box_names(course):
-    """Exhaustive physical mission inventory: two L, open H and closed H."""
-    if type(course) is not CoursePlan:
-        raise ValueError('canonical CoursePlan required')
-    # Reconstruct from the canonical identifier, not untrusted mutable geometry.
-    if course_from_identifier(course.identifier) != course:
-        raise ValueError('forged or inconsistent CoursePlan')
-    corners = tuple(f'GP_V2_L_{i}_{part}' for i in range(2) for part in range(2))
+    """Exhaustive physical mission inventory: L corners, open H and closed H."""
+    require_canonical_course_geometry(course)
+    corners = tuple(f'GP_V2_L_{i}_{part}'
+                    for i in range(len(course.route.corners)) for part in range(2))
     gates = tuple(f'GP_V2_H_{g.leg_index}_{part}' for g in course.gates
                   for part in ('LEFT', 'RIGHT', 'BEAM'))
     terminal = tuple('GP_V2_FINAL_' + part
