@@ -106,6 +106,46 @@ class BMotorGeometrySourceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"invalid private B"):
                     runner.run(variant=1,mode="replay",family=family)
 
+    def test_stateless_native_rejection_is_terminal_but_never_success(self):
+        """A genuine negative is not a 370-s wait, CI green, or a mock PASS."""
+        import run_classroom_count_h_motor_flight as runner
+        source=(ROOT/"tools/ci/run_classroom_count_h_motor_flight.py").read_text()
+        self.assertIn('terminal_native_rejection_logged(txt,variant,mode)',source)
+        self.assertIn('"A6_TEST_COMPLETE" in seen',source)
+        self.assertIn('if not succeeded:',source)
+        self.assertIn('return 1',source)
+
+        native=(
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\\n"
+            "LAND_TOUCHDOWN\\n"
+            "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK\\n"
+            "WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1\\n"
+        )
+        for count in (2,3):
+            self.assertTrue(runner.terminal_native_rejection_logged(
+                native,count,"stateless"))
+        for count,mode in ((1,"stateless"),(2,"blockly"),(3,"reference")):
+            self.assertFalse(runner.terminal_native_rejection_logged(
+                native,count,mode))
+
+        # Missing physical completion, wrong/no native C verdict, forged
+        # successes, FATAL and unacknowledged LAND must never terminate early.
+        mutants=(
+            native.replace("behavioral_oracle=1","collider=0"),
+            native.replace("WEBEEBLOCKS_A6_MOTOR_REJECT","WEBEEBLOCKS_A6_OTHER"),
+            native.replace("LAND_TOUCHDOWN","LAND_MISSING"),
+            native.replace("TRACE LAND stop=1","TRACE LAND stop=0"),
+            native.replace("RESPONSE 17 OK","RESPONSE 17 ERR"),
+            native.replace("RESPONSE 17 OK","RESPONSE 0 OK"),
+            native+"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved\\n",
+            native+"WEBEEBLOCKS_RUNTIME_V2 FATAL native\\n",
+            native+"WEBEEBLOCKS_A6_MOTOR_FATAL physics\\n",
+        )
+        for i,bad in enumerate(mutants):
+            with self.subTest(mutant=i):
+                self.assertFalse(runner.terminal_native_rejection_logged(
+                    bad,2,"stateless"))
+
     def test_b_private_artifact_names_are_path_safe(self):
         # Catches Path + str before all 18 actual R2025a motor jobs.
         from unittest.mock import patch
