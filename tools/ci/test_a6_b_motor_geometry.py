@@ -116,8 +116,8 @@ class BMotorGeometrySourceTests(unittest.TestCase):
         self.assertIn('return 1',source)
 
         native=(
+            "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=12.34\n"
             "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
-            "LAND_TOUCHDOWN\n"
             "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK\n"
             "WEBEEBLOCKS_A6_MOTOR_REJECT attempt=1 behavioral_oracle=1\n"
         )
@@ -137,6 +137,22 @@ class BMotorGeometrySourceTests(unittest.TestCase):
             native.replace("TRACE LAND stop=1","TRACE LAND stop=0"),
             native.replace("RESPONSE 17 OK","RESPONSE 17 ERR"),
             native.replace("RESPONSE 17 OK","RESPONSE 0 OK"),
+            # Rejection requires the response of the LAND that just finished,
+            # not an arbitrary later OK after an actual error/value reply.
+            native.replace("RESPONSE 17 OK",
+                           "RESPONSE 17 ERR UNSAFE_OR_TIMEOUT\n"
+                           "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 18 OK"),
+            native.replace("RESPONSE 17 OK",
+                           "RESPONSE 17 VALUE 0.500000000\n"
+                           "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 18 OK"),
+            # Touchdown must have preceded the final native stop. The native
+            # controller never reports touchdown only after stop=1.
+            native.replace(
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=12.34\n",
+                "").replace(
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n",
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n"
+                "WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=12.34\n"),
             native+"WEBEEBLOCKS_A6_MOTOR_RESULT status=achieved\n",
             native+"WEBEEBLOCKS_RUNTIME_V2 FATAL native\n",
             native+"WEBEEBLOCKS_A6_MOTOR_FATAL physics\n",

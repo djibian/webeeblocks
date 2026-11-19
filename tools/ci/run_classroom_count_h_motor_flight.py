@@ -114,12 +114,18 @@ def terminal_native_rejection_logged(native_log, variant, mode="reference"):
     if ("WEBEEBLOCKS_A6_MOTOR_FATAL" in native_log or
             "WEBEEBLOCKS_RUNTIME_V2 FATAL" in native_log):
         return False
+    # R2025a reports physical touchdown BEFORE finishing STOP_WINDOW:
+    # TRACE LAND_TOUCHDOWN -> TRACE LAND stop=1 -> RESPONSE <active LAND id> OK.
+    # The first native response after the final stop is the only terminal ACK.
+    # An ERR (or VALUE) followed by an unrelated OK must never qualify it.
     pos = native_log.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1")
-    if pos < 0 or "LAND_TOUCHDOWN" not in native_log:
+    touchdown = native_log.rfind("WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN ")
+    if pos < 0 or touchdown < 0 or touchdown >= pos:
         return False
-    return re.search(
-        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([1-9][0-9]*) OK$",
-        native_log[pos:]) is not None
+    reply = re.search(
+        r"(?m)^WEBEEBLOCKS_RUNTIME_V2 RESPONSE ([0-9]+) ([^\r\n]+)$",
+        native_log[pos:])
+    return reply is not None and int(reply[1]) > 0 and reply[2] == "OK"
 
 
 def run(variant=1,mode="reference",family=None,step_cm=None):
