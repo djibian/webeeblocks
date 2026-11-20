@@ -170,13 +170,48 @@ void query(int expected){
 }
 int main(){
 
+  // Forced-LAND velocity braking is admitted only for a FAILED native A6
+  // attempt of the same canonical evaluator incarnation. This tests the
+  // production C++ hook; it is not a substitute for Webots contact dynamics.
+  for(int variant=1;variant<=5;++variant){
+    const std::string id="gp-progression-v1-a6-v"+std::to_string(variant);
+    fresh(id);ready();assert(gp_u_start(now)==1);
+    assert(gp_route_a6_forced_land()==0); // Healthy A6/pupil LAND: position hold.
+    alive(2144);assert(gp_u_deadline(now,0)==0);
+    now=2.176; // No NEW native ALIVE: independent safety LAND is mandatory.
+    assert(gp_u_deadline(now,0)==1);
+    assert(gp_route_a6_forced_land()==1);
+    assert(gp_route_a6_envelope_contact(now)==0); // Liveness failure is not a contact.
+    evidence=response("TERMINAL","2176")+" reason=course-boundary";
+    assert(gp_route_a6_envelope_contact(now)==0);
+    evidence=response("TERMINAL","2176")+" reason=envelope-contact";
+    assert(gp_route_a6_envelope_contact(now)==1);
+    assert(gp_route_a6_envelope_contact(now-.008)==0); // Future evidence.
+    config="gp-progression-v1-a6-v"+std::to_string(variant==5?1:variant+1);
+    assert(gp_route_a6_forced_land()==0); // Cross-variant identity is not trusted.
+    assert(gp_route_a6_envelope_contact(now)==0);
+    config=id;assert(gp_route_a6_forced_land()==1);
+    gp_u_reset_complete();
+    assert(gp_route_a6_forced_land()==0); // Never survive RESET.
+    assert(gp_route_a6_envelope_contact(now)==0);
+  }
+  // A8's own independently failed attempt MUST retain the historical hold.
+  admit();assert(gp_route_a6_forced_land()==0);
+  alive(2144);assert(gp_u_deadline(now,0)==0);
+  now=2.176;assert(gp_u_deadline(now,0)==1);
+  assert(gp_route_a6_forced_land()==0);
+  evidence=response("TERMINAL","2176")+" reason=envelope-contact";
+  assert(gp_route_a6_envelope_contact(now)==0);
+  gp_u_reset_complete();
+
   // A1 shares admission, epoch freshness, and exact deadline with A8.
   fresh("gp-progression-v1-a1-v1");ready();query(1);
   config="gp-progression-v1-a1-v2";query(0);
   config="gp-progression-v1-a4-v4";query(0);
   config="gp-progression-v1-a5-v6";query(0);
   config="gp-progression-v1-a5-v01";query(0);
-  config="gp-progression-v1-a6-v1";query(0);
+  config="gp-progression-v1-a6-v6";query(0);
+  config="gp-progression-v1-a7-v1";query(0);
   fresh("gp-progression-v1-a2-v1");ready();query(1);
   fresh("gp-progression-v1-a3-v1");ready();query(1);
   fresh("gp-progression-v1-a4-v1");ready();query(1);
@@ -185,6 +220,7 @@ int main(){
   fresh("gp-progression-v1-a4-v3");ready();query(1);
   for (int variant=1;variant<=5;++variant) {
     fresh("gp-progression-v1-a5-v"+std::to_string(variant));ready();query(1);
+    fresh("gp-progression-v1-a6-v"+std::to_string(variant));ready();query(1);
   }
   fresh("gp-progression-v1-a1-v1");ready();assert(gp_u_start(now)==1);
   alive(212080);assert(gp_u_deadline(now,0)==0);
