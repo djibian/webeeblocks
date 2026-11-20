@@ -267,24 +267,24 @@ static double wrap_angle(double angle) {
         # reference, not a new goal, obstacle oracle or ground-stability pass.
         # Keep the 8-ms world, descent, motors, LAND ACK and all safety gates.
         gp_forced_land_hold = (
-            "      desired.vx = POSITION_KP * body_x;\\n"
-            "      desired.vy = POSITION_KP * body_y;\\n"
-            "      clip_vector(&desired.vx, &desired.vy, VX_MAX);\\n"
-            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\\n"
+            "      desired.vx = POSITION_KP * body_x;\n"
+            "      desired.vy = POSITION_KP * body_y;\n"
+            "      clip_vector(&desired.vx, &desired.vy, VX_MAX);\n"
+            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
             "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
         )
         if result.count(gp_forced_land_hold) != 1:
             raise RuntimeError('route-only forced LAND anchor changed')
         result = result.replace(gp_forced_land_hold, (
-            "      if (active_id == 2147483646) {\\n"
-            "        desired.vx = 0.0; /* Forced LAND: brake, do not pull into collided panel. */\\n"
-            "        desired.vy = 0.0;\\n"
-            "      } else {\\n"
-            "        desired.vx = POSITION_KP * body_x;\\n"
-            "        desired.vy = POSITION_KP * body_y;\\n"
-            "        clip_vector(&desired.vx, &desired.vy, VX_MAX);\\n"
-            "      }\\n"
-            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\\n"
+            "      if (active_id == 2147483646) {\n"
+            "        desired.vx = 0.0; /* Forced LAND: brake, do not pull into collided panel. */\n"
+            "        desired.vy = 0.0;\n"
+            "      } else {\n"
+            "        desired.vx = POSITION_KP * body_x;\n"
+            "        desired.vy = POSITION_KP * body_y;\n"
+            "        clip_vector(&desired.vx, &desired.vy, VX_MAX);\n"
+            "      }\n"
+            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
             "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
         ), 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
