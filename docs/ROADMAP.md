@@ -11,6 +11,20 @@ GitHub commits, PRs, checks, reviews, issues and evidence describe live executio
 state. Do not duplicate agent/session state, WIP counters, ownership or queues
 here.
 
+## Décision propriétaire A1–A7, 19 novembre 2026 — progression Grand Prix unifiée
+
+**Autorité :** [#587, validation du propriétaire](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309) et [matrice en vigueur](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md). **Supplante** les objectifs pédagogiques A1–A7 et l'ancienne A6 « compter 1–3 H ». **Ne modifie pas** l'activité 8, les garanties physiques, la sécurité ou les gates V5.
+
+**Résultat attendu :** A1–A7 sont des variantes pédagogiques du **même générateur Grand Prix**, avec ses lignes rouges/jaunes, H réels ouverts/fermés, cornières L, contraintes identiques d'altitude et de corridor, pas Webots **8 ms**, délai **210 s** et LAND indépendant. **H fermé final dans les sept activités.** Un seul `.wbb` par activité fonctionne sur toutes ses variantes. Blocages/intégrations se jugent sur ce contrat, pas sur l'ancien catalogue.
+
+**Bornes de travail à qualifier sans imposer d'ordre de Controllers :**
+- **A1–A3 :** A1 1×(1,4/1,8/1,6 m, G/D, H fermé), A2 1×(2,5 m, H ouvert à 0,8 m, montée et descente obligatoires par règle de bande jaune), A3 1×(3×1,5 m, trois virages gauche dont le premier après décollage, un H ouvert au milieu de chaque segment). Blocs séquence/déplacements, vertical, puis répétition.
+- **A4–A5 :** A4 **3 longueurs 1–1,8 m**, H final, pose **0,5 m à gauche**, range/comparaisons/IF et **mouvement gauche/droite** ; A5 **5 variantes**, premier segment 1–1,8 m puis **2,5 m fixes**, cornière L, **pose opposée au sens du virage** (±0,5 m), H final ; variable utile car indice initial non retrouvable même via capteur arrière.
+- **A6–A7 :** A6 **3 variantes avec H ouvert + au moins 2 sans H ouvert**, longueur 2–3 m, H ouvert identique au GP si présent, H fermé final, observabilité frontale du prochain obstacle et identification **conjointe des capteurs gauche ET droit**, sans nouveau WHILE/procédure ; A7 **7 variantes**, deux segments variables, virage gauche/droite, 0/1 H ouvert sur l'un ou l'autre, H fermé final, une pose ; introduction de **TANT QUE borné et procédures**.
+- **A8 :** douze configurations historiques, trois segments et deux virages, 1–3 H ouverts, H fermé et trois poses, **contrat inchangé**.
+
+**Critères de sortie :** vraie géométrie physique et altitude de chaque variante, capteurs exploitables, conditions opposées et contre-stratégies, collision/pose/floor, STOP/RESET et fenêtre 210 s, test Blockly Save/Open, CI exact-HEAD, revue indépendante V5 et PASS enseignant ultérieur. Les PR **#980/#981/#1033/#1056/#1067** et les profils A1–A7 déjà dans `main` doivent être **réévalués ou réorientés** : leur CI/Draft/ancien GO ne prouve pas la conformité à la nouvelle matrice. Préserver l'ouverture des anciens fichiers `.wbb` et la traçabilité des preuves. Ne pas transformer cette roadmap en file d'attente ou en verrou.
+
 ## Owner decision — 2026-11-12: trusted classroom scene, no per-step static revalidation
 
 The Grand Prix classroom simulator is **not** an anti-tamper/anti-cheat service.
@@ -179,19 +193,15 @@ extra speculative infrastructure; expand movements, sensors and LED capabilities
 one evidence-backed slice at a time after the first bounded physical acceptance.
 Keep #72 separately gated and #70 optional on uniform ground.
 
-**Latest owner pedagogical decision, 2026-11-12 (#587, comment 6826109034):**
-the [revised Activities 1–7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
-is the implementation contract for 4e/3e agricultural education.
-All seven activities may be developed **in parallel** in independently
-reviewable PRs: Activity 1 adds simple two-axis 3D parameters, Activity 2 adds
-vertical relative movement over an obstacle, 3 turning/repetition, 4 observable
-single-sample sensing across variants, 5 reactive loops/first state variable,
-6 counting 1–3 gates/landing choice, 7 a simpler multi-variant Mini Grand Prix.
-The historical #619 PASS does not transfer to the redesigned Activity 1.
-Development of 1–7 is independent of final Grand Prix PASS; the provisional
-pedagogical approval of Activity 8 remains conditional on native pauses and UI
-corrections. This supersedes earlier Phase 2 *start* restrictions below,
-not native safety, exact V5 requirements or personal final acceptance.
+**Current owner pedagogical decision, 2026-11-19 ([#587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309)):**
+the [unified Grand Prix-based A1–A7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
+is the implementation contract for agricultural 4e/3e. It **replaces**
+the 2026-11-12 scenarios and the historical A6 counting alternatives.
+A1–A7 must reuse the A8 generator and rules, use the listed geometries and
+cumulative blocks, and attain independent native and teacher evidence.
+Parallel bounded development remains allowed; **no earlier PASS/GO transfers**.
+A8, all physical oracles, 210-s bound, 8-ms physics, real-flight boundary,
+exact V5 checks and personal acceptance remain unchanged.
 
 **Historical owner pedagogical decision, 2026-10-15 (#587):** eight activities
 remain the target, but the integrated #487/B1/B2 progression is a
@@ -221,12 +231,13 @@ variable positions, one ordinary identical Blockly/.wbb/AST program,
 three correctly chosen landing zones, observed crossing/altitude oracles
 and independent exact LAND at 210 s, per the existing #587 contract.
 
-**Phase 1 — endpoints before intermediates:** finalize #589 (minimal
+**Historical Phase 1 — former start gate, superseded 2026-11-19:** finalize #589 (minimal
 Activity 1, blue start, non-colliding checkered arrival, accessible camera)
 and #591 (Grand Prix) in native R2025a; obtain exact Ready-HEAD CI,
 independent V5 review and explicit **personal owner pedagogical acceptance
 of each** after classroom-style testing. CI/GO alone is not pedagogical
-acceptance. No redesign of Activities 2–7 before BOTH personal acceptances.
+acceptance. The requirement to obtain both PASS before starting A2–A7
+was **superseded on 2026-11-19**; personal final acceptance is still required.
 Independent technical repairs/main-health work may proceed.
 
 The owner [personally accepted Activity 1 through #619](https://github.com/djibian/webeeblocks/issues/619#issuecomment-6230830327)
@@ -236,8 +247,8 @@ step mode and `.wbb`/scene restoration workflow were accepted. The separately qu
 an [owner-authoritative PASS on #632](https://github.com/djibian/webeeblocks/issues/632#issuecomment-6247199523)
 for exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`; #621 is closed.
 That later result does not change #619's original scope. **Grand Prix personal
-acceptance is still required before Phase 2**; neither PASS accepts Activities
-2–7 or flight.
+acceptance was required before starting Phase 2 under the **historical gate,
+now superseded 2026-11-19**; neither PASS accepts the new Activities 2–7 or flight.
 The Grand Prix pupil-program feasibility evidence now additionally requires
 a real editable `.wbb`, reproducible structural/cognitive-complexity measures,
 reasoning that its essential concepts are teachable in the preceding activities,
@@ -262,10 +273,11 @@ the same ordinary Blockly project across unknown configurations, negative
 counterexamples and independent LAND at exactly 210 s. The proposed longer
 course and detectable drift-correction landmarks are **feasibility questions**,
 not approved geometry changes. The checkpoint #635 is closed FAIL, not a pending
-or reusable PASS; #619 remains independently accepted and Phase 2 stays gated.
+or reusable PASS; #619 remains independently accepted; the former Phase 2 **start** gate was
+subsequently superseded on 2026-11-19.
 
-**Phase 2 — approved revised redesign of Activities 1–7, 2026-11-12:**
-Build and qualify the [cumulative approved matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md):
+**Historical Phase 2 — superseded A1–A7 design, 2026-11-12:**
+The formerly approved plan used:
 `new concept -> world property -> pupil mission -> prerequisite skills ->
 observable outcome`. Develop scenes in **parallel** where code and native
 validation can remain safely independent, with no artificial stage-by-stage
@@ -287,8 +299,8 @@ qualify hardware, permit a checkpoint or authorize flight.
 reconstruct GitHub, select bounded useful endpoints or independent review
 work, use isolated branches, stable Ready candidates, canonical exact-HEAD
 CI and independent review; no Controller authors its own GO or uses
-agent ownership/locks/queues. After the personal endpoint gates, the
-owner-approved eight-activity matrix constrains the bounded PR work,
+agent ownership/locks/queues. The current 2026-11-19 A1–A7 matrix constrains bounded PR work without
+waiting for an earlier start gate,
 without a Controller allocation plan or parallel status database.
 Preserve #487/#587 decisions, prior grand-prix variants and existing
 oracles/tests/evidence as appropriately scoped history.

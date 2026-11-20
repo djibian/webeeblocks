@@ -38,9 +38,9 @@ class TerminalBox:
 
 
 def _last_leg(route):
-    if not isinstance(route, Route) or len(route.legs) != 3:
-        raise TypeError('three-leg variable Route required')
-    return route.legs[2]
+    if not isinstance(route, Route) or not 1 <= len(route.legs) <= 3:
+        raise TypeError('variable Route with one to three legs required')
+    return route.legs[-1]
 
 
 def landing_footprint(route):

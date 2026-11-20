@@ -1,11 +1,118 @@
 """Pure geometry invariants (no claim of native Webots validation)."""
+from dataclasses import replace
+import hashlib
 import itertools
 import math
+import re
 import unittest
+
+from tools.grand_prix.course_active_world_v2 import active_course_world
+from tools.grand_prix.course_static_world_v2 import course_physical_boxes, static_course_world
+from tools.grand_prix.oracle_attempt_v2 import _hits_mission_body
+from tools.grand_prix.oracle_gate_progress_v2 import FRAME_CLEAR
+from tools.grand_prix.oracle_low_v2 import low_segment_allowed_v2
+from tools.grand_prix.progression_courses import progression_course
+from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_v2 import WIDTH, VERSION, build_route
 
 
 class VariableRouteTests(unittest.TestCase):
+    def test_a8_reference_scenes_match_the_original_bytes(self):
+        baseline = hashlib.sha256()
+        for index in range(12):
+            course = reference_course(index)
+            static = hashlib.sha256(static_course_world(course).encode()).hexdigest()
+            active = hashlib.sha256(active_course_world(course).encode()).hexdigest()
+            baseline.update(f'{course.identifier} {static} {active}\n'.encode())
+        # All twelve static and active UTF-8 outputs at 0bdac3f108d8.
+        self.assertEqual(baseline.hexdigest(),
+                         'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
+
+    def test_progression_scenes_share_physical_components_and_stay_inert(self):
+        identifiers = set()
+        for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
+            for variant in range(1, count + 1):
+                course = progression_course(activity, variant)
+                with self.subTest(course=course.identifier):
+                    scene = static_course_world(course)
+                    identifiers.add(course.identifier)
+                    boxes = course_physical_boxes(course)
+                    self.assertEqual(len(boxes), 2 * len(course.route.turns) + 3 * course.count + 4)
+                    self.assertEqual(scene.count('boundingObject Box { size'), len(boxes))
+                    self.assertTrue(all(f'DEF {box.name} Solid' in scene for box in boxes))
+                    self.assertEqual(scene.count('DEF GP_V2_FINAL_PANEL Solid'), 1)
+                    self.assertEqual(scene.count('DEF GP_ROUTE_BAND_MARKS Pose'), int(bool(course.gates)))
+                    self.assertEqual(scene.count('DEF GP_V2_COURSE_RED_MARKS Pose'), 1)
+                    self.assertEqual(tuple(map(int, re.findall(r'DEF GP_ROUTE_TARGET_(\d) Pose', scene))),
+                                     course.pads)
+                    self.assertIn('basicTimeStep 8', scene)
+                    self.assertEqual(scene.count('controller "<none>"'), 1)
+                    self.assertNotIn('controllerArgs', scene)
+                    self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
+                    with self.assertRaises(ValueError):
+                        active_course_world(course)
+            with self.assertRaises(ValueError):
+                progression_course(activity, count + 1)
+        self.assertEqual(len(identifiers), 23)
+        with self.assertRaises(ValueError):
+            progression_course(8)
+        with self.assertRaises(ValueError):
+            static_course_world(replace(progression_course(5), required_pad=1))
+
+    def test_progression_lengths_orientations_gates_and_pads(self):
+        a1, a2, a3 = (progression_course(activity) for activity in (1, 2, 3))
+        self.assertEqual((a1.route.lengths, a1.route.turns, a1.gates),
+                         ((1.4, 1.8, 1.6), ('G', 'D'), ()))
+        self.assertEqual(a2.route.lengths, (2.5,))
+        self.assertEqual([(g.leg_index, g.along) for g in a2.gates], [(0, .8)])
+        self.assertEqual(a3.route.lengths, (1.5, 1.5, 1.5))
+        self.assertEqual([leg.direction for leg in a3.route.legs], [1, 2, 3])
+        self.assertEqual([(g.leg_index, g.along) for g in a3.gates],
+                         [(0, .75), (1, .75), (2, .75)])
+        last = a3.route.legs[-1]
+        pad_along, _ = last.local(a3.landing_position(a3.required_pad))
+        self.assertGreater(pad_along, a3.gates[-1].along + FRAME_CLEAR)
+        for variant in range(1, 4):
+            a4 = progression_course(4, variant)
+            self.assertEqual(a4.pads, (2,))
+            self.assertEqual(a4.route.legs[-1].local(a4.landing_position(2))[1], .5)
+        for variant in range(1, 6):
+            a5 = progression_course(5, variant)
+            self.assertEqual(a5.route.lengths[-1], 2.5)
+            self.assertEqual(a5.pads, (2, 3))
+            leg = a5.route.legs[-1]
+            along, offset = leg.local(a5.landing_position(a5.required_pad))
+            self.assertEqual(offset, -.5 if a5.route.turns == ('G',) else .5)
+            # Even the longitudinal lower bound is past the 2 m native ray
+            # range. Verify it against the physical L extents, not its label.
+            for box in course_physical_boxes(a5)[:2]:
+                centre, _ = leg.local(box.position[:2])
+                half_span = box.size[leg.direction % 2] / 2
+                self.assertGreater(along - centre - half_span, 2.)
+        self.assertEqual([progression_course(6, v).count for v in range(1, 6)],
+                         [1, 1, 1, 0, 0])
+        a7 = [progression_course(7, v) for v in range(1, 8)]
+        self.assertEqual({c.route.turns for c in a7}, {('G',), ('D',)})
+        self.assertEqual({tuple(g.leg_index for g in c.gates) for c in a7}, {(), (0,), (1,)})
+
+    def test_a2_altitude_and_physical_collision_refute_constant_height(self):
+        course = progression_course(2)
+        solids = course_physical_boxes(course)
+        # Same GP thresholds for the entire allowed airborne altitude domain:
+        # below 0.62 m outside the yellow band fails, at or above it the real
+        # beam occupies the centreline up to 1.30 m.
+        for z in (.1, .4, .619):
+            self.assertFalse(low_segment_allowed_v2((.2, 0, z), (.3, 0, z),
+                                                    course.route, course.gates))
+        for z in (.62, .9, 1.165):
+            self.assertTrue(_hits_mission_body((.45, 0, z), (1.15, 0, z), solids))
+        # One admissible spatial sequence, without pilot/Blockly simulation.
+        waypoints = ((.2, 0, .75), (.4, 0, .75), (.4, 0, .4),
+                     (1.2, 0, .4), (1.2, 0, .75), (1.5, 0, .75))
+        for before, after in zip(waypoints, waypoints[1:]):
+            self.assertTrue(low_segment_allowed_v2(before, after, course.route, course.gates))
+            self.assertFalse(_hits_mission_body(before, after, solids))
+
     def test_entire_length_turn_matrix(self):
         identifiers = set()
         for lengths in itertools.product((2, 2.5, 3), repeat=3):

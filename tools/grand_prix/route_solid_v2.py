@@ -27,6 +27,8 @@ class Box:
 def corner_boxes(route):
     if not isinstance(route, Route):
         raise TypeError('variable Route required')
+    if not 1 <= len(route.legs) <= 3 or len(route.corners) != len(route.legs) - 1:
+        raise ValueError('one complete L corner per leg junction required')
     boxes = []
     for corner in route.corners:
         for index, (start, end) in enumerate(corner.arms):
@@ -38,8 +40,6 @@ def corner_boxes(route):
             y = round((start[1]+end[1])/2, 6)
             sx, sy = ((ARM, THICKNESS) if abs(dx)>1e-8 else (THICKNESS, ARM))
             boxes.append(Box(f'GP_V2_L_{corner.index}_{index}', x, y, sx, sy))
-    if len(boxes) != 4:
-        raise ValueError('two complete L corners required')
     return tuple(boxes)
 
 
