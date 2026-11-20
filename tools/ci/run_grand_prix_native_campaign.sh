@@ -16,6 +16,17 @@ if [[ "${1:-}" == --container ]]; then
   mkdir -p "$WEBOTS_HOME/projects"
   cp -a /opt/ci-webots-projects/. "$WEBOTS_HOME/projects/"
 
+  if [[ "$ACTIVITY" =~ ^[1-3]$ ]]; then
+    # Invoke the existing Runtime entry inside M2, with Node available to its
+    # exact native WWI runner. Keep the Runtime campaign's 600-second bound.
+    timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py \
+      --native --progression-activity "$ACTIVITY"
+    for raw in production-pilot-build.log world.wbt webots.log wwi.log; do
+      test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-native/$raw"
+    done
+    exit 0
+  fi
+
   python3 tools/grand_prix/prepare_route_runtime.py
   make -C controllers/grand_prix_route_flight 2>&1 | tee ci-artifacts/grand-prix-u-geometry/production-pilot-build.log
   test -x controllers/grand_prix_route_flight/grand_prix_route_flight
@@ -39,6 +50,9 @@ if [[ "${1:-}" == --container ]]; then
   for ((variant=1; variant<=count; variant++)); do
     python3 -m tools.ci.run_grand_prix_progression_native \
       --activity "$ACTIVITY" --variant "$variant" || failures=1
+    for raw in world.wbt webots.log wwi.log; do
+      test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/$raw" || failures=1
+    done
   done
   if [[ "$ACTIVITY" == 6 ]]; then
     for variant in 4 5; do
@@ -51,12 +65,8 @@ if [[ "${1:-}" == --container ]]; then
 fi
 
 case "$ACTIVITY" in
-  1|2|3)
-    # The existing Runtime entry point owns the pinned M2 engine, builds the
-    # internal controller, and checks the complete nominal/negative sequence.
-    exec python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity "$ACTIVITY"
-    ;;
-  4|5|6|7) ;;
+  1|2|3) image="$WEBOTS_M2_IMAGE" ;;
+  4|5|6|7) image="$WEBOTS_OFFICIAL_IMAGE" ;;
   *) exit 2 ;;
 esac
 
@@ -69,14 +79,15 @@ if [[ "$ACTIVITY" == 6 ]]; then
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
-printf 'webots_image=%s\nnode=%s\n' "$WEBOTS_IMAGE" "$(node --version)"
-timeout -k 5s 480s docker pull "$WEBOTS_IMAGE"
-docker image inspect --format 'webots_image_id={{.Id}}' "$WEBOTS_IMAGE"
+printf 'webots_image=%s\nnode=%s\n' "$image" "$(node --version)"
+timeout -k 5s 480s docker pull "$image"
+docker image inspect --format 'webots_image_id={{.Id}}' "$image"
 docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
   -v "$PWD:/workspace" -w /workspace \
   -v "$(realpath "$0"):/opt/ci-campaign.sh:ro" \
   -v "$(realpath ../webots-assets/projects):/opt/ci-webots-projects:ro" \
   -v "$node_root:/opt/ci-node:ro" \
   -e ACTIVITY -e WEBOTS_HOME=/usr/local/webots \
+  -e "WEBEEBLOCKS_GP_WEBOTS_IMAGE=$image" \
   -e LIBGL_ALWAYS_SOFTWARE=1 -e QTWEBENGINE_DISABLE_SANDBOX=1 \
-  "$WEBOTS_IMAGE" /opt/ci-campaign.sh --container
+  "$image" /opt/ci-campaign.sh --container

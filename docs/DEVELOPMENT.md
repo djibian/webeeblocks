@@ -223,9 +223,10 @@ gh workflow run grand-prix-native.yml --repo djibian/webeeblocks --ref main \
 ```
 
 Choose a HEAD that contains the activity's native campaign. An unsupported
-candidate or a missing witness fails the run. A1–A3 use their existing separate
-Runtime campaign entry points and M2 engine. A4–A7 run the variant flight and H
-geometry campaigns with the pinned official image and Cyberbotics PROTOs. A6
+candidate or a missing witness fails the run. All campaigns receive Node 22
+and pinned Cyberbotics PROTOs. A1–A3 use their existing Runtime campaign entry
+point in the M2 engine. A4–A7 run the variant flight and H geometry campaigns
+with the pinned official image. A6
 also checks exact `.wbb` reuse and the original severe-contact LAND on all five
 variants. Its shallow-contact traces are retained separately.
 

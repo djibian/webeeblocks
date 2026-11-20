@@ -1,10 +1,10 @@
 name: Grand Prix A1–A7 native R2025a
-run-name: Native R2025a validation A1–A3 and A6
+run-name: Native R2025a validation A1–A5 and A7
 
 on:
   pull_request:
     branches: [main]
-    types: [opened]
+    types: [synchronize]
 
 
 permissions:
@@ -23,8 +23,12 @@ jobs:
             target_sha: 9ce9d57857a74ae575ce0863c35f9e18f7390fc6
           - activity: '3'
             target_sha: 324fa2b6034f55bf0af3aa6adac26beed565aa99
-          - activity: '6'
-            target_sha: 266889528e2ce76077e632d06d155ba454f62d94
+          - activity: '4'
+            target_sha: 8611472531d18fc595f5a87dc98f49cc7211d65f
+          - activity: '5'
+            target_sha: e6acb9c644e9285751b1793098a1c383009a54d0
+          - activity: '7'
+            target_sha: 4991ff22bffebbd451a07d4c4e88612a6c2b8db8
     name: Native R2025a A${{ matrix.activity }}
     runs-on: ubuntu-22.04
     timeout-minutes: 100
@@ -32,7 +36,8 @@ jobs:
       ACTIVITY: ${{ matrix.activity }}
       TARGET_SHA: ${{ matrix.target_sha }}
       PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
-      WEBOTS_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+      WEBOTS_OFFICIAL_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+      WEBOTS_M2_IMAGE: ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
     steps:
       - name: Require a complete SHA and known activity
         shell: bash
@@ -58,8 +63,7 @@ jobs:
           printf '%s\n' "repository=$GITHUB_REPOSITORY" "workflow_sha=$GITHUB_WORKFLOW_SHA" \
             "target_sha=$TARGET_SHA" "activity=$ACTIVITY" "run_id=$GITHUB_RUN_ID" \
             "run_attempt=$GITHUB_RUN_ATTEMPT" "webots_source=$PROTO_SHA" > provenance/run.txt
-      - name: Checkout pinned Cyberbotics assets for A4–A7
-        if: contains(fromJSON('["4", "5", "6", "7"]'), matrix.activity)
+      - name: Checkout pinned Cyberbotics assets
         uses: actions/checkout@v4
         with:
           repository: cyberbotics/webots
@@ -78,7 +82,6 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/setup-node@v4
-        if: contains(fromJSON('["4", "5", "6", "7"]'), matrix.activity)
         with:
           node-version: '22'
       - name: Run the candidate's native campaign
