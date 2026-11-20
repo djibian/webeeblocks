@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'tools/grand_prix/package_windows_route.py'
+      - 'tools/grand_prix/package_windows_progression.py'
+      - 'tools/ci/test_grand_prix_progression_windows_package.py'
+      - 'tools/ci/run_grand_prix_progression_windows_native.py'
       - 'tools/grand_prix/build_windows_route_controller.ps1'
       - 'tools/grand_prix/prepare_route_runtime.py'
       - 'tools/grand_prix/route_windows_epoch.py'
@@ -61,6 +64,8 @@ jobs:
       - name: Check sources and canonical 12-course selectors
         shell: pwsh
         run: |
+          python -m py_compile tools/grand_prix/package_windows_progression.py tools/ci/test_grand_prix_progression_windows_package.py tools/ci/run_grand_prix_progression_windows_native.py
+          if ($LASTEXITCODE -ne 0) { throw 'Progression Windows source check failed' }
           python -m py_compile tools/grand_prix/package_windows_route.py tools/ci/test_grand_prix_route_windows_fps.py tools/ci/test_grand_prix_route_windows_package.py tools/ci/run_grand_prix_route_windows_native.py packaging/windows/grand_prix_route_evaluator_bootstrap.py tools/grand_prix/route_windows_epoch.py tools/grand_prix/prepare_route_runtime.py tools/ci/test_grand_prix_route_windows_epoch.py
           if ($LASTEXITCODE -ne 0) { throw 'Python source check failed' }
           python -m unittest tools.ci.test_grand_prix_route_windows_epoch
@@ -75,6 +80,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"
           if ($LASTEXITCODE -ne 0) { throw 'Route identity check failed' }
+          # Both the composer and independent ZIP inspector must pin the
+          # *integrated* #970 SHA. Check ancestry and exact source marker
+          # before costly Webots installation and controller compilation.
+          python -c "from tools.grand_prix import package_windows_route as p; from tools.ci import test_grand_prix_route_windows_package as v; assert p.PR970_SHA == v.PR970, 'Composer/inspector provenance mismatch'; p.exact_sha()"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows packaging provenance preflight failed' }
 
       - uses: actions/cache@v4
         with:
@@ -149,6 +159,30 @@ jobs:
         with:
           path: ${{ runner.temp }}\mesa3d-24.2.1-release-mingw.7z
           key: ci-mesa3d-r2025a-24.2.1-f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214
+      - name: Assemble separately verified Windows A1–A7 student package
+        shell: pwsh
+        run: |
+          python tools/grand_prix/package_windows_progression.py --source 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a' --output 'ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A7-Windows-R2025a'
+          if ($LASTEXITCODE -ne 0) { throw 'A1–A7 Windows student package composition failed' }
+
+      - name: Independently inspect A1–A7 ZIP and Windows PowerShell 5.1 sessions
+        shell: pwsh
+        run: |
+          python tools/ci/test_grand_prix_progression_windows_package.py --archive 'ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A7-Windows-R2025a.zip' --extract-to 'ci-artifacts/EXTRACTED student progression with spaces'
+          if ($LASTEXITCODE -ne 0) { throw 'A1–A7 extracted ZIP audit failed' }
+          # Check every Windows host activity/variant binding, not just 4 samples.
+          # ValidateOnly does not establish native mission or graphical PASS.
+          $counts = @(1,1,1,3,5,5,7)
+          $checked = 0
+          for ($activity = 1; $activity -le 7; $activity++) {
+            for ($variant = 1; $variant -le $counts[$activity - 1]; $variant++) {
+              & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED student progression with spaces/Lancer-Progression.ps1' -Activite $activity -Variante $variant -WebotsHome $env:WEBOTS_HOME -ValidateOnly
+              if ($LASTEXITCODE -ne 0) { throw "A1–A7 Windows PowerShell session preflight failed: A$activity/V$variant" }
+              $checked++
+            }
+          }
+          if ($checked -ne 23) { throw "Windows progression preflight inventory incomplete: $checked/23" }
+
       - name: Prepare pinned CI-only Windows software OpenGL
         shell: pwsh
         run: |
@@ -180,6 +214,35 @@ jobs:
         run: |
           python tools/ci/run_grand_prix_route_windows_native.py --package 'ci-artifacts/EXTRACTED variable route with spaces' --webots-home $env:WEBOTS_HOME --output 'ci-artifacts/windows-route-native'
           if ($LASTEXITCODE -ne 0) { throw 'Real extracted Webots Windows product did not qualify' }
+
+      - name: Exercise three native Windows A1–A7 WWI/READY/RESET/refusal routes
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          python tools/ci/run_grand_prix_progression_windows_native.py --package 'ci-artifacts/EXTRACTED student progression with spaces' --webots-home $env:WEBOTS_HOME --output 'ci-artifacts/windows-progression-native'
+          if ($LASTEXITCODE -ne 0) { throw 'A1–A7 native Windows smoke failed, inspect traces' }
+
+      - name: Upload exact experimental A1–A7 Windows ZIP and SHA256
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-windows-draft-r2025a
+          path: |
+            ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A7-Windows-R2025a.zip
+            ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A7-Windows-R2025a.zip.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload three real Windows progression native traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-windows-native-draft-r2025a
+          path: ci-artifacts/windows-progression-native/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload exact experimental Windows ZIP, SHA256 and provenance
         if: always()

@@ -78,6 +78,11 @@ def course_from_identifier(identifier):
     return course
 
 
+def active_progression_activities():
+    """Return the lesson numbers enabled by native admission, for host launchers."""
+    return tuple(dict.fromkeys(activity for activity, _ in _ACTIVE_LESSONS.values()))
+
+
 def active_course_from_identifier(identifier):
     """Resolve only routes enabled for the native evaluator and pilot."""
     lesson = _ACTIVE_LESSONS.get(identifier) if type(identifier) is str else None

@@ -1,0 +1,48 @@
+name: A1–A7 Grand Prix student UI contracts (Draft evidence only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ci-progression-ui-draft.yml'
+      - 'plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js'
+      - 'plugins/robot_windows/grand_prix_route_v2/setup.js'
+      - 'tools/ci/test_grand_prix_progression_profile.js'
+      - 'tools/grand_prix/launch_progression_linux.py'
+      - 'tools/grand_prix/test_launch_progression_linux.py'
+      - 'tools/grand_prix/package_windows_progression.py'
+      - 'tools/ci/test_grand_prix_progression_windows_package.py'
+      - 'tools/ci/run_grand_prix_progression_windows_native.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  student-ui-contract:
+    name: Blockly 13.2.1 + Linux chooser + same-file roundtrip (no native PASS)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore exact Blockly dependencies
+        run: npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+      - name: Validate student profile and browser project-file contracts
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js
+          node --check tools/ci/test_grand_prix_progression_profile.js
+          node tools/ci/test_grand_prix_progression_profile.js
+      - name: Fail fast on 23-course Windows packaging source and geometry
+        run: |
+          python3 -m py_compile tools/grand_prix/package_windows_progression.py tools/ci/test_grand_prix_progression_windows_package.py tools/ci/run_grand_prix_progression_windows_native.py
+          python3 -c "from tools.grand_prix.package_windows_progression import COUNTS, COURSE_IDS, progression_world; assert len(COURSE_IDS) == 23; worlds=[progression_world(a,v) for a,count in enumerate(COUNTS,1) for v in range(1,count+1)]; assert len(worlds) == len(set(COURSE_IDS)); assert all('basicTimeStep 8' in w and 'FPS 20 ' in w for w in worlds)"
+
+      - name: Validate native-admitted teacher chooser and temporary world bindings
+        run: |
+          python3 -m py_compile tools/grand_prix/launch_progression_linux.py tools/grand_prix/test_launch_progression_linux.py
+          python3 -m unittest tools.grand_prix.test_launch_progression_linux
