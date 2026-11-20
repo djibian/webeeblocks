@@ -9,12 +9,16 @@ The student AST and Blockly must never receive CoursePlan or landing targets.
 from dataclasses import dataclass, replace
 import math
 
+from tools.grand_prix.corridor_sweep_v2 import RADIUS
+from tools.grand_prix.route_terminal_v2 import LANDING_TILE
 from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
 from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 
-LANDING_TOL = .14
+# A successful landing must keep the *entire* 0.09-m craft envelope
+# inside the visible 0.28-m target tile, not only its centre.
+LANDING_TOL = LANDING_TILE / 2 - RADIUS
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.
