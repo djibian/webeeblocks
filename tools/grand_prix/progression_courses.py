@@ -30,8 +30,8 @@ _VARIANTS = {
                       # At 0.70 m before the H, +/-12 degrees of yaw could
                       # make the rear ray pick up the last corner arm again.
                       pad_distance_from_h=.17)
-             for length, turn in ((1., 'G'), (1.2, 'D'), (1.4, 'G'),
-                                  (1.6, 'D'), (1.8, 'G'))),
+             for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
+                                  (1.4, 'D'), (1.8, 'G'))),
     6: (
         _Variant((2.25,), gates=((0, .75),)),
         _Variant((2.50,), gates=((0, .90),)),
