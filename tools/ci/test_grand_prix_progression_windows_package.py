@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 from tools.grand_prix.package_windows_u import verified_files, digest
 from tools.grand_prix.package_windows_route import PR970_SHA
 from tools.grand_prix.package_windows_progression import (
-    COUNTS, COURSE_IDS, FRONTEND, PROFILES, progression_world,
+    ACCEPTANCE, COUNTS, COURSE_IDS, FRONTEND, PROFILES, progression_world,
 )
 
 
@@ -76,6 +76,8 @@ def verify(root):
     window = root / "plugins/robot_windows/grand_prix_route_v2"
     if (window / "progression_profile.js").read_bytes() != PROFILES.read_bytes():
         raise ValueError("Wrong pinned cumulative Blockly profile")
+    if (root / "ACCEPTATION-WINDOWS.md").read_bytes() != ACCEPTANCE.read_bytes():
+        raise ValueError("Windows teacher acceptance guide missing or incorrect")
     html = (window / "grand_prix_route_v2.html").read_text(encoding="utf-8")
     if (html.count('<script src="setup.js"></script>') != 1 or
             'data-progression-activity' in html):
