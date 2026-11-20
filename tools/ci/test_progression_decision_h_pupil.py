@@ -19,6 +19,7 @@ RUN=ROOT/'tools/ci/run_classroom_decision_h_pupil.py'
 BACKEND=ROOT/'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
 ACTIVITIES=ROOT/'plugins/robot_windows/blockly/webeeblocks/activities.js'
 PHYSICAL=ROOT/'controllers/crazyflie_runtime_v2/activity_scene.cpp'
+OBSERVER=ROOT/'controllers/progression_decision_h_v1/progression_decision_h_v1.c'
 
 
 class PupilA4Tests(unittest.TestCase):
@@ -124,6 +125,25 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("A4_PUPIL_RUNNER_TERMINATION",source)
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",source)
         self.assertIn("valid=valid and trace_ok",source)
+
+    def test_native_a4_heartbeat_is_ci_only_bounded_and_read_only(self):
+        observer=OBSERVER.read_text(encoding='utf-8')
+        runner=RUN.read_text(encoding='utf-8')
+        self.assertIn('#include <stdlib.h>',observer)
+        self.assertIn('getenv("WEBEEBLOCKS_CI_A4_HEARTBEAT")',observer)
+        self.assertIn('strcmp(ci_probe, "1") == 0',observer)
+        self.assertIn('ci_heartbeat && ci_heartbeat_samples < 256',observer)
+        self.assertIn('sample.time - ci_last_heartbeat_time >= 1.0',observer)
+        self.assertIn('WEBEEBLOCKS_DECISION_H_CI_HEARTBEAT',observer)
+        self.assertIn('ci_last_heartbeat_time = -1.0;',observer)
+        self.assertIn('ci_heartbeat_samples = 0;',observer)
+        self.assertIn('if (wb_dh_sample_mission(&mission, &sample) != WB_DH_WAIT)',observer)
+        self.assertIn("env['WEBEEBLOCKS_CI_A4_HEARTBEAT']='1'",runner)
+        self.assertIn("events.count('A4_PUPIL_ERROR')==0",runner)
+        self.assertIn("valid=valid and trace_ok",runner)
+        # Neither mission status nor the fixture's required terminal events
+        # may be manufactured from this optional native heartbeat.
+        self.assertNotIn('CI_HEARTBEAT',runner.split('    valid=')[1].split('    # Diagnostic-only')[0])
 
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')

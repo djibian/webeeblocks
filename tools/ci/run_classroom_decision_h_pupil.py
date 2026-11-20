@@ -67,6 +67,8 @@ def run()->int:
         threading.Thread(target=server.serve_forever,daemon=True).start()
         env=dict(os.environ)
         env['WEBOTS_WEB_BROWSER']='/workspace/tools/ci/webots_runtime_v2_browser.sh'
+        # Enable read-only 1/s native observer trace only for this A4 pupil run.
+        env['WEBEEBLOCKS_CI_A4_HEARTBEAT']='1'
         output=log_path.open('w',encoding='utf-8')
         process=subprocess.Popen(
             ['timeout','-k','5s','540s','xvfb-run','-a','webots',
