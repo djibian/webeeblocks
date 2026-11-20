@@ -58,6 +58,29 @@ jobs:
             ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
+  # Independent full Webots R2025a mission witness for the active A1 product
+  # path. Real internal flight/evaluator controllers; no <extern> TCP substitute.
+  # The original six-flight route evaluator and 12-route native matrix retain
+  # their own independent limits, jobs and assertions.
+  grand-prix-progression-a1-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Qualify A1 native flight, negative oracles, STOP RESET and LAND in R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 1
+      - name: Preserve A1 real-controller world, WWI, pilot build and native logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-a1-native-r2025a
+          path: |
+            ci-artifacts/grand-prix-u-geometry/route-a1-native/
+            ci-artifacts/grand-prix-u-geometry/docker.log
+          if-no-files-found: error
+
   # Full 12-route R2025a physical-contact/range geometry proof. This is a
   # separately required witness: existing U/L/H/evaluator safety suites remain.
   grand-prix-v2-native-matrix:
