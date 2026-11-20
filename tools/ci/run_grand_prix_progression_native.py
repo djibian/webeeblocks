@@ -14,14 +14,14 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,), 4: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,), 4: (2, 3), 5: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1):
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
-    out = OUT / (f'route-a{activity}-v{variant}-native' if activity == 4
+    out = OUT / (f'route-a{activity}-v{variant}-native' if activity >= 4
                  else f'route-a{activity}-native')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
@@ -93,8 +93,10 @@ def run_native(home, env, activity, variant=1):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
-    parser.add_argument('--variant', type=int, choices=(1, 2, 3), default=1)
+    parser.add_argument('--variant', type=int, default=1)
     args = parser.parse_args()
-    if args.activity != 4 and args.variant != 1:
-        parser.error('only activity 4 has multiple active variants')
+    try:
+        progression_course(args.activity, args.variant)
+    except ValueError as error:
+        parser.error(str(error))
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)

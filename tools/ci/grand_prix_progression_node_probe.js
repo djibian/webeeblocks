@@ -197,7 +197,63 @@ async function activityFour() {
   await waitForForcedLanding(2);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour};
+async function activityFive() {
+  async function reachChoice() {
+    await takeoff(.9);
+    const front = await backend.readRange('front');
+    // These intervals are based on rays from the fixed start. Course
+    // identity and turn direction are never supplied to the witness.
+    const lengths = [1, 1.2, 1.4, 1.6];
+    const index = [1.38, 1.58, 1.78, 1.94].findIndex(bound => front < bound);
+    await backend.move('forward', index < 0 ? 1.8 : lengths[index]);
+    const right = await backend.readRange('right');
+    const left = await backend.readRange('left');
+    assert((right < .45) !== (left < .45), 'Exactly one side must see the corner');
+    const turnedLeft = right < .45;
+    console.log(JSON.stringify({front, left, right, turnedLeft}));
+    await backend.turn(turnedLeft ? 90 : -90);
+    await backend.move('forward', 1.85);
+    await backend.move('forward', .51);
+    const choice = {};
+    for (const direction of ['front', 'back', 'left', 'right'])
+      choice[direction] = await backend.readRange(direction);
+    console.log(JSON.stringify({choice}));
+    assert(choice.front > .11 && choice.front < .26, 'Expected the H at the choice');
+    for (const direction of ['back', 'left', 'right'])
+      assert(choice[direction] >= 1.99, direction + ' still sees the earlier corner');
+    return turnedLeft;
+  }
+
+  const turnedLeft = await reachChoice();
+  await backend.move(turnedLeft ? 'right' : 'left', .50);
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  const turnedLeftAgain = await reachChoice();
+  await backend.move(turnedLeftAgain ? 'left' : 'right', .50);
+  // The other visible pad is not a safe descent exception.  A native
+  // failure may interrupt LAND before the backend returns normally.
+  try {
+    await backend.land();
+  } catch (error) {
+    assert.equal(error.code, 'TIME_LIMIT');
+  }
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  await waitForForcedLanding(1);
+
+  // Refute any attempt to continue commanding the vehicle after STOP.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {
