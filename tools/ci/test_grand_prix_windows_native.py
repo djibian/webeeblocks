@@ -292,7 +292,7 @@ class EvidenceTests(unittest.TestCase):
             diagnostic = Path(tmp) / 'cleanup.json'
             with mock.patch(
                 'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
-                side_effect=[dict(available=False), dict(available=False)]), \\
+                side_effect=[dict(available=False), dict(available=False)]), \
                 mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
                            side_effect=failed):
                 with self.assertRaisesRegex(RuntimeError, 'cleanup unproven'):
