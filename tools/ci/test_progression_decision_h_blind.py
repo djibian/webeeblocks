@@ -67,6 +67,17 @@ class BlindNativeControls(unittest.TestCase):
         self.assertEqual(js.count("await backend.resetSimulation()"),3)
         self.assertIn("A4_BLIND_HTML_LOADED",html)
 
+    def test_blind_first_native_timeout_is_not_masked_by_followup_outcome(self):
+        js=JS.read_text(encoding='utf-8')
+        runner=RUN.read_text(encoding='utf-8')
+        self.assertIn("let priorWrongMoveFailure=null;",js)
+        self.assertIn("priorWrongMoveFailure={variant,command:'MOVE',message:movementError};",js)
+        self.assertIn("const refused=await outcome(backend);",js)
+        self.assertIn("priorWrongMoveFailure});",js)
+        self.assertIn("browser_errors=[e.get('detail') for e in events if e.get('event')=='A4_BLIND_ERROR']",runner)
+        self.assertIn("'browser_errors':browser_errors",runner)
+        self.assertNotIn("setTimeout(resolve,60000)",js)
+
     def test_draft_and_canonical_runtime_protect_both_native_witnesses(self):
         for workflow in ('.github/workflows/ci-progression-a4-draft.yml',
                          '.github/workflows/ci-runtime.yml'):
