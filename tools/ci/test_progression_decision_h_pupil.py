@@ -177,7 +177,7 @@ class PupilA4Tests(unittest.TestCase):
                 fields=['S',str(ppid),str(pgrp)]+['0']*8+['12','4']+['0']*8+['99']
                 self.assertEqual(len(fields),22)
                 (path/'stat').write_text(
-                    f'{pid} (webots (test)) '+' '.join(fields)+'\\n',
+                    f'{pid} (webots (test)) '+' '.join(fields)+'\n',
                     encoding='utf-8')
                 (path/'wchan').write_text('futex_wait_queue',encoding='utf-8')
             fake(100,1,100)
