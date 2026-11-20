@@ -111,7 +111,7 @@ class VariableRouteTests(unittest.TestCase):
                              () if gate_along is None else (gate_along,))
             self.assertEqual(course.pad_distance_from_h, .70)
             leg = course.route.legs[-1]
-            pad_along, pad_lateral = leg.local(course.landing_goal())
+            pad_along, pad_lateral = leg.local(course.landing_position(course.required_pad))
             self.assertAlmostEqual(length - pad_along, .70)
             self.assertAlmostEqual(pad_lateral, 0.)
             # The whole landing tile fits inside the terminal arrival strip.
