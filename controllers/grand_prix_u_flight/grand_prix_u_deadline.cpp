@@ -287,6 +287,18 @@ void failed_outcome(const char *cause=nullptr) {
 }
 }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+/* Emergency correction is A6-only. In particular A8, the other Grand Prix
+   profiles and pupil-requested LAND retain their existing position hold.
+   Read only the admitted, canonical route configuration of this incarnation. */
+extern "C" int gp_route_a6_forced_land(void) {
+  std::string current;
+  return begin>=0 && expired && !success && routeAttempt==attempt &&
+         routeConfig.size()==sizeof("gp-progression-v1-a6-v1")-1 &&
+         routeConfig.compare(0,sizeof("gp-progression-v1-a6-v")-1,
+                             "gp-progression-v1-a6-v")==0 &&
+         progressionConfig(routeConfig.c_str()) &&
+         currentConfig(current) && current==routeConfig;
+}
 extern "C" void gp_route_observe_native(double now,int controlValid,int ground,const double *ranges) {
   // Called after the native pilot step, with effective device periods checked
   // in the composed C. time_ms is the observation time, not a fabricated device

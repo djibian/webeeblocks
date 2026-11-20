@@ -276,7 +276,7 @@ static double wrap_angle(double angle) {
         if result.count(gp_forced_land_hold) != 1:
             raise RuntimeError('route-only forced LAND anchor changed')
         result = result.replace(gp_forced_land_hold, (
-            "      if (active_id == 2147483646) {\n"
+            "      if (active_id == 2147483646 && gp_route_a6_forced_land()) {\n"
             "        desired.vx = 0.0; /* Forced LAND: brake, do not pull into collided panel. */\n"
             "        desired.vy = 0.0;\n"
             "      } else {\n"
