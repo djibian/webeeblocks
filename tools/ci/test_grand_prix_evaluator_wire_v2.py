@@ -70,7 +70,7 @@ class VariableEvaluatorWireTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, 'identity mismatch'):
                             parse_flight_channel(challenge(other), course.identifier)
         for invalid in ('gp-progression-v1-a4-v4', 'gp-progression-v1-a5-v6',
-                        'gp-progression-v1-a6-v6', 'gp-progression-v1-a7-v1'):
+                        'gp-progression-v1-a6-v6', 'gp-progression-v1-a7-v8'):
             with self.assertRaises(ValueError):
                 EvaluatorHandshake(invalid)
 

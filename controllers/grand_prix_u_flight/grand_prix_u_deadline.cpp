@@ -129,7 +129,7 @@ bool currentAttempt(unsigned long long& current) {
 bool progressionConfig(const char *raw) {
   constexpr char prefix[]="gp-progression-v1-a";
   constexpr auto prefixLength=sizeof(prefix)-1;
-  constexpr int variantCounts[]={1,1,1,3,5,5};
+  constexpr int variantCounts[]={1,1,1,3,5,5,7};
   if(std::strlen(raw)!=prefixLength+4 || std::strncmp(raw,prefix,prefixLength) ||
      raw[prefixLength+1]!='-' || raw[prefixLength+2]!='v')return false;
   const auto activity=static_cast<unsigned>(raw[prefixLength]-'1');
