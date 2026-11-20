@@ -299,6 +299,12 @@ extern "C" int gp_route_a6_forced_land(void) {
          progressionConfig(routeConfig.c_str()) &&
          currentConfig(current) && current==routeConfig;
 }
+extern "C" int gp_route_a6_envelope_contact(double now) {
+  long long time_ms=0;
+  std::string cause;
+  return gp_route_a6_forced_land() && routeTime(now,time_ms) &&
+         routeTerminalCause(time_ms,cause) && cause=="envelope-contact";
+}
 extern "C" void gp_route_observe_native(double now,int controlValid,int ground,const double *ranges) {
   // Called after the native pilot step, with effective device periods checked
   // in the composed C. time_ms is the observation time, not a fabricated device

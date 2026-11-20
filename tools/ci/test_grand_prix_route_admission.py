@@ -181,17 +181,27 @@ int main(){
     now=2.176; // No NEW native ALIVE: independent safety LAND is mandatory.
     assert(gp_u_deadline(now,0)==1);
     assert(gp_route_a6_forced_land()==1);
+    assert(gp_route_a6_envelope_contact(now)==0); // Liveness failure is not a contact.
+    evidence=response("TERMINAL","2176")+" reason=course-boundary";
+    assert(gp_route_a6_envelope_contact(now)==0);
+    evidence=response("TERMINAL","2176")+" reason=envelope-contact";
+    assert(gp_route_a6_envelope_contact(now)==1);
+    assert(gp_route_a6_envelope_contact(now-.008)==0); // Future evidence.
     config="gp-progression-v1-a6-v"+std::to_string(variant==5?1:variant+1);
     assert(gp_route_a6_forced_land()==0); // Cross-variant identity is not trusted.
+    assert(gp_route_a6_envelope_contact(now)==0);
     config=id;assert(gp_route_a6_forced_land()==1);
     gp_u_reset_complete();
     assert(gp_route_a6_forced_land()==0); // Never survive RESET.
+    assert(gp_route_a6_envelope_contact(now)==0);
   }
   // A8's own independently failed attempt MUST retain the historical hold.
   admit();assert(gp_route_a6_forced_land()==0);
   alive(2144);assert(gp_u_deadline(now,0)==0);
   now=2.176;assert(gp_u_deadline(now,0)==1);
   assert(gp_route_a6_forced_land()==0);
+  evidence=response("TERMINAL","2176")+" reason=envelope-contact";
+  assert(gp_route_a6_envelope_contact(now)==0);
   gp_u_reset_complete();
 
   // A1 shares admission, epoch freshness, and exact deadline with A8.
