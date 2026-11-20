@@ -157,5 +157,42 @@ class PupilA4Tests(unittest.TestCase):
         self.assertNotIn('set_sf_vec3f',run)
         self.assertNotIn('wb_motor_set_',run)
 
+    def test_a4_process_probe_is_diagnostic_and_excludes_other_processes(self):
+        # This test belongs to the already-invoked A4 unittest CI target;
+        # adding an uninvoked standalone test would create false confidence.
+        from tempfile import TemporaryDirectory
+        from tools.ci.native_process_liveness import snapshot
+        run=RUN.read_text(encoding='utf-8')
+        for witness in ("'native-process-liveness.json'",
+                        'capture_native_process(process.pid)',
+                        'liveness_stop.set()', 'liveness_thread.join(timeout=3)',
+                        'valid=valid and trace_ok',
+                        "events.count('A4_PUPIL_ERROR')==0"):
+            self.assertIn(witness,run)
+        with TemporaryDirectory() as temporary:
+            proc=Path(temporary)
+            def fake(pid,ppid,pgrp):
+                path=proc/str(pid)
+                path.mkdir()
+                fields=['S',str(ppid),str(pgrp)]+['0']*8+['12','4']+['0']*8+['99']
+                self.assertEqual(len(fields),22)
+                (path/'stat').write_text(
+                    f'{pid} (webots (test)) '+' '.join(fields)+'\\n',
+                    encoding='utf-8')
+                (path/'wchan').write_text('futex_wait_queue',encoding='utf-8')
+            fake(100,1,100)
+            fake(101,100,101)
+            fake(102,101,102)
+            fake(103,1,100)
+            fake(104,1,104)
+            result=snapshot(100,proc)
+            self.assertTrue(result['available'])
+            self.assertEqual([p['pid'] for p in result['processes']],
+                             [100,101,102,103])
+            self.assertEqual(result['processes'][1]['user_ticks'],12)
+            self.assertEqual(result['processes'][1]['wchan'],'futex_wait_queue')
+            self.assertFalse(snapshot(777,proc)['root_seen'])
+
+
 if __name__=='__main__':
     unittest.main()
