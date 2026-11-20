@@ -32,6 +32,36 @@ COURSE_IDS = tuple(
 PROFILES = ROOT / "plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js"
 ACCEPTANCE = ROOT / "docs/GRAND_PRIX_A1_A7_WINDOWS_ACCEPTANCE.md"
 
+# Fixed owner-approved A6 delivery contract (2026-11-20, #587/#1092).
+# Check the native source data; never substitute or rewrite activity geometry.
+# This deliberately fails closed on the obsolete stacked #1075 A6 values.
+APPROVED_A6 = (
+    (2.25, (0.75,)),
+    (2.90, (1.40,)),
+    (3.00, (1.50,)),
+    (1.40, ()),
+    (1.50, ()),
+)
+
+
+def require_approved_a6():
+    """Reject a Windows product assembled from superseded native A6 courses."""
+    for variant, (length, open_gates) in enumerate(APPROVED_A6, start=1):
+        course = progression_course(6, variant)
+        observed_lengths = tuple(round(leg.length, 3) for leg in course.route.legs)
+        observed_gates = tuple((gate.leg_index, round(gate.along, 3))
+                               for gate in course.gates)
+        expected_gates = tuple((0, along) for along in open_gates)
+        if (observed_lengths != (length,) or
+                observed_gates != expected_gates or
+                course.count != len(open_gates) or
+                course.pad_distance_from_h != 0.70 or
+                course.pads != (1,) or course.required_pad != 1):
+            raise ValueError(
+                f"A6/V{variant} is not the owner-approved 2026-11-20 geometry; "
+                "recompose the native stack from current main before packaging")
+
+
 # Only the presentation labels and default window choices are in this file.
 # Native CoursePlan and controllerArgs retain sole authority over geometry.
 FRONTEND = r"""[CmdletBinding()]
@@ -151,6 +181,7 @@ def progression_launcher(launcher):
 
 def compose(source, output):
     """Copy verified Windows support into a *new*, exclusively A1–A7 tree."""
+    require_approved_a6()  # before copying files or creating any ZIP
     sha = exact_sha()
     verified = verify_a8(source)
     if verified["source_sha"] != sha or verified["dependency_sha"] != PR970_SHA:

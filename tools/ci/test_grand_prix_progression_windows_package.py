@@ -17,10 +17,12 @@ from tools.grand_prix.package_windows_u import verified_files, digest
 from tools.grand_prix.package_windows_route import PR970_SHA
 from tools.grand_prix.package_windows_progression import (
     ACCEPTANCE, COUNTS, COURSE_IDS, FRONTEND, PROFILES, progression_world,
+    require_approved_a6,
 )
 
 
 def verify(root):
+    require_approved_a6()  # reject stale source even when ZIP/manifest agree
     root = Path(root).resolve(strict=True)
     files = verified_files(root)
     source = (root / "SOURCE_SHA").read_text(encoding="utf-8").strip()
