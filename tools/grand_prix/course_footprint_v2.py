@@ -24,9 +24,10 @@ def course_rectangles(route):
     longitudinal end is clipped, because the H closes that end of the course.
     The arrival is the existing 1.80m x 0.95m rectangle, not a new tolerance.
     """
-    if not isinstance(route, Route) or len(route.legs) != 3:
-        raise ValueError('three-leg Route required')
-    first, middle, last = route.legs
+    if not isinstance(route, Route) or not 1 <= len(route.legs) <= 3:
+        raise ValueError('Route with one to three legs required')
+    last = route.legs[-1]
+    earlier = tuple(leg.bounds() for leg in route.legs[:-1])
     terminal_corridor = _bounds(tuple(last.at(a, b) for a in (
         -WIDTH/2, last.length) for b in (-WIDTH/2, WIDTH/2)))
     arrival = _bounds(tuple(last.at(a, b) for a in (
@@ -34,11 +35,11 @@ def course_rectangles(route):
         for b in (-ARRIVAL_WIDTH/2, ARRIVAL_WIDTH/2)))
     # The permitted route lengths keep the terminal widening separate from
     # earlier legs. Fail closed if a future geometry changes that premise.
-    for rectangle in (first.bounds(), middle.bounds()):
+    for rectangle in earlier:
         if (min(rectangle[2], arrival[2]) > max(rectangle[0], arrival[0]) and
                 min(rectangle[3], arrival[3]) > max(rectangle[1], arrival[1])):
             raise ValueError('arrival overlaps an earlier corridor')
-    return (first.bounds(), middle.bounds(), terminal_corridor, arrival)
+    return (*earlier, terminal_corridor, arrival)
 
 
 def course_boundary_edges(route):

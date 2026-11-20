@@ -17,6 +17,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.grand_prix.course_static_world_v2 import static_course_world
+from tools.grand_prix.progression_courses import progression_course
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
 from tools.grand_prix.route_terminal_v2 import terminal_boxes
@@ -27,13 +28,14 @@ CLAIM = "full-course-native-H-rays-and-contact-no-flight"
 DIRECTIONS = {"front", "back", "left", "right"}
 
 
-def probe_scene(index):
-    course = reference_course(index)
+def probe_scene(index, *, activity=None):
+    course = reference_course(index) if activity is None else progression_course(activity, index)
     text = static_course_world(course)
-    count = 8 + 3 * course.count
+    corners = 2 * len(course.route.corners)
+    count = corners + 4 + 3 * course.count
     if (text.count('controller "<none>"') != 1 or
             text.count('window "<none>"') != 1 or
-            text.count("DEF GP_V2_L_") != 4 or
+            text.count("DEF GP_V2_L_") != corners or
             text.count("DEF GP_V2_H_") != 3 * course.count or
             text.count("DEF GP_V2_FINAL_") != 4 or
             text.count("boundingObject Box { size ") != count or
@@ -76,6 +78,47 @@ def check_native(result, course):
             not .07 < terminal["low"]["front"] < .55 or
             not .07 < terminal["high"]["front"] < .55):
         raise RuntimeError("native terminal H ray evidence missing")
+    if course.progression is not None and course.progression[0] == 5:
+        memory = result.get("a5_memory")
+        if type(memory) is not dict or set(memory) != {"at_turn", "at_choice"}:
+            raise RuntimeError("missing A5 native memory evidence")
+        at_turn, at_choice = memory["at_turn"], memory["at_choice"]
+        detected, clear = ("right", "left") if course.route.turns == ("G",) else ("left", "right")
+        if (not _rays(at_turn) or not .20 < at_turn[detected] < .35 or
+                at_turn[clear] < 1.999):
+            raise RuntimeError("A5 turn cue not visible from the native lateral rays")
+        if (type(at_choice) is not list or len(at_choice) != 3 or
+                any(not _rays(rays) or rays["back"] < 1.999 or
+                    not .07 < rays["front"] < .30 for rays in at_choice)):
+            raise RuntimeError("A5 terminal range exposes the turn cue or misses the terminal H")
+    if course.progression is not None and course.progression[0] == 6:
+        check_a6_discrimination(result.get("a6_discrimination"), bool(course.gates))
+
+
+def check_a6_discrimination(data, has_open_h):
+    expected = {"start", "closed", "open", "after"} if has_open_h else {"start", "closed"}
+    if type(data) is not dict or set(data) != expected:
+        raise RuntimeError("missing or noncanonical A6 native rays")
+    first = data["start"]
+    # 25-mm measured margin at the nominal aligned 0.75 m pose. This
+    # stopped-vehicle witness says nothing about the pilot's takeoff error.
+    limit = 1.25 if has_open_h else 1.975
+    if not _rays(first) or not .10 < first["front"] < limit:
+        raise RuntimeError("A6 first obstacle not visible with the expected frontal margin")
+    if has_open_h:
+        opened, after = data["open"], data["after"]
+        if (not _rays(opened) or not _rays(after) or
+                not all(.20 < opened[d] < .35 for d in ("left", "right")) or
+                not .50 < after["front"] < 1.50):
+            raise RuntimeError("A6 open-H side rays or post-traversal frontal ray missing")
+    closed = data["closed"]
+    if type(closed) is not list or len(closed) != 3 or not all(map(_rays, closed)):
+        raise RuntimeError("A6 terminal counterexamples missing")
+    for rays, pattern in zip(closed, ((True, False), (False, False), (False, True))):
+        if (not .10 < rays["front"] < .40 or
+                tuple(.20 < rays[d] < .35 for d in ("left", "right")) != pattern or
+                any(rays[d] < 1.999 for d, close in zip(("left", "right"), pattern) if not close)):
+            raise RuntimeError("A6 one-sided terminal H counterexample missing")
 
 
 def check_contacts(result, course):
@@ -212,7 +255,7 @@ def check_contacts(result, course):
             raise RuntimeError("reciprocal native open-H upright contact absent")
 
 
-def native_run(home, indexes, *, output_root=None):
+def native_run(home, indexes, *, output_root=None, activity=None):
     # Allow the required CI campaign to retain complete H evidence inside its
     # existing always-uploaded geometry artifact; keep manual runs unchanged.
     destination = OUT if output_root is None else Path(output_root)
@@ -228,10 +271,10 @@ def native_run(home, indexes, *, output_root=None):
         raise RuntimeError("full Webots R2025a installation required")
     outcomes = []
     for position, index in enumerate(indexes):
-        course = reference_course(index)
+        course = reference_course(index) if activity is None else progression_course(activity, index)
         case = invocation / f"{position:02d}-{course.identifier}"
         case.mkdir()
-        source = probe_scene(index)
+        source = probe_scene(index, activity=activity)
         with tempfile.NamedTemporaryFile(
                 mode="w", prefix="ci_gp_v2_h_", suffix=".wbt",
                 dir=ROOT / "worlds", encoding="utf-8", delete=False) as target:
@@ -243,6 +286,9 @@ def native_run(home, indexes, *, output_root=None):
                    GP_V2_H_NATIVE_INDEX=str(index), GP_V2_H_NATIVE_OUT=str(proof),
                    LIBGL_ALWAYS_SOFTWARE="true",
                    WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE="true")
+        env.pop("GP_V2_H_NATIVE_ACTIVITY", None)
+        if activity is not None:
+            env["GP_V2_H_NATIVE_ACTIVITY"] = str(activity)
         process = None
         try:
             with log.open("w") as stream:
@@ -303,19 +349,26 @@ def main(argv=None):
     parser.add_argument("--native", action="store_true")
     parser.add_argument("--index", action="append", type=int, default=[])
     parser.add_argument("--all-12", action="store_true")
+    parser.add_argument("--activity", type=int, choices=range(1, 8),
+                        help="check a progression activity using its one-based --index")
     args = parser.parse_args(argv)
     if not args.native:
         parser.error("--native required: static checks are never a sensor PASS")
     if args.all_12 and args.index:
         parser.error("--all-12 cannot be combined with --index")
+    if args.activity is not None and (args.all_12 or not args.index):
+        parser.error("--activity requires at least one --index and excludes --all-12")
     indices = tuple(range(12)) if args.all_12 else (
         tuple(args.index) if args.index else DEFAULT_INDICES)
     for index in indices:
-        reference_course(index)
+        if args.activity is None:
+            reference_course(index)
+        else:
+            progression_course(args.activity, index)
     home = os.environ.get("WEBOTS_HOME")
     if not home:
         parser.error("WEBOTS_HOME must point to isolated Webots R2025a")
-    native_run(Path(home), indices)
+    native_run(Path(home), indices, activity=args.activity)
 
 
 if __name__ == "__main__":

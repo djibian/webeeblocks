@@ -161,9 +161,11 @@ required hidden configurations. Classroom-style usability and the owner's
 independent technical GO. Deliver the accepted simulation progression before
 speculatively broadening hardware or features. Independent, safety-qualified
 #157/#72 physical work may continue when useful, but no simulation success
-authorizes flight. The Phase 2 rule remains: do not redesign Activities 2–7
-officially before both endpoint acceptances. V5 and all mission/safety
-invariants are unchanged. See #587 and its owner decision of 2026-10-22.
+authorizes flight. The former Phase 2 **start gate** requiring both endpoint
+acceptances was superseded by the owner decision of 2026-11-19 (#587):
+implementation of A1–A7 may begin before full A8 acceptance, but final
+personal pedagogical acceptance remains necessary. V5 and all mission/safety
+invariants are unchanged.
 
 ## Student experience
 
@@ -187,39 +189,17 @@ Do **not** add permanent automatic saving, attempt history, success/failure hist
 
 ## Pedagogical progression
 
-**Latest owner decision (2026-11-12, #587, comment 6826109034):** the
-[revised Activities 1–7 matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md),
-exclusively for agricultural collège 4e/3e pupils already familiar with 2D
-block coding, is approved for **parallel implementation in small independent
-PRs**. Activities 1–3 develop 3D spatial understanding, Activity 4 introduces
-first single-sample sensor decisions across observable variants, Activity 5
-adds repeated observation then a first state variable, Activity 6 consolidates
-counting and destination selection, and Activity 7 is a simplified autonomous
-Mini Grand Prix across variants. The Grand Prix's ergonomics and native
-simulation pause remain separately qualified. The activity 8 approval is
-**in principle and conditional**, not a final personal pedagogical PASS.
-This dated decision supersedes previous start gates below; it does not alter
-native oracles, V5 gates, the 210 s limit or the separate real-flight boundary.
+**Current owner decision (2026-11-19, [#587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309)):** Activities **1–7 are simplified forms of the same Grand Prix**, using the **same route generation engine**, real open/closed H gates, L corners, red/yellow dashed corridor boundaries and **exactly the same Grand Prix physical rules**, including minimum altitude outside yellow zones, low H passage, native contacts and collisions, **8-ms Webots R2025a physics**, **210-s simulation deadline** and independent LAND. A **terminal closed H is mandatory for every A1–A7**. Each activity introduces Blockly blocks cumulatively, with one unchanged `.wbb` for all its variants and behavioral (never AST-shape) assessment.
+
+The [official dated geometry/block matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md) is **binding** for A1–A7. In particular A2 must require both ascent and descent through the yellow altitude exception; A4 adds left/right *lateral displacement*; A6 includes multiple variants **without an open H** and teaches logical AND with the actual left/right range sensors; A7 introduces both bounded WHILE and procedures. The 2026-11-12 pedagogical matrix and intermediate A6 counting redesign are **historical and superseded**. A8, hardware-flight gates and independent acceptance remain unchanged. This is implementation approval, **not** a product, pupil, Windows or flight PASS.
 
 
 The official progression contains **eight substantial activities**:
 
-1. **Activity 1 — transfer of 2D block sequencing to a simple 3D flight:**
-   blue start, non-colliding offset checkered arrival, free but bounded
-   parameters on two horizontal axes and simple takeoff height, uncluttered
-   scene and accessible camera. Keep this a short entry with no loops or
-   conditions. The historical Activity 1 #619 PASS is not a PASS for its redesign.
-2. **Activities 2–7 — approved revised cumulative sequence:** vertical
-   clearance without sensing (2), turning and bounded patterns (3), one
-   sensor-driven decision across variants (4), reactive loops and first
-   state variable (5), counting 1–3 observed gates for destination choice (6),
-   and a simpler multi-variant final challenge (7). Each distinct scene
-   still requires native tests and personal pedagogical acceptance.
-3. **Activity 8 — autonomous Grand Prix (#587):** the **sole official final
-   synthesis** combining earlier notions with a same-program autonomous
-   strategy across different unknown gate configurations. The previously
-   integrated warehouse-delivery Activity 8 (#529) is historical technical
-   material, not an additional official final activity.
+1. **Activities 1–3 — deterministic Grand Prix fragments:** A1 three directed segments (1.4/1.8/1.6 m; left then right), A2 a single 2.5-m leg with a real open H 0.8 m from start and unavoidable low-band descent/climb, A3 three identical 1.5-m legs with three left turns (first immediately after takeoff) and one centered open H per leg. All have a closed terminal H and the same altitude requirements as A8.
+2. **Activities 4–6 — sensing, memory, discrimination:** A4 three variable-length single-leg courses, a closed H and 0.5-m left landing (first range, comparisons, IF/ELSE and left/right moves); A5 five variants, a sensed L-corner, a 2.5-m terminal leg and opposite-side landing requiring remembered turn state; A6 a single 2–3 m leg with zero or one real open H, **with and without H variants**, a closed H and joint left/right ranging via logical AND.
+3. **Activity 7 — seven Mini Grand Prix variants:** two variable-length legs and one left/right turn, **zero or one H on either leg**, closed terminal H, one pad, the same `.wbb`; introduce safe bounded WHILE and reusable procedures.
+4. **Activity 8 — autonomous Grand Prix (#587):** the unchanged final task over twelve variants with three legs, two turns, 1–3 open H, a terminal closed H, and three potential pads. Its Webots, physical-flight and acceptance contracts are not relaxed.
 
 Every activity must make its target concept useful through its own world and
 mission, with behaviorally observable success. Technical implementation,
@@ -276,8 +256,9 @@ monitoring, margins and recovery remain unqualified and gated by #157/#72.
 See the falsifiable simulation design in
 docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
 historical gp-v2/v3/v4 native results remain scoped to their older worlds,
-not acceptance of the new course. Do not redesign intermediate activities before
-explicit personal acceptance of both Activity 1 and Activity 8.
+not acceptance of the new course. **Historical gate (2026-10-22,
+superseded 2026-11-19):** intermediate redesign previously required both
+personal endpoint acceptances; this start restriction no longer applies.
 
 **Superseding owner pedagogical decision (#587, 2026-10-15):**
 #487 and the integrated progression 1–8 established technical capability,
@@ -292,7 +273,7 @@ Windows project do **not** yet replace that installed catalog entry.
 This is the implementation state, not a change to the official pedagogical
 target.
 
-**Phase 1 — personally validate both endpoints.** Finalize Activity 1 (#589)
+**Historical Phase 1 — personally validate both endpoints (former start prerequisite).** Finalize Activity 1 (#589)
 and Grand Prix (#591) with real Webots R2025a tests, exact Ready-HEAD CI,
 independent V5 reviews and applicable oracles; then obtain the owner's
 **explicit personal pedagogical acceptance of each**. Activity 1 received the
@@ -311,18 +292,9 @@ independent immediate LAND command at exactly 210 s. The complete pupil
 start/simulate/observe/debug/Save/Open workflow must be exercised. A green
 CI or an independent GO is **not** an owner's pedagogical PASS.
 
-**Phase 2 — approved redesign of Activities 1–7, decision 2026-11-12.**
-The owner approved the [revised matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md)
-and explicitly authorized Activities 1–7 to be implemented **in parallel**,
-when independently reviewable, without assuming a strict development order.
-The historically accepted simple Activity 1 is a baseline to preserve in
-spirit, **not** a transferable PASS for its new 3D incarnation. Activity 2 must
-introduce a real *vertical relative movement* challenge distinct from Activity 1.
-The existing intermediate scenes are technical baselines, not personal
-pedagogical PASS results; rebuild the distinct worlds, real missions,
-profiles and observable outcomes in separately reviewable changes. The entire
-progression and the finished Grand Prix still require final personal acceptance.
-The former condition prohibiting starting before that PASS is superseded.
+**Phase 2 — owner-approved unified Grand Prix A1–A7 redesign, decision 2026-11-19.**
+The [current matrix](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md) replaces the 2026-11-12 pedagogical scenarios. A1–A7 must share the A8 course generator, real geometry and altitude/boundary rules (including 8-ms step and 210-s limit). Each activity has a terminal closed H; exact activity dimensions, variant counts and cumulative Blockly blocks are in that matrix. Previous integrated scenes remain a technical/historical baseline only, never evidence of acceptance for the newly defined activities.
+Implementation can proceed in bounded independently reviewable PRs without waiting for full A8 acceptance. Personal teacher validation, true native oracles, CI Ready and independent V5 review remain mandatory; no physical Crazyflie authorization is implied.
 
 **Possible physical finale:** the Grand Prix may culminate **if possible** in
 a real teacher-authorized flight, but only if the exact mission and

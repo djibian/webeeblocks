@@ -50,18 +50,19 @@ def open_h_boxes(course):
     """
     if (not isinstance(course, CoursePlan) or
             not isinstance(course.route, Route) or
-            len(course.route.legs) != 3 or
-            type(course.count) is not int or course.count not in (1, 2, 3) or
+            not 1 <= len(course.route.legs) <= 3 or
+            type(course.count) is not int or
+            not (0 if course.progression is not None else 1) <= course.count <= len(course.route.legs) or
             not isinstance(course.gates, tuple) or
             len(course.gates) != course.count):
-        raise ValueError('one to three exact CoursePlan H placements required')
+        raise ValueError('exact CoursePlan H placements required')
 
     indices = []
     result = []
     for gate in course.gates:
         if (not isinstance(gate, GatePlacement) or
                 type(gate.leg_index) is not int or
-                gate.leg_index not in (0, 1, 2) or
+                not 0 <= gate.leg_index < len(course.route.legs) or
                 type(gate.direction) is not int or
                 type(gate.along) not in (float, int) or
                 not math.isfinite(gate.along)):
