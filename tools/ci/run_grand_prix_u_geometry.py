@@ -283,13 +283,30 @@ def main():
                                               'gp-progression-mission-' if args.progression_activity is not None else
                                               'gp-u-geometry-')) as temporary:
         cid=Path(temporary)/'container.cid'
+        # The pinned native R2025a image has no Node.js runtime. Reuse the
+        # same host Node 22 mount already proven by the common #1095 harness.
+        # Do not alter geometry, evaluator or historical Runtime campaigns.
+        node_mount = []
+        if args.progression_activity is not None:
+            node_binary = shutil.which('node')
+            if not node_binary:
+                raise RuntimeError('native progression needs host Node.js 22')
+            version = subprocess.check_output([node_binary, '--version'], text=True).strip()
+            if not version.startswith('v22.'):
+                raise RuntimeError('native progression requires Node.js 22')
+            node_root = Path(node_binary).resolve().parent.parent
+            if not (node_root / 'bin' / 'node').is_file():
+                raise RuntimeError('incomplete Node.js installation')
+            node_mount = ['-v', f'{node_root}:/opt/ci-node:ro']
         args=['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash',
               '-e','WEBOTS_HOME=/usr/local/webots',
               '-e',f'WEBEEBLOCKS_GP_WEBOTS_IMAGE={IMAGE}',
               '-v',f'{ROOT}:/workspace',
-              '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
+              '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro',
+              *node_mount, '-w','/workspace',
               IMAGE,'-lc',
-              "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
+              ('export PATH=/opt/ci-node/bin:$PATH\n' if node_mount else '')
+              + "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
               # Independent native campaigns: U/L/H geometry retains its
               # historical 1350 s container cap. Evaluator READY/revocation
               # and flight/LAND/RESET have their own mandatory Runtime job.
