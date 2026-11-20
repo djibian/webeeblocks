@@ -77,6 +77,29 @@ class PureVariableAttemptTests(unittest.TestCase):
                     self.assertEqual(state.result.crossings, course.count)
                     self.assertLess(state.result.elapsed_ms, 210000)
 
+    def test_progression_pad_requires_whole_collider(self):
+        """Reproduce the native A4 border overhang; do not change A8 rules."""
+        course = progression_course(4, 1)
+        x, y = course.landing_goal()
+        for axis in (0, 1):
+            with self.subTest(axis=axis):
+                state = follow_course(course)
+                # The 28-cm green tile contains the centre but NOT the native
+                # radius-5cm body at a centre offset of 12.5 cm.
+                near_edge = (x + (.125 if axis == 0 else 0.),
+                             y + (.125 if axis == 1 else 0.), .05)
+                state = travel(state, near_edge)
+                state = dwell(state, 1504)
+                self.assertEqual(state.result.status, 'not-achieved')
+                self.assertEqual(state.result.reason, 'wrong-landing')
+
+        # A genuinely contained circular footprint still completes the same
+        # independent native-clock dwell when the body stays inside the tile.
+        state = follow_course(course)
+        state = travel(state, (x + .075, y + .075, .05))
+        state = dwell(state, 504)
+        self.assertEqual(state.result.status, 'achieved')
+
     def test_a5_wrong_visible_pad_fails_for_both_turn_directions(self):
         for variant in (1, 2):
             course = progression_course(5, variant)
