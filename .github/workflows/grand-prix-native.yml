@@ -1,30 +1,36 @@
 name: Grand Prix A1–A7 native R2025a
-run-name: Native R2025a A${{ inputs.activity }} · ${{ inputs.target_sha }}
+run-name: Native R2025a validation A1–A3 and A6
 
 on:
-  workflow_dispatch:
-    inputs:
-      activity:
-        description: Grand Prix activity to exercise, including all its variants.
-        required: true
-        type: choice
-        options: ['1', '2', '3', '4', '5', '6', '7']
-      target_sha:
-        description: Full 40-character GitHub HEAD SHA of the candidate.
-        required: true
-        type: string
+  pull_request:
+    branches: [main]
+    types: [opened]
+
 
 permissions:
   contents: read
 
 jobs:
   native:
-    name: Native R2025a A${{ inputs.activity }}
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - activity: '1'
+            target_sha: 31b8b003c57a91e1947b12611b43c5a42c0d52d6
+          - activity: '2'
+            target_sha: 9ce9d57857a74ae575ce0863c35f9e18f7390fc6
+          - activity: '3'
+            target_sha: 324fa2b6034f55bf0af3aa6adac26beed565aa99
+          - activity: '6'
+            target_sha: 266889528e2ce76077e632d06d155ba454f62d94
+    name: Native R2025a A${{ matrix.activity }}
     runs-on: ubuntu-22.04
     timeout-minutes: 100
     env:
-      ACTIVITY: ${{ inputs.activity }}
-      TARGET_SHA: ${{ inputs.target_sha }}
+      ACTIVITY: ${{ matrix.activity }}
+      TARGET_SHA: ${{ matrix.target_sha }}
       PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
       WEBOTS_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
     steps:
@@ -40,7 +46,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ matrix.target_sha }}
           path: candidate
           persist-credentials: false
       - name: Bind the two checkouts to the Actions run
@@ -53,7 +59,7 @@ jobs:
             "target_sha=$TARGET_SHA" "activity=$ACTIVITY" "run_id=$GITHUB_RUN_ID" \
             "run_attempt=$GITHUB_RUN_ATTEMPT" "webots_source=$PROTO_SHA" > provenance/run.txt
       - name: Checkout pinned Cyberbotics assets for A4–A7
-        if: contains(fromJSON('["4", "5", "6", "7"]'), inputs.activity)
+        if: contains(fromJSON('["4", "5", "6", "7"]'), matrix.activity)
         uses: actions/checkout@v4
         with:
           repository: cyberbotics/webots
@@ -72,7 +78,7 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/setup-node@v4
-        if: contains(fromJSON('["4", "5", "6", "7"]'), inputs.activity)
+        if: contains(fromJSON('["4", "5", "6", "7"]'), matrix.activity)
         with:
           node-version: '22'
       - name: Run the candidate's native campaign
@@ -86,7 +92,7 @@ jobs:
         if: ${{ always() && hashFiles('provenance/run.txt') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: native-r2025a-a${{ inputs.activity }}-${{ inputs.target_sha }}-attempt-${{ github.run_attempt }}
+          name: native-r2025a-a${{ matrix.activity }}-${{ matrix.target_sha }}-attempt-${{ github.run_attempt }}
           path: |
             provenance/
             candidate/ci-artifacts/grand-prix-u-geometry/
