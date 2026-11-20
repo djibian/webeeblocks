@@ -55,7 +55,7 @@ jobs:
       - name: Fail early on A6 geometric/A8 hash and genuine pupil project
         run: |
           set -euo pipefail
-          python3 -m unittest tools.ci.test_grand_prix_route_v2
+          python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
           node tools/grand_prix/witness_workspace_a6.js
       - name: Pull official R2025a Ubuntu 22.04 Webots image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
