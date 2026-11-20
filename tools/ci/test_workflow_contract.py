@@ -18,6 +18,7 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "grand-prix-linux", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-optimization.yml": {"analyze"},
+    "grand-prix-native.yml": {"native"},
     # Isolated native Floor-contact A2 diagnostic, Draft-only and never CI Gate.
     "ci-progression-a2-draft.yml": {"a2-grounded-flight-draft"},
     # Independent Draft-only A4 real R2025a witness; neither merge nor release authority.
@@ -80,6 +81,19 @@ class WorkflowTests(unittest.TestCase):
     def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_grand_prix_native_dispatch_is_exact_and_non_decision(self):
+        source = (WORKFLOWS / "grand-prix-native.yml").read_text(encoding="utf-8")
+        triggers = source.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(re.findall(r"^  (\w+):", triggers, re.M), ["workflow_dispatch"])
+        self.assertIn("permissions:\n  contents: read\n\njobs:", source)
+        self.assertIn('[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]', source)
+        self.assertIn('test "$(git -C candidate rev-parse HEAD)" = "$TARGET_SHA"', source)
+        self.assertIn('test "$(git -C harness rev-parse HEAD)" = "$GITHUB_WORKFLOW_SHA"', source)
+        self.assertEqual(source.count("persist-credentials: false"), 3)
+        self.assertIn("always() && hashFiles('provenance/run.txt') != ''", source)
+        self.assertNotIn("CI Gate", source)
+        self.assertNotIn("continue-on-error", source)
 
     def test_activity2_draft_floor_contact_workflow_is_non_decision(self):
         path = WORKFLOWS / "ci-progression-a2-draft.yml"

@@ -1,0 +1,95 @@
+name: Grand Prix A1–A7 native R2025a
+run-name: Native R2025a A${{ inputs.activity }} · ${{ inputs.target_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      activity:
+        description: Grand Prix activity to exercise, including all its variants.
+        required: true
+        type: choice
+        options: ['1', '2', '3', '4', '5', '6', '7']
+      target_sha:
+        description: Full 40-character GitHub HEAD SHA of the candidate.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native R2025a A${{ inputs.activity }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 100
+    env:
+      ACTIVITY: ${{ inputs.activity }}
+      TARGET_SHA: ${{ inputs.target_sha }}
+      PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      WEBOTS_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+    steps:
+      - name: Require a complete SHA and known activity
+        shell: bash
+        run: |
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$ACTIVITY" =~ ^[1-7]$ ]]
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Bind the two checkouts to the Actions run
+        shell: bash
+        run: |
+          test "$(git -C harness rev-parse HEAD)" = "$GITHUB_WORKFLOW_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$TARGET_SHA"
+          mkdir -p provenance
+          printf '%s\n' "repository=$GITHUB_REPOSITORY" "workflow_sha=$GITHUB_WORKFLOW_SHA" \
+            "target_sha=$TARGET_SHA" "activity=$ACTIVITY" "run_id=$GITHUB_RUN_ID" \
+            "run_attempt=$GITHUB_RUN_ATTEMPT" "webots_source=$PROTO_SHA" > provenance/run.txt
+      - name: Checkout pinned Cyberbotics assets for A4–A7
+        if: contains(fromJSON('["4", "5", "6", "7"]'), inputs.activity)
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: ${{ env.PROTO_SHA }}
+          path: webots-assets
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: contains(fromJSON('["4", "5", "6", "7"]'), inputs.activity)
+        with:
+          node-version: '22'
+      - name: Run the candidate's native campaign
+        timeout-minutes: 85
+        shell: bash
+        working-directory: candidate
+        run: |
+          set -o pipefail
+          bash ../harness/tools/ci/run_grand_prix_native_campaign.sh 2>&1 | tee ../provenance/campaign.log
+      - name: Archive raw native traces, worlds and run identity
+        if: ${{ always() && hashFiles('provenance/run.txt') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-r2025a-a${{ inputs.activity }}-${{ inputs.target_sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            provenance/
+            candidate/ci-artifacts/grand-prix-u-geometry/
+            candidate/ci-artifacts/grand-prix-v2-h-native/
+          if-no-files-found: error
+          retention-days: 30
