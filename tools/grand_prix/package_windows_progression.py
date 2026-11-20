@@ -74,7 +74,7 @@ if ($Variante -eq 0) {
   }
 }
 if ($Variante -lt 1 -or $Variante -gt $counts[$Activite - 1]) {
-  throw 'Ce parcours n’existe pas pour l’activité choisie.'
+  throw 'Ce parcours est indisponible pour cette activite.'
 }
 $index = $Variante - 1
 for ($a = 1; $a -lt $Activite; $a++) { $index += $counts[$a - 1] }
