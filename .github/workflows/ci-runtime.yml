@@ -1218,6 +1218,7 @@ jobs:
           # The real WWI backend's TAKEOFF ACK allowance is route-only;
           # admission, reset, stop and generic/physical paths retain 35s.
           node tools/ci/test_grand_prix_route_profile.js
+          node tools/ci/test_grand_prix_progression_profile.js
           grep -Fq 'vendor/blockly_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
           grep -Fq 'vendor/blocks_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
           if grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html; then

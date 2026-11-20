@@ -206,9 +206,21 @@ def stop(process, diagnostic_path=None):
                     if (p['pid'], p['created']) in old]
                 evidence['identity_unproven'] = [
                     p['pid'] for p in before['owned'] if p['created'] is None]
+            # A surviving same-PID, same-creation child is positive evidence
+            # of failed retirement. Keep the original exception, if any, and
+            # preserve the forensic JSON before vetoing an apparent success.
+            survivors = evidence.get('still_present_same_pid_and_creation', [])
+            survivor_veto = bool(survivors) and sys.exc_info()[0] is None
+            if survivor_veto:
+                evidence['exception'] = (
+                    'RuntimeError: observed same-identity owned descendants survived cleanup')
             diagnostic_path.write_text(
                 json.dumps(evidence, sort_keys=True, indent=2) + '\n',
                 encoding='utf-8')
+            if survivor_veto:
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup unproven: '
+                    f'{len(survivors)} same-identity descendants survived')
 
 
 def engine_environment(home, ambient):
