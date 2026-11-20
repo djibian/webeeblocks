@@ -17,10 +17,9 @@ from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 
-LANDING_TOL = .14
-# Preserve the same 0.09-m swept-craft safety envelope as A8: the 0.05-m
-# native collision cylinder alone is insufficient to prove whole-pad safety.
-# Keep historical A8 landing acceptance unchanged here; #1082 qualifies it.
+# #1082 established this same full-envelope landing condition for A8.
+# A1-A7 and A8 both require the entire conservative craft envelope on the tile.
+LANDING_TOL = LANDING_TILE / 2 - RADIUS
 PROGRESSION_FOOTPRINT_RADIUS = RADIUS
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
