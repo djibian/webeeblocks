@@ -3,6 +3,9 @@
 const assert = require('node:assert/strict');
 const {setTimeout: delay} = require('node:timers/promises');
 const Backend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+const fs = require('node:fs');
+const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const A6Wbb = require('../grand_prix/witness_workspace_a6.js');
 const robot = 'Crazyflie WebeeBlocks';
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
 const send = payload => socket.send('robot:' + robot + ':' + payload);
@@ -124,10 +127,18 @@ async function activityTwo() {
   await waitForForcedLanding(1);
 
   await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   await takeoff(.88);
   await assert.rejects(backend.move('forward', 1.1), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
-  await waitForForcedLanding(2);
+  await waitForForcedLanding(3);
 }
 
 async function activityThree() {
@@ -155,10 +166,17 @@ async function activityThree() {
   await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'course-boundary'});
   await waitForForcedLanding(1);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activityFour() {
-  async function approachLanding(side) {
+  async function approachLanding(side, wrongPad = false) {
     await takeoff(.9);
     // The same policy runs unchanged. Only the standard forward range is
     // available to it, with no course identity or host coordinates.
@@ -168,8 +186,19 @@ async function activityFour() {
     console.log(JSON.stringify({front, distance, side}));
     await backend.move('forward', distance);
     await backend.move(side, .50);
-    await backend.land();
-    await backend.completeActivityMission(evaluation);
+    if (wrongPad) {
+      // A4's wrong tile is not licensed for low flight by the strict
+      // whole-footprint progression oracle (#1072).  The native command may
+      // be interrupted before the landing call returns.
+      try {
+        await backend.land();
+      } catch (error) {
+        assert.equal(error.code, 'TIME_LIMIT');
+      }
+    } else {
+      await backend.land();
+      await backend.completeActivityMission(evaluation);
+    }
   }
 
   await approachLanding('left');
@@ -177,9 +206,18 @@ async function activityFour() {
 
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
-  await approachLanding('right');
-  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await approachLanding('right', true);
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
+
+  // STOP must revoke subsequent actuation and the native pilot must LAND
+  // independently, even when the previous attempt has already failed.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activityFive() {
@@ -216,62 +254,93 @@ async function activityFive() {
   await outcome({status: 'achieved'});
 
   await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   const turnedLeftAgain = await reachChoice();
   await backend.move(turnedLeftAgain ? 'left' : 'right', .50);
-  await backend.land();
-  await backend.completeActivityMission(evaluation);
-  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  // The other visible pad is not a safe descent exception.  A native
+  // failure may interrupt LAND before the backend returns normally.
+  try {
+    await backend.land();
+  } catch (error) {
+    assert.equal(error.code, 'TIME_LIMIT');
+  }
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
+
+  // Refute any attempt to continue commanding the vehicle after STOP.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activitySix() {
-  await takeoff(.90);
-  const first = await backend.readRange('front');
-  assert(first > .65 && first < 2, 'takeoff range saturated');
-  console.log(JSON.stringify({first}));
-  const mayBeOpen = first < 1.2;
-  const distance = mayBeOpen ? (first < .8 ? .59 : first < .95 ? .74 : .89) : 1.8;
-  await backend.move('forward', distance);
-  const left = await backend.readRange('left');
-  const right = await backend.readRange('right');
-  const open = left < .45 && right < .45;
-  console.log(JSON.stringify({left, right, open}));
-  assert.equal(open, mayBeOpen);
-  if (open) {
-    await backend.vertical('down', .42);
-    await backend.move('forward', .60);
-    await backend.vertical('up', .42);
-    const next = await backend.readRange('front');
-    console.log(JSON.stringify({next}));
-    assert(next > .8 && next < 1.5, 'terminal H required after clearing');
-    await backend.move('forward', next < 1.12 ? .41 : next < 1.22 ? .51 : .61);
-  } else {
-    async function oppositeRays(expectedSide) {
-      const left = await backend.readRange('left');
-      const right = await backend.readRange('right');
-      console.log(JSON.stringify({left, right, closedHeading:expectedSide}));
-      assert.equal(left < .45, expectedSide === 'left');
-      assert.equal(right < .45, expectedSide === 'right');
-    }
-    await backend.turn(45);
-    await oppositeRays('right');
-    await backend.turn(-90);
-    await oppositeRays('left');
-    await backend.turn(45);
-    await backend.move('back', .49);
+  // World index belongs to the test harness only, never to the pupil .wbb.
+  const variant=Number(process.argv[4]);
+  assert(Number.isInteger(variant)&&variant>=1&&variant<=5);
+  const witness=A6Wbb.build();
+  assert.equal(A6Wbb.build().sha256,witness.sha256,'WBB bytes must be reproducible');
+  if(process.env.WEBEEBLOCKS_A6_WBB_OUT)
+    fs.writeFileSync(process.env.WEBEEBLOCKS_A6_WBB_OUT,witness.content);
+  console.log(JSON.stringify({event:'A6_WBB',sha256:witness.sha256,
+    bytes:Buffer.byteLength(witness.content)}));
+  const observations=[];
+  await Interpreter.run(witness.ast,backend,{maxSteps:20000,hooks:{onSensor:sample=>{
+    observations.push({direction:sample.direction,value:sample.value});
+    console.log(JSON.stringify({event:'A6_SENSOR',direction:sample.direction,value:sample.value}));
+  }}});
+  const front=observations.filter(x=>x.direction==='front');
+  const left=observations.find(x=>x.direction==='left');
+  const right=observations.find(x=>x.direction==='right');
+  assert(front.length>=1&&front[0].value>.65&&front[0].value<1.75);
+  assert(left&&right,'both lateral sensors required, even when H is closed');
+  if(variant<=3){
+    assert(left.value>.20&&left.value<.45&&right.value>.20&&right.value<.45,
+      'open H must expose both physical uprights');
+    assert.equal(front.length,2,'post-H front must detect the terminal H');
+  }else{
+    assert(left.value>1.9&&right.value>1.9,'closed H lateral contrast missing');
+    assert.equal(front.length,1,'closed H must not be crossed');
   }
-  await backend.land();
   await backend.completeActivityMission(evaluation);
-  await outcome({status: 'achieved'});
+  await outcome({status:'achieved'});
 
   await backend.resetSimulation();
   await takeoff(.90);
-  await assert.rejects(async () => {
-    await backend.move('forward', 1.90);
-    await backend.move('forward', .30);
-  }, {code: 'TIME_LIMIT'});
+  // Same mandatory independent envelope-contact refusal and native LAND;
+  // slower permitted approach isolates impact dynamics from LAND handling.
+  await backend.setSpeed(.14);
+  const negativeFirst = await backend.readRange('front');
+  assert(negativeFirst > .65 && negativeFirst < 1.75,
+    'negative obstacle lacks sensor margin');
+  await backend.move('forward', negativeFirst - .40);
+  const negativeNear = await backend.readRange('front');
+  assert(negativeNear > .24 && negativeNear < .57, 'negative standoff lost');
+  console.log(JSON.stringify({negativeFirst, negativeNear, speed:.14}));
+  // The strict 0.60 m V5 falsifier remains the DEFAULT and mandatory.
+  // A separately labeled 0.40 m diagnostic may test shallower penetration;
+  // it cannot replace or override the strict safety gate.
+  const contactDiagnostic = process.env.WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC;
+  assert(contactDiagnostic === undefined || contactDiagnostic === '1',
+    'unrecognized A6 diagnostic override');
+  const contactAdvance = contactDiagnostic === '1' ? .40 : .60;
+  console.log(JSON.stringify({event:'A6_NEGATIVE_CONTACT',advance:contactAdvance,
+    shallowDiagnostic:contactDiagnostic === '1'}));
+  await assert.rejects(backend.move('forward', contactAdvance), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   await waitForForcedLanding(1);
+
+  // Recovery must be complete BEFORE RESET; the new incarnation cannot
+  // inherit the prior negative. STOP must still cause its own native LAND.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation),
+    {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activitySeven() {
@@ -344,6 +413,7 @@ async function activitySeven() {
   await assert.rejects(backend.move('forward', .20), {code: 'USER_STOPPED'});
   await waitForForcedLanding(2);
 }
+
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');

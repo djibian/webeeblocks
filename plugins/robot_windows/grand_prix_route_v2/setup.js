@@ -13,8 +13,19 @@ const profile={id:'progression-grand-prix-route-v2',world:'worlds/grand_prix_rou
 };
 if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUntil');}
 if(A.BLOCK_CATALOG.webeeblocks_v2_elapsed){profile.toolbox.push('webeeblocks_v2_elapsed');profile.runtime.elapsedSimulationTime=true;}
-window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown variable Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
-window.WebeeBlocksInitialActivityId=profile.id;
+// A host-generated Robot Window may select a lesson using its script tag.
+// The default page and its existing A8 project identity remain unchanged.
+const lesson = typeof document !== 'undefined' && document.currentScript
+  ? document.currentScript.getAttribute('data-progression-activity') : null;
+let selectedProfile = profile;
+if (lesson !== null) {
+  const progression = window.WebeeBlocksGrandPrixProgression;
+  if (!/^[1-7]$/.test(lesson) || !progression || typeof progression.profileFor !== 'function')
+    throw new Error('Profil pédagogique Grand Prix indisponible');
+  selectedProfile = progression.profileFor(Number(lesson), profile);
+}
+window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[selectedProfile]},getProfile:id=>{if(id!==selectedProfile.id)throw new Error('unknown variable Grand Prix activity');return JSON.parse(JSON.stringify(selectedProfile));}};
+window.WebeeBlocksInitialActivityId=selectedProfile.id;
 const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
 

@@ -260,6 +260,60 @@ static double wrap_angle(double angle) {
         # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
         from tools.grand_prix.route_vertical_product import compose_route_vertical_product
         result = compose_route_vertical_product(result)
+        # A frontal envelope failure can precede physical contact with the H
+        # crossbar. Backtrack a bounded part of the interrupted forward move
+        # while the independent LAND begins its usual descent.
+        recovery_state = '  double land_start_z = origin_z;'
+        recovery_origin = '      target_x = x; target_y = y; target_yaw = yaw; target_z = origin_z;'
+        if result.count(recovery_state) != 1 or result.count(recovery_origin) != 1:
+            raise RuntimeError('route-only recovery origin changed')
+        result = result.replace(recovery_state, (
+            '  double gp_a6_recovery_speed = 0.0;\n' + recovery_state
+        ), 1)
+        result = result.replace(recovery_origin, '''      gp_a6_recovery_speed = 0.0;
+      const double retreat_distance = 0.12;
+      const double move_cos = cos(target_yaw), move_sin = sin(target_yaw);
+      const double to_target_x = target_x - x, to_target_y = target_y - y;
+      const double remaining = to_target_x * move_cos + to_target_y * move_sin;
+      const double sideways = to_target_y * move_cos - to_target_x * move_sin;
+      const int backtrack = gp_control_sample && gp_route_periods_valid &&
+        command == CMD_MOVE && strcmp(active_direction, "forward") == 0 &&
+        fabs(wrap_angle(yaw - target_yaw)) < YAW_TOL &&
+        fabs(sideways) < POSITION_TOL && active_value - remaining >= retreat_distance &&
+        gp_route_ranges[0] >= 0.0 && gp_route_ranges[0] < 0.12 &&
+        gp_route_ranges[1] > 0.25 && gp_route_ranges[1] <= 2.001 &&
+        gp_route_a6_envelope_contact(now);
+      target_x = x; target_y = y; target_yaw = yaw; target_z = origin_z;
+      if (backtrack) {
+        target_x -= retreat_distance * move_cos;
+        target_y -= retreat_distance * move_sin;
+        gp_a6_recovery_speed = fmin(0.14, move_speed_limit);
+        printf("GP_U_A6_RETREAT t=%.9f front=%.9f back=%.9f\\n",
+               now, gp_route_ranges[0], gp_route_ranges[1]);
+        fflush(stdout);
+      }''', 1)
+        gp_forced_land_hold = (
+            "      desired.vx = POSITION_KP * body_x;\n"
+            "      desired.vy = POSITION_KP * body_y;\n"
+            "      clip_vector(&desired.vx, &desired.vy, VX_MAX);\n"
+            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
+            "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
+        )
+        if result.count(gp_forced_land_hold) != 1:
+            raise RuntimeError('route-only forced LAND anchor changed')
+        result = result.replace(gp_forced_land_hold, (
+            "      if (active_id == 2147483646 && gp_route_a6_forced_land()) {\n"
+            "        desired.vx = POSITION_KP * body_x;\n"
+            "        desired.vy = POSITION_KP * body_y;\n"
+            "        clip_vector(&desired.vx, &desired.vy, gp_a6_recovery_speed);\n"
+            "      } else {\n"
+            "        desired.vx = POSITION_KP * body_x;\n"
+            "        desired.vy = POSITION_KP * body_y;\n"
+            "        clip_vector(&desired.vx, &desired.vy, VX_MAX);\n"
+            "      }\n"
+            "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
+            "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
+        ), 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)

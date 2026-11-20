@@ -14,15 +14,18 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,), 4: (2,), 5: (2,), 6: (2,), 7: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1):
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
-    out = OUT / (f'route-a{activity}-v{variant}-native' if activity >= 4
-                 else f'route-a{activity}-native')
+    if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
+        raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
+    suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
+    out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
+                  else f'route-a{activity}-native') + suffix)
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
     out.mkdir(parents=True, exist_ok=True)
@@ -59,7 +62,9 @@ def run_native(home, env, activity, variant=1):
                         raise RuntimeError(f'Webots {label} did not start: {journal}')
                     time.sleep(.10)
                 subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
-                                str(port), str(activity)], cwd=ROOT, env=env, stdout=wwi,
+                                str(port), str(activity), str(variant)], cwd=ROOT,
+                                env=dict(env, WEBEEBLOCKS_A6_WBB_OUT=str(out / 'a6-witness.wbb')),
+                                stdout=wwi,
                                stderr=subprocess.STDOUT, check=True, timeout=450)
             finally:
                 try:

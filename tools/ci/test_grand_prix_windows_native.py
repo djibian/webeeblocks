@@ -196,6 +196,56 @@ class EvidenceTests(unittest.TestCase):
             self.assertIn('cleanup unproven', record['exception'])
         process.wait.assert_not_called()
 
+    def test_observed_surviving_descendant_vetoes_taskkill_success_or_race(self):
+        # taskkill exit=0 or root exit=0 is not retirement proof when the
+        # native CIM witness still observes the exact child incarnation.
+        root = dict(pid=2232, parent=50, created='start', name='webots-bin.exe')
+        child = dict(pid=4520, parent=2232, created='child-start',
+                     name='QtWebEngineProcess.exe')
+        before = dict(available=True, owned=[root, child])
+        after = dict(available=True, owned=[], watched=[child])
+        for taskkill_ok in (True, False):
+            with self.subTest(taskkill_ok=taskkill_ok), tempfile.TemporaryDirectory() as tmp:
+                evidence = Path(tmp) / 'cleanup.json'
+                process = mock.Mock(pid=2232)
+                process.poll.side_effect = [None, 0] if not taskkill_ok else [None]
+                process.wait.return_value = 1 if taskkill_ok else 0
+                if taskkill_ok:
+                    action = dict(return_value=subprocess.CompletedProcess(
+                        ['taskkill'], 0, stdout=b'SUCCESS: terminated'))
+                else:
+                    action = dict(side_effect=subprocess.CalledProcessError(
+                        128, ['taskkill'], output=b'SUCCESS: terminated'))
+                with mock.patch(
+                        'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                        side_effect=[before, after]), mock.patch(
+                        'tools.ci.run_grand_prix_windows_native.subprocess.run',
+                        **action):
+                    with self.assertRaisesRegex(RuntimeError,
+                            'cleanup unproven: 1 same-identity descendants survived'):
+                        stop(process, diagnostic_path=evidence)
+                record = json.loads(evidence.read_text(encoding='utf-8'))
+                self.assertEqual(record['still_present_same_pid_and_creation'], [child])
+                self.assertIn('observed same-identity', record['exception'])
+
+        # PID reuse is not evidence the originally owned child survived.
+        replaced = dict(child, created='new-incarnation')
+        process = mock.Mock(pid=2232)
+        process.poll.return_value = None
+        process.wait.return_value = 1
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / 'cleanup.json'
+            with mock.patch(
+                    'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                    side_effect=[before, dict(available=True, owned=[],
+                                              watched=[replaced])]), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native.subprocess.run',
+                    return_value=subprocess.CompletedProcess(
+                        ['taskkill'], 0, stdout=b'SUCCESS: terminated')):
+                stop(process, diagnostic_path=evidence)
+            record = json.loads(evidence.read_text(encoding='utf-8'))
+            self.assertEqual(record['still_present_same_pid_and_creation'], [])
+
     def test_successful_taskkill_is_only_observed_not_manufactured(self):
         process = mock.Mock(pid=456)
         process.poll.return_value = None

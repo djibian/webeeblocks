@@ -106,6 +106,33 @@ jobs:
           ./tools/build_windows_classroom_release.ps1 -WebotsHome $env:WEBOTS_HOME -WebotsProjectsPath '.ci-webots-r2025a\projects' -OutputDirectory 'ci-artifacts\windows-classroom'
           if ($LASTEXITCODE -ne 0) { throw 'Classroom asset staging failed' }
 
+      - name: Draft A6 geometry and real Blockly .wbb round-trip (non-native)
+        shell: pwsh
+        run: |
+          python -m unittest tools.ci.test_grand_prix_route_v2.VariableRouteTests.test_a6_owner_geometry_pad_and_initial_frontal_ambiguity
+          if ($LASTEXITCODE -ne 0) { throw 'Approved A6 physical faces and landing positions failed' }
+          python -m unittest tools.ci.test_grand_prix_route_v2
+          if ($LASTEXITCODE -ne 0) { throw 'A6 owner geometry/A8 digest invariants failed' }
+          node --check tools/grand_prix/witness_workspace_a6.js
+          if ($LASTEXITCODE -ne 0) { throw 'A6 Blockly witness syntax invalid' }
+          node --check tools/ci/grand_prix_progression_node_probe.js
+          if ($LASTEXITCODE -ne 0) { throw 'A6 native WWI harness syntax invalid' }
+          New-Item -ItemType Directory -Force -Path 'ci-artifacts/a6-wbb' | Out-Null
+          node tools/grand_prix/witness_workspace_a6.js ci-artifacts/a6-wbb/A6-temoin-enseignant.wbb
+          if ($LASTEXITCODE -ne 0) { throw 'Real Blockly A6 .wbb AST/round-trip or byte-stability failed' }
+          $bytes=(Get-Item 'ci-artifacts/a6-wbb/A6-temoin-enseignant.wbb').Length
+          if ($bytes -le 100) { throw 'A6 .wbb evidence file missing or empty' }
+          (Get-FileHash -Algorithm SHA256 'ci-artifacts/a6-wbb/A6-temoin-enseignant.wbb').Hash.ToLowerInvariant()
+
+      - name: Preserve A6 teacher witness for V5 examination
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-wbb-roundtrip-draft
+          path: ci-artifacts/a6-wbb/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Compile REAL variable Grand Prix pilot
         shell: pwsh
         run: |
