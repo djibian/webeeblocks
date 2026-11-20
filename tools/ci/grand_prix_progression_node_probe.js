@@ -270,12 +270,16 @@ async function activitySix() {
   const negativeNear = await backend.readRange('front');
   assert(negativeNear > .24 && negativeNear < .57, 'negative standoff lost');
   console.log(JSON.stringify({negativeFirst, negativeNear, speed:.14}));
-  // Counter-test only: do not command 18 cm of impossible penetration into
-  // a terminal Solid. A 40 cm command from ~41.6 cm frontal clearance still
-  // contacts the real physical drone envelope; the SAME independent oracle
-  // must refuse and the SAME forced LAND must acknowledge safely.
-  // If no real envelope-contact occurs, the unchanged assertion fails closed.
-  await assert.rejects(backend.move('forward', .40), {code: 'TIME_LIMIT'});
+  // The strict 0.60 m V5 falsifier remains the DEFAULT and mandatory.
+  // A separately labeled 0.40 m diagnostic may test shallower penetration;
+  // it cannot replace or override the strict safety gate.
+  const contactDiagnostic = process.env.WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC;
+  assert(contactDiagnostic === undefined || contactDiagnostic === '1',
+    'unrecognized A6 diagnostic override');
+  const contactAdvance = contactDiagnostic === '1' ? .40 : .60;
+  console.log(JSON.stringify({event:'A6_NEGATIVE_CONTACT',advance:contactAdvance,
+    shallowDiagnostic:contactDiagnostic === '1'}));
+  await assert.rejects(backend.move('forward', contactAdvance), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   await waitForForcedLanding(1);
 }

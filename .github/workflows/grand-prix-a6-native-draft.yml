@@ -96,6 +96,11 @@ jobs:
                 for variant in 1 2 3 4 5; do
                   python3 -m tools.ci.run_grand_prix_progression_native --activity 6 --variant \$variant || failures=1
                 done
+                # Independently retain the shallow-contact experiment; it
+                # NEVER replaces the strict 0.60-m native V5 falsifier above.
+                for variant in 4 5; do
+                  WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC=1 python3 -m tools.ci.run_grand_prix_progression_native --activity 6 --variant \$variant || failures=1
+                done
                 exit \$failures
               "
             '

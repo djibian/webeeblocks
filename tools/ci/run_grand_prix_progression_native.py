@@ -21,8 +21,11 @@ def run_native(home, env, activity, variant=1):
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
-    out = OUT / (f'route-a{activity}-v{variant}-native' if activity >= 4
-                 else f'route-a{activity}-native')
+    if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
+        raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
+    suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
+    out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
+                  else f'route-a{activity}-native') + suffix)
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
     out.mkdir(parents=True, exist_ok=True)
