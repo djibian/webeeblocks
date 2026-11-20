@@ -104,6 +104,31 @@ class VariableRouteTests(unittest.TestCase):
         a7 = [progression_course(7, v) for v in range(1, 8)]
         self.assertEqual({c.route.turns for c in a7}, {('G',), ('D',)})
         self.assertEqual({tuple(g.leg_index for g in c.gates) for c in a7}, {(), (0,), (1,)})
+        # Each direction must independently cover no H, first-leg H and
+        # second-leg H: an aggregate-only set could conceal a missing case.
+        for turn in ('G', 'D'):
+            patterns = {tuple(g.leg_index for g in c.gates)
+                        for c in a7 if c.route.turns == (turn,)}
+            self.assertEqual(patterns, {(), (0,), (1,)})
+        self.assertEqual(len({(c.route.lengths, c.route.turns,
+                               tuple((g.leg_index, g.along) for g in c.gates))
+                              for c in a7}), 7)
+        self.assertGreater(len({c.route.lengths[0] for c in a7}), 1)
+        self.assertGreater(len({c.route.lengths[1] for c in a7}), 1)
+        for index, course in enumerate(a7, start=1):
+            with self.subTest(a7_variant=index):
+                self.assertEqual(len(course.route.legs), 2)
+                self.assertEqual(len(course.route.turns), 1)
+                self.assertLessEqual(len(course.gates), 1)
+                self.assertEqual(course.pads, (1,))
+                self.assertEqual(course.required_pad, 1)
+                self.assertEqual(course.pad_distance_from_h, .70)
+                self.assertEqual(course.landing_goal(), course.landing_position(1))
+                for gate in course.gates:
+                    leg = course.route.legs[gate.leg_index]
+                    self.assertEqual(gate.position, leg.at(gate.along))
+                    self.assertGreater(gate.along, .55)
+                    self.assertLess(gate.along + .55, leg.length)
 
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)

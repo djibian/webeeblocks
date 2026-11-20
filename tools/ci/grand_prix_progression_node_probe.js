@@ -334,6 +334,15 @@ async function activitySeven() {
   await assert.rejects(backend.move('forward', .22), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
+
+  // A7 must independently fence commands after STOP, then acknowledge LAND.
+  // A fresh RESET must invalidate the negative result of attempt 2.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.90);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .20), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
