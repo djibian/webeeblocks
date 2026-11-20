@@ -33,12 +33,14 @@ _VARIANTS = {
              for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
                                   (1.4, 'D'), (1.8, 'G'))),
     6: (
+        # Owner-approved 2026-11-20: the initial frontal face alone must not
+        # identify an open versus closed H. V2/V4 and V3/V5 share first faces.
+        # Keep the pad 0.70 m before the closed H on every A6 variant.
         _Variant((2.25,), gates=((0, .75),)),
-        _Variant((2.50,), gates=((0, .90),)),
-        _Variant((2.75,), gates=((0, 1.05),)),
-        _Variant((2.,)),
-        # At 2.02 m the closed panel fell on the R2025a 2 m range limit.
-        _Variant((2.01,)),
+        _Variant((2.90,), gates=((0, 1.40),)),
+        _Variant((3.00,), gates=((0, 1.50),)),
+        _Variant((1.40,)),
+        _Variant((1.50,)),
     ),
     7: (
         _Variant((1.5, 1.8), ('G',)),

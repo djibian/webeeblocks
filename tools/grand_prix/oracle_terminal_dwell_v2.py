@@ -11,11 +11,16 @@ import math
 
 from tools.grand_prix.route_courses_v2 import CoursePlan
 from tools.grand_prix.progression_courses import require_canonical_course_geometry
+from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+from tools.grand_prix.corridor_sweep_v2 import RADIUS
 from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 
-LANDING_TOL = .14
+# #1082 established this same full-envelope landing condition for A8.
+# A1-A7 and A8 both require the entire conservative craft envelope on the tile.
+LANDING_TOL = LANDING_TILE / 2 - RADIUS
+PROGRESSION_FOOTPRINT_RADIUS = RADIUS
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.
@@ -80,11 +85,13 @@ def _eligible(state, progress, velocity, airborne):
             not 0 <= progress.gates.cursor <= state.course.count):
         raise TerminalDwellError('incoherent native course progression')
     target = state.course.landing_goal()
+    landing_tolerance = (LANDING_TILE / 2 - PROGRESSION_FOOTPRINT_RADIUS
+                         if state.course.progression is not None else LANDING_TOL)
     return (airborne and progress.leg.active_leg == last_leg and
             progress.gates.cursor == state.course.count and
             state.origin_z - .02 <= pose[2] <= state.origin_z + .07 and
-            abs(pose[0] - target[0]) <= LANDING_TOL and
-            abs(pose[1] - target[1]) <= LANDING_TOL and
+            abs(pose[0] - target[0]) <= landing_tolerance and
+            abs(pose[1] - target[1]) <= landing_tolerance and
             math.hypot(speed[0], speed[1]) <= .12 and
             abs(speed[2]) <= .12)
 

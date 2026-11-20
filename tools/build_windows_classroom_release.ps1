@@ -222,7 +222,11 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
     (Join-Path $packageDir $name)
 }
 
-# Ship the canonical progression starters as teacher-distributable templates.
+# Keep current public starters teacher-distributable. The former A5/A6
+# warehouse prototypes are explicitly hidden from Start activity; preserve
+# their original .wbb bytes for Open, but place them in Historique instead
+# of incorrectly advertising them as current classroom lessons.
+# The existing A8 file is intentionally untouched by this A1-A7 change.
 # Copy the source-of-truth files dynamically so the classroom release cannot
 # silently drift from activities/progression.
 $progressionSource = Join-Path $repoRoot 'activities\progression'
@@ -234,8 +238,14 @@ if ($progressionStarters.Count -eq 0) {
   throw 'No progression starter project is available for the classroom release.'
 }
 $progressionTarget = Join-Path $packageDir 'Activites'
+$historicalStarterTarget = Join-Path $progressionTarget 'Historique'
+$nonPublicLegacyStarters = @('05-reactive.wbb', '06-multi-perception.wbb')
 foreach ($starter in $progressionStarters) {
-  Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
+  if ($nonPublicLegacyStarters -contains $starter.Name) {
+    Copy-RequiredFile $starter.FullName (Join-Path $historicalStarterTarget $starter.Name)
+  } else {
+    Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
+  }
 }
 
 # Archived original Activity 2 remains distributed separately for historical
