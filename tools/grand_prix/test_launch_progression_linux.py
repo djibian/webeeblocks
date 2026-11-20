@@ -46,6 +46,40 @@ class ProgressionLaunchTests(unittest.TestCase):
                         first_page = page_bytes
                     self.assertEqual(page_bytes, first_page)
 
+    def test_menu_inventory_matches_all_native_admitted_variants(self):
+        self.assertEqual(launcher.active_progression_activities(), tuple(range(1, 8)))
+        self.assertEqual(tuple(count for _, count in launcher.LESSON_MENU),
+                         (1, 1, 1, 3, 5, 5, 7))
+        for activity, (_, count) in enumerate(launcher.LESSON_MENU, 1):
+            for variant in range(1, count + 1):
+                with self.subTest(activity=activity, variant=variant):
+                    name = f'gp-progression-v1-a{activity}-v{variant}'
+                    self.assertEqual(launcher.active_course_from_identifier(name).identifier, name)
+            with self.assertRaises(ValueError):
+                launcher.active_course_from_identifier(
+                    f'gp-progression-v1-a{activity}-v{count + 1}')
+
+    def test_menu_launches_only_selected_world_and_cancel_is_noop(self):
+        selections = []
+        original = launcher.prepare_lesson_project
+
+        def prepare(project, activity, variant):
+            selections.append((activity, variant))
+            return original(project, activity, variant)
+
+        home = Path('/webots/R2025a')
+        with (patch.object(launcher, 'choose_lesson', return_value=(6, 5)),
+              patch.object(launcher, 'prepare_lesson_project', side_effect=prepare),
+              patch.object(launcher, 'webots_home', return_value=home),
+              patch.object(launcher, 'prepare_route_native', return_value={'WEBOTS_HOME': str(home)})):
+            self.assertEqual(launcher.main(['--menu', '--preflight-only']), 0)
+        self.assertEqual(selections, [(6, 5)])
+
+        with (patch.object(launcher, 'choose_lesson', return_value=None),
+              patch.object(launcher, 'prepare_lesson_project',
+                           side_effect=AssertionError('no project after cancellation'))):
+            self.assertEqual(launcher.main(['--menu', '--preflight-only']), 0)
+
     def test_unknown_activity_refuses_before_writing_a_project(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp)
