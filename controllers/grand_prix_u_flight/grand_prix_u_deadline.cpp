@@ -126,18 +126,23 @@ bool currentAttempt(unsigned long long& current) {
   return raw && !std::strncmp(raw,prefix.c_str(),prefix.size()) &&
          canonicalNumber(std::string(raw+prefix.size()),current) && current>0;
 }
+bool progressionConfig(const char *raw) {
+  constexpr char prefix[]="gp-progression-v1-a";
+  constexpr auto prefixLength=sizeof(prefix)-1;
+  constexpr int variantCounts[]={1,1,1,3,5,5,7};
+  if(std::strlen(raw)!=prefixLength+4 || std::strncmp(raw,prefix,prefixLength) ||
+     raw[prefixLength+1]!='-' || raw[prefixLength+2]!='v')return false;
+  const auto activity=static_cast<unsigned>(raw[prefixLength]-'1');
+  const int variant=raw[prefixLength+3]-'0';
+  return activity<sizeof(variantCounts)/sizeof(*variantCounts) &&
+         variant>=1 && variant<=variantCounts[activity];
+}
 bool currentConfig(std::string& config) {
   WbFieldRef f=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"controllerArgs");
   if(!f || wb_supervisor_field_get_count(f)!=1)return false;
   const char *raw=wb_supervisor_field_get_mf_string(f,0);
   if(!raw || std::strlen(raw)>80 ||
-     (std::strncmp(raw,"gp-route-v2-",12) &&
-      std::strcmp(raw,"gp-progression-v1-a1-v1") &&
-      std::strcmp(raw,"gp-progression-v1-a2-v1") &&
-      std::strcmp(raw,"gp-progression-v1-a3-v1") &&
-      std::strcmp(raw,"gp-progression-v1-a4-v1") &&
-      std::strcmp(raw,"gp-progression-v1-a4-v2") &&
-      std::strcmp(raw,"gp-progression-v1-a4-v3")))return false;
+     (std::strncmp(raw,"gp-route-v2-",12) && !progressionConfig(raw)))return false;
   for(const char *p=raw;*p;++p)
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.

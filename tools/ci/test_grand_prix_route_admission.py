@@ -174,13 +174,23 @@ int main(){
   fresh("gp-progression-v1-a1-v1");ready();query(1);
   config="gp-progression-v1-a1-v2";query(0);
   config="gp-progression-v1-a4-v4";query(0);
-  config="gp-progression-v1-a5-v1";query(0);
+  config="gp-progression-v1-a5-v6";query(0);
+  config="gp-progression-v1-a5-v01";query(0);
+  config="gp-progression-v1-a6-v6";query(0);
+  config="gp-progression-v1-a7-v8";query(0);
   fresh("gp-progression-v1-a2-v1");ready();query(1);
   fresh("gp-progression-v1-a3-v1");ready();query(1);
   fresh("gp-progression-v1-a4-v1");ready();query(1);
   config="gp-progression-v1-a4-v2";query(0); // Variant 1 READY cannot admit variant 2.
   fresh("gp-progression-v1-a4-v2");ready();query(1);
   fresh("gp-progression-v1-a4-v3");ready();query(1);
+  for (int variant=1;variant<=5;++variant) {
+    fresh("gp-progression-v1-a5-v"+std::to_string(variant));ready();query(1);
+    fresh("gp-progression-v1-a6-v"+std::to_string(variant));ready();query(1);
+  }
+  for (int variant=1;variant<=7;++variant) {
+    fresh("gp-progression-v1-a7-v"+std::to_string(variant));ready();query(1);
+  }
   fresh("gp-progression-v1-a1-v1");ready();assert(gp_u_start(now)==1);
   alive(212080);assert(gp_u_deadline(now,0)==0);
   alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);

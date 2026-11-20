@@ -12,6 +12,7 @@ const backend = new Backend({send}, {
 });
 const evaluation = {type: 'mission-state-v1', oracle: 'grand-prix-route-v2'};
 let forcedLandings = 0;
+let forcedLandingError;
 
 socket.onmessage = event => {
   for (const line of String(event.data).split(/\r?\n/)) {
@@ -21,6 +22,9 @@ socket.onmessage = event => {
         continue;
       if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
         forcedLandings++;
+      if (typeof reply.message === 'string' &&
+          reply.message.startsWith('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR '))
+        forcedLandingError = reply.message;
       backend.handleMessage(reply.message);
     }
   }
@@ -46,8 +50,9 @@ async function approachLastLeg() {
 // RESET is explicitly fenced until the independent forced LAND has finished.
 async function waitForForcedLanding(expectedCount) {
   const deadline = Date.now() + 35000;
-  while (forcedLandings < expectedCount && Date.now() < deadline)
+  while (forcedLandings < expectedCount && !forcedLandingError && Date.now() < deadline)
     await delay(50);
+  assert.equal(forcedLandingError, undefined, 'native forced LAND failed');
   assert.equal(forcedLandings, expectedCount, 'native forced LAND did not complete');
 }
 
@@ -177,7 +182,160 @@ async function activityFour() {
   await waitForForcedLanding(1);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour};
+async function activityFive() {
+  async function reachChoice() {
+    await takeoff(.9);
+    const front = await backend.readRange('front');
+    // These intervals are based on rays from the fixed start. Course
+    // identity and turn direction are never supplied to the witness.
+    const lengths = [1, 1.2, 1.4, 1.6];
+    const index = [1.38, 1.58, 1.78, 1.94].findIndex(bound => front < bound);
+    await backend.move('forward', index < 0 ? 1.8 : lengths[index]);
+    const right = await backend.readRange('right');
+    const left = await backend.readRange('left');
+    assert((right < .45) !== (left < .45), 'Exactly one side must see the corner');
+    const turnedLeft = right < .45;
+    console.log(JSON.stringify({front, left, right, turnedLeft}));
+    await backend.turn(turnedLeft ? 90 : -90);
+    await backend.move('forward', 1.85);
+    await backend.move('forward', .51);
+    const choice = {};
+    for (const direction of ['front', 'back', 'left', 'right'])
+      choice[direction] = await backend.readRange(direction);
+    console.log(JSON.stringify({choice}));
+    assert(choice.front > .11 && choice.front < .26, 'Expected the H at the choice');
+    for (const direction of ['back', 'left', 'right'])
+      assert(choice[direction] >= 1.99, direction + ' still sees the earlier corner');
+    return turnedLeft;
+  }
+
+  const turnedLeft = await reachChoice();
+  await backend.move(turnedLeft ? 'right' : 'left', .50);
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  const turnedLeftAgain = await reachChoice();
+  await backend.move(turnedLeftAgain ? 'left' : 'right', .50);
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await waitForForcedLanding(1);
+}
+
+async function activitySix() {
+  await takeoff(.90);
+  const first = await backend.readRange('front');
+  assert(first > .65 && first < 2, 'takeoff range saturated');
+  console.log(JSON.stringify({first}));
+  const mayBeOpen = first < 1.2;
+  const distance = mayBeOpen ? (first < .8 ? .59 : first < .95 ? .74 : .89) : 1.8;
+  await backend.move('forward', distance);
+  const left = await backend.readRange('left');
+  const right = await backend.readRange('right');
+  const open = left < .45 && right < .45;
+  console.log(JSON.stringify({left, right, open}));
+  assert.equal(open, mayBeOpen);
+  if (open) {
+    await backend.vertical('down', .42);
+    await backend.move('forward', .60);
+    await backend.vertical('up', .42);
+    const next = await backend.readRange('front');
+    console.log(JSON.stringify({next}));
+    assert(next > .8 && next < 1.5, 'terminal H required after clearing');
+    await backend.move('forward', next < 1.12 ? .41 : next < 1.22 ? .51 : .61);
+  } else {
+    async function oppositeRays(expectedSide) {
+      const left = await backend.readRange('left');
+      const right = await backend.readRange('right');
+      console.log(JSON.stringify({left, right, closedHeading:expectedSide}));
+      assert.equal(left < .45, expectedSide === 'left');
+      assert.equal(right < .45, expectedSide === 'right');
+    }
+    await backend.turn(45);
+    await oppositeRays('right');
+    await backend.turn(-90);
+    await oppositeRays('left');
+    await backend.turn(45);
+    await backend.move('back', .49);
+  }
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await takeoff(.90);
+  await assert.rejects(async () => {
+    await backend.move('forward', 1.90);
+    await backend.move('forward', .30);
+  }, {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+  await waitForForcedLanding(1);
+}
+
+async function activitySeven() {
+  async function range(direction = 'front') { return backend.readRange(direction); }
+  async function advanceWhile(direction, distance, condition, limit) {
+    let iterations = 0;
+    while (await condition()) {
+      assert(iterations++ < limit, 'bounded approach exhausted');
+      await backend.move(direction, distance);
+    }
+  }
+  async function observe() {
+    return {front: await range(), left: await range('left'), right: await range('right')};
+  }
+  async function reachObstacle() {
+    await advanceWhile('forward', .24, async () => await range() > .46, 14);
+    let ranges = await observe();
+    for (let fine = 0; fine < 14 && ranges.front > .16 &&
+         ranges.left > .45 && ranges.right > .45; fine++) {
+      await backend.move('forward', .05);
+      ranges = await observe();
+    }
+    // Near a frame, one ray can see its post just before the other. Do not
+    // commit to a classification until both have had a chance to see it.
+    for (let fine = 0; fine < 4 && ranges.front > .16 && ranges.front < .25 &&
+         (ranges.left > .45 || ranges.right > .45); fine++) {
+      await backend.move('forward', .04);
+      ranges = await observe();
+    }
+    return ranges;
+  }
+  async function approachEndOfLeg() {
+    let obstacle = await reachObstacle();
+    if (obstacle.left < .45 && obstacle.right < .45) {
+      await advanceWhile('forward', .04, async () => await range() > .16, 12);
+      await backend.vertical('down', .42);
+      await backend.move('forward', .60);
+      await backend.vertical('up', .42);
+      obstacle = await reachObstacle();
+    }
+    console.log(JSON.stringify(obstacle));
+    return obstacle;
+  }
+  await takeoff(.90);
+  const corner = await approachEndOfLeg();
+  assert((corner.left < .45) !== (corner.right < .45), 'outer corner requires one side');
+  await advanceWhile('forward', .06, async () => await range() > .30, 10);
+  await advanceWhile('back', .04, async () => await range() < .27, 8);
+  await backend.turn(corner.right < .45 ? 90 : -90);
+  const closed = await approachEndOfLeg();
+  assert(closed.front < .19 && closed.left > .45 && closed.right > .45, 'closed H');
+  await advanceWhile('back', .13, async () => await range() < .65, 8);
+  await advanceWhile('forward', .05, async () => await range() > .71, 8);
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await takeoff(.40);
+  await assert.rejects(backend.move('forward', .22), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  await waitForForcedLanding(1);
+}
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {

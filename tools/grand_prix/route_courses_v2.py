@@ -16,7 +16,7 @@ LOW_AFTER = 0.55
 
 _ACTIVE_LESSONS = {
     f"gp-progression-v1-a{activity}-v{variant}": (activity, variant)
-    for activity, count in ((1, 1), (2, 1), (3, 1), (4, 3))
+    for activity, count in ((1, 1), (2, 1), (3, 1), (4, 3), (5, 5), (6, 5), (7, 7))
     for variant in range(1, count + 1)
 }
 
