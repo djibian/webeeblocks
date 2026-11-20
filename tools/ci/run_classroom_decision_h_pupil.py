@@ -46,6 +46,21 @@ def classify_live_watchdog(events, exit_code, elapsed_wall_s):
         return 'wall_deadline'
     return None
 
+def summarize_browser_errors(observations):
+    """Bounded diagnostic evidence only; never authorizes a native PASS."""
+    errors=[]
+    for index, entry in enumerate(observations):
+        if entry.get('event')!='A4_PUPIL_ERROR':
+            continue
+        detail=entry.get('detail')
+        message=detail.get('message') if isinstance(detail,dict) else None
+        if not isinstance(message,str):
+            message='<missing browser error message>'
+        errors.append({'event_index':index,'message':message[:1500]})
+        if len(errors)==3:
+            break
+    return errors
+
 def run()->int:
     ARTIFACT.mkdir(parents=True,exist_ok=True)
     log_path=ARTIFACT/'webots.log'
@@ -113,6 +128,7 @@ def run()->int:
 
     text=log_path.read_text(encoding='utf-8',errors='replace')
     events=[e.get('event') for e in ack.EVENTS]
+    browser_errors=summarize_browser_errors(ack.EVENTS)
     missing=[event for event in REQUIRED if events.count(event)!=1]
     ordered=not missing and [events.index(e) for e in REQUIRED]==sorted(
         events.index(e) for e in REQUIRED)
@@ -214,6 +230,7 @@ def run()->int:
         trace_ok=(sent is not None and received is not None and sent<received)
     valid=valid and trace_ok
     summary={'pass':valid,'required_missing':missing,'ordered':ordered,
+             'browser_errors':browser_errors,
              'wwi_frames':wwi_frames,'wwi_trace_attested':trace_ok,
              'events_ordered':in_order,'native_outcomes':outcomes,
              'rays_m':rays,'moves':moves,'vertical':vertical,
@@ -225,6 +242,8 @@ def run()->int:
     (ARTIFACT/'summary.json').write_text(
         json.dumps(summary,indent=2,sort_keys=True)+'\n',encoding='utf-8')
     if not valid:
+        print('A4_PUPIL_BROWSER_ERRORS '+json.dumps(browser_errors,sort_keys=True),
+              file=sys.stderr,flush=True)
         print('A4_PUPIL_RUNNER_TERMINATION '+json.dumps(termination,sort_keys=True),
               file=sys.stderr,flush=True)
         print('FAIL A4 same native .wbb on A/B: '+json.dumps(summary),file=sys.stderr)
