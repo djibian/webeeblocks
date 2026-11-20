@@ -227,38 +227,42 @@ async function activityFive() {
 async function activitySix() {
   await takeoff(.90);
   const first = await backend.readRange('front');
-  assert(first > .65 && first < 2, 'takeoff range saturated');
-  console.log(JSON.stringify({first}));
-  const mayBeOpen = first < 1.2;
-  const distance = mayBeOpen ? (first < .8 ? .59 : first < .95 ? .74 : .89) : 1.8;
-  await backend.move('forward', distance);
+  // V2/V4 and V3/V5 have identical first-obstacle faces. The frontal
+  // observation determines distance only; it never classifies the H.
+  assert(first > .65 && first < 1.75, 'initial sensor margin missing');
+  await backend.move('forward', first - .14);
+  const near = await backend.readRange('front');
+  assert(near > .075 && near < .30, 'first obstacle approach lost');
   const left = await backend.readRange('left');
   const right = await backend.readRange('right');
   const open = left < .45 && right < .45;
-  console.log(JSON.stringify({left, right, open}));
-  assert.equal(open, mayBeOpen);
+  console.log(JSON.stringify({first, near, left, right, open}));
   if (open) {
+    assert(left > .20 && right > .20, 'both physical H uprights must be visible');
     await backend.vertical('down', .42);
     await backend.move('forward', .60);
     await backend.vertical('up', .42);
     const next = await backend.readRange('front');
     console.log(JSON.stringify({next}));
-    assert(next > .8 && next < 1.5, 'terminal H required after clearing');
-    await backend.move('forward', next < 1.12 ? .41 : next < 1.22 ? .51 : .61);
+    assert(next > .75 && next < 1.35, 'terminal H not sensed after traversal');
+    await backend.move('forward', next - .66);
   } else {
+    assert(left > 1.9 && right > 1.9, 'closed-H lateral contrast lost');
+    await backend.move('back', .04); // Keep 20-cm yaw-test standoff.
     async function oppositeRays(expectedSide) {
-      const left = await backend.readRange('left');
-      const right = await backend.readRange('right');
-      console.log(JSON.stringify({left, right, closedHeading:expectedSide}));
-      assert.equal(left < .45, expectedSide === 'left');
-      assert.equal(right < .45, expectedSide === 'right');
+      const l = await backend.readRange('left');
+      const r = await backend.readRange('right');
+      console.log(JSON.stringify({left:l, right:r, closedHeading:expectedSide}));
+      assert.equal(l < .45, expectedSide === 'left');
+      assert.equal(r < .45, expectedSide === 'right');
+      assert.equal(l < .45 && r < .45, false, 'unilateral ray is not an open H');
     }
     await backend.turn(45);
     await oppositeRays('right');
     await backend.turn(-90);
     await oppositeRays('left');
     await backend.turn(45);
-    await backend.move('back', .49);
+    await backend.move('back', .50); // 0.70 m before the closed H.
   }
   await backend.land();
   await backend.completeActivityMission(evaluation);
@@ -266,10 +270,17 @@ async function activitySix() {
 
   await backend.resetSimulation();
   await takeoff(.90);
-  await assert.rejects(async () => {
-    await backend.move('forward', 1.90);
-    await backend.move('forward', .30);
-  }, {code: 'TIME_LIMIT'});
+  // Same mandatory independent envelope-contact refusal and native LAND;
+  // slower permitted approach isolates impact dynamics from LAND handling.
+  await backend.setSpeed(.14);
+  const negativeFirst = await backend.readRange('front');
+  assert(negativeFirst > .65 && negativeFirst < 1.75,
+    'negative obstacle lacks sensor margin');
+  await backend.move('forward', negativeFirst - .40);
+  const negativeNear = await backend.readRange('front');
+  assert(negativeNear > .24 && negativeNear < .57, 'negative standoff lost');
+  console.log(JSON.stringify({negativeFirst, negativeNear, speed:.14}));
+  await assert.rejects(backend.move('forward', .60), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   await waitForForcedLanding(1);
 }
