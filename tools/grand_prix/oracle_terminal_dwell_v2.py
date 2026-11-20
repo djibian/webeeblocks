@@ -12,15 +12,16 @@ import math
 from tools.grand_prix.route_courses_v2 import CoursePlan
 from tools.grand_prix.progression_courses import require_canonical_course_geometry
 from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+from tools.grand_prix.corridor_sweep_v2 import RADIUS
 from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 
 LANDING_TOL = .14
-# Measured native Webots R2025a Crazyflie collision-cylinder radius. The
-# new progression pads must contain the *whole* body, not only its centre.
-# Keep the historical A8 acceptance footprint unchanged in this bounded PR.
-PROGRESSION_FOOTPRINT_RADIUS = .05
+# Preserve the same 0.09-m swept-craft safety envelope as A8: the 0.05-m
+# native collision cylinder alone is insufficient to prove whole-pad safety.
+# Keep historical A8 landing acceptance unchanged here; #1082 qualifies it.
+PROGRESSION_FOOTPRINT_RADIUS = RADIUS
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.
