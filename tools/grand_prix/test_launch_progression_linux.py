@@ -12,7 +12,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 class ProgressionLaunchTests(unittest.TestCase):
     def test_each_active_lesson_binds_its_scene_to_the_shared_page(self):
-        for activity in (1, 2, 3):
+        for activity in (1, 2, 3, 4):
             with self.subTest(activity=activity), tempfile.TemporaryDirectory() as temp:
                 project = Path(temp)
                 world = launcher.prepare_lesson_project(project, activity)
@@ -30,11 +30,26 @@ class ProgressionLaunchTests(unittest.TestCase):
                                  launcher.ROOT / 'plugins/robot_windows' / launcher.ROBOT_WINDOW / 'setup.js')
                 self.assertIn('DEF GP_ROUTE_EVALUATOR Robot', world.read_text())
 
+    def test_a4_variants_share_the_same_profile_page_and_project_identity(self):
+        first_page = None
+        for variant in (1, 2, 3):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temp:
+                project = Path(temp)
+                world = launcher.prepare_lesson_project(project, 4, variant)
+                self.assertEqual(world.name, 'grand_prix_progression_a4.wbt')
+                self.assertEqual(world.read_text(), active_course_world(progression_course(4, variant)))
+                page = project / 'plugins/robot_windows' / launcher.ROBOT_WINDOW / (launcher.ROBOT_WINDOW + '.html')
+                page_bytes = page.read_bytes()
+                if first_page is None:
+                    first_page = page_bytes
+                self.assertEqual(page_bytes, first_page)
+
     def test_unknown_activity_refuses_before_writing_a_project(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp)
-            with self.assertRaises(ValueError):
-                launcher.prepare_lesson_project(project, 8)
+            for selection in ((8, 1), (1, 2), (4, 4)):
+                with self.subTest(selection=selection), self.assertRaises(ValueError):
+                    launcher.prepare_lesson_project(project, *selection)
             self.assertEqual(list(project.iterdir()), [])
 
     def test_normal_entry_point_opens_and_retires_its_project(self):
@@ -52,7 +67,7 @@ class ProgressionLaunchTests(unittest.TestCase):
               patch.object(launcher, 'webots_home', return_value=home),
               patch.object(launcher, 'prepare_route_native', return_value={'WEBOTS_HOME': str(home)}),
               patch.object(launcher, 'launch_graphical', side_effect=read_at_launch)):
-            self.assertEqual(launcher.main(['--activity', '3']), 0)
+            self.assertEqual(launcher.main(['--activity', '4', '--variant', '2']), 0)
         self.assertEqual(len(launched), 1)
         self.assertFalse(launched[0].parents[1].exists())
 

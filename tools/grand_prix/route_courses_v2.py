@@ -15,9 +15,9 @@ LOW_BEFORE = 0.55
 LOW_AFTER = 0.55
 
 _ACTIVE_LESSONS = {
-    "gp-progression-v1-a1-v1": 1,
-    "gp-progression-v1-a2-v1": 2,
-    "gp-progression-v1-a3-v1": 3,
+    f"gp-progression-v1-a{activity}-v{variant}": (activity, variant)
+    for activity, count in ((1, 1), (2, 1), (3, 1), (4, 3))
+    for variant in range(1, count + 1)
 }
 
 
@@ -80,21 +80,21 @@ def course_from_identifier(identifier):
 
 def active_progression_activities():
     """Return the lesson numbers enabled by native admission, for host launchers."""
-    return tuple(_ACTIVE_LESSONS.values())
+    return tuple(dict.fromkeys(activity for activity, _ in _ACTIVE_LESSONS.values()))
 
 
 def active_course_from_identifier(identifier):
     """Resolve only routes enabled for the native evaluator and pilot."""
-    activity = _ACTIVE_LESSONS.get(identifier) if type(identifier) is str else None
-    if activity is not None:
-        return _active_progression_course(activity)
+    lesson = _ACTIVE_LESSONS.get(identifier) if type(identifier) is str else None
+    if lesson is not None:
+        return _active_progression_course(*lesson)
     return course_from_identifier(identifier)
 
 
-@lru_cache(maxsize=3)
-def _active_progression_course(activity):
+@lru_cache(maxsize=len(_ACTIVE_LESSONS))
+def _active_progression_course(activity, variant):
     from tools.grand_prix.progression_courses import progression_course
-    return progression_course(activity)
+    return progression_course(activity, variant)
 
 
 def plan_course(seed, lengths, turns, gate_count):

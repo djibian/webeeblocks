@@ -24,9 +24,9 @@ SETUP_TAG = '<script src="setup.js"></script>'
 PROFILES = 'blockly/webeeblocks/grand_prix_progression.js'
 
 
-def prepare_lesson_project(project, activity):
+def prepare_lesson_project(project, activity, variant=1):
     """Materialize one temporary world and a profile-specific HTML entry point."""
-    course = active_course_from_identifier(f'gp-progression-v1-a{activity}-v1')
+    course = active_course_from_identifier(f'gp-progression-v1-a{activity}-v{variant}')
     scene = render_route(course)
 
     plugins = ROOT / 'plugins/robot_windows'
@@ -65,6 +65,8 @@ def main(argv=None):
         description='Prévisualisation enseignante Linux du Grand Prix pédagogique')
     parser.add_argument('--activity', type=int, choices=active_progression_activities(), default=1,
                         help='numéro d’activité (A1 par défaut)')
+    parser.add_argument('--variant', type=int, default=1,
+                        help='numéro de variante choisi par l’enseignant (1 par défaut)')
     parser.add_argument('--webots-home', help='installation officielle Webots R2025a')
     parser.add_argument('--preflight-only', action='store_true',
                         help='préparer le monde et le pilote sans ouvrir la simulation')
@@ -73,7 +75,7 @@ def main(argv=None):
         if not args.preflight_only and not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
             raise RuntimeError('Session graphique Linux absente')
         with tempfile.TemporaryDirectory(prefix='webeeblocks-grand-prix-') as temporary:
-            world = prepare_lesson_project(Path(temporary), args.activity)
+            world = prepare_lesson_project(Path(temporary), args.activity, args.variant)
             home = webots_home(args.webots_home)
             env = prepare_route_native(home)
             if args.preflight_only:

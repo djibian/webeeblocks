@@ -152,7 +152,32 @@ async function activityThree() {
   await waitForForcedLanding(1);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree};
+async function activityFour() {
+  async function approachLanding(side) {
+    await takeoff(.9);
+    // The same policy runs unchanged. Only the standard forward range is
+    // available to it, with no course identity or host coordinates.
+    const front = await backend.readRange('front');
+    assert(Number.isFinite(front) && front > .8 && front < 1.9, 'H must be observable');
+    const distance = front < 1.16 ? .30 : front < 1.56 ? .70 : 1.10;
+    console.log(JSON.stringify({front, distance, side}));
+    await backend.move('forward', distance);
+    await backend.move(side, .50);
+    await backend.land();
+    await backend.completeActivityMission(evaluation);
+  }
+
+  await approachLanding('left');
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await approachLanding('right');
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await waitForForcedLanding(1);
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {
