@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/grand_prix/progression_courses.py'
+      - 'tools/grand_prix/prepare_u_runtime.py'
       - 'tools/grand_prix/witness_workspace_a6.js'
       - 'tools/ci/check_a6_native_evidence.py'
       - 'tools/ci/grand_prix_progression_node_probe.js'
