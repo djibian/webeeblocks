@@ -250,7 +250,7 @@ jobs:
       - name: Run original R2025a witness with the existing native pilot probe
         run: |
           set -euo pipefail
-          docker run --rm \
+          docker run --rm -i \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "$PWD:/workspace" -w /workspace \
@@ -335,7 +335,7 @@ jobs:
           sed -n '/^      - name: Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions$/,/^      - name: Upload Runtime v2 diagnostics$/{/^$/p;s/^          //p;}' "$workflow" > "$validator"
           test -s "$validator"
           bash "$validator"
-      - name: Preserve the raw #1065 attempt and the ring at any browser error
+      - name: Preserve the raw Runtime attempt and the ring at any browser error
         if: always()
         uses: actions/upload-artifact@v4
         with:
