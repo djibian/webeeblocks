@@ -64,7 +64,7 @@ static void a4_ci_record(int phase, int id, int command,
     snprintf(path, sizeof(path),
              "/workspace/ci-artifacts/progression-decision-h-blockly/pilot-seams-%ld.bin",
              (long)getpid());
-    const int fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
+    const int fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0644);
     if (fd >= 0) {
       if (ftruncate(fd, (off_t)sizeof(a4_ci_ring_t)) == 0) {
         void *mapped = mmap(NULL, sizeof(a4_ci_ring_t),
