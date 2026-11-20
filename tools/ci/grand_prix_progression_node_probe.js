@@ -153,7 +153,7 @@ async function activityThree() {
 }
 
 async function activityFour() {
-  async function approachLanding(side) {
+  async function approachLanding(side, wrongPad = false) {
     await takeoff(.9);
     // The same policy runs unchanged. Only the standard forward range is
     // available to it, with no course identity or host coordinates.
@@ -163,8 +163,19 @@ async function activityFour() {
     console.log(JSON.stringify({front, distance, side}));
     await backend.move('forward', distance);
     await backend.move(side, .50);
-    await backend.land();
-    await backend.completeActivityMission(evaluation);
+    if (wrongPad) {
+      // A4's wrong tile is not licensed for low flight by the strict
+      // whole-footprint progression oracle (#1072).  The native command may
+      // be interrupted before the landing call returns.
+      try {
+        await backend.land();
+      } catch (error) {
+        assert.equal(error.code, 'TIME_LIMIT');
+      }
+    } else {
+      await backend.land();
+      await backend.completeActivityMission(evaluation);
+    }
   }
 
   await approachLanding('left');
@@ -172,8 +183,8 @@ async function activityFour() {
 
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
-  await approachLanding('right');
-  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await approachLanding('right', true);
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
 
   // STOP must revoke subsequent actuation and the native pilot must LAND
