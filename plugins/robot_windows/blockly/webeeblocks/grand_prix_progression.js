@@ -89,7 +89,10 @@
       id: 'progression-grand-prix-a' + activity + '-v1',
       // Stable project identity across hidden variants of the same activity.
       world: 'worlds/grand_prix_progression_a' + activity + '.wbt',
-      starterVisible: false,
+      // The host exposes exactly this lesson in its temporary Robot Window.
+      // Make the existing « Démarrer une activité » button open a fresh empty
+      // .wbb; it is not a publication of other lessons or native variants.
+      starterVisible: true,
       brief: {
         visible: true,
         title: activity + ' — ' + lesson.title,
