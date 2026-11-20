@@ -107,7 +107,10 @@ async function activityTwo() {
   await backend.vertical('down', .41);
   await backend.move('forward', .74);
   await backend.vertical('up', .41);
-  await backend.move('forward', .62);
+  // At the first native low-altitude landing sample, the .62-m final MOVE
+  // left x=1.741255 versus the fixed x=1.800-m tile centre (#1076).
+  // Compensate that measured ~.059-m undertravel; keep the 5-cm footprint oracle.
+  await backend.move('forward', .68);
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
