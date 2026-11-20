@@ -119,16 +119,16 @@ def progression_launcher(launcher):
     text = replace_once(text, "'^(?:[0-9]|10|11)$'", "'^(?:[0-9]|1[0-9]|2[0-2])$'")
     text = replace_once(text, "index 0..11, FPS 1..60", "index 0..22, FPS 1..60")
     # Bind native course index to host-selected lesson. No learner file owns it.
-    text = replace_once(text, "$index = [int]$indexText\\n",
-        "$index = [int]$indexText\\n"
-        "$lesson = [string]$env:WEBEEBLOCKS_GP_ACTIVITY\\n"
-        "if ($lesson -cnotmatch '^[1-7]$') { throw 'Activité absente ou invalide.' }\\n"
-        "$lessonNumber = [int]$lesson\\n"
-        "$first = @(0,1,2,3,6,11,16)[$lessonNumber - 1]\\n"
-        "$counts = @(1,1,1,3,5,5,7)\\n"
-        "if ($index -lt $first -or $index -ge ($first + $counts[$lessonNumber - 1])) {\\n"
-        "  throw 'Association activité/parcours incohérente.'\\n"
-        "}\\n")
+    text = replace_once(text, "$index = [int]$indexText\n",
+        "$index = [int]$indexText\n"
+        "$lesson = [string]$env:WEBEEBLOCKS_GP_ACTIVITY\n"
+        "if ($lesson -cnotmatch '^[1-7]$') { throw 'Activité absente ou invalide.' }\n"
+        "$lessonNumber = [int]$lesson\n"
+        "$first = @(0,1,2,3,6,11,16)[$lessonNumber - 1]\n"
+        "$counts = @(1,1,1,3,5,5,7)\n"
+        "if ($index -lt $first -or $index -ge ($first + $counts[$lessonNumber - 1])) {\n"
+        "  throw 'Association activité/parcours incohérente.'\n"
+        "}\n")
     # The activity is selected by the host, not inferred from any pupil .wbb,
     # Blockly AST, route length, oracle data or hidden variant.
     anchor = "  $html = [System.IO.File]::ReadAllText($Session.Html, [System.Text.Encoding]::UTF8)\n"
