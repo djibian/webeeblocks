@@ -1,0 +1,40 @@
+name: A1–A7 Grand Prix student UI contracts (Draft evidence only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ci-progression-ui-draft.yml'
+      - 'plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js'
+      - 'plugins/robot_windows/grand_prix_route_v2/setup.js'
+      - 'tools/ci/test_grand_prix_progression_profile.js'
+      - 'tools/grand_prix/launch_progression_linux.py'
+      - 'tools/grand_prix/test_launch_progression_linux.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  student-ui-contract:
+    name: Blockly 13.2.1 + Linux chooser + same-file roundtrip (no native PASS)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore exact Blockly dependencies
+        run: npm ci --prefix plugins/robot_windows/blockly_v2 --ignore-scripts --no-audit --no-fund
+      - name: Validate student profile and browser project-file contracts
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js
+          node --check tools/ci/test_grand_prix_progression_profile.js
+          node tools/ci/test_grand_prix_progression_profile.js
+      - name: Validate native-admitted teacher chooser and temporary world bindings
+        run: |
+          python3 -m py_compile tools/grand_prix/launch_progression_linux.py tools/grand_prix/test_launch_progression_linux.py
+          python3 -m unittest tools.grand_prix.test_launch_progression_linux
