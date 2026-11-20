@@ -162,7 +162,12 @@ Une CI échouée ou active demeure non qualifiée ; ses traces sont
 nécessaires au diagnostic. Une CI native verte ne prouve ni la fluidité
 3D sur le portable, ni la latence Blockly, ni Save/Open réel.
 
-SOURCE_SHA : HEAD exact de cette PR. PR970_SHA : SHA épinglé de #970.
+SOURCE_SHA : HEAD exact de cette PR. PR970_SHA : commit **intégré en squash**
+de #970 (`efd20edc4b35dd7e23aa2d2486f438f0667bf8d6`), ancêtre obligatoire du HEAD du paquet.
+Le HEAD d'une branche de PR non fusionnée ne peut pas servir de preuve
+d'ascendance après un squash. Le code de l'évaluateur, l'entrée native
+et la sélection `classroom-static-v1` restent vérifiés séparément;
+ce contrôle ne constitue pas une qualification Windows.
 COMPOSITION.json : dépendances, versions et SHA du pilote.
 MANIFEST.sha256 : intégrité de tous les fichiers du paquet extrait.
 ZIP reproductible seulement à **octets de dépendances et outils identiques**.

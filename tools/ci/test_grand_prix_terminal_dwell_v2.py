@@ -200,5 +200,37 @@ class VariableTerminalDwellTests(unittest.TestCase):
                 start_terminal_dwell(*args)
 
 
+
+    def test_terminal_pad_requires_entire_craft_envelope(self):
+        """A centre on the green tile is not evidence of a full landing."""
+        from tools.grand_prix.corridor_sweep_v2 import RADIUS
+        from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+        from tools.grand_prix.oracle_terminal_dwell_v2 import LANDING_TOL
+
+        self.assertAlmostEqual(LANDING_TOL + RADIUS, LANDING_TILE / 2)
+        for index in range(12):
+            course = reference_course(index)
+            progress = _terminal_progress(course)
+            x, y = course.route.landing_target(course.count)
+            with self.subTest(course=course.identifier):
+                # All four directions: the centre remains inside the .28-m
+                # tile, but the .09-m craft envelope crosses its boundary.
+                for dx, dy in ((.06, 0.), (-.06, 0.),
+                               (0., .06), (0., -.06)):
+                    shifted = replace(progress, pose=(x + dx, y + dy, .05),
+                                      leg=replace(progress.leg, xy=(x + dx, y + dy)))
+                    state = start_terminal_dwell(course, 42, 0., 0)
+                    state = self.step(state, shifted, 0, completed=True)
+                    state = self.contiguous(state, shifted, 504)
+                    self.assertIsNone(state.stationary_since_ms)
+                    self.assertEqual(state.state, 'open')
+                # A full-envelope landing near the centre still qualifies.
+                near = replace(progress, pose=(x + .04, y + .04, .05),
+                               leg=replace(progress.leg, xy=(x + .04, y + .04)))
+                state = start_terminal_dwell(course, 43, 0., 0)
+                state = self.step(state, near, 0, completed=True)
+                state = self.contiguous(state, near, 504)
+                self.assertEqual(state.state, 'stable-window')
+
 if __name__ == '__main__':
     unittest.main()

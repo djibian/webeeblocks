@@ -109,6 +109,44 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual({c.route.turns for c in a7}, {('G',), ('D',)})
         self.assertEqual({tuple(g.leg_index for g in c.gates) for c in a7}, {(), (0,), (1,)})
 
+
+    def test_a6_owner_geometry_pad_and_initial_frontal_ambiguity(self):
+        # Pure collider geometry only: native R2025a rays, flight and LAND
+        # must still be proved, including frontal-only counter-strategies.
+        from tools.grand_prix.route_terminal_v2 import ARRIVAL_LENGTH, LANDING_TILE
+
+        proposed = ((2.25, .75), (2.90, 1.40), (3.00, 1.50),
+                    (1.40, None), (1.50, None))
+        first_faces = []
+        for variant, (length, gate_along) in enumerate(proposed, start=1):
+            course = progression_course(6, variant)
+            self.assertEqual(course.route.lengths, (length,))
+            self.assertEqual(tuple(g.along for g in course.gates),
+                             () if gate_along is None else (gate_along,))
+            self.assertEqual(course.pad_distance_from_h, .70)
+            leg = course.route.legs[-1]
+            pad_along, pad_lateral = leg.local(course.landing_position(course.required_pad))
+            self.assertAlmostEqual(length - pad_along, .70)
+            self.assertAlmostEqual(pad_lateral, 0.)
+            # The whole landing tile fits inside the terminal arrival strip.
+            self.assertGreaterEqual(pad_along - LANDING_TILE / 2,
+                                    length - ARRIVAL_LENGTH)
+            self.assertLessEqual(pad_along + LANDING_TILE / 2, length)
+
+            # Compare actual first beam/panel collider faces (not profile labels).
+            target = 'GP_V2_H_0_BEAM' if gate_along is not None else 'GP_V2_FINAL_PANEL'
+            box, = (box for box in course_physical_boxes(course)
+                    if box.name == target)
+            self.assertEqual(leg.direction, 0)
+            first_faces.append(box.position[0] - box.size[0] / 2)
+
+        for open_variant, closed_variant in ((2, 4), (3, 5)):
+            self.assertAlmostEqual(first_faces[open_variant - 1],
+                                   first_faces[closed_variant - 1], places=8)
+        self.assertLess(max(first_faces), 1.75)  # >=25 cm nominal headroom
+        self.assertEqual([round(face, 2) for face in first_faces],
+                         [.73, 1.38, 1.48, 1.38, 1.48])
+
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)
         solids = course_physical_boxes(course)

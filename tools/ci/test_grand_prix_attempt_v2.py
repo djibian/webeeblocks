@@ -16,7 +16,7 @@ def observe(state, attempt, now_ms, pose, velocity, **kwargs):
     return observe_pure_attempt(state, attempt, now_ms, pose, velocity, **kwargs)
 
 
-def travel(state, target):
+def travel(state, target, *, stop_on_failure=False):
     """Trace a synthetic, speed-bounded straight segment at 8-ms aligned time."""
     before = state.progress.pose
     distance = math.dist(before, target)
@@ -27,12 +27,14 @@ def travel(state, target):
         state = observe(state, state.attempt, state.last_ms+160,
                                      point, velocity)
         if state.result is not None:
+            if stop_on_failure:
+                return state
             raise AssertionError((state.course.identifier, state.result,
                                   state.progress.leg.active_leg, point))
     return state
 
 
-def follow_course(course, pad=None):
+def follow_course(course, pad=None, *, stop_on_landing_failure=False):
     """Drive the shared host oracles with synthetic positions, never actuators."""
     state = start_pure_attempt(course, 41, .015, 0)
     state = travel(state, (*course.route.legs[0].start, .75))
@@ -51,7 +53,8 @@ def follow_course(course, pad=None):
     # would cut across the concave boundary.
     state = travel(state, (*terminal.at(terminal.length-course.pad_distance_from_h), .75))
     state = travel(state, (*target, .75))
-    return travel(state, (*target, .05))
+    return travel(state, (*target, .05),
+                  stop_on_failure=stop_on_landing_failure)
 
 
 def dwell(state, duration_ms):
@@ -77,13 +80,55 @@ class PureVariableAttemptTests(unittest.TestCase):
                     self.assertEqual(state.result.crossings, course.count)
                     self.assertLess(state.result.elapsed_ms, 210000)
 
+    def test_short_a4_cannot_use_terminal_low_exception_across_corridor(self):
+        # A4's only leg is also the final leg, with no H at all. Merely
+        # having the required (zero) crossing count must not make a flight
+        # at 0.60 m lawful far from its lateral landing tile.
+        course = progression_course(4, 1)
+        state = start_pure_attempt(course, 41, .015, 0)
+        state = travel(state, (0., 0., .75))
+        state = travel(state, (.20, 0., .75))
+        self.assertTrue(state.takeoff_done)
+        result = observe(state, state.attempt, state.last_ms + 160,
+                         (.20, 0., .60), (0., 0., -.9375))
+        self.assertEqual(result.result.reason, 'low-outside-zone')
+        # A centered final descent remains authorized and is exercised by
+        # the 23 positive activity traces in the preceding test.
+
+    def test_progression_pad_requires_whole_collider(self):
+        """Reproduce the native A4 border overhang; do not change A8 rules."""
+        course = progression_course(4, 1)
+        x, y = course.landing_goal()
+        for axis in (0, 1):
+            with self.subTest(axis=axis):
+                state = follow_course(course)
+                # The 28-cm green tile contains the centre but NOT the full
+                # 9-cm Grand Prix safety envelope at a 6-cm centre offset.
+                near_edge = (x + (.06 if axis == 0 else 0.),
+                             y + (.06 if axis == 1 else 0.), .05)
+                # The full-envelope low-flight veto fires before a terminal
+                # dwell can classify the overhanging pose as wrong landing.
+                state = travel(state, near_edge, stop_on_failure=True)
+                self.assertEqual(state.result.status, 'not-achieved')
+                self.assertEqual(state.result.reason, 'low-outside-zone')
+
+        # A genuinely contained circular footprint still completes the same
+        # independent native-clock dwell when the body stays inside the tile.
+        state = follow_course(course)
+        state = travel(state, (x + .04, y + .04, .05))
+        state = dwell(state, 504)
+        self.assertEqual(state.result.status, 'achieved')
+
     def test_a5_wrong_visible_pad_fails_for_both_turn_directions(self):
         for variant in (1, 2):
             course = progression_course(5, variant)
             wrong_pad, = set(course.pads) - {course.required_pad}
-            state = dwell(follow_course(course, wrong_pad), 1504)
+            # The visible but incorrect pad is not a licensed low-flight
+            # terminal exception: reject descent before landing dwell.
+            state = follow_course(course, wrong_pad,
+                                  stop_on_landing_failure=True)
             self.assertEqual(state.result.status, 'not-achieved')
-            self.assertEqual(state.result.reason, 'wrong-landing')
+            self.assertEqual(state.result.reason, 'low-outside-zone')
 
     def test_progression_refuses_closed_h_contact_and_deadline(self):
         course = progression_course(1)

@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,), 4: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1):
