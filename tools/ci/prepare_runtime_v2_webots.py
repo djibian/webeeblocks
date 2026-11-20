@@ -142,6 +142,7 @@ controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
 takeoff_progress_needle = '''    if (command == CMD_TAKEOFF) {
       desired.altitude = target_z;'''
 takeoff_progress_replacement = r'''    if (command == CMD_TAKEOFF) {
+      desired.altitude = target_z;
       /* Exactly one first sample per request id, then only at integer
        * simulated-second crossings. A 32-ms native step must not cause a
        * burst of synchronous stdout/fflush near TAKEOFF start.
@@ -162,12 +163,17 @@ takeoff_progress_replacement = r'''    if (command == CMD_TAKEOFF) {
                actual.roll, actual.pitch, actual.yaw_rate,
                stable_since < 0.0 ? -1.0 : now - stable_since);
         fflush(stdout);
-      }
-      desired.altitude = target_z;'''
+      }'''
 if controller.count(takeoff_progress_needle) != 1:
     raise SystemExit('Runtime v2 CI TAKEOFF progress injection point not unique')
 controller = controller.replace(takeoff_progress_needle,
                                 takeoff_progress_replacement, 1)
+# The same checkout also composes the canonical Grand Prix pilot. The
+# route TAKEOFF profile replaces this *exact* adjacent two-line anchor;
+# diagnostic injection must never split it or hide its original statement.
+if (takeoff_progress_replacement.count(takeoff_progress_needle) != 1 or
+        controller.count(takeoff_progress_needle) != 1):
+    raise SystemExit('Runtime v2 CI TAKEOFF broke the route composition anchor')
 if controller.count(" CI TAKEOFF_PROGRESS id=") != 1:
     raise SystemExit('Runtime v2 CI TAKEOFF progress marker not unique')
 
