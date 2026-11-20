@@ -236,6 +236,8 @@ jobs:
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
+          # Always exercise A6's owner-approved physical geometry and the byte-exact A8 guard.
+          python3 -m unittest tools.ci.test_grand_prix_route_v2.VariableRouteTests.test_a6_owner_geometry_pad_and_initial_frontal_ambiguity tools.ci.test_grand_prix_route_v2.VariableRouteTests.test_a8_reference_scenes_match_the_original_bytes
           # Metrics on real saved Blockly workspaces must have exact-HEAD CI evidence.
           python3 tools/ci/test_measure_wbb.py
           python3 tools/ci/test_evidence_publication.py
