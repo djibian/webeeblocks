@@ -200,7 +200,11 @@ def main()->int:
            resets_ok and native_reason_ok and native_contact_ok and
            results_ok and no_sensor and browser_ok and invalid_samples and
            'WEBEEBLOCKS_DECISION_H_FATAL' not in log)
+    # Preserve the first blocked request as well as the final browser error.
+    # This is reporting only: no verdict, deadline or required event changes.
+    browser_errors=[e.get('detail') for e in events if e.get('event')=='A4_BLIND_ERROR']
     summary={'pass':valid,'sequence':names,'native_results':results,
+             'browser_errors':browser_errors,
              'native_failure_reasons':native_reasons,
              'physical_rejection_samples':first_fail,
              'blind_cases':refused,'wrong_pad':wrong_pad,'contact':contact,

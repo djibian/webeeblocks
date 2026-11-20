@@ -31,6 +31,9 @@ async function outcome(backend) {
 window.addEventListener('error',e=>report('A4_BLIND_ERROR',{message:String(e.message)}));
 window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message:String(e.reason)}));
 (async()=>{
+  // CI diagnostic only: retain the first native request failure when a later
+  // OUTCOME request also times out; neither request is retried or extended.
+  let priorWrongMoveFailure=null;
   try {
     assert(window.WB_A4_BLIND_BOOTSTRAP,'HTML blind witness not loaded');
     assert((await window.WB_A4_BLIND_BOOTSTRAP)?.ok,
@@ -58,8 +61,12 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       // and no correct branch can be selected for either physical scene.
       await report('A4_BLIND_WRONG_BRANCH_STARTED',{variant,wrong});
       let movementError=null;
+      priorWrongMoveFailure=null;
       try{await backend.move('forward',0.75);}
-      catch(error){movementError=String(error?.code||error?.message||error);}
+      catch(error){
+        movementError=String(error?.code||error?.message||error);
+        priorWrongMoveFailure={variant,command:'MOVE',message:movementError};
+      }
       const refused=await outcome(backend);
       assert(refused.status==='not-achieved','blind route was not refused');
       // The same presenter used by the classroom Blockly window translates
@@ -76,6 +83,7 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       await report('A4_BLIND_NATIVE_REFUSED',{variant,wrong,
         status:refused.status,reason:refused.reason,
         renderedDetail:target.textContent,movementError});
+      priorWrongMoveFailure=null;  // Exact native verdict was displayed and attested.
       if(variant==='a') {
         await backend.resetSimulation();
         await report('A4_BLIND_NATIVE_RESET',{between:'a,b'});
@@ -147,6 +155,8 @@ window.addEventListener('unhandledrejection',e=>report('A4_BLIND_ERROR',{message
       variants:['a','b','a-wrong-pad','a-H_LEFT-contact'],
       status:'four-native-not-achieved',rangeReads:0});
   } catch(error) {
-    await report('A4_BLIND_ERROR',{message:String(error?.stack||error)});
+    await report('A4_BLIND_ERROR',{
+      message:String(error?.stack||error),
+      priorWrongMoveFailure});
   }
 })();
