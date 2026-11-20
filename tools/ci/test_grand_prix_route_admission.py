@@ -170,6 +170,30 @@ void query(int expected){
 }
 int main(){
 
+  // Forced-LAND velocity braking is admitted only for a FAILED native A6
+  // attempt of the same canonical evaluator incarnation. This tests the
+  // production C++ hook; it is not a substitute for Webots contact dynamics.
+  for(int variant=1;variant<=5;++variant){
+    const std::string id="gp-progression-v1-a6-v"+std::to_string(variant);
+    fresh(id);ready();assert(gp_u_start(now)==1);
+    assert(gp_route_a6_forced_land()==0); // Healthy A6/pupil LAND: position hold.
+    alive(2144);assert(gp_u_deadline(now,0)==0);
+    now=2.176; // No NEW native ALIVE: independent safety LAND is mandatory.
+    assert(gp_u_deadline(now,0)==1);
+    assert(gp_route_a6_forced_land()==1);
+    config="gp-progression-v1-a6-v"+std::to_string(variant==5?1:variant+1);
+    assert(gp_route_a6_forced_land()==0); // Cross-variant identity is not trusted.
+    config=id;assert(gp_route_a6_forced_land()==1);
+    gp_u_reset_complete();
+    assert(gp_route_a6_forced_land()==0); // Never survive RESET.
+  }
+  // A8's own independently failed attempt MUST retain the historical hold.
+  admit();assert(gp_route_a6_forced_land()==0);
+  alive(2144);assert(gp_u_deadline(now,0)==0);
+  now=2.176;assert(gp_u_deadline(now,0)==1);
+  assert(gp_route_a6_forced_land()==0);
+  gp_u_reset_complete();
+
   // A1 shares admission, epoch freshness, and exact deadline with A8.
   fresh("gp-progression-v1-a1-v1");ready();query(1);
   config="gp-progression-v1-a1-v2";query(0);
