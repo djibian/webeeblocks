@@ -52,7 +52,11 @@ const pages = expectedIntroductions.map((blocks, index) => {
   const entry = page(String(activity));
   const {profile, options} = entry;
   assert.equal(profile.id, 'progression-grand-prix-a' + activity + '-v1');
-  assert.equal(profile.starterVisible, false);
+  assert.equal(profile.starterVisible, true, 'blank activity starter must be available');
+  assert.deepEqual(options.activitiesDocument.activities.filter(candidate =>
+    candidate.id.startsWith('progression-') && candidate.starterVisible !== false &&
+    candidate.world === profile.world).map(candidate => candidate.id), [profile.id],
+  'the classroom chooser must expose only the selected lesson, never A8 or another world');
   assert.equal(profile.evaluation.oracle, 'grand-prix-route-v2');
   const previous = expectedIntroductions.slice(0, index).flat();
   assert.deepEqual(profile.toolbox.filter(type => !previous.includes(type)), blocks);
