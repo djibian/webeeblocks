@@ -61,6 +61,12 @@ def main():
                 "GP_U_ADMISSION attempt=2 " not in trace or
                 trace.count("GP_U_DEADLINE ") != 1):
             raise RuntimeError(f"A6 V{variant}: native RESET and forced LAND absent")
+        # A native negative requires a real settled forced LAND acknowledgement.
+        # In particular, a correct envelope-contact refusal is NOT a substitute
+        # for independent LAND, and UNSAFE_OR_TIMEOUT must remain a hard failure.
+        if (trace.count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK") != 1 or
+                "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR " in trace):
+            raise RuntimeError(f"A6 V{variant}: unsafe/unacknowledged forced LAND after real collision")
         checks.append((variant, digest, front[0]))
     if len({digest for _, digest, _ in checks}) != 1:
         raise RuntimeError("A6 variants did not execute the EXACT SAME .wbb bytes")
