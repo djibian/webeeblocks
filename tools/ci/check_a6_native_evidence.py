@@ -57,17 +57,40 @@ def main():
                          {"status": "not-achieved", "reason": "envelope-contact"}]):
             raise RuntimeError(f"A6 V{variant}: positive/negative mission outcomes differ")
         trace = native.read_text(encoding="utf-8", errors="replace")
-        if ("GP_U_ADMISSION attempt=1 " not in trace or
-                "GP_U_ADMISSION attempt=2 " not in trace or
-                "GP_U_ADMISSION attempt=3 " not in trace or
-                trace.count("GP_U_DEADLINE ") != 2):
-            raise RuntimeError(f"A6 V{variant}: native RESET and forced LAND absent")
-        # Require TWO actual settled independent LAND acknowledgements:
-        # severe envelope collision, then STOP after RESET. Any unsafe error
-        # remains a hard failure; a refused mission is never a LAND success.
-        if (trace.count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK") != 2 or
-                "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR " in trace):
-            raise RuntimeError(f"A6 V{variant}: unsafe/unacknowledged collision/STOP LAND")
+        # Bind each independent LAND to the correct native attempt.
+        # A total of two OKs alone would not prove STOP worked after RESET:
+        # both could have occurred on the same stale/failed incarnation.
+        phases = {1: [], 2: [], 3: []}
+        active_attempt = None
+        for line in trace.splitlines():
+            if line.startswith("GP_U_ADMISSION attempt="):
+                parts = line.split()
+                if len(parts) != 3 or not parts[1].startswith("attempt="):
+                    raise RuntimeError(f"A6 V{variant}: malformed native admission")
+                try:
+                    active_attempt = int(parts[1][len("attempt="):])
+                except ValueError as exc:
+                    raise RuntimeError(f"A6 V{variant}: invalid native attempt") from exc
+                if active_attempt not in phases or phases[active_attempt]:
+                    raise RuntimeError(f"A6 V{variant}: duplicate/unexpected native admission")
+                phases[active_attempt].append("admission")
+            elif line.startswith("GP_U_DEADLINE "):
+                if active_attempt not in phases:
+                    raise RuntimeError(f"A6 V{variant}: orphan forced LAND")
+                phases[active_attempt].append("forced")
+            elif line.startswith("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 "):
+                if active_attempt not in phases:
+                    raise RuntimeError(f"A6 V{variant}: orphan LAND reply")
+                phases[active_attempt].append(
+                    "land_ok" if line == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK"
+                    else "land_error")
+        if phases != {
+            1: ["admission"],
+            2: ["admission", "forced", "land_ok"],
+            3: ["admission", "forced", "land_ok"],
+        } or "WEBEEBLOCKS_RUNTIME_V2 FATAL unsafe attitude" in trace:
+            raise RuntimeError(
+                f"A6 V{variant}: collision/STOP LAND not independently settled: {phases}")
         checks.append((variant, digest, front[0]))
     if len({digest for _, digest, _ in checks}) != 1:
         raise RuntimeError("A6 variants did not execute the EXACT SAME .wbb bytes")
