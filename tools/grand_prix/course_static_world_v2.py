@@ -8,12 +8,13 @@ Blockly, simulator flight, deadline or landing qualification.
 """
 from dataclasses import dataclass
 
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier, LOW_BEFORE, LOW_AFTER
+from tools.grand_prix.route_courses_v2 import LOW_BEFORE, LOW_AFTER
+from tools.grand_prix.progression_courses import require_canonical_course_geometry
 from tools.grand_prix.route_solid_v2 import (
     HEIGHT as L_HEIGHT, corner_boxes, static_world, visual, visual_guides,
 )
 from tools.grand_prix.route_open_h_v2 import open_h_boxes
-from tools.grand_prix.route_terminal_v2 import terminal_boxes, landing_targets, LANDING_TILE
+from tools.grand_prix.route_terminal_v2 import terminal_boxes, LANDING_TILE
 from tools.grand_prix.course_footprint_v2 import red_boundary_marks
 
 
@@ -24,20 +25,13 @@ class CoursePhysicalBox:
     size: tuple[float, float, float]
 
 
-def _canonical(course):
-    if type(course) is not CoursePlan:
-        raise ValueError('canonical CoursePlan required')
-    if course_from_identifier(course.identifier) != course:
-        raise ValueError('forged or inconsistent CoursePlan')
-
-
 def course_physical_boxes(course):
-    """Canonical ordered native attestation input: four L, 3H, four terminal.
+    """Canonical ordered collider inventory: two boxes per L, three per H, four terminal.
 
     Conversion into the chosen Supervisor attestation API happens later on
     the evaluator side; this pure host manifest does not authorize READY.
     """
-    _canonical(course)
+    require_canonical_course_geometry(course)
     result = []
     for box in corner_boxes(course.route):
         result.append(CoursePhysicalBox(box.name, (box.x, box.y, L_HEIGHT/2),
@@ -49,7 +43,8 @@ def course_physical_boxes(course):
         result.append(CoursePhysicalBox(box.name, (box.x, box.y, box.z),
                                         (box.sx, box.sy, box.sz)))
     names = [box.name for box in result]
-    if len(result) != 8 + 3*course.count or len(set(names)) != len(names):
+    if (len(result) != 2*len(course.route.corners) + 3*course.count + 4 or
+            len(set(names)) != len(names)):
         raise ValueError('incomplete or duplicate physical course manifest')
     return tuple(result)
 
@@ -84,7 +79,7 @@ def static_course_world(course):
     Fail closed on changed upstream static-world anchors rather than partially
     rewriting an unknown robot, guides, obstacles or evaluator.
     """
-    _canonical(course)
+    require_canonical_course_geometry(course)
     route = course.route
     solids = (tuple(box.vrml() for box in corner_boxes(route)) +
               tuple(box.vrml() for box in open_h_boxes(course)) +
@@ -97,7 +92,7 @@ def static_course_world(course):
     old_guides_block = '\n'.join(old_guides) + '\n'
     whites = tuple(item for item in old_guides
                    if item.startswith('DEF GP_V2_WHITE_'))
-    if len(whites) != 3 or base.count(old_guides_block) != 1:
+    if len(whites) != len(route.legs) or base.count(old_guides_block) != 1:
         raise RuntimeError('static scene guide anchors changed')
     red = _visual_boxes('GP_V2_COURSE_RED_MARKS', red_boundary_marks(route),
                         '.95 .06 .06', 0, .004)
@@ -108,7 +103,8 @@ def static_course_world(course):
     # names distinct from the reserved GP_V2 physical inventory.
     overlay = [visual('GP_ROUTE_START', 0., 0., LANDING_TILE, LANDING_TILE,
                       '.12 .42 .90')]
-    for number, (x, y) in enumerate(landing_targets(route), start=1):
+    for number in course.pads:
+        x, y = course.landing_position(number)
         overlay.append(visual(f'GP_ROUTE_TARGET_{number}', x, y,
                               LANDING_TILE, LANDING_TILE, '.10 .72 .28'))
         # Keep the accepted 25 cm black/white 4x4 checkerboard inside the
@@ -133,16 +129,19 @@ def static_course_world(course):
                 sx, sy = ((.012, pitch / 2) if leg.direction % 2 == 0
                           else (pitch / 2, .012))
                 bands.append((x, y, sx, sy))
-    overlay.append(_visual_boxes('GP_ROUTE_BAND_MARKS', bands, '.98 .85 .10', 0, .004))
+    if bands:
+        overlay.append(_visual_boxes('GP_ROUTE_BAND_MARKS', bands, '.98 .85 .10', 0, .004))
     base = base.replace(old_guides_block,
                         '\n'.join((*whites, red, *overlay)) + '\n', 1)
 
     l_solids = tuple(box.vrml() for box in corner_boxes(route))
-    l_block = '\n'.join(l_solids) + '\n'
-    if base.count(l_block) != 1:
+    flight_anchor = ''.join(solid + '\n' for solid in l_solids) + 'Crazyflie {'
+    if base.count(flight_anchor) != 1:
         raise RuntimeError('static scene physical L anchor changed')
     additions = solids[len(l_solids):]
-    base = base.replace(l_block, l_block + '\n'.join(additions) + '\n', 1)
+    base = base.replace(flight_anchor,
+                        flight_anchor.removesuffix('Crazyflie {') +
+                        '\n'.join(additions) + '\nCrazyflie {', 1)
     old_title = 'L-corner STATIC ' + route.identifier
     if base.count(old_title) != 1:
         raise RuntimeError('static scene world identity changed')
