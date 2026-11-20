@@ -53,7 +53,7 @@ const pages = expectedIntroductions.map((blocks, index) => {
   const {profile, options} = entry;
   assert.equal(profile.id, 'progression-grand-prix-a' + activity + '-v1');
   assert.equal(profile.starterVisible, true, 'blank activity starter must be available');
-  assert.deepEqual(options.activitiesDocument.activities.filter(candidate =>
+  assert.deepEqual(Array.from(options.activitiesDocument.activities).filter(candidate =>
     candidate.id.startsWith('progression-') && candidate.starterVisible !== false &&
     candidate.world === profile.world).map(candidate => candidate.id), [profile.id],
   'the classroom chooser must expose only the selected lesson, never A8 or another world');
