@@ -100,10 +100,10 @@ def check_a6_discrimination(data, has_open_h):
     if type(data) is not dict or set(data) != expected:
         raise RuntimeError("missing or noncanonical A6 native rays")
     first = data["start"]
-    # 25-mm measured margin at the nominal aligned 0.75 m pose. This
-    # stopped-vehicle witness says nothing about the pilot's takeoff error.
-    limit = 1.25 if has_open_h else 1.975
-    if not _rays(first) or not .10 < first["front"] < limit:
+    # A6 now pairs open/closed initial frontal faces at 1.38 and 1.48 m.
+    # Demand >=25 cm of nominal 2 m headroom for all five variants; the
+    # stationary probe cannot alone prove robust pilot sensing.
+    if not _rays(first) or not .10 < first["front"] < 1.75:
         raise RuntimeError("A6 first obstacle not visible with the expected frontal margin")
     if has_open_h:
         opened, after = data["open"], data["after"]
