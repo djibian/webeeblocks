@@ -214,25 +214,25 @@ def run_evaluator_native_only(home):
 
 
 def run_progression_native_only(home, activity):
-    """Qualify the real internal-controller A1 mission in R2025a.
+    """Qualify the real internal-controller lesson mission in R2025a.
 
     This campaign is independent of the historical geometry/evaluator jobs.
     """
-    if activity != 1:
-        raise ValueError('only A1 is active in this candidate')
+    if activity not in (1, 2):
+        raise ValueError('only A1 and A2 are active in this candidate')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
-        raise RuntimeError('native A1 mission requires Webots R2025a')
+        raise RuntimeError('native progression mission requires Webots R2025a')
     env = os.environ.copy()
     env.update(WEBOTS_HOME=str(home), LIBGL_ALWAYS_SOFTWARE='true',
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
-    evidence = OUT / 'route-a1-native'
+    evidence = OUT / f'route-a{activity}-native'
     evidence.mkdir(parents=True, exist_ok=True)
     with (evidence / 'production-pilot-build.log').open('w') as log:
         subprocess.run(['make', '-C', str(ROOT / 'controllers/grand_prix_route_flight')],
                        env=env, stdout=log, stderr=subprocess.STDOUT,
                        timeout=120, check=True)
-    from tools.ci.run_grand_prix_a1_native import run_native as run_a1
-    run_a1(home, env)
+    from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
+    run_lesson(home, env, activity)
 
 
 def main():
@@ -241,7 +241,7 @@ def main():
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
     parser.add_argument('--full-matrix-only', action='store_true')
-    parser.add_argument('--progression-activity', type=int, choices=(1,))
+    parser.add_argument('--progression-activity', type=int, choices=(1, 2))
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
@@ -280,7 +280,7 @@ def main():
     # geometry. Always retain a file before Docker can block or fail.
     with tempfile.TemporaryDirectory(prefix=('gp-u-evaluator-' if args.evaluator_only else
                                               'gp-v2-matrix-' if args.full_matrix_only else
-                                              'gp-a1-mission-' if args.progression_activity is not None else
+                                              'gp-progression-mission-' if args.progression_activity is not None else
                                               'gp-u-geometry-')) as temporary:
         cid=Path(temporary)/'container.cid'
         # The pinned native R2025a image has no Node.js runtime. Reuse the
@@ -318,8 +318,8 @@ def main():
                  if args.evaluator_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
                  if args.full_matrix_only else
-                 'timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity 1'
-                 if args.progression_activity == 1 else
+                 f'timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity {args.progression_activity}'
+                 if args.progression_activity is not None else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]
         try:
             with (OUT/'docker.log').open('w') as log:

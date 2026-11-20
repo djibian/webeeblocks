@@ -132,7 +132,8 @@ bool currentConfig(std::string& config) {
   const char *raw=wb_supervisor_field_get_mf_string(f,0);
   if(!raw || std::strlen(raw)>80 ||
      (std::strncmp(raw,"gp-route-v2-",12) &&
-      std::strcmp(raw,"gp-progression-v1-a1-v1")))return false;
+      std::strcmp(raw,"gp-progression-v1-a1-v1") &&
+      std::strcmp(raw,"gp-progression-v1-a2-v1")))return false;
   for(const char *p=raw;*p;++p)
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.

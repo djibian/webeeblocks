@@ -138,6 +138,30 @@ class NativeRouteEvaluator:
                     'actual_z=%.6f vz=%.6f origin_z=%.6f lower_z=%.6f ceiling_z=%.6f',
                     self._context.attempt, now, position[2], velocity[2],
                     self._origin_z, self._origin_z-.02, self._origin_z+1.15)
+        # A2 native CI: discriminate a terminal-pad footprint miss from a
+        # premature descent. This post-refusal witness is strictly diagnostic:
+        # it cannot change the latched reason, oracle, 8-ms step or flight.
+        if (reason == 'low-outside-zone' and self.course.progression == (2, 1)
+                and self._context is not None and self._active is not None
+                and self.observation is not None):
+            previous = self._active.progress.pose
+            observed = self.observation.kinematics.position
+            velocity = self.observation.kinematics.velocity
+            target = self.course.landing_goal()
+            from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+            from tools.grand_prix.oracle_u import RADIUS
+            half = LANDING_TILE / 2 - RADIUS
+            LOGGER.warning(
+                'GP_A2_TERMINAL_SWEEP attempt=%d time_ms=%d '
+                'before=%.9f,%.9f,%.9f after=%.9f,%.9f,%.9f '
+                'velocity=%.9f,%.9f,%.9f target=%.9f,%.9f '
+                'offset_before=%.9f,%.9f offset_after=%.9f,%.9f '
+                'safe_half=%.9f crossings=%d/%d',
+                self._context.attempt, now,
+                *previous, *observed, *velocity[:3], *target,
+                previous[0] - target[0], previous[1] - target[1],
+                observed[0] - target[0], observed[1] - target[1],
+                half, self._active.progress.count, self.course.count)
         # A positive result is written only once. After publication, invalid
         # observations still revoke ALIVE, but may not overwrite a success that
         # the pilot already latched. The pilot independently fails if it had
