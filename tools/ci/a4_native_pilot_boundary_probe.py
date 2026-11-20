@@ -24,12 +24,93 @@ PROBE = r'''
  * No response is generated and no watchdog or PID state is modified.
  */
 #include <time.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 static double a4_ci_wall_time(void) {
   struct timespec ts;
   if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
     return -1.0;
   return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
 }
+
+/* Diagnostic circular flight recorder: no per-step stdio or Webots calls.
+ * A dedicated file per process preserves the first-class last-entered seam.
+ * Phase: 1 step enter, 2 step return, 3 receive enter, 4 receive return,
+ * 5 parsed request, 6 activate, 7 send enter, 8 send return, 9 PID state.
+ * This is evidence only, never an oracle or a watchdog.
+ */
+#define A4_CI_RING_CAP 16384u
+typedef struct {
+  uint64_t seq;
+  double wall, sim, z, target_z, vz, stable_since;
+  int phase, id, command;
+} a4_ci_event_t;
+typedef struct {
+  uint64_t next;
+  uint32_t version, capacity;
+  a4_ci_event_t events[A4_CI_RING_CAP];
+} a4_ci_ring_t;
+static a4_ci_ring_t *a4_ci_ring = NULL;
+static int a4_ci_ring_attempted = 0;
+static double a4_ci_current_sim = -1.0;
+static void a4_ci_record(int phase, int id, int command,
+                         double sim, double z, double target_z,
+                         double vz, double stable_since) {
+  if (!a4_ci_ring_attempted) {
+    a4_ci_ring_attempted = 1;
+    char path[256];
+    snprintf(path, sizeof(path),
+             "/workspace/ci-artifacts/progression-decision-h-blockly/pilot-seams-%ld.bin",
+             (long)getpid());
+    const int fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (fd >= 0) {
+      if (ftruncate(fd, (off_t)sizeof(a4_ci_ring_t)) == 0) {
+        void *mapped = mmap(NULL, sizeof(a4_ci_ring_t),
+                            PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (mapped != MAP_FAILED) {
+          a4_ci_ring = (a4_ci_ring_t *)mapped;
+          a4_ci_ring->version = 1;
+          a4_ci_ring->capacity = A4_CI_RING_CAP;
+        }
+      }
+      close(fd);
+    }
+    if (!a4_ci_ring)
+      fprintf(stderr, "A4_CI_PILOT_RING_UNAVAILABLE pid=%ld\n", (long)getpid());
+  }
+  if (!a4_ci_ring)
+    return;
+  const uint64_t seq = a4_ci_ring->next;
+  a4_ci_event_t *e = &a4_ci_ring->events[seq % A4_CI_RING_CAP];
+  e->seq = seq;
+  e->wall = a4_ci_wall_time();
+  e->sim = sim;
+  e->z = z;
+  e->target_z = target_z;
+  e->vz = vz;
+  e->stable_since = stable_since;
+  e->phase = phase;
+  e->id = id;
+  e->command = command;
+  __sync_synchronize();
+  a4_ci_ring->next = seq + 1;
+}
+static const char *a4_ci_receive_text(int id, int command) {
+  a4_ci_record(3, id, command, a4_ci_current_sim, NAN, NAN, NAN, -1.0);
+  const char *result = wb_robot_wwi_receive_text();
+  a4_ci_record(4, id, command, a4_ci_current_sim, NAN, NAN, NAN, -1.0);
+  return result;
+}
+static void a4_ci_send_text(const char *text) {
+  int id = -1;
+  (void)sscanf(text, "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d", &id);
+  a4_ci_record(7, id, -1, a4_ci_current_sim, NAN, NAN, NAN, -1.0);
+  wb_robot_wwi_send_text(text);
+  a4_ci_record(8, id, -1, a4_ci_current_sim, NAN, NAN, NAN, -1.0);
+}
+
 static int a4_ci_pilot_step(int step, int id, int command, double prior_sim) {
   static double last_wall = -1.0;
   static int last_id = -999;
@@ -48,7 +129,9 @@ static int a4_ci_pilot_step(int step, int id, int command, double prior_sim) {
             wall, prior_sim, id, command);
     fflush(stderr);
   }
+  a4_ci_record(1, id, command, prior_sim, NAN, NAN, NAN, -1.0);
   const int result = wb_robot_step(step);
+  a4_ci_record(2, id, command, prior_sim, NAN, NAN, NAN, -1.0);
   if (record) {
     fprintf(stderr, "A4_CI_PILOT_STEP_RETURN wall=%.3f sim_last=%.3f id=%d result=%d\n",
             a4_ci_wall_time(), prior_sim, id, result);
@@ -58,6 +141,8 @@ static int a4_ci_pilot_step(int step, int id, int command, double prior_sim) {
 }
 static void a4_ci_mark(const char *phase, int id, int kind,
                        double sim, double z, double target_z) {
+  a4_ci_record(strcmp(phase, "receive") == 0 ? 5 : 6,
+               id, kind, sim, z, target_z, NAN, -1.0);
   static unsigned samples = 0;
   if (samples++ >= 160)
     return;
@@ -73,6 +158,16 @@ REPLACEMENTS = (
      '#include "activity_scene.h"\n' + PROBE),
     ('  while (wb_robot_step(step) != -1) {',
      '  while (a4_ci_pilot_step(step, active_id, (int)command, previous_time) != -1) {'),
+    ('  wb_robot_wwi_send_text(text);\n',
+     '  a4_ci_send_text(text);\n'),
+    ('    while ((message = wb_robot_wwi_receive_text()) != NULL) {',
+     '    while ((message = a4_ci_receive_text(active_id, (int)command)) != NULL) {'),
+    ('    const double now = wb_robot_get_time();\n',
+     '    const double now = wb_robot_get_time();\n'
+     '    a4_ci_current_sim = now;\n'),
+    ('    previous_time = now;\n    previous_x = x;\n    previous_y = y;\n    previous_z = z;\n  }\n\n  stop_motors',
+     '    a4_ci_record(9, active_id, (int)command, now, z, target_z, vz, stable_since);\n'
+     '    previous_time = now;\n    previous_x = x;\n    previous_y = y;\n    previous_z = z;\n  }\n\n  stop_motors'),
     ('      request_t request = parse_request(message);\n',
      '      request_t request = parse_request(message);\n'
      '      a4_ci_mark("receive", request.id, (int)request.kind, now, z, target_z);\n'),
@@ -145,6 +240,13 @@ def restore() -> None:
         'instrumented_sha256': digest(expected),
         'step_sample_cap': 600,
         'boundary_sample_cap': 160,
+        'seam_ring_cap': 16384,
+        'seam_ring_phases': {'1':'step-enter','2':'step-return',
+                             '3':'wwi-receive-enter','4':'wwi-receive-return',
+                             '5':'parsed-request','6':'action-activate',
+                             '7':'wwi-send-enter','8':'wwi-send-return',
+                             '9':'post-pid-state'},
+        'seam_ring_format': 'native little-endian LP64 C struct: header uint64 next, uint32 version/capacity; records: uint64 seq; six double wall,sim,z,target_z,vz,stable_since; int phase,id,command; 4 trailing padding bytes',
     }, sort_keys=True, indent=2) + '\n', encoding='utf-8')
     BACKUP.unlink()
     print('A4_CI_PILOT_PROBE_RESTORED ' + digest(original), flush=True)
@@ -158,6 +260,14 @@ def selftest() -> None:
     assert patched.count('a4_ci_mark("receive",') == 1
     assert patched.count('a4_ci_mark("activate",') == 3
     assert patched.count('wb_robot_step(step)') == original.count('wb_robot_step(step)')
+    assert patched.count('wb_robot_wwi_send_text(text)') == original.count('wb_robot_wwi_send_text(text)')
+    assert patched.count('wb_robot_wwi_receive_text()') == original.count('wb_robot_wwi_receive_text()')
+    assert patched.count('a4_ci_send_text(text)') == 1
+    assert patched.count('a4_ci_receive_text(active_id, (int)command)') == 1
+    assert patched.count('a4_ci_record(9, active_id, (int)command, now, z, target_z, vz, stable_since)') == 1
+    assert patched.count('A4_CI_RING_CAP 16384u') == 1
+    assert 'MAP_SHARED' in patched
+    assert 'phase, id, command' in patched
     assert patched.count('response_ok(active_id)') == original.count('response_ok(active_id)')
     assert patched.count('response_error(active_id, "UNSAFE_OR_TIMEOUT")') == original.count('response_error(active_id, "UNSAFE_OR_TIMEOUT")')
     assert patched.count('#define ACTION_TIMEOUT 25.0') == 1
