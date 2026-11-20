@@ -170,15 +170,18 @@ jobs:
         run: |
           python tools/ci/test_grand_prix_progression_windows_package.py --archive 'ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A7-Windows-R2025a.zip' --extract-to 'ci-artifacts/EXTRACTED student progression with spaces'
           if ($LASTEXITCODE -ne 0) { throw 'A1–A7 extracted ZIP audit failed' }
-          foreach ($lesson in @(
-            @{ Activity=1; Variant=1 },
-            @{ Activity=4; Variant=3 },
-            @{ Activity=6; Variant=5 },
-            @{ Activity=7; Variant=7 }
-          )) {
-            & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED student progression with spaces/Lancer-Progression.ps1' -Activite $lesson.Activity -Variante $lesson.Variant -WebotsHome $env:WEBOTS_HOME -ValidateOnly
-            if ($LASTEXITCODE -ne 0) { throw "A1–A7 Windows PowerShell session preflight failed: $($lesson.Activity)/$($lesson.Variant)" }
+          # Check every Windows host activity/variant binding, not just 4 samples.
+          # ValidateOnly does not establish native mission or graphical PASS.
+          $counts = @(1,1,1,3,5,5,7)
+          $checked = 0
+          for ($activity = 1; $activity -le 7; $activity++) {
+            for ($variant = 1; $variant -le $counts[$activity - 1]; $variant++) {
+              & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File 'ci-artifacts/EXTRACTED student progression with spaces/Lancer-Progression.ps1' -Activite $activity -Variante $variant -WebotsHome $env:WEBOTS_HOME -ValidateOnly
+              if ($LASTEXITCODE -ne 0) { throw "A1–A7 Windows PowerShell session preflight failed: A$activity/V$variant" }
+              $checked++
+            }
           }
+          if ($checked -ne 23) { throw "Windows progression preflight inventory incomplete: $checked/23" }
 
       - name: Prepare pinned CI-only Windows software OpenGL
         shell: pwsh
