@@ -119,10 +119,18 @@ async function activityTwo() {
   await waitForForcedLanding(1);
 
   await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   await takeoff(.88);
   await assert.rejects(backend.move('forward', 1.1), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
-  await waitForForcedLanding(2);
+  await waitForForcedLanding(3);
 }
 
 const scenarios = {'1': activityOne, '2': activityTwo};
