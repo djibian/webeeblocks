@@ -150,6 +150,13 @@ async function activityThree() {
   await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'course-boundary'});
   await waitForForcedLanding(1);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree};
