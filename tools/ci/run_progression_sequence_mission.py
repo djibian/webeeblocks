@@ -554,7 +554,12 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
+# Native scene/RESET/reattachment probes can reach the last TAKEOFF late.
+# In Ready #1072 run 44701808960, the final SCENE ACK arrived about 238s
+# after SEQUENCE_PROBE_READY. The existing 60s WWI request timeout must be
+# observable before the outer process cap; otherwise it truncates evidence.
+# Keep every required event and fail closed on an incomplete/expired run.
+timeout -k 5s 330s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
         inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('WB_CANOPY_NATIVE_FLIGHT_ENABLED', '1' if NEUTRAL_START else '0')
