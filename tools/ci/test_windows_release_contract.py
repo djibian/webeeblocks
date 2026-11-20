@@ -246,6 +246,53 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("dossier `Activites`", readme)
         self.assertIn("utilisé comme **modèle**", readme)
 
+    def test_archived_a5_a6_preserve_old_projects_without_publishing_the_new_lessons(self) -> None:
+        packager = (ROOT / "tools/build_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        release_test = (ROOT / "tools/ci/test_windows_classroom_release.ps1").read_text(
+            encoding="utf-8")
+        readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
+        activities = (ROOT / "plugins/robot_windows/blockly/webeeblocks/activities.js"
+                      ).read_text(encoding="utf-8")
+
+        self.assertIn("$historicalStarterTarget = Join-Path $progressionTarget 'Historique'",
+                      packager)
+        self.assertIn("$nonPublicLegacyStarters = @('05-reactive.wbb', '06-multi-perception.wbb')",
+                      packager)
+        self.assertIn("if ($nonPublicLegacyStarters -contains $starter.Name)", packager)
+        self.assertIn(
+            "Copy-RequiredFile $starter.FullName (Join-Path $historicalStarterTarget $starter.Name)",
+            packager)
+        self.assertIn(
+            "Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)",
+            packager)
+        for filename, activity_id in (
+            ("05-reactive.wbb", "progression-reactive-v1"),
+            ("06-multi-perception.wbb", "progression-combined-decisions-v1"),
+        ):
+            with self.subTest(filename=filename):
+                source = ROOT / "activities/progression" / filename
+                self.assertEqual(
+                    json.loads(source.read_text(encoding="utf-8"))["activity"]["id"],
+                    activity_id)
+                self.assertRegex(
+                    activities,
+                    rf"starterVisible:\s*false,\s*id:\s*'{re.escape(activity_id)}'")
+                self.assertIn(r"'Activites\Historique'", release_test)
+                self.assertIn(filename, release_test)
+                self.assertIn(filename, readme)
+        self.assertIn("modèles historiques 01", readme)
+        self.assertIn("19 novembre\n2026", readme)
+        self.assertIn("pas être distribués comme les nouvelles activités A1–A7", readme.replace("\n", " "))
+        self.assertNotIn("sont actuellement libérées", readme)
+        self.assertNotIn("huit fichiers `.wbb` de la", readme)
+           # Preserve the existing A8 identity without changing its packaging.
+        a8 = ROOT / "activities/progression/08-autonomous-strategy.wbb"
+        self.assertEqual(
+            json.loads(a8.read_text(encoding="utf-8"))["activity"]["id"],
+            "progression-autonomous-strategy-v1")
+        self.assertIn("Le modèle 08", readme)
+
     def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         packager = (

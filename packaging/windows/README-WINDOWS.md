@@ -45,16 +45,25 @@ suivi par #476 ; ne l’interprétez pas comme une régression du broker Firefox
 
 ## Démarrer une activité de la progression
 
-L’archive contient le dossier `Activites` avec les huit fichiers `.wbb` de la
-progression pédagogique active, numérotés de 01 à 08. L'ancienne activité
-« 2 — Livrer le colis fragile » reste disponible dans `Activites/Historique` :
-les anciens projets conservent leurs profils, scènes et programmes d’origine.
-L’enseignant peut distribuer tout ou partie des modèles actifs.
+L’archive contient le dossier `Activites`. Les **modèles historiques 01,
+02, 03, 04 et 07** qu’il contient appartiennent à l’ancienne progression,
+antérieure à la nouvelle progression Grand Prix A1–A7 décidée le **19 novembre
+2026**. Ils restent accessibles pour la compatibilité des projets existants ;
+leur présence dans l’archive ou dans le sélecteur ne signifie **ni intégration,
+ni qualification, ni publication** des nouvelles activités du même numéro.
+Les anciens modèles `05-reactive.wbb` et `06-multi-perception.wbb` sont conservés
+sans modifier leurs octets dans `Activites/Historique` : **ils ne sont pas les
+nouvelles activités 5 et 6**. Les anciens modèles 02, 03, 04 et 07 sont également
+archivés à cet endroit. Le modèle 08 et son profil existants sont conservés,
+sans modification ni qualification nouvelle dans ce chantier. La présence
+d’un `.wbb` ne vaut jamais décision de publication pédagogique.
 
 Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir l’activité
 dans la liste intégrée : le fichier `.wbb` de départ est créé automatiquement,
-sans boîte de dialogue système. Les modèles correspondants restent également
-disponibles dans `Activites` pour une distribution par l’enseignant.
+sans boîte de dialogue système. Les anciens modèles 01, 02, 03, 04 et 07
+peuvent servir à rouvrir ou étudier les exercices précédents : ils ne doivent
+**pas être distribués comme les nouvelles activités A1–A7**. Les anciens
+modèles 05/06 conservés dans `Historique` ont la même limite de portée.
 Le titre, l’objectif, la boîte à outils et les contraintes sont appliqués par
 le profil de l'activité. Le fichier fourni est utilisé comme **modèle** : il ne
 devient pas la cible d’enregistrement de l’élève. Pour conserver son travail,
