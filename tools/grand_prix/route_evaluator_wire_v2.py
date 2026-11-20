@@ -8,9 +8,9 @@ supply native_validated=True. No pupil/UI input may supply that assertion.
 from dataclasses import dataclass
 import re
 
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 
-_CONFIG = r"(?P<config>gp-route-v2-[A-Za-z0-9-]+)"
+_CONFIG = r"(?P<config>gp-route-v2-[A-Za-z0-9-]+|gp-progression-v1-a1-v1)"
 _NUMBER = r"(0|[1-9][0-9]*)"
 _CHALLENGE = re.compile(
     r"GP_ROUTE_CHALLENGE_V1 attempt=(?P<attempt>[1-9][0-9]*) config="
@@ -45,7 +45,7 @@ def parse_flight_channel(raw, expected_config):
     implied READY. Verify the ID by reconstructing CoursePlan, not by prefix.
     """
     if (type(expected_config) is not str or
-            course_from_identifier(expected_config).identifier != expected_config):
+            active_course_from_identifier(expected_config).identifier != expected_config):
         raise ValueError("expected canonical CoursePlan required")
     if type(raw) is not str or len(raw) > 383:
         raise ValueError("invalid native flight wire")
@@ -84,7 +84,7 @@ class EvaluatorHandshake:
     """
 
     def __init__(self, course_identifier):
-        self.course = course_from_identifier(course_identifier)
+        self.course = active_course_from_identifier(course_identifier)
         self._last_time = None
         self._clear()
 

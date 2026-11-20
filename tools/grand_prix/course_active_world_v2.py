@@ -8,7 +8,7 @@ grants READY; without a live evaluator the native flight guard must refuse
 TAKEOFF. Do not offer this scene from the user-facing launcher yet.
 """
 from tools.grand_prix.course_static_world_v2 import static_course_world
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
+from tools.grand_prix.route_courses_v2 import CoursePlan, active_course_from_identifier
 
 FLIGHT_CONTROLLER = "grand_prix_route_flight"
 ROBOT_WINDOW = "grand_prix_route_v2"
@@ -28,7 +28,7 @@ def active_course_world(course):
     static_course_world, which rejects noncanonical or changed scene anchors.
     No hidden route/seed is included in Blockly or the pupil project.
     """
-    if type(course) is not CoursePlan or course_from_identifier(course.identifier) != course:
+    if type(course) is not CoursePlan or active_course_from_identifier(course.identifier) != course:
         raise ValueError("canonical CoursePlan required")
     inert = static_course_world(course)
     title = "Grand Prix STATIC " + course.identifier

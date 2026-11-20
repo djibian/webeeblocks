@@ -8,7 +8,7 @@ separately attest the scene and native attempt. No READY/ALIVE is emitted here.
 from dataclasses import dataclass
 import math
 
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
@@ -87,7 +87,7 @@ class NativeContactSampler:
 
     def __init__(self, supervisor, course_identifier):
         if (type(course_identifier) is not str or
-                course_from_identifier(course_identifier).identifier != course_identifier or
+                active_course_from_identifier(course_identifier).identifier != course_identifier or
                 supervisor.getBasicTimeStep() != 8):
             raise RuntimeError("noncanonical native contact course or timestep")
         children = supervisor.getRoot().getField("children")

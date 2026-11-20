@@ -213,23 +213,51 @@ def run_evaluator_native_only(home):
     run_evaluator(home, env)
 
 
+def run_progression_native_only(home, activity):
+    """Qualify the real internal-controller A1 mission in R2025a.
+
+    This campaign is independent of the historical geometry/evaluator jobs.
+    """
+    if activity != 1:
+        raise ValueError('only A1 is active in this candidate')
+    if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
+        raise RuntimeError('native A1 mission requires Webots R2025a')
+    env = os.environ.copy()
+    env.update(WEBOTS_HOME=str(home), LIBGL_ALWAYS_SOFTWARE='true',
+               WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
+    evidence = OUT / 'route-a1-native'
+    evidence.mkdir(parents=True, exist_ok=True)
+    with (evidence / 'production-pilot-build.log').open('w') as log:
+        subprocess.run(['make', '-C', str(ROOT / 'controllers/grand_prix_route_flight')],
+                       env=env, stdout=log, stderr=subprocess.STDOUT,
+                       timeout=120, check=True)
+    from tools.ci.run_grand_prix_a1_native import run_native as run_a1
+    run_a1(home, env)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--native', action='store_true')
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
     parser.add_argument('--full-matrix-only', action='store_true')
+    parser.add_argument('--progression-activity', type=int, choices=(1,))
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_route_solid_v2.py')], check=True)
-    if args.evaluator_only and args.full_matrix_only:
-        raise ValueError('native matrix and evaluator modes are exclusive')
-    if args.tcp and (not args.native or args.evaluator_only or args.full_matrix_only):
+    modes = (args.evaluator_only, args.full_matrix_only,
+             args.progression_activity is not None)
+    if sum(modes) > 1:
+        raise ValueError('evaluator, matrix and progression modes are exclusive')
+    if args.tcp and (not args.native or any(modes)):
         raise ValueError('--tcp requires full --native geometry')
     if args.native:
         if args.evaluator_only:
             run_evaluator_native_only(Path(os.environ['WEBOTS_HOME']))
+        elif args.progression_activity is not None:
+            run_progression_native_only(Path(os.environ['WEBOTS_HOME']),
+                                        args.progression_activity)
         elif args.full_matrix_only:
             run_full_route_matrix_native(Path(os.environ['WEBOTS_HOME']))
         else:
@@ -252,15 +280,33 @@ def main():
     # geometry. Always retain a file before Docker can block or fail.
     with tempfile.TemporaryDirectory(prefix=('gp-u-evaluator-' if args.evaluator_only else
                                               'gp-v2-matrix-' if args.full_matrix_only else
+                                              'gp-a1-mission-' if args.progression_activity is not None else
                                               'gp-u-geometry-')) as temporary:
         cid=Path(temporary)/'container.cid'
+        # The pinned native R2025a image has no Node.js runtime. Reuse the
+        # same host Node 22 mount already proven by the common #1095 harness.
+        # Do not alter geometry, evaluator or historical Runtime campaigns.
+        node_mount = []
+        if args.progression_activity is not None:
+            node_binary = shutil.which('node')
+            if not node_binary:
+                raise RuntimeError('native progression needs host Node.js 22')
+            version = subprocess.check_output([node_binary, '--version'], text=True).strip()
+            if not version.startswith('v22.'):
+                raise RuntimeError('native progression requires Node.js 22')
+            node_root = Path(node_binary).resolve().parent.parent
+            if not (node_root / 'bin' / 'node').is_file():
+                raise RuntimeError('incomplete Node.js installation')
+            node_mount = ['-v', f'{node_root}:/opt/ci-node:ro']
         args=['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash',
               '-e','WEBOTS_HOME=/usr/local/webots',
               '-e',f'WEBEEBLOCKS_GP_WEBOTS_IMAGE={IMAGE}',
               '-v',f'{ROOT}:/workspace',
-              '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
+              '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro',
+              *node_mount, '-w','/workspace',
               IMAGE,'-lc',
-              "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
+              ('export PATH=/opt/ci-node/bin:$PATH\n' if node_mount else '')
+              + "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
               # Independent native campaigns: U/L/H geometry retains its
               # historical 1350 s container cap. Evaluator READY/revocation
               # and flight/LAND/RESET have their own mandatory Runtime job.
@@ -272,6 +318,8 @@ def main():
                  if args.evaluator_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
                  if args.full_matrix_only else
+                 'timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity 1'
+                 if args.progression_activity == 1 else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]
         try:
             with (OUT/'docker.log').open('w') as log:

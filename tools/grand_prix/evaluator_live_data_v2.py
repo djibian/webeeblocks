@@ -9,7 +9,7 @@ cannot authorize takeoff.
 from dataclasses import dataclass
 
 from tools.grand_prix.evaluator_native_contacts_v2 import NativeContactSampler
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.route_evaluator_wire_v2 import parse_flight_channel
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
 from tools.grand_prix.native_sfbbool_v2 import enabled
@@ -32,7 +32,7 @@ class NativeRouteDataReader:
 
     def __init__(self, supervisor, identifier):
         if (type(identifier) is not str or
-                course_from_identifier(identifier).identifier != identifier or
+                active_course_from_identifier(identifier).identifier != identifier or
                 supervisor.getBasicTimeStep() != 8):
             raise RuntimeError("noncanonical native data reader course or timestep")
         self._supervisor = supervisor

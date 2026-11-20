@@ -8,7 +8,7 @@ NEVER establishes RESET, contacts, READY/ALIVE, outcome or pupil success.
 from dataclasses import dataclass
 import math
 
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.native_sfbbool_v2 import enabled
 
 
@@ -79,7 +79,7 @@ class NativeKinematicsSampler:
     """
     def __init__(self, supervisor, course_identifier):
         if (type(course_identifier) is not str or
-                course_from_identifier(course_identifier).identifier != course_identifier or
+                active_course_from_identifier(course_identifier).identifier != course_identifier or
                 supervisor.getBasicTimeStep() != 8):
             raise RuntimeError('noncanonical native route or timestep')
         children = supervisor.getRoot().getField('children')

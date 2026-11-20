@@ -7,14 +7,14 @@ cannot use its own devices as a substitute. A caller's string is not provenance.
 from dataclasses import dataclass
 import re
 
-from tools.grand_prix.route_courses_v2 import course_from_identifier
-from tools.grand_prix.route_evaluator_wire_v2 import Challenge, Start
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
+from tools.grand_prix.route_evaluator_wire_v2 import Challenge, Start, _CONFIG
 
 OBSERVATION_FIELD = 'model'  # Plain GP_ROUTE_EVALUATOR Robot; flight is the only writer.
 
 _SAMPLE = re.compile(
     r'GP_ROUTE_SAMPLE_V1 attempt=(?P<attempt>[1-9][0-9]*) '
-    r'config=(?P<config>gp-route-v2-[A-Za-z0-9-]+) '
+    rf'config={_CONFIG} '
     r'epoch=(?P<epoch>[0-9a-f]{32}) time_ms=(?P<time>0|[1-9][0-9]*) '
     r'period_ms=32 ground=(?P<ground>[01]) ranges_um='
     + ','.join(fr'(?P<r{i}>0|[1-9][0-9]*)' for i in range(5)), re.ASCII)
@@ -56,7 +56,7 @@ def parse_flight_observation(raw, flight_event, now_ms):
     if (type(expected) is not Challenge or type(expected.attempt) is not int or
             not 1 <= expected.attempt < 2**64 or
             type(expected.config) is not str or
-            course_from_identifier(expected.config).identifier != expected.config or
+            active_course_from_identifier(expected.config).identifier != expected.config or
             type(expected.epoch) is not str or
             re.fullmatch('[0-9a-f]{32}', expected.epoch, re.ASCII) is None):
         raise ValueError('canonical flight observation context required')

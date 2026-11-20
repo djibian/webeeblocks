@@ -8,7 +8,7 @@ from tools.grand_prix.native_collider_contract_v2 import (
     canonical_native_boxes, _read_native_root_nodes, _read_scene_boxes, _root_inventory,
     _verify_box_measurements, _verify_scene_boxes,
 )
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.native_sfbbool_v2 import enabled
 from tools.grand_prix.native_field_lookup_v2 import NativeFieldLookup
 from tools.grand_prix.native_scene_snapshot_v2 import read_scene_signature
@@ -42,7 +42,7 @@ def _supervisor(node, fields):
 
 def check_native_evaluator_scene(supervisor, identifier):
     """Check the canonical scene without granting flight authority."""
-    read_native_evaluator_scene(supervisor, course_from_identifier(identifier), NativeFieldLookup())
+    read_native_evaluator_scene(supervisor, active_course_from_identifier(identifier), NativeFieldLookup())
 
 
 def read_native_evaluator_scene(supervisor, course, fields, snapshot=None):

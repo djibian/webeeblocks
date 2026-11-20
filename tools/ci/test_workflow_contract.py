@@ -33,6 +33,7 @@ EXPECTED = {
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
         "grand-prix-v2-native-matrix", "progression-mini-gp-native",
+        "grand-prix-progression-a1-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -249,6 +250,42 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('timeout -k 5s 60s xvfb-run', detour)
         self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
         self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
+
+    def test_progression_native_has_pinned_host_node22_mount(self):
+        runner = (ROOT / "tools/ci/run_grand_prix_u_geometry.py").read_text(encoding="utf-8")
+        for must in (
+            "node_mount = []",
+            "if args.progression_activity is not None:",
+            "version.startswith('v22.')",
+            "node_root = Path(node_binary).resolve().parent.parent",
+            "node_mount = ['-v', f'{node_root}:/opt/ci-node:ro']",
+            "export PATH=/opt/ci-node/bin:$PATH",
+        ):
+            self.assertIn(must, runner)
+
+    def test_activity1_native_job_is_required_and_not_skipped(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a1 = runtime.split("\n  grand-prix-progression-a1-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 20",
+            "uses: actions/setup-node@v4",
+            "node-version: '22'",
+            "ref: \u0024{{ inputs.target_sha || github.sha }}",
+            "run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 1",
+            "if: always()",
+            "grand-prix-progression-a1-native-r2025a",
+            "route-a1-native/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, a1)
+        for forbidden in (
+            "continue-on-error", "if: false",
+            "if: github.event.pull_request.draft == true",
+            "|| true", "allow-failure",
+        ):
+            self.assertNotIn(forbidden, a1)
 
     def test_activity7_public_native_ready_is_required_and_not_skipped(self):
         runtime=(WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")

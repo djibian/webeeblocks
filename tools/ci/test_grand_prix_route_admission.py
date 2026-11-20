@@ -140,12 +140,12 @@ extern "C" const char* webeeblocks_file_broker_receive_text(){
 }
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
 std::string challenge;
-void fresh(){
+void fresh(const std::string& identifier=canonical){
  present=true;description=true;gp_u_reset_complete();
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1";
- config=canonical;argsCount=1;now=2.112;evidence.clear();reply.clear();
+ config=identifier;argsCount=1;now=2.112;evidence.clear();reply.clear();
  gp_u_file_idle(1);challenge=request;
- assert(challenge.find("GP_ROUTE_CHALLENGE_V1 attempt=1 config="+canonical+" epoch=")==0);
+ assert(challenge.find("GP_ROUTE_CHALLENGE_V1 attempt=1 config="+identifier+" epoch=")==0);
  assert(challenge.substr(challenge.find(" epoch=")+7).size()==32);
 }
 std::string response(const char* kind,const std::string& time){
@@ -169,6 +169,14 @@ void query(int expected){
  assert(request==beforeRequest && evidence==beforeEvidence && sample==beforeSample);
 }
 int main(){
+
+  // A1 shares admission, epoch freshness, and exact deadline with A8.
+  fresh("gp-progression-v1-a1-v1");ready();query(1);
+  config="gp-progression-v1-a1-v2";query(0);
+  config="gp-progression-v1-a2-v1";query(0);
+  fresh("gp-progression-v1-a1-v1");ready();assert(gp_u_start(now)==1);
+  alive(212080);assert(gp_u_deadline(now,0)==0);
+  alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
  // Route-only native PAUSE freezes the Webots clock across step(0),
  // rejects stale epochs, and STOP wakes without bypassing the native parser.
  {

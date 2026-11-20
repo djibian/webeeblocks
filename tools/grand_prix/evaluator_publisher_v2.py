@@ -19,7 +19,7 @@ from tools.grand_prix.oracle_attempt_v2 import (
     start_pure_attempt, observe_pure_attempt, fail_pure_attempt,
 )
 from tools.grand_prix.oracle_u import DEADLINE_MS
-from tools.grand_prix.route_courses_v2 import course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.route_evaluator_wire_v2 import Challenge, EvaluatorHandshake, parse_flight_channel
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
 
@@ -43,7 +43,7 @@ class NativeRouteEvaluator:
             raise ValueError('unknown native evaluator scene policy')
         self._scene_policy = scene_policy
         self._robot = robot
-        self.course = course_from_identifier(identifier)
+        self.course = active_course_from_identifier(identifier)
         own = robot.getSelf()
         self._reply = own.getField('description') if own is not None else None
         if self._reply is None:
@@ -172,7 +172,7 @@ class NativeRouteEvaluator:
     def _landed(self, observation):
         p, v = observation.kinematics.position, observation.kinematics.velocity
         m = observation.kinematics.orientation
-        target = self.course.route.landing_target(self.course.count)
+        target = self.course.landing_goal()
         return (observation.flight.ground_confirmed and
             abs(p[0] - target[0]) <= .14 and abs(p[1] - target[1]) <= .14 and
             self._origin_z - .02 <= p[2] <= self._origin_z + .07 and
