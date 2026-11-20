@@ -30,8 +30,12 @@ permissions:
 
 jobs:
   a4-native-draft-only:
-    name: A4 native R2025a diagnostic (not CI Gate)
+    name: ${{ matrix.witness == 'a4' && 'A4 native R2025a diagnostic (not CI Gate)' || 'Runtime v2 CPU pair (not CI Gate)' }}
     if: github.event.pull_request.draft == true
+    strategy:
+      fail-fast: false
+      matrix:
+        witness: ${{ fromJSON(github.event.pull_request.number == 1094 && '["a4", "1065-cpu-pair"]' || '["a4"]') }}
     runs-on: ubuntu-22.04
     timeout-minutes: 18
     steps:
@@ -44,15 +48,18 @@ jobs:
       - name: Prepare pinned Blockly 13.2.1 assets for real A4 pupil
         run: ./tools/prepare_runtime_v2.sh
       - name: Refute A4 public variant toggle during pending native verdict
+        if: matrix.witness == 'a4'
         run: |
           node --check plugins/robot_windows/blockly_v2/project_ui.js
           node --check tools/ci/test_progression_decision_h_variant_ui.js
           node tools/ci/test_progression_decision_h_variant_ui.js
       - name: Execute source geometry and compiled C mission adversaries
+        if: matrix.witness == 'a4'
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_scene tools.ci.test_progression_decision_h_oracle
           python3 -m unittest tools.ci.test_progression_decision_h_low_contact
       - name: Falsify exact A4 reason transport in compiled native school broker
+        if: matrix.witness == 'a4'
         run: |
           set -euo pipefail
           python3 tools/ci/test_runtime_mission_broker.py
@@ -79,12 +86,15 @@ jobs:
           console.log('A4 school reason mapping: PASS (native broker compiled separately)');
           JS
       - name: Falsify A4 school scene selector and existing school contracts
+        if: matrix.witness == 'a4'
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_selector tools.ci.test_runtime_v2_classroom_selector
       - name: Validate real Blockly A4 pupil fixture JS/Python and its fail-closed protocol
+        if: matrix.witness == 'a4'
         run: |
           python3 -m unittest tools.ci.test_progression_decision_h_pupil tools.ci.test_progression_decision_h_blind
       - name: Build school A4 controller with reversible native pilot seam probes
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -92,6 +102,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 ../../tools/ci/a4_native_pilot_boundary_probe.py selftest; python3 ../../tools/ci/a4_native_pilot_boundary_probe.py install; trap "python3 ../../tools/ci/a4_native_pilot_boundary_probe.py restore" EXIT; make clean; make; test -s crazyflie_classroom_v2'
       - name: Build the separate observer with actual Webots R2025a headers
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -99,6 +110,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make'
       - name: Require real scene A/B READY and malformed H refusal
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -108,6 +120,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_native_start.py'
       - name: Compile independent A4 real-scene selector probe
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -115,6 +128,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make'
       - name: Prove live A-B-A imported scenes and native evaluator restarts
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -124,6 +138,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_scene_selector.py'
       - name: Build isolated native front-range probe against R2025a headers
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -131,6 +146,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; make clean; make'
       - name: Read actual A/B front range at identical physical decision pose
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -140,6 +156,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_range.py'
       - name: Observe A4 near-floor obstacle-side contacts independently on A/B
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -149,6 +166,7 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'set -e; python3 tools/ci/run_classroom_decision_h_low_contact.py'
       - name: Execute same actual Blockly project on A then B in R2025a
+        if: matrix.witness == 'a4'
         run: |
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -182,44 +200,196 @@ jobs:
               test "$blind_status" -eq 0
             '
       - name: Retain actual low-floor physical obstacle contacts A4
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-low-native-contact
           path: ci-artifacts/progression-decision-h-low-contact/
           if-no-files-found: warn
       - name: Preserve A4 same .wbb native pupil flight evidence
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-same-wbb-pupil
           path: ci-artifacts/progression-decision-h-blockly/
           if-no-files-found: warn
       - name: Preserve native blind-path rejection evidence
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-blind-path-adversaries
           path: ci-artifacts/progression-decision-h-blind/
           if-no-files-found: warn
       - name: Retain exact native witnesses including failures
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-startup-evidence
           path: ci-artifacts/progression-decision-h-native-start/
           if-no-files-found: warn
       - name: Preserve native A-B-A scene selector results
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-live-selector
           path: ci-artifacts/progression-decision-h-scene-selector/
           if-no-files-found: warn
       - name: Retain measured A/B front-distance logs including failures
-        if: always()
+        if: always() && matrix.witness == 'a4'
         uses: actions/upload-artifact@v4
         with:
           name: a4-draft-r2025a-real-range
           path: ci-artifacts/progression-decision-h-range/
           if-no-files-found: warn
+      - name: Prepare exact original browser scenario
+        if: matrix.witness == '1065-cpu-pair'
+        env:
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          mkdir -p ci-artifacts/runtime-v2-1065-cpu
+          printf '%s\n' "$SUBJECT_SHA" > ci-artifacts/runtime-v2-1065-cpu/subject-sha.txt
+          lscpu > ci-artifacts/runtime-v2-1065-cpu/host-cpu.txt
+          python3 tools/ci/prepare_runtime_v2_webots.py
+      - name: Compare normal CPU and reduced CPU after native MOVE 34 entry
+        if: matrix.witness == '1065-cpu-pair'
+        run: |
+          set -euo pipefail
+          campaign=ci-artifacts/runtime-v2-1065-cpu
+          output=ci-artifacts/runtime-v2-webots
+          workflow=.github/workflows/ci-runtime.yml
+          validator="$(mktemp)"
+          sed -n '/^      - name: Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions$/,/^      - name: Upload Runtime v2 diagnostics$/{/^$/p;s/^          //p;}' "$workflow" > "$validator"
+          test -s "$validator"
+
+          observe_quota() {
+            local container="$1"
+            local arm="$2"
+            until grep -Eq 'CI MOVE_START forward .* speed_limit=0[.]100000000$' "$output/webots.log" 2>/dev/null; do sleep 0.2; done
+            date +%s.%N
+            docker exec "$container" cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat
+            if [[ "$arm" == constrained ]]; then
+              docker update --cpus 0.5 "$container"
+            fi
+            date +%s.%N
+            docker exec "$container" cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat
+            touch "$output/quota-sampled"
+            until grep -Eq '"event":"(ERROR|DONE)"' "$output/browser-events.jsonl" 2>/dev/null; do sleep 0.2; done
+            date +%s.%N
+            docker exec "$container" cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat
+            if [[ "$arm" == constrained ]]; then
+              docker update --cpus "$(nproc)" "$container"
+            fi
+            date +%s.%N
+            docker exec "$container" cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat
+            touch "$output/quota-ended"
+          }
+
+          failed=0
+          for arm in control constrained; do
+            mkdir -p "$output" "$RUNNER_TEMP/wbb-pilot/$arm"
+            container="wbb-1065-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$arm"
+            observe_quota "$container" "$arm" > "$output/quota.log" 2>&1 &
+            observer_pid=$!
+            status=0
+            docker run --name "$container" --rm -i \
+              -e LIBGL_ALWAYS_SOFTWARE=true \
+              -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              -v "$PWD:/workspace" -w /workspace \
+              -v "$RUNNER_TEMP/wbb-pilot/$arm:/workspace/ci-artifacts/progression-decision-h-blockly" \
+              cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+              bash -se <<'BASH' || status=$?
+          set -euo pipefail
+          output=ci-artifacts/runtime-v2-webots
+          probe=tools/ci/a4_native_pilot_boundary_probe.py
+          rings=ci-artifacts/progression-decision-h-blockly
+          python3 "$probe" selftest
+          (
+            python3 "$probe" install
+            trap 'python3 "$probe" restore' EXIT
+            make -C controllers/crazyflie_runtime_v2 clean
+            make -C controllers/crazyflie_runtime_v2
+          ) | tee "$output/build.log"
+          cp "$rings/pilot-boundary-probe.json" "$output/"
+          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 > "$output/controller.sha256"
+          apt-get update >/dev/null
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+          chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+          mkdir -p /root/.config/Cyberbotics
+          printf '%s\n' '[RobotWindow]' 'browser=/workspace/tools/ci/webots_runtime_v2_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
+          google-chrome --version > "$output/browser-version.txt"
+          python3 tools/ci/runtime_wwi_event_server.py --output "$output/browser-events.jsonl" &
+          event_server_pid=$!
+          trap 'kill "$event_server_pid" 2>/dev/null || true' EXIT
+          sleep 0.5
+          timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt > "$output/webots.log" 2>&1 &
+          webots_pid=$!
+          PYTHONPATH=tools/ci python3 - "$webots_pid" "$output" "$rings" <<'PY' &
+          import json
+          from pathlib import Path
+          import shutil
+          import sys
+          import time
+          from native_process_liveness import snapshot
+
+          pid = int(sys.argv[1])
+          output, rings = map(Path, sys.argv[2:])
+          events = output / 'browser-events.jsonl'
+          terminal = output / 'browser-terminal'
+          next_sample = 0
+          while Path(f'/proc/{pid}').exists():
+              now = time.monotonic()
+              error = None
+              if events.exists() and not terminal.exists():
+                  for line in events.read_text().splitlines(keepends=True):
+                      if line.endswith('\n'):
+                          event = json.loads(line)
+                          if event['event'] in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION', 'DONE'):
+                              error = event
+                              break
+              if now >= next_sample or error:
+                  sample = {'monotonic_s': now, 'wall_s': time.time(), **snapshot(pid)}
+                  with (output / 'native-process-liveness.jsonl').open('a') as handle:
+                      handle.write(json.dumps(sample) + '\n')
+                  next_sample = now + 5
+              if error:
+                  terminal.mkdir()
+                  (terminal / 'event-and-processes.json').write_text(
+                      json.dumps({'event': error, 'sample': sample}) + '\n')
+                  for ring in rings.glob('pilot-seams-*.bin'):
+                      shutil.copyfile(ring, terminal / ring.name)
+              time.sleep(0.25)
+          PY
+          observer_pid=$!
+          code=0
+          wait "$webots_pid" || code=$?
+          printf '%s\n' "$code" > "$output/exit-code.txt"
+          wait "$observer_pid"
+          cp "$rings"/pilot-seams-*.bin "$output/"
+          test "$code" -eq 0 || test "$code" -eq 124
+          BASH
+            kill "$observer_pid" 2>/dev/null || true
+            wait "$observer_pid" 2>/dev/null || true
+            printf '%s\n' "$status" > "$output/launcher-exit.txt"
+            validation=0
+            bash "$validator" > "$output/validator.log" 2>&1 || validation=$?
+            printf '%s\n' "$validation" > "$output/validator-exit.txt"
+            tail -12 "$output/validator.log"
+            if [[ "$status" -ne 0 || "$validation" -ne 0 || ! -f "$output/quota-sampled" || ! -f "$output/quota-ended" ]]; then
+              failed=1
+            fi
+            mv "$output" "$campaign/$arm"
+          done
+          cmp "$campaign/control/controller.sha256" "$campaign/constrained/controller.sha256"
+          cmp "$campaign/control/browser-version.txt" "$campaign/constrained/browser-version.txt"
+          exit "$failed"
+      - name: Preserve both native attempts with browser terminal and CPU evidence
+        if: always() && matrix.witness == '1065-cpu-pair'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-1065-cpu-pair-r2025a
+          path: ci-artifacts/runtime-v2-1065-cpu/
+          if-no-files-found: error
