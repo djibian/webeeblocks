@@ -1,30 +1,29 @@
 name: Grand Prix A1–A7 native R2025a
-run-name: Native R2025a A${{ inputs.activity }} · ${{ inputs.target_sha }}
+run-name: Native R2025a validation for A6 recovery
 
 on:
-  workflow_dispatch:
-    inputs:
-      activity:
-        description: Grand Prix activity to exercise, including all its variants.
-        required: true
-        type: choice
-        options: ['1', '2', '3', '4', '5', '6', '7']
-      target_sha:
-        description: Full 40-character GitHub HEAD SHA of the candidate.
-        required: true
-        type: string
+  pull_request:
+    branches: [ci/grand-prix-native-r2025a]
+    types: [opened]
+
 
 permissions:
   contents: read
 
 jobs:
   native:
-    name: Native R2025a A${{ inputs.activity }}
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      matrix:
+        include:
+          - activity: '6'
+            target_sha: 60123d7a153193e7387213bd2432d503097e1442
+    name: Native R2025a A${{ matrix.activity }}
     runs-on: ubuntu-22.04
     timeout-minutes: 100
     env:
-      ACTIVITY: ${{ inputs.activity }}
-      TARGET_SHA: ${{ inputs.target_sha }}
+      ACTIVITY: ${{ matrix.activity }}
+      TARGET_SHA: ${{ matrix.target_sha }}
       PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
       WEBOTS_OFFICIAL_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
       WEBOTS_M2_IMAGE: ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
@@ -41,7 +40,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ matrix.target_sha }}
           path: candidate
           persist-credentials: false
       - name: Bind the two checkouts to the Actions run
@@ -85,7 +84,7 @@ jobs:
         if: ${{ always() && hashFiles('provenance/run.txt') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: native-r2025a-a${{ inputs.activity }}-${{ inputs.target_sha }}-attempt-${{ github.run_attempt }}
+          name: native-r2025a-a${{ matrix.activity }}-${{ matrix.target_sha }}-attempt-${{ github.run_attempt }}
           path: |
             provenance/
             candidate/ci-artifacts/grand-prix-u-geometry/
