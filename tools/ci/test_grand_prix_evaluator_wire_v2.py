@@ -1,6 +1,7 @@
 """Strict native evaluator wire contract; no fabricated Webots qualification."""
 import unittest
 
+from tools.grand_prix.progression_courses import progression_course
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_evaluator_wire_v2 import (
     Challenge, EvaluatorHandshake, Start, parse_flight_channel
@@ -57,6 +58,20 @@ class VariableEvaluatorWireTests(unittest.TestCase):
             parse_flight_channel(valid, "gp-route-v2-L2000-2500-3000-TGG-s017-H2")
         with self.assertRaises(ValueError):
             parse_flight_channel(None, course.identifier)
+
+    def test_activity_four_variants_have_distinct_native_admission(self):
+        courses = [progression_course(4, variant) for variant in (1, 2, 3)]
+        for course in courses:
+            with self.subTest(course=course.identifier):
+                self.assertEqual(parse_flight_channel(challenge(course), course.identifier),
+                                 Challenge(1, course.identifier, EPOCH))
+                for other in courses:
+                    if other != course:
+                        with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                            parse_flight_channel(challenge(other), course.identifier)
+        for invalid in ('gp-progression-v1-a4-v4', 'gp-progression-v1-a5-v1'):
+            with self.assertRaises(ValueError):
+                EvaluatorHandshake(invalid)
 
     def test_ready_requires_native_verification_then_fresh_matching_start(self):
         course = reference_course(5)

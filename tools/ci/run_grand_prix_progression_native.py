@@ -14,12 +14,15 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3), 3: (2,), 4: (2,)}
 
 
-def run_native(home, env, activity):
+def run_native(home, env, activity, variant=1):
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
-    out = OUT / f'route-a{activity}-native'
+    course = progression_course(activity, variant)
+    label = f'A{activity} variant {variant}'
+    out = OUT / (f'route-a{activity}-v{variant}-native' if activity == 4
+                 else f'route-a{activity}-native')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
     out.mkdir(parents=True, exist_ok=True)
@@ -38,7 +41,7 @@ def run_native(home, env, activity):
         for name in ('controllers', 'plugins'):
             (folder / name).symlink_to(ROOT / name, target_is_directory=True)
         world = folder / f'worlds/a{activity}.wbt'
-        world.write_text(active_course_world(progression_course(activity)), encoding='utf-8')
+        world.write_text(active_course_world(course), encoding='utf-8')
         (out / 'world.wbt').write_bytes(world.read_bytes())
         command = [str(home / 'webots'), '--batch', '--stdout',
                    '--stderr', '--mode=fast', '--minimize', '--no-rendering',
@@ -53,7 +56,7 @@ def run_native(home, env, activity):
                 limit = time.monotonic() + 45
                 while 'WEBEEBLOCKS_RUNTIME_V2 READY' not in journal.read_text(errors='replace'):
                     if process.poll() is not None or time.monotonic() >= limit:
-                        raise RuntimeError(f'Webots A{activity} did not start: {journal}')
+                        raise RuntimeError(f'Webots {label} did not start: {journal}')
                     time.sleep(.10)
                 subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
                                 str(port), str(activity)], cwd=ROOT, env=env, stdout=wwi,
@@ -70,25 +73,28 @@ def run_native(home, env, activity):
                     process.wait(timeout=5)
     log = journal.read_text(errors='replace')
     if re.search(r'^ERROR:|^Traceback \(most recent call last\)', log, re.M):
-        raise RuntimeError(f'Native Webots error in A{activity}')
+        raise RuntimeError(f'Native Webots error in {label}')
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)
     if ([int(attempt) for attempt, _ in starts] != list(range(1, forced_attempts[-1] + 1)) or
             len(deadlines) != len(forced_attempts)):
-        raise RuntimeError(f'Missing exact A{activity} admission/RESET and forced LAND sequence')
+        raise RuntimeError(f'Missing exact {label} admission/RESET and forced LAND sequence')
     origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
     elapsed = [int(stamp) - origin_times[attempt] for (stamp, _), attempt in
                zip(deadlines, forced_attempts)]
     early_landings = elapsed[:-1] if activity == 1 else elapsed
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
             (activity == 1 and elapsed[-1] != 210000)):
-        raise RuntimeError(f'A{activity} forced LAND violates the 210000 ms deadline')
-    print(f'PASS native R2025a A{activity} mission, refusals and confirmed LAND')
+        raise RuntimeError(f'{label} forced LAND violates the 210000 ms deadline')
+    print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
+    parser.add_argument('--variant', type=int, choices=(1, 2, 3), default=1)
     args = parser.parse_args()
-    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity)
+    if args.activity != 4 and args.variant != 1:
+        parser.error('only activity 4 has multiple active variants')
+    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)
