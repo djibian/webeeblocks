@@ -53,7 +53,7 @@ def low_segment_allowed_v2(a, b, route, gates, *, final=False, takeoff_until=Non
     intervals = []
     for gate in gates:
         index, along = gate.leg_index, gate.along
-        if (type(index) is not int or index not in range(3) or
+        if (type(index) is not int or not 0 <= index < len(route.legs) or
                 type(along) not in (int, float) or not math.isfinite(along)):
             return False
         leg = route.legs[index]
@@ -68,7 +68,7 @@ def low_segment_allowed_v2(a, b, route, gates, *, final=False, takeoff_until=Non
         if clipped is not None:
             intervals.append(clipped)
     if final:
-        leg = route.legs[2]
+        leg = route.legs[-1]
         clipped = clipped_interval(_local_exact(leg, a), _local_exact(leg, b),
                                    ((leg.length - .86, leg.length - .11),
                                     (-.81, .81)))

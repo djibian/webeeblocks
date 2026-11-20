@@ -9,8 +9,9 @@ footprint and belongs to the current or immediately following route corridor.
 from dataclasses import dataclass, replace
 import math
 
-from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
-from tools.grand_prix.course_footprint_v2 import swept_capsule_inside_course
+from tools.grand_prix.route_courses_v2 import CoursePlan
+from tools.grand_prix.course_footprint_v2 import course_rectangles, swept_capsule_inside_course
+from tools.grand_prix.progression_courses import require_canonical_course_geometry
 
 
 class LegCursorError(ValueError):
@@ -28,8 +29,7 @@ def _canonical(course):
     if type(course) is not CoursePlan:
         raise LegCursorError('canonical host CoursePlan required')
     try:
-        if course_from_identifier(course.identifier) != course:
-            raise LegCursorError('forged CoursePlan')
+        require_canonical_course_geometry(course)
     except (TypeError, ValueError, AttributeError) as error:
         raise LegCursorError('forged CoursePlan') from error
     return course
@@ -65,21 +65,22 @@ def advance_leg_cursor(cursor, observed_xy):
     prove gate completion *before* accepting any promotion, and must verify
     the native sensor/sample and velocity limits. This function cannot do so.
     """
-    if type(cursor) is not LegCursor or type(cursor.active_leg) is not int or not 0 <= cursor.active_leg <= 2:
+    if type(cursor) is not LegCursor or type(cursor.active_leg) is not int:
         raise LegCursorError('valid host segment cursor required')
     _canonical(cursor.course)
     previous, current = _xy(cursor.xy), _xy(observed_xy)
     route = cursor.course.route
+    active = cursor.active_leg
+    if not 0 <= active < len(route.legs):
+        raise LegCursorError('valid host segment cursor required')
     if not swept_capsule_inside_course(route, previous, current):
         raise LegCursorError('swept-course-boundary')
-    active = cursor.active_leg
     if _in_box(route.legs[active].bounds(), current):
         return replace(cursor, xy=current)
-    if active == 2:
+    if active == len(route.legs) - 1:
         # The terminal pad is wider than the final 0.60 m corridor. It is not
         # a fourth segment; the complete swept footprint is checked above.
-        from tools.grand_prix.course_footprint_v2 import course_rectangles
-        if _in_box(course_rectangles(route)[3], current):
+        if _in_box(course_rectangles(route)[-1], current):
             return replace(cursor, xy=current)
         raise LegCursorError('backtrack or unowned terminal position')
     if not _in_box(route.legs[active + 1].bounds(), current):
