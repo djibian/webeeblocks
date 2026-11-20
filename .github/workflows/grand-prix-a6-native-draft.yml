@@ -62,6 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git -C .ci-webots-r2025a rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           host_node_root="$(dirname "$(dirname "$(command -v node)")")"
           mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
           docker run --rm --network host --shm-size=2g \
@@ -76,7 +77,6 @@ jobs:
               test "$(node --version | cut -c2-3)" = "22"
               test "$(cat "$WEBOTS_HOME/resources/version.txt")" = "R2025a"
               pinned=/workspace/.ci-webots-r2025a
-              test "$(git -C "$pinned" rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
               for proto in robots/bitcraze/crazyflie/protos/Crazyflie.proto objects/backgrounds/protos/TexturedBackground.proto objects/backgrounds/protos/TexturedBackgroundLight.proto objects/floors/protos/Floor.proto appearances/protos/Parquetry.proto; do
                 test -s "$pinned/projects/$proto"
               done
