@@ -21,6 +21,7 @@ from tools.grand_prix.oracle_terminal_dwell_v2 import (
 )
 from tools.grand_prix.oracle_u import DEADLINE_MS, RADIUS, swept_gap
 from tools.grand_prix.route_courses_v2 import CoursePlan
+from tools.grand_prix.route_terminal_v2 import LANDING_TILE
 
 
 @dataclass(frozen=True)
@@ -150,13 +151,23 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
         if not state.takeoff_done:
             remaining = state.started_ms + 15000 - state.last_ms
             until = remaining / dt if dt else (1. if remaining >= 0 else -1.)
+        # For progression profiles without a terminal H (notably short A4),
+        # merely entering the final leg is NOT an authorization to fly low
+        # across the corridor. Permit a low terminal sweep only while its
+        # complete craft envelope is above the physical landing tile.
+        # Preserve the established A8 terminal zone exactly.
+        terminal_ready = (
+            state.progress.leg.active_leg == len(state.course.route.legs) - 1 and
+            state.progress.count == state.course.count)
+        if terminal_ready and state.course.progression is not None:
+            target = state.course.landing_goal()
+            safe_half = LANDING_TILE / 2 - RADIUS
+            terminal_ready = all(
+                abs(point[axis] - target[axis]) <= safe_half
+                for point in (before, observed) for axis in (0, 1))
         if not low_segment_allowed_v2(
                 before, observed, state.course.route, state.course.gates,
-                # The terminal low-flight exception is earned only after
-                # every directed H has been counted, not on terminal-leg entry alone.
-                final=(state.progress.leg.active_leg == len(state.course.route.legs) - 1 and
-                       state.progress.count == state.course.count),
-                takeoff_until=until):
+                final=terminal_ready, takeoff_until=until):
             return _end(state, now_ms, 'low-outside-zone')
         progress = advance_course_progress(state.progress, observed)
         airborne = state.airborne or observed[2] > state.origin_z + .20
