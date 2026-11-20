@@ -19,7 +19,11 @@ from tools.grand_prix.package_windows_u import verified_files, digest, replace_o
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.route_courses_v2 import reference_course
 
-PR970_SHA = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
+# #970 was squash-merged: this *integrated commit* is the main ancestor,
+# unlike the private Ready/Draft branch SHA. The evaluator implementation
+# and native entrypoint blobs matched the reviewed PR HEAD at integration.
+# Preserve the source-level classroom-static-v1 guard below as a second gate.
+PR970_SHA = "efd20edc4b35dd7e23aa2d2486f438f0667bf8d6"
 NAME = "WebeeBlocks-Grand-Prix-Variable-Windows-R2025a"
 DEFAULT_FPS = 20
 FPS_MIN = 1
