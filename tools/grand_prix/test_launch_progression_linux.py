@@ -26,6 +26,17 @@ class ProgressionLaunchTests(unittest.TestCase):
                 self.assertEqual(page.count(f'data-progression-activity="{activity}"'), 1)
                 self.assertLess(page.index(launcher.PROFILES), page.index('src="setup.js"'))
                 self.assertTrue((windows / launcher.PROFILES).is_file())
+                # The selected student page must keep the existing shared
+                # edit, native execution, failure, stop/reset and file controls.
+                # These are binding checks, not a GUI or physical PASS.
+                for button in ('projectActivity', 'projectOpen', 'projectSaveAs',
+                               'projectSave', 'resetSimulation', 'submit',
+                               'stepMode', 'stepNext', 'stepContinue',
+                               'runtimeState', 'runtimeDetail'):
+                    with self.subTest(activity=activity, button=button):
+                        self.assertIn(f'id="{button}"', page)
+                self.assertIn('../blockly_v2/project_ui.js', page)
+                self.assertIn('../blockly/webeeblocks/runtime_outcome.js', page)
                 self.assertEqual((selected / 'setup.js').resolve(),
                                  launcher.ROOT / 'plugins/robot_windows' / launcher.ROBOT_WINDOW / 'setup.js')
                 self.assertIn('DEF GP_ROUTE_EVALUATOR Robot', world.read_text())
