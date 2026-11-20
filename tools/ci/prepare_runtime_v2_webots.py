@@ -136,6 +136,117 @@ wait_end_replacement = r'''        trace_wait(active_value, now - action_start);
 if wait_end_needle not in controller:
     raise SystemExit('Runtime v2 WAIT end instrumentation point not found')
 controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
+# CI-only evidence for the late TAKEOFF acknowledgement in Ready run #44406127864.
+# Read physical convergence and simulated-time progress without changing physics,
+# timeout, STOP_WINDOW, WWI replies, or the checked-in product controller.
+takeoff_progress_needle = '''    if (command == CMD_TAKEOFF) {
+      desired.altitude = target_z;'''
+takeoff_progress_replacement = r'''    if (command == CMD_TAKEOFF) {
+      desired.altitude = target_z;
+      /* Exactly one first sample per request id, then only at integer
+       * simulated-second crossings. A 32-ms native step must not cause a
+       * burst of synchronous stdout/fflush near TAKEOFF start.
+       * This static state is diagnostic only and never affects any ACK/PID.
+       */
+      static int diag_takeoff_request_id = -1;
+      static long diag_takeoff_last_second = -1;
+      const long diag_takeoff_second = (long)(now - action_start);
+      if (diag_takeoff_request_id != active_id ||
+          diag_takeoff_second > diag_takeoff_last_second) {
+        diag_takeoff_request_id = active_id;
+        diag_takeoff_last_second = diag_takeoff_second;
+        printf(PREFIX " CI TAKEOFF_PROGRESS id=%d sim_time=%.9f elapsed_sim_s=%.9f "
+               "z=%.9f target_z=%.9f error_z=%.9f vz=%.9f vx=%.9f vy=%.9f "
+               "roll=%.9f pitch=%.9f yaw_rate=%.9f stable_sim_s=%.9f\n",
+               active_id, now, now - action_start,
+               z, target_z, target_z - z, vz, actual.vx, actual.vy,
+               actual.roll, actual.pitch, actual.yaw_rate,
+               stable_since < 0.0 ? -1.0 : now - stable_since);
+        fflush(stdout);
+      }'''
+if controller.count(takeoff_progress_needle) != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF progress injection point not unique')
+controller = controller.replace(takeoff_progress_needle,
+                                takeoff_progress_replacement, 1)
+# The same checkout also composes the canonical Grand Prix pilot. The
+# route TAKEOFF profile replaces this *exact* adjacent two-line anchor;
+# diagnostic injection must never split it or hide its original statement.
+if (takeoff_progress_replacement.count(takeoff_progress_needle) != 1 or
+        controller.count(takeoff_progress_needle) != 1):
+    raise SystemExit('Runtime v2 CI TAKEOFF broke the route composition anchor')
+if controller.count(" CI TAKEOFF_PROGRESS id=") != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF progress marker not unique')
+
+# Source-bound, deterministic cadence regression for the pinned 32-ms
+# Webots steps. The original <0.100 guard would emit three times before 100ms
+# and must not silently return; the diagnostic is not a flight acceptance test.
+takeoff_rate_guard = '''      static int diag_takeoff_request_id = -1;
+      static long diag_takeoff_last_second = -1;
+      const long diag_takeoff_second = (long)(now - action_start);
+      if (diag_takeoff_request_id != active_id ||
+          diag_takeoff_second > diag_takeoff_last_second) {
+        diag_takeoff_request_id = active_id;
+        diag_takeoff_last_second = diag_takeoff_second;'''
+if controller.count(takeoff_rate_guard) != 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF rate guard changed')
+if 'now - action_start < 0.100' in takeoff_progress_replacement:
+    raise SystemExit('Runtime v2 CI TAKEOFF burst mutant reintroduced')
+
+def takeoff_diagnostic_replay(ticks, ids):
+    """Model the source-bound two-value C guard, not the Webots pilot."""
+    latest_id, latest_second = -1, -1
+    times = []
+    for now, active_id in zip(ticks, ids):
+        second = int(now)
+        if latest_id != active_id or second > latest_second:
+            latest_id, latest_second = active_id, second
+            times.append(now)
+    return times
+
+ticks_32ms = [i * 0.032 for i in range(95)]
+if takeoff_diagnostic_replay(ticks_32ms, [32] * len(ticks_32ms)) != [
+        0.0, 1.024, 2.016, 3.008]:
+    raise SystemExit('Runtime v2 CI TAKEOFF 32-ms cadence regression')
+# An unrelated later request ID must start with one first sample again.
+if takeoff_diagnostic_replay([0., .032, .064, 0., .032],
+                            [32, 32, 32, 34, 34]) != [0., 0.]:
+    raise SystemExit('Runtime v2 CI TAKEOFF request identity regression')
+# Falsifier: the previous time<0.100 condition emits >1 time per 100 ms.
+if sum(0 <= t < .100 for t in ticks_32ms) <= 1:
+    raise SystemExit('Runtime v2 CI TAKEOFF burst mutant not discriminated')
+
+# CI-only heartbeat for native MOVE, injected into the temporary checkout.
+# #1065: a browser-side timeout alone cannot tell a stalled Webots clock from
+# a drone that keeps moving but never satisfies STOP_WINDOW/position bounds.
+# Emit at most one sample per *simulated* second; normal production code,
+# limits (ACTION_TIMEOUT, 35 s WWI), physics, oracles and effects are unchanged.
+move_progress_needle = '''    } else if (command == CMD_MOVE) {
+      const double error_x = target_x - x;'''
+move_progress_replacement = r'''    } else if (command == CMD_MOVE) {
+      /* CI-only: one observation per simulated second, never a completion ACK.
+       * The host log timestamp supplies independent wall-time progress.
+       * Keep this before the unchanged PID/controller decision.
+       */
+      if ((long)(now - action_start) > (long)(previous_time - action_start)) {
+        printf(PREFIX " CI MOVE_PROGRESS id=%d sim_time=%.9f elapsed_sim_s=%.9f "
+               "x=%.9f y=%.9f z=%.9f target_x=%.9f target_y=%.9f target_z=%.9f "
+               "error_xy=%.9f vx=%.9f vy=%.9f vz=%.9f roll=%.9f pitch=%.9f "
+               "yaw=%.9f yaw_rate=%.9f stable_sim_s=%.9f\n",
+               active_id, now, now - action_start,
+               x, y, z, target_x, target_y, target_z,
+               hypot(target_x - x, target_y - y),
+               vx_global, vy_global, vz, actual.roll, actual.pitch,
+               yaw, actual.yaw_rate,
+               stable_since < 0.0 ? -1.0 : now - stable_since);
+        fflush(stdout);
+      }
+      const double error_x = target_x - x;'''
+if controller.count(move_progress_needle) != 1:
+    raise SystemExit('Runtime v2 CI MOVE progress injection point not unique')
+controller = controller.replace(move_progress_needle, move_progress_replacement, 1)
+if controller.count(" CI MOVE_PROGRESS id=") != 1:
+    raise SystemExit('Runtime v2 CI MOVE progress marker not unique')
+
 controller_path.write_text(controller, encoding='utf-8')
 
 # The native controller is deliberately held back until 12 simulated seconds,
