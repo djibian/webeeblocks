@@ -91,9 +91,9 @@ def verify(root):
     front = (root / "Lancer-Progression.ps1").read_text(encoding="utf-8-sig")
     if front != FRONTEND or not (root / "Lancer-Progression.cmd").is_file():
         raise ValueError("Incorrect student Windows course chooser")
-    if (root / "Lancer-Grand-Prix.cmd").exists() or
-            (root / "Lancer-Grand-Prix.ps1").exists() or
-            (root / "Activites/08-grand-prix-variable.wbb").exists():
+    if any((root / name).exists() for name in (
+            "Lancer-Grand-Prix.cmd", "Lancer-Grand-Prix.ps1",
+            "Activites/08-grand-prix-variable.wbb")):
         raise ValueError("A8-only entry point leaked into A1–A7 package")
     if (root / "plugins/robot_windows/blockly_v2/vendor/VERSION").read_text().strip() != "13.2.1":
         raise ValueError("Shipped Blockly version changed")
