@@ -29,7 +29,7 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
 
-    def test_progression_scenes_share_physical_components_and_only_first_four_can_compose(self):
+    def test_progression_scenes_share_physical_components_and_only_first_five_can_compose(self):
         identifiers = set()
         for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
             for variant in range(1, count + 1):
@@ -50,7 +50,7 @@ class VariableRouteTests(unittest.TestCase):
                     self.assertEqual(scene.count('controller "<none>"'), 1)
                     self.assertNotIn('controllerArgs', scene)
                     self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
-                    if activity <= 4:
+                    if activity <= 5:
                         active = active_course_world(course)
                         self.assertEqual(active.count(f'controllerArgs [ "{course.identifier}" ]'), 2)
                         self.assertIn('controller "grand_prix_route_flight"', active)
