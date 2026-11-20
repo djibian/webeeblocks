@@ -282,6 +282,16 @@ async function activitySix() {
   await assert.rejects(backend.move('forward', contactAdvance), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   await waitForForcedLanding(1);
+
+  // Recovery must be complete BEFORE RESET; the new incarnation cannot
+  // inherit the prior negative. STOP must still cause its own native LAND.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation),
+    {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix};
