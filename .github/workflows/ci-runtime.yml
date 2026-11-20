@@ -69,6 +69,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Qualify A1 native flight, negative oracles, STOP RESET and LAND in R2025a
         run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 1
       - name: Preserve A1 real-controller world, WWI, pilot build and native logs
