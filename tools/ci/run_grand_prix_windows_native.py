@@ -206,14 +206,29 @@ def stop(process, diagnostic_path=None):
                     if (p['pid'], p['created']) in old]
                 evidence['identity_unproven'] = [
                     p['pid'] for p in before['owned'] if p['created'] is None]
-            # A surviving same-PID, same-creation child is positive evidence
-            # of failed retirement. Keep the original exception, if any, and
-            # preserve the forensic JSON before vetoing an apparent success.
+            # Positive evidence of a surviving child is a veto. Missing
+            # before/after CIM evidence or a missing creation identity is
+            # independently inconclusive: do not report a safe retirement.
+            # Neither two snapshots nor taskkill's SUCCESS text prove full
+            # process-lifetime monitoring; keep that limitation explicit.
             survivors = evidence.get('still_present_same_pid_and_creation', [])
-            survivor_veto = bool(survivors) and sys.exc_info()[0] is None
+            gaps = []
+            if not before.get('available'):
+                gaps.append('before-snapshot-unavailable')
+            if not after.get('available'):
+                gaps.append('after-snapshot-unavailable')
+            if evidence.get('identity_unproven'):
+                gaps.append('creation-identity-unavailable')
+            evidence['cleanup_observation_gaps'] = gaps
+            no_prior_error = sys.exc_info()[0] is None
+            survivor_veto = bool(survivors) and no_prior_error
+            observation_veto = bool(gaps) and no_prior_error
             if survivor_veto:
                 evidence['exception'] = (
                     'RuntimeError: observed same-identity owned descendants survived cleanup')
+            elif observation_veto:
+                evidence['exception'] = (
+                    'RuntimeError: owned process cleanup observation unavailable')
             diagnostic_path.write_text(
                 json.dumps(evidence, sort_keys=True, indent=2) + '\n',
                 encoding='utf-8')
@@ -221,6 +236,10 @@ def stop(process, diagnostic_path=None):
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup unproven: '
                     f'{len(survivors)} same-identity descendants survived')
+            if observation_veto:
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup observation unavailable: '
+                    + ', '.join(gaps))
 
 
 def engine_environment(home, ambient):
