@@ -19,8 +19,11 @@ explicit change in scope, **not** permission to weaken flight dynamics, sensors,
 collisions, mission oracles, native identity/clock/liveness, STOP/RESET/LAND,
 or any independent real-Crazyflie authorization or hardware safety gate.
 Document and test the distinction; a Draft is not qualified for release.
-For this performance effort, #914 is the current authoritative delivery
-entry point and #970 is the Draft startup-attestation experiment. The only
+For this performance effort, #914 remains the authoritative delivery entry
+point. The classroom-static startup-attestation change in #970 passed exact-
+HEAD CI and independent V5 review and was squash-merged on 2026-11-13 as
+efd20edc4b35dd7e23aa2d2486f438f0667bf8d6. This bounded native
+integration is not Windows graphical/performance or classroom acceptance. The only
 active graphics experiment is the native Webots R2025a 3D viewport at full
 resolution, comparing WorldInfo.FPS caps 60/30/25 while retaining 8-ms native
 physics, sensors and the ordinary Blockly interface. The independent WebGL

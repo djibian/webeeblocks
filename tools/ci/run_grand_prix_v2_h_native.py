@@ -92,19 +92,32 @@ def check_native(result, course):
                     not .07 < rays["front"] < .30 for rays in at_choice)):
             raise RuntimeError("A5 terminal range exposes the turn cue or misses the terminal H")
     if course.progression is not None and course.progression[0] == 6:
-        check_a6_discrimination(result.get("a6_discrimination"), bool(course.gates))
+        check_a6_discrimination(result.get("a6_discrimination"), course)
 
 
-def check_a6_discrimination(data, has_open_h):
+def check_a6_discrimination(data, course):
+    has_open_h = bool(course.gates)
     expected = {"start", "closed", "open", "after"} if has_open_h else {"start", "closed"}
     if type(data) is not dict or set(data) != expected:
         raise RuntimeError("missing or noncanonical A6 native rays")
     first = data["start"]
-    # 25-mm measured margin at the nominal aligned 0.75 m pose. This
-    # stopped-vehicle witness says nothing about the pilot's takeoff error.
-    limit = 1.25 if has_open_h else 1.975
-    if not _rays(first) or not .10 < first["front"] < limit:
-        raise RuntimeError("A6 first obstacle not visible with the expected frontal margin")
+    # Derive the expected sensor surface from the SAME physical collider
+    # inventory used in the native world, not from the presence of an open H.
+    # A6 is a straight +X line; sample(start) points along its axis at 0.75 m.
+    if course.route.legs[0].direction != 0:
+        raise RuntimeError("A6 native frontal probe expects the canonical +X frame")
+    if has_open_h:
+        obstacle, = (b for b in open_h_boxes(course) if b.name == "GP_V2_H_0_BEAM")
+    else:
+        obstacle, = (b for b in terminal_boxes(course.route) if b.name == "GP_V2_FINAL_PANEL")
+    expected_face = obstacle.x - obstacle.sx / 2
+    # A6 V2/V4 and V3/V5 nominally coincide at 1.38/1.48 m.
+    # Require the actual R2025a reading to agree within 5 cm; preserve
+    # at least 25 cm nominal headroom below the 2 m sensor limit.
+    if (not _rays(first) or
+            not .10 < expected_face < 1.75 or
+            abs(first["front"] - expected_face) > .05):
+        raise RuntimeError("A6 first obstacle ray disagrees with its physical collider")
     if has_open_h:
         opened, after = data["open"], data["after"]
         if (not _rays(opened) or not _rays(after) or

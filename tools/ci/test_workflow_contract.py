@@ -33,6 +33,9 @@ EXPECTED = {
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry", "grand-prix-route-evaluator",
         "grand-prix-v2-native-matrix", "progression-mini-gp-native",
+        "grand-prix-progression-a1-native",
+        "grand-prix-progression-a2-native",
+        "grand-prix-progression-a3-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -249,6 +252,70 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('timeout -k 5s 60s xvfb-run', detour)
         self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
         self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
+
+    def test_activity3_native_job_is_required_and_not_skipped(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a3 = runtime.split("\n  grand-prix-progression-a3-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 20",
+            "ref: \u0024{{ inputs.target_sha || github.sha }}",
+            "run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 3",
+            "if: always()",
+            "grand-prix-progression-a3-native-r2025a",
+            "route-a3-native/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, a3)
+        for forbidden in ("continue-on-error", "if: false",
+                          "if: github.event.pull_request.draft == true",
+                          "|| true", "allow-failure"):
+            self.assertNotIn(forbidden, a3)
+
+    def test_activity2_native_job_is_required_and_not_skipped(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a2 = runtime.split("\n  grand-prix-progression-a2-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 20",
+            "ref: \u0024{{ inputs.target_sha || github.sha }}",
+            "run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 2",
+            "if: always()",
+            "grand-prix-progression-a2-native-r2025a",
+            "route-a2-native/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, a2)
+        for forbidden in (
+            "continue-on-error", "if: false",
+            "if: github.event.pull_request.draft == true",
+            "|| true", "allow-failure",
+        ):
+            self.assertNotIn(forbidden, a2)
+
+    def test_activity1_native_job_is_required_and_not_skipped(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a1 = runtime.split("\n  grand-prix-progression-a1-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 20",
+            "ref: \u0024{{ inputs.target_sha || github.sha }}",
+            "run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 1",
+            "if: always()",
+            "grand-prix-progression-a1-native-r2025a",
+            "route-a1-native/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, a1)
+        for forbidden in (
+            "continue-on-error", "if: false",
+            "if: github.event.pull_request.draft == true",
+            "|| true", "allow-failure",
+        ):
+            self.assertNotIn(forbidden, a1)
 
     def test_activity7_public_native_ready_is_required_and_not_skipped(self):
         runtime=(WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
