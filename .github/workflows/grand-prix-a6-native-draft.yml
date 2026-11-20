@@ -26,6 +26,26 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # The official R2025a Docker engine omits sample PROTO project resources.
+      # Checkout the SAME pinned Cyberbotics asset closure used for Windows.
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -55,14 +75,28 @@ jobs:
               export PATH="/opt/ci-node/bin:$PATH"
               test "$(node --version | cut -c2-3)" = "22"
               test "$(cat "$WEBOTS_HOME/resources/version.txt")" = "R2025a"
+              pinned=/workspace/.ci-webots-r2025a
+              test "$(git -C "$pinned" rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+              for proto in robots/bitcraze/crazyflie/protos/Crazyflie.proto objects/backgrounds/protos/TexturedBackground.proto objects/backgrounds/protos/TexturedBackgroundLight.proto objects/floors/protos/Floor.proto appearances/protos/Parquetry.proto; do
+                test -s "$pinned/projects/$proto"
+              done
+              mkdir -p "$WEBOTS_HOME/projects"
+              cp -a "$pinned/projects/." "$WEBOTS_HOME/projects/"
+              for proto in robots/bitcraze/crazyflie/protos/Crazyflie.proto objects/backgrounds/protos/TexturedBackground.proto objects/backgrounds/protos/TexturedBackgroundLight.proto objects/floors/protos/Floor.proto appearances/protos/Parquetry.proto; do
+                cmp "$pinned/projects/$proto" "$WEBOTS_HOME/projects/$proto"
+              done
+              echo "A6_R2025A_PINNED_PROTOS_READY c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
               python3 tools/grand_prix/prepare_route_runtime.py
               make -C controllers/grand_prix_route_flight
+              # Run flight trials even if the separate H contact probe fails.
+              # All failures remain hard failures after retaining raw evidence.
               xvfb-run -a bash -c "
-                set -e
-                python3 tools/ci/run_grand_prix_v2_h_native.py --native --activity 6 --index 1 --index 2 --index 3 --index 4 --index 5
+                failures=0
+                python3 tools/ci/run_grand_prix_v2_h_native.py --native --activity 6 --index 1 --index 2 --index 3 --index 4 --index 5 || failures=1
                 for variant in 1 2 3 4 5; do
-                  python3 tools/ci/run_grand_prix_progression_native.py --activity 6 --variant \$variant
+                  python3 tools/ci/run_grand_prix_progression_native.py --activity 6 --variant \$variant || failures=1
                 done
+                exit \$failures
               "
             '
           python3 tools/ci/check_a6_native_evidence.py
