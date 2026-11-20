@@ -15,7 +15,9 @@ sys.path.insert(0, str(ROOT))
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.package_windows_u import verified_files, digest
 
-PR970 = "6486e73ccc193da3d609e45e73e7c0687b84ecc4"
+# Independently pinned to #970's squash integration on main, not its old
+# non-ancestor PR branch head; compare against the ZIP's own provenance.
+PR970 = "efd20edc4b35dd7e23aa2d2486f438f0667bf8d6"
 
 
 def verify(root):
