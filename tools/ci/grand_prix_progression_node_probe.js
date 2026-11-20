@@ -3,6 +3,9 @@
 const assert = require('node:assert/strict');
 const {setTimeout: delay} = require('node:timers/promises');
 const Backend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+const fs = require('node:fs');
+const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const A6Wbb = require('../grand_prix/witness_workspace_a6.js');
 const robot = 'Crazyflie WebeeBlocks';
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
 const send = payload => socket.send('robot:' + robot + ':' + payload);
@@ -225,48 +228,35 @@ async function activityFive() {
 }
 
 async function activitySix() {
-  await takeoff(.90);
-  const first = await backend.readRange('front');
-  // V2/V4 and V3/V5 have identical first-obstacle faces. The frontal
-  // observation determines distance only; it never classifies the H.
-  assert(first > .65 && first < 1.75, 'initial sensor margin missing');
-  await backend.move('forward', first - .14);
-  const near = await backend.readRange('front');
-  assert(near > .075 && near < .30, 'first obstacle approach lost');
-  const left = await backend.readRange('left');
-  const right = await backend.readRange('right');
-  const open = left < .45 && right < .45;
-  console.log(JSON.stringify({first, near, left, right, open}));
-  if (open) {
-    assert(left > .20 && right > .20, 'both physical H uprights must be visible');
-    await backend.vertical('down', .42);
-    await backend.move('forward', .60);
-    await backend.vertical('up', .42);
-    const next = await backend.readRange('front');
-    console.log(JSON.stringify({next}));
-    assert(next > .75 && next < 1.35, 'terminal H not sensed after traversal');
-    await backend.move('forward', next - .66);
-  } else {
-    assert(left > 1.9 && right > 1.9, 'closed-H lateral contrast lost');
-    await backend.move('back', .04); // Keep 20-cm yaw-test standoff.
-    async function oppositeRays(expectedSide) {
-      const l = await backend.readRange('left');
-      const r = await backend.readRange('right');
-      console.log(JSON.stringify({left:l, right:r, closedHeading:expectedSide}));
-      assert.equal(l < .45, expectedSide === 'left');
-      assert.equal(r < .45, expectedSide === 'right');
-      assert.equal(l < .45 && r < .45, false, 'unilateral ray is not an open H');
-    }
-    await backend.turn(45);
-    await oppositeRays('right');
-    await backend.turn(-90);
-    await oppositeRays('left');
-    await backend.turn(45);
-    await backend.move('back', .50); // 0.70 m before the closed H.
+  // World index belongs to the test harness only, never to the pupil .wbb.
+  const variant=Number(process.argv[4]);
+  assert(Number.isInteger(variant)&&variant>=1&&variant<=5);
+  const witness=A6Wbb.build();
+  assert.equal(A6Wbb.build().sha256,witness.sha256,'WBB bytes must be reproducible');
+  if(process.env.WEBEEBLOCKS_A6_WBB_OUT)
+    fs.writeFileSync(process.env.WEBEEBLOCKS_A6_WBB_OUT,witness.content);
+  console.log(JSON.stringify({event:'A6_WBB',sha256:witness.sha256,
+    bytes:Buffer.byteLength(witness.content)}));
+  const observations=[];
+  await Interpreter.run(witness.ast,backend,{maxSteps:20000,hooks:{onSensor:sample=>{
+    observations.push({direction:sample.direction,value:sample.value});
+    console.log(JSON.stringify({event:'A6_SENSOR',direction:sample.direction,value:sample.value}));
+  }}});
+  const front=observations.filter(x=>x.direction==='front');
+  const left=observations.find(x=>x.direction==='left');
+  const right=observations.find(x=>x.direction==='right');
+  assert(front.length>=1&&front[0].value>.65&&front[0].value<1.75);
+  assert(left&&right,'both lateral sensors required, even when H is closed');
+  if(variant<=3){
+    assert(left.value>.20&&left.value<.45&&right.value>.20&&right.value<.45,
+      'open H must expose both physical uprights');
+    assert.equal(front.length,2,'post-H front must detect the terminal H');
+  }else{
+    assert(left.value>1.9&&right.value>1.9,'closed H lateral contrast missing');
+    assert.equal(front.length,1,'closed H must not be crossed');
   }
-  await backend.land();
   await backend.completeActivityMission(evaluation);
-  await outcome({status: 'achieved'});
+  await outcome({status:'achieved'});
 
   await backend.resetSimulation();
   await takeoff(.90);

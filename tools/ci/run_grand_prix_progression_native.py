@@ -59,7 +59,9 @@ def run_native(home, env, activity, variant=1):
                         raise RuntimeError(f'Webots {label} did not start: {journal}')
                     time.sleep(.10)
                 subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
-                                str(port), str(activity)], cwd=ROOT, env=env, stdout=wwi,
+                                str(port), str(activity), str(variant)], cwd=ROOT,
+                                env=dict(env, WEBEEBLOCKS_A6_WBB_OUT=str(out / 'a6-witness.wbb')),
+                                stdout=wwi,
                                stderr=subprocess.STDOUT, check=True, timeout=450)
             finally:
                 try:
