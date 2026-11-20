@@ -94,6 +94,45 @@ class VariableTerminalDwellTests(unittest.TestCase):
                                    wrong, 0, completed=True).stationary_since_ms,
                          None)
 
+    def test_landing_dwell_rejects_overhanging_craft_on_all_route_headings(self):
+        """The full Grand Prix craft envelope must fit the physical 28-cm tile.
+
+        The old centre-only 14-cm tolerance accepted these 8-cm offsets
+        even though the 9-cm swept craft radius then crossed the pad edge.
+        These are synthetic dwell tests, not native flight qualification.
+        """
+        from tools.grand_prix.oracle_terminal_dwell_v2 import LANDING_TOL
+        from tools.grand_prix.oracle_u import RADIUS
+        from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+
+        self.assertAlmostEqual(LANDING_TOL + RADIUS, LANDING_TILE / 2)
+        self.assertGreater(LANDING_TOL, 0.)
+        for index in range(12):
+            course = reference_course(index)
+            progress = _terminal_progress(course)
+            target = course.route.landing_target(course.count)
+            with self.subTest(course=course.identifier):
+                for axis in (0, 1):
+                    for sign in (-1., 1.):
+                        xy = list(target)
+                        xy[axis] += sign * (LANDING_TOL + .03)
+                        xy = tuple(xy)
+                        overhang = replace(progress, pose=(*xy, .05),
+                                           leg=replace(progress.leg, xy=xy))
+                        state = start_terminal_dwell(course, 7, 0., 0)
+                        state = self.step(state, overhang, 0, completed=True)
+                        self.assertIsNone(state.stationary_since_ms)
+                        state = self.contiguous(state, overhang, 504)
+                        self.assertEqual(state.state, 'open')
+                # A centered-enough, fully contained craft still earns dwell.
+                inside_xy = (target[0] + LANDING_TOL - .005, target[1])
+                inside = replace(progress, pose=(*inside_xy, .05),
+                                 leg=replace(progress.leg, xy=inside_xy))
+                state = start_terminal_dwell(course, 7, 0., 0)
+                state = self.step(state, inside, 0, completed=True)
+                state = self.contiguous(state, inside, 504)
+                self.assertEqual(state.state, 'stable-window')
+
     def test_expiration_is_irreversible_and_not_a_mission_result(self):
         course = reference_course(2)
         progress = _terminal_progress(course)
