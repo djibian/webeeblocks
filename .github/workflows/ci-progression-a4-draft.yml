@@ -223,3 +223,122 @@ jobs:
           name: a4-draft-r2025a-real-range
           path: ci-artifacts/progression-decision-h-range/
           if-no-files-found: warn
+
+  runtime-v2-1065-draft-only:
+    name: "#1065 original Runtime v2 scenario with #1094 mmap"
+    if: github.event.pull_request.draft == true && github.event.pull_request.number == 1094
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare exact original browser scenario
+        env:
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          mkdir -p ci-artifacts/runtime-v2-webots
+          printf '%s\n' "$SUBJECT_SHA" > ci-artifacts/runtime-v2-webots/subject-sha.txt
+          ./tools/prepare_runtime_v2.sh
+          python3 tools/ci/prepare_runtime_v2_webots.py
+      - name: Run original R2025a witness with the existing native pilot probe
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "$PWD:/workspace" -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 bash -se <<'BASH'
+          set -euo pipefail
+          output=ci-artifacts/runtime-v2-webots
+          probe=tools/ci/a4_native_pilot_boundary_probe.py
+          rings=ci-artifacts/progression-decision-h-blockly
+          python3 "$probe" selftest
+          (
+            python3 "$probe" install
+            trap 'python3 "$probe" restore' EXIT
+            make -C controllers/crazyflie_runtime_v2 clean
+            make -C controllers/crazyflie_runtime_v2
+          ) | tee "$output/build.log"
+          cp "$rings/pilot-boundary-probe.json" "$output/"
+          sha256sum controllers/crazyflie_runtime_v2/crazyflie_runtime_v2 > "$output/controller.sha256"
+          apt-get update >/dev/null
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+          chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+          mkdir -p /root/.config/Cyberbotics
+          printf '%s\n' '[RobotWindow]' 'browser=/workspace/tools/ci/webots_runtime_v2_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
+          google-chrome --version > "$output/browser-version.txt"
+          python3 tools/ci/runtime_wwi_event_server.py --output "$output/browser-events.jsonl" &
+          event_server_pid=$!
+          trap 'kill "$event_server_pid" 2>/dev/null || true' EXIT
+          sleep 0.5
+          timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt > "$output/webots.log" 2>&1 &
+          webots_pid=$!
+          PYTHONPATH=tools/ci python3 - "$webots_pid" "$output" "$rings" <<'PY' &
+          import json
+          from pathlib import Path
+          import shutil
+          import sys
+          import time
+          from native_process_liveness import snapshot
+
+          pid = int(sys.argv[1])
+          output, rings = map(Path, sys.argv[2:])
+          events = output / 'browser-events.jsonl'
+          first_error = output / 'first-browser-error'
+          next_sample = 0
+          while Path(f'/proc/{pid}').exists():
+              now = time.monotonic()
+              error = None
+              if events.exists() and not first_error.exists():
+                  for line in events.read_text().splitlines(keepends=True):
+                      if line.endswith('\n'):
+                          event = json.loads(line)
+                          if event['event'] in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION'):
+                              error = event
+                              break
+              if now >= next_sample or error:
+                  sample = {'monotonic_s': now, 'wall_s': time.time(), **snapshot(pid)}
+                  with (output / 'native-process-liveness.jsonl').open('a') as handle:
+                      handle.write(json.dumps(sample) + '\n')
+                  next_sample = now + 5
+              if error:
+                  first_error.mkdir()
+                  (first_error / 'event-and-processes.json').write_text(
+                      json.dumps({'event': error, 'sample': sample}) + '\n')
+                  for ring in rings.glob('pilot-seams-*.bin'):
+                      shutil.copyfile(ring, first_error / ring.name)
+              time.sleep(0.25)
+          PY
+          observer_pid=$!
+          code=0
+          wait "$webots_pid" || code=$?
+          printf '%s\n' "$code" > "$output/exit-code.txt"
+          wait "$observer_pid"
+          cp "$rings"/pilot-seams-*.bin "$output/"
+          test "$code" -eq 0 || test "$code" -eq 124
+          BASH
+      - name: Apply the existing complete native Runtime v2 oracle
+        if: always()
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/ci-runtime.yml
+          validator="$(mktemp)"
+          sed -n '/^      - name: Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions$/,/^      - name: Upload Runtime v2 diagnostics$/{/^$/p;s/^          //p;}' "$workflow" > "$validator"
+          test -s "$validator"
+          bash "$validator"
+      - name: Preserve the raw #1065 attempt and the ring at any browser error
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-1065-mmap-r2025a
+          path: ci-artifacts/runtime-v2-webots/
+          if-no-files-found: error
