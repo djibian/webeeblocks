@@ -145,6 +145,46 @@ class PupilA4Tests(unittest.TestCase):
         # may be manufactured from this optional native heartbeat.
         self.assertNotIn('CI_HEARTBEAT',runner.split('    valid=')[1].split('    # Diagnostic-only')[0])
 
+    def test_ci_only_pilot_step_wwi_probe_has_strict_source_contract(self):
+        # The checkout source remains byte-identical; only the school binary
+        # assembled temporarily inside the isolated native CI job gets probes.
+        from tools.ci.a4_native_pilot_boundary_probe import instrument, SOURCE, MARKER
+        original=SOURCE.read_text(encoding='utf-8')
+        result=instrument(original)
+        self.assertNotIn(MARKER,original)
+        self.assertIn('A4_CI_PILOT_STEP_RETURN',result)
+        self.assertIn('A4_CI_PILOT_BOUNDARY phase=%s',result)
+        self.assertIn('samples < 600',result)
+        self.assertIn('samples++ >= 160',result)
+        self.assertIn('clock_gettime(CLOCK_MONOTONIC',result)
+        self.assertIn('fflush(stderr);',result)
+        self.assertEqual(result.count('a4_ci_mark("receive",'),1)
+        self.assertEqual(result.count('a4_ci_mark("activate",'),3)
+        for original_line in (
+            '#define ACTION_TIMEOUT 25.0',
+            '#define RESET_TIMEOUT 5.0',
+            'response_error(active_id, "UNSAFE_OR_TIMEOUT")',
+            'response_ok(active_id)',
+        ):
+            self.assertEqual(result.count(original_line),original.count(original_line))
+        self.assertEqual(result.count('wb_robot_step(step)'),
+                         original.count('wb_robot_step(step)'))
+        with self.assertRaises(ValueError):
+            instrument(result)
+        with self.assertRaises(ValueError):
+            instrument(original.replace(
+                '      request_t request = parse_request(message);',
+                '      request_t request = parse_request_other(message);'))
+        self.assertEqual(SOURCE.read_text(encoding='utf-8'),original)
+        workflow=(ROOT/'.github/workflows/ci-runtime.yml').read_text(encoding='utf-8')
+        core=workflow.split('  runtime-v2-core:',1)[1].split('  runtime-v2-',1)[0]
+        self.assertIn('a4_native_pilot_boundary_probe.py selftest',core)
+        self.assertIn('a4_native_pilot_boundary_probe.py install',core)
+        self.assertIn('a4_native_pilot_boundary_probe.py restore',core)
+        self.assertIn('trap "',core)
+        self.assertIn("test \"$pupil_status\" -eq 0",core)
+        self.assertIn("test \"$blind_status\" -eq 0",core)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
