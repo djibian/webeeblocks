@@ -1,0 +1,78 @@
+# Experimental A6-only Webots campaign. Draft evidence is NEVER a V5 gate.
+name: Experimental A6 native R2025a (non-decision)
+on:
+  pull_request:
+    paths:
+      - 'tools/grand_prix/progression_courses.py'
+      - 'tools/grand_prix/witness_workspace_a6.js'
+      - 'tools/ci/check_a6_native_evidence.py'
+      - 'tools/ci/grand_prix_progression_node_probe.js'
+      - 'tools/ci/run_grand_prix_progression_native.py'
+      - 'tools/ci/run_grand_prix_v2_h_native.py'
+      - '.github/workflows/grand-prix-a6-native-draft.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  a6-physical-native:
+    name: Five A6 worlds, native contradictory rays/collisions/LAND
+    runs-on: ubuntu-22.04
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare exact Blockly 13.2.1 and original Runtime
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Fail early on A6 geometric/A8 hash and genuine pupil project
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools.ci.test_grand_prix_route_v2
+          node tools/grand_prix/witness_workspace_a6.js
+      - name: Pull official R2025a Ubuntu 22.04 Webots image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+      - name: Real H beams/uprights, 5 native flights and independent LANDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          host_node_root="$(dirname "$(dirname "$(command -v node)")")"
+          mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
+          docker run --rm --network host --shm-size=2g \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "$host_node_root:/opt/ci-node:ro" \
+            -w /workspace \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e QTWEBENGINE_DISABLE_SANDBOX=1 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -euo pipefail
+              export PATH="/opt/ci-node/bin:$PATH"
+              test "$(node --version | cut -c2-3)" = "22"
+              test "$(cat "$WEBOTS_HOME/resources/version.txt")" = "R2025a"
+              python3 tools/grand_prix/prepare_route_runtime.py
+              make -C controllers/grand_prix_route_flight
+              xvfb-run -a bash -c "
+                set -e
+                python3 tools/ci/run_grand_prix_v2_h_native.py --native --activity 6 --index 1 --index 2 --index 3 --index 4 --index 5
+                for variant in 1 2 3 4 5; do
+                  python3 tools/ci/run_grand_prix_progression_native.py --activity 6 --variant \$variant
+                done
+              "
+            '
+          python3 tools/ci/check_a6_native_evidence.py
+      - name: Retain independent raw Webots/WWI and exact WBB evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-r2025a-five-variant-native-draft
+          path: |
+            ci-artifacts/grand-prix-u-geometry/
+            ci-artifacts/grand-prix-v2-h-native/
+          if-no-files-found: warn
+          retention-days: 14
