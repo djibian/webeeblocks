@@ -175,6 +175,15 @@ async function activityFour() {
   await approachLanding('right');
   await outcome({status: 'not-achieved', reason: 'wrong-landing'});
   await waitForForcedLanding(1);
+
+  // STOP must revoke subsequent actuation and the native pilot must LAND
+  // independently, even when the previous attempt has already failed.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour};
