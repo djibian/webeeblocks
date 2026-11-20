@@ -100,14 +100,18 @@ function build(){
      activity:{id:profile.id,semantics:ast.semantics},
      workspace:Blockly.serialization.workspaces.save(ws)};
    let next=0;
+   // Untyped Blockly shadow/mutation state can also own randomly generated IDs.
+   // Never rewrite pupil variable IDs: their identities belong to the AST.
    function stableIds(node){
      if(Array.isArray(node)){node.forEach(stableIds);return;}
      if(!node||typeof node!=='object')return;
-     if(typeof node.type==='string'&&typeof node.id==='string')
-       node.id='a6-block-'+(++next);
-     Object.values(node).forEach(stableIds);
+     for(const [key,value] of Object.entries(node)){
+       if(key==='id'&&typeof value==='string'&&value!==l.id&&value!==r.id)
+         node[key]='a6-block-'+(++next);
+       else stableIds(value);
+     }
    }
-   stableIds(project.workspace.blocks);
+   stableIds(project.workspace);
    const content=JSON.stringify(project)+'\n';
    const result=Files.validateProjectText(content,profile,{Blockly,
      profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
@@ -123,7 +127,22 @@ function build(){
 }
 module.exports={build,reference};
 if(require.main===module){
- const a=build(),b=build();assert.equal(a.sha256,b.sha256,'WBB bytes vary between builds');
+ const a=build(),b=build();
+ if(a.sha256!==b.sha256){
+   const x=JSON.parse(a.content),y=JSON.parse(b.content);
+   function difference(u,v,path){
+     if(JSON.stringify(u)===JSON.stringify(v))return null;
+     if(!u||!v||typeof u!=='object'||typeof v!=='object')
+       return {path,first:u,second:v};
+     for(const key of new Set([...Object.keys(u),...Object.keys(v)])){
+       const result=difference(u[key],v[key],path.concat(key));
+       if(result)return result;
+     }
+     return {path,kind:'object-shape'};
+   }
+   console.error('A6_WBB_BYTE_DIFFERENCE '+JSON.stringify(difference(x,y,[])));
+ }
+ assert.equal(a.sha256,b.sha256,'WBB bytes vary between builds');
  if(process.argv[2])fs.writeFileSync(process.argv[2],a.content);
  console.log('A6_WBB_PREFLIGHT '+JSON.stringify({sha256:a.sha256,roundtrip:true,blockly:'13.2.1'}));
 }
