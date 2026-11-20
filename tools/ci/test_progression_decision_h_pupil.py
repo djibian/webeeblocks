@@ -125,6 +125,36 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",source)
         self.assertIn("valid=valid and trace_ok",source)
 
+    def test_browser_error_details_are_bounded_and_never_a_pass(self):
+        source=RUN.read_text(encoding='utf-8')
+        tree=ast.parse(source,filename=str(RUN))
+        function=next(node for node in tree.body if
+                      isinstance(node,ast.FunctionDef) and
+                      node.name=='summarize_browser_errors')
+        namespace={}
+        exec(compile(ast.Module(body=[function],type_ignores=[]),
+                     str(RUN),'exec'),namespace)
+        summarize=namespace['summarize_browser_errors']
+        observations=[
+            {'event':'A4_PUPIL_HTML_LOADED','detail':None},
+            {'event':'A4_PUPIL_ERROR','detail':{'message':'VERTICAL #7 '+('x'*2000)}},
+            {'event':'A4_PUPIL_ERROR','detail':None},
+            {'event':'A4_PUPIL_ERROR','detail':{'message':'request timeout'}},
+            {'event':'A4_PUPIL_ERROR','detail':{'message':'not included'}},
+        ]
+        result=summarize(observations)
+        self.assertEqual(len(result),3)
+        self.assertEqual([x['event_index'] for x in result],[1,2,3])
+        self.assertEqual(len(result[0]['message']),1500)
+        self.assertEqual(result[1]['message'],'<missing browser error message>')
+        self.assertEqual(result[2]['message'],'request timeout')
+        self.assertEqual(summarize([]),[])
+        # Diagnostics are independent of the unchanged PASS/FAIL gate.
+        self.assertIn("events.count('A4_PUPIL_ERROR')==0",source)
+        self.assertIn("'browser_errors':browser_errors",source)
+        self.assertIn('A4_PUPIL_BROWSER_ERRORS',source)
+        self.assertIn('valid=valid and trace_ok',source)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
