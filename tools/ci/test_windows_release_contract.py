@@ -281,7 +281,10 @@ class WindowsReleaseContractTests(unittest.TestCase):
                 self.assertIn(r"'Activites\Historique'", release_test)
                 self.assertIn(filename, release_test)
                 self.assertIn(filename, readme)
-        self.assertIn("seules les activités 01, 02, 03, 04 et 07", readme)
+        self.assertIn("modèles historiques 01", readme)
+        self.assertIn("19 novembre\n2026", readme)
+        self.assertIn("pas être distribués comme les nouvelles activités A1–A7", readme.replace("\n", " "))
+        self.assertNotIn("sont actuellement libérées", readme)
         self.assertNotIn("huit fichiers `.wbb` de la", readme)
            # Preserve the existing A8 identity without changing its packaging.
         a8 = ROOT / "activities/progression/08-autonomous-strategy.wbb"
