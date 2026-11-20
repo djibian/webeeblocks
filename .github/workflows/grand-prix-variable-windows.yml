@@ -75,6 +75,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WWI probe JS syntax check failed' }
           python -c "from tools.grand_prix.route_courses_v2 import reference_course; assert len({reference_course(i).identifier for i in range(12)}) == 12"
           if ($LASTEXITCODE -ne 0) { throw 'Route identity check failed' }
+          # Both the composer and independent ZIP inspector must pin the
+          # *integrated* #970 SHA. Check ancestry and exact source marker
+          # before costly Webots installation and controller compilation.
+          python -c "from tools.grand_prix import package_windows_route as p; from tools.ci import test_grand_prix_route_windows_package as v; assert p.PR970_SHA == v.PR970, 'Composer/inspector provenance mismatch'; p.exact_sha()"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows packaging provenance preflight failed' }
 
       - uses: actions/cache@v4
         with:
