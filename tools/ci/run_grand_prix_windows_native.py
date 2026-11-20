@@ -215,6 +215,17 @@ def stop(process, diagnostic_path=None):
             gaps = []
             if not before.get('available'):
                 gaps.append('before-snapshot-unavailable')
+            else:
+                # A syntactically valid CIM inventory can still omit the
+                # process known live at the initial poll. Without its identity
+                # we cannot attribute descendants or prove their retirement.
+                # Fallback only supports older tests supplying owned rows.
+                root_seen = before.get('root_present')
+                if root_seen is None:
+                    root_seen = any(p.get('pid') == process.pid
+                                    for p in before.get('owned', []))
+                if root_seen is not True:
+                    gaps.append('before-root-identity-unavailable')
             if not after.get('available'):
                 gaps.append('after-snapshot-unavailable')
             if evidence.get('identity_unproven'):

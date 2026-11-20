@@ -261,6 +261,10 @@ class EvidenceTests(unittest.TestCase):
             ('creation-identity-unavailable',
              dict(available=True, owned=[dict(root, created=None), child]),
              after),
+            # An available CIM response can omit the owned root even when
+            # the Popen handle was live at the start of stop().
+            ('before-root-identity-unavailable',
+             dict(available=True, root_present=False, owned=[]), after),
         ]
         for reason, first, last in cases:
             with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
