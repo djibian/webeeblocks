@@ -270,7 +270,12 @@ async function activitySix() {
   const negativeNear = await backend.readRange('front');
   assert(negativeNear > .24 && negativeNear < .57, 'negative standoff lost');
   console.log(JSON.stringify({negativeFirst, negativeNear, speed:.14}));
-  await assert.rejects(backend.move('forward', .60), {code: 'TIME_LIMIT'});
+  // Counter-test only: do not command 18 cm of impossible penetration into
+  // a terminal Solid. A 40 cm command from ~41.6 cm frontal clearance still
+  // contacts the real physical drone envelope; the SAME independent oracle
+  // must refuse and the SAME forced LAND must acknowledge safely.
+  // If no real envelope-contact occurs, the unchanged assertion fails closed.
+  await assert.rejects(backend.move('forward', .40), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   await waitForForcedLanding(1);
 }
