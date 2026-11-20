@@ -13,8 +13,13 @@ from tools.grand_prix.route_courses_v2 import CoursePlan, course_from_identifier
 from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
+from tools.grand_prix.oracle_u import RADIUS
+from tools.grand_prix.route_terminal_v2 import LANDING_TILE
 
-LANDING_TOL = .14
+# A stable landing must keep the same swept craft envelope used by the
+# Grand Prix mission entirely inside the visible square target tile. Checking
+# only the tile's half-width accepts a craft with part of its body outside.
+LANDING_TOL = LANDING_TILE / 2 - RADIUS
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.
