@@ -246,6 +246,65 @@ class EvidenceTests(unittest.TestCase):
             record = json.loads(evidence.read_text(encoding='utf-8'))
             self.assertEqual(record['still_present_same_pid_and_creation'], [])
 
+    def test_missing_cim_snapshot_or_creation_identity_vetoes_cleanup(self):
+        root = dict(pid=2232, parent=50, created='root-start',
+                    name='webots-bin.exe')
+        child = dict(pid=4520, parent=2232, created='child-start',
+                     name='QtWebEngineProcess.exe')
+        before = dict(available=True, owned=[root, child])
+        after = dict(available=True, owned=[], watched=[])
+        cases = [
+            ('before-snapshot-unavailable',
+             dict(available=False, error='CIM startup failed'), after),
+            ('after-snapshot-unavailable',
+             before, dict(available=False, error='CIM teardown failed')),
+            ('creation-identity-unavailable',
+             dict(available=True, owned=[dict(root, created=None), child]),
+             after),
+            # An available CIM response can omit the owned root even when
+            # the Popen handle was live at the start of stop().
+            ('before-root-identity-unavailable',
+             dict(available=True, root_present=False, owned=[]), after),
+        ]
+        for reason, first, last in cases:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                diagnostic = Path(tmp) / 'cleanup.json'
+                process = mock.Mock(pid=2232)
+                process.poll.return_value = None
+                process.wait.return_value = 1
+                with mock.patch(
+                    'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                    side_effect=[first, last]), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native.subprocess.run',
+                    return_value=subprocess.CompletedProcess(
+                        ['taskkill'], 0, stdout=b'SUCCESS: terminated')):
+                    with self.assertRaisesRegex(RuntimeError,
+                                                'cleanup observation unavailable'):
+                        stop(process, diagnostic_path=diagnostic)
+                record = json.loads(diagnostic.read_text(encoding='utf-8'))
+                self.assertIn(reason, record['cleanup_observation_gaps'])
+                self.assertIn('observation unavailable', record['exception'])
+                self.assertEqual(record['taskkill_returncode'], 0)
+
+        # Never mask an earlier causal taskkill failure with the later
+        # diagnostic inability to observe CIM.
+        process = mock.Mock(pid=2232)
+        process.poll.side_effect = [None, 1]
+        failed = subprocess.CalledProcessError(
+            128, ['taskkill'], output=b'ERROR: failed to terminate')
+        with tempfile.TemporaryDirectory() as tmp:
+            diagnostic = Path(tmp) / 'cleanup.json'
+            with mock.patch(
+                'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                side_effect=[dict(available=False), dict(available=False)]), \
+                mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run',
+                           side_effect=failed):
+                with self.assertRaisesRegex(RuntimeError, 'cleanup unproven'):
+                    stop(process, diagnostic_path=diagnostic)
+            record = json.loads(diagnostic.read_text(encoding='utf-8'))
+            self.assertIn('cleanup unproven', record['exception'])
+            self.assertEqual(len(record['cleanup_observation_gaps']), 2)
+
     def test_successful_taskkill_is_only_observed_not_manufactured(self):
         process = mock.Mock(pid=456)
         process.poll.return_value = None
