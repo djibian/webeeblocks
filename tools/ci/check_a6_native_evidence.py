@@ -52,6 +52,13 @@ def main():
                 raise RuntimeError(f"A6 V{variant}: both open-H uprights not observed")
         elif left[0] < 1.9 or right[0] < 1.9:
             raise RuntimeError(f"A6 V{variant}: closed H should not expose two uprights")
+        # The pass/fail gate MUST be backed by the original deep impact.
+        # A separately executed 0.40-m shallow experiment is useful diagnosis,
+        # but may never replace the 0.60-m severe-contact falsifier.
+        severe = [e for e in events if e.get("event") == "A6_NEGATIVE_CONTACT"]
+        if (len(severe) != 1 or severe[0].get("advance") != .60 or
+                severe[0].get("shallowDiagnostic") is not False):
+            raise RuntimeError(f"A6 V{variant}: mandatory 0.60-m severe impact not attested")
         outcomes = [e for e in events if "status" in e]
         if (outcomes != [{"status": "achieved"},
                          {"status": "not-achieved", "reason": "envelope-contact"}]):
@@ -78,6 +85,13 @@ def main():
                 if active_attempt not in phases:
                     raise RuntimeError(f"A6 V{variant}: orphan forced LAND")
                 phases[active_attempt].append("forced")
+            elif line.startswith("GP_U_LAND_GROUND_READY "):
+                # Independent native full-pose stability, not mere vertical
+                # touchdown or a synthetic ACK; nominal pupil LAND is separate.
+                if active_attempt in (2, 3):
+                    if phases[active_attempt] != ["admission", "forced"]:
+                        raise RuntimeError(f"A6 V{variant}: out-of-order native stability proof")
+                    phases[active_attempt].append("ground_ready")
             elif line.startswith("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 "):
                 if active_attempt not in phases:
                     raise RuntimeError(f"A6 V{variant}: orphan LAND reply")
@@ -86,9 +100,9 @@ def main():
                     else "land_error")
         if phases != {
             1: ["admission"],
-            2: ["admission", "forced", "land_ok"],
-            3: ["admission", "forced", "land_ok"],
-        } or "WEBEEBLOCKS_RUNTIME_V2 FATAL unsafe attitude" in trace:
+            2: ["admission", "forced", "ground_ready", "land_ok"],
+            3: ["admission", "forced", "ground_ready", "land_ok"],
+        } or "WEBEEBLOCKS_RUNTIME_V2 FATAL " in trace:
             raise RuntimeError(
                 f"A6 V{variant}: collision/STOP LAND not independently settled: {phases}")
         checks.append((variant, digest, front[0]))
