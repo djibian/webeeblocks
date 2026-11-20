@@ -30,8 +30,8 @@ _VARIANTS = {
                       # At 0.70 m before the H, +/-12 degrees of yaw could
                       # make the rear ray pick up the last corner arm again.
                       pad_distance_from_h=.17)
-             for length, turn in ((1., 'G'), (1.2, 'D'), (1.4, 'G'),
-                                  (1.6, 'D'), (1.8, 'G'))),
+             for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
+                                  (1.4, 'D'), (1.8, 'G'))),
     6: (
         # Owner-approved 2026-11-20: the initial frontal face alone must not
         # identify an open versus closed H. V2/V4 and V3/V5 share first faces.

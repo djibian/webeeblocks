@@ -109,6 +109,7 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual({c.route.turns for c in a7}, {('G',), ('D',)})
         self.assertEqual({tuple(g.leg_index for g in c.gates) for c in a7}, {(), (0,), (1,)})
 
+
     def test_a6_owner_geometry_pad_and_initial_frontal_ambiguity(self):
         # Pure collider geometry only: native R2025a rays, flight and LAND
         # must still be proved, including frontal-only counter-strategies.
@@ -145,6 +146,39 @@ class VariableRouteTests(unittest.TestCase):
         self.assertLess(max(first_faces), 1.75)  # >=25 cm nominal headroom
         self.assertEqual([round(face, 2) for face in first_faces],
                          [.73, 1.38, 1.48, 1.38, 1.48])
+
+    def test_a5_initial_frontal_range_does_not_reveal_turn(self):
+        """Pure collider-ray parity, not a native range measurement or pupil PASS.
+
+        A fixed lookup from the first frontal reading to the final pad must
+        not solve all five variants without observing the actual L corner.
+        The two opposite-turn pairs have the same first-leg length and same
+        physical *first* collider face on the straight initial frontal ray.
+        """
+        courses = [progression_course(5, variant) for variant in range(1, 6)]
+        self.assertEqual(len({course.identifier for course in courses}), 5)
+        self.assertEqual({course.route.turns for course in courses},
+                         {('G',), ('D',)})
+        for length in (1., 1.4):
+            pair = [course for course in courses
+                    if course.route.lengths[0] == length]
+            self.assertEqual(len(pair), 2)
+            self.assertEqual({course.route.turns for course in pair},
+                             {('G',), ('D',)})
+            faces = []
+            for course in pair:
+                # Only colliders crossing the initial eastward (y=0) ray
+                # can supply its first geometric obstruction.
+                possible_faces = [
+                    box.position[0] - box.size[0]/2
+                    for box in course_physical_boxes(course)
+                    if box.position[1] - box.size[1]/2 <= 0 <=
+                       box.position[1] + box.size[1]/2
+                    and box.position[0] + box.size[0]/2 > 0
+                ]
+                self.assertTrue(possible_faces)
+                faces.append(min(possible_faces))
+            self.assertEqual(faces[0], faces[1])
 
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)

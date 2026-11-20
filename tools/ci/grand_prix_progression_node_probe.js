@@ -127,10 +127,18 @@ async function activityTwo() {
   await waitForForcedLanding(1);
 
   await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   await takeoff(.88);
   await assert.rejects(backend.move('forward', 1.1), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
-  await waitForForcedLanding(2);
+  await waitForForcedLanding(3);
 }
 
 async function activityThree() {
@@ -158,10 +166,17 @@ async function activityThree() {
   await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'course-boundary'});
   await waitForForcedLanding(1);
+
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activityFour() {
-  async function approachLanding(side) {
+  async function approachLanding(side, wrongPad = false) {
     await takeoff(.9);
     // The same policy runs unchanged. Only the standard forward range is
     // available to it, with no course identity or host coordinates.
@@ -171,8 +186,19 @@ async function activityFour() {
     console.log(JSON.stringify({front, distance, side}));
     await backend.move('forward', distance);
     await backend.move(side, .50);
-    await backend.land();
-    await backend.completeActivityMission(evaluation);
+    if (wrongPad) {
+      // A4's wrong tile is not licensed for low flight by the strict
+      // whole-footprint progression oracle (#1072).  The native command may
+      // be interrupted before the landing call returns.
+      try {
+        await backend.land();
+      } catch (error) {
+        assert.equal(error.code, 'TIME_LIMIT');
+      }
+    } else {
+      await backend.land();
+      await backend.completeActivityMission(evaluation);
+    }
   }
 
   await approachLanding('left');
@@ -180,9 +206,18 @@ async function activityFour() {
 
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
-  await approachLanding('right');
-  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await approachLanding('right', true);
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
+
+  // STOP must revoke subsequent actuation and the native pilot must LAND
+  // independently, even when the previous attempt has already failed.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activityFive() {
@@ -219,12 +254,26 @@ async function activityFive() {
   await outcome({status: 'achieved'});
 
   await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   const turnedLeftAgain = await reachChoice();
   await backend.move(turnedLeftAgain ? 'left' : 'right', .50);
-  await backend.land();
-  await backend.completeActivityMission(evaluation);
-  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  // The other visible pad is not a safe descent exception.  A native
+  // failure may interrupt LAND before the backend returns normally.
+  try {
+    await backend.land();
+  } catch (error) {
+    assert.equal(error.code, 'TIME_LIMIT');
+  }
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
   await waitForForcedLanding(1);
+
+  // Refute any attempt to continue commanding the vehicle after STOP.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
 }
 
 async function activitySix() {
