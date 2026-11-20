@@ -77,6 +77,21 @@ class PureVariableAttemptTests(unittest.TestCase):
                     self.assertEqual(state.result.crossings, course.count)
                     self.assertLess(state.result.elapsed_ms, 210000)
 
+    def test_short_a4_cannot_use_terminal_low_exception_across_corridor(self):
+        # A4's only leg is also the final leg, with no H at all. Merely
+        # having the required (zero) crossing count must not make a flight
+        # at 0.60 m lawful far from its lateral landing tile.
+        course = progression_course(4, 1)
+        state = start_pure_attempt(course, 41, .015, 0)
+        state = travel(state, (0., 0., .75))
+        state = travel(state, (.20, 0., .75))
+        self.assertTrue(state.takeoff_done)
+        result = observe(state, state.attempt, state.last_ms + 160,
+                         (.20, 0., .60), (0., 0., -.9375))
+        self.assertEqual(result.result.reason, 'low-outside-zone')
+        # A centered final descent remains authorized and is exercised by
+        # the 23 positive activity traces in the preceding test.
+
     def test_progression_pad_requires_whole_collider(self):
         """Reproduce the native A4 border overhang; do not change A8 rules."""
         course = progression_course(4, 1)
