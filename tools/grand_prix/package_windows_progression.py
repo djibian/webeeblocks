@@ -30,6 +30,7 @@ COURSE_IDS = tuple(
     for v in range(1, count + 1)
 )
 PROFILES = ROOT / "plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js"
+ACCEPTANCE = ROOT / "docs/GRAND_PRIX_A1_A7_WINDOWS_ACCEPTANCE.md"
 
 # Only the presentation labels and default window choices are in this file.
 # Native CoursePlan and controllerArgs retain sole authority over geometry.
@@ -158,6 +159,8 @@ def compose(source, output):
         raise ValueError("Use a new output path")
     if not PROFILES.is_file():
         raise ValueError("Progression Blockly profiles absent")
+    if not ACCEPTANCE.is_file():
+        raise ValueError("Windows acceptance procedure absent")
 
     shutil.copytree(source, output)
     worlds = output / "worlds"
@@ -213,8 +216,10 @@ def compose(source, output):
         "Pour changer de variante : enregistrer sous .wbb, fermer Webots, "
         "relancer le même numéro d'activité avec un autre parcours, ouvrir le même .wbb.\n"
         "STOP, RESET, décollage et pose sont régis par le pilote natif. "
-        "La validation Windows enseignant et l'acceptation pédagogique restent requises.\n",
+        "La validation Windows enseignant et l'acceptation pédagogique restent requises. "
+        "Voir ACCEPTATION-WINDOWS.md pour les préflights, les 23 essais et les verdicts.\n",
         encoding="utf-8")
+    shutil.copyfile(ACCEPTANCE, output / "ACCEPTATION-WINDOWS.md")
     (output / "MANIFEST.sha256").unlink()
     manifest = "\n".join(
         f"{digest(p)}  {p.relative_to(output).as_posix()}"
