@@ -328,13 +328,13 @@ jobs:
             -w /workspace/controllers/progression_decision_h_v1 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'make clean && make'
-      - name: Build actual A4 school scene controller before native pupil witnesses
+      - name: Build school A4 controller with temporary CI pilot boundary probe
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_classroom_v2 \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'set -e; make clean; make'
+            bash -lc 'set -e; python3 ../../tools/ci/a4_native_pilot_boundary_probe.py selftest; python3 ../../tools/ci/a4_native_pilot_boundary_probe.py install; trap "python3 ../../tools/ci/a4_native_pilot_boundary_probe.py restore" EXIT; make clean; make'
       - name: Attest A4 native scene startup A/B and reject mutated H
         run: |
           docker run --rm \

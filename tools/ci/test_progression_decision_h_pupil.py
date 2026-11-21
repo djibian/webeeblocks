@@ -19,6 +19,7 @@ RUN=ROOT/'tools/ci/run_classroom_decision_h_pupil.py'
 BACKEND=ROOT/'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
 ACTIVITIES=ROOT/'plugins/robot_windows/blockly/webeeblocks/activities.js'
 PHYSICAL=ROOT/'controllers/crazyflie_runtime_v2/activity_scene.cpp'
+OBSERVER=ROOT/'controllers/progression_decision_h_v1/progression_decision_h_v1.c'
 
 
 class PupilA4Tests(unittest.TestCase):
@@ -125,6 +126,65 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("outcomes==[('A','1','achieved','4'),('B','2','achieved','4')]",source)
         self.assertIn("valid=valid and trace_ok",source)
 
+    def test_native_a4_heartbeat_is_ci_only_bounded_and_read_only(self):
+        observer=OBSERVER.read_text(encoding='utf-8')
+        runner=RUN.read_text(encoding='utf-8')
+        self.assertIn('#include <stdlib.h>',observer)
+        self.assertIn('getenv("WEBEEBLOCKS_CI_A4_HEARTBEAT")',observer)
+        self.assertIn('strcmp(ci_probe, "1") == 0',observer)
+        self.assertIn('ci_heartbeat && ci_heartbeat_samples < 256',observer)
+        self.assertIn('sample.time - ci_last_heartbeat_time >= 1.0',observer)
+        self.assertIn('WEBEEBLOCKS_DECISION_H_CI_HEARTBEAT',observer)
+        self.assertIn('ci_last_heartbeat_time = -1.0;',observer)
+        self.assertIn('ci_heartbeat_samples = 0;',observer)
+        self.assertIn('if (wb_dh_sample_mission(&mission, &sample) != WB_DH_WAIT)',observer)
+        self.assertIn("env['WEBEEBLOCKS_CI_A4_HEARTBEAT']='1'",runner)
+        self.assertIn("events.count('A4_PUPIL_ERROR')==0",runner)
+        self.assertIn("valid=valid and trace_ok",runner)
+        # Neither mission status nor the fixture's required terminal events
+        # may be manufactured from this optional native heartbeat.
+        self.assertNotIn('CI_HEARTBEAT',runner.split('    valid=')[1].split('    # Diagnostic-only')[0])
+
+    def test_ci_only_pilot_step_wwi_probe_has_strict_source_contract(self):
+        # The checkout source remains byte-identical; only the school binary
+        # assembled temporarily inside the isolated native CI job gets probes.
+        from tools.ci.a4_native_pilot_boundary_probe import instrument, SOURCE, MARKER
+        original=SOURCE.read_text(encoding='utf-8')
+        result=instrument(original)
+        self.assertNotIn(MARKER,original)
+        self.assertIn('A4_CI_PILOT_STEP_RETURN',result)
+        self.assertIn('A4_CI_PILOT_BOUNDARY phase=%s',result)
+        self.assertIn('samples < 600',result)
+        self.assertIn('samples++ >= 160',result)
+        self.assertIn('clock_gettime(CLOCK_MONOTONIC',result)
+        self.assertIn('fflush(stderr);',result)
+        self.assertEqual(result.count('a4_ci_mark("receive",'),1)
+        self.assertEqual(result.count('a4_ci_mark("activate",'),3)
+        for original_line in (
+            '#define ACTION_TIMEOUT 25.0',
+            '#define RESET_TIMEOUT 5.0',
+            'response_error(active_id, "UNSAFE_OR_TIMEOUT")',
+            'response_ok(active_id)',
+        ):
+            self.assertEqual(result.count(original_line),original.count(original_line))
+        self.assertEqual(result.count('wb_robot_step(step)'),
+                         original.count('wb_robot_step(step)'))
+        with self.assertRaises(ValueError):
+            instrument(result)
+        with self.assertRaises(ValueError):
+            instrument(original.replace(
+                '      request_t request = parse_request(message);',
+                '      request_t request = parse_request_other(message);'))
+        self.assertEqual(SOURCE.read_text(encoding='utf-8'),original)
+        workflow=(ROOT/'.github/workflows/ci-runtime.yml').read_text(encoding='utf-8')
+        core=workflow.split('  runtime-v2-core:',1)[1].split('  runtime-v2-',1)[0]
+        self.assertIn('a4_native_pilot_boundary_probe.py selftest',core)
+        self.assertIn('a4_native_pilot_boundary_probe.py install',core)
+        self.assertIn('a4_native_pilot_boundary_probe.py restore',core)
+        self.assertIn('trap "',core)
+        self.assertIn("test \"$pupil_status\" -eq 0",core)
+        self.assertIn("test \"$blind_status\" -eq 0",core)
+
     def test_browser_script_never_generates_a_fresh_second_project(self):
         js=JS.read_text(encoding='utf-8')
         begin=js.index("const wbb=WebeeBlocksProjectFiles.encodeProject(")
@@ -156,6 +216,43 @@ class PupilA4Tests(unittest.TestCase):
         self.assertIn("browser_log=ARTIFACT/'browser-launch.log'",run)
         self.assertNotIn('set_sf_vec3f',run)
         self.assertNotIn('wb_motor_set_',run)
+
+    def test_a4_process_probe_is_diagnostic_and_excludes_other_processes(self):
+        # This test belongs to the already-invoked A4 unittest CI target;
+        # adding an uninvoked standalone test would create false confidence.
+        from tempfile import TemporaryDirectory
+        from tools.ci.native_process_liveness import snapshot
+        run=RUN.read_text(encoding='utf-8')
+        for witness in ("'native-process-liveness.json'",
+                        'capture_native_process(process.pid)',
+                        'liveness_stop.set()', 'liveness_thread.join(timeout=3)',
+                        'valid=valid and trace_ok',
+                        "events.count('A4_PUPIL_ERROR')==0"):
+            self.assertIn(witness,run)
+        with TemporaryDirectory() as temporary:
+            proc=Path(temporary)
+            def fake(pid,ppid,pgrp):
+                path=proc/str(pid)
+                path.mkdir()
+                fields=['S',str(ppid),str(pgrp)]+['0']*8+['12','4']+['0']*8+['99']
+                self.assertEqual(len(fields),22)
+                (path/'stat').write_text(
+                    f'{pid} (webots (test)) '+' '.join(fields)+'\n',
+                    encoding='utf-8')
+                (path/'wchan').write_text('futex_wait_queue',encoding='utf-8')
+            fake(100,1,100)
+            fake(101,100,101)
+            fake(102,101,102)
+            fake(103,1,100)
+            fake(104,1,104)
+            result=snapshot(100,proc)
+            self.assertTrue(result['available'])
+            self.assertEqual([p['pid'] for p in result['processes']],
+                             [100,101,102,103])
+            self.assertEqual(result['processes'][1]['user_ticks'],12)
+            self.assertEqual(result['processes'][1]['wchan'],'futex_wait_queue')
+            self.assertFalse(snapshot(777,proc)['root_seen'])
+
 
 if __name__=='__main__':
     unittest.main()

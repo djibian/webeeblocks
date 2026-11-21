@@ -6,6 +6,7 @@
 #include "decision_core.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <webots/contact_point.h>
 #include <webots/robot.h>
@@ -308,6 +309,12 @@ int main(void) {
   wb_supervisor_node_enable_contact_points_tracking(craft, step, true);
   wb_dh_mission mission = {0};
   unsigned long long last_attempt = 0;
+  /* Observational CI-only liveness witness. Never affects flight or oracle.
+   * One log per simulated second, capped at 256 per native attempt. */
+  const char *ci_probe = getenv("WEBEEBLOCKS_CI_A4_HEARTBEAT");
+  const int ci_heartbeat = ci_probe && strcmp(ci_probe, "1") == 0;
+  double ci_last_heartbeat_time = -1.0;
+  unsigned ci_heartbeat_samples = 0;
   printf("WEBEEBLOCKS_DECISION_H_READY scene=decision-h-%c-v1 oracle=%s\n",
          scene == WB_DH_SCENE_A ? 'a' : 'b', WB_DH_ORACLE);
   fflush(stdout);
@@ -316,6 +323,8 @@ int main(void) {
     unsigned long long attempt = 0;
     if (parse_attempt(data, &attempt) && attempt > last_attempt) {
       wb_dh_reset(&mission, attempt, scene, origin_z);
+      ci_last_heartbeat_time = -1.0;
+      ci_heartbeat_samples = 0;
       last_attempt = attempt;
       printf("WEBEEBLOCKS_DECISION_H_ATTEMPT attempt=%llu\n", attempt);
       fflush(stdout);
@@ -342,6 +351,23 @@ int main(void) {
              sample.vx, sample.vy, sample.vz, sample.obstacle_contact,
              sample.completed, origin_z);
       fflush(stdout);
+    }
+    /* Reuse the exact sample just captured by the native oracle, without any
+     * extra Supervisor queries or simulated-time advancement. A missing
+     * heartbeat after an outstanding WWI request now distinguishes halted
+     * native stepping from an alive observer with no command acknowledgment. */
+    if (ci_heartbeat && ci_heartbeat_samples < 256 && isfinite(sample.time) &&
+        (ci_last_heartbeat_time < 0.0 ||
+         sample.time - ci_last_heartbeat_time >= 1.0)) {
+      printf("WEBEEBLOCKS_DECISION_H_CI_HEARTBEAT attempt=%llu time=%.3f "
+             "xyz=%.5f,%.5f,%.5f velocity=%.5f,%.5f,%.5f "
+             "stage=%u contact=%d\n",
+             mission.attempt, sample.time, sample.x, sample.y, sample.z,
+             sample.vx, sample.vy, sample.vz, mission.stage,
+             sample.obstacle_contact);
+      fflush(stdout);
+      ci_last_heartbeat_time = sample.time;
+      ++ci_heartbeat_samples;
     }
     if (wb_dh_sample_mission(&mission, &sample) != WB_DH_WAIT) {
       printf("WEBEEBLOCKS_DECISION_H_VERDICT_SAMPLE attempt=%llu "

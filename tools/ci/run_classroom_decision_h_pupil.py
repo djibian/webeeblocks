@@ -20,6 +20,7 @@ import threading
 import time
 
 import prepare_classroom_decision_h_pupil as world
+from native_process_liveness import snapshot as capture_native_process
 import run_classroom_altitude_scene_ack as ack
 
 ARTIFACT=world.ROOT/'ci-artifacts/progression-decision-h-blockly'
@@ -54,6 +55,9 @@ def run()->int:
     process=None
     output=None
     started=None
+    liveness_stop=threading.Event()
+    liveness_thread=None
+    liveness_samples=[]
     termination={'reason':'not_started',
                  'pre_cleanup_exit_code':None,'elapsed_wall_s':None}
     try:
@@ -67,6 +71,7 @@ def run()->int:
         threading.Thread(target=server.serve_forever,daemon=True).start()
         env=dict(os.environ)
         env['WEBOTS_WEB_BROWSER']='/workspace/tools/ci/webots_runtime_v2_browser.sh'
+        env['WEBEEBLOCKS_CI_A4_HEARTBEAT']='1'
         output=log_path.open('w',encoding='utf-8')
         process=subprocess.Popen(
             ['timeout','-k','5s','540s','xvfb-run','-a','webots',
@@ -74,6 +79,19 @@ def run()->int:
             cwd=str(world.ROOT),stdout=output,stderr=subprocess.STDOUT,
             env=env,start_new_session=True)
         started=time.monotonic()
+        # CI-only, wall-clock process evidence. Never an action/flight oracle.
+        def observe_liveness():
+            while not liveness_stop.is_set():
+                try:
+                    liveness_samples.append({
+                        'elapsed_wall_s':round(time.monotonic()-started,3),
+                        **capture_native_process(process.pid)})
+                except Exception as exc:
+                    liveness_samples.append({'unavailable':type(exc).__name__})
+                if liveness_stop.wait(5.0):
+                    break
+        liveness_thread=threading.Thread(target=observe_liveness,daemon=True)
+        liveness_thread.start()
         deadline=started+525
         while time.monotonic()<deadline:
             events=[e.get('event') for e in ack.EVENTS]
@@ -93,6 +111,23 @@ def run()->int:
         else:
             termination['reason']='wall_deadline'
     finally:
+        if liveness_thread is not None:
+            liveness_stop.set()
+            liveness_thread.join(timeout=3)
+            # Final PRE-cleanup sample: never confuse kill with a native stall.
+            try:
+                liveness_samples.append({
+                    'elapsed_wall_s':round(time.monotonic()-started,3),
+                    **capture_native_process(process.pid)})
+            except Exception as exc:
+                liveness_samples.append({'unavailable':type(exc).__name__})
+            (ARTIFACT/'native-process-liveness.json').write_text(
+                json.dumps({
+                    'schema':'a4-native-process-liveness-v1',
+                    'claim':'diagnostic-only-no-native-command-or-clock-proof',
+                    'sampling_wall_seconds':5.0,
+                    'samples':liveness_samples,
+                },indent=2,sort_keys=True)+'\n',encoding='utf-8')
         if started is not None:
             termination['elapsed_wall_s']=round(time.monotonic()-started,3)
         if process is not None and termination['pre_cleanup_exit_code'] is None:
