@@ -1,0 +1,89 @@
+# A7 Draft-only, non-decision harness. Drop before integration after A6.
+# Reuses the already integrated #1095 official native R2025a campaign.
+name: A7 Draft exact-head native R2025a (non-decision)
+on:
+  push:
+    branches: [gp-a7-native-product]
+permissions:
+  contents: read
+concurrency:
+  group: a7-draft-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  a7-native:
+    name: A7 seven native flights and negative oracles (Draft only)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 100
+    env:
+      ACTIVITY: '7'
+      TARGET_SHA: ${{ github.sha }}
+      PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      WEBOTS_OFFICIAL_IMAGE: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+      WEBOTS_M2_IMAGE: ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fd7d455763e002f49b25f055fe4a87eb86935538
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Attest the immutable harness and exact A7 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C harness rev-parse HEAD)" = "fd7d455763e002f49b25f055fe4a87eb86935538"
+          test "$(git -C candidate rev-parse HEAD)" = "$TARGET_SHA"
+          test "$ACTIVITY" = 7
+          mkdir -p provenance
+          printf '%s\n' "harness_sha=fd7d455763e002f49b25f055fe4a87eb86935538" "target_sha=$TARGET_SHA" \
+            "activity=7" "run_id=$GITHUB_RUN_ID" "run_attempt=$GITHUB_RUN_ATTEMPT" \
+            "webots_source=$PROTO_SHA" > provenance/run.txt
+      - name: Checkout pinned native R2025a PROTO resources
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: webots-assets
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare the actual Blockly modules imported by A7's WWI test runner
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/prepare_runtime_v2.sh
+      - name: Execute seven real R2025a variants, negatives, STOP RESET and both forced LANDs
+        working-directory: candidate
+        shell: bash
+        timeout-minutes: 85
+        run: |
+          set -o pipefail
+          bash ../harness/tools/ci/run_grand_prix_native_campaign.sh 2>&1 | tee ../provenance/campaign.log
+      - name: Archive exact-head worlds, WWI logs and mandatory failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a7-draft-native-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: |
+            provenance/
+            candidate/ci-artifacts/grand-prix-u-geometry/
+            candidate/ci-artifacts/grand-prix-v2-h-native/
+          if-no-files-found: warn
+          retention-days: 30
