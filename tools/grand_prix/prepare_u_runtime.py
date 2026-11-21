@@ -257,6 +257,39 @@ static double wrap_angle(double angle) {
             if result.count(old) != 1:
                 raise RuntimeError('route TAKEOFF composition anchor changed; revalidation required')
             result = result.replace(old, new, 1)
+        # A normal LAND directly after an acknowledged MOVE can keep the
+        # horizontal reference already active in hover. Bound reuse by the
+        # existing MOVE position tolerance at LAND receipt. The independent
+        # forced LAND above still takes its XY from the current observation.
+        handoff_edits = (
+          ('  double land_start_z = origin_z;',
+           '  int gp_route_move_completed = 0;\n'
+           '  double land_start_z = origin_z;'),
+          ('    // The PID also drives motors while airborne with no active request.',
+           '    if (command != CMD_IDLE) gp_route_move_completed = 0;\n\n'
+           '    // The PID also drives motors while airborne with no active request.'),
+          ('          trace_move(active_direction, active_value);',
+           '          gp_route_move_completed = 1;\n'
+           '          trace_move(active_direction, active_value);'),
+          ('''        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
+        target_z = origin_z;
+        land_start_z = z;''',
+           '''        const int gp_keep_move_target = gp_route_move_completed &&
+          hypot(target_x - x, target_y - y) <= POSITION_TOL;
+        if (!gp_keep_move_target) {
+          target_x = x;
+          target_y = y;
+        }
+        target_yaw = yaw;
+        target_z = origin_z;
+        land_start_z = z;'''),
+        )
+        for old, new in handoff_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route MOVE to LAND composition anchor changed')
+            result = result.replace(old, new, 1)
         # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
         from tools.grand_prix.route_vertical_product import compose_route_vertical_product
         result = compose_route_vertical_product(result)
