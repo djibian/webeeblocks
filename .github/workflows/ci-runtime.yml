@@ -1350,10 +1350,9 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              # Software-rendered Mesa may exceed 150 wall seconds on the full dynamic
-              # scenario. Keep the same simulated controller budgets and require the
-              # complete ordered native/WWI trace below; a truncated run still fails.
-              timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              # The fixed Color LED step covers visible rendering. This witness
+              # requires the real Robot Window, sensors, and native motion trace.
+              timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime --no-rendering /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-webots/webots.log
           code=${PIPESTATUS[0]}
