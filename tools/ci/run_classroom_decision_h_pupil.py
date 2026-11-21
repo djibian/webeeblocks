@@ -68,9 +68,11 @@ def run()->int:
         env=dict(os.environ)
         env['WEBOTS_WEB_BROWSER']='/workspace/tools/ci/webots_runtime_v2_browser.sh'
         output=log_path.open('w',encoding='utf-8')
+        # Blockly and the native mission evaluator supply the evidence here.
         process=subprocess.Popen(
             ['timeout','-k','5s','540s','xvfb-run','-a','webots',
-             '--stdout','--stderr','--batch','--mode=realtime',str(world.WORLD)],
+             '--stdout','--stderr','--batch','--mode=realtime','--no-rendering',
+             str(world.WORLD)],
             cwd=str(world.ROOT),stdout=output,stderr=subprocess.STDOUT,
             env=env,start_new_session=True)
         started=time.monotonic()
