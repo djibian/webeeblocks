@@ -107,6 +107,8 @@ def parse_browser_output(stdout: str) -> dict[str, object]:
 
 def run_browser(harness_path: Path) -> dict[str, object]:
     chrome = chrome_executable()
+    # The inline oracle writes its result before the load event. A virtual-time
+    # budget would make Chrome wait for pending fetches even after that result.
     command = [
         chrome,
         "--headless=new",
@@ -115,7 +117,6 @@ def run_browser(harness_path: Path) -> dict[str, object]:
         "--disable-dev-shm-usage",
         "--disable-background-networking",
         "--allow-file-access-from-files",
-        "--virtual-time-budget=5000",
         "--dump-dom",
         harness_path.as_uri(),
     ]

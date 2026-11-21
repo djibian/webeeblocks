@@ -218,8 +218,8 @@ def run_progression_native_only(home, activity):
 
     This campaign is independent of the historical geometry/evaluator jobs.
     """
-    if activity not in (1, 2):
-        raise ValueError('only A1 and A2 are active in this candidate')
+    if activity not in (1, 2, 3):
+        raise ValueError('only A1, A2 and A3 are active in this candidate')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('native progression mission requires Webots R2025a')
     env = os.environ.copy()
@@ -241,7 +241,7 @@ def main():
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
     parser.add_argument('--full-matrix-only', action='store_true')
-    parser.add_argument('--progression-activity', type=int, choices=(1, 2))
+    parser.add_argument('--progression-activity', type=int, choices=(1, 2, 3))
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)

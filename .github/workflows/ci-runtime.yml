@@ -108,6 +108,30 @@ jobs:
             ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
+  # Independent native A3 three-gate mission, inverted-turn refusal and STOP/RESET.
+  # The A1/A2 and historical twelve-route A8 campaigns remain unchanged.
+  grand-prix-progression-a3-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Qualify A3 internal R2025a three-gate passage, negative, STOP RESET LAND
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 3
+      - name: Preserve A3 native world, WWI, engine and build logs on every result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-a3-native-r2025a
+          path: |
+            ci-artifacts/grand-prix-u-geometry/route-a3-native/
+            ci-artifacts/grand-prix-u-geometry/docker.log
+          if-no-files-found: error
+
   # Full 12-route R2025a physical-contact/range geometry proof. This is a
   # separately required witness: existing U/L/H/evaluator safety suites remain.
   grand-prix-v2-native-matrix:
