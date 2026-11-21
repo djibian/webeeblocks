@@ -6,8 +6,10 @@ observations. Deliberate direct scene edits are outside the classroom threat
 model. No caller supplies observations or a validation boolean.
 The Linux launcher remains gated on the separate native/GUI qualifications.
 """
+import csv
 import logging
 import math
+import os
 
 from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservation
 from tools.grand_prix.evaluator_scene_identity_v2 import read_native_evaluator_scene
@@ -18,10 +20,11 @@ from tools.grand_prix.native_scene_snapshot_v2 import NativeSceneSnapshot
 from tools.grand_prix.oracle_attempt_v2 import (
     start_pure_attempt, observe_pure_attempt, fail_pure_attempt,
 )
-from tools.grand_prix.oracle_u import DEADLINE_MS
+from tools.grand_prix.oracle_u import DEADLINE_MS, RADIUS
 from tools.grand_prix.route_courses_v2 import active_course_from_identifier
 from tools.grand_prix.route_evaluator_wire_v2 import Challenge, EvaluatorHandshake, parse_flight_channel
 from tools.grand_prix.route_flight_observation_v2 import parse_flight_observation
+from tools.grand_prix.route_terminal_v2 import LANDING_TILE
 
 ORACLE = 'grand-prix-route-v2'
 SCENE_POLICY_CONTINUOUS = 'historical-continuous-v1'
@@ -95,6 +98,9 @@ class NativeRouteEvaluator:
         self._active = None
         self._start_ms = None
         self._positive_written = False
+        self._a3_trace_path = (os.environ.get('WEBEEBLOCKS_GP_A3_TRACE')
+                               if self.course.progression == (3, 1) else None)
+        self._a3_trace = [] if self._a3_trace_path else None
         self.observation = None
         self.phase = 'waiting'
         self.last_error = None
@@ -138,34 +144,72 @@ class NativeRouteEvaluator:
                     'actual_z=%.6f vz=%.6f origin_z=%.6f lower_z=%.6f ceiling_z=%.6f',
                     self._context.attempt, now, position[2], velocity[2],
                     self._origin_z, self._origin_z-.02, self._origin_z+1.15)
-        # A2/A3 native CI: discriminate a terminal-pad footprint miss from a
+        # A2 native CI: discriminate a terminal-pad footprint miss from a
         # premature descent. This post-refusal witness is strictly diagnostic:
         # it cannot change the latched reason, oracle, 8-ms step or flight.
-        if (reason == 'low-outside-zone' and self.course.progression in ((2, 1), (3, 1))
+        if (reason == 'low-outside-zone' and self.course.progression == (2, 1)
                 and self._context is not None and self._active is not None
                 and self.observation is not None):
             previous = self._active.progress.pose
             observed = self.observation.kinematics.position
             velocity = self.observation.kinematics.velocity
             target = self.course.landing_goal()
-            from tools.grand_prix.route_terminal_v2 import LANDING_TILE
-            from tools.grand_prix.oracle_u import RADIUS
             half = LANDING_TILE / 2 - RADIUS
             LOGGER.warning(
-                'GP_A%d_TERMINAL_SWEEP attempt=%d time_ms=%d '
+                'GP_A2_TERMINAL_SWEEP attempt=%d time_ms=%d '
                 'before=%.9f,%.9f,%.9f after=%.9f,%.9f,%.9f '
                 'velocity=%.9f,%.9f,%.9f target=%.9f,%.9f '
                 'offset_before=%.9f,%.9f offset_after=%.9f,%.9f '
                 'safe_half=%.9f crossings=%d/%d',
-                self.course.progression[0], self._context.attempt, now,
+                self._context.attempt, now,
                 *previous, *observed, *velocity[:3], *target,
                 previous[0] - target[0], previous[1] - target[1],
                 observed[0] - target[0], observed[1] - target[1],
                 half, self._active.progress.count, self.course.count)
+        if self._a3_trace and not self._positive_written:
+            self._write_a3_trace(now, reason)
         # A positive result is written only once. After publication, invalid
         # observations still revoke ALIVE, but may not overwrite a success that
         # the pilot already latched. The pilot independently fails if it had
         # not consumed valid success+landed before loss of ALIVE/the deadline.
+
+    def _record_a3_tick(self, before, observation, completed):
+        after = self._active.progress
+        self._a3_trace.append((
+            before.started_ms, before.last_ms, observation.time_ms, observation.flight.time_ms,
+            *before.progress.pose, *observation.kinematics.position,
+            *observation.kinematics.velocity[:3],
+            before.progress.leg.active_leg, before.progress.count,
+            after.leg.active_leg, after.count, completed, observation.flight.ground_confirmed,
+        ))
+
+    def _write_a3_trace(self, now, verdict):
+        # Buffer only the first attempt, bounded by the native mission clock.
+        # Format and write after publishing the native verdict and liveness.
+        samples, self._a3_trace = self._a3_trace, None
+        target_x, target_y = self.course.landing_goal()
+        half = LANDING_TILE / 2 - RADIUS
+        try:
+            with open(self._a3_trace_path, 'w', encoding='utf-8', newline='') as output:
+                rows = csv.writer(output)
+                rows.writerow((
+                    'start_ms', 'before_ms', 'time_ms', 'flight_sample_ms',
+                    'before_x', 'before_y', 'before_z', 'x', 'y', 'z', 'vx', 'vy', 'vz',
+                    'before_leg', 'before_crossings', 'leg', 'crossings', 'completed', 'ground',
+                    'required_crossings', 'target_x', 'target_y', 'safe_half',
+                    'before_margin_x', 'before_margin_y', 'margin_x', 'margin_y',
+                    'terminal_ms', 'verdict',
+                ))
+                for index, sample in enumerate(samples, 1):
+                    before_x, before_y, _, x, y = sample[4:9]
+                    terminal = (now, verdict) if index == len(samples) else ('', '')
+                    rows.writerow((
+                        *sample, self.course.count, target_x, target_y, half,
+                        half - abs(before_x - target_x), half - abs(before_y - target_y),
+                        half - abs(x - target_x), half - abs(y - target_y), *terminal,
+                    ))
+        except OSError as error:
+            LOGGER.warning('GP_A3_TRACE_UNAVAILABLE %s', error)
 
     def _outcome(self, status, reason=None):
         marker = (f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={self._context.attempt} '
@@ -359,9 +403,12 @@ class NativeRouteEvaluator:
             if not reply:
                 raise RuntimeError('native liveness wire refused')
             if not self._positive_written:
+                before = self._active
                 self._active = observe_pure_attempt(self._active, context.attempt, now,
                     observation.kinematics.position, observation.kinematics.velocity[:3],
                     contacts=[point.point for point in observation.contacts.points], completed=completed)
+                if self._a3_trace is not None and context.attempt == 1:
+                    self._record_a3_tick(before, observation, completed)
                 result = self._active.result
                 if result is not None:
                     if result.status != 'achieved':
@@ -377,6 +424,8 @@ class NativeRouteEvaluator:
                 return
             self._reply.setSFString(reply)  # keep ALIVE after a positive publication
             self.phase = 'result-published' if self._positive_written else 'active'
+            if self._positive_written and self._a3_trace:
+                self._write_a3_trace(now, 'achieved')
         except Exception as error:
             self._close(now, 'invalid-native-observation', error=error)
 

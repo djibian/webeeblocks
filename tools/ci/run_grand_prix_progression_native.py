@@ -39,6 +39,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         project_copy.write_bytes(pupil_project.read_bytes())
         probe_args.append(str(project_copy))
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
+    if activity == 3:
+        env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
     with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
         folder = Path(temporary)
         for key, name in (('XDG_CONFIG_HOME', 'config'), ('XDG_CACHE_HOME', 'cache'),
