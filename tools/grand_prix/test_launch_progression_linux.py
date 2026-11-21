@@ -123,7 +123,10 @@ class ProgressionLaunchTests(unittest.TestCase):
               patch.object(launcher, 'webots_home', return_value=home),
               patch.object(launcher, 'prepare_route_native', return_value={'WEBOTS_HOME': str(home)}),
               patch.object(launcher, 'launch_graphical', side_effect=read_at_launch)):
-            self.assertEqual(launcher.main(['--activity', '7', '--variant', '7']), 0)
+            last_activity = launcher.active_progression_activities()[-1]
+            last_variant = launcher.admitted_variants(last_activity)[-1]
+            self.assertEqual(launcher.main(['--activity', str(last_activity),
+                                            '--variant', str(last_variant)]), 0)
         self.assertEqual(len(launched), 1)
         self.assertFalse(launched[0].parents[1].exists())
 
