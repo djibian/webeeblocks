@@ -132,6 +132,31 @@ jobs:
             ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
+  grand-prix-progression-a4-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare pinned Blockly for the A4 pupil project
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Qualify all A4 variants, strict negatives, STOP RESET LAND and Save Open
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 4
+      - name: Preserve A4 native worlds, WWI, engine, build logs and pupil project
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-a4-native-r2025a
+          path: |
+            ci-artifacts/grand-prix-u-geometry/route-a4-native/
+            ci-artifacts/grand-prix-u-geometry/route-a4-v*-native/
+            ci-artifacts/grand-prix-u-geometry/docker.log
+          if-no-files-found: error
+
   # Full 12-route R2025a physical-contact/range geometry proof. This is a
   # separately required witness: existing U/L/H/evaluator safety suites remain.
   grand-prix-v2-native-matrix:
