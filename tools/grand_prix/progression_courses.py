@@ -1,5 +1,5 @@
 """Deterministic host geometry for the Grand Prix classroom progression."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from tools.grand_prix.route_courses_v2 import CoursePlan, GatePlacement, course_from_identifier
 from tools.grand_prix.route_v2 import _build_route
@@ -27,11 +27,9 @@ _VARIANTS = {
              for length in (1., 1.4, 1.8)),
     5: tuple(_Variant((length, 2.5), (turn,), pads=(2, 3),
                       required_pad=3 if turn == 'G' else 2,
-                      # At 0.70 m before the H, +/-12 degrees of yaw could
-                      # make the rear ray pick up the last corner arm again.
                       pad_distance_from_h=.17)
-             for length, turn in ((1., 'G'), (1.2, 'D'), (1.4, 'G'),
-                                  (1.6, 'D'), (1.8, 'G'))),
+             for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
+                                  (1.4, 'D'), (1.8, 'G'))),
     6: (
         # Owner-approved 2026-11-20: the initial frontal face alone must not
         # identify an open versus closed H. V2/V4 and V3/V5 share first faces.
@@ -64,6 +62,18 @@ def progression_course(activity, variant=1):
     spec = variants[variant - 1]
     route = _build_route(variant, spec.lengths, spec.turns,
                          first_direction=spec.first_direction)
+    if activity == 5:
+        # At 2.26 m into the last leg the rear ray could see an arm at
+        # +/-8.2 degrees. Set the entire L back along the outgoing axis,
+        # preserving its shape, its frontal face and the course boundaries.
+        corner, = route.corners
+        last_leg = route.legs[-1]
+        def set_back(point):
+            along, lateral = last_leg.local(point)
+            return last_leg.at(along - .10, lateral)
+        route = replace(route, corners=(replace(corner, outer=set_back(corner.outer),
+                        back_tip=set_back(corner.back_tip),
+                        onward_tip=set_back(corner.onward_tip)),))
     gates = tuple(GatePlacement(index, along, route.legs[index].at(along),
                                 route.legs[index].direction)
                   for index, along in spec.gates)

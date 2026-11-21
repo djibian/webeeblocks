@@ -38,6 +38,7 @@ EXPECTED = {
         "grand-prix-progression-a2-native",
         "grand-prix-progression-a3-native",
         "grand-prix-progression-a4-native",
+        "grand-prix-progression-a5-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -62,6 +63,18 @@ def workflow_files() -> list[Path]:
     )
 
 class WorkflowTests(unittest.TestCase):
+    def test_a5_canonical_native_job_is_decision_required(self):
+        workflow = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        section = workflow.split("\n  grand-prix-progression-a5-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+                "ref: ${{ inputs.target_sha || github.sha }}",
+                "tools/prepare_runtime_v2.sh",
+                "run_grand_prix_u_geometry.py --progression-activity 5",
+                "grand-prix-progression-a5-native-r2025a",
+                "if-no-files-found: error"):
+            self.assertIn(required, section)
+
     def test_grand_prix_route_evaluator_is_a_separate_required_runtime_job(self):
         workflow = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
         geometry = workflow.split("\n  grand-prix-u-geometry:\n", 1)[1].split(

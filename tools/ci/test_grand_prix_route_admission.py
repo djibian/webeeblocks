@@ -181,6 +181,11 @@ int main(){
   config="gp-progression-v1-a4-v2";query(0); // Variant 1 READY cannot admit variant 2.
   fresh("gp-progression-v1-a4-v2");ready();query(1);
   fresh("gp-progression-v1-a4-v3");ready();query(1);
+  fresh("gp-progression-v1-a5-v1");ready();query(1);
+  fresh("gp-progression-v1-a5-v2");ready();query(1);
+  fresh("gp-progression-v1-a5-v3");ready();query(1);
+  fresh("gp-progression-v1-a5-v4");ready();query(1);
+  fresh("gp-progression-v1-a5-v5");ready();query(1);
   fresh("gp-progression-v1-a1-v1");ready();assert(gp_u_start(now)==1);
   alive(212080);assert(gp_u_deadline(now,0)==0);
   alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);

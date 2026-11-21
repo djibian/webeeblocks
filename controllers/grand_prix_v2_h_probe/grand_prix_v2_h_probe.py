@@ -89,10 +89,21 @@ def witness():
         raise RuntimeError("terminal closed H not detected in native rays")
     memory = None
     if course.progression is not None and course.progression[0] == 5:
+        incoming = course.route.legs[0]
         decision = leg.length - course.pad_distance_from_h
-        memory = dict(at_turn=sample(leg, 0., .90),
+        # The pupil reads the lateral cue before making the turn.
+        memory = dict(at_turn=sample(incoming, incoming.length, .90),
                       at_choice=[sample(leg, decision, .90, yaw_offset=math.radians(yaw))
-                                 for yaw in (-12, 0, 12)])
+                                 for yaw in (-12, 0, 12)],
+                      at_start=sample(incoming, 0., .90),
+                      rear_scan=[])
+        for along in (2.22, 2.26, decision, 2.36):
+            for yaw in (-12, -8.2, 0, 8.2, 12):
+                readings = sample(leg, along, .90, yaw_offset=math.radians(yaw))
+                memory["rear_scan"].append(dict(
+                    along=along, yaw_offset_deg=yaw, readings=readings,
+                    position=translation.getSFVec3f(), rotation=rotation.getSFRotation(),
+                    time_ms=round(robot.getTime()*1000)))
     discrimination = None
     if course.progression is not None and course.progression[0] == 6:
         discrimination = dict(start=sample(leg, 0., .75),
