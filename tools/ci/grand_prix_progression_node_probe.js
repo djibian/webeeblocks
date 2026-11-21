@@ -412,6 +412,25 @@ async function activitySeven() {
   await backend.stopSimulation();
   await assert.rejects(backend.move('forward', .20), {code: 'USER_STOPPED'});
   await waitForForcedLanding(2);
+  // Independent product attempt #4: real Blockly 13.2.1 -> saved .wbb ->
+  // disk Open -> AST/preflight -> shared interpreter -> same native oracle.
+  // The preceding WWI-command attempt/negatives never substitute for this.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  const A7Wbb = require('../grand_prix/witness_workspace_a7.js');
+  const crypto = require('node:crypto');
+  const witness = A7Wbb.build();
+  assert.equal(A7Wbb.build().sha256, witness.sha256, 'A7 source file not reproducible');
+  const file = process.env.WEBEEBLOCKS_A7_WBB_OUT;
+  assert(file, 'A7 native product witness path required');
+  fs.writeFileSync(file, witness.content);
+  const savedText = fs.readFileSync(file, 'utf8');
+  assert.equal(crypto.createHash('sha256').update(savedText).digest('hex'), witness.sha256);
+  const result = await A7Wbb.runSaved(savedText, backend);
+  assert.equal(result.sha256, witness.sha256, 'A7 Open/execute SHA mismatch');
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A7_WBB_PRODUCT_PASS ' + JSON.stringify(result));
 }
 
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};

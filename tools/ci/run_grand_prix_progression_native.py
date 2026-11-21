@@ -63,7 +63,8 @@ def run_native(home, env, activity, variant=1):
                     time.sleep(.10)
                 subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
                                 str(port), str(activity), str(variant)], cwd=ROOT,
-                                env=dict(env, WEBEEBLOCKS_A6_WBB_OUT=str(out / 'a6-witness.wbb')),
+                                env=dict(env, WEBEEBLOCKS_A6_WBB_OUT=str(out / 'a6-witness.wbb'),
+                                         WEBEEBLOCKS_A7_WBB_OUT=str(out / 'a7-witness.wbb')),
                                 stdout=wwi,
                                stderr=subprocess.STDOUT, check=True, timeout=450)
             finally:
@@ -82,7 +83,8 @@ def run_native(home, env, activity, variant=1):
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)
-    if ([int(attempt) for attempt, _ in starts] != list(range(1, forced_attempts[-1] + 1)) or
+    expected_last_attempt = 4 if activity == 7 else forced_attempts[-1]
+    if ([int(attempt) for attempt, _ in starts] != list(range(1, expected_last_attempt + 1)) or
             len(deadlines) != len(forced_attempts)):
         raise RuntimeError(f'Missing exact {label} admission/RESET and forced LAND sequence')
     origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
@@ -92,6 +94,14 @@ def run_native(home, env, activity, variant=1):
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
             (activity == 1 and elapsed[-1] != 210000)):
         raise RuntimeError(f'{label} forced LAND violates the 210000 ms deadline')
+    if activity == 7:
+        import hashlib
+        project = out / 'a7-witness.wbb'
+        if not project.is_file() or len(project.read_bytes()) < 100:
+            raise RuntimeError(f'{label} product .wbb bytes absent')
+        if not re.search(r'^A7_WBB_PRODUCT_PASS ', (out / 'wwi.log').read_text(), re.M):
+            raise RuntimeError(f'{label} missing product Blockly/AST/interpreter verdict')
+        print(f'PASS A7 product .wbb SHA256={hashlib.sha256(project.read_bytes()).hexdigest()}')
     print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 
 
