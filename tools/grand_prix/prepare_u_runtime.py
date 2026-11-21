@@ -260,6 +260,8 @@ static double wrap_angle(double angle) {
         # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
         from tools.grand_prix.route_vertical_product import compose_route_vertical_product
         result = compose_route_vertical_product(result)
+        from tools.ci.a3_landing_experiment import compose_trace_and_interventions
+        result = compose_trace_and_interventions(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)

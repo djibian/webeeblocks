@@ -150,10 +150,29 @@ async function activityThree() {
     await backend.move('forward', .32);
   }
   await traverseGate();
-  await backend.move('forward', .10);
+  const mode = process.env.WBB_A3_CASE;
+  const short = mode && mode.startsWith('short-');
+  await backend.move('forward', short ? .09 : .10);
+  if (mode === 'short-freeze' || mode === 'short-hold') {
+    const start = await backend.readElapsedTime();
+    let now = start;
+    const limit = Date.now() + 10000;
+    while (now - start < .64 && Date.now() < limit)
+      now = await backend.readElapsedTime();
+    assert(now - start >= .64, 'did not observe native hold');
+    console.log(JSON.stringify({mode, start, now}));
+  }
+  if (mode === 'short-ordinary' || mode === 'short-freeze') {
+    await assert.rejects(backend.land(), {code: 'TIME_LIMIT'});
+    await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+    await waitForForcedLanding(1);
+    return;
+  }
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  if (short)
+    return;
 
   await backend.resetSimulation();
   await takeoff(.88);
