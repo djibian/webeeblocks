@@ -52,7 +52,10 @@ assert.match(evaluator, /ACTIVITY8_LEFT_ROUTE_PAD Pose \{ translation 1\.10 -2\.
 assert.match(evaluator, /ACTIVITY8_RIGHT_ROUTE_PAD Pose \{ translation 1\.10 -2\.85/);
 assert.match(evaluator, /ACTIVITY8_SMALL_DELIVERY_PAD Pose \{ translation 1\.40 -2\.15/);
 assert.match(evaluator, /ACTIVITY8_LARGE_DELIVERY_PAD Pose \{ translation 1\.40 -2\.85/);
-assert.match(evaluator, /ACTIVITY8_FLOOR_EXTENSION/);
+const floorExtension = evaluator.split('\n').find(line => line.includes('DEF ACTIVITY8_FLOOR_EXTENSION Solid'));
+assert.ok(floorExtension, 'Activity 8 must retain its visible floor extension');
+assert.match(floorExtension, /geometry Box \{ size 2\.00 1\.20 0\.05 \}/);
+assert.doesNotMatch(floorExtension, /boundingObject/, 'The global Floor plane supplies the only ground collider here');
 assert.match(evaluator, /ACTIVITY8_PARCEL_REFERENCE/);
 assert.match(evaluator, /ACTIVITY8_REFERENCE_MASK/);
 assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_SMALL_X 1\.15/);
