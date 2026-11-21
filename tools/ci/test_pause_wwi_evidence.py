@@ -6,8 +6,15 @@ in the separate mandatory native runtime job.
 """
 import copy
 import json
+import os
 from pathlib import Path
+import signal
+import subprocess
+import sys
 import tempfile
+import time
+
+from run_webots_pause_wwi_probe import active_process_group_members, stop_native_process_group
 
 from pause_wwi_evidence import verify_native_pause_evidence
 
@@ -77,6 +84,52 @@ def check_case(label, path, records=None, console=STDOUT,
             raise AssertionError("not the exact native proof: " + label)
 
 
+def check_orphaned_launcher_cleanup():
+    """Reproduce Chrome profile writes AFTER the session leader has exited.
+
+    The writer ignores TERM, so cleanup must reach KILL and must not leave
+    active profile writers behind before TemporaryDirectory removes Default.
+    """
+    orphan_writer = (
+        "import pathlib,signal,sys,time\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "path=pathlib.Path(sys.argv[1])\n"
+        "path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "path.write_text('ready')\n"
+        "while True:\n"
+        "    with path.open('a') as stream: stream.write('.')\n"
+        "    time.sleep(0.05)\n"
+    )
+    launcher = (
+        "import pathlib,subprocess,sys,time\n"
+        f"subprocess.Popen([sys.executable, '-c', {orphan_writer!r}, sys.argv[1]], "
+        "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+        "deadline=time.monotonic()+3\n"
+        "while not pathlib.Path(sys.argv[1]).exists() and time.monotonic()<deadline:\n"
+        "    time.sleep(0.01)\n"
+        "sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else 1)\n"
+    )
+    with tempfile.TemporaryDirectory(prefix='wb-pause-orphan-') as private:
+        marker = Path(private) / 'config' / 'google-chrome' / 'Default' / 'writer'
+        proc = subprocess.Popen(
+            [sys.executable, '-c', launcher, str(marker)], start_new_session=True)
+        try:
+            if proc.wait(timeout=5) != 0:
+                raise AssertionError('orphan-writer fixture did not start')
+            if not active_process_group_members(proc.pid):
+                raise AssertionError('fixture missing the post-launcher Chrome-like child')
+            stop_native_process_group(proc)
+            if active_process_group_members(proc.pid):
+                raise AssertionError('Chrome-like child survived group teardown')
+        finally:
+            if active_process_group_members(proc.pid):
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            proc.wait(timeout=2)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="wb-pause-verifier-") as tmp:
         path = Path(tmp) / "controller-sidecar.jsonl"
@@ -141,6 +194,7 @@ def main():
                    raw=b'{"stage":"CONTROLLER_ENTRY"}')
         check_case("malformed JSON duplicate keys", path,
                    raw=b'{"stage":"A","stage":"B"}\n' * 7)
+    check_orphaned_launcher_cleanup()
     print("PASS native PAUSE evidence collector: strict stage/clock/WWI/step(32), independent fsync source, adversarial negative cases")
 
 
