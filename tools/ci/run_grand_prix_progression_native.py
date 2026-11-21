@@ -39,10 +39,6 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         project_copy.write_bytes(pupil_project.read_bytes())
         probe_args.append(str(project_copy))
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
-    diagnostic = env.get('WBB_A3_CASE') if activity == 3 else None
-    if diagnostic:
-        out = out / 'causal' / diagnostic
-        out.mkdir(parents=True, exist_ok=True)
     if activity == 3:
         env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
     with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
@@ -95,15 +91,6 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)
-    if diagnostic and diagnostic.startswith('short-'):
-        if len(starts) != 1 or starts[0][0] != '1':
-            raise RuntimeError('wrong diagnostic attempt count')
-        forced = diagnostic in ('short-ordinary', 'short-freeze')
-        if len(deadlines) != int(forced):
-            raise RuntimeError('wrong diagnostic forced LAND count')
-        if forced and not 0 < int(deadlines[0][0]) - int(starts[0][1]) < 210000:
-            raise RuntimeError('wrong diagnostic forced LAND time')
-        return
     if ([int(attempt) for attempt, _ in starts] != list(range(1, last_attempt + 1)) or
             len(deadlines) != len(forced_attempts)):
         raise RuntimeError(f'Missing exact {label} admission/RESET and forced LAND sequence')

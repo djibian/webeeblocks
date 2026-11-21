@@ -232,24 +232,6 @@ def run_progression_native_only(home, activity):
                        env=env, stdout=log, stderr=subprocess.STDOUT,
                        timeout=120, check=True)
     from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
-    if activity == 3:
-        # Isolated experimental branch. Keep the original full nominal witness,
-        # then perform the fixed interventions on one runner with clean worlds.
-        failures = []
-        for mode in (None, 'short-ordinary', 'short-freeze', 'short-hold',
-                     'short-handoff', 'nominal-handoff'):
-            label = mode or 'unchanged'
-            try:
-                run_lesson(home, dict(env, **({'WBB_A3_CASE': mode} if mode else {})), activity)
-            except (RuntimeError, subprocess.SubprocessError) as error:
-                failures.append(label)
-                print(f'A3 experiment {label}: {error}', flush=True)
-            else:
-                print(f'A3 experiment {label}: completed expected scenario', flush=True)
-        if failures:
-            raise RuntimeError(f'A3 experimental expectations unmet: {failures}')
-        return
-
     if activity != 4:
         run_lesson(home, env, activity)
         return
