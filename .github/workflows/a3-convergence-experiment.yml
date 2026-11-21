@@ -1,0 +1,79 @@
+# Temporary A3 research evidence on the isolated Draft. No integration check.
+name: A3 MOVE to LAND experiment
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/a3-convergence-experiment.yml'
+      - 'tools/ci/a3_landing_experiment.py'
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: A3 causal flight in R2025a
+    if: github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'exp/a3-move-land-convergence'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      ACTIVITY: '3'
+      TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+      HARNESS_SHA: ${{ github.event.pull_request.base.sha }}
+      PROTO_SHA: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      WEBOTS_M2_IMAGE: ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HARNESS_SHA }}
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          path: candidate
+          persist-credentials: false
+      - name: Bind native experiment inputs
+        run: |
+          test "$(git -C harness rev-parse HEAD)" = "$HARNESS_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$TARGET_SHA"
+          mkdir provenance
+          printf '%s\n' "target_sha=$TARGET_SHA" "harness_sha=$HARNESS_SHA" \
+            "workflow_sha=$GITHUB_WORKFLOW_SHA" "run_id=$GITHUB_RUN_ID" "run_attempt=$GITHUB_RUN_ATTEMPT" \
+            "webots_source=$PROTO_SHA" "webots_image=$WEBOTS_M2_IMAGE" > provenance/run.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: ${{ env.PROTO_SHA }}
+          path: webots-assets
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run the integrated A3 native harness
+        working-directory: candidate
+        run: |
+          set -o pipefail
+          bash ../harness/tools/ci/run_grand_prix_native_campaign.sh 2>&1 | tee ../provenance/campaign.log
+      - name: Archive raw trajectories, logs and exact run identity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a3-convergence-${{ env.TARGET_SHA }}-${{ github.run_attempt }}
+          path: |
+            provenance/
+            candidate/ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+          retention-days: 30
