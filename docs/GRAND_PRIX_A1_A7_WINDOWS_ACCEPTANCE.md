@@ -1,8 +1,11 @@
 # Acceptation Windows réelle — progression Grand Prix A1–A7
 
-**Statut initial : NON TESTÉ / NON PUBLIABLE.** Cette procédure accompagne le ZIP
-expérimental de la PR #1075. Les préflights et CI automatiques ne constituent
-**jamais** un `PASS_ENSEIGNANT`. Autorité pédagogique : #587 et #1053 ;
+**Statut : NON TESTÉ / NON PUBLIABLE.** Ce protocole s'applique exclusivement
+au futur ZIP qualifié de la nouvelle progression A1–A7 ; la PR #1100 prépare
+sa livraison, **sans réutiliser le ZIP ni la pile native de #1075**. Tant que
+les 23 variantes ne sont pas admises, aucun ZIP n'est autorisé. Voir aussi
+[la préqualification graphique Linux/Windows](GRAND_PRIX_A1_A7_GUI_PREQUALIFICATION.md).
+Les préflights et CI automatiques ne constituent **jamais** un `PASS_ENSEIGNANT`. Autorité pédagogique : #587 et #1053 ;
 contrat natif : `docs/GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md`.
 A8 et tout vol Crazyflie physique sont hors de cette acceptation.
 
