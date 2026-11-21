@@ -218,8 +218,8 @@ def run_progression_native_only(home, activity):
 
     This campaign is independent of the historical geometry/evaluator jobs.
     """
-    if activity not in (1, 2, 3):
-        raise ValueError('only A1, A2 and A3 are active in this candidate')
+    if activity not in (1, 2, 3, 4):
+        raise ValueError('only A1 through A4 are active in this candidate')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('native progression mission requires Webots R2025a')
     env = os.environ.copy()
@@ -232,7 +232,25 @@ def run_progression_native_only(home, activity):
                        env=env, stdout=log, stderr=subprocess.STDOUT,
                        timeout=120, check=True)
     from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
-    run_lesson(home, env, activity)
+    if activity != 4:
+        run_lesson(home, env, activity)
+        return
+
+    from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
+    variants = (1, 2, 3)
+    project = evidence / 'pupil-project.wbb'
+    subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_a4_pupil.js'), str(project)],
+                   env=env, check=True, timeout=30)
+    digest = hashlib.sha256(project.read_bytes()).hexdigest()
+    print(f'A4_SAVED_WBB sha256={digest}', flush=True)
+    run_h(home, variants, activity=4, output_root=evidence / 'geometry')
+    for variant in variants:
+        run_lesson(home, env, 4, variant, project)
+        raw = OUT / f'route-a4-v{variant}-native' / 'wwi.log'
+        wbb = [json.loads(line) for line in raw.read_text().splitlines()
+               if line.startswith('{"event":"A4_WBB_REOPENED",')]
+        if wbb != [{'event': 'A4_WBB_REOPENED', 'sha256': digest}]:
+            raise RuntimeError(f'A4 variant {variant} did not run the saved pupil project')
 
 
 def main():
@@ -241,7 +259,7 @@ def main():
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
     parser.add_argument('--full-matrix-only', action='store_true')
-    parser.add_argument('--progression-activity', type=int, choices=(1, 2, 3))
+    parser.add_argument('--progression-activity', type=int, choices=(1, 2, 3, 4))
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
@@ -318,6 +336,8 @@ def main():
                  if args.evaluator_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
                  if args.full_matrix_only else
+                 'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity 4'
+                 if args.progression_activity == 4 else
                  f'timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity {args.progression_activity}'
                  if args.progression_activity is not None else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]

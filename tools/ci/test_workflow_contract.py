@@ -37,6 +37,7 @@ EXPECTED = {
         "grand-prix-progression-a1-native",
         "grand-prix-progression-a2-native",
         "grand-prix-progression-a3-native",
+        "grand-prix-progression-a4-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -270,7 +271,7 @@ class WorkflowTests(unittest.TestCase):
     def test_activity3_native_job_is_required_and_not_skipped(self):
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
         a3 = runtime.split("\n  grand-prix-progression-a3-native:\n", 1)[1].split(
-            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+            "\n  grand-prix-progression-a4-native:\n", 1)[0]
         for required in (
             "runs-on: ubuntu-22.04",
             "timeout-minutes: 20",
@@ -288,6 +289,26 @@ class WorkflowTests(unittest.TestCase):
                           "if: github.event.pull_request.draft == true",
                           "|| true", "allow-failure"):
             self.assertNotIn(forbidden, a3)
+
+    def test_activity4_native_job_is_required_and_not_skipped(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        a4 = runtime.split("\n  grand-prix-progression-a4-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 25",
+            "node-version: '22'",
+            "ref: \u0024{{ inputs.target_sha || github.sha }}",
+            "run: bash tools/prepare_runtime_v2.sh",
+            "run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 4",
+            "if: always()",
+            "grand-prix-progression-a4-native-r2025a",
+            "route-a4-v*-native/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, a4)
+        for forbidden in ("continue-on-error", "if: false", "if: github.event", "|| true"):
+            self.assertNotIn(forbidden, a4)
 
     def test_activity2_native_job_is_required_and_not_skipped(self):
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")

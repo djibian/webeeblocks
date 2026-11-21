@@ -11,6 +11,7 @@ from tools.grand_prix.course_static_world_v2 import course_physical_boxes, stati
 from tools.grand_prix.oracle_attempt_v2 import _hits_mission_body
 from tools.grand_prix.oracle_gate_progress_v2 import FRAME_CLEAR
 from tools.grand_prix.oracle_low_v2 import low_segment_allowed_v2
+from tools.grand_prix.oracle_terminal_dwell_v2 import LANDING_TOL
 from tools.grand_prix.progression_courses import progression_course
 from tools.grand_prix.route_courses_v2 import reference_course
 from tools.grand_prix.route_v2 import WIDTH, VERSION, build_route
@@ -28,7 +29,7 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
 
-    def test_progression_scenes_share_physical_components_and_only_first_three_can_compose(self):
+    def test_progression_scenes_share_physical_components_and_only_first_four_can_compose(self):
         identifiers = set()
         for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
             for variant in range(1, count + 1):
@@ -49,7 +50,7 @@ class VariableRouteTests(unittest.TestCase):
                     self.assertEqual(scene.count('controller "<none>"'), 1)
                     self.assertNotIn('controllerArgs', scene)
                     self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
-                    if activity <= 3:
+                    if activity <= 4:
                         active = active_course_world(course)
                         self.assertEqual(active.count(f'controllerArgs [ "{course.identifier}" ]'), 2)
                         self.assertIn('controller "grand_prix_route_flight"', active)
@@ -78,10 +79,17 @@ class VariableRouteTests(unittest.TestCase):
         last = a3.route.legs[-1]
         pad_along, _ = last.local(a3.landing_position(a3.required_pad))
         self.assertGreater(pad_along, a3.gates[-1].along + FRAME_CLEAR)
-        for variant in range(1, 4):
+        a4_targets = []
+        for variant, length in enumerate((1., 1.4, 1.8), start=1):
             a4 = progression_course(4, variant)
+            self.assertEqual(a4.route.lengths, (length,))
             self.assertEqual(a4.pads, (2,))
-            self.assertEqual(a4.route.legs[-1].local(a4.landing_position(2))[1], .5)
+            along, lateral = a4.route.legs[-1].local(a4.landing_goal())
+            self.assertEqual(lateral, .5)
+            a4_targets.append(along)
+        # One fixed longitudinal endpoint cannot land on all three courses.
+        for left, right in itertools.pairwise(a4_targets):
+            self.assertGreater(right - left, 2 * LANDING_TOL)
         for variant in range(1, 6):
             a5 = progression_course(5, variant)
             self.assertEqual(a5.route.lengths[-1], 2.5)

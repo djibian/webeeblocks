@@ -170,7 +170,92 @@ async function activityThree() {
   await waitForForcedLanding(2);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree};
+async function activityFour() {
+  const variant = Number(process.argv[4]);
+  assert([1, 2, 3].includes(variant), 'A4 variant missing');
+
+  async function approachLanding(side) {
+    await takeoff(.9);
+    // The same policy runs unchanged. Only the standard forward range is
+    // available to it, with no course identity or host coordinates.
+    const front = await backend.readRange('front');
+    assert(Number.isFinite(front) && front > .8 && front < 1.9, 'H must be observable');
+    const distance = front < 1.16 ? .30 : front < 1.56 ? .70 : 1.10;
+    console.log(JSON.stringify({front, distance, side}));
+    await backend.move('forward', distance);
+    await backend.move(side, .50);
+  }
+
+  async function completeLanding() {
+    await backend.land();
+    await backend.completeActivityMission(evaluation);
+    await outcome({status: 'achieved'});
+  }
+
+  async function rejectWrongPad() {
+    // The whole-footprint oracle can interrupt the explicit LAND before ACK.
+    // Its exact published refusal and the independent LAND are both required.
+    try {
+      await backend.land();
+    } catch (error) {
+      assert.equal(error.code, 'TIME_LIMIT');
+    }
+    await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+    await waitForForcedLanding(1);
+  }
+
+  async function freshAttempt() {
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  }
+
+  await approachLanding('left');
+  await completeLanding();
+
+  await freshAttempt();
+  await approachLanding('right');
+  await rejectWrongPad();
+
+  // STOP must revoke subsequent actuation and the native pilot must LAND
+  // independently, even when the previous attempt has already failed.
+  await freshAttempt();
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+
+  // Reuse V1's successful distance blindly. The policy receives no variant.
+  await freshAttempt();
+  console.log(JSON.stringify({event: 'A4_FIXED', distance: .30, side: 'left'}));
+  await takeoff(.9);
+  await backend.move('forward', .30);
+  const moveLeft = backend.move('left', .50);
+  if (variant === 1) {
+    await moveLeft;
+    await completeLanding();
+  } else {
+    // At .30 m, V2/V3 are still in the narrow leg, before the widened arrival.
+    await assert.rejects(moveLeft, {code: 'TIME_LIMIT'});
+    await outcome({status: 'not-achieved', reason: 'course-boundary'});
+    await waitForForcedLanding(3);
+  }
+
+  const file = process.argv[5];
+  if (file) {
+    await freshAttempt();
+    const {reopen} = require('./grand_prix_a4_pupil');
+    const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
+    const {ast, sha256, maxSteps} = await reopen(file);
+    console.log(JSON.stringify({event: 'A4_WBB_REOPENED', sha256}));
+    await Interpreter.run(ast, backend, {maxSteps, hooks: {onSensor: sample => {
+      console.log(JSON.stringify({event: 'A4_WBB_SENSOR', direction: sample.direction, value: sample.value}));
+    }}});
+    await backend.completeActivityMission(evaluation);
+    await outcome({status: 'achieved'});
+  }
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {
