@@ -39,7 +39,8 @@ const and=(a,b)=>({kind:'logic',op:'AND',left:a,right:b});
 const motion=(direction,distance_m)=>({kind:'move',direction,distance_m});
 const set=(name,value)=>({kind:'set_variable',variable:variables[name],value});
 const loop=(max_iterations,condition,body)=>({kind:'while',mode:'WHILE',max_iterations,condition,body});
-const iff=(condition,then,otherwise=[])=>({kind:'if',condition,then,else:otherwise});
+const iff=(condition,then,otherwise=[])=>Object.assign({kind:'if',condition,then},
+ otherwise.length?{else:otherwise}:{});
 
 function reference(){
  const definitions={};
