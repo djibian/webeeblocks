@@ -211,6 +211,31 @@ strictly NOT_NEEDED.
 The only notification class is TEST_REQUIRED. CI, review, GO/NO_GO, Draft/Ready,
 merges, Controller startup/termination/blocking and relaunch are silent.
 
+## Grand Prix A1–A7 native R2025a diagnostics
+
+In Actions, select **Grand Prix A1–A7 native R2025a**, run it from `main`,
+and provide the activity number and the candidate's full GitHub HEAD SHA.
+The same invocation is available through the GitHub CLI:
+
+```sh
+gh workflow run grand-prix-native.yml --repo djibian/webeeblocks --ref main \
+  -f activity=6 -f target_sha="$CANDIDATE_SHA"
+```
+
+Choose a HEAD that contains the activity's native campaign. An unsupported
+candidate or a missing witness fails the run. All campaigns receive Node 22
+and pinned Cyberbotics PROTOs. A1–A3 use their existing Runtime campaign entry
+point in the M2 engine. A4–A7 run the variant flight and H geometry campaigns
+with the pinned official image. A6
+also checks exact `.wbb` reuse and the original severe-contact LAND on all five
+variants. Its shallow-contact traces are retained separately.
+
+Download the run's archive even if a native witness fails. It includes the two
+checkout SHAs, run attempt, campaign log and raw evidence the runners produced.
+The Actions run's commit identifies the workflow checkout. Check `target_sha`
+in `provenance/run.txt` to identify the candidate under test. Use the existing
+canonical pull-request CI and independent exact-HEAD review for V5 integration.
+
 ## Repository protections
 
 For this installation, observe active protections applying to main: PR required,

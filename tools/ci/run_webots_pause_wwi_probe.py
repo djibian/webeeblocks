@@ -19,6 +19,61 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/native-pause'
 
 
+def active_process_group_members(pgid):
+    """List live members of the dedicated Xvfb/Webots/Chrome process group.
+
+    A reparented Chrome child may outlive its xvfb-run launcher. Zombies are
+    already terminated and must not be mistaken for profile writers.
+    """
+    members = []
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            pid = int(entry.name)
+            if os.getpgid(pid) != pgid:
+                continue
+            state = (entry / 'stat').read_text(encoding='utf-8').rsplit(')', 1)[1].split()[0]
+            if state in ('Z', 'X'):
+                continue
+            members.append((pid, (entry / 'comm').read_text(encoding='utf-8').strip()))
+        except (OSError, ValueError, IndexError):
+            continue  # Process exited between /proc observations.
+    return sorted(members)
+
+
+def stop_native_process_group(proc):
+    """Drain the entire session group BEFORE its private Chrome profile is removed.
+
+    Always signal the group, even when xvfb-run already exited. A bounded TERM
+    then KILL sequence is followed by an explicit surviving-process check; no
+    ignore_cleanup_errors or success on an incomplete teardown.
+    """
+    if proc is None:
+        return
+    pgid = proc.pid  # Popen(start_new_session=True): fresh PGID = launcher PID.
+    for signum in (signal.SIGTERM, signal.SIGKILL):
+        if not active_process_group_members(pgid):
+            break
+        try:
+            os.killpg(pgid, signum)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 3.0
+        while active_process_group_members(pgid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        pass
+    survivors = active_process_group_members(pgid)
+    if survivors:
+        report = 'pgid=' + str(pgid) + ' survivors=' + repr(survivors)
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / 'processes-surviving-teardown.txt').write_text(report + '\n', encoding='utf-8')
+        raise RuntimeError('Webots/Chrome group survived bounded teardown: ' + report)
+
+
 def capture_x11_window_evidence(process_group):
     """Observe X11 window titles without clicking, or bypassing dialogs.
 
@@ -215,13 +270,9 @@ print(json.dumps({
                         break
                     time.sleep(0.2)
             finally:
-                if proc and proc.poll() is None:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                    try:
-                        proc.wait(timeout=3)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(proc.pid, signal.SIGKILL)
-                        proc.wait()
+                # A launcher exit does not imply its Chrome children have exited.
+                # Drain and verify the group before TemporaryDirectory cleanup.
+                stop_native_process_group(proc)
         code = proc.returncode if proc else None
         wall_seconds = round(time.monotonic() - wall_started, 3)
     transcript = (OUT / 'webots.log').read_text(encoding='utf-8', errors='replace')
