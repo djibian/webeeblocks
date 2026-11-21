@@ -373,6 +373,42 @@
         }
       },
       {
+        // Experimental A6 only; hidden until native, V5 and teacher acceptance.
+        starterVisible: false,
+        id: 'grand-prix-a6-native-experimental-v1',
+        world: 'worlds/crazyflie_classroom_start.wbt',
+        brief: {visible: true, title:'6 — Discriminer un H ouvert (Draft)',
+          mission:'Observe les deux côtés du premier obstacle ; traverse seulement un H ouvert et pose sur le damier avant le H fermé.'},
+        pedagogy: {objective:'Comparer deux observations physiques via ET en réutilisant les conditions et variables, jamais une variante cachée.'},
+        toolbox: ['webeeblocks_v2_takeoff','webeeblocks_v2_speed',
+          'webeeblocks_v2_move','webeeblocks_v2_vertical','webeeblocks_v2_turn',
+          'webeeblocks_v2_range','controls_if','controls_repeat_ext',
+          'variables_set','variables_get','math_change','math_number',
+          'math_arithmetic','logic_compare','logic_operation','webeeblocks_v2_land'],
+        parameterBounds: {webeeblocks_v2_speed:{SPEED:{min:.1,max:.3,step:.01}}},
+        fieldOptions: {
+          webeeblocks_v2_move:{DIRECTION:['forward','back','left','right']},
+          webeeblocks_v2_vertical:{DIRECTION:['up','down']},
+          webeeblocks_v2_range:{DIRECTION:['front','left','right']},
+          math_arithmetic:{OP:['ADD','MINUS','MULTIPLY','DIVIDE']},
+          logic_operation:{OP:['AND']}
+        },
+        hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],
+        timer:{enabled:true}, evaluation:{type:'mission-state-v1',oracle:'grand-prix-route-v2'},
+        runtime:{mode:'ast-v1',maxSteps:20000,
+          allowedStatementKinds:['takeoff','set_speed','move','vertical','turn','if','repeat','set_variable','land'],
+          rangeDirections:['front','left','right'],
+          moveDirections:['forward','back','left','right'],
+          verticalDirections:['up','down'],
+          astBounds:{'takeoff.height_m':{min:.3,max:1.0},
+            'move.distance_m':{min:.01,max:2.0},
+            'move.lateral.distance_m':{min:.01,max:.6},
+            'vertical.distance_m':{min:.1,max:.5},
+            'set_speed.speed_m_s':{min:.1,max:.3},
+            'repeat.count':{min:1,max:20}}
+        }
+      },
+      {
         // Former A6 warehouse prototype: do not present it as counting H.
         // Historical student files remain valid and openable by their ID.
         starterVisible: false,
