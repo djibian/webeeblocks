@@ -31,16 +31,25 @@ def run_ab(repo, out, assets, image, source, base, head):
     if git(repo, 'rev-parse', 'FETCH_HEAD') != base:
         raise RuntimeError('A/B control checkout does not match the Draft event')
     out.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='gp-a3-ab-') as temp:
-        folder = Path(temp)
-        (folder / 'webots-assets').symlink_to(assets, target_is_directory=True)
-        checkouts = [folder / 'A', folder / 'B']
-        try:
-            for checkout, sha in zip(checkouts, (base, head)):
-                git(repo, 'worktree', 'add', '--detach', str(checkout), sha)
-            main, candidate = checkouts
-            shutil.copyfile(candidate / EVALUATOR, main / EVALUATOR)
-            main_runner = main / RUNNER
+    # Docker may write root-owned build outputs. Each arm has its own checkout
+    # on the disposable runner, so no arm reads or removes another arm's files.
+    folder = Path(tempfile.mkdtemp(prefix='gp-a3-ab-'))
+    (folder / 'webots-assets').symlink_to(assets, target_is_directory=True)
+    harness = repo / 'tools/ci/run_grand_prix_native_campaign.sh'
+    if (harness.read_text() != git(repo, 'show',
+            f'{base}:tools/ci/run_grand_prix_native_campaign.sh') + '\n'):
+        raise RuntimeError('A/B harness differs from the integrated #1095 harness')
+    env = dict(os.environ, ACTIVITY='3', PROTO_SHA=source, WEBOTS_M2_IMAGE=image)
+    cases = ((base, 'A', False), (head, 'B', False), (head, 'B', True), (base, 'A', True))
+    for index, (sha, side, hold) in enumerate(cases, 1):
+        label = f'{index}-{side}-{"hold" if hold else "ordinary"}'
+        checkout = folder / label
+        git(repo, 'worktree', 'add', '--detach', str(checkout), sha)
+        if git(checkout, 'rev-parse', 'HEAD') != sha:
+            raise RuntimeError('A/B arm checkout mismatch')
+        if side == 'A':
+            shutil.copyfile(repo / EVALUATOR, checkout / EVALUATOR)
+            main_runner = checkout / RUNNER
             env_line = "    env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')\n"
             runner = main_runner.read_text()
             if runner.count(env_line) != 1:
@@ -48,40 +57,28 @@ def run_ab(repo, out, assets, image, source, base, head):
             main_runner.write_text(runner.replace(env_line, env_line + (
                 "    if activity == 3:\n"
                 "        env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')\n")))
-            harness = main / 'tools/ci/run_grand_prix_native_campaign.sh'
-            command = ['bash', str(harness)]
-            env = dict(os.environ, ACTIVITY='3', PROTO_SHA=source, WEBOTS_M2_IMAGE=image)
-            for index, (checkout, hold) in enumerate(
-                    ((main, False), (candidate, False), (candidate, True), (main, True)), 1):
-                arm = out / f'{index}-{checkout.name}-{"hold" if hold else "ordinary"}'
-                arm.mkdir()
-                if hold:
-                    probe = checkout / PROBE
-                    script = probe.read_text()
-                    if script.count(LAST_MOVE) != 1:
-                        raise RuntimeError('A/B hold insertion point is ambiguous')
-                    probe.write_text(script.replace(LAST_MOVE, LAST_MOVE
-                        + '  const holdDeadline = Date.now() + 10000;\n' + HOLD))
-                raw = checkout / 'ci-artifacts/grand-prix-u-geometry/route-a3-native'
-                if raw.exists():
-                    shutil.rmtree(raw)
-                sha = git(checkout, 'rev-parse', 'HEAD')
-                (arm / 'inputs.txt').write_text('\n'.join((
-                    f'commit={sha}', f'image={image}', f'proto={source}',
-                    f'evaluator_sha256={hashlib.sha256((checkout / EVALUATOR).read_bytes()).hexdigest()}',
-                    f'diagnostic_hold={hold}',
-                )) + '\n')
-                (arm / 'overlay.patch').write_text(git(checkout, 'diff') + '\n')
-                with (arm / 'campaign.log').open('w') as log:
-                    result = subprocess.run(command, cwd=checkout, env=env,
-                                            stdout=log, stderr=subprocess.STDOUT)
-                if raw.is_dir():
-                    shutil.copytree(raw, arm, dirs_exist_ok=True)
-                (arm / 'status.txt').write_text(f'{result.returncode}\n')
-                if not (arm / 'trajectory.csv').is_file():
-                    raise RuntimeError(f'A/B {arm.name} produced no native trajectory')
-                print(f'A3 A/B {arm.name}: native campaign exit {result.returncode}', flush=True)
-        finally:
-            for checkout in checkouts:
-                if checkout.exists():
-                    git(repo, 'worktree', 'remove', '--force', str(checkout))
+        if hold:
+            probe = checkout / PROBE
+            script = probe.read_text()
+            if script.count(LAST_MOVE) != 1:
+                raise RuntimeError('A/B hold insertion point is ambiguous')
+            probe.write_text(script.replace(LAST_MOVE, LAST_MOVE
+                + '  const holdDeadline = Date.now() + 10000;\n' + HOLD))
+        arm = out / label
+        arm.mkdir()
+        (arm / 'inputs.txt').write_text('\n'.join((
+            f'commit={sha}', f'image={image}', f'proto={source}',
+            f'evaluator_sha256={hashlib.sha256((checkout / EVALUATOR).read_bytes()).hexdigest()}',
+            f'diagnostic_hold={hold}',
+        )) + '\n')
+        (arm / 'overlay.patch').write_text(git(checkout, 'diff') + '\n')
+        with (arm / 'campaign.log').open('w') as log:
+            result = subprocess.run(['bash', str(harness)], cwd=checkout, env=env,
+                                    stdout=log, stderr=subprocess.STDOUT)
+        raw = checkout / 'ci-artifacts/grand-prix-u-geometry/route-a3-native'
+        if raw.is_dir():
+            shutil.copytree(raw, arm, dirs_exist_ok=True)
+        (arm / 'status.txt').write_text(f'{result.returncode}\n')
+        if not (arm / 'trajectory.csv').is_file():
+            raise RuntimeError(f'A/B {arm.name} produced no native trajectory')
+        print(f'A3 A/B {arm.name}: native campaign exit {result.returncode}', flush=True)
