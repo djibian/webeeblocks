@@ -69,7 +69,23 @@ class VariableEvaluatorWireTests(unittest.TestCase):
                     if other != course:
                         with self.assertRaisesRegex(ValueError, 'identity mismatch'):
                             parse_flight_channel(challenge(other), course.identifier)
-        for invalid in ('gp-progression-v1-a4-v4', 'gp-progression-v1-a5-v1'):
+        # A5-v1..v5 are now canonical; keep rejecting out-of-table IDs.
+        for invalid in ('gp-progression-v1-a4-v4', 'gp-progression-v1-a5-v6'):
+            with self.assertRaises(ValueError):
+                EvaluatorHandshake(invalid)
+
+    def test_activity_five_variants_have_distinct_native_admission(self):
+        courses = [progression_course(5, variant) for variant in range(1, 6)]
+        for course in courses:
+            with self.subTest(course=course.identifier):
+                self.assertEqual(parse_flight_channel(challenge(course), course.identifier),
+                                 Challenge(1, course.identifier, EPOCH))
+                for other in courses:
+                    if other != course:
+                        with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                            parse_flight_channel(challenge(other), course.identifier)
+        for invalid in ('gp-progression-v1-a5-v0', 'gp-progression-v1-a5-v6',
+                        'gp-progression-v1-a5-v01', 'gp-progression-v1-a6-v1'):
             with self.assertRaises(ValueError):
                 EvaluatorHandshake(invalid)
 

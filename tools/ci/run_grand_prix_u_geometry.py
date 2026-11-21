@@ -218,7 +218,7 @@ def run_progression_native_only(home, activity):
 
     This campaign is independent of the historical geometry/evaluator jobs.
     """
-    if activity not in (1, 2, 3, 4):
+    if activity not in (1, 2, 3, 4, 5):
         raise ValueError('only A1 through A4 are active in this candidate')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('native progression mission requires Webots R2025a')
@@ -232,8 +232,30 @@ def run_progression_native_only(home, activity):
                        env=env, stdout=log, stderr=subprocess.STDOUT,
                        timeout=120, check=True)
     from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
-    if activity != 4:
+    if activity in (1, 2, 3):
         run_lesson(home, env, activity)
+        return
+
+    if activity == 5:
+        from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
+        variants = (1, 2, 3, 4, 5)
+        project = evidence / 'pupil-project.wbb'
+        subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_a5_wbb.js'), str(project)],
+                       env=env, check=True, timeout=30)
+        digest = hashlib.sha256(project.read_bytes()).hexdigest()
+        print(f'A5_SAVED_WBB sha256={digest}', flush=True)
+        run_h(home, variants, activity=5, output_root=evidence / 'geometry')
+        for variant in variants:
+            run_lesson(home, env, 5, variant, project)
+            raw = OUT / f'route-a5-v{variant}-native' / 'wwi.log'
+            wbb = [json.loads(line) for line in raw.read_text().splitlines()
+                   if line.startswith('{"event":"A5_WBB",')]
+            if (len(wbb) != 1 or wbb[0].get('sha256') != digest or
+                    wbb[0].get('blockly') != '13.2.1' or
+                    wbb[0].get('remembered') not in (0, 1) or
+                    wbb[0].get('recalled') != wbb[0].get('remembered') or
+                    wbb[0].get('side') != ('right' if wbb[0]['recalled'] else 'left')):
+                raise RuntimeError(f'A5 variant {variant} did not reopen and execute the same memory .wbb')
         return
 
     from tools.ci.run_grand_prix_v2_h_native import native_run as run_h
@@ -259,7 +281,7 @@ def main():
     parser.add_argument('--tcp', action='store_true')
     parser.add_argument('--evaluator-only', action='store_true')
     parser.add_argument('--full-matrix-only', action='store_true')
-    parser.add_argument('--progression-activity', type=int, choices=(1, 2, 3, 4))
+    parser.add_argument('--progression-activity', type=int, choices=(1, 2, 3, 4, 5))
     args = parser.parse_args()
     print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
@@ -336,8 +358,8 @@ def main():
                  if args.evaluator_only else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --full-matrix-only'
                  if args.full_matrix_only else
-                 'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity 4'
-                 if args.progression_activity == 4 else
+                 f'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity {args.progression_activity}'
+                 if args.progression_activity in (4, 5) else
                  f'timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native --progression-activity {args.progression_activity}'
                  if args.progression_activity is not None else
                  'timeout -k 5s 1350s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native')]
