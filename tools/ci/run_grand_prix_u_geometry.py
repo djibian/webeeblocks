@@ -294,12 +294,6 @@ def main():
         raise RuntimeError('unexpected R2025a source')
     subprocess.run(['docker','pull',IMAGE], check=True)
     OUT.mkdir(parents=True, exist_ok=True)
-    if args.progression_activity == 3 and os.environ.get('GITHUB_EVENT_NAME') == 'pull_request':
-        event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
-        if event['number'] == 1078 and event['pull_request']['draft']:
-            from tools.ci.run_a3_ab_diagnostic import run_ab
-            run_ab(ROOT, OUT / 'route-a3-native' / 'ab', assets, IMAGE, SOURCE,
-                   event['pull_request']['base']['sha'], event['pull_request']['head']['sha'])
     # Explicit entry point and startup diagnostics separate preparation from
     # geometry. Always retain a file before Docker can block or fail.
     with tempfile.TemporaryDirectory(prefix=('gp-u-evaluator-' if args.evaluator_only else
