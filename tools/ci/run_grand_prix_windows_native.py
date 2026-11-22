@@ -140,61 +140,77 @@ def _windows_process_snapshot(root_pid, watched=()):
                 'error': (type(error).__name__ + ': ' + str(error))[:512]}
 
 
-def stop(process, diagnostic_path=None):
+def stop(process, diagnostic_path=None, launch_snapshot=None):
     if process is None:
         return
     status = process.poll()
-    if status is not None:
-        if status != 0:
-            raise RuntimeError(
-                f'Owned Windows PID {process.pid} exited unexpectedly: '
-                f'process={status!r}'
-            )
-        return
+    if status is not None and status != 0:
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} exited unexpectedly: '
+            f'process={status!r}'
+        )
+    already_exited = status == 0
+    # A root exit, even with code zero, says nothing about QtWebEngine children.
+    # On Windows, the no-diagnostic path cannot authorize this shortcut either.
+    if already_exited and diagnostic_path is None:
+        if sys.platform != 'win32':  # Portable pipe-capture smoke test only.
+            return
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} cleanup unproven: '
+            'launch-time process identity and descendant census unavailable')
     # Diagnostic only. Unchanged decision: taskkill failure with nonzero exit
     # must still FAIL, regardless of textual SUCCESS or a vanishing PID.
     evidence = {'schema': 'webeeblocks-windows-owned-cleanup-v1',
                 'root_pid': process.pid,
                 'snapshot_limitations': 'Not an exhaustive process-lifetime monitor'}
     if diagnostic_path is not None:
-        evidence['before'] = _windows_process_snapshot(process.pid)
+        # If the root already exited, a new snapshot cannot retrospectively
+        # establish which processes were its descendants. Use the census
+        # collected while this exact Popen handle was still live, or fail shut.
+        evidence['before'] = (
+            launch_snapshot if launch_snapshot is not None else
+            {'available': False, 'error': 'No launch-time process identity'}
+        ) if already_exited else _windows_process_snapshot(process.pid)
+        if already_exited:
+            evidence['root_exit_at_stop'] = 0
     try:
-        try:
-            result = subprocess.run(
-                ['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
-            evidence['taskkill_returncode'] = result.returncode
-            output = result.stdout or b''
-        except subprocess.CalledProcessError as failure:
-            evidence['taskkill_returncode'] = failure.returncode
-            output = failure.output or b''
-            evidence['taskkill_output'] = (
-                output.decode('utf-8', errors='replace') if isinstance(output, bytes)
-                else str(output))[:16384]
-            evidence['taskkill_output_truncated'] = len(output) > 16384
-            status = process.poll()
-            if status is None:
-                try:
-                    status = process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    status = None
-            evidence['process_after_taskkill'] = status
-            # A nonzero taskkill result is ambiguous even when the root has
-            # exited cleanly. Neither exit=0 nor a SUCCESS message proves
-            # the owned descendants were retired.
-            detail = output.decode('utf-8', errors='replace') if isinstance(
-                output, bytes) else str(output)
-            raise RuntimeError(
-                f'Owned Windows PID {process.pid} cleanup unproven: '
-                f'taskkill={failure.returncode}, process={status!r}, '
-                f'output={detail[-512:]!r}'
-            ) from failure
-        if diagnostic_path is not None and 'taskkill_output' not in evidence:
-            evidence['taskkill_output'] = (
-                output.decode('utf-8', errors='replace') if isinstance(output, bytes)
-                else str(output))[:16384]
-            evidence['taskkill_output_truncated'] = len(output) > 16384
-        evidence['wait_returncode'] = process.wait(timeout=20)
+        if not already_exited:
+            try:
+                result = subprocess.run(
+                    ['taskkill', '/PID', str(process.pid), '/T', '/F'], check=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+                evidence['taskkill_returncode'] = result.returncode
+                output = result.stdout or b''
+            except subprocess.CalledProcessError as failure:
+                evidence['taskkill_returncode'] = failure.returncode
+                output = failure.output or b''
+                evidence['taskkill_output'] = (
+                    output.decode('utf-8', errors='replace') if isinstance(output, bytes)
+                    else str(output))[:16384]
+                evidence['taskkill_output_truncated'] = len(output) > 16384
+                status = process.poll()
+                if status is None:
+                    try:
+                        status = process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        status = None
+                evidence['process_after_taskkill'] = status
+                # A nonzero taskkill result is ambiguous even when the root has
+                # exited cleanly. Neither exit=0 nor a SUCCESS message proves
+                # the owned descendants were retired.
+                detail = output.decode('utf-8', errors='replace') if isinstance(
+                    output, bytes) else str(output)
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup unproven: '
+                    f'taskkill={failure.returncode}, process={status!r}, '
+                    f'output={detail[-512:]!r}'
+                ) from failure
+            if diagnostic_path is not None and 'taskkill_output' not in evidence:
+                evidence['taskkill_output'] = (
+                    output.decode('utf-8', errors='replace') if isinstance(output, bytes)
+                    else str(output))[:16384]
+                evidence['taskkill_output_truncated'] = len(output) > 16384
+            evidence['wait_returncode'] = process.wait(timeout=20)
     except Exception as error:
         evidence['exception'] = (type(error).__name__ + ': ' + str(error))[:750]
         raise
@@ -212,12 +228,20 @@ def stop(process, diagnostic_path=None):
                     if (p['pid'], p['created']) in old]
                 evidence['identity_unproven'] = [
                     p['pid'] for p in before['owned'] if p['created'] is None]
+                # A child spawned after the initial census can survive the
+                # root. The CIM ancestry traversal intentionally starts from
+                # root_pid even when that root has already disappeared.
+                evidence['untracked_owned_after_cleanup'] = [
+                    p for p in after.get('owned', [])
+                    if p['pid'] != process.pid and
+                    (p['pid'], p['created']) not in old]
             # Positive evidence of a surviving child is a veto. Missing
             # before/after CIM evidence or a missing creation identity is
             # independently inconclusive: do not report a safe retirement.
             # Neither two snapshots nor taskkill's SUCCESS text prove full
             # process-lifetime monitoring; keep that limitation explicit.
             survivors = evidence.get('still_present_same_pid_and_creation', [])
+            untracked = evidence.get('untracked_owned_after_cleanup', [])
             gaps = []
             if not before.get('available'):
                 gaps.append('before-snapshot-unavailable')
@@ -244,10 +268,14 @@ def stop(process, diagnostic_path=None):
             evidence['cleanup_observation_gaps'] = gaps
             no_prior_error = sys.exc_info()[0] is None
             survivor_veto = bool(survivors) and no_prior_error
+            untracked_veto = bool(untracked) and no_prior_error
             observation_veto = bool(gaps) and no_prior_error
             if survivor_veto:
                 evidence['exception'] = (
                     'RuntimeError: observed same-identity owned descendants survived cleanup')
+            elif untracked_veto:
+                evidence['exception'] = (
+                    'RuntimeError: post-census descendants still present; ancestry unproven')
             elif observation_veto:
                 evidence['exception'] = (
                     'RuntimeError: owned process cleanup observation unavailable')
@@ -258,6 +286,10 @@ def stop(process, diagnostic_path=None):
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup unproven: '
                     f'{len(survivors)} same-identity descendants survived')
+            if untracked_veto:
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup unproven: '
+                    f'{len(untracked)} post-census descendants still present')
             if observation_veto:
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup observation unavailable: '
@@ -296,6 +328,20 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
     with stdout_path.open('wb') as stdout, stderr_path.open('wb') as stderr:
         process = subprocess.Popen(command, cwd=cwd, env=env,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Capture positive PID/creation/parent ancestry while the Popen root
+        # is provably still alive. Later CIM snapshots cannot reconstruct it.
+        launch_snapshot = None
+        if sys.platform == 'win32':
+            if process.poll() is None:
+                launch_snapshot = _windows_process_snapshot(process.pid)
+                if process.poll() is not None:
+                    launch_snapshot = {
+                        'available': False,
+                        'error': 'Root exited during launch identity observation'}
+            else:
+                launch_snapshot = {
+                    'available': False,
+                    'error': 'Root exited before launch identity observation'}
         threads = [threading.Thread(target=drain, args=(source, target), daemon=True)
                    for source, target in ((process.stdout, stdout), (process.stderr, stderr))]
         for thread in threads:
@@ -304,7 +350,8 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
             yield process
         finally:
             try:
-                stop(process, diagnostic_path=stdout_path.parent / 'webots-process-cleanup.json')
+                stop(process, diagnostic_path=stdout_path.parent / 'webots-process-cleanup.json',
+                     launch_snapshot=launch_snapshot)
             finally:
                 for thread in threads:
                     thread.join(timeout=20)
