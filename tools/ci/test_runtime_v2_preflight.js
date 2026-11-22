@@ -243,6 +243,8 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_move.DIRECTION, p5.fieldOptions.webeeblocks_v2_move.DIRECTION);
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, p5.fieldOptions.webeeblocks_v2_range.DIRECTION);
   assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, p5.fieldOptions.math_arithmetic.OP);
+  assert.deepStrictEqual(p6.fieldOptions.logic_operation.OP, ['AND'],
+    'A6 must require a conjunction of the two lateral sensors');
   assert.deepStrictEqual(p6.runtime.rangeDirections, p5.runtime.rangeDirections);
   assert.deepStrictEqual(p6.runtime.moveDirections, p5.runtime.moveDirections);
   assert.deepStrictEqual(p6.runtime.verticalDirections, p5.runtime.verticalDirections);
@@ -310,7 +312,8 @@ function proveProgressionProfilesAndFieldOptions() {
     webeeblocks_v2_turn: {init() { this.fields = {DIRECTION:dropdown([['tourner à gauche','left'],['tourner à droite','right']])}; }},
     webeeblocks_v2_vertical: {init() { this.fields = {DIRECTION:dropdown([['monter','up'],['descendre','down']])}; }},
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
-    math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
+    math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }},
+    logic_operation: {init() { this.fields = {OP:dropdown([['et','AND'],['ou','OR']])}; }}
   };
   class FakeWorkspace {
     constructor(isFlyout) { this.blocks = []; this.isFlyout = !!isFlyout; }
@@ -350,6 +353,11 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert(!flyoutArithmetic.getField('OP').getOptions(false).some(option => option[1] === 'POWER'), 'student arithmetic flyout must not expose POWER');
 
+  controller.setProfile(p6, flyoutWorkspace);
+  const flyoutLogic = flyoutWorkspace.newBlock('logic_operation');
+  assert.deepStrictEqual(flyoutLogic.getField('OP').getOptions(false).map(option => option[1]), ['AND'],
+    'A6 pupil dropdown must not expose OR');
+
   const altitudeFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-altitude-v1', Activities.BLOCK_CATALOG);
   controller.setProfile(altitudeFlyoutProfile, flyoutWorkspace);
   const flyoutVertical = flyoutWorkspace.newBlock('webeeblocks_v2_vertical');
@@ -362,6 +370,8 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutTurn.getField('DIRECTION').getOptions(false).map(option => option[1]), ['left','right']);
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutLogic.getField('OP').getOptions(false).map(option => option[1]), ['AND','OR'],
+    'switching profiles must restore the generic Blockly dropdown');
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
