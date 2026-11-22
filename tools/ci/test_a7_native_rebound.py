@@ -4,10 +4,11 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.ci.a7_native_rebound import (
-    AliveDisconnection, COURSE, FORCED_ID, ReboundUnproven, instrument_deadline,
-    instrument_pilot, prepare, verify,
+    AliveDisconnection, COURSE, FORCED_ID, ROOT, ReboundUnproven, build_project,
+    instrument_deadline, instrument_pilot, prepare, verify,
 )
 
 EPOCH = 'a' * 32
@@ -65,6 +66,23 @@ def fixture(case):
 
 
 class ReboundTraceOracleTest(unittest.TestCase):
+    def test_isolated_internal_pilot_keeps_webots_qt_loader_config(self):
+        def link_controller(command, **kwargs):
+            flight = Path(command[2])
+            binary = flight / flight.name
+            binary.touch()
+            binary.chmod(0o755)
+
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            out = folder / 'archive'
+            out.mkdir()
+            with patch('tools.ci.a7_native_rebound.subprocess.run', side_effect=link_controller):
+                paths = build_project(folder, out, folder, {})
+            flight = paths['grand_prix_route_flight'].parent
+            expected = ROOT / 'controllers/grand_prix_route_flight/runtime.ini'
+            self.assertEqual((flight / 'runtime.ini').read_bytes(), expected.read_bytes())
+
     def test_composes_only_in_the_experiment_build(self):
         with tempfile.TemporaryDirectory() as directory:
             prepare(directory, legacy_worlds=False, route_observations=True)

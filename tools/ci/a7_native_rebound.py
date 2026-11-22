@@ -139,9 +139,11 @@ def build_project(folder, out, home, env):
     (folder / 'plugins').symlink_to(ROOT / 'plugins')
     flight = controllers / 'grand_prix_route_flight'
     flight.mkdir()
-    shutil.copyfile(ROOT / 'controllers/grand_prix_route_flight/Makefile', flight / 'Makefile')
+    production_flight = ROOT / 'controllers/grand_prix_route_flight'
+    for name in ('Makefile', 'runtime.ini'):
+        shutil.copyfile(production_flight / name, flight / name)
     profile = 'gp_route_takeoff_profile.h'
-    (flight / profile).symlink_to(ROOT / 'controllers/grand_prix_route_flight' / profile)
+    (flight / profile).symlink_to(production_flight / profile)
     build = flight / 'build'
     prepare(build, legacy_worlds=False, route_observations=True)
     runtime = build / 'runtime_u.c'
