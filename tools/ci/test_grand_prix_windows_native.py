@@ -84,14 +84,12 @@ class EvidenceTests(unittest.TestCase):
                 stop(delayed)
         self.assertEqual(delayed.wait.call_args_list, [mock.call(timeout=5)])
 
+        # The auxiliary Node probe (no diagnostic/descendant attestation)
+        # is legitimately reaped by its own successful wait contract.
         already_stopped = mock.Mock(pid=123)
         already_stopped.poll.return_value = 0
         with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
-            if sys.platform == 'win32':
-                with self.assertRaisesRegex(RuntimeError, 'cleanup unproven'):
-                    stop(already_stopped)
-            else:
-                stop(already_stopped)  # Portable, non-Windows capture smoke test.
+            stop(already_stopped)
             run.assert_not_called()
 
     def test_poll_zero_surviving_qtwebengine_or_late_child_is_refused(self):
