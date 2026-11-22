@@ -350,8 +350,10 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
             yield process
         finally:
             try:
-                stop(process, diagnostic_path=stdout_path.parent / 'webots-process-cleanup.json',
-                     launch_snapshot=launch_snapshot)
+                stop(process, diagnostic_path=(
+                    stdout_path.parent / 'webots-process-cleanup.json'
+                    if sys.platform == 'win32' else None),
+                    launch_snapshot=launch_snapshot)
             finally:
                 for thread in threads:
                     thread.join(timeout=20)
