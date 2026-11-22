@@ -12,6 +12,9 @@ void gp_u_file_idle(int);
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
 /* Native flight owns these samples; never called by the pupil transport. */
 void gp_route_observe_native(double, int, int, const double *);
+/* Only the current A6 evaluator incarnation can opt into emergency braking. */
+int gp_route_a6_forced_land(void);
+int gp_route_a6_envelope_contact(double);
 #endif
 const char *gp_u_receive(void);
 void gp_u_send(const char *, int);

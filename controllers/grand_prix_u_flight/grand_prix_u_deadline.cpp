@@ -142,7 +142,12 @@ bool currentConfig(std::string& config) {
       std::strcmp(raw,"gp-progression-v1-a5-v2") &&
       std::strcmp(raw,"gp-progression-v1-a5-v3") &&
       std::strcmp(raw,"gp-progression-v1-a5-v4") &&
-      std::strcmp(raw,"gp-progression-v1-a5-v5")))return false;
+      std::strcmp(raw,"gp-progression-v1-a5-v5") &&
+      std::strcmp(raw,"gp-progression-v1-a6-v1") &&
+      std::strcmp(raw,"gp-progression-v1-a6-v2") &&
+      std::strcmp(raw,"gp-progression-v1-a6-v3") &&
+      std::strcmp(raw,"gp-progression-v1-a6-v4") &&
+      std::strcmp(raw,"gp-progression-v1-a6-v5")))return false;
   for(const char *p=raw;*p;++p)
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.
@@ -287,6 +292,23 @@ void failed_outcome(const char *cause=nullptr) {
 }
 }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+/* Emergency correction is A6-only. In particular A8, the other Grand Prix
+   profiles and pupil-requested LAND retain their existing position hold.
+   Read only the admitted, canonical route configuration of this incarnation. */
+extern "C" int gp_route_a6_forced_land(void) {
+  std::string current;
+  return begin>=0 && expired && !success && routeAttempt==attempt &&
+         routeConfig.size()==sizeof("gp-progression-v1-a6-v1")-1 &&
+         routeConfig.compare(0,sizeof("gp-progression-v1-a6-v")-1,
+                             "gp-progression-v1-a6-v")==0 &&
+         currentConfig(current) && current==routeConfig;
+}
+extern "C" int gp_route_a6_envelope_contact(double now) {
+  long long time_ms=0;
+  std::string cause;
+  return gp_route_a6_forced_land() && routeTime(now,time_ms) &&
+         routeTerminalCause(time_ms,cause) && cause=="envelope-contact";
+}
 extern "C" void gp_route_observe_native(double now,int controlValid,int ground,const double *ranges) {
   // Called after the native pilot step, with effective device periods checked
   // in the composed C. time_ms is the observation time, not a fabricated device
