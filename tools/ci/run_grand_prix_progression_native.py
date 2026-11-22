@@ -17,7 +17,9 @@ OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
 FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3)}
 
 
-def run_native(home, env, activity, variant=1, pupil_project=None):
+def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None):
+    if rebound is not None and (activity, variant) != (7, 5):
+        raise ValueError('rebound experiments require A7/V5')
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     last_attempt = forced_attempts[-1]
     if activity == 4:
@@ -38,6 +40,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
         raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
     suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
+    if rebound:
+        suffix = f'-rebound-{rebound}'
     out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
                   else f'route-a{activity}-native') + suffix)
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
@@ -66,11 +70,25 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
         (folder / 'worlds').mkdir()
-        for name in ('controllers', 'plugins'):
-            (folder / name).symlink_to(ROOT / name, target_is_directory=True)
+        if rebound:
+            from tools.ci import a7_native_rebound as experiment
+            for raw in ('contacts.jsonl', 'result.json', 'identity.json', 'webots.log', 'wwi.log',
+                        'pilot-latch', 'stop-request', 'stop-sent'):
+                (out / raw).unlink(missing_ok=True)
+            env.update(WEBEEBLOCKS_A7_V5_CASE=rebound, WEBEEBLOCKS_A7_V5_EVENTS=str(folder),
+                       WEBEEBLOCKS_A7_V5_LATCH=str(folder / 'pilot-latch'))
+            try:
+                paths = experiment.build_project(folder, out, home, env)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                experiment.finish(out, rebound, error)
+        else:
+            for name in ('controllers', 'plugins'):
+                (folder / name).symlink_to(ROOT / name, target_is_directory=True)
         world = folder / f'worlds/a{activity}.wbt'
         world.write_text(active_course_world(course), encoding='utf-8')
         (out / 'world.wbt').write_bytes(world.read_bytes())
+        if rebound:
+            experiment.provenance(out, {**paths, 'world.wbt': world}, home, env)
         command = [str(home / 'webots'), '--batch', '--stdout',
                    '--stderr', '--mode=fast', '--minimize', '--no-rendering',
                    f'--port={port}', str(world)]
@@ -80,6 +98,7 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         with journal.open('w') as native, (out / 'wwi.log').open('w') as wwi:
             process = subprocess.Popen(command, cwd=folder, env=env, stdout=native,
                                        stderr=subprocess.STDOUT, start_new_session=True)
+            probe_error = None
             try:
                 limit = time.monotonic() + 45
                 while 'WEBEEBLOCKS_RUNTIME_V2 READY' not in journal.read_text(errors='replace'):
@@ -89,6 +108,10 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
                 subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_progression_node_probe.js'),
                                 str(port), *probe_args], cwd=ROOT, env=env, stdout=wwi,
                                stderr=subprocess.STDOUT, check=True, timeout=450)
+            except (RuntimeError, subprocess.SubprocessError) as error:
+                if not rebound:
+                    raise
+                probe_error = error
             finally:
                 try:
                     os.killpg(process.pid, signal.SIGTERM)
@@ -99,6 +122,12 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=5)
+        if rebound:
+            for raw in ('contacts.jsonl', 'pilot-latch', 'stop-request', 'stop-sent'):
+                if (folder / raw).is_file():
+                    (out / raw).write_bytes((folder / raw).read_bytes())
+            experiment.finish(out, rebound, probe_error)
+            return
     log = journal.read_text(errors='replace')
     if re.search(r'^ERROR:|^Traceback \(most recent call last\)', log, re.M):
         raise RuntimeError(f'Native Webots error in {label}')
@@ -136,7 +165,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
     parser.add_argument('--variant', type=int, choices=range(1, 8), default=1)
+    parser.add_argument('--rebound', choices=('stop', 'liveness'))
     args = parser.parse_args()
     if args.activity not in (4, 5, 6, 7) and args.variant != 1:
         parser.error('only activities 4–7 have multiple active variants')
-    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)
+    run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant,
+               rebound=args.rebound)

@@ -6,8 +6,13 @@ const Backend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_bac
 const fs = require('node:fs');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
 const robot = 'Crazyflie WebeeBlocks';
+const rebound = process.env.WEBEEBLOCKS_A7_V5_CASE;
+const events = process.env.WEBEEBLOCKS_A7_V5_EVENTS;
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
-const send = payload => socket.send('robot:' + robot + ':' + payload);
+const send = payload => {
+  socket.send('robot:' + robot + ':' + payload);
+  if (rebound) console.log('A7_V5_WWI > ' + payload);
+};
 const backend = new Backend({send}, {
   simulationStop: true, simulationReset: true, simulationAdmission: true,
   routeTakeoffTimeoutMs: 90000
@@ -22,6 +27,7 @@ socket.onmessage = event => {
       const reply = JSON.parse(line.slice(6));
       if (reply.name !== robot)
         continue;
+      if (rebound) console.log('A7_V5_WWI < ' + reply.message);
       if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
         forcedLandings++;
       if (typeof reply.message === 'string' &&
@@ -420,6 +426,41 @@ async function activitySix() {
   await waitForForcedLanding(2);
 }
 
+async function reboundLanding() {
+  assert(['stop', 'liveness'].includes(rebound) && events && Number(process.argv[4]) === 5);
+  const interrupted = assert.rejects(backend.land(), {
+    code: rebound === 'stop' ? 'USER_STOPPED' : 'TIME_LIMIT'
+  });
+  // Attach the rejection handler while waiting for the 8-ms native witness.
+  // Await the same promise below so an early or unrelated result still fails.
+  interrupted.catch(() => {});
+  if (rebound === 'stop') {
+    const marker = events + '/stop-request';
+    const deadline = Date.now() + 35000;
+    while (!fs.existsSync(marker) && Date.now() < deadline)
+      await delay(2);
+    assert(fs.existsSync(marker), 'first native separation after motor latch absent');
+    const observedMs = Number(fs.readFileSync(marker, 'utf8'));
+    assert(Number.isSafeInteger(observedMs) && observedMs > 0);
+    const id = backend.nextId;
+    const stopped = backend.stopSimulation();
+    fs.writeFileSync(events + '/stop-sent.tmp', JSON.stringify({
+      id, observed_ms: observedMs, wall_monotonic_ns: process.hrtime.bigint().toString()
+    }));
+    fs.renameSync(events + '/stop-sent.tmp', events + '/stop-sent');
+    await stopped;
+  }
+  await interrupted;
+  assert.equal(forcedLandings, 0, 'independent LAND already ACKed before RESET probe');
+  // Use the actual WWI request without canceling the independent LAND from JS.
+  await assert.rejects(backend._request(['RESET']), error =>
+    ['LANDING_UNCONFIRMED', 'TIME_LIMIT'].includes(error.code));
+  await waitForForcedLanding(1);
+  await backend.resetSimulation();
+  await backend._waitForAdmission(backend.timeObservationEpoch);
+  console.log('A7_V5_WWI_COMPLETE ' + rebound);
+}
+
 async function activitySeven() {
   const variant = Number(process.argv[4]);
   async function range(direction = 'front') { return backend.readRange(direction); }
@@ -476,6 +517,7 @@ async function activitySeven() {
   await approachClosedH();
   await advanceWhile('back', .13, async () => await range() < .65, 8);
   await advanceWhile('forward', .05, async () => await range() > .71, 8);
+  if (rebound) return reboundLanding();
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
