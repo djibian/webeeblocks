@@ -87,8 +87,118 @@ class EvidenceTests(unittest.TestCase):
         already_stopped = mock.Mock(pid=123)
         already_stopped.poll.return_value = 0
         with mock.patch('tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
-            stop(already_stopped)
+            if sys.platform == 'win32':
+                with self.assertRaisesRegex(RuntimeError, 'cleanup unproven'):
+                    stop(already_stopped)
+            else:
+                stop(already_stopped)  # Portable, non-Windows capture smoke test.
             run.assert_not_called()
+
+    def test_poll_zero_surviving_qtwebengine_or_late_child_is_refused(self):
+        root = dict(pid=2232, parent=50, created='root-start',
+                    name='webots-bin.exe')
+        child = dict(pid=4520, parent=2232, created='child-start',
+                     name='QtWebEngineProcess.exe')
+        for known_at_launch in (True, False):
+            with self.subTest(known_at_launch=known_at_launch), tempfile.TemporaryDirectory() as tmp:
+                process = mock.Mock(pid=2232)
+                process.poll.return_value = 0
+                early = dict(available=True, root_present=True,
+                             owned=[root, child] if known_at_launch else [root])
+                # The root is gone. A new CIM census still exposes surviving
+                # children by ParentProcessId; it cannot prove their ancestry
+                # retroactively, so an untracked candidate must also veto PASS.
+                raw = [dict(ProcessId=4520, ParentProcessId=2232,
+                            CreationDate='child-start', Name='QtWebEngineProcess.exe')]
+                watched = [p['pid'] for p in early['owned']]
+                after = _filter_windows_tree(raw, 2232, watched)
+                self.assertFalse(after['root_present'])
+                self.assertEqual([p['pid'] for p in after['owned']], [4520])
+                evidence = Path(tmp) / 'cleanup.json'
+                with mock.patch(
+                        'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                        return_value=after) as snap, mock.patch(
+                        'tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+                    expected = ('same-identity descendants survived' if known_at_launch
+                                else 'post-census descendants still present')
+                    with self.assertRaisesRegex(RuntimeError, expected):
+                        stop(process, diagnostic_path=evidence, launch_snapshot=early)
+                    snap.assert_called_once_with(2232, watched)
+                    run.assert_not_called()
+                actual = json.loads(evidence.read_text(encoding='utf-8'))
+                self.assertEqual(actual['root_exit_at_stop'], 0)
+                self.assertNotIn('taskkill_returncode', actual)
+                self.assertEqual(len(
+                    actual['still_present_same_pid_and_creation'] if known_at_launch
+                    else actual['untracked_owned_after_cleanup']), 1)
+                process.wait.assert_not_called()
+
+    def test_poll_zero_without_positive_early_root_identity_is_refused(self):
+        root = dict(pid=2232, parent=50, created='root-start',
+                    name='webots-bin.exe')
+        child = dict(pid=4520, parent=2232, created='child-start',
+                     name='QtWebEngineProcess.exe')
+        cases = [
+            (None, 'before-snapshot-unavailable'),
+            (dict(available=False, error='CIM unavailable'), 'before-snapshot-unavailable'),
+            (dict(available=True, root_present=False, owned=[]),
+             'before-root-identity-unavailable'),
+            (dict(available=True, root_present=True, owned=[dict(root, created=None)]),
+             'creation-identity-unavailable'),
+            (dict(available=True, root_present=True, owned=[root, dict(child, created=None)]),
+             'creation-identity-unavailable'),
+        ]
+        for early, reason in cases:
+            with self.subTest(reason=reason, early=early), tempfile.TemporaryDirectory() as tmp:
+                process = mock.Mock(pid=2232)
+                process.poll.return_value = 0
+                diagnostic = Path(tmp) / 'cleanup.json'
+                after = dict(available=True, root_present=False, owned=[], watched=[])
+                with mock.patch(
+                        'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                        return_value=after), mock.patch(
+                        'tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+                    with self.assertRaisesRegex(RuntimeError, 'observation unavailable'):
+                        stop(process, diagnostic_path=diagnostic, launch_snapshot=early)
+                    run.assert_not_called()
+                record = json.loads(diagnostic.read_text(encoding='utf-8'))
+                self.assertIn(reason, record['cleanup_observation_gaps'])
+                self.assertNotIn('taskkill_returncode', record)
+
+    def test_poll_zero_genuinely_attested_retirement_and_after_cim_refusal(self):
+        root = dict(pid=2232, parent=50, created='root-start',
+                    name='webots-bin.exe')
+        child = dict(pid=4520, parent=2232, created='child-start',
+                     name='QtWebEngineProcess.exe')
+        early = dict(available=True, root_present=True, owned=[root, child])
+        for after_available in (True, False):
+            with self.subTest(after_available=after_available), tempfile.TemporaryDirectory() as tmp:
+                process = mock.Mock(pid=2232)
+                process.poll.return_value = 0
+                diagnostic = Path(tmp) / 'cleanup.json'
+                after = (dict(available=True, root_present=False, owned=[], watched=[])
+                         if after_available else dict(available=False, error='CIM failed'))
+                with mock.patch(
+                        'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                        return_value=after) as snap, mock.patch(
+                        'tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+                    if after_available:
+                        stop(process, diagnostic_path=diagnostic, launch_snapshot=early)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'after-snapshot-unavailable'):
+                            stop(process, diagnostic_path=diagnostic, launch_snapshot=early)
+                    snap.assert_called_once_with(2232, [2232, 4520])
+                    run.assert_not_called()
+                actual = json.loads(diagnostic.read_text(encoding='utf-8'))
+                self.assertEqual(actual['before'], early)
+                self.assertEqual(actual['after'], after)
+                self.assertEqual(actual['root_exit_at_stop'], 0)
+                self.assertNotIn('taskkill_returncode', actual)
+                if after_available:
+                    self.assertEqual(actual['still_present_same_pid_and_creation'], [])
+                    self.assertEqual(actual['untracked_owned_after_cleanup'], [])
+                    self.assertEqual(actual['cleanup_observation_gaps'], [])
+                process.wait.assert_not_called()
 
     def test_cleanup_snapshot_preserves_child_creation_identity_and_bounds(self):
         rows = [
