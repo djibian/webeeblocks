@@ -173,6 +173,7 @@ class EvidenceTests(unittest.TestCase):
             with self.subTest(after_available=after_available), tempfile.TemporaryDirectory() as tmp:
                 process = mock.Mock(pid=2232)
                 process.poll.return_value = 0
+                process.active_job_processes.return_value = 0
                 diagnostic = Path(tmp) / 'cleanup.json'
                 after = (dict(available=True, root_present=False, owned=[], watched=[])
                          if after_available else dict(available=False, error='CIM failed'))
@@ -196,7 +197,70 @@ class EvidenceTests(unittest.TestCase):
                     self.assertEqual(actual['still_present_same_pid_and_creation'], [])
                     self.assertEqual(actual['untracked_owned_after_cleanup'], [])
                     self.assertEqual(actual['cleanup_observation_gaps'], [])
+                    self.assertEqual(actual['job_active_processes'], 0)
                 process.wait.assert_not_called()
+
+    def test_poll_zero_late_grandchild_requires_job_accounting(self):
+        early = _filter_windows_tree([
+            dict(ProcessId=2232, ParentProcessId=50, CreationDate='t0', Name='webots-bin.exe')
+        ], 2232)
+        final_rows = [dict(ProcessId=4520, ParentProcessId=3333, CreationDate='t2',
+                           Name='QtWebEngineProcess.exe')]
+        after = _filter_windows_tree(final_rows, 2232, watched=[2232])
+        self.assertFalse(after['root_present'])
+        self.assertEqual(after['owned'], [])
+        self.assertEqual(after['watched'], [])
+        for active in (1, None):
+            with self.subTest(active=active), tempfile.TemporaryDirectory() as tmp:
+                process = mock.Mock(pid=2232)
+                process.poll.return_value = 0
+                if active is None:
+                    process.active_job_processes.side_effect = OSError('Job query unavailable')
+                else:
+                    process.active_job_processes.return_value = active
+                diagnostic = Path(tmp) / 'webots-process-cleanup.json'
+                with mock.patch('tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                                return_value=after), mock.patch(
+                        'tools.ci.run_grand_prix_windows_native.subprocess.run') as run:
+                    with self.assertRaisesRegex(RuntimeError, f'job cleanup unproven: active processes={active}'):
+                        stop(process, diagnostic_path=diagnostic, launch_snapshot=early)
+                    run.assert_not_called()
+                evidence = json.loads(diagnostic.read_text(encoding='utf-8'))
+                self.assertEqual(evidence['cleanup_observation_gaps'], [])
+                self.assertEqual(evidence['job_active_processes'], active)
+                if active is None:
+                    self.assertEqual(evidence['job_accounting_error'], 'Job query unavailable')
+
+    def test_taskkill_128_remains_primary_when_capture_pipe_stays_open(self):
+        root = dict(pid=2232, parent=50, created='t0', name='webots-bin.exe')
+        before = dict(available=True, root_present=True, owned=[root])
+        after = dict(available=True, root_present=False, owned=[], watched=[])
+        process = mock.Mock(pid=2232)
+        process.poll.side_effect = [None, None, None, 0]
+        process.active_job_processes.return_value = 1
+        failed = subprocess.CalledProcessError(128, ['taskkill'], output=b'SUCCESS: terminated root')
+        thread = mock.Mock()
+        thread.is_alive.return_value = True
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            with mock.patch.object(sys, 'platform', 'win32'), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native.WindowsJobProcess',
+                    return_value=process, create=True), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native._windows_process_snapshot',
+                    side_effect=[before, before, after]), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native.threading.Thread', return_value=thread), mock.patch(
+                    'tools.ci.run_grand_prix_windows_native.subprocess.run', side_effect=failed):
+                with self.assertRaisesRegex(RuntimeError, 'taskkill=128, process=0') as raised:
+                    with captured_engine(['webots-bin.exe'], directory, {},
+                                         directory / 'stdout', directory / 'stderr'):
+                        pass
+            self.assertIs(raised.exception.__cause__, failed)
+            self.assertIn('pipes did not close', raised.exception.__notes__[0])
+            evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+            self.assertEqual(evidence['taskkill_returncode'], 128)
+            self.assertIn('taskkill=128', evidence['exception'])
+            self.assertIn('pipes did not close', evidence['secondary_errors'][0])
+            process.close_job.assert_called_once_with()
 
     def test_cleanup_snapshot_preserves_child_creation_identity_and_bounds(self):
         rows = [
@@ -352,6 +416,7 @@ class EvidenceTests(unittest.TestCase):
         process = mock.Mock(pid=2232)
         process.poll.return_value = None
         process.wait.return_value = 1
+        process.active_job_processes.return_value = 0
         with tempfile.TemporaryDirectory() as tmp:
             evidence = Path(tmp) / 'cleanup.json'
             with mock.patch(
@@ -364,6 +429,7 @@ class EvidenceTests(unittest.TestCase):
                 stop(process, diagnostic_path=evidence)
             record = json.loads(evidence.read_text(encoding='utf-8'))
             self.assertEqual(record['still_present_same_pid_and_creation'], [])
+            self.assertEqual(record['job_active_processes'], 0)
 
     def test_taskkill_128_with_success_text_and_clean_cim_still_refused(self):
         root = dict(pid=2232, parent=50, created='root-start',
@@ -453,6 +519,7 @@ class EvidenceTests(unittest.TestCase):
         process = mock.Mock(pid=456)
         process.poll.return_value = None
         process.wait.return_value = 1  # taskkill intentionally terminates process
+        process.active_job_processes.return_value = 0
         before = dict(available=True, owned=[
             dict(pid=456, parent=100, created='t1', name='native.exe')])
         after = dict(available=True, owned=[], watched=[])
@@ -469,6 +536,7 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(actual['taskkill_returncode'], 0)
             self.assertEqual(actual['wait_returncode'], 1)
             self.assertEqual(actual['still_present_same_pid_and_creation'], [])
+            self.assertEqual(actual['job_active_processes'], 0)
         process.wait.assert_called_once_with(timeout=20)
 
     def test_offline_world_uses_exact_webots_floor_plane_not_box(self):
@@ -508,6 +576,61 @@ print('WEBEEBLOCKS_RUNTIME_V2 READY', flush=True)
                 self.assertEqual(process.wait(timeout=20), 0)
             self.assertEqual(stdout.read_bytes(), b'R' * (128 * 4096) + b'WEBEEBLOCKS_RUNTIME_V2 READY' + os.linesep.encode())
             self.assertEqual(stderr.read_bytes(), b'E' * (128 * 4096))
+            if sys.platform == 'win32':
+                evidence = json.loads((root / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+                self.assertEqual(evidence['job_active_processes'], 0)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 job inheritance')
+    def test_native_job_keeps_late_grandchild_after_both_ancestors_exit(self):
+        import _winapi
+
+        grandchild_code = 'import time; time.sleep(60)'
+        intermediate_code = '''
+from pathlib import Path
+import subprocess, sys
+child = subprocess.Popen([sys.executable, '-c', sys.argv[1]],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path('grandchild.pid').write_text(str(child.pid), encoding='ascii')
+'''
+        root_code = '''
+from pathlib import Path
+import subprocess, sys, time
+deadline = time.monotonic() + 20
+while not Path('spawn').exists():
+    if time.monotonic() > deadline:
+        sys.exit('missing parent handshake')
+    time.sleep(.02)
+try:
+    subprocess.run([sys.executable, '-c', 'pass'], creationflags=0x01000000, check=True)
+except OSError as error:
+    if error.winerror != 5:
+        raise
+else:
+    sys.exit('CREATE_BREAKAWAY_FROM_JOB unexpectedly succeeded')
+subprocess.run([sys.executable, '-c', sys.argv[1], sys.argv[2]], check=True)
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            command = [sys.executable, '-c', root_code, intermediate_code, grandchild_code]
+            grandchild = None
+            try:
+                with self.assertRaisesRegex(RuntimeError, 'job cleanup unproven: active processes=1'):
+                    with captured_engine(command, directory, os.environ.copy(),
+                                         directory / 'stdout', directory / 'stderr') as process:
+                        self.assertEqual(process.active_job_processes(), 1)
+                        (directory / 'spawn').touch()
+                        self.assertEqual(process.wait(timeout=20), 0)
+                        pid = int((directory / 'grandchild.pid').read_text(encoding='ascii'))
+                        grandchild = _winapi.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE
+                        self.assertEqual(_winapi.WaitForSingleObject(grandchild, 0), _winapi.WAIT_TIMEOUT)
+                self.assertEqual(_winapi.WaitForSingleObject(grandchild, 5000), _winapi.WAIT_OBJECT_0)
+            finally:
+                if grandchild is not None:
+                    _winapi.CloseHandle(grandchild)
+            evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+            self.assertEqual(evidence['cleanup_observation_gaps'], [])
+            self.assertEqual(evidence['untracked_owned_after_cleanup'], [])
+            self.assertEqual(evidence['job_active_processes'], 1)
 
     def test_real_windows_uppercase_copy_and_mixed_case_inputs(self):
         for root_key in ('SYSTEMROOT', 'SystemRoot'):

@@ -170,6 +170,7 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
         ) if already_exited else _windows_process_snapshot(process.pid)
         if already_exited:
             evidence['root_exit_at_stop'] = 0
+    cleanup_error = None
     try:
         if not already_exited:
             try:
@@ -209,6 +210,7 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
                 evidence['taskkill_output_truncated'] = len(output) > 16384
             evidence['wait_returncode'] = process.wait(timeout=20)
     except Exception as error:
+        cleanup_error = error
         evidence['exception'] = (type(error).__name__ + ': ' + str(error))[:750]
         raise
     finally:
@@ -263,10 +265,22 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
                        for p in after['watched']):
                     gaps.append('after-creation-identity-unavailable')
             evidence['cleanup_observation_gaps'] = gaps
-            no_prior_error = sys.exc_info()[0] is None
+            # Only an atomic-at-launch job can account for a late descendant
+            # whose parent has already disappeared from both CIM snapshots.
+            active = None
+            try:
+                count = process.active_job_processes()
+                if type(count) is not int or count < 0:
+                    raise ValueError('Invalid Webots job process count')
+                active = count
+            except (AttributeError, OSError, ValueError) as error:
+                evidence['job_accounting_error'] = str(error)[:512]
+            evidence['job_active_processes'] = active
+            no_prior_error = cleanup_error is None
             survivor_veto = bool(survivors) and no_prior_error
             untracked_veto = bool(untracked) and no_prior_error
             observation_veto = bool(gaps) and no_prior_error
+            job_veto = active != 0 and no_prior_error
             if survivor_veto:
                 evidence['exception'] = (
                     'RuntimeError: observed same-identity owned descendants survived cleanup')
@@ -276,9 +290,17 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
             elif observation_veto:
                 evidence['exception'] = (
                     'RuntimeError: owned process cleanup observation unavailable')
-            diagnostic_path.write_text(
-                json.dumps(evidence, sort_keys=True, indent=2) + '\n',
-                encoding='utf-8')
+            elif job_veto:
+                evidence['exception'] = (
+                    f'RuntimeError: owned job cleanup unproven: active processes={active!r}')
+            try:
+                diagnostic_path.write_text(
+                    json.dumps(evidence, sort_keys=True, indent=2) + '\n',
+                    encoding='utf-8')
+            except OSError as error:
+                if cleanup_error is None:
+                    raise
+                cleanup_error.add_note(f'Writing Webots cleanup diagnostic failed: {error}')
             if survivor_veto:
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup unproven: '
@@ -291,6 +313,202 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup observation unavailable: '
                     + ', '.join(gaps))
+            if job_veto:
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} job cleanup unproven: '
+                    f'active processes={active!r}')
+
+
+if sys.platform == 'win32':
+    import _winapi
+    from contextlib import ExitStack
+    import ctypes as c
+    from ctypes import wintypes as w
+    import msvcrt
+
+
+    class _StartupInfo(c.Structure):
+        _fields_ = [
+            ('cb', w.DWORD), ('lpReserved', w.LPWSTR), ('lpDesktop', w.LPWSTR),
+            ('lpTitle', w.LPWSTR), ('dwX', w.DWORD), ('dwY', w.DWORD),
+            ('dwXSize', w.DWORD), ('dwYSize', w.DWORD), ('dwXCountChars', w.DWORD),
+            ('dwYCountChars', w.DWORD), ('dwFillAttribute', w.DWORD),
+            ('dwFlags', w.DWORD), ('wShowWindow', w.WORD), ('cbReserved2', w.WORD),
+            ('lpReserved2', c.c_void_p), ('hStdInput', w.HANDLE),
+            ('hStdOutput', w.HANDLE), ('hStdError', w.HANDLE),
+        ]
+
+
+    class _StartupInfoEx(c.Structure):
+        _fields_ = [('StartupInfo', _StartupInfo), ('lpAttributeList', c.c_void_p)]
+
+
+    class _ProcessInformation(c.Structure):
+        _fields_ = [('hProcess', w.HANDLE), ('hThread', w.HANDLE),
+                    ('dwProcessId', w.DWORD), ('dwThreadId', w.DWORD)]
+
+
+    class _BasicLimits(c.Structure):
+        _fields_ = [
+            ('PerProcessUserTimeLimit', c.c_longlong), ('PerJobUserTimeLimit', c.c_longlong),
+            ('LimitFlags', w.DWORD), ('MinimumWorkingSetSize', c.c_size_t),
+            ('MaximumWorkingSetSize', c.c_size_t), ('ActiveProcessLimit', w.DWORD),
+            ('Affinity', c.c_size_t), ('PriorityClass', w.DWORD), ('SchedulingClass', w.DWORD),
+        ]
+
+
+    class _ExtendedLimits(c.Structure):
+        _fields_ = [
+            ('BasicLimitInformation', _BasicLimits), ('IoInfo', c.c_ulonglong * 6),
+            ('ProcessMemoryLimit', c.c_size_t), ('JobMemoryLimit', c.c_size_t),
+            ('PeakProcessMemoryUsed', c.c_size_t), ('PeakJobMemoryUsed', c.c_size_t),
+        ]
+
+
+    class _Accounting(c.Structure):
+        _fields_ = [
+            ('TotalUserTime', c.c_longlong), ('TotalKernelTime', c.c_longlong),
+            ('ThisPeriodTotalUserTime', c.c_longlong), ('ThisPeriodTotalKernelTime', c.c_longlong),
+            ('TotalPageFaultCount', w.DWORD), ('TotalProcesses', w.DWORD),
+            ('ActiveProcesses', w.DWORD), ('TotalTerminatedProcesses', w.DWORD),
+        ]
+
+
+    _kernel = c.WinDLL('kernel32', use_last_error=True)
+
+
+    def _win32(name, result, *arguments):
+        function = getattr(_kernel, name)
+        function.restype = result
+        function.argtypes = arguments
+        return function
+
+
+    _create_job = _win32('CreateJobObjectW', w.HANDLE, c.c_void_p, w.LPCWSTR)
+    _set_job = _win32('SetInformationJobObject', w.BOOL, w.HANDLE, c.c_int, c.c_void_p, w.DWORD)
+    _query_job = _win32('QueryInformationJobObject', w.BOOL, w.HANDLE, c.c_int,
+                        c.c_void_p, w.DWORD, c.POINTER(w.DWORD))
+    _init_attributes = _win32('InitializeProcThreadAttributeList', w.BOOL,
+                              c.c_void_p, w.DWORD, w.DWORD, c.POINTER(c.c_size_t))
+    _update_attribute = _win32('UpdateProcThreadAttribute', w.BOOL, c.c_void_p,
+                               w.DWORD, c.c_size_t, c.c_void_p, c.c_size_t, c.c_void_p, c.c_void_p)
+    _delete_attributes = _win32('DeleteProcThreadAttributeList', None, c.c_void_p)
+    _create_process = _win32('CreateProcessW', w.BOOL, w.LPCWSTR, w.LPWSTR, c.c_void_p,
+                            c.c_void_p, w.BOOL, w.DWORD, c.c_void_p, w.LPCWSTR,
+                            c.POINTER(_StartupInfoEx), c.POINTER(_ProcessInformation))
+
+    _JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION = 1
+    _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+    _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+    _PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x20002
+    _PROC_THREAD_ATTRIBUTE_JOB_LIST = 0x2000D
+    _EXTENDED_STARTUPINFO_PRESENT = 0x00080000
+    _CREATE_UNICODE_ENVIRONMENT = 0x00000400
+    _STARTF_USESTDHANDLES = 0x100
+
+
+    def _check(result, operation):
+        if not result:
+            code = c.get_last_error()
+            raise OSError(None, f'{operation}: {c.FormatError(code).strip()}', None, code)
+        return result
+
+
+    def _start(command, cwd, env, job, handles):
+        # The kernel assigns the job in CreateProcessW before any Webots code can
+        # run. No suspended-process or post-Popen assignment window is needed.
+        job_list = (w.HANDLE * 1)(job)
+        handle_list = (w.HANDLE * len(handles))(*handles)
+        size = c.c_size_t()
+        _init_attributes(None, 2, 0, c.byref(size))  # first call obtains the size
+        attributes = c.create_string_buffer(size.value)
+        _check(_init_attributes(attributes, 2, 0, c.byref(size)), 'InitializeProcThreadAttributeList')
+        try:
+            _check(_update_attribute(attributes, 0, _PROC_THREAD_ATTRIBUTE_JOB_LIST,
+                                     job_list, c.sizeof(job_list), None, None), 'Set job list')
+            _check(_update_attribute(attributes, 0, _PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                     handle_list, c.sizeof(handle_list), None, None), 'Set pipe handle list')
+            startup = _StartupInfoEx()
+            startup.StartupInfo.cb = c.sizeof(startup)
+            startup.StartupInfo.dwFlags = _STARTF_USESTDHANDLES
+            startup.StartupInfo.hStdInput, startup.StartupInfo.hStdOutput, startup.StartupInfo.hStdError = handles
+            startup.lpAttributeList = c.cast(attributes, c.c_void_p)
+            info = _ProcessInformation()
+            line = c.create_unicode_buffer(subprocess.list2cmdline(command))
+            environment = c.create_unicode_buffer('\0'.join(
+                f'{key}={env[key]}' for key in sorted(env, key=str.upper)) + '\0\0')
+            _check(_create_process(command[0], line, None, None, True,
+                                   _EXTENDED_STARTUPINFO_PRESENT | _CREATE_UNICODE_ENVIRONMENT,
+                                   environment, str(cwd), c.byref(startup), c.byref(info)),
+                   'CreateProcessW in Webots job')
+            return info
+        finally:
+            _delete_attributes(attributes)
+
+
+    class WindowsJobProcess:
+        """Own the private job and the original process handle independently of PIDs."""
+
+        def __init__(self, command, cwd, env):
+            self.args = command
+            self.returncode = None
+            with ExitStack() as launch, ExitStack() as writers:
+                # Anonymous, non-inheritable job. Neither breakaway flag is set.
+                self._job = _check(_create_job(None, None), 'CreateJobObjectW')
+                launch.callback(self.close_job)
+                limits = _ExtendedLimits()
+                limits.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                _check(_set_job(self._job, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+                                c.byref(limits), c.sizeof(limits)), 'Set job limits')
+                child_stdin = writers.enter_context(open(os.devnull, 'rb'))
+                child_streams = [child_stdin]
+                readers = []
+                for _ in range(2):
+                    read_fd, write_fd = os.pipe()
+                    readers.append(launch.enter_context(os.fdopen(read_fd, 'rb')))
+                    child_streams.append(writers.enter_context(os.fdopen(write_fd, 'wb')))
+                handles = [msvcrt.get_osfhandle(stream.fileno()) for stream in child_streams]
+                for handle in handles:
+                    os.set_handle_inheritable(handle, True)
+                info = _start(command, cwd, env, self._job, handles)
+                self._process = info.hProcess
+                launch.callback(self.close_process)
+                _winapi.CloseHandle(info.hThread)
+                self.pid = info.dwProcessId
+                self.stdout, self.stderr = readers
+                writers.close()
+                launch.pop_all()
+
+        def poll(self):
+            if self.returncode is None and self._process is not None:
+                if _winapi.WaitForSingleObject(self._process, 0) == _winapi.WAIT_OBJECT_0:
+                    self.returncode = _winapi.GetExitCodeProcess(self._process)
+            return self.returncode
+
+        def wait(self, timeout):
+            if _winapi.WaitForSingleObject(self._process, int(timeout * 1000)) == _winapi.WAIT_TIMEOUT:
+                raise subprocess.TimeoutExpired(self.args, timeout)
+            self.returncode = _winapi.GetExitCodeProcess(self._process)
+            return self.returncode
+
+        def active_job_processes(self):
+            accounting = _Accounting()
+            _check(_query_job(self._job, _JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION,
+                              c.byref(accounting), c.sizeof(accounting), None), 'Query Webots job accounting')
+            return accounting.ActiveProcesses
+
+        def close_job(self):
+            # Emergency retirement on all paths. Only a successful accounting
+            # query before this close can attest that the job drained.
+            _winapi.CloseHandle(self._job)
+            self._job = None
+
+        def close_process(self):
+            try:
+                self.poll()
+            finally:
+                _winapi.CloseHandle(self._process)
+                self._process = None
 
 
 def engine_environment(home, ambient):
@@ -323,41 +541,75 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
             errors.append(error)
 
     with stdout_path.open('wb') as stdout, stderr_path.open('wb') as stderr:
-        process = subprocess.Popen(command, cwd=cwd, env=env,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # Capture positive PID/creation/parent ancestry while the Popen root
-        # is provably still alive. Later CIM snapshots cannot reconstruct it.
+        windows = sys.platform == 'win32'
+        diagnostic_path = stdout_path.parent / 'webots-process-cleanup.json' if windows else None
+        if windows:
+            process = WindowsJobProcess(command, cwd, env)
+        else:
+            process = subprocess.Popen(command, cwd=cwd, env=env,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         launch_snapshot = None
-        if sys.platform == 'win32':
-            if process.poll() is None:
+        started = []
+        try:
+            # Retain the earlier CIM identity witness as an independent veto.
+            # The live root handle brackets the launch observation.
+            if windows and process.poll() is None:
                 launch_snapshot = _windows_process_snapshot(process.pid)
                 if process.poll() is not None:
-                    launch_snapshot = {
-                        'available': False,
-                        'error': 'Root exited during launch identity observation'}
-            else:
-                launch_snapshot = {
-                    'available': False,
-                    'error': 'Root exited before launch identity observation'}
-        threads = [threading.Thread(target=drain, args=(source, target), daemon=True)
-                   for source, target in ((process.stdout, stdout), (process.stderr, stderr))]
-        for thread in threads:
-            thread.start()
-        try:
+                    launch_snapshot = {'available': False,
+                                       'error': 'Root exited during launch identity observation'}
+            for source, target in ((process.stdout, stdout), (process.stderr, stderr)):
+                thread = threading.Thread(target=drain, args=(source, target), daemon=True)
+                thread.start()
+                started.append(thread)
             yield process
         finally:
+            body_error = sys.exc_info()[1]
+            failures = []
             try:
-                stop(process, diagnostic_path=(
-                    stdout_path.parent / 'webots-process-cleanup.json'
-                    if sys.platform == 'win32' else None),
-                    launch_snapshot=launch_snapshot)
-            finally:
-                for thread in threads:
-                    thread.join(timeout=20)
-                if any(thread.is_alive() for thread in threads):
-                    raise RuntimeError('Native output pipes did not close after process cleanup')
-                if errors:
-                    raise RuntimeError('Native output capture failed') from errors[0]
+                stop(process, diagnostic_path=diagnostic_path, launch_snapshot=launch_snapshot)
+            except Exception as error:
+                failures.append(error)
+            if windows:
+                try:
+                    process.close_job()
+                except OSError as error:
+                    failures.append(error)
+            for thread in started:
+                thread.join(timeout=20)
+            if any(thread.is_alive() for thread in started):
+                failures.append(RuntimeError('Native output pipes did not close after process cleanup'))
+            for source in (process.stdout, process.stderr)[len(started):]:
+                try:
+                    source.close()
+                except OSError as error:
+                    failures.append(error)
+            for error in errors:
+                failure = RuntimeError(f'Native output capture failed: {error}')
+                failure.__cause__ = error
+                failures.append(failure)
+            if windows:
+                try:
+                    process.close_process()
+                except OSError as error:
+                    failures.append(error)
+            if failures:
+                primary = body_error or failures[0]
+                secondary = [f'{type(error).__name__}: {error}' for error in failures if error is not primary]
+                for detail in secondary:
+                    primary.add_note(detail)
+                if diagnostic_path is not None and (secondary or not diagnostic_path.exists()):
+                    try:
+                        record = json.loads(read(diagnostic_path) or '{}')
+                        record.setdefault('exception', f'{type(primary).__name__}: {primary}')
+                        record['primary_exception'] = f'{type(primary).__name__}: {primary}'
+                        record['secondary_errors'] = secondary
+                        diagnostic_path.write_text(json.dumps(record, sort_keys=True, indent=2) + '\n',
+                                                   encoding='utf-8')
+                    except (OSError, ValueError) as error:
+                        primary.add_note(f'Updating Webots cleanup diagnostic failed: {error}')
+                if body_error is None:
+                    raise primary
 
 
 def trial(package, home, output, seed):
