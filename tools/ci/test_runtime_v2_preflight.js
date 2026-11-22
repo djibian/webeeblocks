@@ -185,6 +185,7 @@ function proveProgressionProfilesAndFieldOptions() {
   const p4 = Profiles.resolveById(Activities.DOCUMENT, 'progression-combined-decisions-v1', Activities.BLOCK_CATALOG);
   const p5 = Profiles.resolveById(Activities.DOCUMENT, 'progression-memory-v1', Activities.BLOCK_CATALOG);
   const p6 = Profiles.resolveById(Activities.DOCUMENT, 'progression-autonomous-strategy-v1', Activities.BLOCK_CATALOG);
+  const pNativeA6 = Profiles.resolveById(Activities.DOCUMENT, 'grand-prix-a6-native-experimental-v1', Activities.BLOCK_CATALOG);
 
   assert.strictEqual(p1.world, pPrecision.world);
   assert.strictEqual(pPrecision.world, p2.world);
@@ -243,7 +244,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_move.DIRECTION, p5.fieldOptions.webeeblocks_v2_move.DIRECTION);
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, p5.fieldOptions.webeeblocks_v2_range.DIRECTION);
   assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, p5.fieldOptions.math_arithmetic.OP);
-  assert.deepStrictEqual(p6.fieldOptions.logic_operation.OP, ['AND'],
+  assert.deepStrictEqual(pNativeA6.fieldOptions.logic_operation.OP, ['AND'],
     'A6 must require a conjunction of the two lateral sensors');
   assert.deepStrictEqual(p6.runtime.rangeDirections, p5.runtime.rangeDirections);
   assert.deepStrictEqual(p6.runtime.moveDirections, p5.runtime.moveDirections);
@@ -353,7 +354,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert(!flyoutArithmetic.getField('OP').getOptions(false).some(option => option[1] === 'POWER'), 'student arithmetic flyout must not expose POWER');
 
-  controller.setProfile(p6, flyoutWorkspace);
+  controller.setProfile(pNativeA6, flyoutWorkspace);
   const flyoutLogic = flyoutWorkspace.newBlock('logic_operation');
   assert.deepStrictEqual(flyoutLogic.getField('OP').getOptions(false).map(option => option[1]), ['AND'],
     'A6 pupil dropdown must not expose OR');
