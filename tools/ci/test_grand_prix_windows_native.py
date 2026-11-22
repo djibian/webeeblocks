@@ -1,7 +1,9 @@
 """Ensure installed-campaign evidence never turns incomplete execution into PASS."""
 import copy
 import json
+import linecache
 import os
+import signal
 from pathlib import Path
 import sys
 import subprocess
@@ -326,11 +328,87 @@ class EvidenceTests(unittest.TestCase):
                 self.assertEqual(thread.join.call_args_list, [mock.call(timeout=20)] * 2)
                 evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
                 self.assertEqual(evidence['primary_exception'], f'OSError: {expected}')
-                secondary = ['KeyboardInterrupt: joining capture pipe', 'OSError: CloseHandle(process) failed']
+                secondary = ['OSError: CloseHandle(process) failed', 'KeyboardInterrupt: joining capture pipe']
                 if stop_fails:
                     secondary.insert(0, 'OSError: CloseHandle(job) failed')
                 self.assertEqual(evidence['secondary_errors'], secondary)
                 self.assertEqual(raised.exception.__notes__, secondary)
+
+    def test_sigint_guard_installed_before_ownership_and_replays_after_release(self):
+        # The guard is installed before either Win32 handle can be acquired.
+        # Outside the close section the existing SIGINT handler still fires.
+        previous = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        guard = None
+        try:
+            guard = harness._Win32CloseSigintGuard()
+            with self.assertRaises(KeyboardInterrupt):
+                signal.raise_signal(signal.SIGINT)
+            self.assertEqual(guard._pending, [])
+            guard.arm()
+            released = []
+            signal.raise_signal(signal.SIGINT)
+            released.append('job')
+            signal.raise_signal(signal.SIGINT)
+            released.append('process')
+            self.assertEqual(released, ['job', 'process'])
+            self.assertEqual(len(guard._pending), 2)
+            with self.assertRaises(KeyboardInterrupt):
+                guard.restore()
+            self.assertTrue(guard._restored)
+            self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+        finally:
+            if guard is not None and not guard._restored:
+                guard.restore()
+            signal.signal(signal.SIGINT, previous)
+
+    def test_taskkill_128_remains_primary_with_sigint_deferred_in_close(self):
+        root_error = subprocess.CalledProcessError(128, ['taskkill'])
+        primary = RuntimeError('Owned Windows PID 2232 cleanup unproven: taskkill=128')
+        primary.__cause__ = root_error
+        previous = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        guard = None
+        try:
+            guard = harness._Win32CloseSigintGuard()
+            process = mock.Mock(pid=2232)
+            process.poll.return_value = 0
+            process._close_sigint = guard
+            closed = []
+
+            def close_job():
+                guard.arm()
+                signal.raise_signal(signal.SIGINT)  # Before the native close.
+                closed.append('job')
+
+            def close_process():
+                closed.append('process')
+
+            process.close_job.side_effect = close_job
+            process.close_process.side_effect = close_process
+            thread = mock.Mock()
+            thread.is_alive.return_value = False
+            with tempfile.TemporaryDirectory() as tmp:
+                directory = Path(tmp)
+                with mock.patch.object(sys, 'platform', 'win32'), mock.patch.object(
+                        harness, 'WindowsJobProcess', return_value=process, create=True), mock.patch.object(
+                        harness, 'stop', side_effect=primary), mock.patch.object(
+                        harness.threading, 'Thread', return_value=thread):
+                    with self.assertRaises(RuntimeError) as raised:
+                        with captured_engine(['webots-bin.exe'], directory, {},
+                                             directory / 'stdout', directory / 'stderr'):
+                            pass
+                self.assertIs(raised.exception, primary)
+                self.assertIs(primary.__cause__, root_error)
+                self.assertEqual(closed, ['job', 'process'])
+                self.assertTrue(any('KeyboardInterrupt' in n for n in primary.__notes__))
+                record = json.loads((directory / 'webots-process-cleanup.json').read_text())
+                self.assertIn('taskkill=128', record['primary_exception'])
+                self.assertTrue(any('KeyboardInterrupt' in n for n in record['secondary_errors']))
+        finally:
+            if guard is not None and not guard._restored:
+                guard.restore()
+            signal.signal(signal.SIGINT, previous)
 
     def test_taskkill_128_remains_primary_when_post_cim_raises(self):
         process = mock.Mock(pid=2232)
@@ -762,6 +840,127 @@ time.sleep(60)
                 finally:
                     for handle in handles:
                         _winapi.CloseHandle(handle)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 native SIGINT and handles')
+    def test_native_sigint_exactly_before_each_closehandle_and_double_interrupt(self):
+        import _winapi
+
+        # An independent SYNCHRONIZE handle for each living member survives
+        # the owner's two CloseHandle calls and establishes actual termination.
+        root_code = """
+from pathlib import Path
+import subprocess, sys, time
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path('child.pid').write_text(str(child.pid), encoding='ascii')
+time.sleep(60)
+"""
+        for target, count in (('_job', 1), ('_process', 1), ('_job', 2)):
+            with self.subTest(target=target, count=count), tempfile.TemporaryDirectory() as tmp:
+                directory = Path(tmp)
+                process = None
+                handles = []
+                close_calls = []
+                injected = []
+                real_close = _winapi.CloseHandle
+                try:
+                    process = harness.WindowsJobProcess(
+                        [sys.executable, '-c', root_code], directory, os.environ.copy())
+                    pidfile = directory / 'child.pid'
+                    deadline = time.monotonic() + 10
+                    while not pidfile.exists() and time.monotonic() < deadline:
+                        time.sleep(.02)
+                    self.assertTrue(pidfile.is_file(), 'Child handshake missing')
+                    for pid in (process.pid, int(pidfile.read_text())):
+                        handles.append(_winapi.OpenProcess(0x100000, False, pid))
+                    for handle in handles:
+                        self.assertEqual(_winapi.WaitForSingleObject(handle, 0), _winapi.WAIT_TIMEOUT)
+                    job_handle, process_handle = process._job, process._process
+
+                    def trace(frame, event, arg):
+                        if (event == 'line' and not injected and
+                                frame.f_code is harness.WindowsJobProcess._close_once.__code__ and
+                                frame.f_locals.get('attribute') == target and
+                                '_winapi.CloseHandle(handle)' in linecache.getline(
+                                    frame.f_code.co_filename, frame.f_lineno)):
+                            injected.append(target)
+                            if target == '_job':
+                                for handle in handles:
+                                    self.assertEqual(
+                                        _winapi.WaitForSingleObject(handle, 0), _winapi.WAIT_TIMEOUT)
+                            for _ in range(count):
+                                signal.raise_signal(signal.SIGINT)
+                        return trace
+
+                    def counted_close(handle):
+                        close_calls.append(handle)
+                        return real_close(handle)
+
+                    try:
+                        with mock.patch.object(_winapi, 'CloseHandle', side_effect=counted_close):
+                            sys.settrace(trace)
+                            with self.assertRaises(KeyboardInterrupt):
+                                process.close_job()
+                                process.close_process()
+                                process._close_sigint.restore()
+                    finally:
+                        sys.settrace(None)
+                    self.assertEqual(injected, [target])
+                    self.assertEqual(close_calls.count(job_handle), 1)
+                    self.assertEqual(close_calls.count(process_handle), 1)
+                    self.assertEqual(process._job_close_state, 'closed')
+                    self.assertEqual(process._process_close_state, 'closed')
+                    self.assertIsNone(process._job)
+                    self.assertIsNone(process._process)
+                    for handle in handles:
+                        self.assertEqual(
+                            _winapi.WaitForSingleObject(handle, 5000), _winapi.WAIT_OBJECT_0)
+                finally:
+                    sys.settrace(None)
+                    if process is not None:
+                        # A failed assertion must still retire the test's Job.
+                        if process._job_close_state == 'owned':
+                            process.close_job()
+                        if process._process_close_state == 'owned':
+                            process.close_process()
+                        if not process._close_sigint._restored:
+                            process._close_sigint.restore()
+                    for handle in handles:
+                        real_close(handle)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 native close failures')
+    def test_native_failed_close_is_uncertain_and_never_retried(self):
+        import _winapi
+        real_close = _winapi.CloseHandle
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            process = harness.WindowsJobProcess(
+                [sys.executable, '-c', 'import time; time.sleep(60)'],
+                directory, os.environ.copy())
+            job = process._job
+            calls = []
+            try:
+                def injected_close(handle):
+                    if handle == job:
+                        calls.append(handle)
+                        raise OSError('simulated Win32 CloseHandle failure')
+                    return real_close(handle)
+
+                with mock.patch.object(_winapi, 'CloseHandle', side_effect=injected_close):
+                    with self.assertRaisesRegex(RuntimeError, 'outcome unverified'):
+                        process.close_job()
+                self.assertEqual(calls, [job])
+                self.assertEqual(process._job_close_state, 'uncertain')
+                with self.assertRaisesRegex(RuntimeError, 'no retry'):
+                    process.close_job()
+                self.assertEqual(calls, [job])
+                process.close_process()
+            finally:
+                # The injected exception occurred before the real API call;
+                # this test alone can safely retire its still-open Job.
+                real_close(job)
+                if not process._close_sigint._restored:
+                    process._close_sigint.restore()
 
     @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 job inheritance')
     def test_native_job_keeps_late_grandchild_after_both_ancestors_exit(self):
