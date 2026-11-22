@@ -22,7 +22,8 @@ for (const activity of Activities.DOCUMENT.activities) {
     activity.id === 'progression-altitude-v1' ? 'altitude-v1' :
     activity.id === 'progression-orientation-3d-v1' ? 'orientation-v1' :
     activity.id === 'progression-decision-h-v1' ? 'decision-h-a-v1' :
-    activity.id === 'progression-mini-grand-prix-v1' ? 'mini-grand-prix-l-v1' : 'legacy-v1';
+    activity.id === 'progression-mini-grand-prix-v1' ? 'mini-grand-prix-l-v1' :
+    activity.id === 'grand-prix-a6-native-experimental-v1' ? undefined : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
