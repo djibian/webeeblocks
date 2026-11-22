@@ -4,7 +4,7 @@ This is test tooling, not a pupil launcher. No package byte, world, controller,
 oracle or timeout is changed. Retain native traces and the exact ordinary AST.
 """
 import argparse
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import hashlib
 import json
 import math
@@ -140,6 +140,23 @@ def _windows_process_snapshot(root_pid, watched=()):
                 'error': (type(error).__name__ + ': ' + str(error))[:512]}
 
 
+def _attempt_cleanup(failures, action, *args, **kwargs):
+    try:
+        action(*args, **kwargs)
+    except BaseException as error:
+        # Defer propagation until the other owned resources are released.
+        failures.append(error)
+
+
+def _error_detail(error):
+    return f'{type(error).__name__}: {error}'
+
+
+def _write_cleanup_diagnostic(path, evidence):
+    path.write_text(json.dumps(evidence, sort_keys=True, indent=2) + '\n',
+                    encoding='utf-8')
+
+
 def stop(process, diagnostic_path=None, launch_snapshot=None):
     if process is None:
         return
@@ -170,7 +187,7 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
         ) if already_exited else _windows_process_snapshot(process.pid)
         if already_exited:
             evidence['root_exit_at_stop'] = 0
-    cleanup_error = None
+    failures = []
     try:
         if not already_exited:
             try:
@@ -186,142 +203,153 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
                     output.decode('utf-8', errors='replace') if isinstance(output, bytes)
                     else str(output))[:16384]
                 evidence['taskkill_output_truncated'] = len(output) > 16384
-                status = process.poll()
-                if status is None:
-                    try:
-                        status = process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        status = None
+                status_error = None
+                try:
+                    status = process.poll()
+                    if status is None:
+                        try:
+                            status = process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            status = None
+                except BaseException as error:
+                    status_error = error
                 evidence['process_after_taskkill'] = status
                 # A nonzero taskkill result is ambiguous even when the root has
                 # exited cleanly. Neither exit=0 nor a SUCCESS message proves
                 # the owned descendants were retired.
                 detail = output.decode('utf-8', errors='replace') if isinstance(
                     output, bytes) else str(output)
-                raise RuntimeError(
+                error = RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup unproven: '
                     f'taskkill={failure.returncode}, process={status!r}, '
                     f'output={detail[-512:]!r}'
-                ) from failure
+                )
+                if status_error is not None:
+                    error.add_note(f'Observing Webots exit after taskkill failed: {_error_detail(status_error)}')
+                raise error from failure
             if diagnostic_path is not None and 'taskkill_output' not in evidence:
                 evidence['taskkill_output'] = (
                     output.decode('utf-8', errors='replace') if isinstance(output, bytes)
                     else str(output))[:16384]
                 evidence['taskkill_output_truncated'] = len(output) > 16384
             evidence['wait_returncode'] = process.wait(timeout=20)
-    except Exception as error:
-        cleanup_error = error
-        evidence['exception'] = (type(error).__name__ + ': ' + str(error))[:750]
-        raise
-    finally:
-        if diagnostic_path is not None:
-            before = evidence.get('before', {})
-            watched = [x['pid'] for x in before.get('owned', [])]
-            after = _windows_process_snapshot(process.pid, watched)
-            evidence['after'] = after
-            if before.get('available') and after.get('available'):
-                old = {(p['pid'], p['created']) for p in before['owned']
-                       if p['created'] is not None}
-                evidence['still_present_same_pid_and_creation'] = [
-                    p for p in after['watched']
-                    if (p['pid'], p['created']) in old]
-                evidence['identity_unproven'] = [
-                    p['pid'] for p in before['owned'] if p['created'] is None]
-                # A child spawned after the initial census can survive the
-                # root. The CIM ancestry traversal intentionally starts from
-                # root_pid even when that root has already disappeared.
-                evidence['untracked_owned_after_cleanup'] = [
-                    p for p in after.get('owned', [])
-                    if p['pid'] != process.pid and
-                    (p['pid'], p['created']) not in old]
-            # Positive evidence of a surviving child is a veto. Missing
-            # before/after CIM evidence or a missing creation identity is
-            # independently inconclusive: do not report a safe retirement.
-            # Neither two snapshots nor taskkill's SUCCESS text prove full
-            # process-lifetime monitoring; keep that limitation explicit.
-            survivors = evidence.get('still_present_same_pid_and_creation', [])
-            untracked = evidence.get('untracked_owned_after_cleanup', [])
-            gaps = []
-            if not before.get('available'):
-                gaps.append('before-snapshot-unavailable')
-            else:
-                # A syntactically valid CIM inventory can still omit the
-                # process known live at the initial poll. Without its identity
-                # we cannot attribute descendants or prove their retirement.
-                # Fallback only supports older tests supplying owned rows.
-                root_seen = before.get('root_present')
-                if root_seen is None:
-                    root_seen = any(p.get('pid') == process.pid
-                                    for p in before.get('owned', []))
-                if root_seen is not True:
-                    gaps.append('before-root-identity-unavailable')
-            if not after.get('available'):
-                gaps.append('after-snapshot-unavailable')
-            if evidence.get('identity_unproven'):
-                gaps.append('creation-identity-unavailable')
-            if before.get('available') and after.get('available'):
-                old_pids = {p['pid'] for p in before['owned']}
-                if any(p['pid'] in old_pids and not p.get('created')
-                       for p in after['watched']):
-                    gaps.append('after-creation-identity-unavailable')
-            evidence['cleanup_observation_gaps'] = gaps
-            # Only an atomic-at-launch job can account for a late descendant
-            # whose parent has already disappeared from both CIM snapshots.
-            active = None
-            try:
-                count = process.active_job_processes()
-                if type(count) is not int or count < 0:
-                    raise ValueError('Invalid Webots job process count')
-                active = count
-            except (AttributeError, OSError, ValueError) as error:
-                evidence['job_accounting_error'] = str(error)[:512]
-            evidence['job_active_processes'] = active
-            no_prior_error = cleanup_error is None
-            survivor_veto = bool(survivors) and no_prior_error
-            untracked_veto = bool(untracked) and no_prior_error
-            observation_veto = bool(gaps) and no_prior_error
-            job_veto = active != 0 and no_prior_error
-            if survivor_veto:
-                evidence['exception'] = (
-                    'RuntimeError: observed same-identity owned descendants survived cleanup')
-            elif untracked_veto:
-                evidence['exception'] = (
-                    'RuntimeError: post-census descendants still present; ancestry unproven')
-            elif observation_veto:
-                evidence['exception'] = (
-                    'RuntimeError: owned process cleanup observation unavailable')
-            elif job_veto:
-                evidence['exception'] = (
-                    f'RuntimeError: owned job cleanup unproven: active processes={active!r}')
-            try:
-                diagnostic_path.write_text(
-                    json.dumps(evidence, sort_keys=True, indent=2) + '\n',
-                    encoding='utf-8')
-            except OSError as error:
-                if cleanup_error is None:
-                    raise
-                cleanup_error.add_note(f'Writing Webots cleanup diagnostic failed: {error}')
-            if survivor_veto:
-                raise RuntimeError(
-                    f'Owned Windows PID {process.pid} cleanup unproven: '
-                    f'{len(survivors)} same-identity descendants survived')
-            if untracked_veto:
-                raise RuntimeError(
-                    f'Owned Windows PID {process.pid} cleanup unproven: '
-                    f'{len(untracked)} post-census descendants still present')
-            if observation_veto:
-                raise RuntimeError(
-                    f'Owned Windows PID {process.pid} cleanup observation unavailable: '
-                    + ', '.join(gaps))
-            if job_veto:
-                raise RuntimeError(
-                    f'Owned Windows PID {process.pid} job cleanup unproven: '
-                    f'active processes={active!r}')
+    except BaseException as error:
+        failures.append(error)
+    if diagnostic_path is not None:
+        _attempt_cleanup(failures, _attest_windows_cleanup, process, evidence,
+                         no_prior_error=not failures)
+        if failures:
+            evidence.setdefault('exception', _error_detail(failures[0])[:750])
+            secondary = [*getattr(failures[0], '__notes__', ()),
+                         *map(_error_detail, failures[1:])]
+            if secondary:
+                evidence['secondary_errors'] = secondary
+        _attempt_cleanup(failures, _write_cleanup_diagnostic, diagnostic_path, evidence)
+    if failures:
+        primary, *secondary = failures
+        for error in secondary:
+            primary.add_note(_error_detail(error))
+        raise primary
+
+
+def _attest_windows_cleanup(process, evidence, *, no_prior_error):
+    before = evidence.get('before', {})
+    watched = [x['pid'] for x in before.get('owned', [])]
+    after = _windows_process_snapshot(process.pid, watched)
+    evidence['after'] = after
+    if before.get('available') and after.get('available'):
+        old = {(p['pid'], p['created']) for p in before['owned']
+               if p['created'] is not None}
+        evidence['still_present_same_pid_and_creation'] = [
+            p for p in after['watched']
+            if (p['pid'], p['created']) in old]
+        evidence['identity_unproven'] = [
+            p['pid'] for p in before['owned'] if p['created'] is None]
+        # A child spawned after the initial census can survive the
+        # root. The CIM ancestry traversal intentionally starts from
+        # root_pid even when that root has already disappeared.
+        evidence['untracked_owned_after_cleanup'] = [
+            p for p in after.get('owned', [])
+            if p['pid'] != process.pid and
+            (p['pid'], p['created']) not in old]
+    # Positive evidence of a surviving child is a veto. Missing
+    # before/after CIM evidence or a missing creation identity is
+    # independently inconclusive: do not report a safe retirement.
+    # Neither two snapshots nor taskkill's SUCCESS text prove full
+    # process-lifetime monitoring; keep that limitation explicit.
+    survivors = evidence.get('still_present_same_pid_and_creation', [])
+    untracked = evidence.get('untracked_owned_after_cleanup', [])
+    gaps = []
+    if not before.get('available'):
+        gaps.append('before-snapshot-unavailable')
+    else:
+        # A syntactically valid CIM inventory can still omit the
+        # process known live at the initial poll. Without its identity
+        # we cannot attribute descendants or prove their retirement.
+        # Fallback only supports older tests supplying owned rows.
+        root_seen = before.get('root_present')
+        if root_seen is None:
+            root_seen = any(p.get('pid') == process.pid
+                            for p in before.get('owned', []))
+        if root_seen is not True:
+            gaps.append('before-root-identity-unavailable')
+    if not after.get('available'):
+        gaps.append('after-snapshot-unavailable')
+    if evidence.get('identity_unproven'):
+        gaps.append('creation-identity-unavailable')
+    if before.get('available') and after.get('available'):
+        old_pids = {p['pid'] for p in before['owned']}
+        if any(p['pid'] in old_pids and not p.get('created')
+               for p in after['watched']):
+            gaps.append('after-creation-identity-unavailable')
+    evidence['cleanup_observation_gaps'] = gaps
+    # Only an atomic-at-launch job can account for a late descendant
+    # whose parent has already disappeared from both CIM snapshots.
+    active = None
+    try:
+        count = process.active_job_processes()
+        if type(count) is not int or count < 0:
+            raise ValueError('Invalid Webots job process count')
+        active = count
+    except (AttributeError, OSError, ValueError) as error:
+        evidence['job_accounting_error'] = str(error)[:512]
+    evidence['job_active_processes'] = active
+    survivor_veto = bool(survivors) and no_prior_error
+    untracked_veto = bool(untracked) and no_prior_error
+    observation_veto = bool(gaps) and no_prior_error
+    job_veto = active != 0 and no_prior_error
+    if survivor_veto:
+        evidence['exception'] = (
+            'RuntimeError: observed same-identity owned descendants survived cleanup')
+    elif untracked_veto:
+        evidence['exception'] = (
+            'RuntimeError: post-census descendants still present; ancestry unproven')
+    elif observation_veto:
+        evidence['exception'] = (
+            'RuntimeError: owned process cleanup observation unavailable')
+    elif job_veto:
+        evidence['exception'] = (
+            f'RuntimeError: owned job cleanup unproven: active processes={active!r}')
+    if survivor_veto:
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} cleanup unproven: '
+            f'{len(survivors)} same-identity descendants survived')
+    if untracked_veto:
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} cleanup unproven: '
+            f'{len(untracked)} post-census descendants still present')
+    if observation_veto:
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} cleanup observation unavailable: '
+            + ', '.join(gaps))
+    if job_veto:
+        raise RuntimeError(
+            f'Owned Windows PID {process.pid} job cleanup unproven: '
+            f'active processes={active!r}')
 
 
 if sys.platform == 'win32':
     import _winapi
-    from contextlib import ExitStack
     import ctypes as c
     from ctypes import wintypes as w
     import msvcrt
@@ -540,76 +568,77 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
         except Exception as error:
             errors.append(error)
 
-    with stdout_path.open('wb') as stdout, stderr_path.open('wb') as stderr:
-        windows = sys.platform == 'win32'
-        diagnostic_path = stdout_path.parent / 'webots-process-cleanup.json' if windows else None
-        if windows:
-            process = WindowsJobProcess(command, cwd, env)
-        else:
-            process = subprocess.Popen(command, cwd=cwd, env=env,
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        launch_snapshot = None
-        started = []
+    windows = sys.platform == 'win32'
+    diagnostic_path = stdout_path.parent / 'webots-process-cleanup.json' if windows else None
+    failures = []
+    with ExitStack() as logs:
         try:
-            # Retain the earlier CIM identity witness as an independent veto.
-            # The live root handle brackets the launch observation.
-            if windows and process.poll() is None:
-                launch_snapshot = _windows_process_snapshot(process.pid)
-                if process.poll() is not None:
-                    launch_snapshot = {'available': False,
-                                       'error': 'Root exited during launch identity observation'}
-            for source, target in ((process.stdout, stdout), (process.stderr, stderr)):
-                thread = threading.Thread(target=drain, args=(source, target), daemon=True)
-                thread.start()
-                started.append(thread)
-            yield process
-        finally:
-            body_error = sys.exc_info()[1]
-            failures = []
+            stdout = stdout_path.open('wb')
+            logs.callback(_attempt_cleanup, failures, stdout.close)
+            stderr = stderr_path.open('wb')
+            logs.callback(_attempt_cleanup, failures, stderr.close)
+            if windows:
+                process = WindowsJobProcess(command, cwd, env)
+            else:
+                process = subprocess.Popen(command, cwd=cwd, env=env,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            launch_snapshot = None
+            started = []
             try:
-                stop(process, diagnostic_path=diagnostic_path, launch_snapshot=launch_snapshot)
-            except Exception as error:
+                # The live root handle brackets the launch identity observation.
+                if windows and process.poll() is None:
+                    launch_snapshot = _windows_process_snapshot(process.pid)
+                    if process.poll() is not None:
+                        launch_snapshot = {'available': False,
+                                           'error': 'Root exited during launch identity observation'}
+                for source, target in ((process.stdout, stdout), (process.stderr, stderr)):
+                    thread = threading.Thread(target=drain, args=(source, target), daemon=True)
+                    thread.start()
+                    started.append(thread)
+                yield process
+            except BaseException as error:
                 failures.append(error)
-            if windows:
+            finally:
                 try:
-                    process.close_job()
-                except OSError as error:
-                    failures.append(error)
-            for thread in started:
-                thread.join(timeout=20)
-            if any(thread.is_alive() for thread in started):
-                failures.append(RuntimeError('Native output pipes did not close after process cleanup'))
-            for source in (process.stdout, process.stderr)[len(started):]:
-                try:
-                    source.close()
-                except OSError as error:
-                    failures.append(error)
-            for error in errors:
-                failure = RuntimeError(f'Native output capture failed: {error}')
-                failure.__cause__ = error
-                failures.append(failure)
-            if windows:
-                try:
-                    process.close_process()
-                except OSError as error:
-                    failures.append(error)
-            if failures:
-                primary = body_error or failures[0]
-                secondary = [f'{type(error).__name__}: {error}' for error in failures if error is not primary]
-                for detail in secondary:
-                    primary.add_note(detail)
-                if diagnostic_path is not None and (secondary or not diagnostic_path.exists()):
                     try:
-                        record = json.loads(read(diagnostic_path) or '{}')
-                        record.setdefault('exception', f'{type(primary).__name__}: {primary}')
-                        record['primary_exception'] = f'{type(primary).__name__}: {primary}'
-                        record['secondary_errors'] = secondary
-                        diagnostic_path.write_text(json.dumps(record, sort_keys=True, indent=2) + '\n',
-                                                   encoding='utf-8')
-                    except (OSError, ValueError) as error:
-                        primary.add_note(f'Updating Webots cleanup diagnostic failed: {error}')
-                if body_error is None:
-                    raise primary
+                        _attempt_cleanup(failures, stop, process, diagnostic_path=diagnostic_path,
+                                         launch_snapshot=launch_snapshot)
+                    finally:
+                        # Closing the last Job handle kills remaining members even
+                        # if stop was interrupted. Do it before waiting for EOF.
+                        if windows:
+                            _attempt_cleanup(failures, process.close_job)
+                    for thread in started:
+                        _attempt_cleanup(failures, thread.join, timeout=20)
+                    for source in (process.stdout, process.stderr)[len(started):]:
+                        _attempt_cleanup(failures, source.close)
+                    if any(thread.is_alive() for thread in started):
+                        failures.append(RuntimeError('Native output pipes did not close after process cleanup'))
+                    for error in errors:
+                        failure = RuntimeError(f'Native output capture failed: {error}')
+                        failure.__cause__ = error
+                        failures.append(failure)
+                finally:
+                    if windows:
+                        _attempt_cleanup(failures, process.close_process)
+        except BaseException as error:
+            failures.append(error)
+    if failures:
+        primary, *secondary = failures
+        for error in secondary:
+            primary.add_note(_error_detail(error))
+            for note in getattr(error, '__notes__', ()):
+                primary.add_note(note)
+        if diagnostic_path is not None:
+            try:
+                record = json.loads(read(diagnostic_path) or '{}')
+                record.setdefault('exception', _error_detail(primary))
+                record['primary_exception'] = _error_detail(primary)
+                record['secondary_errors'] = list(getattr(primary, '__notes__', ()))
+                _write_cleanup_diagnostic(diagnostic_path, record)
+            except BaseException as error:
+                primary.add_note(f'Updating Webots cleanup diagnostic failed: {_error_detail(error)}')
+        raise primary
 
 
 def trial(package, home, output, seed):

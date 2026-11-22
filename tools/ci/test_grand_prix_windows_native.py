@@ -5,11 +5,13 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import time
 from unittest import mock
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.ci import run_grand_prix_windows_native as harness
 from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate, stop, _filter_windows_tree
 from tools.grand_prix.layout_u import generate
 from tools.grand_prix.package_windows_u import local_world
@@ -231,6 +233,41 @@ class EvidenceTests(unittest.TestCase):
                 if active is None:
                     self.assertEqual(evidence['job_accounting_error'], 'Job query unavailable')
 
+    def test_cim_interruption_closes_handles_before_caller_resumes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            command = [sys.executable, '-c', 'import time; time.sleep(60)']
+            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+                process = mock.Mock(pid=child.pid, stdout=child.stdout, stderr=child.stderr)
+                process.poll.side_effect = child.poll
+                process.close_job.side_effect = child.kill
+                before = _filter_windows_tree([
+                    dict(ProcessId=child.pid, ParentProcessId=os.getpid(),
+                         CreationDate='t0', Name='webots-bin.exe')
+                ], child.pid)
+                interruption = KeyboardInterrupt('during stop CIM')
+                try:
+                    with mock.patch.object(sys, 'platform', 'win32'), mock.patch.object(
+                            harness, 'WindowsJobProcess', return_value=process, create=True), mock.patch.object(
+                            harness, '_windows_process_snapshot', side_effect=[before, interruption]) as snapshot, mock.patch.object(
+                            harness.subprocess, 'run') as run:
+                        with self.assertRaises(KeyboardInterrupt) as raised:
+                            with captured_engine(command, directory, {},
+                                                 directory / 'stdout', directory / 'stderr'):
+                                self.assertIsNone(child.poll())
+                    self.assertIs(raised.exception, interruption)
+                    self.assertEqual(snapshot.call_args_list, [mock.call(child.pid), mock.call(child.pid)])
+                    run.assert_not_called()
+                    process.close_job.assert_called_once_with()
+                    process.close_process.assert_called_once_with()
+                    self.assertNotEqual(child.wait(timeout=5), 0)
+                    evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+                    self.assertEqual(evidence['primary_exception'], 'KeyboardInterrupt: during stop CIM')
+                    self.assertNotIn('job_active_processes', evidence)
+                finally:
+                    if child.poll() is None:
+                        child.kill()
+
     def test_taskkill_128_remains_primary_when_capture_pipe_stays_open(self):
         root = dict(pid=2232, parent=50, created='t0', name='webots-bin.exe')
         before = dict(available=True, root_present=True, owned=[root])
@@ -261,6 +298,70 @@ class EvidenceTests(unittest.TestCase):
             self.assertIn('taskkill=128', evidence['exception'])
             self.assertIn('pipes did not close', evidence['secondary_errors'][0])
             process.close_job.assert_called_once_with()
+
+    def test_capture_preserves_primary_when_cleanup_operations_fail(self):
+        for stop_fails in (False, True):
+            with self.subTest(stop_fails=stop_fails), tempfile.TemporaryDirectory() as tmp:
+                directory = Path(tmp)
+                process = mock.Mock(pid=2232)
+                stop_error = OSError('stop failed') if stop_fails else None
+                job_error = OSError('CloseHandle(job) failed')
+                process.close_job.side_effect = job_error
+                process.close_process.side_effect = OSError('CloseHandle(process) failed')
+                thread = mock.Mock()
+                thread.join.side_effect = [KeyboardInterrupt('joining capture pipe'), None]
+                thread.is_alive.return_value = False
+                expected = stop_error or job_error
+                with mock.patch.object(sys, 'platform', 'win32'), mock.patch.object(
+                        harness, 'WindowsJobProcess', return_value=process, create=True), mock.patch.object(
+                        harness, 'stop', side_effect=stop_error), mock.patch.object(
+                        harness.threading, 'Thread', return_value=thread):
+                    with self.assertRaises(OSError) as raised:
+                        with captured_engine(['webots-bin.exe'], directory, {},
+                                             directory / 'stdout', directory / 'stderr'):
+                            pass
+                self.assertIs(raised.exception, expected)
+                process.close_job.assert_called_once_with()
+                process.close_process.assert_called_once_with()
+                self.assertEqual(thread.join.call_args_list, [mock.call(timeout=20)] * 2)
+                evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+                self.assertEqual(evidence['primary_exception'], f'OSError: {expected}')
+                secondary = ['KeyboardInterrupt: joining capture pipe', 'OSError: CloseHandle(process) failed']
+                if stop_fails:
+                    secondary.insert(0, 'OSError: CloseHandle(job) failed')
+                self.assertEqual(evidence['secondary_errors'], secondary)
+                self.assertEqual(raised.exception.__notes__, secondary)
+
+    def test_taskkill_128_remains_primary_when_post_cim_raises(self):
+        process = mock.Mock(pid=2232)
+        process.poll.side_effect = [None, None, None, 0]
+        before = _filter_windows_tree([
+            dict(ProcessId=2232, ParentProcessId=50, CreationDate='t0', Name='webots-bin.exe')
+        ], 2232)
+        failed = subprocess.CalledProcessError(128, ['taskkill'], output=b'SUCCESS: terminated root')
+        thread = mock.Mock()
+        thread.is_alive.return_value = False
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            post_cim_error = KeyboardInterrupt('during post-taskkill CIM')
+            with mock.patch.object(sys, 'platform', 'win32'), mock.patch.object(
+                    harness, 'WindowsJobProcess', return_value=process, create=True), mock.patch.object(
+                    harness, '_windows_process_snapshot', side_effect=[before, before, post_cim_error]), mock.patch.object(
+                    harness.threading, 'Thread', return_value=thread), mock.patch.object(
+                    harness.subprocess, 'run', side_effect=failed):
+                with self.assertRaisesRegex(RuntimeError, 'taskkill=128, process=0') as raised:
+                    with captured_engine(['webots-bin.exe'], directory, {},
+                                         directory / 'stdout', directory / 'stderr'):
+                        pass
+            self.assertIs(raised.exception.__cause__, failed)
+            process.close_job.assert_called_once_with()
+            process.close_process.assert_called_once_with()
+            evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+            self.assertEqual(evidence['taskkill_returncode'], 128)
+            self.assertIn('taskkill=128', evidence['primary_exception'])
+            self.assertEqual(evidence['secondary_errors'], ['KeyboardInterrupt: during post-taskkill CIM'])
+            self.assertEqual(raised.exception.__notes__, evidence['secondary_errors'])
+            self.assertNotIn('job_active_processes', evidence)
 
     def test_cleanup_snapshot_preserves_child_creation_identity_and_bounds(self):
         rows = [
@@ -579,6 +680,88 @@ print('WEBEEBLOCKS_RUNTIME_V2 READY', flush=True)
             if sys.platform == 'win32':
                 evidence = json.loads((root / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
                 self.assertEqual(evidence['job_active_processes'], 0)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 Job disposal')
+    def test_native_job_close_kills_live_root_and_child_after_stop_cim_interrupt(self):
+        import _winapi
+
+        root_code = '''
+from pathlib import Path
+import subprocess, sys, time
+
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path('child.pid.tmp').write_text(str(child.pid), encoding='ascii')
+Path('child.pid.tmp').replace('child.pid')
+time.sleep(60)
+'''
+        command = [sys.executable, '-c', root_code]
+        interruption = KeyboardInterrupt('in stop CIM subprocess')
+        run = subprocess.run
+        handles = []
+        process = None
+        snapshots = []
+
+        def interrupt_second_cim(command, *args, **kwargs):
+            self.assertEqual(command[0], 'powershell.exe')
+            if not snapshots:
+                snapshot = run(command, *args, **kwargs)
+                snapshots.append(snapshot)
+                return snapshot
+            self.assertEqual(len(handles), 2)
+            for handle in handles:
+                self.assertEqual(_winapi.WaitForSingleObject(handle, 0), _winapi.WAIT_TIMEOUT)
+            snapshots.append(interruption)
+            raise interruption
+
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            try:
+                with mock.patch.object(harness.subprocess, 'run', side_effect=interrupt_second_cim), mock.patch.object(
+                        harness, '_windows_process_snapshot', wraps=harness._windows_process_snapshot) as cim, mock.patch.object(
+                        harness.WindowsJobProcess, 'close_job', autospec=True,
+                        side_effect=harness.WindowsJobProcess.close_job) as close_job, mock.patch.object(
+                        harness.WindowsJobProcess, 'close_process', autospec=True,
+                        side_effect=harness.WindowsJobProcess.close_process) as close_process:
+                    with self.assertRaises(KeyboardInterrupt) as raised:
+                        with captured_engine(command, directory, os.environ.copy(),
+                                             directory / 'stdout', directory / 'stderr') as process:
+                            child_pid = directory / 'child.pid'
+                            deadline = time.monotonic() + 10
+                            while not child_pid.is_file() and time.monotonic() < deadline:
+                                time.sleep(.02)
+                            for pid in (process.pid, int(child_pid.read_text(encoding='ascii'))):
+                                handles.append(_winapi.OpenProcess(0x100000, False, pid))  # SYNCHRONIZE
+                            self.assertIsNone(process.poll())
+                            self.assertEqual(process.active_job_processes(), 2)
+                    self.assertIs(raised.exception, interruption)
+                    close_job.assert_called_once_with(process)
+                    close_process.assert_called_once_with(process)
+                    self.assertEqual(cim.call_args_list, [mock.call(process.pid)] * 2)
+                self.assertIsNone(process._job)
+                self.assertIsNone(process._process)
+                rows = json.loads(snapshots[0].stdout.decode('utf-8-sig'))
+                initial = _filter_windows_tree(rows, process.pid)
+                self.assertTrue(initial['root_present'])
+                self.assertTrue(all(row['created'] for row in initial['owned']))
+                for handle in handles:
+                    self.assertEqual(_winapi.WaitForSingleObject(handle, 5000), _winapi.WAIT_OBJECT_0)
+                evidence = json.loads((directory / 'webots-process-cleanup.json').read_text(encoding='utf-8'))
+                self.assertEqual(evidence['primary_exception'], 'KeyboardInterrupt: in stop CIM subprocess')
+                self.assertNotIn('job_active_processes', evidence)
+                print('Win32 CIM interruption: both owned handles closed and both live members signaled after Job close')
+            finally:
+                try:
+                    if process is not None:
+                        try:
+                            if process._job is not None:
+                                process.close_job()
+                        finally:
+                            if process._process is not None:
+                                process.close_process()
+                finally:
+                    for handle in handles:
+                        _winapi.CloseHandle(handle)
 
     @unittest.skipUnless(sys.platform == 'win32', 'requires Win32 job inheritance')
     def test_native_job_keeps_late_grandchild_after_both_ancestors_exit(self):
