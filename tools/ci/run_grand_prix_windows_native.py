@@ -89,6 +89,10 @@ def _filter_windows_tree(rows, root_pid, watched=()):
         created = row.get('CreationDate')
         if created is not None and not isinstance(created, str):
             raise ValueError('Malformed process creation identity')
+        if isinstance(created, str) and not created.strip():
+            created = None
+        if pid in by_pid:
+            raise ValueError('Duplicate process PID in CIM inventory')
         by_pid[pid] = dict(pid=pid, parent=parent, created=created,
                            name=str(row.get('Name', ''))[:128])
     owned = {root_pid}
@@ -175,14 +179,16 @@ def stop(process, diagnostic_path=None):
                 except subprocess.TimeoutExpired:
                     status = None
             evidence['process_after_taskkill'] = status
-            if status != 0:
-                detail = output.decode('utf-8', errors='replace') if isinstance(
-                    output, bytes) else str(output)
-                raise RuntimeError(
-                    f'Owned Windows PID {process.pid} cleanup unproven: '
-                    f'taskkill={failure.returncode}, process={status!r}, '
-                    f'output={detail[-512:]!r}'
-                ) from failure
+            # A nonzero taskkill result is ambiguous even when the root has
+            # exited cleanly. Neither exit=0 nor a SUCCESS message proves
+            # the owned descendants were retired.
+            detail = output.decode('utf-8', errors='replace') if isinstance(
+                output, bytes) else str(output)
+            raise RuntimeError(
+                f'Owned Windows PID {process.pid} cleanup unproven: '
+                f'taskkill={failure.returncode}, process={status!r}, '
+                f'output={detail[-512:]!r}'
+            ) from failure
         if diagnostic_path is not None and 'taskkill_output' not in evidence:
             evidence['taskkill_output'] = (
                 output.decode('utf-8', errors='replace') if isinstance(output, bytes)
@@ -206,14 +212,45 @@ def stop(process, diagnostic_path=None):
                     if (p['pid'], p['created']) in old]
                 evidence['identity_unproven'] = [
                     p['pid'] for p in before['owned'] if p['created'] is None]
-            # A surviving same-PID, same-creation child is positive evidence
-            # of failed retirement. Keep the original exception, if any, and
-            # preserve the forensic JSON before vetoing an apparent success.
+            # Positive evidence of a surviving child is a veto. Missing
+            # before/after CIM evidence or a missing creation identity is
+            # independently inconclusive: do not report a safe retirement.
+            # Neither two snapshots nor taskkill's SUCCESS text prove full
+            # process-lifetime monitoring; keep that limitation explicit.
             survivors = evidence.get('still_present_same_pid_and_creation', [])
-            survivor_veto = bool(survivors) and sys.exc_info()[0] is None
+            gaps = []
+            if not before.get('available'):
+                gaps.append('before-snapshot-unavailable')
+            else:
+                # A syntactically valid CIM inventory can still omit the
+                # process known live at the initial poll. Without its identity
+                # we cannot attribute descendants or prove their retirement.
+                # Fallback only supports older tests supplying owned rows.
+                root_seen = before.get('root_present')
+                if root_seen is None:
+                    root_seen = any(p.get('pid') == process.pid
+                                    for p in before.get('owned', []))
+                if root_seen is not True:
+                    gaps.append('before-root-identity-unavailable')
+            if not after.get('available'):
+                gaps.append('after-snapshot-unavailable')
+            if evidence.get('identity_unproven'):
+                gaps.append('creation-identity-unavailable')
+            if before.get('available') and after.get('available'):
+                old_pids = {p['pid'] for p in before['owned']}
+                if any(p['pid'] in old_pids and not p.get('created')
+                       for p in after['watched']):
+                    gaps.append('after-creation-identity-unavailable')
+            evidence['cleanup_observation_gaps'] = gaps
+            no_prior_error = sys.exc_info()[0] is None
+            survivor_veto = bool(survivors) and no_prior_error
+            observation_veto = bool(gaps) and no_prior_error
             if survivor_veto:
                 evidence['exception'] = (
                     'RuntimeError: observed same-identity owned descendants survived cleanup')
+            elif observation_veto:
+                evidence['exception'] = (
+                    'RuntimeError: owned process cleanup observation unavailable')
             diagnostic_path.write_text(
                 json.dumps(evidence, sort_keys=True, indent=2) + '\n',
                 encoding='utf-8')
@@ -221,6 +258,10 @@ def stop(process, diagnostic_path=None):
                 raise RuntimeError(
                     f'Owned Windows PID {process.pid} cleanup unproven: '
                     f'{len(survivors)} same-identity descendants survived')
+            if observation_veto:
+                raise RuntimeError(
+                    f'Owned Windows PID {process.pid} cleanup observation unavailable: '
+                    + ', '.join(gaps))
 
 
 def engine_environment(home, ambient):
