@@ -10,6 +10,7 @@ import json
 import math
 import os
 from pathlib import Path
+import signal
 import shutil
 import socket
 import subprocess
@@ -146,6 +147,61 @@ def _attempt_cleanup(failures, action, *args, **kwargs):
     except BaseException as error:
         # Defer propagation until the other owned resources are released.
         failures.append(error)
+
+
+class _Win32CloseSigintGuard:
+    """Install before acquiring Win32 handles; restore only after both releases.
+
+    Outside the tiny close section, forward SIGINT to the original Python
+    handler. While armed, record rather than raise it; replay after closure.
+    Installing/restoring signal handlers with an owned raw handle would merely
+    relocate the original race. All ownership and closure is main-thread only.
+    """
+
+    def __init__(self):
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError('Win32 handle owner requires the Python main thread')
+        self._previous = signal.getsignal(signal.SIGINT)
+        self._armed = False
+        self._restored = False
+        self._pending = []
+        signal.signal(signal.SIGINT, self._receive)
+
+    def _receive(self, signum, frame):
+        if self._armed:
+            self._pending.append((signum, frame))
+        elif callable(self._previous):
+            self._previous(signum, frame)
+        elif self._previous != signal.SIG_IGN:
+            raise KeyboardInterrupt()
+
+    def arm(self):
+        # No CloseHandle has started here. A SIGINT delivered immediately
+        # before the armed assignment is safe to record and retry; bound the
+        # transition rather than retrying a potentially completed CloseHandle.
+        for _ in range(3):
+            try:
+                self._armed = True
+                return
+            except KeyboardInterrupt:
+                self._pending.append((signal.SIGINT, None))
+        raise RuntimeError('Cannot attest SIGINT protection for Win32 close')
+
+    def restore(self):
+        if self._restored:
+            return
+        # Called only after both handles have been attempted. A SIGINT during
+        # restoration cannot strand a handle; do not swallow deferred delivery.
+        signal.signal(signal.SIGINT, self._previous)
+        self._restored = True
+        self._armed = False
+        if self._pending:
+            signum, frame = self._pending[0]
+            if callable(self._previous):
+                self._previous(signum, frame)
+            elif self._previous == signal.SIG_DFL:
+                signal.raise_signal(signum)
+            # SIG_IGN stays ignored, as it was before installing the guard.
 
 
 def _error_detail(error):
@@ -480,9 +536,16 @@ if sys.platform == 'win32':
         def __init__(self, command, cwd, env):
             self.args = command
             self.returncode = None
+            self._job = self._process = None
+            self._job_close_state = self._process_close_state = 'not-owned'
+            # The guard is installed BEFORE either raw handle exists; it
+            # forwards ordinary SIGINT until the actual release section.
+            self._close_sigint = _Win32CloseSigintGuard()
             with ExitStack() as launch, ExitStack() as writers:
+                launch.callback(self._close_sigint.restore)
                 # Anonymous, non-inheritable job. Neither breakaway flag is set.
                 self._job = _check(_create_job(None, None), 'CreateJobObjectW')
+                self._job_close_state = 'owned'
                 launch.callback(self.close_job)
                 limits = _ExtendedLimits()
                 limits.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
@@ -500,6 +563,7 @@ if sys.platform == 'win32':
                     os.set_handle_inheritable(handle, True)
                 info = _start(command, cwd, env, self._job, handles)
                 self._process = info.hProcess
+                self._process_close_state = 'owned'
                 launch.callback(self.close_process)
                 _winapi.CloseHandle(info.hThread)
                 self.pid = info.dwProcessId
@@ -525,18 +589,36 @@ if sys.platform == 'win32':
                               c.byref(accounting), c.sizeof(accounting), None), 'Query Webots job accounting')
             return accounting.ActiveProcesses
 
+        def _close_once(self, attribute, state_attribute):
+            state = getattr(self, state_attribute)
+            if state == 'closed' or state == 'not-owned':
+                return
+            if state != 'owned':
+                raise RuntimeError(f'{attribute} CloseHandle outcome is unverified; no retry')
+            self._close_sigint.arm()
+            handle = getattr(self, attribute)
+            # A failure after entering the native operation cannot prove
+            # whether the kernel closed this value. Do not risk double-close
+            # of a recycled Windows handle; explicitly fail the attestation.
+            setattr(self, state_attribute, 'in-call')
+            try:
+                _winapi.CloseHandle(handle)
+            except BaseException as error:
+                setattr(self, state_attribute, 'uncertain')
+                raise RuntimeError(f'{attribute} CloseHandle outcome unverified') from error
+            setattr(self, state_attribute, 'closed')
+            setattr(self, attribute, None)
+
         def close_job(self):
-            # Emergency retirement on all paths. Only a successful accounting
-            # query before this close can attest that the job drained.
-            _winapi.CloseHandle(self._job)
-            self._job = None
+            # The last Job handle terminates all remaining members.
+            self._close_once('_job', '_job_close_state')
 
         def close_process(self):
             try:
-                self.poll()
+                if self._process_close_state == 'owned':
+                    self.poll()
             finally:
-                _winapi.CloseHandle(self._process)
-                self._process = None
+                self._close_once('_process', '_process_close_state')
 
 
 def engine_environment(home, ambient):
@@ -600,27 +682,33 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
                 failures.append(error)
             finally:
                 try:
-                    try:
-                        _attempt_cleanup(failures, stop, process, diagnostic_path=diagnostic_path,
-                                         launch_snapshot=launch_snapshot)
-                    finally:
-                        # Closing the last Job handle kills remaining members even
-                        # if stop was interrupted. Do it before waiting for EOF.
-                        if windows:
-                            _attempt_cleanup(failures, process.close_job)
-                    for thread in started:
-                        _attempt_cleanup(failures, thread.join, timeout=20)
-                    for source in (process.stdout, process.stderr)[len(started):]:
-                        _attempt_cleanup(failures, source.close)
-                    if any(thread.is_alive() for thread in started):
-                        failures.append(RuntimeError('Native output pipes did not close after process cleanup'))
-                    for error in errors:
-                        failure = RuntimeError(f'Native output capture failed: {error}')
-                        failure.__cause__ = error
-                        failures.append(failure)
+                    _attempt_cleanup(failures, stop, process, diagnostic_path=diagnostic_path,
+                                     launch_snapshot=launch_snapshot)
                 finally:
+                    # Release BOTH handles back-to-back, before pipe joins.
+                    # SIGINT is deferred only across these actual operations,
+                    # then replayed with the original handler. Nested finally
+                    # ensures even a failed Job close cannot skip process close.
                     if windows:
-                        _attempt_cleanup(failures, process.close_process)
+                        try:
+                            _attempt_cleanup(failures, process.close_job)
+                        finally:
+                            try:
+                                _attempt_cleanup(failures, process.close_process)
+                            finally:
+                                guard = getattr(process, '_close_sigint', None)
+                                if isinstance(guard, _Win32CloseSigintGuard):
+                                    _attempt_cleanup(failures, guard.restore)
+                for thread in started:
+                    _attempt_cleanup(failures, thread.join, timeout=20)
+                for source in (process.stdout, process.stderr)[len(started):]:
+                    _attempt_cleanup(failures, source.close)
+                if any(thread.is_alive() for thread in started):
+                    failures.append(RuntimeError('Native output pipes did not close after process cleanup'))
+                for error in errors:
+                    failure = RuntimeError(f'Native output capture failed: {error}')
+                    failure.__cause__ = error
+                    failures.append(failure)
         except BaseException as error:
             failures.append(error)
     if failures:
