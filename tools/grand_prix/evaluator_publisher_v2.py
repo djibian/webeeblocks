@@ -12,6 +12,7 @@ import math
 import os
 
 from tools.grand_prix.evaluator_observation_v2 import NativeCourseObservation
+from tools.grand_prix.a7_retreat import retreat_direction
 from tools.grand_prix.evaluator_scene_identity_v2 import read_native_evaluator_scene
 from tools.grand_prix.evaluator_native_contacts_v2 import read_contacts
 from tools.grand_prix.evaluator_native_kinematics_v2 import _now_ms, read_kinematics
@@ -105,7 +106,7 @@ class NativeRouteEvaluator:
         self.phase = 'waiting'
         self.last_error = None
 
-    def _close(self, now, reason, *, error=None):
+    def _close(self, now, reason, *, error=None, retreat=None):
         # A terminal cause must remain available until the pilot consumes it;
         # repeated failed ticks may never erase the latched terminal witness.
         if self._context is not None and self._context.attempt <= self._closed_attempt:
@@ -127,10 +128,11 @@ class NativeRouteEvaluator:
             if (self._active.attempt == self._context.attempt and cause in (
                     'envelope-contact', 'course-boundary', 'altitude',
                     'low-outside-zone', 'wrong-landing')):
+                suffix = f' retreat_dir={retreat}' if retreat is not None else ''
                 self._reply.setSFString(
                     f'GP_ROUTE_TERMINAL_V1 attempt={self._context.attempt} '
                     f'config={self._context.config} epoch={self._context.epoch} '
-                    f'time_ms={now} reason={cause}')
+                    f'time_ms={now} reason={cause}{suffix}')
         if self._context is not None:
             LOGGER.warning('GP_ROUTE_EVALUATOR_CLOSED attempt=%d time_ms=%d reason=%s detail=%r',
                            self._context.attempt, now, reason, self.last_error)
@@ -412,7 +414,9 @@ class NativeRouteEvaluator:
                 result = self._active.result
                 if result is not None:
                     if result.status != 'achieved':
-                        self._close(now, result.reason)
+                        retreat = (retreat_direction(before, observation)
+                                   if result.reason == 'envelope-contact' else None)
+                        self._close(now, result.reason, retreat=retreat)
                         return
                     if not self._landed(observation):
                         self._close(now, 'unconfirmed-native-landing')

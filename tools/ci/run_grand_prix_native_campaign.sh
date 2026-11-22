@@ -76,6 +76,10 @@ if [[ "$ACTIVITY" == 6 ]]; then
   bash tools/prepare_runtime_v2.sh
   python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
   node tools/grand_prix/witness_workspace_a6.js
+elif [[ "$ACTIVITY" == 7 ]]; then
+  bash tools/prepare_runtime_v2.sh
+  python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission tools.ci.test_a7_retreat
+  node tools/grand_prix/witness_workspace_a7.js
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native

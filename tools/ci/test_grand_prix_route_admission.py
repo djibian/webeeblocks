@@ -212,7 +212,7 @@ int main(){
   config="gp-progression-v1-a5-v6";query(0);
   config="gp-progression-v1-a5-v01";query(0);
   config="gp-progression-v1-a6-v6";query(0);
-  config="gp-progression-v1-a7-v1";query(0);
+  config="gp-progression-v1-a7-v8";query(0);
   fresh("gp-progression-v1-a2-v1");ready();query(1);
   fresh("gp-progression-v1-a3-v1");ready();query(1);
   fresh("gp-progression-v1-a4-v1");ready();query(1);
@@ -227,6 +227,30 @@ int main(){
   for (int variant=1;variant<=5;++variant) {
     fresh("gp-progression-v1-a6-v"+std::to_string(variant));ready();query(1);
   }
+  for (int variant=1;variant<=7;++variant) {
+    fresh("gp-progression-v1-a7-v"+std::to_string(variant));ready();query(1);
+  }
+  fresh("gp-progression-v1-a7-v2");ready();assert(gp_u_start(now)==1);
+  alive(2144);assert(gp_u_deadline(now,0)==0);
+  const std::string contact=response("TERMINAL","2168")+" reason=envelope-contact";
+  evidence=contact+" retreat_dir=3";
+  now=2.176;assert(gp_u_deadline(now,0)==1);
+  assert(gp_route_a7_attempt() && gp_route_a7_retreat(now)==3);
+  assert(vehicle.find("reason=envelope-contact")!=std::string::npos);
+  assert(gp_route_a7_retreat(2.160)==-1); // Future evidence.
+  assert(gp_route_a7_retreat(2.208)==-1); // Stale evidence.
+  evidence=contact;assert(gp_route_a7_retreat(now)==-1); // Cause alone.
+  evidence=contact+" retreat_dir=4";assert(gp_route_a7_retreat(now)==-1);
+  evidence=contact+" retreat_dir=3 extra";assert(gp_route_a7_retreat(now)==-1);
+  evidence=contact+" retreat_dir=3";config="gp-progression-v1-a7-v5";
+  assert(gp_route_a7_retreat(now)==-1); // Other configuration.
+  config="gp-progression-v1-a7-v2";gp_u_reset_complete();
+  assert(!gp_route_a7_attempt() && gp_route_a7_retreat(now)==-1);
+  fresh("gp-progression-v1-a7-v2");ready();assert(gp_u_start(now)==1);
+  alive(2144);assert(gp_u_deadline(now,0)==0);
+  evidence=contact+" retreat_dir=3"; // Previous native incarnation.
+  now=2.176;assert(gp_u_deadline(now,0)==1);
+  assert(gp_route_a7_retreat(now)==-1);
   fresh("gp-progression-v1-a1-v1");ready();assert(gp_u_start(now)==1);
   alive(212080);assert(gp_u_deadline(now,0)==0);
   alive(212112);assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);

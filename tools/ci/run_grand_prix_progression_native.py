@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None):
@@ -29,6 +29,10 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
             raise ValueError('A5 needs a saved and reopened .wbb witness')
         forced_attempts += (5,)
         last_attempt = 5
+    if activity == 7:
+        last_attempt = 5 if variant in (2, 3, 7) else 4
+        if last_attempt == 5:
+            forced_attempts += (5,)
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
@@ -40,7 +44,7 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         raise RuntimeError('The progression requires the real R2025a engine')
     out.mkdir(parents=True, exist_ok=True)
     probe_args = [str(activity)]
-    if activity in (4, 6):
+    if activity in (4, 6, 7):
         probe_args.append(str(variant))
     if pupil_project is not None:
         project_copy = out / 'pupil-project.wbb'
@@ -49,8 +53,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     if activity == 3:
         env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
-    if activity == 6:
-        env['WEBEEBLOCKS_A6_WBB_OUT'] = str(out / 'a6-witness.wbb')
+    if activity in (6, 7):
+        env[f'WEBEEBLOCKS_A{activity}_WBB_OUT'] = str(out / f'a{activity}-witness.wbb')
     with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
         folder = Path(temporary)
         for key, name in (('XDG_CONFIG_HOME', 'config'), ('XDG_CACHE_HOME', 'cache'),
@@ -107,18 +111,32 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
     elapsed = [int(stamp) - origin_times[attempt] for (stamp, _), attempt in
                zip(deadlines, forced_attempts)]
-    early_landings = elapsed[:-1] if activity in (1, 5) else elapsed
+    exact_deadline = activity in (1, 5) or (activity, variant) == (7, 7)
+    early_landings = elapsed[:-1] if exact_deadline else elapsed
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
-            (activity in (1, 5) and elapsed[-1] != 210000)):
+            (exact_deadline and elapsed[-1] != 210000)):
         raise RuntimeError(f'{label} forced LAND violates the 210000 ms deadline')
+    if activity == 7:
+        import hashlib
+        project = out / 'a7-witness.wbb'
+        if not project.is_file() or len(project.read_bytes()) < 100:
+            raise RuntimeError(f'{label} product .wbb bytes absent')
+        if not re.search(r'^A7_WBB_PRODUCT_PASS ', (out / 'wwi.log').read_text(), re.M):
+            raise RuntimeError(f'{label} missing product Blockly/AST/interpreter verdict')
+        retreats = re.findall(r'^GP_U_A7_RETREAT t=(\d+\.\d+) ', log, re.M)
+        expected_retreats = 1 if variant == 2 else 0
+        if len(retreats) != expected_retreats or (
+                retreats and round(float(retreats[0]) * 1000) != int(deadlines[-1][0])):
+            raise RuntimeError(f'{label} unexpected A7 retreat activation')
+        print(f'PASS A7 product .wbb SHA256={hashlib.sha256(project.read_bytes()).hexdigest()}')
     print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
-    parser.add_argument('--variant', type=int, choices=(1, 2, 3, 4, 5), default=1)
+    parser.add_argument('--variant', type=int, choices=range(1, 8), default=1)
     args = parser.parse_args()
-    if args.activity not in (4, 5, 6) and args.variant != 1:
-        parser.error('only activities 4–6 have multiple active variants')
+    if args.activity not in (4, 5, 6, 7) and args.variant != 1:
+        parser.error('only activities 4–7 have multiple active variants')
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)
