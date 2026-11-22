@@ -395,6 +395,29 @@ class EvidenceTests(unittest.TestCase):
                 guard.restore()
             signal.signal(signal.SIGINT, previous)
 
+    def test_failed_sigint_handler_restoration_fails_explicitly_without_silencing_sigint(self):
+        previous = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        guard = harness._Win32CloseSigintGuard()
+        try:
+            guard.arm()
+            signal.raise_signal(signal.SIGINT)
+            with mock.patch.object(harness.signal, 'signal',
+                                   side_effect=OSError('restore failed')):
+                with self.assertRaisesRegex(OSError, 'restore failed') as raised:
+                    guard.restore()
+            self.assertFalse(guard._armed)
+            self.assertFalse(guard._restored)
+            self.assertIn('KeyboardInterrupt', ' '.join(raised.exception.__notes__))
+            with self.assertRaises(KeyboardInterrupt):
+                signal.raise_signal(signal.SIGINT)  # Forwarding still works.
+            guard.restore()
+            self.assertTrue(guard._restored)
+        finally:
+            if not guard._restored:
+                guard.restore()
+            signal.signal(signal.SIGINT, previous)
+
     def test_taskkill_128_remains_primary_with_sigint_deferred_in_close(self):
         root_error = subprocess.CalledProcessError(128, ['taskkill'])
         primary = RuntimeError('Owned Windows PID 2232 cleanup unproven: taskkill=128')
