@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None):
@@ -31,13 +31,16 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         last_attempt = 5
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
-    out = OUT / (f'route-a{activity}-v{variant}-native' if activity in (4, 5)
-                 else f'route-a{activity}-native')
+    if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
+        raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
+    suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
+    out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
+                  else f'route-a{activity}-native') + suffix)
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
     out.mkdir(parents=True, exist_ok=True)
     probe_args = [str(activity)]
-    if activity == 4:
+    if activity in (4, 6):
         probe_args.append(str(variant))
     if pupil_project is not None:
         project_copy = out / 'pupil-project.wbb'
@@ -46,6 +49,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     if activity == 3:
         env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
+    if activity == 6:
+        env['WEBEEBLOCKS_A6_WBB_OUT'] = str(out / 'a6-witness.wbb')
     with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
         folder = Path(temporary)
         for key, name in (('XDG_CONFIG_HOME', 'config'), ('XDG_CACHE_HOME', 'cache'),
@@ -114,6 +119,6 @@ if __name__ == '__main__':
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
     parser.add_argument('--variant', type=int, choices=(1, 2, 3, 4, 5), default=1)
     args = parser.parse_args()
-    if args.activity not in (4, 5) and args.variant != 1:
-        parser.error('only activity 4 has multiple active variants')
+    if args.activity not in (4, 5, 6) and args.variant != 1:
+        parser.error('only activities 4–6 have multiple active variants')
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)

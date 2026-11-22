@@ -3,6 +3,8 @@
 const assert = require('node:assert/strict');
 const {setTimeout: delay} = require('node:timers/promises');
 const Backend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+const fs = require('node:fs');
+const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
 const robot = 'Crazyflie WebeeBlocks';
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
 const send = payload => socket.send('robot:' + robot + ':' + payload);
@@ -12,6 +14,7 @@ const backend = new Backend({send}, {
 });
 const evaluation = {type: 'mission-state-v1', oracle: 'grand-prix-route-v2'};
 let forcedLandings = 0;
+let forcedLandingError;
 
 socket.onmessage = event => {
   for (const line of String(event.data).split(/\r?\n/)) {
@@ -21,6 +24,9 @@ socket.onmessage = event => {
         continue;
       if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
         forcedLandings++;
+      if (typeof reply.message === 'string' &&
+          reply.message.startsWith('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR '))
+        forcedLandingError = reply.message;
       backend.handleMessage(reply.message);
     }
   }
@@ -46,8 +52,9 @@ async function approachLastLeg() {
 // RESET is explicitly fenced until the independent forced LAND has finished.
 async function waitForForcedLanding(expectedCount) {
   const deadline = Date.now() + 35000;
-  while (forcedLandings < expectedCount && Date.now() < deadline)
+  while (forcedLandings < expectedCount && !forcedLandingError && Date.now() < deadline)
     await delay(50);
+  assert.equal(forcedLandingError, undefined, 'native forced LAND failed');
   assert.equal(forcedLandings, expectedCount, 'native forced LAND did not complete');
 }
 
@@ -345,7 +352,75 @@ async function activityFive() {
   }
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive};
+async function activitySix() {
+  const A6Wbb = require('../grand_prix/witness_workspace_a6.js');
+  // World index belongs to the test harness only, never to the pupil .wbb.
+  const variant=Number(process.argv[4]);
+  assert(Number.isInteger(variant)&&variant>=1&&variant<=5);
+  const witness=A6Wbb.build();
+  assert.equal(A6Wbb.build().sha256,witness.sha256,'WBB bytes must be reproducible');
+  if(process.env.WEBEEBLOCKS_A6_WBB_OUT)
+    fs.writeFileSync(process.env.WEBEEBLOCKS_A6_WBB_OUT,witness.content);
+  console.log(JSON.stringify({event:'A6_WBB',sha256:witness.sha256,
+    bytes:Buffer.byteLength(witness.content)}));
+  const observations=[];
+  await Interpreter.run(witness.ast,backend,{maxSteps:20000,hooks:{onSensor:sample=>{
+    observations.push({direction:sample.direction,value:sample.value});
+    console.log(JSON.stringify({event:'A6_SENSOR',direction:sample.direction,value:sample.value}));
+  }}});
+  const front=observations.filter(x=>x.direction==='front');
+  const left=observations.find(x=>x.direction==='left');
+  const right=observations.find(x=>x.direction==='right');
+  assert(front.length>=1&&front[0].value>.65&&front[0].value<1.75);
+  assert(left&&right,'both lateral sensors required, even when H is closed');
+  if(variant<=3){
+    assert(left.value>.20&&left.value<.45&&right.value>.20&&right.value<.45,
+      'open H must expose both physical uprights');
+    assert.equal(front.length,2,'post-H front must detect the terminal H');
+  }else{
+    assert(left.value>1.9&&right.value>1.9,'closed H lateral contrast missing');
+    assert.equal(front.length,1,'closed H must not be crossed');
+  }
+  await backend.completeActivityMission(evaluation);
+  await outcome({status:'achieved'});
+
+  await backend.resetSimulation();
+  await takeoff(.90);
+  // Same mandatory independent envelope-contact refusal and native LAND;
+  // slower permitted approach isolates impact dynamics from LAND handling.
+  await backend.setSpeed(.14);
+  const negativeFirst = await backend.readRange('front');
+  assert(negativeFirst > .65 && negativeFirst < 1.75,
+    'negative obstacle lacks sensor margin');
+  await backend.move('forward', negativeFirst - .40);
+  const negativeNear = await backend.readRange('front');
+  assert(negativeNear > .24 && negativeNear < .57, 'negative standoff lost');
+  console.log(JSON.stringify({negativeFirst, negativeNear, speed:.14}));
+  // The strict 0.60 m V5 falsifier remains the DEFAULT and mandatory.
+  // A separately labeled 0.40 m diagnostic may test shallower penetration;
+  // it cannot replace or override the strict safety gate.
+  const contactDiagnostic = process.env.WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC;
+  assert(contactDiagnostic === undefined || contactDiagnostic === '1',
+    'unrecognized A6 diagnostic override');
+  const contactAdvance = contactDiagnostic === '1' ? .40 : .60;
+  console.log(JSON.stringify({event:'A6_NEGATIVE_CONTACT',advance:contactAdvance,
+    shallowDiagnostic:contactDiagnostic === '1'}));
+  await assert.rejects(backend.move('forward', contactAdvance), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+  await waitForForcedLanding(1);
+
+  // Recovery must be complete BEFORE RESET; the new incarnation cannot
+  // inherit the prior negative. STOP must still cause its own native LAND.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation),
+    {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.9);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {
