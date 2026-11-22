@@ -157,6 +157,35 @@ jobs:
             ci-artifacts/grand-prix-u-geometry/docker.log
           if-no-files-found: error
 
+  # Required A5 native exact-HEAD proof: five internal-controller variants,
+  # strict negative oracles, one real saved and reopened Blockly file and 210 s.
+  grand-prix-progression-a5-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare pinned Blockly 13.2.1 for the same A5 pupil project
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Check strict A5 geometry, current A6 and A8 static witnesses
+        run: python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_evaluator_wire_v2 tools.ci.test_grand_prix_route_admission
+      - name: Prove five A5 native flights, negative oracles, STOP RESET LAND and same Save Open
+        run: python3 tools/ci/run_grand_prix_u_geometry.py --progression-activity 5
+      - name: Archive A5 native worlds, pupil .wbb, H rays, contacts and Docker log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-a5-native-r2025a
+          path: |
+            ci-artifacts/grand-prix-u-geometry/route-a5-native/
+            ci-artifacts/grand-prix-u-geometry/route-a5-v*-native/
+            ci-artifacts/grand-prix-u-geometry/docker.log
+          if-no-files-found: error
+
   # Full 12-route R2025a physical-contact/range geometry proof. This is a
   # separately required witness: existing U/L/H/evaluator safety suites remain.
   grand-prix-v2-native-matrix:

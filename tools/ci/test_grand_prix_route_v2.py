@@ -29,7 +29,7 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
 
-    def test_progression_scenes_share_physical_components_and_only_first_four_can_compose(self):
+    def test_progression_scenes_share_physical_components_and_only_first_five_can_compose(self):
         identifiers = set()
         for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
             for variant in range(1, count + 1):
@@ -50,7 +50,7 @@ class VariableRouteTests(unittest.TestCase):
                     self.assertEqual(scene.count('controller "<none>"'), 1)
                     self.assertNotIn('controllerArgs', scene)
                     self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
-                    if activity <= 4:
+                    if activity <= 5:
                         active = active_course_world(course)
                         self.assertEqual(active.count(f'controllerArgs [ "{course.identifier}" ]'), 2)
                         self.assertIn('controller "grand_prix_route_flight"', active)
@@ -97,12 +97,13 @@ class VariableRouteTests(unittest.TestCase):
             leg = a5.route.legs[-1]
             along, offset = leg.local(a5.landing_position(a5.required_pad))
             self.assertEqual(offset, -.5 if a5.route.turns == ('G',) else .5)
-            # Even the longitudinal lower bound is past the 2 m native ray
-            # range. Verify it against the physical L extents, not its label.
+            # Even at 2.22 m, upstream of the lateral choice, a ray of any
+            # yaw has over 2 m to the nearest longitudinal face of the L.
+            self.assertAlmostEqual(along, 2.33)
             for box in course_physical_boxes(a5)[:2]:
                 centre, _ = leg.local(box.position[:2])
                 half_span = box.size[leg.direction % 2] / 2
-                self.assertGreater(along - centre - half_span, 2.)
+                self.assertGreater(2.22 - centre - half_span, 2.)
         self.assertEqual([progression_course(6, v).count for v in range(1, 6)],
                          [1, 1, 1, 0, 0])
         a7 = [progression_course(7, v) for v in range(1, 8)]
@@ -146,6 +147,39 @@ class VariableRouteTests(unittest.TestCase):
         self.assertLess(max(first_faces), 1.75)  # >=25 cm nominal headroom
         self.assertEqual([round(face, 2) for face in first_faces],
                          [.73, 1.38, 1.48, 1.38, 1.48])
+
+    def test_a5_initial_frontal_range_does_not_reveal_turn(self):
+        """Pure collider-ray parity, not a native range measurement or pupil PASS.
+
+        A fixed lookup from the first frontal reading to the final pad must
+        not solve all five variants without observing the actual L corner.
+        The two opposite-turn pairs have the same first-leg length and same
+        physical *first* collider face on the straight initial frontal ray.
+        """
+        courses = [progression_course(5, variant) for variant in range(1, 6)]
+        self.assertEqual(len({course.identifier for course in courses}), 5)
+        self.assertEqual({course.route.turns for course in courses},
+                         {('G',), ('D',)})
+        for length in (1., 1.4):
+            pair = [course for course in courses
+                    if course.route.lengths[0] == length]
+            self.assertEqual(len(pair), 2)
+            self.assertEqual({course.route.turns for course in pair},
+                             {('G',), ('D',)})
+            faces = []
+            for course in pair:
+                # Only colliders crossing the initial eastward (y=0) ray
+                # can supply its first geometric obstruction.
+                possible_faces = [
+                    box.position[0] - box.size[0]/2
+                    for box in course_physical_boxes(course)
+                    if box.position[1] - box.size[1]/2 <= 0 <=
+                       box.position[1] + box.size[1]/2
+                    and box.position[0] + box.size[0]/2 > 0
+                ]
+                self.assertTrue(possible_faces)
+                faces.append(min(possible_faces))
+            self.assertEqual(faces[0], faces[1])
 
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)

@@ -80,17 +80,35 @@ def check_native(result, course):
         raise RuntimeError("native terminal H ray evidence missing")
     if course.progression is not None and course.progression[0] == 5:
         memory = result.get("a5_memory")
-        if type(memory) is not dict or set(memory) != {"at_turn", "at_choice"}:
+        if type(memory) is not dict or set(memory) != {
+                "at_turn", "at_choice", "at_start", "rear_scan"}:
             raise RuntimeError("missing A5 native memory evidence")
+        scan = memory["rear_scan"]
+        leg = course.route.legs[-1]
+        decision = leg.length - course.pad_distance_from_h
+        expected_poses = [(along, yaw) for along in (2.22, 2.26, decision, 2.36)
+                          for yaw in (-12, -8.2, 0, 8.2, 12)]
+        if (not _rays(memory["at_start"]) or not isinstance(scan, list) or
+                len(scan) != len(expected_poses) or
+                any(not isinstance(row, dict) or
+                    (row.get("along"), row.get("yaw_offset_deg")) != pose or
+                    not _rays(row.get("readings")) or
+                    len(row.get("position", ())) != 3 or
+                    len(row.get("rotation", ())) != 4 or
+                    type(row.get("time_ms")) is not int or row["time_ms"] % 8
+                    for row, pose in zip(scan, expected_poses))):
+            raise RuntimeError("A5 perturbed range observations are incomplete")
         at_turn, at_choice = memory["at_turn"], memory["at_choice"]
         detected, clear = ("right", "left") if course.route.turns == ("G",) else ("left", "right")
-        if (not _rays(at_turn) or not .20 < at_turn[detected] < .35 or
+        if (not _rays(at_turn) or abs(at_turn[detected] - .38) > .02 or
                 at_turn[clear] < 1.999):
             raise RuntimeError("A5 turn cue not visible from the native lateral rays")
         if (type(at_choice) is not list or len(at_choice) != 3 or
                 any(not _rays(rays) or rays["back"] < 1.999 or
                     not .07 < rays["front"] < .30 for rays in at_choice)):
             raise RuntimeError("A5 terminal range exposes the turn cue or misses the terminal H")
+        if any(row["readings"]["back"] < 1.999 for row in scan):
+            raise RuntimeError("A5 rear range reveals the L before the landing choice")
     if course.progression is not None and course.progression[0] == 6:
         check_a6_discrimination(result.get("a6_discrimination"), course)
 

@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3)}
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None):
@@ -24,9 +24,14 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
         if variant != 1:
             forced_attempts += (4,)
         last_attempt = 4 + (pupil_project is not None)
+    if activity == 5:
+        if pupil_project is None:
+            raise ValueError('A5 needs a saved and reopened .wbb witness')
+        forced_attempts += (5,)
+        last_attempt = 5
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
-    out = OUT / (f'route-a{activity}-v{variant}-native' if activity == 4
+    out = OUT / (f'route-a{activity}-v{variant}-native' if activity in (4, 5)
                  else f'route-a{activity}-native')
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
         raise RuntimeError('The progression requires the real R2025a engine')
@@ -97,9 +102,9 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
     origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
     elapsed = [int(stamp) - origin_times[attempt] for (stamp, _), attempt in
                zip(deadlines, forced_attempts)]
-    early_landings = elapsed[:-1] if activity == 1 else elapsed
+    early_landings = elapsed[:-1] if activity in (1, 5) else elapsed
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
-            (activity == 1 and elapsed[-1] != 210000)):
+            (activity in (1, 5) and elapsed[-1] != 210000)):
         raise RuntimeError(f'{label} forced LAND violates the 210000 ms deadline')
     print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 
@@ -107,8 +112,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
-    parser.add_argument('--variant', type=int, choices=(1, 2, 3), default=1)
+    parser.add_argument('--variant', type=int, choices=(1, 2, 3, 4, 5), default=1)
     args = parser.parse_args()
-    if args.activity != 4 and args.variant != 1:
+    if args.activity not in (4, 5) and args.variant != 1:
         parser.error('only activity 4 has multiple active variants')
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant)

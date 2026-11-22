@@ -137,7 +137,12 @@ bool currentConfig(std::string& config) {
       std::strcmp(raw,"gp-progression-v1-a3-v1") &&
       std::strcmp(raw,"gp-progression-v1-a4-v1") &&
       std::strcmp(raw,"gp-progression-v1-a4-v2") &&
-      std::strcmp(raw,"gp-progression-v1-a4-v3")))return false;
+      std::strcmp(raw,"gp-progression-v1-a4-v3") &&
+      std::strcmp(raw,"gp-progression-v1-a5-v1") &&
+      std::strcmp(raw,"gp-progression-v1-a5-v2") &&
+      std::strcmp(raw,"gp-progression-v1-a5-v3") &&
+      std::strcmp(raw,"gp-progression-v1-a5-v4") &&
+      std::strcmp(raw,"gp-progression-v1-a5-v5")))return false;
   for(const char *p=raw;*p;++p)
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.
