@@ -204,6 +204,20 @@ class _Win32CloseSigintGuard:
             # SIG_IGN stays ignored, as it was before installing the guard.
 
 
+def _attempt_owned_win32_close(failures, process, action, state_name):
+    """Bounded pre-call recovery; NEVER retry a native call with unknown outcome."""
+    state = getattr(process, state_name, None)
+    if not isinstance(state, str):  # Existing portable mock witnesses.
+        _attempt_cleanup(failures, action)
+        return
+    for _ in range(3):
+        if getattr(process, state_name) != 'owned':
+            return
+        _attempt_cleanup(failures, action)
+    if getattr(process, state_name) == 'owned':
+        failures.append(RuntimeError(f'{state_name}: no Win32 close call attested'))
+
+
 def _error_detail(error):
     return f'{type(error).__name__}: {error}'
 
@@ -690,13 +704,20 @@ def captured_engine(command, cwd, env, stdout_path, stderr_path):
                     # then replayed with the original handler. Nested finally
                     # ensures even a failed Job close cannot skip process close.
                     if windows:
+                        guard = getattr(process, '_close_sigint', None)
                         try:
-                            _attempt_cleanup(failures, process.close_job)
+                            if isinstance(guard, _Win32CloseSigintGuard):
+                                # Arm before invoking either closure so an
+                                # interrupt at method entry is also deferred.
+                                _attempt_cleanup(failures, guard.arm)
+                            _attempt_owned_win32_close(
+                                failures, process, process.close_job, '_job_close_state')
                         finally:
                             try:
-                                _attempt_cleanup(failures, process.close_process)
+                                _attempt_owned_win32_close(
+                                    failures, process, process.close_process,
+                                    '_process_close_state')
                             finally:
-                                guard = getattr(process, '_close_sigint', None)
                                 if isinstance(guard, _Win32CloseSigintGuard):
                                     _attempt_cleanup(failures, guard.restore)
                 for thread in started:
