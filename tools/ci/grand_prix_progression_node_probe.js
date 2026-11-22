@@ -6,8 +6,13 @@ const Backend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_bac
 const fs = require('node:fs');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
 const robot = 'Crazyflie WebeeBlocks';
+const rebound = process.env.WEBEEBLOCKS_A7_V5_CASE;
+const events = process.env.WEBEEBLOCKS_A7_V5_EVENTS;
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
-const send = payload => socket.send('robot:' + robot + ':' + payload);
+const send = payload => {
+  socket.send('robot:' + robot + ':' + payload);
+  if (rebound) console.log('A7_V5_WWI > ' + payload);
+};
 const backend = new Backend({send}, {
   simulationStop: true, simulationReset: true, simulationAdmission: true,
   routeTakeoffTimeoutMs: 90000
@@ -22,6 +27,7 @@ socket.onmessage = event => {
       const reply = JSON.parse(line.slice(6));
       if (reply.name !== robot)
         continue;
+      if (rebound) console.log('A7_V5_WWI < ' + reply.message);
       if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
         forcedLandings++;
       if (typeof reply.message === 'string' &&
@@ -420,7 +426,159 @@ async function activitySix() {
   await waitForForcedLanding(2);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix};
+async function reboundLanding() {
+  assert(['stop', 'liveness'].includes(rebound) && events && Number(process.argv[4]) === 5);
+  const interrupted = assert.rejects(backend.land(), {
+    code: rebound === 'stop' ? 'USER_STOPPED' : 'TIME_LIMIT'
+  });
+  // Attach the rejection handler while waiting for the 8-ms native witness.
+  // Await the same promise below so an early or unrelated result still fails.
+  interrupted.catch(() => {});
+  if (rebound === 'stop') {
+    const marker = events + '/stop-request';
+    const deadline = Date.now() + 35000;
+    while (!fs.existsSync(marker) && Date.now() < deadline)
+      await delay(2);
+    assert(fs.existsSync(marker), 'first native separation after motor latch absent');
+    const observedMs = Number(fs.readFileSync(marker, 'utf8'));
+    assert(Number.isSafeInteger(observedMs) && observedMs > 0);
+    const id = backend.nextId;
+    const stopped = backend.stopSimulation();
+    fs.writeFileSync(events + '/stop-sent.tmp', JSON.stringify({
+      id, observed_ms: observedMs, wall_monotonic_ns: process.hrtime.bigint().toString()
+    }));
+    fs.renameSync(events + '/stop-sent.tmp', events + '/stop-sent');
+    await stopped;
+  }
+  await interrupted;
+  assert.equal(forcedLandings, 0, 'independent LAND already ACKed before RESET probe');
+  // Use the actual WWI request without canceling the independent LAND from JS.
+  await assert.rejects(backend._request(['RESET']), error =>
+    ['LANDING_UNCONFIRMED', 'TIME_LIMIT'].includes(error.code));
+  await waitForForcedLanding(1);
+  await backend.resetSimulation();
+  await backend._waitForAdmission(backend.timeObservationEpoch);
+  console.log('A7_V5_WWI_COMPLETE ' + rebound);
+}
+
+async function activitySeven() {
+  const variant = Number(process.argv[4]);
+  async function range(direction = 'front') { return backend.readRange(direction); }
+  async function advanceWhile(direction, distance, condition, limit) {
+    let iterations = 0;
+    while (await condition()) {
+      assert(iterations++ < limit, 'bounded approach exhausted');
+      await backend.move(direction, distance);
+    }
+  }
+  async function observe() {
+    return {front: await range(), left: await range('left'), right: await range('right')};
+  }
+  async function reachObstacle() {
+    await advanceWhile('forward', .24, async () => await range() > .46, 14);
+    let ranges = await observe();
+    for (let fine = 0; fine < 14 && ranges.front > .16 &&
+         ranges.left > .45 && ranges.right > .45; fine++) {
+      await backend.move('forward', .05);
+      ranges = await observe();
+    }
+    // Near a frame, one ray can see its post just before the other. Do not
+    // commit to a classification until both have had a chance to see it.
+    for (let fine = 0; fine < 4 && ranges.front > .16 && ranges.front < .25 &&
+         (ranges.left > .45 || ranges.right > .45); fine++) {
+      await backend.move('forward', .04);
+      ranges = await observe();
+    }
+    return ranges;
+  }
+  async function approachEndOfLeg() {
+    let obstacle = await reachObstacle();
+    if (obstacle.left < .45 && obstacle.right < .45) {
+      await advanceWhile('forward', .04, async () => await range() > .16, 12);
+      await backend.vertical('down', .42);
+      await backend.move('forward', .60);
+      await backend.vertical('up', .42);
+      obstacle = await reachObstacle();
+    }
+    console.log(JSON.stringify(obstacle));
+    return obstacle;
+  }
+  async function approachClosedH() {
+    const corner = await approachEndOfLeg();
+    assert((corner.left < .45) !== (corner.right < .45), 'outer corner requires one side');
+    await advanceWhile('forward', .06, async () => await range() > .30, 10);
+    await advanceWhile('back', .04, async () => await range() < .27, 8);
+    await backend.turn(corner.right < .45 ? 90 : -90);
+    const closed = await approachEndOfLeg();
+    assert(closed.front < .19 && closed.left > .45 && closed.right > .45, 'closed H');
+    return closed;
+  }
+  await takeoff(.90);
+  await approachClosedH();
+  await advanceWhile('back', .13, async () => await range() < .65, 8);
+  await advanceWhile('forward', .05, async () => await range() > .71, 8);
+  if (rebound) return reboundLanding();
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+
+  await backend.resetSimulation();
+  await takeoff(.40);
+  await assert.rejects(backend.move('forward', .22), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  await waitForForcedLanding(1);
+
+  // A7 must independently fence commands after STOP, then acknowledge LAND.
+  // A fresh RESET must invalidate the negative result of attempt 2.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.90);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .20), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(2);
+  // Independent product attempt #4: real Blockly 13.2.1 -> saved .wbb ->
+  // disk Open -> AST/preflight -> shared interpreter -> same native oracle.
+  // The preceding WWI-command attempt/negatives never substitute for this.
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  const A7Wbb = require('../grand_prix/witness_workspace_a7.js');
+  const crypto = require('node:crypto');
+  const witness = A7Wbb.build();
+  assert.equal(witness.sha256, 'ba575b02048d9f3b1bd2a3e25cd84035839c8eee60b397faae36f78b105e4c75',
+    'historical A7 .wbb bytes changed');
+  assert.equal(A7Wbb.build().sha256, witness.sha256, 'A7 source file not reproducible');
+  const file = process.env.WEBEEBLOCKS_A7_WBB_OUT;
+  assert(file, 'A7 native product witness path required');
+  fs.writeFileSync(file, witness.content);
+  const savedText = fs.readFileSync(file, 'utf8');
+  assert.equal(crypto.createHash('sha256').update(savedText).digest('hex'), witness.sha256);
+  const result = await A7Wbb.runSaved(savedText, backend);
+  assert.equal(result.sha256, witness.sha256, 'A7 Open/execute SHA mismatch');
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A7_WBB_PRODUCT_PASS ' + JSON.stringify(result));
+
+  if (![2, 3, 7].includes(variant)) return;
+  await backend.resetSimulation();
+  await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  await takeoff(.90);
+  if (variant === 7) {
+    await outcome({status: 'not-achieved', reason: 'time-limit'});
+  } else {
+    const obstacle = variant === 2 ? await approachClosedH() : await reachObstacle();
+    assert(obstacle.front > .085 && obstacle.front < .26, 'controlled contact approach');
+    if (variant === 3) {
+      assert(obstacle.left < .45 && obstacle.right < .45, 'open H counterexample');
+    }
+    console.log('A7_CONTACT_PRE ' + JSON.stringify(obstacle));
+    await backend.setSpeed(.14);
+    await assert.rejects(backend.move('forward', .60), {code: 'TIME_LIMIT'});
+    await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+  }
+  await waitForForcedLanding(3);
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {

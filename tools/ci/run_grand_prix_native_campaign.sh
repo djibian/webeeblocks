@@ -45,6 +45,12 @@ if [[ "${1:-}" == --container ]]; then
 
   # Preserve each independent witness even when an earlier one fails.
   failures=0
+  if [[ "$ACTIVITY" == 7 ]]; then
+    for rebound in stop liveness; do
+      python3 -m tools.ci.run_grand_prix_progression_native \
+        --activity 7 --variant 5 --rebound "$rebound" || failures=1
+    done
+  fi
   xvfb-run -a python3 tools/ci/run_grand_prix_v2_h_native.py --native \
     --activity "$ACTIVITY" "${indexes[@]}" || failures=1
   for ((variant=1; variant<=count; variant++)); do
@@ -76,9 +82,23 @@ if [[ "$ACTIVITY" == 6 ]]; then
   bash tools/prepare_runtime_v2.sh
   python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
   node tools/grand_prix/witness_workspace_a6.js
+elif [[ "$ACTIVITY" == 7 ]]; then
+  bash tools/prepare_runtime_v2.sh
+  python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission \
+    tools.ci.test_a7_retreat tools.ci.test_a7_native_rebound
+  node tools/grand_prix/witness_workspace_a7.js
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
+if [[ "$ACTIVITY" == 7 ]]; then
+  export WEBEEBLOCKS_GP_GIT_HEAD="$(git rev-parse HEAD)"
+  export WEBEEBLOCKS_GP_GIT_TREE="$(git rev-parse 'HEAD^{tree}')"
+  # The candidate checkout can be shallow. Read the parents from the object.
+  export WEBEEBLOCKS_GP_GIT_PARENTS="$(git cat-file -p HEAD | sed -n '/^$/q; s/^parent //p')"
+  export WEBEEBLOCKS_GP_GIT_STATUS="$(git status --porcelain --untracked-files=no)"
+  test "$WEBEEBLOCKS_GP_GIT_HEAD" = "$TARGET_SHA"
+  test -z "$WEBEEBLOCKS_GP_GIT_STATUS"
+fi
 printf 'webots_image=%s\nnode=%s\n' "$image" "$(node --version)"
 timeout -k 5s 480s docker pull "$image"
 docker image inspect --format 'webots_image_id={{.Id}}' "$image"
@@ -88,6 +108,10 @@ docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
   -v "$(realpath ../webots-assets/projects):/opt/ci-webots-projects:ro" \
   -v "$node_root:/opt/ci-node:ro" \
   -e ACTIVITY -e WEBOTS_HOME=/usr/local/webots \
+  -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKFLOW_SHA -e GITHUB_REF \
+  -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT -e TARGET_SHA \
+  -e WEBEEBLOCKS_GP_GIT_HEAD -e WEBEEBLOCKS_GP_GIT_TREE \
+  -e WEBEEBLOCKS_GP_GIT_PARENTS -e WEBEEBLOCKS_GP_GIT_STATUS \
   -e "WEBEEBLOCKS_GP_WEBOTS_IMAGE=$image" \
   -e LIBGL_ALWAYS_SOFTWARE=1 -e QTWEBENGINE_DISABLE_SANDBOX=1 \
   "$image" /opt/ci-campaign.sh --container

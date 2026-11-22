@@ -293,6 +293,30 @@ static double wrap_angle(double angle) {
         # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
         from tools.grand_prix.route_vertical_product import compose_route_vertical_product
         result = compose_route_vertical_product(result)
+        # The same A7 LAND may change ownership during a bounce. Its motor
+        # cutoff remains latched, but the independent LAND earns its own
+        # continuous contact window. A new LAND or RESET starts a new latch.
+        latch_edits = (
+          ('      land_touchdown = 0;\n      airborne = 1;',
+           '      land_touchdown = gp_route_a7_attempt() && command == CMD_LAND && land_touchdown;\n'
+           '      if (gp_route_a7_attempt()) gp_land_contact_since = -1.0;\n'
+           '      airborne = 1;'),
+          ('        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");',
+           '        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");\n'
+           '        if (gp_route_a7_attempt() && command == CMD_LAND && land_touchdown) {\n'
+           '          active_id = -1; failsafe_latched = 1;\n'
+           '          gp_land_contact_since = -1.0;\n'
+           '          response_ok(request.id);\n'
+           '          continue; /* Remain unpowered until independent LAND takes over. */\n'
+           '        }'),
+          ('        gp_ground_since = -1.0; /* Require post-teleport observations. */',
+           '        if (gp_route_a7_attempt()) land_touchdown = 0;\n'
+           '        gp_ground_since = -1.0; /* Require post-teleport observations. */'),
+        )
+        for old, new in latch_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route LAND motor latch composition anchor changed')
+            result = result.replace(old, new, 1)
         # A frontal envelope failure can precede physical contact with the H
         # crossbar. Backtrack a bounded part of the interrupted forward move
         # while the independent LAND begins its usual descent.
@@ -301,9 +325,11 @@ static double wrap_angle(double angle) {
         if result.count(recovery_state) != 1 or result.count(recovery_origin) != 1:
             raise RuntimeError('route-only recovery origin changed')
         result = result.replace(recovery_state, (
-            '  double gp_a6_recovery_speed = 0.0;\n' + recovery_state
+            '  double gp_a6_recovery_speed = 0.0;\n'
+            '  double gp_a7_recovery_speed = 0.0;\n' + recovery_state
         ), 1)
         result = result.replace(recovery_origin, '''      gp_a6_recovery_speed = 0.0;
+      gp_a7_recovery_speed = 0.0;
       const double retreat_distance = 0.12;
       const double move_cos = cos(target_yaw), move_sin = sin(target_yaw);
       const double to_target_x = target_x - x, to_target_y = target_y - y;
@@ -324,6 +350,23 @@ static double wrap_angle(double angle) {
         printf("GP_U_A6_RETREAT t=%.9f front=%.9f back=%.9f\\n",
                now, gp_route_ranges[0], gp_route_ranges[1]);
         fflush(stdout);
+      }
+      if (gp_control_sample && gp_route_periods_valid &&
+          command == CMD_MOVE && strcmp(active_direction, "forward") == 0 &&
+          gp_route_ranges[0] >= 0.0 && gp_route_ranges[0] < 0.12 &&
+          gp_route_ranges[1] > 0.25 && gp_route_ranges[1] <= 2.001 &&
+          hypot(vx_global, vy_global) <= 0.15 && fabs(vz) <= 0.03) {
+        const int direction = gp_route_a7_retreat(now);
+        if (direction >= 0 &&
+            fabs(wrap_angle(yaw - direction * PI / 2.0)) < YAW_TOL) {
+          const int forward_x[] = {1, 0, -1, 0}, forward_y[] = {0, 1, 0, -1};
+          target_x -= retreat_distance * forward_x[direction];
+          target_y -= retreat_distance * forward_y[direction];
+          gp_a7_recovery_speed = fmin(0.14, move_speed_limit);
+          printf("GP_U_A7_RETREAT t=%.9f x=%.9f y=%.9f target_x=%.9f target_y=%.9f\\n",
+                 now, x, y, target_x, target_y);
+          fflush(stdout);
+        }
       }''', 1)
         gp_forced_land_hold = (
             "      desired.vx = POSITION_KP * body_x;\n"
@@ -342,7 +385,9 @@ static double wrap_angle(double angle) {
             "      } else {\n"
             "        desired.vx = POSITION_KP * body_x;\n"
             "        desired.vy = POSITION_KP * body_y;\n"
-            "        clip_vector(&desired.vx, &desired.vy, VX_MAX);\n"
+            "        clip_vector(&desired.vx, &desired.vy,\n"
+            "                    active_id == 2147483646 && gp_a7_recovery_speed > 0.0\n"
+            "                    ? gp_a7_recovery_speed : VX_MAX);\n"
             "      }\n"
             "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
             "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"

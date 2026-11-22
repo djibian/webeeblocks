@@ -147,7 +147,14 @@ bool currentConfig(std::string& config) {
       std::strcmp(raw,"gp-progression-v1-a6-v2") &&
       std::strcmp(raw,"gp-progression-v1-a6-v3") &&
       std::strcmp(raw,"gp-progression-v1-a6-v4") &&
-      std::strcmp(raw,"gp-progression-v1-a6-v5")))return false;
+      std::strcmp(raw,"gp-progression-v1-a6-v5") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v1") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v2") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v3") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v4") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v5") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v6") &&
+      std::strcmp(raw,"gp-progression-v1-a7-v7")))return false;
   for(const char *p=raw;*p;++p)
     if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||*p=='-'))return false;
   config=raw;return true; // The evaluator independently decodes the canonical CoursePlan.
@@ -206,7 +213,12 @@ bool freshRouteEvidence(const char *kind,long long now) {
 // Terminal causes are attested by the evaluator on description, never by
 // flight heuristics or a transport TIME_LIMIT. The pilot alone writes the
 // negative outcome into vehicle.customData, including late enrichment.
-bool routeTerminalCause(long long now,std::string &cause) {
+bool admittedA7() {
+  return begin>=0 && routeAttempt==attempt &&
+    routeConfig.size()==sizeof("gp-progression-v1-a7-v1")-1 &&
+    routeConfig.compare(0,sizeof("gp-progression-v1-a7-v")-1,"gp-progression-v1-a7-v")==0;
+}
+bool routeTerminalCause(long long now,std::string &cause,int *retreat=nullptr) {
   cause.clear();
   if(begin<0 || routeEpoch.empty() || routeAttempt!=attempt || now<begin)
     return false;
@@ -228,6 +240,14 @@ bool routeTerminalCause(long long now,std::string &cause) {
      stamp<routeIssued || stamp<begin || stamp>now ||
      stamp>=begin+210000)return false;
   cause=rest.substr(split+8);
+  const std::string recovery="envelope-contact retreat_dir=";
+  if(admittedA7() && cause.size()==recovery.size()+1 &&
+     cause.compare(0,recovery.size(),recovery)==0 &&
+     cause.back()>='0' && cause.back()<='3') {
+    if(retreat && stamp>begin && stamp%8==0 && now-stamp<=32)
+      *retreat=cause.back()-'0';
+    cause="envelope-contact";
+  }
   if(cause!="envelope-contact" && cause!="course-boundary" &&
      cause!="altitude" && cause!="low-outside-zone" &&
      cause!="wrong-landing") {
@@ -308,6 +328,17 @@ extern "C" int gp_route_a6_envelope_contact(double now) {
   std::string cause;
   return gp_route_a6_forced_land() && routeTime(now,time_ms) &&
          routeTerminalCause(time_ms,cause) && cause=="envelope-contact";
+}
+extern "C" int gp_route_a7_attempt(void) {
+  return admittedA7();
+}
+extern "C" int gp_route_a7_retreat(double now) {
+  long long time_ms=0;
+  std::string cause;
+  int direction=-1;
+  if(admittedA7() && expired && !success && !nativeRouteDeadline && routeTime(now,time_ms))
+    routeTerminalCause(time_ms,cause,&direction);
+  return direction;
 }
 extern "C" void gp_route_observe_native(double now,int controlValid,int ground,const double *ranges) {
   // Called after the native pilot step, with effective device periods checked
