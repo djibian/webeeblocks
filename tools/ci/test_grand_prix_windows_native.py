@@ -334,6 +334,39 @@ class EvidenceTests(unittest.TestCase):
                 self.assertEqual(evidence['secondary_errors'], secondary)
                 self.assertEqual(raised.exception.__notes__, secondary)
 
+    def test_pre_call_interrupts_are_bounded_but_uncertain_native_call_is_not_retried(self):
+        process = mock.Mock()
+        process._job_close_state = 'owned'
+        failures = []
+        calls = []
+
+        def before_kernel():
+            calls.append('entry')
+            if len(calls) <= 2:
+                raise KeyboardInterrupt('before CloseHandle')
+            process._job_close_state = 'closed'
+
+        harness._attempt_owned_win32_close(
+            failures, process, before_kernel, '_job_close_state')
+        self.assertEqual(calls, ['entry'] * 3)
+        self.assertEqual(len(failures), 2)
+        self.assertTrue(all(isinstance(err, KeyboardInterrupt) for err in failures))
+
+        process._job_close_state = 'owned'
+        failures.clear()
+        calls.clear()
+
+        def uncertain_kernel():
+            calls.append('kernel')
+            process._job_close_state = 'uncertain'
+            raise OSError('CloseHandle returned an unverified outcome')
+
+        harness._attempt_owned_win32_close(
+            failures, process, uncertain_kernel, '_job_close_state')
+        self.assertEqual(calls, ['kernel'])  # No retry of possibly closed value.
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], OSError)
+
     def test_sigint_guard_installed_before_ownership_and_replays_after_release(self):
         # The guard is installed before either Win32 handle can be acquired.
         # Outside the close section the existing SIGINT handler still fires.
