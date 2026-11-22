@@ -190,18 +190,37 @@ class _Win32CloseSigintGuard:
     def restore(self):
         if self._restored:
             return
-        # Called only after both handles have been attempted. A SIGINT during
-        # restoration cannot strand a handle; do not swallow deferred delivery.
-        signal.signal(signal.SIGINT, self._previous)
-        self._restored = True
-        self._armed = False
-        if self._pending:
-            signum, frame = self._pending[0]
-            if callable(self._previous):
-                self._previous(signum, frame)
-            elif self._previous == signal.SIG_DFL:
-                signal.raise_signal(signum)
-            # SIG_IGN stays ignored, as it was before installing the guard.
+        # Both handles have been attempted before this point. Even if restoring
+        # the OS handler fails, disarm the forwarding shim: never leave SIGINT
+        # silently deferred forever. Preserve both restoration and delivery
+        # failures for the caller instead of hiding one.
+        restoration_error = None
+        try:
+            signal.signal(signal.SIGINT, self._previous)
+            self._restored = True
+        except BaseException as error:
+            restoration_error = error
+        finally:
+            self._armed = False
+        pending, self._pending = self._pending, []
+        if pending:
+            signum, frame = pending[0]
+            try:
+                if callable(self._previous):
+                    self._previous(signum, frame)
+                elif self._previous == signal.SIG_DFL:
+                    if restoration_error is None:
+                        signal.raise_signal(signum)
+                    else:
+                        raise KeyboardInterrupt('Deferred SIGINT after failed restoration')
+                # SIG_IGN retains its original ignored semantics.
+            except BaseException as error:
+                if restoration_error is None:
+                    raise
+                restoration_error.add_note(
+                    f'Deferred SIGINT delivery: {type(error).__name__}: {error}')
+        if restoration_error is not None:
+            raise restoration_error
 
 
 def _attempt_owned_win32_close(failures, process, action, state_name):
