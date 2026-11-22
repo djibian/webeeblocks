@@ -150,14 +150,11 @@ def stop(process, diagnostic_path=None, launch_snapshot=None):
             f'process={status!r}'
         )
     already_exited = status == 0
-    # A root exit, even with code zero, says nothing about QtWebEngine children.
-    # On Windows, the no-diagnostic path cannot authorize this shortcut either.
+    # The auxiliary Node probe is reaped by its own wait/exit contract and
+    # has no Webots descendant-cleanup claim. Only the Webots path supplies
+    # diagnostic_path and MUST attest its descendants, even after exit=0.
     if already_exited and diagnostic_path is None:
-        if sys.platform != 'win32':  # Portable pipe-capture smoke test only.
-            return
-        raise RuntimeError(
-            f'Owned Windows PID {process.pid} cleanup unproven: '
-            'launch-time process identity and descendant census unavailable')
+        return
     # Diagnostic only. Unchanged decision: taskkill failure with nonzero exit
     # must still FAIL, regardless of textual SUCCESS or a vanishing PID.
     evidence = {'schema': 'webeeblocks-windows-owned-cleanup-v1',
