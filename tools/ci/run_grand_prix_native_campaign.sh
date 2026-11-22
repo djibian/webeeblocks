@@ -54,6 +54,18 @@ if [[ "${1:-}" == --container ]]; then
       test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/$raw" || failures=1
     done
   done
+  if [[ "$ACTIVITY" == 7 ]]; then
+    # All seven native variants must share byte-identical saved pupil code.
+    first=""
+    for variant in {1..7}; do
+      file="ci-artifacts/grand-prix-u-geometry/route-a7-v${variant}-native/a7-witness.wbb"
+      if [[ ! -s "$file" ]]; then failures=1; continue; fi
+      digest="$(sha256sum "$file" | awk '{print $1}')"
+      if [[ -n "$first" && "$first" != "$digest" ]]; then failures=1; fi
+      first="$digest"
+    done
+    if [[ "$failures" == 0 ]]; then printf 'A7_SAME_WBB_SHA256=%s\n' "$first"; fi
+  fi
   if [[ "$ACTIVITY" == 6 ]]; then
     for variant in 4 5; do
       WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC=1 python3 -m tools.ci.run_grand_prix_progression_native \
@@ -72,10 +84,10 @@ esac
 
 test "$(git -C ../webots-assets rev-parse HEAD)" = "$PROTO_SHA"
 node_root="$(dirname "$(dirname "$(command -v node)")")"
-if [[ "$ACTIVITY" == 6 ]]; then
+if [[ "$ACTIVITY" == 6 || "$ACTIVITY" == 7 ]]; then
   bash tools/prepare_runtime_v2.sh
   python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
-  node tools/grand_prix/witness_workspace_a6.js
+  node "tools/grand_prix/witness_workspace_a${ACTIVITY}.js"
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native

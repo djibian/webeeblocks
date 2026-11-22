@@ -86,7 +86,22 @@ class VariableEvaluatorWireTests(unittest.TestCase):
                             parse_flight_channel(challenge(other), course.identifier)
         for invalid in ('gp-progression-v1-a5-v0', 'gp-progression-v1-a5-v6',
                         'gp-progression-v1-a5-v01',
-                        'gp-progression-v1-a6-v6', 'gp-progression-v1-a7-v1'):
+                        'gp-progression-v1-a6-v6', 'gp-progression-v1-a7-v8'):
+            with self.assertRaises(ValueError):
+                EvaluatorHandshake(invalid)
+
+    def test_activity_seven_variants_have_distinct_native_admission(self):
+        courses = [progression_course(7, variant) for variant in range(1, 8)]
+        for course in courses:
+            with self.subTest(course=course.identifier):
+                self.assertEqual(parse_flight_channel(challenge(course), course.identifier),
+                                 Challenge(1, course.identifier, EPOCH))
+                for other in courses:
+                    if other != course:
+                        with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                            parse_flight_channel(challenge(other), course.identifier)
+        for invalid in ('gp-progression-v1-a7-v0', 'gp-progression-v1-a7-v8',
+                        'gp-progression-v1-a7-v01'):
             with self.assertRaises(ValueError):
                 EvaluatorHandshake(invalid)
 

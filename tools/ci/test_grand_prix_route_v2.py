@@ -29,7 +29,7 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
 
-    def test_progression_scenes_share_physical_components_and_only_first_six_can_compose(self):
+    def test_progression_scenes_share_physical_components_and_all_lessons_can_compose(self):
         identifiers = set()
         for activity, count in enumerate((1, 1, 1, 3, 5, 5, 7), start=1):
             for variant in range(1, count + 1):
@@ -50,14 +50,10 @@ class VariableRouteTests(unittest.TestCase):
                     self.assertEqual(scene.count('controller "<none>"'), 1)
                     self.assertNotIn('controllerArgs', scene)
                     self.assertNotIn('GP_ROUTE_EVALUATOR', scene)
-                    if activity <= 6:
-                        active = active_course_world(course)
-                        self.assertEqual(active.count(f'controllerArgs [ "{course.identifier}" ]'), 2)
-                        self.assertIn('controller "grand_prix_route_flight"', active)
-                        self.assertIn('controller "grand_prix_route_evaluator"', active)
-                    else:
-                        with self.assertRaises(ValueError):
-                            active_course_world(course)
+                    active = active_course_world(course)
+                    self.assertEqual(active.count(f'controllerArgs [ "{course.identifier}" ]'), 2)
+                    self.assertIn('controller "grand_prix_route_flight"', active)
+                    self.assertIn('controller "grand_prix_route_evaluator"', active)
             with self.assertRaises(ValueError):
                 progression_course(activity, count + 1)
         self.assertEqual(len(identifiers), 23)
@@ -109,6 +105,31 @@ class VariableRouteTests(unittest.TestCase):
         a7 = [progression_course(7, v) for v in range(1, 8)]
         self.assertEqual({c.route.turns for c in a7}, {('G',), ('D',)})
         self.assertEqual({tuple(g.leg_index for g in c.gates) for c in a7}, {(), (0,), (1,)})
+        # Each direction must independently cover no H, first-leg H and
+        # second-leg H: an aggregate-only set could conceal a missing case.
+        for turn in ('G', 'D'):
+            patterns = {tuple(g.leg_index for g in c.gates)
+                        for c in a7 if c.route.turns == (turn,)}
+            self.assertEqual(patterns, {(), (0,), (1,)})
+        self.assertEqual(len({(c.route.lengths, c.route.turns,
+                               tuple((g.leg_index, g.along) for g in c.gates))
+                              for c in a7}), 7)
+        self.assertGreater(len({c.route.lengths[0] for c in a7}), 1)
+        self.assertGreater(len({c.route.lengths[1] for c in a7}), 1)
+        for index, course in enumerate(a7, start=1):
+            with self.subTest(a7_variant=index):
+                self.assertEqual(len(course.route.legs), 2)
+                self.assertEqual(len(course.route.turns), 1)
+                self.assertLessEqual(len(course.gates), 1)
+                self.assertEqual(course.pads, (1,))
+                self.assertEqual(course.required_pad, 1)
+                self.assertEqual(course.pad_distance_from_h, .70)
+                self.assertEqual(course.landing_goal(), course.landing_position(1))
+                for gate in course.gates:
+                    leg = course.route.legs[gate.leg_index]
+                    self.assertEqual(gate.position, leg.at(gate.along))
+                    self.assertGreater(gate.along, .55)
+                    self.assertLess(gate.along + .55, leg.length)
 
 
     def test_a6_owner_geometry_pad_and_initial_frontal_ambiguity(self):
