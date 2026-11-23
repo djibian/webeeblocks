@@ -26,6 +26,14 @@
         machineCode: machineCode
       };
     }
+    if (machineCode === 'LOOP_ITERATION_LIMIT') {
+      return {
+        state: 'ARRÊTÉ',
+        detail: error && typeof error.studentDetail === 'string' && error.studentDetail ?
+          error.studentDetail : 'Limite de boucle atteinte. Réinitialisez la simulation avant de relancer.',
+        machineCode: machineCode
+      };
+    }
     if (machineCode === 'USER_STOPPED') {
       return {
         state: 'ARRÊTÉ',

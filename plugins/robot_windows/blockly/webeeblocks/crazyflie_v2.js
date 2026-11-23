@@ -150,7 +150,7 @@
   },
   {
     type: 'webeeblocks_v2_range',
-    message0: 'distance %1',
+    message0: 'distance %1 (m)',
     args0: [
       {
         type: 'field_dropdown',

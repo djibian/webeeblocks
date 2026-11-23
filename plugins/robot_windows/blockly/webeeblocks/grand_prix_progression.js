@@ -29,14 +29,14 @@
     {
       title: 'Observer pour adapter le déplacement',
       mission: 'Rejoins le damier situé à gauche avant le H fermé. Ton programme doit y poser le drone sur chacune des trois longueurs de piste.',
-      blocks: ['webeeblocks_v2_range', 'logic_compare', 'controls_if'],
-      statements: ['if']
+      blocks: ['webeeblocks_v2_range', 'math_arithmetic'],
+      statements: []
     },
     {
       title: 'Mémoriser le virage',
       mission: 'Suis la piste en passant par son virage en L. Avant le H fermé, pose le drone à droite si le virage était à gauche et à gauche s’il était à droite.',
-      blocks: ['variables_set', 'variables_get', 'math_change'],
-      statements: ['set_variable']
+      blocks: ['logic_compare', 'controls_if', 'variables_set', 'variables_get', 'math_change'],
+      statements: ['if', 'set_variable']
     },
     {
       title: 'Discriminer un H ouvert',
@@ -76,8 +76,9 @@
     const fieldOptions = {webeeblocks_v2_move: {DIRECTION: moveDirections}};
     if (activity >= 2) fieldOptions.webeeblocks_v2_vertical = {DIRECTION: verticalDirections};
     if (activity >= 4) fieldOptions.webeeblocks_v2_range = {DIRECTION: rangeDirections};
-    if (activity >= 6) fieldOptions.logic_operation = {OP: ['AND']};
-    if (activity >= 7) fieldOptions.controls_whileUntil = {MODE: ['WHILE']};
+    if (activity >= 4) fieldOptions.math_arithmetic = {OP: ['ADD', 'MINUS', 'MULTIPLY', 'DIVIDE']};
+    if (activity >= 6) fieldOptions.logic_operation = {OP: activity >= 7 ? ['AND', 'OR'] : ['AND']};
+    if (activity >= 7) fieldOptions.controls_whileUntil = {MODE: ['WHILE', 'UNTIL']};
 
     const parameterBounds = JSON.parse(JSON.stringify(grandPrix.parameterBounds));
     if (activity >= 7) {
