@@ -67,26 +67,30 @@ async function save(file) {
       return parent;
     }
     const number = value => block('math_number', {NUM: value});
+    // A4 permits sensor-derived numeric motion without a conditional branch.
     const move = (direction, distance) => attach(block('webeeblocks_v2_move', {DIRECTION: direction}),
-      'DISTANCE', number(distance));
-    function decide(threshold, then, otherwise) {
-      const comparison = block('logic_compare', {OP: 'LT'});
-      attach(comparison, 'A', block('webeeblocks_v2_range', {DIRECTION: 'front'}));
-      attach(comparison, 'B', number(threshold));
-      const conditional = block('controls_if');
-      conditional.loadExtraState({hasElse: true});
-      attach(conditional, 'IF0', comparison);
-      attach(conditional, 'DO0', then);
-      return attach(conditional, 'ELSE', otherwise);
-    }
+      'DISTANCE', typeof distance === 'number' ? number(distance) : distance);
+    // One identical .wbb on three track lengths: front range minus the
+    // physical 0.70 m standoff before the closed terminal H.
+    // No IF or comparison is available to A4 pupils.
+    const approach = block('math_arithmetic', {OP: 'MINUS'});
+    attach(approach, 'A', block('webeeblocks_v2_range', {DIRECTION: 'front'}));
+    attach(approach, 'B', number(.70));
     const program = [attach(block('webeeblocks_v2_takeoff'), 'HEIGHT', number(.9)),
       block('webeeblocks_v2_speed', {SPEED: .2}),
-      decide(1.16, move('forward', .30), decide(1.56, move('forward', .70), move('forward', 1.10))),
+      move('forward', approach),
       move('left', .50), block('webeeblocks_v2_land')];
     for (let index = 1; index < program.length; index++)
       program[index - 1].nextConnection.connect(program[index].previousConnection);
     const original = Compiler.compileWorkspace(workspace);
+    Contract.preflightWorkspace(profile, workspace);
     Contract.preflightAst(profile, original);
+    assert.equal(original.program[2].distance_m.kind, 'arithmetic');
+    assert.equal(original.program[2].distance_m.op, 'MINUS');
+    assert.equal(original.program[2].distance_m.left.kind, 'range');
+    assert.equal(original.program[2].distance_m.right.value, .70);
+    assert(!workspace.getAllBlocks(false).some(b =>
+      b.type === 'controls_if' || b.type === 'logic_compare'));
     await manager(file, workspace).saveAs(path.basename(file));
     assert.deepEqual((await reopen(file)).ast, original);
   } finally {

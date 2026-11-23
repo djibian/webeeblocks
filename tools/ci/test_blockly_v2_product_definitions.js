@@ -74,7 +74,7 @@ function verifyDefinitions(blocks) {
     assert(!block.args0.some(arg=>arg.type==='field_number'),'legacy numeric field must be removed');
   }
   const range = blocks.find(block => block.type === 'webeeblocks_v2_range');
-  assert.equal(range.message0, 'distance %1', 'range label without a redundant unit');
+  assert.equal(range.message0, 'distance %1 (m)', 'range label with a metre unit');
   assert.equal(range.output, 'Number', 'range output');
   assert.equal(range.style, 'sensor_blocks', 'range style');
 
@@ -92,7 +92,7 @@ function mutated(type, patch) {
   return definitions.map(block => block.type === type ? {...block, ...patch} : {...block});
 }
 assert.throws(() => verifyDefinitions(mutated('webeeblocks_v2_range', {
-  message0: 'distance %1 (m)'
+  message0: 'distance %1'
 })), /range label/);
 assert.throws(() => verifyDefinitions(mutated('webeeblocks_v2_takeoff', {
   style: 'sensor_blocks'
