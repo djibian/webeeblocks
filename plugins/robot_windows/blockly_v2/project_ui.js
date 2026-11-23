@@ -317,7 +317,8 @@
   }
 
   function bindProjectButtons() {
-    document.getElementById('activityVariant').addEventListener('click', function() {
+    var variantButton = document.getElementById('activityVariant');
+    if (variantButton) variantButton.addEventListener('click', function() {
       operation('variant', async function() {
         // Teacher-controlled classroom variation, never program/AST metadata.
         // Keep the same .wbb ID, workspace and explicit Save/Save As target.

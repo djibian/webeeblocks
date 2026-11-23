@@ -367,11 +367,14 @@ async function proveSceneReattachment() {
 }
 
 async function proveProjectStartupRace() {
-  for (const failReady of [false,true]) {
+  for (const hasVariant of [false,true]) for (const failReady of [false,true]) {
     const listeners = {}, timers = [], elements = {};
     let created = 0, releaseReady, rejectReady;
     const readiness = new Promise((resolve,reject)=>{releaseReady=resolve;rejectReady=reject;});
-    const document = {body:{dataset:{}},getElementById:id=>elements[id] || (elements[id]={dataset:{},addEventListener(){}})};
+    const document = {body:{dataset:{}},getElementById:id=>
+      id === 'activityVariant' && !hasVariant ? null :
+        (elements[id] || (elements[id]={dataset:{},handlers:{},
+          addEventListener(name,fn){this.handlers[name]=fn;}}))};
     const context = {
       window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
       workspace:{},runtimeProfile:{id:'reactive-obstacle-v2'},
@@ -395,7 +398,70 @@ async function proveProjectStartupRace() {
     assert.strictEqual(created,failReady?0:1);
     assert.strictEqual(document.body.dataset.projectFileMode,failReady?'unavailable':'browser-native');
     if(failReady)assert.strictEqual(elements.projectOpen.disabled,true);
+    else {
+      for (const id of ['projectActivity','projectOpen','projectSave','projectSaveAs'])
+        assert.strictEqual(typeof elements[id].handlers.click,'function',
+          id + ' not bound when optional activityVariant is ' + (hasVariant?'present':'absent'));
+      assert.strictEqual(elements.projectOpen.disabled,false);
+      assert.strictEqual(elements.projectSaveAs.disabled,false);
+      assert.strictEqual(elements.projectSave.disabled,true,'Save without a target must remain disabled');
+      if (hasVariant) assert.strictEqual(typeof elements.activityVariant.handlers.click,'function');
+      else assert.strictEqual(elements.activityVariant,undefined);
+    }
   }
+}
+
+// The historical A4/mini-Grand-Prix variant toggle must still work when
+// its optional button exists, without changing the current .wbb target.
+async function proveHistoricalVariantButton() {
+  for (const [id, first, second] of [
+    ['progression-decision-h-v1','decision-h-a-v1','decision-h-b-v1'],
+    ['progression-mini-grand-prix-v1','mini-grand-prix-l-v1','mini-grand-prix-r-v1']
+  ]) {
+    const listeners={}, elements={}, prepared=[];
+    const currentName='historical-pupil.wbb';
+    const manager={nativeFileSystemAccess:true,hasCurrentTarget:()=>true,
+      currentName:()=>currentName};
+    const document={body:{dataset:{}},getElementById:key=>
+      elements[key] || (elements[key]={dataset:{},handlers:{},
+        addEventListener(name,fn){this.handlers[name]=fn;}})};
+    const context={
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
+      workspace:{},Blockly:{},runtimeProfile:{id,world:'test',runtime:{scene:first}},
+      runtimeRunning:false,runtimeResetPending:false,runtimeStopPending:false,
+      runtimeScenePending:false,runtimeTerminal:false,runtimeProjectPending:false,
+      updateRuntimeActions(){},setRuntimeStatus(){},
+      robotWindow:{send(){},receive(){}},
+      runtimeBackend:{ready:true,capabilities:{simulationScenes:true},
+        async waitUntilReady(){},async prepareActivity(profile){prepared.push(profile.runtime.scene);}},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
+        createManager:()=>manager},
+      WebeeBlocksActivityProfiles:{validateProfile(profile){
+        assert.strictEqual(profile.id,id);
+        assert.strictEqual([first,second].includes(profile.runtime.scene),true);
+      }},
+      WebeeBlocksActivities:{DOCUMENT:{activities:[]},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush=async()=>{for(let i=0;i<16;i++)await Promise.resolve();};
+    listeners.load();await flush();
+    assert.strictEqual(typeof elements.activityVariant.handlers.click,'function');
+    assert.strictEqual(elements.activityVariant.disabled,false);
+    elements.activityVariant.handlers.click();await flush();
+    assert.strictEqual(context.runtimeProfile.runtime.scene,second,id+' first toggle');
+    elements.activityVariant.handlers.click();await flush();
+    assert.strictEqual(context.runtimeProfile.runtime.scene,first,id+' return toggle');
+    assert.strictEqual(context.runtimeProfile.id,id);
+    assert.strictEqual(manager.currentName(),currentName,'variant changed save target');
+    assert.strictEqual(prepared.join(','),[second,first].join(','));
+  }
+  const gpPage=fs.readFileSync(path.join(ROOT,
+    'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'),'utf8');
+  assert.strictEqual(gpPage.includes('id="activityVariant"'),false);
+  assert.strictEqual(gpPage.includes('project_ui.js?rev=20261122-optional-variant'),true,
+    'old cached project_ui.js URL is still in the Grand Prix page');
 }
 
 async function expectRejectedWithoutMutation(manager, transport, text, workspace, profileRef, label) {
@@ -1161,5 +1227,6 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveSceneReattachment();
   await proveSceneRollback();
   await proveProjectStartupRace();
+  await proveHistoricalVariantButton();
   console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
