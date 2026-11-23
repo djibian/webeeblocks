@@ -228,7 +228,10 @@ async function provePupilVocabulary() {
       async land() { effects.push(['land']); }
     };
     await Interpreter.run(ast, backend, {maxSteps: 500});
-    assert.deepEqual(effects, [['takeoff', 0.5], ['forward', 0.3], ['left', 0.5], ['land']]);
+    assert.deepEqual(effects.map(effect => effect[0]), ['takeoff', 'forward', 'left', 'land']);
+    assert.equal(effects[0][1], 0.5);
+    assert(Math.abs(effects[1][1] - 0.3) < 1e-9, 'sensor-minus-margin distance must remain precise');
+    assert.equal(effects[2][1], 0.5);
   } finally {
     w.dispose();
   }
