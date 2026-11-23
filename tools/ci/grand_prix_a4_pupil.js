@@ -70,12 +70,14 @@ async function save(file) {
     // A4 permits sensor-derived numeric motion without a conditional branch.
     const move = (direction, distance) => attach(block('webeeblocks_v2_move', {DIRECTION: direction}),
       'DISTANCE', typeof distance === 'number' ? number(distance) : distance);
-    // One identical .wbb on three track lengths: front range minus the
-    // physical 0.70 m standoff before the closed terminal H.
+    // One identical .wbb on three track lengths. Native R2025a measurements
+    // place the front-facing H collider at 0.02 m before the geometric H:
+    // initial range reads 0.98 / 1.38 / 1.78 m respectively. Subtract 0.68 m
+    // to travel 0.30 / 0.70 / 1.10 m toward a pad 0.70 m before the H.
     // No IF or comparison is available to A4 pupils.
     const approach = block('math_arithmetic', {OP: 'MINUS'});
     attach(approach, 'A', block('webeeblocks_v2_range', {DIRECTION: 'front'}));
-    attach(approach, 'B', number(.70));
+    attach(approach, 'B', number(.68));
     const program = [attach(block('webeeblocks_v2_takeoff'), 'HEIGHT', number(.9)),
       block('webeeblocks_v2_speed', {SPEED: .2}),
       move('forward', approach),
@@ -88,7 +90,7 @@ async function save(file) {
     assert.equal(original.program[2].distance_m.kind, 'arithmetic');
     assert.equal(original.program[2].distance_m.op, 'MINUS');
     assert.equal(original.program[2].distance_m.left.kind, 'range');
-    assert.equal(original.program[2].distance_m.right.value, .70);
+    assert.equal(original.program[2].distance_m.right.value, .68);
     assert(!workspace.getAllBlocks(false).some(b =>
       b.type === 'controls_if' || b.type === 'logic_compare'));
     await manager(file, workspace).saveAs(path.basename(file));
