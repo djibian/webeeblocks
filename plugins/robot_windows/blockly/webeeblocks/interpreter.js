@@ -262,7 +262,13 @@
               await hook(options,'onNode',context(statement,path,'statement',env,{iteration:iteration}));
             var loopCondition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));
             if(statement.mode==='UNTIL'?loopCondition:!loopCondition)break;
-            if(iteration>=statement.max_iterations)fail('conditional loop iteration limit exceeded');
+            if(iteration>=statement.max_iterations){
+              var loopError=new Error('runtime v2: conditional loop iteration limit exceeded');
+              loopError.code='LOOP_ITERATION_LIMIT';
+              loopError.studentDetail='La boucle a atteint sa limite de '+statement.max_iterations+
+                ' itérations. Vérifiez sa condition et ses déplacements. Réinitialisez la simulation avant de relancer.';
+              throw loopError;
+            }
             budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
             await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:iteration}));
             await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);
