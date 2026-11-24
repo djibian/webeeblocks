@@ -194,7 +194,7 @@ async function activityFour() {
     // available to it, with no course identity or host coordinates.
     const front = await backend.readRange('front');
     assert(Number.isFinite(front) && front > .8 && front < 1.9, 'H must be observable');
-    const distance = front < 1.16 ? .30 : front < 1.56 ? .70 : 1.10;
+    const distance = front < 1.16 ? .70 : front < 1.56 ? 1.10 : 1.50;
     console.log(JSON.stringify({front, distance, side}));
     await backend.move('forward', distance);
     await backend.move(side, .50);
@@ -206,7 +206,7 @@ async function activityFour() {
     await outcome({status: 'achieved'});
   }
 
-  async function rejectWrongPad() {
+  async function rejectWrongPad(expectedForcedCount = 1) {
     // The whole-footprint oracle can interrupt the explicit LAND before ACK.
     // Its exact published refusal and the independent LAND are both required.
     try {
@@ -215,7 +215,7 @@ async function activityFour() {
       assert.equal(error.code, 'TIME_LIMIT');
     }
     await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
-    await waitForForcedLanding(1);
+    await waitForForcedLanding(expectedForcedCount);
   }
 
   async function freshAttempt() {
@@ -240,15 +240,20 @@ async function activityFour() {
 
   // Reuse V1's successful distance blindly. The policy receives no variant.
   await freshAttempt();
-  console.log(JSON.stringify({event: 'A4_FIXED', distance: .30, side: 'left'}));
+  console.log(JSON.stringify({event: 'A4_FIXED', distance: .70, side: 'left'}));
   await takeoff(.9);
-  await backend.move('forward', .30);
+  await backend.move('forward', .70);
   const moveLeft = backend.move('left', .50);
   if (variant === 1) {
     await moveLeft;
     await completeLanding();
+  } else if (variant === 2) {
+    // At .70 m V2 is inside the widened arrival but 40 cm short of its
+    // green support. Lateral motion is permitted; low descent is not.
+    await moveLeft;
+    await rejectWrongPad(3);
   } else {
-    // At .30 m, V2/V3 are still in the narrow leg, before the widened arrival.
+    // At .70 m V3 is still in the narrow leg, before the widened arrival.
     await assert.rejects(moveLeft, {code: 'TIME_LIMIT'});
     await outcome({status: 'not-achieved', reason: 'course-boundary'});
     await waitForForcedLanding(3);
@@ -277,7 +282,7 @@ async function activityFive() {
     return readings;
   }
 
-  async function reachChoice(lastMove = .51) {
+  async function reachChoice(lastMove = .35) {
     await takeoff(.9);
     const front = await backend.readRange('front');
     // These intervals are based on rays from the fixed start. Course
@@ -291,10 +296,10 @@ async function activityFive() {
     await backend.turn(turnedLeft ? 90 : -90);
     await backend.move('forward', 1.85);
     await backend.move('forward', lastMove);
-    if (lastMove === .51) {
+    if (lastMove === .35) {
       const choice = await ranges();
       console.log(JSON.stringify({choice}));
-      assert(choice.front > .11 && choice.front < .26, 'Expected the H at the choice');
+      assert(choice.front > .21 && choice.front < .36, 'Expected the H at the choice');
       for (const direction of ['back', 'left', 'right'])
         assert(choice[direction] >= 1.99, direction + ' still sees the earlier corner');
     }
@@ -313,14 +318,13 @@ async function activityFive() {
   const wrongSide = turnedLeftAgain ? 'left' : 'right';
   await backend.move(wrongSide, .50);
   console.log(JSON.stringify({event: 'A5_WRONG_PAD', side: wrongSide}));
-  // The other visible pad is not a safe descent exception.  A native
-  // failure may interrupt LAND before the backend returns normally.
-  try {
-    await backend.land();
-  } catch (error) {
-    assert.equal(error.code, 'TIME_LIMIT');
-  }
-  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  // Both green supports now permit low descent, but only the correct
+  // pad can satisfy terminal dwell. Require LAND ACK and trusted COMPLETE
+  // before checking the precise wrong-landing refusal; an earlier collision
+  // or low-outside-zone is a distinct regression, not a substitute.
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
   await waitForForcedLanding(1);
 
   // Refute any attempt to continue commanding the vehicle after STOP.

@@ -74,7 +74,8 @@ function buildWorkspace(workspace) {
     either(less(range('right'), .45),
       sequence(remember(1), turn('left')), sequence(remember(0), turn('right'))),
     move('forward', 1.85),
-    move('forward', .51),
+    // 2.20 m nominal last-leg target; native convergence not yet qualified.
+    move('forward', .35),
     either(less(block('variables_get', {VAR: memory.getId()}), .5),
       move('left', .50), move('right', .50)),
     block('webeeblocks_v2_land')
