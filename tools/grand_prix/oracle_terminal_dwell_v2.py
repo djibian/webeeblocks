@@ -17,13 +17,13 @@ from tools.grand_prix.oracle_course_progress_v2 import CoupledCourseProgress
 from tools.grand_prix.oracle_gate_progress_v2 import DirectedGateProgress
 from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 
-# #1082 established this same full-envelope landing condition for A8.
-# A1-A7 and A8 both require the entire conservative craft envelope on the tile.
-LANDING_TOL = LANDING_TILE / 2 - RADIUS
+# Owner 2026-11-24: +/-7cm landing centre tolerance for A1–A8.
+# Other collision/contact/attempt/dwell/deadline protections remain mandatory.
+LANDING_TOL = LANDING_TILE / 2 - RADIUS + .02
 # Owner-approved pedagogical tolerance: the craft centre may be 7cm off-centre.
 # Up to 2cm of the conservative 9cm craft envelope can extend past the green
 # tile, while physical collision, course boundaries and contact remain strict.
-PROGRESSION_LANDING_TOL = LANDING_TOL + .02
+PROGRESSION_LANDING_TOL = LANDING_TOL
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.

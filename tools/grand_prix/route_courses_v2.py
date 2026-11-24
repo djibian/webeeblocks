@@ -37,7 +37,7 @@ class CoursePlan:
     progression: tuple[int, int] | None = None
     pads: tuple[int, ...] = (1, 2, 3)
     required_pad: int | None = None
-    pad_distance_from_h: float = .70
+    pad_distance_from_h: float = .50
 
     @property
     def identifier(self):
@@ -117,7 +117,7 @@ def plan_course(seed, lengths, turns, gate_count):
             along = round(0.90 + 0.10 * (digest[3 + index] % 3)
                           + (leg.length - 2.0) * 0.5, 3)
         else:
-            # The last H must precede the terminal landing at length-0.70.
+            # The last H must precede the terminal landing at length-0.50.
             # This is a candidate interval, not certified L/H clearance.
             along = round(0.60 + 0.05 * (digest[5] % 3)
                           + (leg.length - 2.0) * 0.25, 3)

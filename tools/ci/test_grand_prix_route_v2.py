@@ -10,6 +10,7 @@ from unittest.mock import patch
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.course_static_world_v2 import course_physical_boxes, static_course_world
 import tools.grand_prix.course_static_world_v2 as static_world_module
+import tools.grand_prix.course_active_world_v2 as active_world_module
 from tools.grand_prix.oracle_attempt_v2 import _hits_mission_body
 from tools.grand_prix.oracle_gate_progress_v2 import FRAME_CLEAR
 from tools.grand_prix.oracle_low_v2 import low_segment_allowed_v2
@@ -24,12 +25,18 @@ class VariableRouteTests(unittest.TestCase):
         baseline = hashlib.sha256()
         for index in range(12):
             course = reference_course(index)
-            # Restore only the historical yellow-band marks for the A8
-            # reference digest, preserving the prior geometry/collider baseline.
+            # Test-only old A8 reconstruction: 70-cm pad and 55-cm marks.
+            # Production canonical attestation is never monkeypatched.
+            historic = replace(course, pad_distance_from_h=.70)
             with patch.object(static_world_module, 'LOW_BEFORE', .55), \
-                 patch.object(static_world_module, 'LOW_AFTER', .55):
-                static = hashlib.sha256(static_course_world(course).encode()).hexdigest()
-                active = hashlib.sha256(active_course_world(course).encode()).hexdigest()
+                 patch.object(static_world_module, 'LOW_AFTER', .55), \
+                 patch.object(static_world_module, 'require_canonical_course_geometry',
+                              lambda value: None), \
+                 patch.object(active_world_module, 'active_course_from_identifier',
+                              lambda identifier: historic):
+                static = hashlib.sha256(static_course_world(historic).encode()).hexdigest()
+                active = hashlib.sha256(active_course_world(historic).encode()).hexdigest()
+            self.assertAlmostEqual(course.pad_distance_from_h, .50)
             baseline.update(f'{course.identifier} {static} {active}\n'.encode())
         # All twelve static and active UTF-8 outputs at 0bdac3f108d8.
         self.assertEqual(baseline.hexdigest(),

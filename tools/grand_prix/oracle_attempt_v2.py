@@ -174,7 +174,8 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
         terminal_ready = (
             state.progress.leg.active_leg == len(state.course.route.legs) - 1 and
             state.progress.count == state.course.count)
-        if terminal_ready and state.course.progression is not None:
+        if terminal_ready:
+            # All A1–A8 descents use a verified green tile only.
             terminal_ready = _inside_landing_support_sweep(
                 state.course, before, observed)
         if not low_segment_allowed_v2(
