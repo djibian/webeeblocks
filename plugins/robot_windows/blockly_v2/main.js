@@ -10,6 +10,8 @@ var runtimeOutcomePending = false;
 var runtimeResetPending = false;
 var runtimeStopPending = false;
 var runtimeStopRequested = false;
+// Unknown STOP outcome forbids new native effects until the session restarts.
+var runtimeSafetyUnknown = false;
 var runtimeScenePending = false;
 var runtimeProjectPending = false;
 var runtimeDebug = null;
@@ -77,7 +79,8 @@ function updateRuntimeActions() {
       stopSupported && !runtimeStopRequested;
     reset.disabled = !resetSupported || !ready || (runtimeRunning && !pausedDebugStop) ||
       runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
-      runtimeScenePending || runtimeProjectPending || (!runtimeTerminal && !pausedDebugStop);
+      runtimeScenePending || runtimeProjectPending || runtimeSafetyUnknown ||
+      (!runtimeTerminal && !pausedDebugStop);
     reset.textContent = pausedDebugStop ? 'Arrêter puis réinitialiser' : 'Réinitialiser';
   }
 }
@@ -555,6 +558,7 @@ async function resetSimulation() {
       throw new Error('Simulation reset changed activity profile');
     runtimeTerminal = false;
     runtimeStopRequested = false;
+    runtimeSafetyUnknown = false;
     renderSensorValues({});
     renderVariables(null);
     if (runtimeDebug) runtimeDebug.finish();
@@ -585,7 +589,16 @@ async function runProgram() {
   runtimeExecutionSettled = new Promise(function(resolve) { settleExecution = resolve; });
   runtimeTerminal = false;
   runtimeStopRequested = false;
-  var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
+  var originalHooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
+  var takeoffRequested = false;
+  var hooks = Object.assign({}, originalHooks || {});
+  hooks.beforeStep = async function(detail) {
+    if (originalHooks && typeof originalHooks.beforeStep === 'function')
+      await originalHooks.beforeStep(detail);
+    // Immediately before native TAKEOFF, not at AST-parse time.
+    if (detail && detail.role === 'statement' && detail.node && detail.node.kind === 'takeoff')
+      takeoffRequested = true;
+  };
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
       maxSteps: runtimeProfile.runtime.maxSteps || 1000,
@@ -606,10 +619,28 @@ async function runProgram() {
     else
       setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
+    var retryable = WebeeBlocksRuntimeOutcome.isRetryable(error);
     runtimeRunning = false;
-    runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
     runtimeOutcomePending = true;
     updateRuntimeActions();
+    if (retryable && takeoffRequested) {
+      // Student arithmetic may fail in flight. Never retry or RESET before STOP ACK.
+      try {
+        if (!runtimeBackend || !runtimeBackend.capabilities ||
+            runtimeBackend.capabilities.simulationStop !== true ||
+            typeof runtimeBackend.stopSimulation !== 'function')
+          throw new Error('Safe recovery requires native simulation STOP');
+        await runtimeBackend.stopSimulation();
+        runtimeTerminal = true;
+      } catch (stopError) {
+        runtimeSafetyUnknown = true;
+        runtimeTerminal = true;
+        console.error('Original student program failure', error);
+        error = stopError;
+      }
+    } else {
+      runtimeTerminal = !retryable;
+    }
     var missionFailure = runtimeStopRequested ? null :
       await WebeeBlocksRuntimeOutcome.readMissionFailure(runtimeProfile, runtimeBackend, error);
     setRuntimeFailure(error, missionFailure);

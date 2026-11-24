@@ -280,6 +280,68 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
   assert.strictEqual(element('resetSimulation').disabled, false, 'Reset should reopen only after the mission outcome is presented');
 }
 
+async function provePupilErrorRequiresNativeStop() {
+  for (const scenario of ['preflight', 'stop-ok', 'stop-failure']) {
+    const elements = {};
+    function element(id) {
+      if (!elements[id]) elements[id] = {id,disabled:false,hidden:false,checked:false,
+        textContent:'',setAttribute(){},addEventListener(){}};
+      return elements[id];
+    }
+    const pendingStop = deferred();
+    let stops = 0;
+    const context = {
+      console:{log(){},error(){}},
+      Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
+        Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create'},Blocks:{}},
+      document:{currentScript:{src:'https://example.invalid/main.js'},
+        getElementById:element,body:{dataset:{}},
+        createElement(){return{setAttribute(){},appendChild(){}};}},
+      window:{dispatchEvent(){},addEventListener(){}},
+      CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
+      WebeeBlocksRuntimeOutcome:Outcome,
+      WebeeBlocksActivityContract:{async execute(profile,workspace,compiler,interpreter,backend,options){
+        options.onAst({version:1,semantics:'webeeblocks-ast-v1',program:[]});
+        if(scenario!=='preflight')
+          await options.hooks.beforeStep({role:'statement',node:{kind:'takeoff'}});
+        const err=new Error('out of bounds');err.code='PROGRAM_INVALID';
+        err.studentDetail='La distance calculée dépasse les limites.';
+        throw err;
+      }},
+      WebeeBlocksSemanticAst:{},WebeeBlocksInterpreter:{},
+      WebeeBlocksExecutionObserver:{create(){return null;}},
+      WebeeBlocksActivities:{BLOCK_CATALOG:{}},WebeeBlocksActivityProfiles:{},
+      WebeeBlocksWwiBackend:function(){},URL,setTimeout,clearTimeout,Promise
+    };
+    vm.createContext(context);
+    vm.runInContext(mainSource,context);
+    context.runtimeProfile={runtime:{maxSteps:1000}};
+    context.workspace={};
+    context.runtimeBackend={ready:true,
+      capabilities:{simulationDebug:false,simulationReset:true,simulationStop:true},
+      stopSimulation(){stops++;return pendingStop.promise;}};
+    const running=context.runProgram();
+    if (scenario==='preflight') {
+      await running;
+      assert.strictEqual(stops,0);
+      assert.strictEqual(context.runtimeTerminal,false);
+      assert.strictEqual(element('submit').disabled,false);
+    } else {
+      await until(()=>stops===1,'STOP on in-flight pupil error');
+      assert.strictEqual(element('resetSimulation').disabled,true);
+      assert.strictEqual(element('submit').disabled,true);
+      if(scenario==='stop-failure')pendingStop.reject(new Error('STOP ACK missing'));
+      else pendingStop.resolve();
+      await running;
+      assert.strictEqual(context.runtimeTerminal,true);
+      assert.strictEqual(element('submit').disabled,true);
+      assert.strictEqual(element('resetSimulation').disabled,scenario==='stop-failure');
+      assert.strictEqual(element('runtimeState').textContent,
+        scenario==='stop-failure'?'ERREUR':'À CORRIGER');
+    }
+  }
+}
+
 function proveRealWebotsOutcomeFreshness() {
   // The full native proof moves to three mandatory isolated R2025a jobs.
   // Fail closed for unknown modes and never permit an ordinary standalone call
@@ -549,6 +611,7 @@ function proveRealWebotsOutcomeFreshness() {
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
+  await provePupilErrorRequiresNativeStop();
   await require('./test_runtime_outcome_settling.js')();
   await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);
