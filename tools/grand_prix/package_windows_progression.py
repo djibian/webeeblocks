@@ -33,7 +33,7 @@ COURSE_IDS = tuple(
 PROFILES = ROOT / "plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js"
 ACCEPTANCE = ROOT / "docs/GRAND_PRIX_A1_A7_WINDOWS_ACCEPTANCE.md"
 
-# Fixed owner-approved A6 delivery contract (2026-11-20, #587/#1092).
+# Fixed owner-approved A6 delivery contract (2026-11-20 and 2026-11-24, #587/#1100).
 # Check the native source data; never substitute or rewrite activity geometry.
 # This deliberately fails closed on the obsolete stacked #1075 A6 values.
 APPROVED_A6 = (
@@ -56,10 +56,10 @@ def require_approved_a6():
         if (observed_lengths != (length,) or
                 observed_gates != expected_gates or
                 course.count != len(open_gates) or
-                course.pad_distance_from_h != 0.70 or
+                course.pad_distance_from_h != 0.50 or
                 course.pads != (1,) or course.required_pad != 1):
             raise ValueError(
-                f"A6/V{variant} is not the owner-approved 2026-11-20 geometry; "
+                f"A6/V{variant} is not the owner-approved A6 geometry (including 2026-11-24 pad distance); "
                 "recompose the native stack from current main before packaging")
 
 

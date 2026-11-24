@@ -133,6 +133,17 @@ class ProgressionLaunchTests(unittest.TestCase):
                         '--variant', str(variant), '--preflight-only']), 0)
         self.assertEqual(seen, expected)
 
+    def test_windows_zip_requires_updated_a6_pad_distance(self):
+        from dataclasses import replace
+        delivery.require_approved_a6()
+        for obsolete in (.70, .30):
+            with self.subTest(pad_distance=obsolete), patch.object(
+                    delivery, 'progression_course',
+                    side_effect=lambda a, v: replace(progression_course(a, v),
+                                                     pad_distance_from_h=obsolete)):
+                with self.assertRaisesRegex(ValueError, 'owner-approved'):
+                    delivery.require_approved_a6()
+
     def test_windows_zip_refuses_missing_admission_before_copy(self):
         self.assertEqual(sum(len(launcher.admitted_variants(a)) for a in range(1, 8)), 23)
         delivery.require_approved_a6()

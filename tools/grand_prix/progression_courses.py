@@ -33,7 +33,7 @@ _VARIANTS = {
     6: (
         # Owner-approved 2026-11-20: the initial frontal face alone must not
         # identify an open versus closed H. V2/V4 and V3/V5 share first faces.
-        # Keep the pad 0.70 m before the closed H on every A6 variant.
+        # Owner 2026-11-24: keep the pad 0.50 m before the closed H.
         _Variant((2.25,), gates=((0, .75),), pad_distance_from_h=.50),
         _Variant((2.90,), gates=((0, 1.40),), pad_distance_from_h=.50),
         _Variant((3.00,), gates=((0, 1.50),), pad_distance_from_h=.50),
