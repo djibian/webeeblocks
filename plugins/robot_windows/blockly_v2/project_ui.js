@@ -416,6 +416,7 @@
         Blockly: Blockly,
         profiles: WebeeBlocksActivityProfiles,
         activitiesDocument: WebeeBlocksActivities.DOCUMENT,
+        portableActivitiesDocument: WebeeBlocksActivities.PROJECT_DOCUMENT,
         blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
         semanticAst: WebeeBlocksSemanticAst,
         activityContract: WebeeBlocksActivityContract,
