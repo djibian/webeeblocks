@@ -519,6 +519,7 @@ async function stopSimulation() {
     setRuntimeFailure(userStoppedError());
     return true;
   } catch (error) {
+    runtimeSafetyUnknown = true;
     runtimeTerminal = true;
     setRuntimeFailure(error);
     return false;
