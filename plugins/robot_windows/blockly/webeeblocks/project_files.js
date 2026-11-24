@@ -189,11 +189,11 @@
     return workspace;
   }
 
-  function validateProjectText(text, currentProfile, options) {
+  function validateProjectText(text, currentProfile, options, portableImport) {
     requireDependencies(options);
     var project = parseProject(text);
     var profile = options.profiles.resolveById(options.activitiesDocument, project.activity.id, options.blockCatalog);
-    if (!currentProfile || profile.world !== currentProfile.world)
+    if (!currentProfile || (!portableImport && profile.world !== currentProfile.world))
       fail('activity is incompatible with the current Webots world');
     validateSerializedFieldOptions(profile, project.workspace);
 
@@ -290,6 +290,9 @@
     var targetHandle = null;
     var targetName = null;
     var applying = false;
+    // In foreign contexts preserve the source profile as a safe Save fallback.
+    // It never selects or authorizes a native scene.
+    var importedSourceProfile = null;
 
     function dependencies() {
       return {
@@ -301,7 +304,15 @@
         activityContract: options.activityContract
       };
     }
-    function currentBytes() { return encodeProject(options.getProfile(), options.workspace, dependencies()); }
+    function currentBytes() {
+      try { return encodeProject(options.getProfile(), options.workspace, dependencies()); }
+      catch (error) {
+        // If the current activity cannot express all imported blocks, keep
+        // their original (validated) source activity contract on disk.
+        if (!importedSourceProfile) throw error;
+        return encodeProject(importedSourceProfile, options.workspace, dependencies());
+      }
+    }
     function snapshot() {
       return {profile: options.getProfile(), workspace: options.Blockly.serialization.workspaces.save(options.workspace)};
     }
@@ -331,11 +342,41 @@
           options.activityContract.preflightAst(validated.profile, loadedAst);
           if (!sameJson(loadedAst, validated.ast)) fail('loaded workspace differs from validated project');
         }
+        importedSourceProfile = null;
       } catch (error) {
         try { restore(before); } catch (rollbackError) { console.error('WebeeBlocks project rollback failed', rollbackError); }
         throw error;
       } finally { applying = false; }
     }
+    function applyPortableImport(validated) {
+      // Deliberately retain the current activity and native scene. Open may
+      // accept valid foreign blocks; the flight preflight still validates
+      // against options.getProfile() and rejects incompatible blocks.
+      var previous = snapshot();
+      var previousSource = importedSourceProfile;
+      applying = true;
+      try {
+        options.workspace.clear();
+        loadWorkspaceWithProfile(validated.profile, validated.project.workspace,
+                                 options.workspace, dependencies());
+        options.activityContract.preflightWorkspace(validated.profile, options.workspace);
+        validateWorkspaceFields(validated.profile, options.workspace);
+        if (validated.ast) {
+          var loaded = options.semanticAst.compileWorkspace(options.workspace);
+          options.activityContract.preflightAst(validated.profile, loaded);
+          if (!sameJson(loaded, validated.ast)) fail('portable project changed AST');
+        }
+        if (options.getProfile() !== previous.profile)
+          fail('portable Open changed the active activity');
+        importedSourceProfile = validated.profile;
+      } catch (error) {
+        importedSourceProfile = previousSource;
+        try { restore(previous); }
+        catch (rollbackError) { error.rollbackError = rollbackError; }
+        throw error;
+      } finally { applying = false; }
+    }
+
     async function prepareAndApply(validated) {
       var previousProfile = options.getProfile();
       if (typeof options.prepareProfile === 'function') await options.prepareProfile(validated.profile);
@@ -361,6 +402,29 @@
       return {name: templateName, ast: validated.ast, mode: mode || null};
     }
     return {
+      async openIntoCurrentActivity() {
+        var opened = await options.transport.open();
+        var handle = opened.handle || null;
+        var validated, selectedName;
+        try {
+          // The file's source activity authenticates its blocks and fields;
+          // the *current* activity remains the only authority for execution.
+          validated = validateProjectText(opened.text, options.getProfile(),
+                                          dependencies(), true);
+          applyPortableImport(validated);
+          selectedName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+        } catch (error) {
+          if (handle && handle !== targetHandle) await releaseTarget(handle);
+          throw error;
+        }
+        var old = targetHandle;
+        targetHandle = handle;
+        targetName = selectedName;
+        if (old && old !== handle) await releaseTarget(old);
+        return {name: selectedName, ast: validated.ast,
+                sourceActivity: validated.profile.id,
+                activity: options.getProfile().id, mode: opened.mode || null};
+      },
       async open() {
         var opened = await options.transport.open();
         var nextHandle = opened.handle || null;

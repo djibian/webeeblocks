@@ -765,6 +765,39 @@ async function exerciseWwiBoundary() {
 // #826: real Blockly 13, .wbb manager and AST roundtrip for the stable
 // variable-course activity profile. Host route switching, native Webots and
 // OS file dialogs are NOT exercised by this test.
+async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
+  const source=activityProfile('progression-orientation-3d-v1');
+  const current=activityProfile('progression-sequence-v1');
+  assert.notStrictEqual(source.world,current.world);
+  const sourceWorkspace=buildWorkspace(.2);
+  // A simple shared block sequence remains valid in either environment.
+  const encoded=ProjectFiles.encodeProject(source,sourceWorkspace,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  sourceWorkspace.dispose();
+  const targetWorkspace=buildWorkspace(.3);
+  const profile={value:current};
+  const transport=memoryTransport();transport.state.openText=encoded;
+  let prepared=0,switched=0;
+  const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace:targetWorkspace,
+    getProfile:()=>profile.value,setProfile:p=>{switched++;profile.value=p;},
+    transport,prepareProfile:async()=>{prepared++;}});
+  const result=await manager.openIntoCurrentActivity();
+  assert.strictEqual(result.sourceActivity,source.id);
+  assert.strictEqual(result.activity,current.id);
+  assert.strictEqual(profile.value.id,current.id);
+  assert.strictEqual(prepared,0,'portable import tried to switch native scene');
+  assert.strictEqual(switched,0,'portable import switched active profile');
+  assert.strictEqual(transport.state.writes.length,0,'Open secretly wrote source file');
+  assert.strictEqual(ast(targetWorkspace,current).program.length,3);
+  await manager.save();
+  assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,current.id);
+  assert.strictEqual(transport.state.writes.length,1);
+  targetWorkspace.dispose();
+}
+
 async function proveVariableProfileRealBlocklyRoundTrip() {
   const source = fs.readFileSync(path.join(ROOT,
     'plugins/robot_windows/grand_prix_route_v2/setup.js'), 'utf8');
@@ -1017,6 +1050,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
 (async function() {
   await proveOrientationBlocklyProjectRoundTrip();
   await proveAltitudeBlocklyProjectRoundTrip();
+  await provePortableOpenKeepsCurrentActivityAndFlightGate();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
