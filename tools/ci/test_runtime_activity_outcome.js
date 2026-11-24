@@ -281,7 +281,8 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
 }
 
 async function provePupilErrorRequiresNativeStop() {
-  for (const scenario of ['preflight', 'stop-ok', 'stop-failure', 'manual-stop-failure']) {
+  for (const scenario of ['preflight', 'stop-ok', 'stop-failure', 'manual-stop-failure',
+    'manual-stop-pupil-ok', 'manual-stop-pupil-failure']) {
     const elements = {};
     function element(id) {
       if (!elements[id]) elements[id] = {id,disabled:false,hidden:false,checked:false,
@@ -307,9 +308,11 @@ async function provePupilErrorRequiresNativeStop() {
         options.onAst({version:1,semantics:'webeeblocks-ast-v1',program:[]});
         if(scenario!=='preflight')
           await options.hooks.beforeStep({role:'statement',node:{kind:'takeoff'}});
-        if(scenario==='manual-stop-failure') {
+        if(scenario.startsWith('manual-stop-')) {
           await pendingExecution.promise;
-          const stopped=new Error('user stopped');stopped.code='USER_STOPPED';throw stopped;
+          if(scenario==='manual-stop-failure') {
+            const stopped=new Error('user stopped');stopped.code='USER_STOPPED';throw stopped;
+          }
         }
         const err=new Error('out of bounds');err.code='PROGRAM_INVALID';
         err.studentDetail='La distance calculée dépasse les limites.';
@@ -329,18 +332,36 @@ async function provePupilErrorRequiresNativeStop() {
       stopSimulation(){stops++;return pendingStop.promise;},
       async resetSimulation(){resets++;throw new Error('unexpected native RESET');}};
     const running=context.runProgram();
-    if (scenario==='manual-stop-failure') {
+    if (scenario.startsWith('manual-stop-')) {
       await until(()=>context.runtimeRunning,'manual STOP while running');
       const stop=context.stopSimulation();
       await until(()=>stops===1,'manual STOP issued');
-      pendingStop.reject(new Error('STOP ACK missing'));
-      assert.strictEqual(await stop,false);
-      pendingExecution.resolve();
+      const overlapping = scenario !== 'manual-stop-failure';
+      const stopFails = scenario !== 'manual-stop-pupil-ok';
+      if (overlapping) {
+        pendingExecution.resolve();
+        await until(()=>context.runtimeOutcomePending,'concurrent pupil failure');
+        await Promise.resolve();
+        assert.strictEqual(stops,1,'pupil failure must not resend pending manual STOP');
+        assert.strictEqual(element('resetSimulation').disabled,true);
+        await context.resetSimulation();
+        assert.strictEqual(resets,0,'RESET must await manual STOP');
+      }
+      if(stopFails) pendingStop.reject(new Error('STOP ACK missing'));
+      else pendingStop.resolve();
+      assert.strictEqual(await stop,!stopFails);
+      if(!overlapping) pendingExecution.resolve();
       await running;
-      assert.strictEqual(context.runtimeSafetyUnknown,true);
-      assert.strictEqual(element('resetSimulation').disabled,true);
-      await context.resetSimulation();
-      assert.strictEqual(resets,0,'manual STOP without ACK must fence RESET');
+      assert.strictEqual(context.runtimeSafetyUnknown,stopFails);
+      assert.strictEqual(context.runtimeTerminal,true);
+      assert.strictEqual(element('resetSimulation').disabled,stopFails);
+      assert.strictEqual(element('runtimeState').textContent,stopFails?'ERREUR':'ARRÊTÉ');
+      if(stopFails) {
+        await context.resetSimulation();
+        await context.runProgram();
+        assert.strictEqual(resets,0,'manual STOP without ACK must fence RESET');
+        assert.strictEqual(executions,1,'manual STOP without ACK must fence TAKEOFF');
+      }
       assert.strictEqual(stops,1);
     } else if (scenario==='preflight') {
       await running;

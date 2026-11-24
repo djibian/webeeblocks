@@ -10,6 +10,7 @@ var runtimeOutcomePending = false;
 var runtimeResetPending = false;
 var runtimeStopPending = false;
 var runtimeStopRequested = false;
+var runtimeStopCompletion = null;
 // Unknown STOP outcome forbids new native effects until the session restarts.
 var runtimeSafetyUnknown = false;
 var runtimeScenePending = false;
@@ -513,6 +514,11 @@ async function stopSimulation() {
   updateRuntimeActions();
   setDebugControls(false);
   if (runtimeDebug) runtimeDebug.cancel();
+  runtimeStopCompletion = finishManualStop();
+  return runtimeStopCompletion;
+}
+
+async function finishManualStop() {
   try {
     await runtimeBackend.stopSimulation();
     runtimeTerminal = true;
@@ -591,6 +597,7 @@ async function runProgram() {
   runtimeExecutionSettled = new Promise(function(resolve) { settleExecution = resolve; });
   runtimeTerminal = false;
   runtimeStopRequested = false;
+  runtimeStopCompletion = null;
   var originalHooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
   var takeoffRequested = false;
   var hooks = Object.assign({}, originalHooks || {});
@@ -625,6 +632,14 @@ async function runProgram() {
     runtimeRunning = false;
     runtimeOutcomePending = true;
     updateRuntimeActions();
+    if (runtimeStopRequested) {
+      // Manual STOP owns recovery, including its unknown-outcome fence.
+      // A concurrent student error must not resend the native command or
+      // overwrite the manual STOP result before it has settled.
+      runtimeTerminal = true;
+      if (runtimeStopCompletion) await runtimeStopCompletion;
+      return;
+    }
     if (retryable && takeoffRequested) {
       // Student arithmetic may fail in flight. Never retry or RESET before STOP ACK.
       try {
