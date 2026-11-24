@@ -210,8 +210,12 @@ def progression_launcher(launcher):
   if ([regex]::Matches($html, [regex]::Escape($tag)).Count -ne 1) {
     throw 'Entrée Blockly pédagogique non conforme.'
   }
-  $replacement = '<script src="progression_profile.js"></script>' + "`n" +
-    '<script src="setup.js" data-progression-activity="' + $lesson + '"></script>'
+  $profileTag = '<script src="../blockly/webeeblocks/grand_prix_progression.js"></script>'
+  if ([regex]::Matches($html, [regex]::Escape($profileTag)).Count -ne 1 -or
+      $html.IndexOf($profileTag) -gt $html.IndexOf($tag)) {
+    throw 'Catalogue de profils Grand Prix absent ou duplique.'
+  }
+  $replacement = '<script src="setup.js" data-progression-activity="' + $lesson + '"></script>'
   $html = $html.Replace($tag, $replacement)
 """
     text = replace_once(text, anchor, anchor + insertion)
@@ -252,7 +256,9 @@ def compose(source, output):
         raise ValueError("Incomplete progression course inventory")
 
     window = output / "plugins/robot_windows/grand_prix_route_v2"
-    shutil.copyfile(PROFILES, window / "progression_profile.js")
+    shipped_profiles = window.parent / "blockly/webeeblocks/grand_prix_progression.js"
+    if shipped_profiles.read_bytes() != PROFILES.read_bytes():
+        raise ValueError("A8 support progression catalogue differs from source")
     launch = output / "Launch-WebeeBlocks.ps1"
     launch.write_text(progression_launcher(launch), encoding="utf-8-sig")
     (output / "Lancer-Grand-Prix.ps1").unlink()

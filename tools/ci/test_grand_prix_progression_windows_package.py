@@ -77,22 +77,28 @@ def verify(root):
                 starter.get("workspace", {}).get("blocks", {}).get("blocks") != []):
             raise ValueError("Invalid A1–A7 blank .wbb starter")
     window = root / "plugins/robot_windows/grand_prix_route_v2"
-    if (window / "progression_profile.js").read_bytes() != PROFILES.read_bytes():
-        raise ValueError("Wrong pinned cumulative Blockly profile")
+    if ((window.parent / "blockly/webeeblocks/grand_prix_progression.js").read_bytes()
+            != PROFILES.read_bytes() or (window / "progression_profile.js").exists()):
+        raise ValueError("Wrong or duplicate pinned cumulative Blockly profile")
     if (root / "ACCEPTATION-WINDOWS.md").read_bytes() != ACCEPTANCE.read_bytes():
         raise ValueError("Windows teacher acceptance guide missing or incorrect")
     html = (window / "grand_prix_route_v2.html").read_text(encoding="utf-8")
-    if (html.count('<script src="setup.js"></script>') != 1 or
+    profile_tag = '<script src="../blockly/webeeblocks/grand_prix_progression.js"></script>'
+    setup_tag = '<script src="setup.js"></script>'
+    if (html.count(setup_tag) != 1 or html.count(profile_tag) != 1 or
+            html.index(profile_tag) > html.index(setup_tag) or
             'data-progression-activity' in html):
         raise ValueError("Host profile must be injected per Windows session, not global")
     script = (root / "Launch-WebeeBlocks.ps1").read_text(encoding="utf-8-sig")
     for contract in (
             "^(?:[0-9]|1[0-9]|2[0-2])$", "data-progression-activity",
-            "progression_profile.js", "Association activité/parcours incohérente.",
+            "grand_prix_progression.js", "Association activité/parcours incohérente.",
             "WEBEEBLOCKS_GP_ACTIVITY", "GP_ROUTE_WINDOWS_LAUNCHER_SESSION_STAGED_OK",
             "RequestedFps -lt 1", "RequestedFps -gt 60"):
         if contract not in script:
             raise ValueError("Session launcher lost a required preflight: " + contract)
+    if 'src="progression_profile.js"' in script:
+        raise ValueError("Session launcher must not reload the shared catalogue")
     front = (root / "Lancer-Progression.ps1").read_text(encoding="utf-8-sig")
     if front != FRONTEND or not (root / "Lancer-Progression.cmd").is_file():
         raise ValueError("Incorrect student Windows course chooser")

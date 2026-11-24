@@ -122,8 +122,10 @@ def prepare_lesson_project(project, activity, variant=1):
     html = page.read_text(encoding='utf-8')
     if html.count(SETUP_TAG) != 1 or 'data-progression-activity' in html:
         raise RuntimeError('Point d’entrée Blockly Grand Prix incohérent')
+    profile_tag = f'<script src="../{PROFILES}"></script>'
+    if html.count(profile_tag) != 1 or html.index(profile_tag) > html.index(SETUP_TAG):
+        raise RuntimeError('Catalogue de profils Grand Prix absent ou dupliqué')
     html = html.replace(SETUP_TAG,
-        f'<script src="../{PROFILES}"></script>\n  '
         f'<script src="setup.js" data-progression-activity="{activity}"></script>')
 
     worlds = project / 'worlds'

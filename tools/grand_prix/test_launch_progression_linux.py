@@ -25,6 +25,7 @@ class ProgressionLaunchTests(unittest.TestCase):
                 selected = windows / launcher.ROBOT_WINDOW
                 page = (selected / (launcher.ROBOT_WINDOW + '.html')).read_text()
                 self.assertEqual(page.count(f'data-progression-activity="{activity}"'), 1)
+                self.assertEqual(page.count(f'<script src="../{launcher.PROFILES}"></script>'), 1)
                 self.assertLess(page.index(launcher.PROFILES), page.index('src="setup.js"'))
                 self.assertTrue((windows / launcher.PROFILES).is_file())
                 # The selected student page must keep the existing shared
