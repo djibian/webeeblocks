@@ -83,7 +83,7 @@ async function outcome(expected) {
 
 async function activityOne() {
   await approachLastLeg();
-  await backend.move('forward', .9);
+  await backend.move('forward', 1.30); // A1: 1.60-m leg, pad 0.30 m before H.
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
@@ -116,14 +116,14 @@ async function activityOne() {
 
 async function activityTwo() {
   await takeoff(.88);
-  await backend.move('forward', .44);
+  // Owner 2026-11-24: H centre .80, centre band +/- .36,
+  // frame clears at +/- .33. Nominal endpoints .46 and 1.14.
+  // Do not carry the old native undertravel correction into this new geometry.
+  await backend.move('forward', .46);
   await backend.vertical('down', .41);
-  await backend.move('forward', .74);
-  await backend.vertical('up', .41);
-  // At the first native low-altitude landing sample, the .62-m final MOVE
-  // left x=1.741255 versus the fixed x=1.800-m tile centre (#1076).
-  // Compensate that measured ~.059-m undertravel; keep the 5-cm footprint oracle.
   await backend.move('forward', .68);
+  await backend.vertical('up', .41);
+  await backend.move('forward', 1.06); // Target 2.20, not yet native-qualified.
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
@@ -153,17 +153,18 @@ async function activityThree() {
   await takeoff(.88);
   async function traverseGate() {
     await backend.turn(90);
-    await backend.move('forward', .44);
+    // New 2.50-m pupil side with H at 1.25: centre endpoints +/- .34.
+    await backend.move('forward', .91);
     await backend.vertical('down', .41);
-    await backend.move('forward', .74);
+    await backend.move('forward', .68);
     await backend.vertical('up', .41);
   }
   for (let leg = 0; leg < 2; leg++) {
     await traverseGate();
-    await backend.move('forward', .32);
+    await backend.move('forward', .91);
   }
   await traverseGate();
-  await backend.move('forward', .10);
+  await backend.move('forward', .91);
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
