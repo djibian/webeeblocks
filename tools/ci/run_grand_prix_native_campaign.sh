@@ -16,14 +16,30 @@ if [[ "${1:-}" == --container ]]; then
   mkdir -p "$WEBOTS_HOME/projects"
   cp -a /opt/ci-webots-projects/. "$WEBOTS_HOME/projects/"
 
-  if [[ "$ACTIVITY" =~ ^[1-3]$ ]]; then
-    # Invoke the existing Runtime entry inside M2, with Node available to its
-    # exact native WWI runner. Keep the Runtime campaign's 600-second bound.
-    timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py \
+  if [[ "$ACTIVITY" =~ ^[1-5]$ ]]; then
+    # Reuse the canonical Runtime lesson runner, including the A4/A5
+    # save/reopen and same-project digest witnesses. Keep its existing bounds.
+    cap=600s
+    if [[ "$ACTIVITY" =~ ^[45]$ ]]; then cap=1350s; fi
+    timeout -k 5s "$cap" xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py \
       --native --progression-activity "$ACTIVITY"
-    for raw in production-pilot-build.log world.wbt webots.log wwi.log; do
-      test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-native/$raw"
-    done
+    evidence="ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-native"
+    test -s "$evidence/production-pilot-build.log"
+    if [[ "$ACTIVITY" =~ ^[1-3]$ ]]; then
+      for raw in world.wbt webots.log wwi.log; do
+        test -s "$evidence/$raw"
+      done
+    else
+      count=3
+      if [[ "$ACTIVITY" == 5 ]]; then count=5; fi
+      test -s "$evidence/pupil-project.wbb"
+      for ((variant=1; variant<=count; variant++)); do
+        for raw in world.wbt webots.log wwi.log pupil-project.wbb; do
+          test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/$raw"
+        done
+        cmp "$evidence/pupil-project.wbb" "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/pupil-project.wbb"
+      done
+    fi
     exit 0
   fi
 
@@ -32,8 +48,7 @@ if [[ "${1:-}" == --container ]]; then
   test -x controllers/grand_prix_route_flight/grand_prix_route_flight
 
   case "$ACTIVITY" in
-    4) count=3 ;;
-    5|6) count=5 ;;
+    6) count=5 ;;
     7) count=7 ;;
     *) exit 2 ;;
   esac
@@ -71,14 +86,16 @@ if [[ "${1:-}" == --container ]]; then
 fi
 
 case "$ACTIVITY" in
-  1|2|3) image="$WEBOTS_M2_IMAGE" ;;
-  4|5|6|7) image="$WEBOTS_OFFICIAL_IMAGE" ;;
+  1|2|3|4|5) image="$WEBOTS_M2_IMAGE" ;;
+  6|7) image="$WEBOTS_OFFICIAL_IMAGE" ;;
   *) exit 2 ;;
 esac
 
 test "$(git -C ../webots-assets rev-parse HEAD)" = "$PROTO_SHA"
 node_root="$(dirname "$(dirname "$(command -v node)")")"
-if [[ "$ACTIVITY" == 6 ]]; then
+if [[ "$ACTIVITY" =~ ^[45]$ ]]; then
+  bash tools/prepare_runtime_v2.sh
+elif [[ "$ACTIVITY" == 6 ]]; then
   bash tools/prepare_runtime_v2.sh
   python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
   node tools/grand_prix/witness_workspace_a6.js
