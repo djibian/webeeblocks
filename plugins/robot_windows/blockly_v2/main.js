@@ -67,7 +67,7 @@ function updateRuntimeActions() {
   if (typeof submit.setAttribute === 'function') submit.setAttribute('aria-label', primaryLabel);
   submit.disabled = primaryIsStop
     ? (!stopSupported || !ready || runtimeOutcomePending || runtimeStopPending || runtimeStopRequested)
-    : (!ready || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
+    : (!ready || runtimeSafetyUnknown || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
   if (stop) {
     stop.hidden = true;
     stop.disabled = true;
@@ -531,12 +531,13 @@ async function stopSimulation() {
 async function resetSimulation() {
   // RESET during a debugger wait must first obtain the ordinary native STOP ACK.
   // No direct native RESET while an attempt is running or its outcome is pending.
+  if (runtimeSafetyUnknown) return;
   if (runtimeRunning && runtimeDebug && runtimeDebug.waiter && !runtimeStopPending) {
     var executionSettled = runtimeExecutionSettled;
     if (await stopSimulation() !== true) return;
     if (executionSettled) await executionSettled;
   }
-  if (runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
+  if (runtimeSafetyUnknown || runtimeRunning || runtimeOutcomePending || runtimeResetPending || runtimeStopPending ||
       !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
@@ -576,7 +577,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeSafetyUnknown || runtimeRunning || runtimeTerminal || runtimeOutcomePending || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;

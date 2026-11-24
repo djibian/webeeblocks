@@ -289,11 +289,12 @@ async function provePupilErrorRequiresNativeStop() {
       return elements[id];
     }
     const pendingStop = deferred();
-    let stops = 0;
+    let stops = 0, resets = 0, executions = 0;
     const context = {
       console:{log(){},error(){}},
       Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
-        Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create'},Blocks:{}},
+        Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create'},Blocks:{},
+        serialization:{workspaces:{save(){return {};}}}},
       document:{currentScript:{src:'https://example.invalid/main.js'},
         getElementById:element,body:{dataset:{}},
         createElement(){return{setAttribute(){},appendChild(){}};}},
@@ -301,6 +302,7 @@ async function provePupilErrorRequiresNativeStop() {
       CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
       WebeeBlocksRuntimeOutcome:Outcome,
       WebeeBlocksActivityContract:{async execute(profile,workspace,compiler,interpreter,backend,options){
+        executions++;
         options.onAst({version:1,semantics:'webeeblocks-ast-v1',program:[]});
         if(scenario!=='preflight')
           await options.hooks.beforeStep({role:'statement',node:{kind:'takeoff'}});
@@ -319,7 +321,8 @@ async function provePupilErrorRequiresNativeStop() {
     context.workspace={};
     context.runtimeBackend={ready:true,
       capabilities:{simulationDebug:false,simulationReset:true,simulationStop:true},
-      stopSimulation(){stops++;return pendingStop.promise;}};
+      stopSimulation(){stops++;return pendingStop.promise;},
+      async resetSimulation(){resets++;throw new Error('unexpected native RESET');}};
     const running=context.runProgram();
     if (scenario==='preflight') {
       await running;
@@ -330,6 +333,8 @@ async function provePupilErrorRequiresNativeStop() {
       await until(()=>stops===1,'STOP on in-flight pupil error');
       assert.strictEqual(element('resetSimulation').disabled,true);
       assert.strictEqual(element('submit').disabled,true);
+      await context.resetSimulation();
+      assert.strictEqual(resets,0,'direct RESET while STOP pending');
       if(scenario==='stop-failure')pendingStop.reject(new Error('STOP ACK missing'));
       else pendingStop.resolve();
       await running;
@@ -338,6 +343,13 @@ async function provePupilErrorRequiresNativeStop() {
       assert.strictEqual(element('resetSimulation').disabled,scenario==='stop-failure');
       assert.strictEqual(element('runtimeState').textContent,
         scenario==='stop-failure'?'ERREUR':'À CORRIGER');
+      if(scenario==='stop-failure') {
+        await context.resetSimulation();
+        await context.runProgram();
+        assert.strictEqual(resets,0,'direct RESET bypassed unknown STOP interlock');
+        assert.strictEqual(executions,1,'direct launch bypassed unknown STOP interlock');
+        assert.strictEqual(context.runtimeSafetyUnknown,true);
+      }
     }
   }
 }
