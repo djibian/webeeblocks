@@ -276,9 +276,17 @@ class VariableRouteTests(unittest.TestCase):
                                                     course.route, course.gates))
         for z in (.62, .9, 1.165):
             self.assertTrue(_hits_mission_body((.45, 0, z), (1.15, 0, z), solids))
-        # One admissible spatial sequence, without pilot/Blockly simulation.
-        waypoints = ((.2, 0, .75), (.4, 0, .75), (.4, 0, .4),
-                     (1.2, 0, .4), (1.2, 0, .75), (1.5, 0, .75))
+        # Owner #587 (2026-11-24): gate at .80, band +/- .45,
+        # radius .09 => admissible centre [.44, 1.16].
+        # Old .40/1.20 low waypoints must now be rejected.
+        for x in (.40, 1.20):
+            self.assertFalse(low_segment_allowed_v2((x, 0, .75), (x, 0, .4),
+                                                    course.route, course.gates))
+        # One admissible spatial sequence, without pilot/Blockly simulation:
+        # each altitude transition is .34 m from the gate plane, beyond
+        # the frame clearance of .33 m, inside the eroded band.
+        waypoints = ((.2, 0, .75), (.46, 0, .75), (.46, 0, .4),
+                     (1.14, 0, .4), (1.14, 0, .75), (1.5, 0, .75))
         for before, after in zip(waypoints, waypoints[1:]):
             self.assertTrue(low_segment_allowed_v2(before, after, course.route, course.gates))
             self.assertFalse(_hits_mission_body(before, after, solids))

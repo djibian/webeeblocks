@@ -127,7 +127,8 @@ class VariableTerminalTests(unittest.TestCase):
                 for gate in plan.gates:
                     leg = plan.route.legs[gate.leg_index]
                     sx, sy = (.012, .0375) if leg.direction % 2 == 0 else (.0375, .012)
-                    for along in (gate.along - .55, gate.along + .55):
+                    # Independent owner-approved bounds (not imported from generator).
+                for along in (gate.along - .45, gate.along + .45):
                         bands.extend((*leg.at(along, -.30 + (i + .5) * .075), sx, sy)
                                      for i in range(8))
                 assert_visual_boxes(self, text, 'GP_ROUTE_BAND_MARKS',
@@ -150,7 +151,12 @@ class VariableTerminalTests(unittest.TestCase):
             course = reference_course(index)
             scene = static_course_world(course)
             with self.subTest(configuration=course.identifier):
-                for number, (x, y) in enumerate(landing_targets(course.route), start=1):
+                # Canonical A8 CoursePlan now places each tile .50 m
+                # before the final H. The route-only legacy helper keeps .70 m.
+                leg = course.route.legs[-1]
+                for number, lateral in ((1, 0.), (2, .50), (3, -.50)):
+                    x, y = leg.at(leg.length - .50, lateral)
+                    self.assertEqual(course.landing_position(number), (x, y))
                     for parity, label, color in ((0, 'DARK', '.06 .06 .06'),
                                                   (1, 'LIGHT', '.96 .96 .96')):
                         cells = [(x - .125 + (col + .5) * .0625,
