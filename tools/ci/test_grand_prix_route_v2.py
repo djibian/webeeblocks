@@ -219,10 +219,10 @@ class VariableRouteTests(unittest.TestCase):
             for pad in course.pads:
                 x, y = course.landing_position(pad)
                 on_tile = (x + .13, y, .05)
-                edge = (x + .14, y, .05)
+                near_edge = (x + .139, y, .05)
                 outside = (x + .141, y, .05)
-                self.assertTrue(_inside_landing_support_sweep(course, on_tile, edge))
-                self.assertFalse(_inside_landing_support_sweep(course, edge, outside))
+                self.assertTrue(_inside_landing_support_sweep(course, on_tile, near_edge))
+                self.assertFalse(_inside_landing_support_sweep(course, near_edge, outside))
                 self.assertFalse(_inside_landing_support_sweep(
                     course, on_tile, (x + .50, y, .05)))
             if activity == 5:
