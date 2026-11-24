@@ -411,8 +411,8 @@
           // the *current* activity remains the only authority for execution.
           validated = validateProjectText(opened.text, options.getProfile(),
                                           dependencies(), true);
-          applyPortableImport(validated);
           selectedName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+          applyPortableImport(validated);
         } catch (error) {
           if (handle && handle !== targetHandle) await releaseTarget(handle);
           throw error;

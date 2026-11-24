@@ -795,6 +795,24 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   await manager.save();
   assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,current.id);
   assert.strictEqual(transport.state.writes.length,1);
+  const before=JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace));
+  const badHandle={name:'   '};
+  const replacement=buildWorkspace(.4);
+  const badText=ProjectFiles.encodeProject(source,replacement,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  replacement.dispose();
+  transport.open=async()=>({handle:badHandle,name:badHandle.name,text:badText});
+  await assert.rejects(manager.openIntoCurrentActivity(), /selected file has no name/);
+  assert.strictEqual(JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace)),before,
+    'rejected Open changed live workspace while retaining previous target');
+  assert.strictEqual(profile.value,current);
+  assert.strictEqual(prepared,0);
+  assert.strictEqual(switched,0);
+  assert(transport.state.releases.includes(badHandle));
+  await manager.save();
+  assert.strictEqual(transport.state.writes.length,2);
+  assert.strictEqual(JSON.stringify(ProjectFiles.parseProject(transport.state.currentText).workspace),before);
   targetWorkspace.dispose();
 }
 
