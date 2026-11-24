@@ -74,6 +74,10 @@ if [[ "${1:-}" == --container ]]; then
     for raw in world.wbt webots.log wwi.log; do
       test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/$raw" || failures=1
     done
+    if [[ "$ACTIVITY" == 7 ]]; then
+      cmp ci-artifacts/grand-prix-u-geometry/a7-revised-reference.wbb \
+        "ci-artifacts/grand-prix-u-geometry/route-a7-v$variant-native/a7-witness.wbb" || failures=1
+    fi
   done
   if [[ "$ACTIVITY" == 6 ]]; then
     for variant in 4 5; do
@@ -103,7 +107,9 @@ elif [[ "$ACTIVITY" == 7 ]]; then
   bash tools/prepare_runtime_v2.sh
   python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission \
     tools.ci.test_a7_retreat tools.ci.test_a7_native_rebound
-  node tools/grand_prix/witness_workspace_a7.js
+  mkdir -p ci-artifacts/grand-prix-u-geometry
+  node tools/grand_prix/witness_workspace_a7.js \
+    ci-artifacts/grand-prix-u-geometry/a7-revised-reference.wbb --revised-geometry
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native

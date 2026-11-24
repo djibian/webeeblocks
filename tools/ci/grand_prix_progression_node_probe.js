@@ -501,7 +501,9 @@ async function activitySeven() {
     if (obstacle.left < .45 && obstacle.right < .45) {
       await advanceWhile('forward', .04, async () => await range() > .16, 12);
       await backend.vertical('down', .42);
-      await backend.move('forward', .60);
+      // Revised low band: nominal -0.14..-0.18 to +0.31..+0.35 m.
+      // Real PID overshoot and clearance are still falsifiable.
+      await backend.move('forward', .49);
       await backend.vertical('up', .42);
       obstacle = await reachObstacle();
     }
@@ -520,8 +522,8 @@ async function activitySeven() {
   }
   await takeoff(.90);
   await approachClosedH();
-  await advanceWhile('back', .13, async () => await range() < .65, 8);
-  await advanceWhile('forward', .05, async () => await range() > .71, 8);
+  await advanceWhile('back', .13, async () => await range() < .45, 8);
+  await advanceWhile('forward', .05, async () => await range() > .51, 8);
   if (rebound) return reboundLanding();
   await backend.land();
   await backend.completeActivityMission(evaluation);
@@ -548,10 +550,15 @@ async function activitySeven() {
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   const A7Wbb = require('../grand_prix/witness_workspace_a7.js');
   const crypto = require('node:crypto');
-  const witness = A7Wbb.build();
-  assert.equal(witness.sha256, 'ba575b02048d9f3b1bd2a3e25cd84035839c8eee60b397faae36f78b105e4c75',
-    'historical A7 .wbb bytes changed');
-  assert.equal(A7Wbb.build().sha256, witness.sha256, 'A7 source file not reproducible');
+  // The historical digest belongs to the old geometry and source HEAD.
+  // Retain the old builder and provenance, not an invalid hash constraint
+  // on the new geometry. The campaign compares actual bytes across variants.
+  const historical = A7Wbb.build();
+  const witness = A7Wbb.build(true);
+  assert.notEqual(witness.sha256, historical.sha256, 'revised A7 witness not distinct');
+  assert.equal(A7Wbb.build(true).sha256, witness.sha256, 'A7 source file not reproducible');
+  console.log(JSON.stringify({event:'A7_WBB_REVISED',sha256:witness.sha256,
+    historicalReference:'ba575b02048d9f3b1bd2a3e25cd84035839c8eee60b397faae36f78b105e4c75'}));
   const file = process.env.WEBEEBLOCKS_A7_WBB_OUT;
   assert(file, 'A7 native product witness path required');
   fs.writeFileSync(file, witness.content);
