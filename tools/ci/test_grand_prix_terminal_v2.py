@@ -128,7 +128,7 @@ class VariableTerminalTests(unittest.TestCase):
                     leg = plan.route.legs[gate.leg_index]
                     sx, sy = (.012, .0375) if leg.direction % 2 == 0 else (.0375, .012)
                     # Independent owner-approved bounds (not imported from generator).
-                for along in (gate.along - .45, gate.along + .45):
+                    for along in (gate.along - .45, gate.along + .45):
                         bands.extend((*leg.at(along, -.30 + (i + .5) * .075), sx, sy)
                                      for i in range(8))
                 assert_visual_boxes(self, text, 'GP_ROUTE_BAND_MARKS',
