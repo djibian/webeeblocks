@@ -32,7 +32,7 @@
       case 'number':finite(expression.value,'number');return;
       case 'elapsed_time':if(expression.unit!=='s')fail('unsupported elapsed time unit');return;
       case 'range':if(SENSOR_DIRECTIONS.indexOf(String(expression.direction))<0||expression.unit!=='m')fail('unsupported range expression');return;
-      case 'variable_get':{var ref=rememberVariable(variables,expression.variable);if(!assigned.has(ref.id))fail('variable read before assignment: '+ref.name);return;}
+      case 'variable_get':{var ref=rememberVariable(variables,expression.variable);if(!assigned.has(ref.id))studentFail('variable read before assignment: '+ref.name,'La variable « '+ref.name+' » est utilisée avant d’avoir reçu une valeur. Ajoute un bloc « définir '+ref.name+' à… » avant sa première utilisation.');return;}
       case 'arithmetic':if(ARITHMETIC_OPS.indexOf(String(expression.op))<0)fail('unsupported arithmetic operation '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
       case 'compare':if(COMPARE_OPS.indexOf(String(expression.op))<0)fail('unsupported comparison '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
       case 'logic':if(expression.op!=='AND'&&expression.op!=='OR')fail('unsupported logic operation '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
@@ -160,7 +160,7 @@
         var ref=variableRef(expression.variable);
         await hook(options,'beforeStep',current);
         if(!Object.prototype.hasOwnProperty.call(env.values,ref.id))
-          fail('variable read before assignment: '+ref.name);
+          studentFail('variable read before assignment: '+ref.name,'La variable « '+ref.name+' » est utilisée avant d’avoir reçu une valeur. Ajoute un bloc « définir '+ref.name+' à… » avant sa première utilisation.');
         if(env.names[ref.id]&&env.names[ref.id]!==ref.name)
           fail('variable id/name mismatch: '+ref.id);
         return env.values[ref.id];
