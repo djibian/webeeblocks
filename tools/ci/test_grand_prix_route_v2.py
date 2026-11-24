@@ -210,6 +210,25 @@ class VariableRouteTests(unittest.TestCase):
                 faces.append(min(possible_faces))
             self.assertEqual(faces[0], faces[1])
 
+    def test_teacher_terminal_low_zone_is_green_tile_only(self):
+        from tools.grand_prix.oracle_attempt_v2 import _inside_landing_support_sweep
+        from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+        self.assertAlmostEqual(LANDING_TILE, .28)
+        for activity, variant in ((1, 1), (3, 1), (4, 3), (5, 4), (6, 5), (7, 7)):
+            course = progression_course(activity, variant)
+            for pad in course.pads:
+                x, y = course.landing_position(pad)
+                on_tile = (x + .13, y, .05)
+                edge = (x + .14, y, .05)
+                outside = (x + .141, y, .05)
+                self.assertTrue(_inside_landing_support_sweep(course, on_tile, edge))
+                self.assertFalse(_inside_landing_support_sweep(course, edge, outside))
+                self.assertFalse(_inside_landing_support_sweep(
+                    course, on_tile, (x + .50, y, .05)))
+            if activity == 5:
+                self.assertEqual(len(course.pads), 2,
+                                 'both visible A5 pads must allow safe low descent')
+
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)
         solids = course_physical_boxes(course)

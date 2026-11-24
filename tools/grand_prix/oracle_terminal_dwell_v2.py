@@ -20,7 +20,10 @@ from tools.grand_prix.oracle_leg_cursor_v2 import LegCursor
 # #1082 established this same full-envelope landing condition for A8.
 # A1-A7 and A8 both require the entire conservative craft envelope on the tile.
 LANDING_TOL = LANDING_TILE / 2 - RADIUS
-PROGRESSION_FOOTPRINT_RADIUS = RADIUS
+# Owner-approved pedagogical tolerance: the craft centre may be 7cm off-centre.
+# Up to 2cm of the conservative 9cm craft envelope can extend past the green
+# tile, while physical collision, course boundaries and contact remain strict.
+PROGRESSION_LANDING_TOL = LANDING_TOL + .02
 DWELL_MS = 500
 COMPLETION_WINDOW_MS = 1500
 # A continuous dwell witness needs observations at every native simulation step.
@@ -85,7 +88,7 @@ def _eligible(state, progress, velocity, airborne):
             not 0 <= progress.gates.cursor <= state.course.count):
         raise TerminalDwellError('incoherent native course progression')
     target = state.course.landing_goal()
-    landing_tolerance = (LANDING_TILE / 2 - PROGRESSION_FOOTPRINT_RADIUS
+    landing_tolerance = (PROGRESSION_LANDING_TOL
                          if state.course.progression is not None else LANDING_TOL)
     return (airborne and progress.leg.active_leg == last_leg and
             progress.gates.cursor == state.course.count and

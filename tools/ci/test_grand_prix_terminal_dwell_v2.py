@@ -201,6 +201,28 @@ class VariableTerminalDwellTests(unittest.TestCase):
 
 
 
+    def test_progression_owner_tolerance_is_bounded_and_does_not_change_a8(self):
+        from tools.grand_prix.progression_courses import progression_course
+        from tools.grand_prix.oracle_terminal_dwell_v2 import (
+            LANDING_TOL, PROGRESSION_LANDING_TOL)
+        self.assertAlmostEqual(LANDING_TOL, .05)
+        self.assertAlmostEqual(PROGRESSION_LANDING_TOL, .07)
+        course = progression_course(6, 4)  # one straight, no gate
+        x, y = course.landing_goal()
+        initial = start_course_progress(course, .35)
+        initial = advance_course_progress(initial, (x, y, .05))
+        for offset, accepted in ((.049, True), (.069, True), (.071, False),
+                                 (-.069, True), (-.071, False)):
+            with self.subTest(offset=offset):
+                shifted = replace(initial, pose=(x + offset, y, .05),
+                                  leg=replace(initial.leg, xy=(x + offset, y)))
+                witness = start_terminal_dwell(course, 73, 0., 0)
+                witness = self.step(witness, shifted, 0, completed=True)
+                witness = self.contiguous(witness, shifted, 504)
+                self.assertEqual(witness.state == 'stable-window', accepted)
+        # A8's historical full-envelope acceptance remains unchanged here.
+        self.assertAlmostEqual(LANDING_TOL, .05)
+
     def test_terminal_pad_requires_entire_craft_envelope(self):
         """A centre on the green tile is not evidence of a full landing."""
         from tools.grand_prix.corridor_sweep_v2 import RADIUS

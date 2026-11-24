@@ -109,6 +109,22 @@ def _hits_mission_body(before, after, boxes):
     return False
 
 
+def _inside_landing_support_sweep(course, before, after):
+    """Low terminal descent permission, not a successful-landing verdict.
+
+    Both step endpoints must keep the observed craft centre over the same
+    28-cm green tile; continuous linear sweeps remain inside its convex bounds.
+    This grants neither a crossing nor a collision, boundary or LAND exception.
+    """
+    half = LANDING_TILE / 2
+    for pad in course.pads:
+        target = course.landing_position(pad)
+        if all(abs(sample[axis] - target[axis]) <= half
+               for sample in (before, after) for axis in (0, 1)):
+            return True
+    return False
+
+
 def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
                          *, contacts=None, completed=False):
     """Consume one independently sourced observation; latch failure or success.
@@ -151,20 +167,16 @@ def observe_pure_attempt(state, attempt, now_ms, pose, velocity,
         if not state.takeoff_done:
             remaining = state.started_ms + 15000 - state.last_ms
             until = remaining / dt if dt else (1. if remaining >= 0 else -1.)
-        # For progression profiles without a terminal H (notably short A4),
-        # merely entering the final leg is NOT an authorization to fly low
-        # across the corridor. Permit a low terminal sweep only while its
-        # complete craft envelope is above the physical landing tile.
-        # Preserve the established A8 terminal zone exactly.
+        # The final-leg and H-crossing witnesses are necessary but never
+        # sufficient to fly low across the whole 1.80m arrival strip.
+        # Only both endpoints above one green landing support admit descent.
+        # All other swept collisions, red boundaries, and native checks remain.
         terminal_ready = (
             state.progress.leg.active_leg == len(state.course.route.legs) - 1 and
             state.progress.count == state.course.count)
         if terminal_ready and state.course.progression is not None:
-            target = state.course.landing_goal()
-            safe_half = LANDING_TILE / 2 - RADIUS
-            terminal_ready = all(
-                abs(point[axis] - target[axis]) <= safe_half
-                for point in (before, observed) for axis in (0, 1))
+            terminal_ready = _inside_landing_support_sweep(
+                state.course, before, observed)
         if not low_segment_allowed_v2(
                 before, observed, state.course.route, state.course.gates,
                 final=terminal_ready, takeoff_until=until):
