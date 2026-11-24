@@ -64,7 +64,7 @@
     'course-boundary': 'Sortie de piste',
     'altitude': 'Altitude interdite',
     'low-outside-zone': 'Vol bas hors des zones autorisées',
-    'wrong-landing': 'Mauvaise zone d’arrivée',
+    'wrong-landing': 'Atterrissage non validé : vérifie le centrage et le bon damier',
     'time-limit': 'Durée maximale de 210 secondes dépassée'
   });
 

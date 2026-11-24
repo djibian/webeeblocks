@@ -100,6 +100,26 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   assert(activeEvents.some(detail=>detail.kind==='set_variable'&&detail.blockId===changeBlock.id),'change-variable interpreter event did not map back to its real Blockly block');
 
   let backendActions=0;await assert.rejects(Interpreter.run({version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'if',condition:{kind:'variable_get',variable:{id:'x',name:'x'}},then:[],else:[]},{kind:'land'}]},{async takeoff(){backendActions++;},async land(){backendActions++;}}),/read before assignment/);assert.strictEqual(backendActions,0,'uninitialized variable was not rejected before backend action');
+  const pupilUninitialized = {version:1,semantics:'webeeblocks-ast-v1',program:[
+    {kind:'takeoff',height_m:0.8},
+    {kind:'if',condition:{kind:'variable_get',variable:{id:'pupil-var',name:'élément'}},then:[],else:[]},
+    {kind:'land'}
+  ]};
+  let pupilActions=0;
+  await assert.rejects(Interpreter.run(pupilUninitialized,{
+    async takeoff(){pupilActions++;},async land(){pupilActions++;}
+  }),error=>error&&error.code==='PROGRAM_INVALID'&&
+    /read before assignment/.test(error.message)&&
+    /variable « élément »/.test(error.studentDetail)&&
+    /définir élément à/.test(error.studentDetail),
+    'uninitialized variables must produce correctable, actionable pupil feedback');
+  assert.strictEqual(pupilActions,0,'pupil error must be detected before any native action');
+  await assert.rejects(Interpreter.evaluate(
+    {kind:'variable_get',variable:{id:'pupil-var',name:'élément'}},
+    {},{remaining:5},0,{},['probe']
+  ),error=>error&&error.code==='PROGRAM_INVALID'&&
+    /variable « élément »/.test(error.studentDetail),
+    'runtime variable read must report the same pupil-facing diagnostic');
   const uninitializedChangeWorkspace=new Blockly.Workspace();
   const changeOnlyVariable=uninitializedChangeWorkspace.getVariableMap().createVariable('compteur','', 'counter');
   const changeOnly=uninitializedChangeWorkspace.newBlock('math_change');
