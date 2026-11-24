@@ -903,11 +903,20 @@ async function proveForeignFutureBlockImportsButCannotLaunch() {
   original.dispose();
   const workspace=buildWorkspace(.2),profile={value:current},transport=memoryTransport();
   transport.state.openText=encoded;
-  let prepared=0;
+  let prepared=0,switched=0,failLive=false;
+  const contract=Object.assign({},ActivityContract,{
+    preflightWorkspace(p,w){
+      if (w===workspace&&failLive) {
+        failLive=false;
+        throw new Error('injected portable live load failure');
+      }
+      return ActivityContract.preflightWorkspace(p,w);
+    }
+  });
   const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
-    semanticAst:SemanticAst,activityContract:ActivityContract,workspace,
-    getProfile:()=>profile.value,setProfile:p=>{profile.value=p;},transport,
+    semanticAst:SemanticAst,activityContract:contract,workspace,
+    getProfile:()=>profile.value,setProfile:p=>{switched++;profile.value=p;},transport,
     prepareProfile:async()=>{prepared++;}});
   await manager.openIntoCurrentActivity();
   assert.strictEqual(profile.value.id,current.id);
@@ -923,6 +932,20 @@ async function proveForeignFutureBlockImportsButCannotLaunch() {
   await manager.saveAs('future-blocks.wbb');
   assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,
     source.id,'incompatible imported blocks must keep source profile on Save');
+  const before=JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+  const previousName=manager.currentName();
+  const previousText=transport.state.currentText;
+  failLive=true;
+  await assert.rejects(manager.openIntoCurrentActivity(), /injected portable live load failure/);
+  assert.strictEqual(switched,0,'portable rollback reapplied the active profile');
+  assert.strictEqual(prepared,0,'portable rollback selected a native scene');
+  assert.strictEqual(profile.value,current);
+  assert.strictEqual(manager.currentName(),previousName);
+  assert.strictEqual(JSON.stringify(Blockly.serialization.workspaces.save(workspace)),before,
+    'portable rollback lost foreign workspace state');
+  await manager.save();
+  assert.strictEqual(transport.state.currentText,previousText,
+    'portable rollback lost the source activity Save fallback');
   workspace.dispose();
 }
 

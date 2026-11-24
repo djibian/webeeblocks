@@ -34,6 +34,7 @@ function page(lesson = null, progression = Progression) {
   const profile = Profiles.resolveById(activitiesDocument, context.WebeeBlocksInitialActivityId,
     Activities.BLOCK_CATALOG);
   return {profile, options: {Blockly, profiles: Profiles, activitiesDocument,
+    portableActivitiesDocument: context.WebeeBlocksActivities.PROJECT_DOCUMENT,
     blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Compiler, activityContract: Contract}};
 }
 
@@ -337,7 +338,35 @@ async function provePupilVocabulary() {
   assert.deepEqual(trace, ['takeoff', 'move', 'move']);
   assert.deepEqual(page().profile, a8.profile, 'A8 changed after teaching-profile tests');
 }
-provePupilVocabulary().then(() => {
+async function provePortableGrandPrixCatalog() {
+  const all = [...pages, a8];
+  for (const target of all) {
+    assert.equal(target.options.activitiesDocument.activities.length, 1);
+    assert.equal(target.options.portableActivitiesDocument.activities.length, 8);
+    for (const source of all) {
+      const workspace = new Blockly.Workspace();
+      let switches = 0, preparations = 0;
+      try {
+        const sourceText = Projects.createStarterText(source.profile.id);
+        const manager = Projects.createManager({...target.options, workspace,
+          getProfile: () => target.profile,
+          setProfile() { switches++; },
+          async prepareProfile() { preparations++; },
+          transport: {async open() { return {name: 'portable.wbb', text: sourceText}; }}
+        });
+        const opened = await manager.openIntoCurrentActivity();
+        assert.equal(opened.sourceActivity, source.profile.id);
+        assert.equal(opened.activity, target.profile.id);
+        assert.equal(switches, 0);
+        assert.equal(preparations, 0);
+        if (source !== target)
+          assert.throws(() => Projects.validateProjectText(sourceText, target.profile, target.options),
+            /activity id must resolve exactly once/);
+      } finally { workspace.dispose(); }
+    }
+  }
+}
+provePortableGrandPrixCatalog().then(provePupilVocabulary).then(() => {
   console.log('PASS seven Grand Prix vocabulary profiles, A4 sensor arithmetic, A5 conditionals, A7 OR/UNTIL, loop safety diagnostic and A8 unchanged');
 }).catch(error => { console.error(error); process.exitCode = 1; });
 

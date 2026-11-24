@@ -192,7 +192,8 @@
   function validateProjectText(text, currentProfile, options, portableImport) {
     requireDependencies(options);
     var project = parseProject(text);
-    var profile = options.profiles.resolveById(options.activitiesDocument, project.activity.id, options.blockCatalog);
+    var sourceDocument = portableImport && options.portableActivitiesDocument || options.activitiesDocument;
+    var profile = options.profiles.resolveById(sourceDocument, project.activity.id, options.blockCatalog);
     if (!currentProfile || (!portableImport && profile.world !== currentProfile.world))
       fail('activity is incompatible with the current Webots world');
     validateSerializedFieldOptions(profile, project.workspace);
@@ -299,6 +300,7 @@
         Blockly: options.Blockly,
         profiles: options.profiles,
         activitiesDocument: options.activitiesDocument,
+        portableActivitiesDocument: options.portableActivitiesDocument,
         blockCatalog: options.blockCatalog,
         semanticAst: options.semanticAst,
         activityContract: options.activityContract
@@ -371,7 +373,16 @@
         importedSourceProfile = validated.profile;
       } catch (error) {
         importedSourceProfile = previousSource;
-        try { restore(previous); }
+        try {
+          // Portable Open did not select a profile. Restore the foreign
+          // workspace under its own source contract, not the active toolbox.
+          if (options.getProfile() !== previous.profile) options.setProfile(previous.profile);
+          options.workspace.clear();
+          loadWorkspaceWithProfile(previousSource || previous.profile, previous.workspace,
+                                   options.workspace, dependencies());
+          if (!previousSource)
+            options.activityContract.applyFieldBounds(previous.profile, options.workspace);
+        }
         catch (rollbackError) { error.rollbackError = rollbackError; }
         throw error;
       } finally { applying = false; }
