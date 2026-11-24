@@ -281,7 +281,7 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
 }
 
 async function provePupilErrorRequiresNativeStop() {
-  for (const scenario of ['preflight', 'stop-ok', 'stop-failure']) {
+  for (const scenario of ['preflight', 'stop-ok', 'stop-failure', 'manual-stop-failure']) {
     const elements = {};
     function element(id) {
       if (!elements[id]) elements[id] = {id,disabled:false,hidden:false,checked:false,
@@ -289,6 +289,7 @@ async function provePupilErrorRequiresNativeStop() {
       return elements[id];
     }
     const pendingStop = deferred();
+    const pendingExecution = deferred();
     let stops = 0, resets = 0, executions = 0;
     const context = {
       console:{log(){},error(){}},
@@ -306,6 +307,10 @@ async function provePupilErrorRequiresNativeStop() {
         options.onAst({version:1,semantics:'webeeblocks-ast-v1',program:[]});
         if(scenario!=='preflight')
           await options.hooks.beforeStep({role:'statement',node:{kind:'takeoff'}});
+        if(scenario==='manual-stop-failure') {
+          await pendingExecution.promise;
+          const stopped=new Error('user stopped');stopped.code='USER_STOPPED';throw stopped;
+        }
         const err=new Error('out of bounds');err.code='PROGRAM_INVALID';
         err.studentDetail='La distance calculée dépasse les limites.';
         throw err;
@@ -324,7 +329,20 @@ async function provePupilErrorRequiresNativeStop() {
       stopSimulation(){stops++;return pendingStop.promise;},
       async resetSimulation(){resets++;throw new Error('unexpected native RESET');}};
     const running=context.runProgram();
-    if (scenario==='preflight') {
+    if (scenario==='manual-stop-failure') {
+      await until(()=>context.runtimeRunning,'manual STOP while running');
+      const stop=context.stopSimulation();
+      await until(()=>stops===1,'manual STOP issued');
+      pendingStop.reject(new Error('STOP ACK missing'));
+      assert.strictEqual(await stop,false);
+      pendingExecution.resolve();
+      await running;
+      assert.strictEqual(context.runtimeSafetyUnknown,true);
+      assert.strictEqual(element('resetSimulation').disabled,true);
+      await context.resetSimulation();
+      assert.strictEqual(resets,0,'manual STOP without ACK must fence RESET');
+      assert.strictEqual(stops,1);
+    } else if (scenario==='preflight') {
       await running;
       assert.strictEqual(stops,0);
       assert.strictEqual(context.runtimeTerminal,false);
