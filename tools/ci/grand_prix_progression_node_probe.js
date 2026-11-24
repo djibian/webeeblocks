@@ -151,20 +151,41 @@ async function activityTwo() {
 
 async function activityThree() {
   await takeoff(.88);
+  // EXPERIMENT ONLY: observe two seconds of existing native IDLE convergence.
+  // No WAIT command (it would recapture XY/yaw), no geometry or oracle changes.
+  // ELAPSED is the admitted simulation clock, not wall-clock flight timing.
+  async function observeConvergence(phase) {
+    const start = await backend.readElapsedTime();
+    let last = start;
+    const wallLimit = Date.now() + 15000;
+    while (last - start < 2) {
+      assert(Date.now() < wallLimit, 'A3 diagnostic convergence clock stalled');
+      await delay(20);
+      const current = await backend.readElapsedTime();
+      assert(current >= last, 'A3 diagnostic simulation clock regressed');
+      last = current;
+    }
+    console.log(JSON.stringify({event: 'A3_IDLE_CONVERGENCE', phase, start, end: last}));
+  }
   async function traverseGate() {
     await backend.turn(90);
+    await observeConvergence('TURN 90');
     // New 2.50-m pupil side with H at 1.25: centre endpoints +/- .34.
     await backend.move('forward', .91);
+    await observeConvergence('MOVE .91');
     await backend.vertical('down', .41);
     await backend.move('forward', .68);
+    await observeConvergence('MOVE .68');
     await backend.vertical('up', .41);
   }
   for (let leg = 0; leg < 2; leg++) {
     await traverseGate();
     await backend.move('forward', .91);
+    await observeConvergence('MOVE .91');
   }
   await traverseGate();
   await backend.move('forward', .91);
+  await observeConvergence('MOVE .91');
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
