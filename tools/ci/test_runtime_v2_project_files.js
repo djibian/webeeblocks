@@ -798,6 +798,50 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   targetWorkspace.dispose();
 }
 
+async function proveForeignFutureBlockImportsButCannotLaunch() {
+  const source=activityProfile('progression-orientation-3d-v1');
+  const current=activityProfile('progression-sequence-v1');
+  const original=buildWorkspace(.3);
+  const takeoff=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_takeoff');
+  const move=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_move');
+  const land=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_land');
+  const repeat=original.newBlock('controls_repeat_ext');
+  const n=original.newBlock('math_number');n.setFieldValue('2','NUM');
+  repeat.getInput('TIMES').connection.connect(n.outputConnection);
+  takeoff.nextConnection.disconnect();
+  move.nextConnection.disconnect();
+  takeoff.nextConnection.connect(repeat.previousConnection);
+  repeat.getInput('DO').connection.connect(move.previousConnection);
+  repeat.nextConnection.connect(land.previousConnection);
+  const encoded=ProjectFiles.encodeProject(source,original,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  original.dispose();
+  const workspace=buildWorkspace(.2),profile={value:current},transport=memoryTransport();
+  transport.state.openText=encoded;
+  let prepared=0;
+  const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace,
+    getProfile:()=>profile.value,setProfile:p=>{profile.value=p;},transport,
+    prepareProfile:async()=>{prepared++;}});
+  await manager.openIntoCurrentActivity();
+  assert.strictEqual(profile.value.id,current.id);
+  assert.strictEqual(prepared,0,'foreign blocks selected a native scene');
+  assert(workspace.getAllBlocks(false).some(b=>b.type==='controls_repeat_ext'));
+  let nativeCommands=0;
+  await assert.rejects(ActivityContract.execute(current,workspace,SemanticAst,
+    {run:async()=>{nativeCommands++;}},
+    {capabilities:{actions:['takeoff','move','land'],moveDirections:['forward','left'],
+      rangeDirections:[],verticalDirections:[]}},{}),
+    /forbidden by profile/);
+  assert.strictEqual(nativeCommands,0,'foreign future block launched an action');
+  await manager.saveAs('future-blocks.wbb');
+  assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,
+    source.id,'incompatible imported blocks must keep source profile on Save');
+  workspace.dispose();
+}
+
 async function proveVariableProfileRealBlocklyRoundTrip() {
   const source = fs.readFileSync(path.join(ROOT,
     'plugins/robot_windows/grand_prix_route_v2/setup.js'), 'utf8');
@@ -1051,6 +1095,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveOrientationBlocklyProjectRoundTrip();
   await proveAltitudeBlocklyProjectRoundTrip();
   await provePortableOpenKeepsCurrentActivityAndFlightGate();
+  await proveForeignFutureBlockImportsButCannotLaunch();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
