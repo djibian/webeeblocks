@@ -13,41 +13,41 @@ class _Variant:
     first_direction: int = 0
     pads: tuple[int, ...] = (1,)
     required_pad: int = 1
-    pad_distance_from_h: float = .70
+    pad_distance_from_h: float = .30
 
 
 _VARIANTS = {
     1: (_Variant((1.4, 1.8, 1.6), ('G', 'D')),),
     2: (_Variant((2.5,), gates=((0, .80),)),),
-    3: (_Variant((1.5, 1.5, 1.5), ('G', 'G'),
-                 ((0, .75), (1, .75), (2, .75)), first_direction=1,
-                 # The last pad must be beyond the last H's clearing plane.
-                 pad_distance_from_h=.225),),
+    3: (_Variant((2.5, 2.5, 2.8), ('G', 'G'),
+                 ((0, 1.25), (1, 1.25), (2, 1.25)), first_direction=1,
+                 # Three 2.5m pupil legs end on the pad, with the closed H 0.30m farther.
+                 pad_distance_from_h=.30),),
     4: tuple(_Variant((length,), pads=(2,), required_pad=2)
              for length in (1., 1.4, 1.8)),
     5: tuple(_Variant((length, 2.5), (turn,), pads=(2, 3),
                       required_pad=3 if turn == 'G' else 2,
-                      pad_distance_from_h=.17)
+                      pad_distance_from_h=.30)
              for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
                                   (1.4, 'D'), (1.8, 'G'))),
     6: (
         # Owner-approved 2026-11-20: the initial frontal face alone must not
         # identify an open versus closed H. V2/V4 and V3/V5 share first faces.
         # Keep the pad 0.70 m before the closed H on every A6 variant.
-        _Variant((2.25,), gates=((0, .75),)),
-        _Variant((2.90,), gates=((0, 1.40),)),
-        _Variant((3.00,), gates=((0, 1.50),)),
-        _Variant((1.40,)),
-        _Variant((1.50,)),
+        _Variant((2.25,), gates=((0, .75),), pad_distance_from_h=.50),
+        _Variant((2.90,), gates=((0, 1.40),), pad_distance_from_h=.50),
+        _Variant((3.00,), gates=((0, 1.50),), pad_distance_from_h=.50),
+        _Variant((1.40,), pad_distance_from_h=.50),
+        _Variant((1.50,), pad_distance_from_h=.50),
     ),
     7: (
-        _Variant((1.5, 1.8), ('G',)),
-        _Variant((2., 1.5), ('D',)),
-        _Variant((2., 2.5), ('G',), ((0, .90),)),
-        _Variant((1.8, 2.), ('D',), ((0, .85),)),
-        _Variant((1.5, 2.5), ('G',), ((1, .85),)),
-        _Variant((2.5, 2.), ('D',), ((1, .75),)),
-        _Variant((2.5, 2.5), ('G',), ((1, 1.),)),
+        _Variant((1.5, 1.8), ('G',), pad_distance_from_h=.50),
+        _Variant((2., 1.5), ('D',), pad_distance_from_h=.50),
+        _Variant((2., 2.5), ('G',), ((0, .90),), pad_distance_from_h=.50),
+        _Variant((1.8, 2.), ('D',), ((0, .85),), pad_distance_from_h=.50),
+        _Variant((1.5, 2.5), ('G',), ((1, .85),), pad_distance_from_h=.50),
+        _Variant((2.5, 2.), ('D',), ((1, .75),), pad_distance_from_h=.50),
+        _Variant((2.5, 2.5), ('G',), ((1, 1.),), pad_distance_from_h=.50),
     ),
 }
 

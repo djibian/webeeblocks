@@ -68,13 +68,21 @@ class VariableRouteTests(unittest.TestCase):
                          ((1.4, 1.8, 1.6), ('G', 'D'), ()))
         self.assertEqual(a2.route.lengths, (2.5,))
         self.assertEqual([(g.leg_index, g.along) for g in a2.gates], [(0, .8)])
-        self.assertEqual(a3.route.lengths, (1.5, 1.5, 1.5))
+        self.assertEqual(a3.route.lengths, (2.5, 2.5, 2.8))
         self.assertEqual([leg.direction for leg in a3.route.legs], [1, 2, 3])
         self.assertEqual([(g.leg_index, g.along) for g in a3.gates],
-                         [(0, .75), (1, .75), (2, .75)])
+                         [(0, 1.25), (1, 1.25), (2, 1.25)])
         last = a3.route.legs[-1]
         pad_along, _ = last.local(a3.landing_position(a3.required_pad))
         self.assertGreater(pad_along, a3.gates[-1].along + FRAME_CLEAR)
+        self.assertAlmostEqual(pad_along, 2.5)
+        for activity, variants in ((1, 1), (2, 1), (3, 1), (4, 3), (5, 5)):
+            for variant in range(1, variants + 1):
+                course = progression_course(activity, variant)
+                self.assertAlmostEqual(course.pad_distance_from_h, .30)
+                leg = course.route.legs[-1]
+                along, _ = leg.local(course.landing_goal())
+                self.assertAlmostEqual(leg.length - along, .30)
         a4_targets = []
         for variant, length in enumerate((1., 1.4, 1.8), start=1):
             a4 = progression_course(4, variant)
@@ -95,7 +103,7 @@ class VariableRouteTests(unittest.TestCase):
             self.assertEqual(offset, -.5 if a5.route.turns == ('G',) else .5)
             # Even at 2.22 m, upstream of the lateral choice, a ray of any
             # yaw has over 2 m to the nearest longitudinal face of the L.
-            self.assertAlmostEqual(along, 2.33)
+            self.assertAlmostEqual(along, 2.20)
             for box in course_physical_boxes(a5)[:2]:
                 centre, _ = leg.local(box.position[:2])
                 half_span = box.size[leg.direction % 2] / 2
@@ -123,7 +131,7 @@ class VariableRouteTests(unittest.TestCase):
                 self.assertLessEqual(len(course.gates), 1)
                 self.assertEqual(course.pads, (1,))
                 self.assertEqual(course.required_pad, 1)
-                self.assertEqual(course.pad_distance_from_h, .70)
+                self.assertEqual(course.pad_distance_from_h, .50)
                 self.assertEqual(course.landing_goal(), course.landing_position(1))
                 for gate in course.gates:
                     leg = course.route.legs[gate.leg_index]
@@ -145,10 +153,10 @@ class VariableRouteTests(unittest.TestCase):
             self.assertEqual(course.route.lengths, (length,))
             self.assertEqual(tuple(g.along for g in course.gates),
                              () if gate_along is None else (gate_along,))
-            self.assertEqual(course.pad_distance_from_h, .70)
+            self.assertEqual(course.pad_distance_from_h, .50)
             leg = course.route.legs[-1]
             pad_along, pad_lateral = leg.local(course.landing_position(course.required_pad))
-            self.assertAlmostEqual(length - pad_along, .70)
+            self.assertAlmostEqual(length - pad_along, .50)
             self.assertAlmostEqual(pad_lateral, 0.)
             # The whole landing tile fits inside the terminal arrival strip.
             self.assertGreaterEqual(pad_along - LANDING_TILE / 2,
