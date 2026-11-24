@@ -766,8 +766,8 @@ async function exerciseWwiBoundary() {
 // variable-course activity profile. Host route switching, native Webots and
 // OS file dialogs are NOT exercised by this test.
 async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
-  const source=activityProfile('progression-orientation-3d-v1');
-  const current=activityProfile('progression-sequence-v1');
+  const source=activityProfile('progression-sequence-v1');
+  const current=activityProfile('reactive-obstacle-v2');
   assert.notStrictEqual(source.world,current.world);
   const sourceWorkspace=buildWorkspace(.2);
   // A simple shared block sequence remains valid in either environment.
