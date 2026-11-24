@@ -5,9 +5,11 @@ import itertools
 import math
 import re
 import unittest
+from unittest.mock import patch
 
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.course_static_world_v2 import course_physical_boxes, static_course_world
+import tools.grand_prix.course_static_world_v2 as static_world_module
 from tools.grand_prix.oracle_attempt_v2 import _hits_mission_body
 from tools.grand_prix.oracle_gate_progress_v2 import FRAME_CLEAR
 from tools.grand_prix.oracle_low_v2 import low_segment_allowed_v2
@@ -22,12 +24,39 @@ class VariableRouteTests(unittest.TestCase):
         baseline = hashlib.sha256()
         for index in range(12):
             course = reference_course(index)
-            static = hashlib.sha256(static_course_world(course).encode()).hexdigest()
-            active = hashlib.sha256(active_course_world(course).encode()).hexdigest()
+            # Restore only the historical yellow-band marks for the A8
+            # reference digest, preserving the prior geometry/collider baseline.
+            with patch.object(static_world_module, 'LOW_BEFORE', .55), \
+                 patch.object(static_world_module, 'LOW_AFTER', .55):
+                static = hashlib.sha256(static_course_world(course).encode()).hexdigest()
+                active = hashlib.sha256(active_course_world(course).encode()).hexdigest()
             baseline.update(f'{course.identifier} {static} {active}\n'.encode())
         # All twelve static and active UTF-8 outputs at 0bdac3f108d8.
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
+
+    def test_owner_yellow_bands_change_visuals_and_physical_oracle_together(self):
+        from tools.grand_prix.route_courses_v2 import LOW_BEFORE, LOW_AFTER
+        from tools.grand_prix.oracle_low_v2 import LOW_BEFORE as ORACLE_BEFORE, LOW_AFTER as ORACLE_AFTER
+        self.assertEqual((LOW_BEFORE, LOW_AFTER), (.45, .45))
+        self.assertEqual((ORACLE_BEFORE, ORACLE_AFTER), (.45, .45))
+        for course in [reference_course(i) for i in range(12)] + [
+            progression_course(a, v) for a, n in ((2,1),(3,1),(6,5),(7,7))
+            for v in range(1, n+1)]:
+            if not course.gates:
+                continue
+            updated = static_course_world(course)
+            with patch.object(static_world_module, 'LOW_BEFORE', .55), \
+                 patch.object(static_world_module, 'LOW_AFTER', .55):
+                historical = static_course_world(course)
+            prefix = 'DEF GP_ROUTE_BAND_MARKS Pose '
+            self.assertIn(prefix, updated)
+            self.assertIn(prefix, historical)
+            self.assertNotEqual(updated, historical)
+            self.assertEqual(updated.split(prefix,1)[0], historical.split(prefix,1)[0])
+            # Only the decorative yellow coordinates are permitted to move.
+            self.assertEqual(updated.count('boundingObject Box { size'),
+                             historical.count('boundingObject Box { size'))
 
     def test_progression_scenes_share_physical_components_and_all_lessons_can_compose(self):
         identifiers = set()
@@ -136,8 +165,8 @@ class VariableRouteTests(unittest.TestCase):
                 for gate in course.gates:
                     leg = course.route.legs[gate.leg_index]
                     self.assertEqual(gate.position, leg.at(gate.along))
-                    self.assertGreater(gate.along, .55)
-                    self.assertLess(gate.along + .55, leg.length)
+                    self.assertGreater(gate.along, .45)
+                    self.assertLess(gate.along + .45, leg.length)
 
 
     def test_a6_owner_geometry_pad_and_initial_frontal_ambiguity(self):

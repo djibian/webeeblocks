@@ -11,8 +11,8 @@ import hashlib
 import re
 from tools.grand_prix.route_v2 import Route, build_route
 
-LOW_BEFORE = 0.55
-LOW_AFTER = 0.55
+LOW_BEFORE = 0.45
+LOW_AFTER = 0.45
 
 _ACTIVE_LESSONS = {
     f"gp-progression-v1-a{activity}-v{variant}": (activity, variant)
@@ -96,7 +96,7 @@ def plan_course(seed, lengths, turns, gate_count):
     """Provide reproducible directed H centres, not physically qualified gates.
 
     Each selected leg receives exactly one H. Provisional longitudinal ranges
-    preserve the historical low-band widths, but native L-corner, H, landing,
+    use the variable Grand Prix low-band widths, but native L-corner, H, landing,
     reset and swept-clearance proof must be supplied independently.
     """
     if type(gate_count) is not int or gate_count not in (1, 2, 3):
@@ -113,7 +113,7 @@ def plan_course(seed, lengths, turns, gate_count):
         leg = route.legs[index]
         if index < 2:
             # 2 m: centres at 0.90/1.00/1.10, leaving >=0.35 m between
-            # 0.55 m low-band ends and both leg junctions.
+            # 0.45 m low-band ends and both leg junctions.
             along = round(0.90 + 0.10 * (digest[3 + index] % 3)
                           + (leg.length - 2.0) * 0.5, 3)
         else:
