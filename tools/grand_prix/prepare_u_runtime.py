@@ -448,6 +448,14 @@ static double wrap_angle(double angle) {
         # Keep true range acquisition at 32 ms and its existing wire contract.
         # Do not rescale PID gains, stability windows, or safety thresholds.
         timing_edits = [
+            ('    if (command == CMD_TAKEOFF) {\n      desired.altitude = gp_route_takeoff_next',
+             '    if (command == CMD_TAKEOFF && gp_route_waiting_for_first_alive()) {\n'
+             '      /* Admission is not yet authority to apply thrust. */\n'
+             '      stop_motors(m1, m2, m3, m4);\n'
+             '      previous_time = now; previous_x = x; previous_y = y; previous_z = z;\n'
+             '      continue;\n'
+             '    }\n'
+             '    if (command == CMD_TAKEOFF) {\n      desired.altitude = gp_route_takeoff_next'),
             ('  const int step = 32; /* Preserve the shared PID/sensor update period. */',
              '  const int step = 8; /* Experimental 125 Hz control. */\n'
              '  const int range_step = 32; /* Preserve range acquisition. */'),

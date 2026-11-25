@@ -146,6 +146,12 @@ class FlightObservationTests(unittest.TestCase):
                 self.assertIn(f'wb_{kind}_get_sampling_period({device}) == step', route)
             self.assertIn('dt <= 0.008001', route)
             self.assertIn('GP_ROUTE_CONTROL_TIMING', route)
+            gate = route.index('if (command == CMD_TAKEOFF && gp_route_waiting_for_first_alive())')
+            release = route.index('if (command == CMD_TAKEOFF) {', gate)
+            self.assertIn('stop_motors(m1, m2, m3, m4);', route[gate:release])
+            self.assertIn('continue;', route[gate:release])
+            self.assertLess(release, route.index('gp_route_takeoff_next', release))
+            self.assertNotIn('gp_route_waiting_for_first_alive', normal)
             for side in ('front', 'back', 'left', 'right', 'up'):
                 self.assertIn(f'wb_distance_sensor_enable(range_{side}, range_step);', route)
             begin = route.index('const double gp_route_ranges[5]')

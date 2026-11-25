@@ -12,6 +12,8 @@ void gp_u_file_idle(int);
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
 /* Native flight owns these samples; never called by the pupil transport. */
 void gp_route_observe_native(double, int, int, const double *);
+/* True only before the first post-admission ALIVE is consumed. */
+int gp_route_waiting_for_first_alive(void);
 /* Only the current A6 evaluator incarnation can opt into emergency braking. */
 int gp_route_a6_forced_land(void);
 int gp_route_a6_envelope_contact(double);
