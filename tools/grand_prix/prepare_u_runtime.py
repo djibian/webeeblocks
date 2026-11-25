@@ -304,6 +304,7 @@ static double wrap_angle(double angle) {
           ('        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");',
            '        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");\n'
            '        if (gp_route_a7_attempt() && command == CMD_LAND && land_touchdown) {\n'
+           '          if (active_id >= 1 && active_id != 2147483646) gp_route_a7_stop_locked_land();\n'
            '          active_id = -1; failsafe_latched = 1;\n'
            '          gp_land_contact_since = -1.0;\n'
            '          response_ok(request.id);\n'

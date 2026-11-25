@@ -27,6 +27,7 @@ std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
 long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
 bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
+bool routeLockedLandStop=false; // Local STOP handoff pending; never a thrust permission.
 // Route-only, non-authoritative clock stream, bound to one private browser nonce.
 std::string routeClockNonce;
 long long routeClockLastSecond=-1;
@@ -167,6 +168,7 @@ void clearRouteObservation() {
 void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
+  routeLockedLandStop=false;
   routeClockNonce.clear();routeClockLastSecond=-1;
   resetRoutePause();routePauseLastSeq=0;
 }
@@ -335,6 +337,9 @@ extern "C" int gp_route_a6_envelope_contact(double now) {
 extern "C" int gp_route_a7_attempt(void) {
   return admittedA7();
 }
+extern "C" void gp_route_a7_stop_locked_land(void) {
+  if(admittedA7() && !expired && !success)routeLockedLandStop=true;
+}
 extern "C" int gp_route_a7_retreat(double now) {
   long long time_ms=0;
   std::string cause;
@@ -460,6 +465,11 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
     return 1;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(routeLockedLandStop) {
+    routeLockedLandStop=false;expired=true;
+    publish("failed");failed_outcome();
+    return 1; // STOP is local authority for LAND, independent of ALIVE propagation.
+  }
   if(observed>begin && !freshRouteEvidence("ALIVE",observed)) {
     // With an 8-ms flight loop, admission is seen by the evaluator at +8 ms;
     // its first post-admission ALIVE can reach the pilot only at +16 ms.
