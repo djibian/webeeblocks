@@ -10,6 +10,7 @@ import hashlib
 import unittest
 
 from tools.grand_prix.prepare_u_runtime import prepare
+from tools.ci.test_gp_land_latch import LandLatchTests
 from tools.grand_prix.route_vertical_product import compose_route_vertical_product
 
 
@@ -84,7 +85,7 @@ class RouteVerticalProductTests(unittest.TestCase):
         self.assertTrue('CMD_LAND' in flight and 'land_touchdown' in flight)
         # Inspect the complete generated control ordering, not a hand-written
         # approximation of the route state machine.
-        early = flight.index('if (command == CMD_LAND && !land_touchdown && land_has_ground_contact')
+        early = flight.index('if (gp_land_contact_before_requests && !land_touchdown)')
         self.assertLess(early, flight.index('if (gp_u_deadline(now, gp_pose_confirmed))'))
         self.assertLess(early, flight.index('if (request.kind == REQUEST_STOP)'))
         self.assertIn('if (land_touchdown) {\n      // Latch through loss of contact', flight)

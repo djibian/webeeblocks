@@ -299,7 +299,9 @@ static double wrap_angle(double angle) {
         # can clear it. The new owner must earn its own contact/ACK window.
         latch_edits = (
           ('    /* After genuine touchdown, compare exact raw sensor inputs',
-           '    if (command == CMD_LAND && !land_touchdown && land_has_ground_contact(z, origin_z)) {\n'
+           '    const int gp_land_contact_sampled = command == CMD_LAND;\n'
+           '    const int gp_land_contact_before_requests = gp_land_contact_sampled && land_has_ground_contact(z, origin_z);\n'
+           '    if (gp_land_contact_before_requests && !land_touchdown) {\n'
            '      land_touchdown = 1;\n'
            '      stop_motors(m1, m2, m3, m4);\n'
            '      printf(PREFIX " TRACE LAND_TOUCHDOWN time=%.9f\\n", now);\n'
@@ -311,6 +313,10 @@ static double wrap_angle(double angle) {
            '      gp_land_contact_since = -1.0;\n'
            '      airborne = 1;'),
           ('        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");',
+           '        if (command == CMD_LAND && active_id == 2147483646) {\n'
+           '          response_error(request.id, "TIME_LIMIT");\n'
+           '          continue;\n'
+           '        }\n'
            '        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");\n'
            '        if (command == CMD_LAND && active_id != 2147483646) {\n'
            '          if (active_id >= 1) gp_route_stop_land();\n'
@@ -333,6 +339,8 @@ static double wrap_angle(double angle) {
            '            land_touchdown && gp_land_contact_since >= 0.0',
            'if (active_id >= 1 && now - stable_since >= STOP_WINDOW && gp_ground_sample &&\n'
            '            land_touchdown && gp_land_contact_since >= 0.0'),
+          ('      const int gp_contact_now = land_has_ground_contact(z, origin_z);',
+           '      const int gp_contact_now = gp_land_contact_sampled ? gp_land_contact_before_requests : land_has_ground_contact(z, origin_z);'),
           ('    if (command == CMD_LAND && land_touchdown) {\n'
            '      // Latch through loss of contact during a rebound.',
            '    if (land_touchdown) {\n'
