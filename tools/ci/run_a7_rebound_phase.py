@@ -52,10 +52,23 @@ def missed_contact_precondition(journal, contacts, wwi, result):
         return False
     nominal = int(land[0][1])
     # A late successful nominal landing does NOT establish the transfer.
-    return (any(int(line[1]) > t+8 and int(line[3]) == nominal and
-                int(line[4]) == 1 and all(float(m) == 0 for m in line[11:15])
-                for line in cycles) and
-            f'WEBEEBLOCKS_RUNTIME_V2 RESPONSE {nominal} OK\n' in journal and
+    # Do not hide a genuine post-latch motor/pose failure merely because the
+    # intended first-rebound intervention could not be exercised.
+    nominal_cycles = {int(line[1]): line for line in cycles if int(line[3]) == nominal}
+    locked = [ms for ms, line in nominal_cycles.items() if int(line[4]) == 1]
+    ready = re.findall(r'^GP_U_LAND_GROUND_READY t=(\d+\.\d+) window=', journal, re.M)
+    if not locked or not ready:
+        return False
+    latch, ack = min(locked), round(float(ready[0])*1000)
+    if (not t+8 < latch < ack or (ack-latch) % 32 or
+            not all(ms in nominal_cycles and int(nominal_cycles[ms][4]) == 1 and
+                    all(float(m) == 0 for m in nominal_cycles[ms][11:15])
+                    for ms in range(latch, ack+1, 32)) or
+            not all(ms in ode and ode[ms]['stable'] and
+                    ode[ms]['attempt'] == int(land[0][2]) and ode[ms]['epoch'] == land[0][3]
+                    for ms in range(ack-504, ack+1, 8))):
+        return False
+    return (f'WEBEEBLOCKS_RUNTIME_V2 RESPONSE {nominal} OK\n' in journal and
             f'A7_V5_WWI < WEBEEBLOCKS_RUNTIME_V2 RESPONSE {nominal} OK' in wwi)
 
 
