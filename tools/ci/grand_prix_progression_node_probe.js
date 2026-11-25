@@ -81,12 +81,28 @@ async function outcome(expected) {
   assert.fail('Native mission outcome unavailable');
 }
 
+// The campaign supplies only the saved file for its lesson, not geometry to the AST.
+async function earlyPupilNominal(activity, direct) {
+  const file = process.argv[4];
+  if (!file) return direct(); // Historical direct diagnostic, not a product witness.
+  const {reopen} = require('./grand_prix_a123_pupil');
+  const {ast, sha256, maxSteps} = await reopen(file, activity);
+  await Interpreter.run(ast, backend, {maxSteps});
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A123_WBB_PRODUCT_PASS ' + JSON.stringify({activity, sha256,
+    astSha256: require('node:crypto').createHash('sha256').update(JSON.stringify(ast)).digest('hex'),
+    blockly: '13.2.1'}));
+}
+
 async function activityOne() {
+  await earlyPupilNominal(1, async () => {
   await approachLastLeg();
   await backend.move('forward', 1.30); // A1: 1.60-m leg, pad 0.30 m before H.
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
@@ -115,6 +131,7 @@ async function activityOne() {
 }
 
 async function activityTwo() {
+  await earlyPupilNominal(2, async () => {
   await takeoff(.88);
   // Owner 2026-11-24: H centre .80, centre band +/- .36,
   // frame clears at +/- .33. Nominal endpoints .46 and 1.14.
@@ -127,6 +144,7 @@ async function activityTwo() {
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await takeoff(.4);
@@ -150,6 +168,7 @@ async function activityTwo() {
 }
 
 async function activityThree() {
+  await earlyPupilNominal(3, async () => {
   await takeoff(.88);
   async function traverseGate() {
     await backend.turn(90);
@@ -168,6 +187,7 @@ async function activityThree() {
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await takeoff(.88);

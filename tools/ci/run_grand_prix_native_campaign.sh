@@ -26,9 +26,10 @@ if [[ "${1:-}" == --container ]]; then
     evidence="ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-native"
     test -s "$evidence/production-pilot-build.log"
     if [[ "$ACTIVITY" =~ ^[1-3]$ ]]; then
-      for raw in world.wbt webots.log wwi.log; do
+      for raw in world.wbt webots.log wwi.log pupil-reference.wbb pupil-project.wbb; do
         test -s "$evidence/$raw"
       done
+      cmp "$evidence/pupil-reference.wbb" "$evidence/pupil-project.wbb"
     else
       count=3
       if [[ "$ACTIVITY" == 5 ]]; then count=5; fi
@@ -117,7 +118,7 @@ esac
 test "$(git -C ../webots-assets rev-parse HEAD)" = "$PROTO_SHA"
 python3 -m unittest tools.ci.test_gp_multirate tools.ci.test_gp_multirate_reference
 node_root="$(dirname "$(dirname "$(command -v node)")")"
-if [[ "$ACTIVITY" =~ ^[45]$ ]]; then
+if [[ "$ACTIVITY" =~ ^[1-5]$ ]]; then
   bash tools/prepare_runtime_v2.sh
 elif [[ "$ACTIVITY" == 6 ]]; then
   bash tools/prepare_runtime_v2.sh

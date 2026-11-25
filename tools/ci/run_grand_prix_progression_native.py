@@ -166,6 +166,17 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
             (exact_deadline and elapsed[-1] != 210000)):
         raise RuntimeError(f'{label} forced LAND violates the 210000 ms deadline')
+    if activity in (1, 2, 3) and pupil_project is not None:
+        import hashlib
+        import json
+        proof = [json.loads(line.removeprefix('A123_WBB_PRODUCT_PASS '))
+                 for line in (out / 'wwi.log').read_text().splitlines()
+                 if line.startswith('A123_WBB_PRODUCT_PASS ')]
+        if (len(proof) != 1 or proof[0].get('activity') != activity or
+                proof[0].get('blockly') != '13.2.1' or
+                proof[0].get('sha256') != hashlib.sha256(project_copy.read_bytes()).hexdigest() or
+                not re.fullmatch(r'[0-9a-f]{64}', proof[0].get('astSha256', ''))):
+            raise RuntimeError(f'{label} missing saved Blockly product execution proof')
     if activity == 7:
         import hashlib
         project = out / 'a7-witness.wbb'

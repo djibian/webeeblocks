@@ -233,7 +233,12 @@ def run_progression_native_only(home, activity):
                        timeout=120, check=True)
     from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
     if activity in (1, 2, 3):
-        run_lesson(home, env, activity)
+        project = evidence / 'pupil-reference.wbb'
+        subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_a123_pupil.js'),
+                        str(activity), str(project)], env=env, check=True, timeout=30)
+        run_lesson(home, env, activity, pupil_project=project)
+        if project.read_bytes() != (evidence / 'pupil-project.wbb').read_bytes():
+            raise RuntimeError('A1–A3 pupil project changed between Save and Open')
         return
 
     if activity == 5:
