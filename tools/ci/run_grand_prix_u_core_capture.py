@@ -245,7 +245,7 @@ def container_backtrace(core, binary, output, sysroot):
             raise RuntimeError('original debugger executable absent from manifest')
         result['binary_sha256'] = manifest[relative_binary]
         result['original_sysroot_verified'] = True
-        result['debugger_changed_packages'] = []
+        result['runtime_package_installation'] = False
         # All auto-loaded scripts stay disabled. Only the matching original
         # libthread_db from the SHA-verified private sysroot may be loaded;
         # GDB's global "set auto-load off" would otherwise disable it too.
