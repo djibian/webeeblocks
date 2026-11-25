@@ -488,6 +488,8 @@ static double wrap_angle(double angle) {
             if result.count(old) != 1:
                 raise RuntimeError('route 8-ms control anchor drift')
             result = result.replace(old, new, 1)
+        from tools.grand_prix.route_multirate import compose
+        result = compose(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
