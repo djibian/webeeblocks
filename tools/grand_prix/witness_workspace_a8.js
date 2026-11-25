@@ -55,8 +55,8 @@ function reference(wrongLanding=false){
  const call=name=>({kind:'call',name,body:structuredClone(definitions[name])});
  const scan=[set('left',range('left')),set('right',range('right'))];
  const align=distance=>[set('front',range('front')),
-   iff(gt(v('front'),n(distance+.01)),[motion('forward',sub(v('front'),n(distance)))],
-     [iff(lt(v('front'),n(distance-.01)),[motion('back',sub(n(distance),v('front')))])])];
+   iff(gt(v('front'),n(Number((distance+.01).toFixed(2)))),[motion('forward',sub(v('front'),n(distance)))],
+     [iff(lt(v('front'),n(Number((distance-.01).toFixed(2)))),[motion('back',sub(n(distance),v('front')))])])];
  definitions.approach=[set('front',range('front')),
    loop(4,gt(v('front'),n(1.7)),[motion('forward',1),set('front',range('front'))]),
    ...align(.18),...scan];

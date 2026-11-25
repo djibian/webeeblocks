@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3), 8: (3, 4, 5, 6)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3), 8: (2, 3, 4, 5, 6)}
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None):
@@ -201,6 +201,6 @@ if __name__ == '__main__':
     if args.activity != 8 and args.variant > 7:
         parser.error('only A8 has twelve variants')
     if args.activity not in (4, 5, 6, 7, 8) and args.variant != 1:
-        parser.error('only activities 4–7 have multiple active variants')
+        parser.error('only activities 4–8 have multiple active variants')
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant,
                pupil_project=args.pupil_project, rebound=args.rebound)

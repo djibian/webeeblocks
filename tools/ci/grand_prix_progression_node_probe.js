@@ -610,11 +610,13 @@ async function activityEight() {
   assert.notEqual(wrongResult.sha256, result.sha256);
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  // The pilot revokes evaluator liveness even when already grounded.
+  await waitForForcedLanding(1);
   await fresh();
   await takeoff(.4);
   await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
-  await waitForForcedLanding(1);
+  await waitForForcedLanding(2);
 
   await fresh();
   await takeoff(.88);
@@ -626,18 +628,18 @@ async function activityEight() {
   assert(front > .15 && front <= .65, 'bounded native contact approach');
   await assert.rejects(backend.move('forward', front + .15), {code: 'TIME_LIMIT'});
   await outcome({status: 'not-achieved', reason: 'envelope-contact'});
-  await waitForForcedLanding(2);
+  await waitForForcedLanding(3);
 
   await fresh();
   await takeoff(.88);
   await backend.stopSimulation();
   await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
-  await waitForForcedLanding(3);
+  await waitForForcedLanding(4);
 
   await fresh();
   await takeoff(.88);
   await outcome({status: 'not-achieved', reason: 'time-limit'});
-  await waitForForcedLanding(4);
+  await waitForForcedLanding(5);
   await assert.rejects(backend.move('forward', .2), {code: 'TIME_LIMIT'});
 }
 
