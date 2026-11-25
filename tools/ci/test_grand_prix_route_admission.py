@@ -481,8 +481,9 @@ int main(){
  now=2.136;evidence=response("ALIVE","2128");oneLand();
  gp_route_stop_land();assert(gp_u_deadline(now+0.040,0)==0);
  fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
- gp_route_stop_land();admit();alive(2144);assert(gp_u_deadline(now,0)==0);
- gp_route_stop_land();alive(2176);assert(gp_u_deadline(now,0)==0);
+ gp_route_stop_land();admit();alive(2144);assert(gp_u_deadline(now,0)==0); // RESET clears the old local STOP.
+ // A NEW nominal LAND STOP in the new A8 attempt is now applicable too.
+ gp_route_stop_land();alive(2176);oneLand();
  fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
  gp_route_stop_land();now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
  gp_u_reset_complete();gp_route_stop_land();assert(gp_u_deadline(now,0)==0);
