@@ -77,7 +77,9 @@ if [[ "${1:-}" == --container ]]; then
 
   # Preserve each independent witness even when an earlier one fails.
   failures=0
-  if [[ "$ACTIVITY" == 7 ]]; then
+  if [[ "$ACTIVITY" == 7 && "${A7_PHASE_SWEEP:-0}" == 1 ]]; then
+    python3 -m tools.ci.run_a7_rebound_phase || failures=1
+  elif [[ "$ACTIVITY" == 7 ]]; then
     for rebound in stop liveness; do
       python3 -m tools.ci.run_grand_prix_progression_native \
         --activity 7 --variant 5 --rebound "$rebound" || failures=1
@@ -155,7 +157,7 @@ docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
   -v "$(realpath "$0"):/opt/ci-campaign.sh:ro" \
   -v "$(realpath ../webots-assets/projects):/opt/ci-webots-projects:ro" \
   -v "$node_root:/opt/ci-node:ro" \
-  -e ACTIVITY -e WEBOTS_HOME=/usr/local/webots \
+  -e ACTIVITY -e A7_PHASE_SWEEP -e WEBOTS_HOME=/usr/local/webots \
   -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKFLOW_SHA -e GITHUB_REF \
   -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT -e TARGET_SHA \
   -e WEBEEBLOCKS_GP_GIT_HEAD -e WEBEEBLOCKS_GP_GIT_TREE \

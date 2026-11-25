@@ -116,6 +116,7 @@ def provenance(out, paths, home, env):
         'git_parents': git_parents.split(),
         'tracked_status': tracked_status,
         'webots': (home / 'resources/version.txt').read_text().strip(),
+        'rebound_height': env.get('WEBEEBLOCKS_A7_V5_HEIGHT'),
         'actions': {name: env.get(name) for name in (
             'GITHUB_REPOSITORY', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF', 'GITHUB_RUN_ID',
             'GITHUB_RUN_ATTEMPT', 'TARGET_SHA', 'WEBEEBLOCKS_GP_WEBOTS_IMAGE')},

@@ -520,7 +520,12 @@ async function activitySeven() {
     assert(closed.front < .19 && closed.left > .45 && closed.right > .45, 'closed H');
     return closed;
   }
-  await takeoff(.90);
+  // Phase experiment only: shift the ordinary TAKEOFF height slightly.
+  // The world, LAND implementation, and first-rebound verifier are unchanged.
+  const phaseHeight = process.env.WEBEEBLOCKS_A7_V5_HEIGHT;
+  if (phaseHeight !== undefined)
+    assert(rebound && variant === 5 && [.90, .8968, .8936, .8904].includes(Number(phaseHeight)));
+  await takeoff(phaseHeight === undefined ? .90 : Number(phaseHeight));
   await approachClosedH();
   await advanceWhile('back', .13, async () => await range() < .45, 8);
   await advanceWhile('forward', .05, async () => await range() > .51, 8);

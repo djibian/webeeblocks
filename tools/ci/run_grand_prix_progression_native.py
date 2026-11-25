@@ -17,9 +17,12 @@ OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
 FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3), 8: (2, 3, 4, 5, 6)}
 
 
-def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None):
+def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None, rebound_height=None):
     if rebound is not None and (activity, variant) != (7, 5):
         raise ValueError('rebound experiments require A7/V5')
+    if rebound_height is not None and (rebound not in ('stop', 'liveness') or
+            rebound_height not in (.90, .8968, .8936, .8904)):
+        raise ValueError('only the predeclared V5 phase stimuli are permitted')
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     last_attempt = forced_attempts[-1]
     if activity == 4:
@@ -48,6 +51,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
     if rebound:
         suffix = f'-rebound-{rebound}'
+        if rebound_height is not None:
+            suffix += f'-h{round(rebound_height * 10000):04d}'
     out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
                   else f'route-a{activity}-native') + suffix)
     if (home / 'resources/version.txt').read_text().strip() != 'R2025a':
@@ -66,6 +71,9 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
             wrong_copy.write_bytes(wrong.read_bytes())
             probe_args.append(str(wrong_copy))
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
+    env.pop('WEBEEBLOCKS_A7_V5_HEIGHT', None)
+    if rebound_height is not None:
+        env['WEBEEBLOCKS_A7_V5_HEIGHT'] = str(rebound_height)
     if activity == 3:
         env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
     if activity == 8:
