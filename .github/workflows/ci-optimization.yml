@@ -1,43 +1,94 @@
-name: CI Optimization (advisory)
-
+name: EXPERIMENT ONLY — provision pinned Grand Prix debugger
 on:
-  schedule:
-    - cron: '37 4 * * 1'
   workflow_dispatch:
-
 permissions:
   contents: read
-  actions: read
-
-concurrency:
-  group: ci-optimization-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  analyze:
-    name: Weekly CI optimization report (non-decision)
+  provision:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/experiment/gp-core-debugger-provision-20261125'
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.workflow_sha }}
           persist-credentials: false
-      - name: Test advisory analyzer without API access
-        run: python3 -m unittest discover -s tools/ci -p test_ci_optimization_report.py
-      - name: Inspect canonical CI and publish advisory suggestions
+      - name: Bind provisioning to exact source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_WORKFLOW_SHA"
+          mkdir -p ci-artifacts/core-debugger
+          printf '%s\n' "workflow_sha=$GITHUB_WORKFLOW_SHA" "repair_parent=f1c14f2e57c066d44765c4000fb2b9fa49e39bba" "run_id=$GITHUB_RUN_ID" "attempt=$GITHUB_RUN_ATTEMPT" > ci-artifacts/core-debugger/run.txt
+          sha256sum tools/ci/core_debugger/Dockerfile >> ci-artifacts/core-debugger/run.txt
+      - name: Build and publish separate debugger tag (never subject)
+        id: publish
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: >-
-          python3 tools/ci/ci_optimization_report.py
-          --repository "${{ github.repository }}"
-          --days 21
-          --max-runs 60
-          --out-dir ci-artifacts/ci-optimization
-      - name: Keep report evidence even on analyzer failure
+          GHCR_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null' EXIT
+          unset GHCR_TOKEN
+          package=ghcr.io/djibian/webeeblocks-qt665-r2025a
+          tag="$package:core-debugger-${GITHUB_WORKFLOW_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx build --platform linux/amd64 --push --metadata-file ci-artifacts/core-debugger/build.json -t "$tag" tools/ci/core_debugger
+          digest=$(python3 -c 'import json; print(json.load(open("ci-artifacts/core-debugger/build.json"))["containerimage.digest"])')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$digest" != 'sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          ref="$package@$digest"
+          docker pull "$ref"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.base.digest" }}' "$ref")" = 'sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker run --rm --pull never --network none --entrypoint /usr/bin/gdb "$ref" --version | tee ci-artifacts/core-debugger/gdb-version.txt
+          printf '%s\n' "$ref" > ci-artifacts/core-debugger/image.txt
+          printf 'image=%s\n' "$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: ci-optimization-advisory-${{ github.run_id }}
-          path: ci-artifacts/ci-optimization/
-          if-no-files-found: warn
-          retention-days: 90
+          name: offline-debugger-provision-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ci-artifacts/core-debugger/
+          if-no-files-found: error
+  qualify:
+    needs: provision
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      DEBUGGER_IMAGE: ${{ needs.provision.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bind the non-decision overlay to the published digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_WORKFLOW_SHA"
+          [[ "$DEBUGGER_IMAGE" =~ ^ghcr\.io/djibian/webeeblocks-qt665-r2025a@sha256:[0-9a-f]{64}$ ]]
+          test ! -e tools/ci/core_debugger/image.txt
+          printf '%s\n' "$DEBUGGER_IMAGE" > tools/ci/core_debugger/image.txt
+          mkdir -p ci-artifacts/grand-prix-u
+          printf '%s\n' "workflow_sha=$GITHUB_WORKFLOW_SHA" "repair_parent=f1c14f2e57c066d44765c4000fb2b9fa49e39bba" "debugger_image=$DEBUGGER_IMAGE" "run_id=$GITHUB_RUN_ID" "attempt=$GITHUB_RUN_ATTEMPT" > ci-artifacts/grand-prix-u/offline-debugger-run.txt
+          sha256sum tools/ci/core_debugger/image.txt tools/ci/run_grand_prix_u_core_capture.py tools/ci/test_grand_prix_u_core_capture.py >> ci-artifacts/grand-prix-u/offline-debugger-run.txt
+      - name: Falsify offline capture and unchanged composition
+        run: |
+          python3 tools/ci/test_grand_prix_u_core_capture.py
+          python3 -m unittest -v tools.ci.test_grand_prix_route_vertical_product
+      - name: Run real multithread preflight and unchanged U subject
+        run: python3 tools/ci/run_grand_prix_u_core_capture.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-debugger-native-u-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ci-artifacts/grand-prix-u/
+          if-no-files-found: error
