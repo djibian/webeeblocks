@@ -392,6 +392,14 @@ static double wrap_angle(double angle) {
             "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
             "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
         ), 1)
+        # Experimental paired A/B witness only; no new native observations.
+        for old, new in (
+            ("        command = CMD_MOVE;", "        command = CMD_MOVE;\n        printf(\"GP_HORIZONTAL_START id=%d t=%.9f x=%.9f y=%.9f gx=%.9f gy=%.9f yaw=%.9f speed=%.9f vx=%.9f vy=%.9f\\n\",\n               active_id, now, x, y, target_x, target_y, yaw, move_speed_limit, vx_global, vy_global);\n        fflush(stdout);"),
+            ("          trace_move(active_direction, active_value);", "          printf(\"GP_HORIZONTAL_ACK id=%d t=%.9f x=%.9f y=%.9f gx=%.9f gy=%.9f vx=%.9f vy=%.9f\\n\",\n                 active_id, now, x, y, target_x, target_y, vx_global, vy_global);\n          fflush(stdout);\n          trace_move(active_direction, active_value);"),
+        ):
+            if result.count(old) != 1:
+                raise RuntimeError("horizontal experiment trace anchor drift")
+            result = result.replace(old, new, 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
