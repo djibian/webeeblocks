@@ -157,7 +157,7 @@ docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
   -v "$(realpath "$0"):/opt/ci-campaign.sh:ro" \
   -v "$(realpath ../webots-assets/projects):/opt/ci-webots-projects:ro" \
   -v "$node_root:/opt/ci-node:ro" \
-  -e ACTIVITY -e A7_PHASE_SWEEP -e WEBOTS_HOME=/usr/local/webots \
+  -e ACTIVITY -e A7_PHASE_SWEEP -e WEBEEBLOCKS_GP_STEP_WALL_PROBE=1 -e WEBOTS_HOME=/usr/local/webots \
   -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKFLOW_SHA -e GITHUB_REF \
   -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT -e TARGET_SHA \
   -e WEBEEBLOCKS_GP_GIT_HEAD -e WEBEEBLOCKS_GP_GIT_TREE \

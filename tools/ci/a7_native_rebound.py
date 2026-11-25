@@ -271,8 +271,31 @@ class ReboundUnproven(RuntimeError):
     """The requested intervention did not occur inside the measured window."""
 
 
-def verify(case, journal, contacts, wwi):
+def archived_control_period(out, journal):
+    """Bind the cycle requirement to archived compiled input and startup."""
+    identity = json.loads((out / 'identity.json').read_text())
+    source = (out / 'runtime_u.c').read_bytes()
+    if hashlib.sha256(source).hexdigest() != identity['sha256']['runtime_u.c']:
+        raise RuntimeError('archived pilot source digest mismatch')
+    steps = re.findall(rb'^  const int step = (8|32);', source, re.M)
+    if len(steps) != 1:
+        raise RuntimeError('unknown compiled pilot control period')
+    period = int(steps[0])
+    markers = re.findall(r'^GP_ROUTE_CONTROL_TIMING (.*)$', journal, re.M)
+    if (period == 8 or markers) and markers != [
+            f'physics_ms=8 control_ms={period} range_ms=32']:
+        raise RuntimeError('native startup timing absent or inconsistent')
+    return period
+
+
+def verify(case, journal, contacts, wwi, *, control_ms=32):
     """Correlate native stops, motor commands and ODE samples without extrapolation."""
+    if type(control_ms) is not int or control_ms not in (8, 32):
+        raise ValueError('unsupported pilot period')
+    timing = re.findall(r'^GP_ROUTE_CONTROL_TIMING (.*)$', journal, re.M)
+    if (control_ms == 8 or timing) and timing != [
+            f'physics_ms=8 control_ms={control_ms} range_ms=32']:
+        raise RuntimeError('native pilot period does not match verifier')
     records = [json.loads(line) for line in contacts.splitlines()]
     observations = [row for row in records if row['event'] == 'ODE']
     ode = {row['ms']: row for row in observations}
@@ -318,6 +341,9 @@ def verify(case, journal, contacts, wwi):
     if latch is None or not touch <= latch < separation or not cycles[latch][5]:
         raise ReboundUnproven('nominal motor latch not established before separation')
 
+    if control_ms == 8 and latch != touch:
+        raise RuntimeError('8-ms pilot failed to latch on first physical contact')
+
     if case == 'stop':
         emission = event('STOP_EMITTED')
         sent_id = int(emission['sender']['id'])
@@ -358,11 +384,11 @@ def verify(case, journal, contacts, wwi):
             rf'^A7_V5_ALIVE {applied} (\d+) ([0-9a-f]{{32}}) (\d+) (-\d+) <empty>$',
             'native read of withdrawn ALIVE', ReboundUnproven)
         pattern(
-            rf'^A7_V5_ALIVE {applied - 32} {attempt} {epoch} \d+ {last_alive} '
+            rf'^A7_V5_ALIVE {applied - control_ms} {attempt} {epoch} \d+ {last_alive} '
             rf'GP_ROUTE_ALIVE_V1 attempt={attempt} config={COURSE} epoch={epoch} time_ms={last_alive}$',
             'last valid pilot ALIVE')
         if (not previous or not 0 < separation - int(previous[1]) <= 32 or
-                not 0 <= applied - 32 - int(last_alive) <= 32 or raw_stamp != '-1' or
+                not 0 <= applied - control_ms - int(last_alive) <= 32 or raw_stamp != '-1' or
                 (int(received_attempt), received_epoch) != (attempt, epoch) or
                 (int(guard_attempt), guard_epoch) != (attempt, epoch)):
             raise RuntimeError('ALIVE guard lacks healthy-to-withdrawn evidence in the same incarnation')
@@ -374,7 +400,7 @@ def verify(case, journal, contacts, wwi):
         r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
         'independent LAND transfer', ReboundUnproven)
     transfer, interrupted = int(transfer), int(interrupted)
-    expected_transfer = applied + 32 if case == 'stop' else applied
+    expected_transfer = applied + control_ms if case == 'stop' else applied
     if transfer != expected_transfer or transfer >= contact_return:
         raise ReboundUnproven('LAND transfer did not occur during the first ODE rebound')
     if interrupted != (-1 if case == 'stop' else nominal):
@@ -387,11 +413,11 @@ def verify(case, journal, contacts, wwi):
     if f'RESPONSE {FORCED_ID} OK' not in journal or f'RESPONSE {FORCED_ID} ERR' in journal:
         raise RuntimeError('independent LAND did not ACK safely')
     land_command = cycles[latch][0]
-    if not latch < transfer < ack or (ack - latch) % 32:
-        raise RuntimeError('pilot clock did not retain its 32-ms phase during LAND')
-    for ms in range(latch, ack + 1, 32):
+    if not latch < transfer < ack or (ack - latch) % control_ms:
+        raise RuntimeError(f'pilot clock did not retain its {control_ms}-ms phase during LAND')
+    for ms in range(latch, ack + 1, control_ms):
         if ms not in cycles:
-            raise RuntimeError(f'missing 32-ms motor sample at {ms}')
+            raise RuntimeError(f'missing {control_ms}-ms motor sample at {ms}')
         command, request, locked, _, _, _, _, _, _, motors = cycles[ms]
         expected_id = FORCED_ID if ms >= transfer else -1 if case == 'stop' and ms >= applied else nominal
         if command != land_command or request != expected_id or locked != 1 or motors != (0.,) * 4:
@@ -404,7 +430,7 @@ def verify(case, journal, contacts, wwi):
             max(fresh_contact, pose, vertical) > ack - 500 or pose < 0 or
             fresh_contact not in cycles or
             any(not cycles[ms][5] or cycles[ms][6] != fresh_contact
-                for ms in range(fresh_contact, ack + 1, 32)) or
+                for ms in range(fresh_contact, ack + 1, control_ms)) or
             any(ms not in ode or not ode[ms]['stable'] or any(
                     point['point'][2] > .015 for point in ode[ms]['contacts'])
                 for ms in range(ack - 504, ack + 1, 8)) or
@@ -431,7 +457,7 @@ def verify(case, journal, contacts, wwi):
     for row in (before, after):
         if f'A7_V5_WWI > WEBEEBLOCKS_RUNTIME_V2 REQUEST {row[1]} RESET\n' not in wwi:
             raise RuntimeError('RESET was not sent over WWI')
-    return {**cause, 'attempt': attempt, 'epoch': epoch, 'first_contact_ms': touch,
+    return {**cause, 'control_ms': control_ms, 'attempt': attempt, 'epoch': epoch, 'first_contact_ms': touch,
             'latch_ms': latch, 'contact_return_ms': contact_return, 'transfer_ms': transfer,
             'fresh_stability_ms': ack - fresh_contact, 'ack_ms': ack,
             'reset_refused_ms': int(before[0]), 'reset_accepted_request_ms': int(after[0]),
@@ -449,7 +475,8 @@ def finish(out, case, probe_error):
         if not (out / 'contacts.jsonl').is_file():
             raise ReboundUnproven('native 8-ms evaluator trace missing')
         result.update(verify(case, journal, (out / 'contacts.jsonl').read_text(),
-                             (out / 'wwi.log').read_text()))
+                             (out / 'wwi.log').read_text(),
+                             control_ms=archived_control_period(out, journal)))
         if probe_error is not None:
             raise RuntimeError(f'WWI probe terminated unsuccessfully: {probe_error}')
         result['result'] = 'PASS'

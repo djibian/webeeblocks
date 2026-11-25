@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import re
 
-from tools.ci.a7_native_rebound import CASES, verify
+from tools.ci.a7_native_rebound import CASES, archived_control_period, verify
 from tools.ci.run_grand_prix_progression_native import OUT, run_native
 
 HEIGHTS = (.90, .8968, .8936, .8904)
@@ -98,13 +98,14 @@ def run():
                     raise RuntimeError('phase identity drift')
                 journal, contacts, wwi = ((out / name).read_text() for name in
                                           ('webots.log', 'contacts.jsonl', 'wwi.log'))
+                period = archived_control_period(out, journal)
                 item['native_result'] = result
                 if error is None and result['result'] == 'PASS':
                     # Reapply the original verifier to archived bytes; never
                     # replace its continuous-contact/zero-motor/reset checks.
-                    item['proof'] = verify(case, journal, contacts, wwi)
+                    item['proof'] = verify(case, journal, contacts, wwi, control_ms=period)
                     item['classification'] = 'PASS'
-                elif error and missed_contact_precondition(journal, contacts, wwi, result):
+                elif period == 32 and error and missed_contact_precondition(journal, contacts, wwi, result):
                     item['classification'] = 'PRECONDITION_ABSENT_UNPROVEN'
             except (OSError, ValueError, KeyError, RuntimeError) as exc:
                 item['verification_error'] = str(exc)
