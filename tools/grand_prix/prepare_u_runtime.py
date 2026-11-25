@@ -423,6 +423,27 @@ static double wrap_angle(double angle) {
             if result.count(old) != 1:
                 raise RuntimeError("yaw experiment control anchor drift")
             result = result.replace(old, new, 1)
+        # EXPERIMENT D: C native A3 froze each small TURN tracking residual
+        # at the next MOVE. Keep the commanded yaw reference in nominal
+        # non-turning requests; do not accumulate XY or change TURN's measured
+        # start/relative endpoint. STOP, RESET, TAKEOFF and both LAND paths
+        # retain their existing recapture/recovery logic.
+        for kind, following in (("MOVE", "VERTICAL"), ("VERTICAL", "TURN"), ("WAIT", "LAND")):
+            start = f"      if (request.kind == REQUEST_{kind}) {{"
+            end = f"      if (request.kind == REQUEST_{following}) {{"
+            if result.count(start) != 1 or result.count(end) != 1:
+                raise RuntimeError("heading continuity request boundary drift")
+            prefix, tail = result.split(start, 1)
+            body, suffix = tail.split(end, 1)
+            capture = "        target_yaw = yaw;\n"
+            if body.count(capture) != 1:
+                raise RuntimeError("heading continuity capture drift")
+            body = body.replace(capture, "        /* Keep the commanded heading; XY/Z start from observation. */\n", 1)
+            if kind == "MOVE":
+                if body.count("cos(yaw)") != 4 or body.count("sin(yaw)") != 4:
+                    raise RuntimeError("heading continuity direction drift")
+                body = body.replace("cos(yaw)", "cos(target_yaw)").replace("sin(yaw)", "sin(target_yaw)")
+            result = prefix + start + body + end + suffix
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
