@@ -337,8 +337,10 @@ extern "C" int gp_route_a6_envelope_contact(double now) {
 extern "C" int gp_route_a7_attempt(void) {
   return admittedA7();
 }
-extern "C" void gp_route_a7_stop_locked_land(void) {
-  if(admittedA7() && !expired && !success)routeLockedLandStop=true;
+extern "C" void gp_route_stop_land(void) {
+  // Only the active native flight parser invokes this for a canceled LAND.
+  // Retain the current admission identity; never re-arm an expired attempt.
+  if(begin>=0 && !expired && !success)routeLockedLandStop=true;
 }
 extern "C" int gp_route_a7_retreat(double now) {
   long long time_ms=0;

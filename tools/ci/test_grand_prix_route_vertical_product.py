@@ -82,6 +82,20 @@ class RouteVerticalProductTests(unittest.TestCase):
         self.assertLess(vertical.index('code=VERTICAL_LIMIT'),
                         vertical.index("active_id = request.id;"))
         self.assertTrue('CMD_LAND' in flight and 'land_touchdown' in flight)
+        # Inspect the complete generated control ordering, not a hand-written
+        # approximation of the route state machine.
+        early = flight.index('if (command == CMD_LAND && !land_touchdown && land_has_ground_contact')
+        self.assertLess(early, flight.index('if (gp_u_deadline(now, gp_pose_confirmed))'))
+        self.assertLess(early, flight.index('if (request.kind == REQUEST_STOP)'))
+        self.assertIn('if (land_touchdown) {\n      // Latch through loss of contact', flight)
+        self.assertIn('if (active_id >= 1 && now - stable_since >= STOP_WINDOW', flight)
+        self.assertIn('if (command == CMD_LAND && active_id != 2147483646)', flight)
+        self.assertIn('if (active_id >= 1) gp_route_stop_land();', flight)
+        self.assertEqual(flight.count('land_touchdown = 0;'), 3)
+        self.assertIn('land_touchdown = 0; /* Qualified RESET only. */', flight)
+        self.assertIn('land_touchdown = 0; /* New admitted TAKEOFF only. */', flight)
+        self.assertNotIn('gp_route_stop_land(', unchanged)
+        self.assertNotIn('if (land_touchdown) {\n      // Latch through loss of contact', unchanged)
 
     def test_fail_closed_on_changed_source(self):
         with self.assertRaises(RuntimeError):

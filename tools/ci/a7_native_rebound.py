@@ -58,7 +58,7 @@ def instrument_pilot(source):
       }
     }
 ''' + anchor)
-    anchor = '        if (gp_route_a7_attempt() && command == CMD_LAND && land_touchdown) {'
+    anchor = '        if (command == CMD_LAND && active_id != 2147483646) {'
     return replace_once(source, anchor, anchor + r'''
           printf("A7_V5_STOP_APPLIED %lld %d %d\n",
                  (long long)llround(now * 1000.0), request.id, active_id);

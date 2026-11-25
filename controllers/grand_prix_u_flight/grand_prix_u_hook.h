@@ -18,7 +18,7 @@ int gp_route_waiting_for_first_alive(void);
 int gp_route_a6_forced_land(void);
 int gp_route_a6_envelope_contact(double);
 int gp_route_a7_attempt(void);
-void gp_route_a7_stop_locked_land(void);
+void gp_route_stop_land(void);
 int gp_route_a7_retreat(double);
 #endif
 const char *gp_u_receive(void);

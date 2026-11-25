@@ -473,18 +473,27 @@ int main(){
  admit();evidence=response("READY","2112");config="gp-route-v2-L2000-2500-3000-TDG-s17-H2";
  now=2.120;oneLand();
  admit();gp_u_reset_complete();assert(gp_route_waiting_for_first_alive()==0);
- // A7 STOP of a locked nominal LAND must not wait for an evaluator round trip.
+ // Route STOP of a nominal LAND must not wait for an evaluator round trip.
  fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
  now=2.128;evidence=response("ALIVE","2120");assert(gp_u_deadline(now,0)==0);
- gp_route_a7_stop_locked_land();gp_route_a7_stop_locked_land();
+ gp_route_stop_land();gp_route_stop_land();
  now=2.136;evidence=response("ALIVE","2128");oneLand();
- gp_route_a7_stop_locked_land();assert(gp_u_deadline(now+0.040,0)==0);
+ gp_route_stop_land();assert(gp_u_deadline(now+0.040,0)==0);
  fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
- gp_route_a7_stop_locked_land();admit();alive(2144);assert(gp_u_deadline(now,0)==0);
- gp_route_a7_stop_locked_land();alive(2176);assert(gp_u_deadline(now,0)==0);
+ gp_route_stop_land();admit();alive(2144);assert(gp_u_deadline(now,0)==0);
+ gp_route_stop_land();alive(2176);assert(gp_u_deadline(now,0)==0);
  fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
- gp_route_a7_stop_locked_land();now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
- gp_u_reset_complete();gp_route_a7_stop_locked_land();assert(gp_u_deadline(now,0)==0);
+ gp_route_stop_land();now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
+ gp_u_reset_complete();gp_route_stop_land();assert(gp_u_deadline(now,0)==0);
+ // Non-A7 LAND uses the same local transfer; repeated requests cannot re-arm it.
+ for(const auto &identifier : {canonical,std::string("gp-progression-v1-a6-v5")}) {
+   fresh(identifier);ready();assert(gp_u_start(now)==1);
+   now=2.128;evidence=response("ALIVE","2120");assert(gp_u_deadline(now,0)==0);
+   gp_route_stop_land();gp_route_stop_land();
+   now=2.136;evidence=response("ALIVE","2128");oneLand();
+   gp_route_stop_land();assert(gp_u_deadline(now+0.008,0)==0);
+   gp_u_reset_complete();
+ }
  // A new native observation is required each pilot tick, not merely a live node.
  admit();alive(2144);assert(gp_u_deadline(now,0)==0);
  now=2.176;oneLand(); // frozen ALIVE is within age budget but has already been consumed

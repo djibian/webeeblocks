@@ -293,26 +293,50 @@ static double wrap_angle(double angle) {
         # Route-mode only. Preserve legacy U and the shared Crazyflie runtime.
         from tools.grand_prix.route_vertical_product import compose_route_vertical_product
         result = compose_route_vertical_product(result)
-        # The same A7 LAND may change ownership during a bounce. Its motor
-        # cutoff remains latched, but the independent LAND earns its own
-        # continuous contact window. A new LAND or RESET starts a new latch.
+        # Contact is sampled before deadline and WWI can change LAND ownership.
+        # The cutoff is route-wide and monotone through STOP, timeout, loss of
+        # contact, and independent LAND. Only confirmed RESET/admitted TAKEOFF
+        # can clear it. The new owner must earn its own contact/ACK window.
         latch_edits = (
+          ('    /* After genuine touchdown, compare exact raw sensor inputs',
+           '    if (command == CMD_LAND && !land_touchdown && land_has_ground_contact(z, origin_z)) {\n'
+           '      land_touchdown = 1;\n'
+           '      stop_motors(m1, m2, m3, m4);\n'
+           '      printf(PREFIX " TRACE LAND_TOUCHDOWN time=%.9f\\n", now);\n'
+           '      fflush(stdout);\n'
+           '    }\n'
+           '    /* After genuine touchdown, compare exact raw sensor inputs'),
           ('      land_touchdown = 0;\n      airborne = 1;',
-           '      land_touchdown = gp_route_a7_attempt() && command == CMD_LAND && land_touchdown;\n'
-           '      if (gp_route_a7_attempt()) gp_land_contact_since = -1.0;\n'
+           '      /* Preserve any earlier motor cutoff, even after a mode change. */\n'
+           '      gp_land_contact_since = -1.0;\n'
            '      airborne = 1;'),
           ('        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");',
            '        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");\n'
-           '        if (gp_route_a7_attempt() && command == CMD_LAND && land_touchdown) {\n'
-           '          if (active_id >= 1 && active_id != 2147483646) gp_route_a7_stop_locked_land();\n'
+           '        if (command == CMD_LAND && active_id != 2147483646) {\n'
+           '          if (active_id >= 1) gp_route_stop_land();\n'
            '          active_id = -1; failsafe_latched = 1;\n'
+           '          stable_since = -1.0;\n'
            '          gp_land_contact_since = -1.0;\n'
            '          response_ok(request.id);\n'
-           '          continue; /* Remain unpowered until independent LAND takes over. */\n'
+           '          continue; /* Retain LAND until independent ownership, including pre-contact STOP. */\n'
            '        }'),
-          ('        gp_ground_since = -1.0; /* Require post-teleport observations. */',
-           '        if (gp_route_a7_attempt()) land_touchdown = 0;\n'
-           '        gp_ground_since = -1.0; /* Require post-teleport observations. */'),
+          ('        land_touchdown = 0;\n        command = CMD_LAND;',
+           '        /* A LAND request cannot clear a previous cutoff. */\n'
+           '        command = CMD_LAND;'),
+          ('        gp_ground_since = -1.0;\n        command = CMD_TAKEOFF;',
+           '        land_touchdown = 0; /* New admitted TAKEOFF only. */\n'
+           '        gp_ground_since = -1.0;\n        command = CMD_TAKEOFF;'),
+          ('          gp_u_reset_complete();',
+           '          land_touchdown = 0; /* Qualified RESET only. */\n'
+           '          gp_u_reset_complete();'),
+          ('if (now - stable_since >= STOP_WINDOW && gp_ground_sample &&\n'
+           '            land_touchdown && gp_land_contact_since >= 0.0',
+           'if (active_id >= 1 && now - stable_since >= STOP_WINDOW && gp_ground_sample &&\n'
+           '            land_touchdown && gp_land_contact_since >= 0.0'),
+          ('    if (command == CMD_LAND && land_touchdown) {\n'
+           '      // Latch through loss of contact during a rebound.',
+           '    if (land_touchdown) {\n'
+           '      // Latch through loss of contact during a rebound.'),
         )
         for old, new in latch_edits:
             if result.count(old) != 1:
