@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 # Keep the new control-law tests in the existing canonical native guard suite.
 from tools.ci.test_gp_multirate import MultirateTests
 from tools.ci.test_gp_multirate_reference import ReferenceTests
+from tools.ci.test_gp_land_latch import LandLatchTests
 
 
 class VariableNativeAdmissionTests(unittest.TestCase):

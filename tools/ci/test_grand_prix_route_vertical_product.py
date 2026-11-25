@@ -10,7 +10,6 @@ import hashlib
 import unittest
 
 from tools.grand_prix.prepare_u_runtime import prepare
-from tools.ci.test_gp_land_latch import LandLatchTests
 from tools.grand_prix.route_vertical_product import compose_route_vertical_product
 
 
