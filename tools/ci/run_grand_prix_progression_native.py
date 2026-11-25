@@ -14,7 +14,7 @@ from tools.grand_prix.progression_courses import progression_course
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/grand-prix-u-geometry'
-FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3)}
+FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: (2, 3), 6: (2, 3), 7: (2, 3), 8: (3, 4, 5, 6)}
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None):
@@ -35,7 +35,13 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         last_attempt = 5 if variant in (2, 3, 7) else 4
         if last_attempt == 5:
             forced_attempts += (5,)
-    course = progression_course(activity, variant)
+    if activity == 8:
+        from tools.grand_prix.route_courses_v2 import reference_course
+        course = reference_course(variant - 1)
+        if pupil_project is None:
+            raise ValueError('A8 needs a single saved .wbb witness')
+    else:
+        course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
         raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
@@ -54,9 +60,16 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         project_copy = out / 'pupil-project.wbb'
         project_copy.write_bytes(pupil_project.read_bytes())
         probe_args.append(str(project_copy))
+        if activity == 8:
+            wrong = pupil_project.with_name('wrong-landing.wbb')
+            wrong_copy = out / 'wrong-landing.wbb'
+            wrong_copy.write_bytes(wrong.read_bytes())
+            probe_args.append(str(wrong_copy))
     env = dict(env, WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     if activity == 3:
         env['WEBEEBLOCKS_GP_A3_TRACE'] = str(out / 'trajectory.csv')
+    if activity == 8:
+        env['WEBEEBLOCKS_GP_A8_TRACE'] = str(out / 'trajectory.csv')
     if activity in (6, 7):
         env[f'WEBEEBLOCKS_A{activity}_WBB_OUT'] = str(out / f'a{activity}-witness.wbb')
     with tempfile.TemporaryDirectory(prefix='gp-progression-native-') as temporary:
@@ -140,7 +153,7 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     origin_times = {int(attempt): int(stamp) for attempt, stamp in starts}
     elapsed = [int(stamp) - origin_times[attempt] for (stamp, _), attempt in
                zip(deadlines, forced_attempts)]
-    exact_deadline = activity in (1, 5) or (activity, variant) == (7, 7)
+    exact_deadline = activity in (1, 5, 8) or (activity, variant) == (7, 7)
     early_landings = elapsed[:-1] if exact_deadline else elapsed
     if (not all(0 < stamp < 210000 for stamp in early_landings) or
             (exact_deadline and elapsed[-1] != 210000)):
@@ -158,16 +171,36 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
                 retreats and round(float(retreats[0]) * 1000) != int(deadlines[-1][0])):
             raise RuntimeError(f'{label} unexpected A7 retreat activation')
         print(f'PASS A7 product .wbb SHA256={hashlib.sha256(project.read_bytes()).hexdigest()}')
+    if activity == 8:
+        import csv
+        import hashlib
+        import json
+        proof = [json.loads(line.removeprefix('A8_WBB_PRODUCT_PASS '))
+                 for line in (out / 'wwi.log').read_text().splitlines()
+                 if line.startswith('A8_WBB_PRODUCT_PASS ')]
+        if len(proof) != 1 or proof[0]['sha256'] != hashlib.sha256(project_copy.read_bytes()).hexdigest():
+            raise RuntimeError(f'{label} saved project not executed')
+        with (out / 'trajectory.csv').open() as trace:
+            samples = list(csv.DictReader(trace))
+        if (not samples or samples[-1]['verdict'] != 'achieved' or
+                int(samples[-1]['crossings']) != course.count or
+                int(samples[-1]['terminal_ms']) - int(samples[0]['start_ms']) >= 210000 or
+                any(int(b['time_ms']) - int(a['time_ms']) != 8
+                    for a, b in zip(samples, samples[1:]))):
+            raise RuntimeError(f'{label} missing continuous native mission proof')
     print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity', type=int, choices=tuple(FORCED_LAND_ATTEMPTS), required=True)
-    parser.add_argument('--variant', type=int, choices=range(1, 8), default=1)
+    parser.add_argument('--variant', type=int, choices=range(1, 13), default=1)
     parser.add_argument('--rebound', choices=('stop', 'liveness'))
+    parser.add_argument('--pupil-project', type=Path)
     args = parser.parse_args()
-    if args.activity not in (4, 5, 6, 7) and args.variant != 1:
+    if args.activity != 8 and args.variant > 7:
+        parser.error('only A8 has twelve variants')
+    if args.activity not in (4, 5, 6, 7, 8) and args.variant != 1:
         parser.error('only activities 4–7 have multiple active variants')
     run_native(Path(os.environ['WEBOTS_HOME']), os.environ.copy(), args.activity, args.variant,
-               rebound=args.rebound)
+               pupil_project=args.pupil_project, rebound=args.rebound)

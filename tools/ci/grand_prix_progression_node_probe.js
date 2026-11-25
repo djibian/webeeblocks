@@ -590,7 +590,58 @@ async function activitySeven() {
   await waitForForcedLanding(3);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
+// A8: the ordinary route profile and one saved sensor-only project. The
+// different wrong-landing project is a negative, never a nominal substitute.
+async function activityEight() {
+  const witness = require('../grand_prix/witness_workspace_a8.js');
+  const nominal = fs.readFileSync(process.argv[4], 'utf8');
+  const wrong = fs.readFileSync(process.argv[5], 'utf8');
+  const result = await witness.runSaved(nominal, backend);
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A8_WBB_PRODUCT_PASS ' + JSON.stringify(result));
+
+  async function fresh() {
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  }
+  await fresh();
+  const wrongResult = await witness.runSaved(wrong, backend);
+  assert.notEqual(wrongResult.sha256, result.sha256);
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  await fresh();
+  await takeoff(.4);
+  await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  await waitForForcedLanding(1);
+
+  await fresh();
+  await takeoff(.88);
+  let front = await backend.readRange('front');
+  for (let i = 0; i < 4 && front > .65; i++) {
+    await backend.move('forward', Math.min(1, front - .40));
+    front = await backend.readRange('front');
+  }
+  assert(front > .15 && front <= .65, 'bounded native contact approach');
+  await assert.rejects(backend.move('forward', front + .15), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+  await waitForForcedLanding(2);
+
+  await fresh();
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(3);
+
+  await fresh();
+  await takeoff(.88);
+  await outcome({status: 'not-achieved', reason: 'time-limit'});
+  await waitForForcedLanding(4);
+  await assert.rejects(backend.move('forward', .2), {code: 'TIME_LIMIT'});
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven, '8': activityEight};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {

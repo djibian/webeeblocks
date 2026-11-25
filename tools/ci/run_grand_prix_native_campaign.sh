@@ -47,6 +47,23 @@ if [[ "${1:-}" == --container ]]; then
   make -C controllers/grand_prix_route_flight 2>&1 | tee ci-artifacts/grand-prix-u-geometry/production-pilot-build.log
   test -x controllers/grand_prix_route_flight/grand_prix_route_flight
 
+  if [[ "$ACTIVITY" == 8 ]]; then
+    # Nominal and explicit wrong-pad project built once on the host.
+    evidence=ci-artifacts/grand-prix-u-geometry/route-a8-native
+    failures=0
+    for ((variant=1; variant<=12; variant++)); do
+      python3 -m tools.ci.run_grand_prix_progression_native --activity 8 --variant "$variant" \
+        --pupil-project "$evidence/pupil-project.wbb" || failures=1
+      out="ci-artifacts/grand-prix-u-geometry/route-a8-v$variant-native"
+      for raw in world.wbt webots.log wwi.log trajectory.csv pupil-project.wbb wrong-landing.wbb; do
+        test -s "$out/$raw" || failures=1
+      done
+      cmp "$evidence/pupil-project.wbb" "$out/pupil-project.wbb" || failures=1
+      cmp "$evidence/wrong-landing.wbb" "$out/wrong-landing.wbb" || failures=1
+    done
+    exit "$failures"
+  fi
+
   case "$ACTIVITY" in
     6) count=5 ;;
     7) count=7 ;;
@@ -91,7 +108,7 @@ fi
 
 case "$ACTIVITY" in
   1|2|3|4|5) image="$WEBOTS_M2_IMAGE" ;;
-  6|7) image="$WEBOTS_OFFICIAL_IMAGE" ;;
+  6|7|8) image="$WEBOTS_OFFICIAL_IMAGE" ;;
   *) exit 2 ;;
 esac
 
@@ -113,6 +130,14 @@ elif [[ "$ACTIVITY" == 7 ]]; then
 fi
 
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
+if [[ "$ACTIVITY" == 8 ]]; then
+  bash tools/prepare_runtime_v2.sh
+  evidence=ci-artifacts/grand-prix-u-geometry/route-a8-native
+  mkdir -p "$evidence"
+  node tools/grand_prix/witness_workspace_a8.js "$evidence/pupil-project.wbb"
+  node tools/grand_prix/witness_workspace_a8.js "$evidence/wrong-landing.wbb" --wrong-landing
+  sha256sum "$evidence/"*.wbb
+fi
 if [[ "$ACTIVITY" == 7 ]]; then
   export WEBEEBLOCKS_GP_GIT_HEAD="$(git rev-parse HEAD)"
   export WEBEEBLOCKS_GP_GIT_TREE="$(git rev-parse 'HEAD^{tree}')"
