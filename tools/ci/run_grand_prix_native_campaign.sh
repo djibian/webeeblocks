@@ -115,7 +115,7 @@ case "$ACTIVITY" in
 esac
 
 test "$(git -C ../webots-assets rev-parse HEAD)" = "$PROTO_SHA"
-python3 -m unittest tools.ci.test_gp_multirate
+python3 -m unittest tools.ci.test_gp_multirate tools.ci.test_gp_multirate_reference
 node_root="$(dirname "$(dirname "$(command -v node)")")"
 if [[ "$ACTIVITY" =~ ^[45]$ ]]; then
   bash tools/prepare_runtime_v2.sh

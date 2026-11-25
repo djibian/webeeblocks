@@ -490,6 +490,8 @@ static double wrap_angle(double angle) {
             result = result.replace(old, new, 1)
         from tools.grand_prix.route_multirate import compose
         result = compose(result)
+        from tools.grand_prix.route_multirate_reference import compose as compose_reference
+        result = compose_reference(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
