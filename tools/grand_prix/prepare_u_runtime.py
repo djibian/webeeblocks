@@ -304,6 +304,7 @@ static double wrap_angle(double angle) {
           ('        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");',
            '        if (active_id >= 1)\n          response_error(active_id, "USER_STOPPED");\n'
            '        if (gp_route_a7_attempt() && command == CMD_LAND && land_touchdown) {\n'
+           '          if (active_id >= 1 && active_id != 2147483646) gp_route_a7_stop_locked_land();\n'
            '          active_id = -1; failsafe_latched = 1;\n'
            '          gp_land_contact_since = -1.0;\n'
            '          response_ok(request.id);\n'
@@ -392,6 +393,105 @@ static double wrap_angle(double angle) {
             "      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n"
             "      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);"
         ), 1)
+        # Experimental paired A/B witness only; no new native observations.
+        for old, new in (
+            ("        command = CMD_MOVE;", "        command = CMD_MOVE;\n        printf(\"GP_HORIZONTAL_START id=%d t=%.9f x=%.9f y=%.9f gx=%.9f gy=%.9f yaw=%.9f speed=%.9f vx=%.9f vy=%.9f\\n\",\n               active_id, now, x, y, target_x, target_y, yaw, move_speed_limit, vx_global, vy_global);\n        fflush(stdout);"),
+            ("          trace_move(active_direction, active_value);", "          printf(\"GP_HORIZONTAL_ACK id=%d t=%.9f x=%.9f y=%.9f gx=%.9f gy=%.9f vx=%.9f vy=%.9f\\n\",\n                 active_id, now, x, y, target_x, target_y, vx_global, vy_global);\n          fflush(stdout);\n          trace_move(active_direction, active_value);"),
+        ):
+            if result.count(old) != 1:
+                raise RuntimeError("horizontal experiment trace anchor drift")
+            result = result.replace(old, new, 1)
+        # EXPERIMENT ONLY: same trace and native gates as paired baseline.
+        # Reference starts from the measured XY, with existing P and velocity PID.
+        for old, new in (
+            ("static double wrap_angle(double angle) {", "/* Derived from the endpoint constraints of Bitcraze pptraj.c poly7_nojerk,\n * firmware 2026.08, 54f31e243a0b28b67efef5ba20dbb6d9890a5478.\n * Original algorithm: Wolfgang Hoenig and James Alan Preiss (2018), MIT.\n * This normalized, speed-capped piecewise adaptation is not firmware timing.\n */\nstatic double gp_move_ramp_position(double u) {\n  return u*u*u*u * (1.0 + u*(0.6 + u*(-2.0 + u*(6.0/7.0))));\n}\nstatic double gp_move_ramp_speed(double u) {\n  return u*u*u * (4.0 + u*(3.0 + u*(-12.0 + 6.0*u)));\n}\nstatic void gp_motion_reference(double distance, double limit, double elapsed,\n                              double *fraction, double *speed, double *duration) {\n  const double ramp = 1.0 / POSITION_KP;\n  const double ratio = 16.0 / 35.0;\n  const double travel = distance / limit;\n  elapsed = fmax(0.0, elapsed);\n  if (travel <= 2.0 * ratio * ramp) {\n    /* Preserve the two-ramp time scale even for tiny moves. A speed-only\n     * duration collapses as distance tends to zero and excites the velocity\n     * loop (native A7 run 45599318202, 4 cm command / >0.50 m/s actual). */\n    *duration = fmax(2.0 * ramp, travel / ratio);\n    const double u = fmin(1.0, elapsed / *duration);\n    const double q = 1.0 - u;\n    *fraction = u*u*u*u * (35.0 + u*(-84.0 + u*(70.0 - 20.0*u)));\n    *speed = (distance / *duration) * 140.0*u*u*u*q*q*q;\n  } else {\n    const double cruise = travel - 2.0 * ratio * ramp;\n    *duration = 2.0 * ramp + cruise;\n    if (elapsed < ramp) {\n      const double u = elapsed / ramp;\n      *fraction = limit*ramp*gp_move_ramp_position(u) / distance;\n      *speed = limit*gp_move_ramp_speed(u);\n    } else if (elapsed < ramp + cruise) {\n      *fraction = limit*(ratio*ramp + elapsed - ramp) / distance;\n      *speed = limit;\n    } else {\n      const double u = fmax(0.0, (*duration - elapsed) / ramp);\n      *fraction = 1.0 - limit*ramp*gp_move_ramp_position(u) / distance;\n      *speed = limit*gp_move_ramp_speed(u);\n    }\n  }\n  if (elapsed >= *duration) { *fraction = 1.0; *speed = 0.0; }\n}\n\nstatic double wrap_angle(double angle) {"),
+            ("  double move_speed_limit = VX_MAX;", "  double gp_move_start_x = origin_x, gp_move_start_y = origin_y;\n  double move_speed_limit = VX_MAX;"),
+            ("        command = CMD_MOVE;", "        gp_move_start_x = x;\n        gp_move_start_y = y;\n        command = CMD_MOVE;"),
+            ("    } else if (command == CMD_MOVE) {\n      const double error_x = target_x - x;\n      const double error_y = target_y - y;\n      const double body_x = error_x * cy + error_y * sy;\n      const double body_y = -error_x * sy + error_y * cy;\n      desired.vx = POSITION_KP * body_x;\n      desired.vy = POSITION_KP * body_y;\n      clip_vector(&desired.vx, &desired.vy, move_speed_limit);\n      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n      desired.altitude = target_z;\n      if (hypot(error_x, error_y) <= POSITION_TOL", "    } else if (command == CMD_MOVE) {\n      const double error_x = target_x - x;\n      const double error_y = target_y - y;\n      const double dx = target_x - gp_move_start_x, dy = target_y - gp_move_start_y;\n      double fraction, reference_speed, reference_duration;\n      gp_motion_reference(active_value, move_speed_limit, now - action_start,\n                        &fraction, &reference_speed, &reference_duration);\n      const double reference_x = gp_move_start_x + fraction * dx;\n      const double reference_y = gp_move_start_y + fraction * dy;\n      const double world_vx = POSITION_KP * (reference_x - x) + reference_speed * dx / active_value;\n      const double world_vy = POSITION_KP * (reference_y - y) + reference_speed * dy / active_value;\n      desired.vx = world_vx * cy + world_vy * sy;\n      desired.vy = -world_vx * sy + world_vy * cy;\n      clip_vector(&desired.vx, &desired.vy, move_speed_limit);\n      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n      desired.altitude = target_z;\n      if (now - action_start >= reference_duration &&\n          hypot(error_x, error_y) <= POSITION_TOL"),
+        ):
+            if result.count(old) != 1:
+                raise RuntimeError("horizontal experiment control anchor drift")
+            result = result.replace(old, new, 1)
+        # EXPERIMENT C: reuse the same bounded profile for signed yaw.
+        # A/B native A3 showed the next independent bias at each TURN.
+        # Keep XY hold, yaw cap, endpoint, and all stability/safety gates.
+        for old, new in (
+            ("  double gp_move_start_x = origin_x, gp_move_start_y = origin_y;", "  double gp_move_start_x = origin_x, gp_move_start_y = origin_y;\n  double gp_turn_start_yaw = origin_yaw;"),
+            ("        command = CMD_TURN;", "        gp_turn_start_yaw = yaw;\n        command = CMD_TURN;\n        printf(\"GP_TURN_START id=%d t=%.9f yaw=%.9f goal=%.9f angle_deg=%.9f rate=%.9f\\n\",\n               active_id, now, yaw, target_yaw, active_value, actual.yaw_rate);\n        fflush(stdout);"),
+            ("    } else if (command == CMD_TURN) {\n      const double error_x = target_x - x;\n      const double error_y = target_y - y;\n      const double body_x = error_x * cy + error_y * sy;\n      const double body_y = -error_x * sy + error_y * cy;\n      desired.vx = POSITION_KP * body_x;\n      desired.vy = POSITION_KP * body_y;\n      clip_vector(&desired.vx, &desired.vy, VX_MAX);\n      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);\n      desired.altitude = target_z;\n      if (hypot(error_x, error_y) <= POSITION_TOL", "    } else if (command == CMD_TURN) {\n      const double error_x = target_x - x;\n      const double error_y = target_y - y;\n      const double body_x = error_x * cy + error_y * sy;\n      const double body_y = -error_x * sy + error_y * cy;\n      desired.vx = POSITION_KP * body_x;\n      desired.vy = POSITION_KP * body_y;\n      clip_vector(&desired.vx, &desired.vy, VX_MAX);\n      const double angle = active_value * PI / 180.0;\n      double fraction, reference_rate, reference_duration;\n      gp_motion_reference(fabs(angle), YAW_RATE_MAX, now - action_start,\n                          &fraction, &reference_rate, &reference_duration);\n      const double reference_yaw = wrap_angle(gp_turn_start_yaw + fraction * angle);\n      desired.yaw_rate = clip(copysign(reference_rate, angle) +\n                              YAW_KP * wrap_angle(reference_yaw - yaw), YAW_RATE_MAX);\n      desired.altitude = target_z;\n      if (now - action_start >= reference_duration &&\n          hypot(error_x, error_y) <= POSITION_TOL"),
+            ("          trace_turn(active_value);", "          printf(\"GP_TURN_ACK id=%d t=%.9f yaw=%.9f goal=%.9f rate=%.9f\\n\",\n                 active_id, now, yaw, target_yaw, actual.yaw_rate);\n          fflush(stdout);\n          trace_turn(active_value);"),
+        ):
+            if result.count(old) != 1:
+                raise RuntimeError("yaw experiment control anchor drift")
+            result = result.replace(old, new, 1)
+        # EXPERIMENT D: C native A3 froze each small TURN tracking residual
+        # at the next MOVE. Keep the commanded yaw reference in nominal
+        # non-turning requests; do not accumulate XY or change TURN's measured
+        # start/relative endpoint. STOP, RESET, TAKEOFF and both LAND paths
+        # retain their existing recapture/recovery logic.
+        for kind, following in (("MOVE", "VERTICAL"), ("VERTICAL", "TURN"), ("WAIT", "LAND")):
+            start = f"      if (request.kind == REQUEST_{kind}) {{"
+            end = f"      if (request.kind == REQUEST_{following}) {{"
+            if result.count(start) != 1 or result.count(end) != 1:
+                raise RuntimeError("heading continuity request boundary drift")
+            prefix, tail = result.split(start, 1)
+            body, suffix = tail.split(end, 1)
+            capture = "        target_yaw = yaw;\n"
+            if body.count(capture) != 1:
+                raise RuntimeError("heading continuity capture drift")
+            body = body.replace(capture, "        /* Keep the commanded heading; XY/Z start from observation. */\n", 1)
+            if kind == "MOVE":
+                if body.count("cos(yaw)") != 4 or body.count("sin(yaw)") != 4:
+                    raise RuntimeError("heading continuity direction drift")
+                body = body.replace("cos(yaw)", "cos(target_yaw)").replace("sin(yaw)", "sin(target_yaw)")
+            result = prefix + start + body + end + suffix
+        # EXPERIMENT F: change only the native control/kinematic cadence.
+        # Keep true range acquisition at 32 ms and its existing wire contract.
+        # Do not rescale PID gains, stability windows, or safety thresholds.
+        timing_edits = [
+            ('    if (command == CMD_TAKEOFF) {\n      desired.altitude = gp_route_takeoff_next',
+             '    if (command == CMD_TAKEOFF && gp_route_waiting_for_first_alive()) {\n'
+             '      /* Admission is not yet authority to apply thrust. */\n'
+             '      stop_motors(m1, m2, m3, m4);\n'
+             '      previous_time = now; previous_x = x; previous_y = y; previous_z = z;\n'
+             '      continue;\n'
+             '    }\n'
+             '    if (command == CMD_TAKEOFF) {\n      desired.altitude = gp_route_takeoff_next'),
+            ('  const int step = 32; /* Preserve the shared PID/sensor update period. */',
+             '  const int step = 8; /* Experimental 125 Hz control. */\n'
+             '  const int range_step = 32; /* Preserve range acquisition. */'),
+            ('dt <= 0.032001 &&',
+             'dt <= 0.008001 &&\n'
+             '      wb_gps_get_sampling_period(gps) == step &&\n'
+             '      wb_inertial_unit_get_sampling_period(imu) == step &&\n'
+             '      wb_gyro_get_sampling_period(gyro) == step &&'),
+            ('  send_text(PREFIX " READY");',
+             '  if (wb_gps_get_sampling_period(gps) != step ||\n'
+             '      wb_inertial_unit_get_sampling_period(imu) != step ||\n'
+             '      wb_gyro_get_sampling_period(gyro) != step) {\n'
+             '    fprintf(stderr, "GP_ROUTE_CONTROL_PERIOD_MISMATCH\\n");\n'
+             '    wb_robot_cleanup(); return 1;\n'
+             '  }\n'
+             '  printf("GP_ROUTE_CONTROL_TIMING physics_ms=%d control_ms=%d range_ms=%d\\n",\n'
+             '         (int)wb_robot_get_basic_time_step(), step, range_step);\n'
+             '  fflush(stdout);\n'
+             '  send_text(PREFIX " READY");'),
+        ]
+        for side in ('front', 'back', 'left', 'right', 'up'):
+            timing_edits.extend((
+                (f'wb_distance_sensor_enable(range_{side}, step);',
+                 f'wb_distance_sensor_enable(range_{side}, range_step);'),
+                (f'wb_distance_sensor_get_sampling_period(range_{side}) == step',
+                 f'wb_distance_sensor_get_sampling_period(range_{side}) == range_step'),
+            ))
+        for old, new in timing_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route 8-ms control anchor drift')
+            result = result.replace(old, new, 1)
+        from tools.grand_prix.route_multirate import compose
+        result = compose(result)
+        from tools.grand_prix.route_multirate_reference import compose as compose_reference
+        result = compose_reference(result)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)

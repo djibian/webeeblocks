@@ -13,6 +13,10 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+# Keep the new control-law tests in the existing canonical native guard suite.
+from tools.ci.test_gp_multirate import MultirateTests
+from tools.ci.test_gp_multirate_reference import ReferenceTests
+
 
 class VariableNativeAdmissionTests(unittest.TestCase):
     def test_real_guard_admission_liveness_deadline_and_reset(self):
@@ -451,6 +455,36 @@ int main(){
  assert(request.find("GP_ROUTE_START_V1 attempt=1 config="+canonical)==0);
  assert(request.find(" start_ms=2112 state=admitted")!=std::string::npos);
  assert(gp_u_start(now)==0); // a second admission cannot restart the clock
+ // 8-ms admission propagation: READY is not authority for thrust.
+ // Hold until the first genuine post-admission ALIVE; no extension of clock.
+ admit();assert(gp_route_waiting_for_first_alive()==1);
+ now=2.120;assert(gp_u_deadline(now,0)==0);
+ assert(gp_route_waiting_for_first_alive()==1);
+ evidence=response("ALIVE","2120");now=2.128;
+ assert(gp_u_deadline(now,0)==0 && gp_route_waiting_for_first_alive()==0);
+ // In flight, reuse of the same ALIVE fails immediately, even just 8 ms later.
+ now=2.136;oneLand();
+ admit();evidence.clear();now=2.120;
+ assert(gp_u_deadline(now,0)==0 && gp_route_waiting_for_first_alive()==1);
+ now=2.128;oneLand();
+ admit();evidence=response("TERMINAL","2120 reason=altitude");now=2.120;
+ assert(gp_u_deadline(now,0)==1 && gp_route_waiting_for_first_alive()==0);
+ assert(vehicle==failed+" reason=altitude");
+ admit();evidence=response("READY","2112");config="gp-route-v2-L2000-2500-3000-TDG-s17-H2";
+ now=2.120;oneLand();
+ admit();gp_u_reset_complete();assert(gp_route_waiting_for_first_alive()==0);
+ // A7 STOP of a locked nominal LAND must not wait for an evaluator round trip.
+ fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
+ now=2.128;evidence=response("ALIVE","2120");assert(gp_u_deadline(now,0)==0);
+ gp_route_a7_stop_locked_land();gp_route_a7_stop_locked_land();
+ now=2.136;evidence=response("ALIVE","2128");oneLand();
+ gp_route_a7_stop_locked_land();assert(gp_u_deadline(now+0.040,0)==0);
+ fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
+ gp_route_a7_stop_locked_land();admit();alive(2144);assert(gp_u_deadline(now,0)==0);
+ gp_route_a7_stop_locked_land();alive(2176);assert(gp_u_deadline(now,0)==0);
+ fresh("gp-progression-v1-a7-v5");ready();assert(gp_u_start(now)==1);
+ gp_route_a7_stop_locked_land();now=212.112;assert(gp_u_deadline(now,0)==1);assert(vehicle==timed);
+ gp_u_reset_complete();gp_route_a7_stop_locked_land();assert(gp_u_deadline(now,0)==0);
  // A new native observation is required each pilot tick, not merely a live node.
  admit();alive(2144);assert(gp_u_deadline(now,0)==0);
  now=2.176;oneLand(); // frozen ALIVE is within age budget but has already been consumed
