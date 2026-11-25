@@ -444,6 +444,41 @@ static double wrap_angle(double angle) {
                     raise RuntimeError("heading continuity direction drift")
                 body = body.replace("cos(yaw)", "cos(target_yaw)").replace("sin(yaw)", "sin(target_yaw)")
             result = prefix + start + body + end + suffix
+        # EXPERIMENT F: change only the native control/kinematic cadence.
+        # Keep true range acquisition at 32 ms and its existing wire contract.
+        # Do not rescale PID gains, stability windows, or safety thresholds.
+        timing_edits = [
+            ('  const int step = 32; /* Preserve the shared PID/sensor update period. */',
+             '  const int step = 8; /* Experimental 125 Hz control. */\n'
+             '  const int range_step = 32; /* Preserve range acquisition. */'),
+            ('dt <= 0.032001 &&',
+             'dt <= 0.008001 &&\n'
+             '      wb_gps_get_sampling_period(gps) == step &&\n'
+             '      wb_inertial_unit_get_sampling_period(imu) == step &&\n'
+             '      wb_gyro_get_sampling_period(gyro) == step &&'),
+            ('  send_text(PREFIX " READY");',
+             '  if (wb_gps_get_sampling_period(gps) != step ||\n'
+             '      wb_inertial_unit_get_sampling_period(imu) != step ||\n'
+             '      wb_gyro_get_sampling_period(gyro) != step) {\n'
+             '    fprintf(stderr, "GP_ROUTE_CONTROL_PERIOD_MISMATCH\\n");\n'
+             '    wb_robot_cleanup(); return 1;\n'
+             '  }\n'
+             '  printf("GP_ROUTE_CONTROL_TIMING physics_ms=%d control_ms=%d range_ms=%d\\n",\n'
+             '         (int)wb_robot_get_basic_time_step(), step, range_step);\n'
+             '  fflush(stdout);\n'
+             '  send_text(PREFIX " READY");'),
+        ]
+        for side in ('front', 'back', 'left', 'right', 'up'):
+            timing_edits.extend((
+                (f'wb_distance_sensor_enable(range_{side}, step);',
+                 f'wb_distance_sensor_enable(range_{side}, range_step);'),
+                (f'wb_distance_sensor_get_sampling_period(range_{side}) == step',
+                 f'wb_distance_sensor_get_sampling_period(range_{side}) == range_step'),
+            ))
+        for old, new in timing_edits:
+            if result.count(old) != 1:
+                raise RuntimeError('route 8-ms control anchor drift')
+            result = result.replace(old, new, 1)
     destination=Path(output_dir) if output_dir is not None else ROOT/'controllers/grand_prix_u_flight/build'
     output=destination/'runtime_u.c'
     output.parent.mkdir(parents=True,exist_ok=True)
