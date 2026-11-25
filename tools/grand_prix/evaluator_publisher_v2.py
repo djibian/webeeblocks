@@ -100,7 +100,9 @@ class NativeRouteEvaluator:
         self._start_ms = None
         self._positive_written = False
         self._a3_trace_path = (os.environ.get('WEBEEBLOCKS_GP_A3_TRACE')
-                               if self.course.progression == (3, 1) else None)
+                               if self.course.progression == (3, 1) else
+                               os.environ.get('WEBEEBLOCKS_GP_A8_TRACE')
+                               if self.course.progression is None else None)
         self._a3_trace = [] if self._a3_trace_path else None
         self.observation = None
         self.phase = 'waiting'
