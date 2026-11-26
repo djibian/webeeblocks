@@ -171,6 +171,7 @@ def verify_phase(case, offset, journal, contacts, wwi, course):
     require(land in cycles and cycles[land][1] == nominal, 'nominal LAND not accepted')
     require(touch in cycles and cycles[touch][5] == 1, 'first ODE contact not sampled by pilot')
     require(touch < ack, 'ACK before physical contact')
+    require(touch-8 in cycles and cycles[touch-8][2] == 0, 'premature motor latch before floor contact')
     # Safety first: even an off-phase intervention must not mask a motor pulse.
     land_mode = cycles[land][0]
     for ms in range(touch, ack+1, 8):
@@ -198,7 +199,10 @@ def verify_phase(case, offset, journal, contacts, wwi, course):
                 'nominal ACK absent')
         require('"status":"achieved"' in wwi, 'nominal oracle not achieved')
         return dict(first_contact_ms=touch, land_ms=land, delay_ms=touch-land, ack_ms=ack)
-    transfer, interrupted = map(int, one(transfers, 'independent transfer'))
+    if not transfers:
+        raise ReboundUnproven('independent transfer absent')
+    require(len(transfers) == 1, 'duplicate independent transfers')
+    transfer, interrupted = map(int, transfers[0])
     require(land < transfer < ack and min(fresh, vertical) >= transfer,
             'independent owner lacks fresh stability')
     require(transfer in cycles and cycles[transfer][6] ==
@@ -210,7 +214,7 @@ def verify_phase(case, offset, journal, contacts, wwi, course):
             r'^A7_V5_STOP_APPLIED (\d+) (\d+) (\d+)$', 'nominal STOP application'))
         first = event('STOP_EMITTED')
         require((int(first['sender']['id']), int(first['sender']['observed_ms'])) ==
-                (stop_id, first['ms']), 'STOP emission identity')
+                (stop_id, first['ms']) and first['ms'] <= applied, 'STOP emission identity/order')
         require(len(stops) == 2 and tuple(map(int, stops[0][:3])) ==
                 (applied, stop_id, attempt) and stops[0][3] == epoch,
                 'STOP reception mismatch')
@@ -303,6 +307,10 @@ def finish(out, case, probe_error, env):
                 identity['case'] == case and identity['phase'] ==
                 {key: env['WEBEEBLOCKS_LATCH_' + key] for key in ('PHASE', 'OFFSET', 'DELAY', 'COURSE')},
                 'phase provenance mismatch')
+        require(identity['webots'] == 'R2025a' and
+                all(identity['actions'][key] == env.get(key) for key in
+                    ('TARGET_SHA', 'GITHUB_RUN_ID', 'GITHUB_WORKFLOW_SHA', 'GITHUB_RUN_ATTEMPT')),
+                'run or engine identity mismatch')
         require(identity['sha256']['runtime_product.c'] == PRODUCT_SHA, 'unexpected product C')
         for name, digest in identity['sha256'].items():
             require(hashlib.sha256((out / name).read_bytes()).hexdigest() == digest,
