@@ -193,6 +193,7 @@ def verify_phase(case, offset, journal, contacts, wwi, course):
     transfers = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            journal, re.M)
     if case == 'calibration':
+        require(ack-start < 210000, 'nominal calibration exceeds mission cap')
         require(not transfers and all(cycles[ms][1] == nominal for ms in range(touch, ack+1, 8)),
                 'calibration not nominal')
         require(f'A7_V5_WWI < WEBEEBLOCKS_RUNTIME_V2 RESPONSE {nominal} OK\n' in wwi,
@@ -203,6 +204,8 @@ def verify_phase(case, offset, journal, contacts, wwi, course):
         raise ReboundUnproven('independent transfer absent')
     require(len(transfers) == 1, 'duplicate independent transfers')
     transfer, interrupted = map(int, transfers[0])
+    if case != 'deadline':
+        require(0 < transfer-start < 210000, 'early safety transfer crossed mission cap')
     require(land < transfer < ack and min(fresh, vertical) >= transfer,
             'independent owner lacks fresh stability')
     require(transfer in cycles and cycles[transfer][6] ==

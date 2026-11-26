@@ -23,7 +23,7 @@ def phase_fixture(case, offset):
     land = touch-32
     applied = touch+offset
     transfer = applied+8 if case == 'stop' else applied
-    start = applied-210000 if case == 'deadline' else 2000
+    start = applied-210000 if case == 'deadline' else 10000
     sep, returned = touch+8, touch+104
     ack = returned+504
     late, before, after = transfer+8, transfer+16, ack+8
