@@ -20,6 +20,8 @@ CASES = ('stop', 'liveness', 'deadline')
 
 
 def instrument_phase(source):
+    if 'gp_phase_mark' in source:
+        raise RuntimeError('phase instrumentation already present')
     # Observe the accepted LAND and independent transfer. Atomic marker writes
     # are scheduling aids only; the trace verifier does not trust them as ODE.
     helper = r'''static void gp_phase_mark(const char *name, long long stamp) {

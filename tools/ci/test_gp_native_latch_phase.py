@@ -102,8 +102,17 @@ class NativeLatchPhaseTests(unittest.TestCase):
             self.assertEqual(source.count('gp_phase_mark("phase-land"'), 1)
             self.assertEqual(source.count('gp_phase_mark("phase-force"'), 1)
             self.assertEqual(source.count('gp_phase_mark("phase-tick"'), 1)
-            with self.assertRaises(RuntimeError):
+            with self.assertRaisesRegex(RuntimeError, 'phase instrumentation already present'):
                 instrument_phase(source)
+            with self.assertRaisesRegex(RuntimeError, 'phase instrumentation already present'):
+                instrument_phase(product + '\n/* gp_phase_mark */\n')
+            for changed in (
+                product.replace('static int land_has_ground_contact(', 'static int renamed_land_contact('),
+                product + '\nstatic int land_has_ground_contact(',
+            ):
+                with self.subTest(changed_length=len(changed)):
+                    with self.assertRaisesRegex(RuntimeError, 'instrumentation anchor changed'):
+                        instrument_phase(changed)
 
     def test_calibration_and_all_nine_exact_phase_parser_paths(self):
         self.assertEqual(verify_phase('calibration', 0, *phase_fixture('calibration', 0), COURSE)['delay_ms'], 32)
