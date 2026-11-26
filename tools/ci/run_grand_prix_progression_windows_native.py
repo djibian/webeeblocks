@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--webots-home", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--include-a8", action="store_true")
     args = parser.parse_args()
     if sys.platform != "win32":
         raise RuntimeError("Native Windows R2025a only")
@@ -27,22 +28,25 @@ def main():
         args.package, args.webots_home, args.output))
     if (home / "resources/version.txt").read_text().strip() != "R2025a":
         raise ValueError("Official Webots R2025a required")
-    package_evidence = verify(package)
+    package_evidence = verify(package, args.include_a8)
+    indices = (0, 15, 22, 34) if args.include_a8 else (0, 15, 22)
+    count = 35 if args.include_a8 else 23
+    smoke = f"{len(indices)}/{count}"
     output.mkdir(parents=True, exist_ok=False)
     runs = []
     try:
-        # A1 one-variant, A6 H-free last variant and A7 seven-variant end.
-        # These are smoke samples, never a 23/23 physical qualification.
-        for index in (0, 15, 22):
+        # A1/V1, A6/V5, A7/V7 and optionally A8/V12. Smoke only.
+        for index in indices:
             runs.append(run_one(package, home, output, index))
             (output / "campaign.json").write_text(json.dumps({
                 "package": package_evidence, "results": runs,
-                "native_smoke": "3/23", "teacher_windows": "UNPROVEN"
+                "native_smoke": smoke if len(runs) == len(indices) else f"{len(runs)}/{count}",
+                "teacher_windows": "UNPROVEN"
             }, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        print("GP_PROGRESSION_WINDOWS_NATIVE_SMOKE_PASS 3/23; GUI=UNPROVEN")
+        print(f"GP_PROGRESSION_WINDOWS_NATIVE_SMOKE_PASS {smoke}; GUI=UNPROVEN")
     finally:
         (output / "status.json").write_text(json.dumps({
-            "tested": len(runs), "required": 3, "gui": "UNPROVEN",
+            "tested": len(runs), "required": len(indices), "gui": "UNPROVEN",
             "teacher_windows": "UNPROVEN"
         }, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 

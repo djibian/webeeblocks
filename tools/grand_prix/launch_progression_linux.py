@@ -15,20 +15,37 @@ from tools.grand_prix.launch_linux import (
     classroom_perspective, launch_graphical, prepare_route_native, render_route,
     webots_home,
 )
-from tools.grand_prix.route_courses_v2 import active_course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier, reference_course
 
-# Delivery never changes native admission: only already-enabled course IDs
-# are offered by the teacher launcher; admission expands when A5–A7 merge.
+# Delivery never changes native admission. The selection belongs to the host.
+def selected_course(activity, variant):
+    if type(activity) is not int or not 1 <= activity <= len(LESSON_MENU):
+        raise ValueError('Activité Grand Prix invalide')
+    if type(variant) is not int or not 1 <= variant <= LESSON_MENU[activity - 1][1]:
+        raise ValueError('Parcours Grand Prix invalide')
+    if activity == 8:
+        reference = reference_course(variant - 1)
+        admitted = active_course_from_identifier(reference.identifier)
+        if admitted != reference:
+            raise ValueError('Identité canonique A8 incohérente')
+        return admitted
+    identifier = f'gp-progression-v1-a{activity}-v{variant}'
+    course = active_course_from_identifier(identifier)
+    if course.identifier != identifier or course.progression != (activity, variant):
+        raise ValueError('Identité de progression incohérente')
+    return course
+
+
 def admitted_variants(activity):
+    if type(activity) is not int or not 1 <= activity <= len(LESSON_MENU):
+        return ()
     admitted = []
     for variant in range(1, LESSON_MENU[activity - 1][1] + 1):
-        identifier = f'gp-progression-v1-a{activity}-v{variant}'
         try:
-            course = active_course_from_identifier(identifier)
+            selected_course(activity, variant)
         except ValueError:
             continue
-        if course.identifier == identifier and course.progression == (activity, variant):
-            admitted.append(variant)
+        admitted.append(variant)
     return tuple(admitted)
 
 
@@ -38,7 +55,7 @@ def active_progression_activities():
 
 
 ROBOT_WINDOW = 'grand_prix_route_v2'
-SETUP_TAG = '<script src="setup.js"></script>'
+SETUP_TAG = '<script src="setup.js?rev=20261126-portable-open"></script>'
 PROFILES = 'blockly/webeeblocks/grand_prix_progression.js'
 
 # Only the teacher-facing selection menu duplicates these presentation labels.
@@ -51,6 +68,7 @@ LESSON_MENU = (
     ('Mémoriser le virage', 5),
     ('Discriminer un H ouvert', 5),
     ('Mini Grand Prix', 7),
+    ('Grand Prix autonome', 12),
 )
 
 
@@ -111,7 +129,7 @@ def choose_lesson():
 
 def prepare_lesson_project(project, activity, variant=1):
     """Materialize one temporary world and a profile-specific HTML entry point."""
-    course = active_course_from_identifier(f'gp-progression-v1-a{activity}-v{variant}')
+    course = selected_course(activity, variant)
     scene = render_route(course)
 
     plugins = ROOT / 'plugins/robot_windows'
@@ -122,13 +140,18 @@ def prepare_lesson_project(project, activity, variant=1):
     html = page.read_text(encoding='utf-8')
     if html.count(SETUP_TAG) != 1 or 'data-progression-activity' in html:
         raise RuntimeError('Point d’entrée Blockly Grand Prix incohérent')
-    html = html.replace(SETUP_TAG,
-        f'<script src="../{PROFILES}"></script>\n  '
-        f'<script src="setup.js" data-progression-activity="{activity}"></script>')
+    profile_tag = f'<script src="../{PROFILES}"></script>'
+    if html.count(profile_tag) != 1 or html.index(profile_tag) > html.index(SETUP_TAG):
+        raise RuntimeError('Catalogue de profils Grand Prix absent ou dupliqué')
+    # A8 keeps its original default profile; only A1–A7 select a lesson.
+    if activity != 8:
+        html = html.replace(SETUP_TAG,
+            SETUP_TAG.replace('></script>', f' data-progression-activity="{activity}"></script>'))
 
     worlds = project / 'worlds'
     worlds.mkdir()
-    world = worlds / f'grand_prix_progression_a{activity}.wbt'
+    world = worlds / ('grand_prix_route_v2.wbt' if activity == 8 else
+                      f'grand_prix_progression_a{activity}.wbt')
     world.write_text(scene, encoding='utf-8')
     world.with_name('.' + world.stem + '.wbproj').write_text(
         classroom_perspective(ROOT), encoding='utf-8')

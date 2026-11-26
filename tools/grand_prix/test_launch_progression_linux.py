@@ -9,6 +9,7 @@ from tools.grand_prix import launch_progression_linux as launcher
 from tools.grand_prix import package_windows_progression as delivery
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.progression_courses import progression_course
+from tools.grand_prix.route_courses_v2 import reference_course
 
 
 class ProgressionLaunchTests(unittest.TestCase):
@@ -18,14 +19,21 @@ class ProgressionLaunchTests(unittest.TestCase):
                 project = Path(temp)
                 world = launcher.prepare_lesson_project(project, activity)
                 self.assertEqual(world.relative_to(project).as_posix(),
+                                 'worlds/grand_prix_route_v2.wbt' if activity == 8 else
                                  f'worlds/grand_prix_progression_a{activity}.wbt')
-                self.assertEqual(world.read_text(), active_course_world(progression_course(activity)))
+                self.assertEqual(world.read_text(), launcher.render_route(
+                    reference_course(0) if activity == 8 else progression_course(activity)))
                 self.assertTrue(world.with_name('.' + world.stem + '.wbproj').is_file())
                 windows = project / 'plugins/robot_windows'
                 selected = windows / launcher.ROBOT_WINDOW
                 page = (selected / (launcher.ROBOT_WINDOW + '.html')).read_text()
-                self.assertEqual(page.count(f'data-progression-activity="{activity}"'), 1)
-                self.assertLess(page.index(launcher.PROFILES), page.index('src="setup.js"'))
+                if activity == 8:
+                    self.assertNotIn('data-progression-activity', page)
+                    self.assertIn(launcher.SETUP_TAG, page)
+                else:
+                    self.assertEqual(page.count(f'data-progression-activity="{activity}"'), 1)
+                self.assertEqual(page.count(f'<script src="../{launcher.PROFILES}"></script>'), 1)
+                self.assertLess(page.index(launcher.PROFILES), page.index('src="setup.js?rev=20261126-portable-open"'))
                 self.assertTrue((windows / launcher.PROFILES).is_file())
                 # The selected student page must keep the existing shared
                 # edit, native execution, failure, stop/reset and file controls.
@@ -43,7 +51,7 @@ class ProgressionLaunchTests(unittest.TestCase):
                 self.assertIn('DEF GP_ROUTE_EVALUATOR Robot', world.read_text())
 
     def test_variants_share_one_profile_and_project_identity_per_lesson(self):
-        for activity, count in ((4, 3), (5, 5), (6, 5), (7, 7)):
+        for activity, count in ((4, 3), (5, 5), (6, 5), (7, 7), (8, 12)):
             first_page = None
             for variant in range(1, count + 1):
                 with self.subTest(activity=activity, variant=variant), tempfile.TemporaryDirectory() as temp:
@@ -54,9 +62,10 @@ class ProgressionLaunchTests(unittest.TestCase):
                         self.assertEqual(list(project.iterdir()), [])
                         continue
                     world = launcher.prepare_lesson_project(project, activity, variant)
-                    self.assertEqual(world.name, f'grand_prix_progression_a{activity}.wbt')
-                    course = progression_course(activity, variant)
-                    self.assertEqual(world.read_text(), active_course_world(course))
+                    self.assertEqual(world.name, 'grand_prix_route_v2.wbt' if activity == 8 else
+                                     f'grand_prix_progression_a{activity}.wbt')
+                    course = reference_course(variant - 1) if activity == 8 else progression_course(activity, variant)
+                    self.assertEqual(world.read_text(), launcher.render_route(course))
                     selected = project / 'plugins/robot_windows' / launcher.ROBOT_WINDOW
                     page_bytes = (selected / (launcher.ROBOT_WINDOW + '.html')).read_bytes()
                     if first_page is None:
@@ -66,19 +75,19 @@ class ProgressionLaunchTests(unittest.TestCase):
     def test_menu_inventory_matches_all_native_admitted_variants(self):
         self.assertEqual(launcher.active_progression_activities()[:3], (1, 2, 3))
         self.assertEqual(tuple(count for _, count in launcher.LESSON_MENU),
-                         (1, 1, 1, 3, 5, 5, 7))
+                         (1, 1, 1, 3, 5, 5, 7, 12))
         for activity, (_, count) in enumerate(launcher.LESSON_MENU, 1):
             for variant in range(1, count + 1):
                 with self.subTest(activity=activity, variant=variant):
-                    name = f'gp-progression-v1-a{activity}-v{variant}'
+                    name = (reference_course(variant - 1).identifier if activity == 8 else
+                            f'gp-progression-v1-a{activity}-v{variant}')
                     if variant in launcher.admitted_variants(activity):
                         self.assertEqual(launcher.active_course_from_identifier(name).identifier, name)
                     else:
                         with self.assertRaises(ValueError):
                             launcher.active_course_from_identifier(name)
             with self.assertRaises(ValueError):
-                launcher.active_course_from_identifier(
-                    f'gp-progression-v1-a{activity}-v{count + 1}')
+                launcher.selected_course(activity, count + 1)
 
     def test_menu_launches_only_selected_world_and_cancel_is_noop(self):
         selections = []
@@ -102,19 +111,20 @@ class ProgressionLaunchTests(unittest.TestCase):
             self.assertEqual(launcher.main(['--menu', '--preflight-only']), 0)
 
     def test_all_integrated_variants_preflight_and_bind_the_native_scene(self):
-        # 23 integrated variants A1–A7, independently of GUI/native-flight PASS.
+        # All 35 admitted variants, independently of GUI/native-flight PASS.
         expected = [(activity, variant) for activity, count in
-                    enumerate(delivery.COUNTS, 1)
+                    enumerate(delivery.ALL_COUNTS, 1)
                     for variant in range(1, count + 1)]
-        self.assertEqual([launcher.admitted_variants(a) for a in range(1, 8)],
-                         [tuple(range(1, count + 1)) for count in delivery.COUNTS])
+        self.assertEqual([launcher.admitted_variants(a) for a in range(1, 9)],
+                         [tuple(range(1, count + 1)) for count in delivery.ALL_COUNTS])
         seen = []
         original = launcher.prepare_lesson_project
 
         def inspect(project, activity, variant):
             world = original(project, activity, variant)
             scene = world.read_text(encoding='utf-8')
-            identifier = progression_course(activity, variant).identifier
+            identifier = (reference_course(variant - 1) if activity == 8 else
+                          progression_course(activity, variant)).identifier
             self.assertIn('basicTimeStep 8', scene)
             self.assertEqual(scene.count(f'controllerArgs [ "{identifier}" ]'), 2)
             self.assertIn('DEF GP_ROUTE_EVALUATOR Robot', scene)
@@ -132,6 +142,35 @@ class ProgressionLaunchTests(unittest.TestCase):
                     self.assertEqual(launcher.main(['--activity', str(activity),
                         '--variant', str(variant), '--preflight-only']), 0)
         self.assertEqual(seen, expected)
+
+    def test_windows_zip_requires_updated_a6_pad_distance(self):
+        from dataclasses import replace
+        delivery.require_approved_a6()
+        for obsolete in (.70, .30):
+            with self.subTest(pad_distance=obsolete), patch.object(
+                    delivery, 'progression_course',
+                    side_effect=lambda a, v: replace(progression_course(a, v),
+                                                     pad_distance_from_h=obsolete)):
+                with self.assertRaisesRegex(ValueError, 'owner-approved'):
+                    delivery.require_approved_a6()
+
+    def test_windows_zip_refuses_obsolete_geometry_before_copy(self):
+        from dataclasses import replace
+        delivery.require_approved_geometry()
+        for activity, variant, old_distance in ((1, 1, .70), (5, 1, .17), (7, 7, .70)):
+            def stale(a, v):
+                course = progression_course(a, v)
+                return replace(course, pad_distance_from_h=old_distance) if (a, v) == (activity, variant) else course
+            with self.subTest(activity=activity), patch.object(delivery, 'progression_course', side_effect=stale):
+                with tempfile.TemporaryDirectory() as temp:
+                    destination = Path(temp) / 'forbidden-output'
+                    with self.assertRaisesRegex(ValueError, 'owner-approved'):
+                        delivery.compose(Path(temp) / 'unused', destination, True)
+                    self.assertFalse(destination.exists())
+        with patch.object(delivery, 'reference_course',
+                          side_effect=lambda i: replace(reference_course(i), pad_distance_from_h=.70)):
+            with self.assertRaisesRegex(ValueError, 'owner-approved'):
+                delivery.require_approved_geometry()
 
     def test_windows_zip_refuses_missing_admission_before_copy(self):
         self.assertEqual(sum(len(launcher.admitted_variants(a)) for a in range(1, 8)), 23)
@@ -175,7 +214,7 @@ class ProgressionLaunchTests(unittest.TestCase):
     def test_unknown_activity_refuses_before_writing_a_project(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp)
-            for selection in ((8, 1), (1, 2), (4, 4), (7, 8)):
+            for selection in ((9, 1), (0, 1), (1, 2), (4, 4), (7, 8), (8, 13), (8, 0)):
                 with self.subTest(selection=selection), self.assertRaises(ValueError):
                     launcher.prepare_lesson_project(project, *selection)
             self.assertEqual(list(project.iterdir()), [])

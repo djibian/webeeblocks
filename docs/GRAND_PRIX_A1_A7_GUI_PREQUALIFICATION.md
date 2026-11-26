@@ -1,4 +1,6 @@
-# Préqualification graphique Grand Prix A1–A7 — Linux et Windows
+# Préqualification graphique Grand Prix A1–A7 — historique de livraison Linux et Windows
+
+**Mise à jour 26/11 :** ce dossier conserve les preuves et étapes historiques des 23 variantes. Le lanceur unifié expose aussi les 12 variantes canoniques A8 ; le nouveau guide [A1–A8](GRAND_PRIX_A1_A8_WINDOWS_ACCEPTANCE.md) prime pour le paquet complet. Ne pas déduire 35 PASS de ce dossier.
 
 **Portée : préparation vérifiable, jamais PASS enseignant.** Complète, sans les
 remplacer, le contrat pédagogique [#1053](https://github.com/djibian/webeeblocks/issues/1053),

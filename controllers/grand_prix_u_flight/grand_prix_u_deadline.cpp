@@ -27,6 +27,7 @@ std::string routeConfig,routeEpoch;
 unsigned long long routeAttempt=0;
 long long routeIssued=-1,routeAlive=-1,routeObserved=-1;
 bool nativeRouteDeadline=false; // Latched only at the real 210000 ms boundary.
+bool routeLockedLandStop=false; // Local STOP handoff pending; never a thrust permission.
 // Route-only, non-authoritative clock stream, bound to one private browser nonce.
 std::string routeClockNonce;
 long long routeClockLastSecond=-1;
@@ -167,6 +168,7 @@ void clearRouteObservation() {
 void clearRouteEpoch() {
   routeEpoch.clear();routeConfig.clear();routeAttempt=0;
   routeIssued=-1;routeAlive=-1;routeObserved=-1;clearRouteObservation();
+  routeLockedLandStop=false;
   routeClockNonce.clear();routeClockLastSecond=-1;
   resetRoutePause();routePauseLastSeq=0;
 }
@@ -315,6 +317,9 @@ void failed_outcome(const char *cause=nullptr) {
 /* Emergency correction is A6-only. In particular A8, the other Grand Prix
    profiles and pupil-requested LAND retain their existing position hold.
    Read only the admitted, canonical route configuration of this incarnation. */
+extern "C" int gp_route_waiting_for_first_alive(void) {
+  return begin>=0 && !expired && !success && routeAlive<=begin;
+}
 extern "C" int gp_route_a6_forced_land(void) {
   std::string current;
   return begin>=0 && expired && !success && routeAttempt==attempt &&
@@ -331,6 +336,11 @@ extern "C" int gp_route_a6_envelope_contact(double now) {
 }
 extern "C" int gp_route_a7_attempt(void) {
   return admittedA7();
+}
+extern "C" void gp_route_stop_land(void) {
+  // Only the active native flight parser invokes this for a canceled LAND.
+  // Retain the current admission identity; never re-arm an expired attempt.
+  if(begin>=0 && !expired && !success)routeLockedLandStop=true;
 }
 extern "C" int gp_route_a7_retreat(double now) {
   long long time_ms=0;
@@ -457,7 +467,30 @@ extern "C" int gp_u_deadline(double now,int nativeLanded) {
     return 1;
   }
 #ifdef WEBEEBLOCKS_GP_ROUTE_MODE
+  if(routeLockedLandStop) {
+    routeLockedLandStop=false;expired=true;
+    publish("failed");failed_outcome();
+    return 1; // STOP is local authority for LAND, independent of ALIVE propagation.
+  }
   if(observed>begin && !freshRouteEvidence("ALIVE",observed)) {
+    // With an 8-ms flight loop, admission is seen by the evaluator at +8 ms;
+    // its first post-admission ALIVE can reach the pilot only at +16 ms.
+    // The composed TAKEOFF holds all motors at zero until ALIVE is consumed.
+    // Do not grant a grace period in flight or for a terminal/foreign witness.
+    if(observed==begin+8 && gp_route_waiting_for_first_alive()) {
+      std::string config;
+      unsigned long long current=0;
+      WbNodeRef node=wb_supervisor_node_get_from_def(evaluatorDef);
+      WbFieldRef f=node?wb_supervisor_node_get_field(node,"description"):nullptr;
+      const char *raw=f?wb_supervisor_field_get_sf_string(f):nullptr;
+      if(raw && currentConfig(config) && config==routeConfig &&
+         currentAttempt(current) && current==routeAttempt &&
+         (!*raw || freshRouteEvidence("READY",observed))) {
+        std::printf("GP_ROUTE_START_WAIT time_ms=%lld motors_inhibited=1\n",observed);
+        std::fflush(stdout);
+        return 0;
+      }
+    }
     expired=true;publish("failed");failed_outcome();
     std::fprintf(stderr,"GP_ROUTE_SAFETY_LAND evaluator-unavailable\n");
     return 1; // The shared flight loop consumes this as the same independent LAND.

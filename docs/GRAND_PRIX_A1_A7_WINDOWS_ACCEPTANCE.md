@@ -127,7 +127,7 @@ la commande doit sortir en erreur **avant** la création d'une session.
    une seule version de référence, noter son SHA-256, puis enchaîner **toutes**
    les variantes de l'activité **sans réécrire ni modifier** ce `.wbb`.
    Sur chaque variante, rouvrir le fichier et observer une vraie mission
-   jusqu'à son verdict natif, contacts, pose entière et retour LAND. Reprendre
+   jusqu'à son verdict natif, contact Floor, centre à ±7 cm et stabilité, retour LAND. Reprendre
    `Get-FileHash -LiteralPath 'C:\chemin\programme-eleve.wbb' -Algorithm SHA256`
    pour attester que les octets n'ont pas changé. Un changement de contenu
    invalide la preuve « même `.wbb` ».
@@ -139,18 +139,20 @@ la commande doit sortir en erreur **avant** la création d'une session.
 
 ## 3 — Campagne de 23 variantes et contre-épreuves
 
+Damiers A1–A5 à 0,30 m du H fermé, A6–A7 à 0,50 m. Bandes jaunes ±0,45 m autour des H ouverts ; descente terminale uniquement au-dessus d'un support vert (centre dans le carré 28 cm), réussite uniquement au bon damier à ±7 cm par axe, contact Floor et stabilité native. Pour le paquet complet A1–A8, utiliser le guide dédié à ses 35 variantes.
+
 | Activité | Parcours | Fonction à observer | Négatif indispensable |
 | --- | --- | --- | --- |
 | A1 | V1 | Séquence, 3 segments 1,4/1,8/1,6 m, 2 virages, pose | Limite rouge, altitude et H fermé final |
 | A2 | V1 | Monter puis descendre pour H ouvert à 0,8 m, remonter | Hauteur constante, passage hors bande jaune |
-| A3 | V1 | 3 virages gauche, trois H ouverts et pose | H manqué, collision et altitude incorrecte |
+| A3 | V1 | Trois côtés de 2,50 m jusqu'au damier, 3 virages gauche, trois H ouverts et pose | H manqué, collision et altitude incorrecte |
 | A4 | V1–V3 | Même `.wbb`, longueurs variables, pose gauche 0,5 m | Mouvement fixe aveugle, pose latérale erronée |
 | A5 | V1–V5 | Même `.wbb`, sens mémorisé, pose opposée | Mauvaise pose et fausse relecture du premier virage |
 | A6 | V1–V5 | 3 H ouverts / 2 sans H, deux latéraux, H fermé | Capteur unique, front seul, collision, LAND de récupération |
 | A7 | V1–V7 | Même `.wbb`, 2 segments, 0/1 H, gauche/droite | Changement de H/segment, TIMEOUT 210 s, STOP/RESET |
 
 Pour A6, contrôler explicitement V1–V3 avec H et V4–V5 sans H, les
-ambiguïtés frontales V2/V4 et V3/V5, la pose à 0,70 m du H final, et les
+ambiguïtés frontales V2/V4 et V3/V5, la pose à 0,50 m du H final, et les
 deux collisions négatives avec récupération LAND signalées dans #1080.
 Rejouer ces contre-épreuves sur le SHA du livrable : les résultats
 antérieurs sont des preuves historiques, pas un PASS transférable.
@@ -158,7 +160,7 @@ Aucune variante ne peut être écartée afin d'obtenir 23 PASS.
 
 Pour chaque couple `(A,V)`, reporter : SHA exact, version de Webots, SHA-256
 du `.wbb`, commande d'ouverture, READY, décollage, temps simulé final,
-verdict natif et cause, collision éventuelle, pose entière/Floor, STOP, RESET,
+verdict natif et cause, collision éventuelle, centrage/stabilité/Floor, STOP, RESET,
 LAND, test négatif et capture/trace. Distinguer résultat automatique, vol
 Webots observé et compréhension pédagogique ; ne jamais déduire l'un des autres.
 

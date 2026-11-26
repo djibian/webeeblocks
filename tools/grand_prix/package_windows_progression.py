@@ -15,12 +15,12 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.grand_prix.package_windows_route import (
-    PR970_SHA, configure_windows_route_fps, exact_sha,
+    PR970_SHA, configure_windows_route_fps, exact_sha, route_world,
 )
 from tools.grand_prix.package_windows_u import verified_files, digest, replace_once
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.progression_courses import progression_course
-from tools.grand_prix.route_courses_v2 import active_course_from_identifier
+from tools.grand_prix.route_courses_v2 import active_course_from_identifier, reference_course
 from tools.ci.test_grand_prix_route_windows_package import verify as verify_a8
 
 COUNTS = (1, 1, 1, 3, 5, 5, 7)
@@ -30,10 +30,13 @@ COURSE_IDS = tuple(
     for a, count in enumerate(COUNTS, 1)
     for v in range(1, count + 1)
 )
+ALL_COUNTS = COUNTS + (12,)
+ALL_COURSE_IDS = COURSE_IDS + tuple(reference_course(i).identifier for i in range(12))
 PROFILES = ROOT / "plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js"
 ACCEPTANCE = ROOT / "docs/GRAND_PRIX_A1_A7_WINDOWS_ACCEPTANCE.md"
+ACCEPTANCE_ALL = ROOT / "docs/GRAND_PRIX_A1_A8_WINDOWS_ACCEPTANCE.md"
 
-# Fixed owner-approved A6 delivery contract (2026-11-20, #587/#1092).
+# Fixed owner-approved A6 delivery contract (2026-11-20 and 2026-11-24, #587/#1100).
 # Check the native source data; never substitute or rewrite activity geometry.
 # This deliberately fails closed on the obsolete stacked #1075 A6 values.
 APPROVED_A6 = (
@@ -56,11 +59,33 @@ def require_approved_a6():
         if (observed_lengths != (length,) or
                 observed_gates != expected_gates or
                 course.count != len(open_gates) or
-                course.pad_distance_from_h != 0.70 or
+                course.pad_distance_from_h != 0.50 or
                 course.pads != (1,) or course.required_pad != 1):
             raise ValueError(
-                f"A6/V{variant} is not the owner-approved 2026-11-20 geometry; "
+                f"A6/V{variant} is not the owner-approved A6 geometry (including 2026-11-24 pad distance); "
                 "recompose the native stack from current main before packaging")
+
+
+def require_approved_geometry():
+    """Reject superseded owner geometry before any delivery tree is copied."""
+    from tools.grand_prix.route_courses_v2 import LOW_BEFORE, LOW_AFTER
+    from tools.grand_prix.oracle_terminal_dwell_v2 import LANDING_TOL
+    from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+    require_approved_a6()
+    for activity, count in enumerate(ALL_COUNTS, 1):
+        for variant in range(1, count + 1):
+            course = (reference_course(variant - 1) if activity == 8 else
+                      progression_course(activity, variant))
+            expected = .30 if activity <= 5 else .50
+            if abs(course.pad_distance_from_h - expected) > 1e-9:
+                raise ValueError(f"A{activity}/V{variant} lacks owner-approved pad geometry")
+    a3 = progression_course(3, 1)
+    if (a3.route.lengths != (2.5, 2.5, 2.8) or
+            tuple((g.leg_index, g.along) for g in a3.gates) !=
+            ((0, 1.25), (1, 1.25), (2, 1.25)) or
+            (LOW_BEFORE, LOW_AFTER) != (.45, .45) or
+            abs(LANDING_TOL - .07) > 1e-9 or abs(LANDING_TILE - .28) > 1e-9):
+        raise ValueError("Missing owner-approved A3, low band or landing geometry")
 
 
 def require_native_pilot_admission():
@@ -158,6 +183,17 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 """
 
 
+def all_frontend():
+    text = replace_once(FRONTEND, "$counts = @(1,1,1,3,5,5,7)", "$counts = @(1,1,1,3,5,5,7,12)")
+    text = replace_once(text, "  'Mini Grand Prix'\n", "  'Mini Grand Prix',\n  'Grand Prix autonome'\n")
+    text = replace_once(text, "$a -le 7;", "$a -le 8;")
+    text = replace_once(text, "'^[1-7]$'", "'^[1-8]$'")
+    text = text.replace("1 à 7", "1 à 8")
+    text = replace_once(text, "$Activite -gt 7", "$Activite -gt 8")
+    text = replace_once(text, "$index -ge 23", "$index -ge 35")
+    return text
+
+
 def progression_world(activity, variant):
     """Only swap official offline PROTO imports on the shared native world."""
     course = active_course_from_identifier(progression_course(activity, variant).identifier)
@@ -184,7 +220,7 @@ def progression_world(activity, variant):
     return scene
 
 
-def progression_launcher(launcher):
+def progression_launcher(launcher, include_a8=False):
     text = launcher.read_text(encoding="utf-8-sig")
     text = replace_once(text, "'^(?:[0-9]|10|11)$'", "'^(?:[0-9]|1[0-9]|2[0-2])$'")
     text = replace_once(text, "index 0..11, FPS 1..60", "index 0..22, FPS 1..60")
@@ -206,21 +242,36 @@ def progression_launcher(launcher):
   if ($lesson -cnotmatch '^[1-7]$') {
     throw 'Activité pédagogique absente ou invalide.'
   }
-  $tag = '<script src="setup.js"></script>'
+  $tag = '<script src="setup.js?rev=20261126-portable-open"></script>'
   if ([regex]::Matches($html, [regex]::Escape($tag)).Count -ne 1) {
     throw 'Entrée Blockly pédagogique non conforme.'
   }
-  $replacement = '<script src="progression_profile.js"></script>' + "`n" +
-    '<script src="setup.js" data-progression-activity="' + $lesson + '"></script>'
+  $profileTag = '<script src="../blockly/webeeblocks/grand_prix_progression.js"></script>'
+  if ([regex]::Matches($html, [regex]::Escape($profileTag)).Count -ne 1 -or
+      $html.IndexOf($profileTag) -gt $html.IndexOf($tag)) {
+    throw 'Catalogue de profils Grand Prix absent ou duplique.'
+  }
+  $replacement = '<script src="setup.js?rev=20261126-portable-open" data-progression-activity="' + $lesson + '"></script>'
   $html = $html.Replace($tag, $replacement)
 """
     text = replace_once(text, anchor, anchor + insertion)
+    if include_a8:
+        text = replace_once(text, "'^(?:[0-9]|1[0-9]|2[0-2])$'", "'^(?:[0-9]|[12][0-9]|3[0-4])$'")
+        text = replace_once(text, "index 0..22, FPS 1..60", "index 0..34, FPS 1..60")
+        if text.count("'^[1-7]$'") != 2:
+            raise ValueError("Unexpected activity checks in progression launcher")
+        text = text.replace("'^[1-7]$'", "'^[1-8]$'")
+        text = replace_once(text, "@(0,1,2,3,6,11,16)", "@(0,1,2,3,6,11,16,23)")
+        text = replace_once(text, "@(1,1,1,3,5,5,7)", "@(1,1,1,3,5,5,7,12)")
+        # A8 uses the original setup.js default profile; never invent a lesson 8 profile.
+        text = replace_once(text, "  $html = $html.Replace($tag, $replacement)",
+            "  if ($lesson -ne '8') { $html = $html.Replace($tag, $replacement) }")
     return text
 
 
-def compose(source, output):
-    """Copy verified Windows support into a *new*, exclusively A1–A7 tree."""
-    require_approved_a6()  # before copying files or creating any ZIP
+def compose(source, output, include_a8=False):
+    """Copy verified Windows support into a new A1–A7 or unified A1–A8 tree."""
+    require_approved_geometry()  # before copying files or creating any ZIP
     require_native_admission()  # never ship designed-but-unadmitted courses
     sha = exact_sha()
     verified = verify_a8(source)
@@ -230,7 +281,8 @@ def compose(source, output):
         raise ValueError("Use a new output path")
     if not PROFILES.is_file():
         raise ValueError("Progression Blockly profiles absent")
-    if not ACCEPTANCE.is_file():
+    acceptance = ACCEPTANCE_ALL if include_a8 else ACCEPTANCE
+    if not acceptance.is_file():
         raise ValueError("Windows acceptance procedure absent")
 
     shutil.copytree(source, output)
@@ -251,13 +303,34 @@ def compose(source, output):
     if index != len(COURSE_IDS):
         raise ValueError("Incomplete progression course inventory")
 
+    if include_a8:
+        if len(set(ALL_COURSE_IDS)) != 35:
+            raise ValueError("Unified course IDs are not unique")
+        # Reindex only the filenames. Preserve the exact canonical A8 scene bytes.
+        for native_index in range(12):
+            old_stem = f"grand_prix_route_v2_{native_index:02d}_fps20"
+            new_stem = f"grand_prix_route_v2_{index:02d}_fps20"
+            old_world = source / "worlds" / (old_stem + ".wbt")
+            expected, identifier = route_world(native_index, 20)
+            if (old_world.read_text(encoding="utf-8") != expected or
+                    identifier != ALL_COURSE_IDS[index]):
+                raise ValueError("A8 support world differs from exact candidate: " + old_stem)
+            shutil.copyfile(old_world, worlds / (new_stem + ".wbt"))
+            shutil.copyfile(source / "worlds" / ("." + old_stem + ".wbproj"),
+                            worlds / ("." + new_stem + ".wbproj"))
+            index += 1
+        if index != len(ALL_COURSE_IDS):
+            raise ValueError("Incomplete unified course inventory")
+
     window = output / "plugins/robot_windows/grand_prix_route_v2"
-    shutil.copyfile(PROFILES, window / "progression_profile.js")
+    shipped_profiles = window.parent / "blockly/webeeblocks/grand_prix_progression.js"
+    if shipped_profiles.read_bytes() != PROFILES.read_bytes():
+        raise ValueError("A8 support progression catalogue differs from source")
     launch = output / "Launch-WebeeBlocks.ps1"
-    launch.write_text(progression_launcher(launch), encoding="utf-8-sig")
+    launch.write_text(progression_launcher(launch, include_a8), encoding="utf-8-sig")
     (output / "Lancer-Grand-Prix.ps1").unlink()
     (output / "Lancer-Grand-Prix.cmd").unlink()
-    (output / "Lancer-Progression.ps1").write_text(FRONTEND, encoding="utf-8-sig")
+    (output / "Lancer-Progression.ps1").write_text(all_frontend() if include_a8 else FRONTEND, encoding="utf-8-sig")
     (output / "Lancer-Progression.cmd").write_text(
         '@echo off\r\npowershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Progression.ps1" %*\r\n'
         'exit /b %ERRORLEVEL%\r\n', encoding="utf-8")
@@ -270,14 +343,20 @@ def compose(source, output):
         starter["activity"]["id"] = f"progression-grand-prix-a{activity}-v1"
         (activities / f"{activity:02d}-activite.wbb").write_text(
             json.dumps(starter, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if include_a8:
+        shutil.copyfile(source / "Activites/08-grand-prix-variable.wbb",
+                        activities / "08-grand-prix-variable.wbb")
     (output / "COURSES.json").write_text(json.dumps({
-        "profile": "progression-grand-prix-a1-a7-v1", "course_ids": list(COURSE_IDS),
-        "variant_counts": list(COUNTS), "physics_step_ms": 8,
+        "profile": "progression-grand-prix-a1-a8-v1" if include_a8 else "progression-grand-prix-a1-a7-v1",
+        "course_ids": list(ALL_COURSE_IDS if include_a8 else COURSE_IDS),
+        "variant_counts": list(ALL_COUNTS if include_a8 else COUNTS), "physics_step_ms": 8,
         "fps_default": 20, "gui_pass": "UNPROVEN"
     }, indent=2) + "\n", encoding="utf-8")
     provenance = json.loads((source / "COMPOSITION.json").read_text(encoding="utf-8"))
-    provenance["delivery"] = "progression-a1-a7"
-    provenance["qualification"] = "DRAFT: 23 native routes and Windows teacher GUI require separate evidence"
+    provenance["delivery"] = "progression-a1-a8" if include_a8 else "progression-a1-a7"
+    provenance["qualification"] = (
+        "DRAFT: 35 native routes and Windows teacher GUI require separate evidence" if include_a8
+        else "DRAFT: 23 native routes and Windows teacher GUI require separate evidence")
     (output / "COMPOSITION.json").write_text(
         json.dumps(provenance, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     (output / "README-WINDOWS.md").write_text(
@@ -290,7 +369,17 @@ def compose(source, output):
         "La validation Windows enseignant et l'acceptation pédagogique restent requises. "
         "Voir ACCEPTATION-WINDOWS.md pour les préflights, les 23 essais et les verdicts.\n",
         encoding="utf-8")
-    shutil.copyfile(ACCEPTANCE, output / "ACCEPTATION-WINDOWS.md")
+    if include_a8:
+        (output / "README-WINDOWS.md").write_text(
+            "# WebeeBlocks — progression A1–A8 (qualification uniquement)\n\n"
+            "Lancer-Progression.cmd : choisir explicitement A1 à A8, puis le parcours. "
+            "Les variantes A8 1 à 12 correspondent aux indices canoniques 0 à 11. "
+            "Enregistrer le .wbb avant de quitter, puis relancer l'activité voulue. "
+            "Ouvrir un projet ne sélectionne pas la scène. Le préflight de l'activité reste obligatoire.\n\n"
+            "ACCEPTATION-WINDOWS.md couvre les 35 variantes A1–A8, "
+            "les huit fichiers .wbb, les négatifs, STOP/RESET/LAND et le délai 210 s. "
+            "Aucun PASS enseignant ni autorisation de publication.\n", encoding="utf-8")
+    shutil.copyfile(acceptance, output / "ACCEPTATION-WINDOWS.md")
     (output / "MANIFEST.sha256").unlink()
     manifest = "\n".join(
         f"{digest(p)}  {p.relative_to(output).as_posix()}"
@@ -321,8 +410,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--include-a8", action="store_true", help="Unify all 35 exact native variants")
     args = parser.parse_args()
-    archive = compose(args.source, args.output)
+    archive = compose(args.source, args.output, args.include_a8)
     print("GP_PROGRESSION_WINDOWS_DRAFT_ZIP", archive, digest(archive))
 
 
