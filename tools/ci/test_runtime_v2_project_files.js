@@ -968,6 +968,44 @@ async function provePortableSaveKeepsValidNumericSource() {
   } finally {w.dispose();}
 }
 
+// A historical source uses a finer speed grid than generic Blockly and the
+// receiving activity. Restore its value, never round or retag it.
+async function provePortableHistoricalSpeedPrecision() {
+  const source=activityProfile('grand-prix-a6-native-experimental-v1');
+  const current=activityProfile('reactive-obstacle-v2');
+  const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  const original=buildWorkspace(.3,.9), live=new Blockly.Workspace();
+  try {
+    const takeoff=original.getBlocksByType('webeeblocks_v2_takeoff',false)[0];
+    const move=original.getBlocksByType('webeeblocks_v2_move',false)[0];
+    const speed=original.newBlock('webeeblocks_v2_speed');
+    takeoff.nextConnection.disconnect();
+    takeoff.nextConnection.connect(speed.previousConnection);
+    speed.nextConnection.connect(move.previousConnection);
+    ActivityContract.applyFieldBounds(source,original);
+    speed.setFieldValue('0.23','SPEED');
+    const expected=SemanticAst.compileWorkspace(original);
+    assert.equal(expected.program[1].speed_m_s,.23);
+    const transport=memoryTransport();
+    transport.state.openText=ProjectFiles.encodeProject(source,original,options);
+    const manager=ProjectFiles.createManager({...options,workspace:live,transport,
+      getProfile:()=>current,
+      setProfile(){assert.fail('portable Open changed profile');},
+      prepareProfile(){assert.fail('portable Open prepared scene');}});
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(live),expected);
+    await manager.save();
+    assert.equal(ProjectFiles.parseProject(transport.state.currentText).activity.id,source.id);
+    const saved=transport.state.currentText;
+    transport.state.openText=saved;
+    await manager.openIntoCurrentActivity();
+    await manager.save();
+    assert.equal(transport.state.currentText,saved);
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(live),expected);
+  } finally { original.dispose(); live.dispose(); }
+}
+
 async function proveForeignFutureBlockImportsButCannotLaunch() {
   const source=activityProfile('progression-orientation-3d-v1');
   const current=activityProfile('progression-sequence-v1');
@@ -1289,6 +1327,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveAltitudeBlocklyProjectRoundTrip();
   await provePortableOpenKeepsCurrentActivityAndFlightGate();
   await provePortableSaveKeepsValidNumericSource();
+  await provePortableHistoricalSpeedPrecision();
   await proveForeignFutureBlockImportsButCannotLaunch();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();

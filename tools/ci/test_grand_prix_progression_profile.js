@@ -491,6 +491,48 @@ async function provePortableNonemptyMatrix() {
   corrupt(malformed.workspace);
   assert.throws(() => Projects.validateProjectText(JSON.stringify(malformed),
     a1.profile, a1.options, true), /serialized speed outside profile bounds or step/);
+
+  // FieldNumber normally clamps 999 degrees to 179 before the AST exists.
+  // Reject the original malformed file without replacing the current target.
+  const live = new Blockly.Workspace(), previousHandle = {}, rejectedHandle = {};
+  let bytes = programs[0].text, handle = previousHandle, name = 'valid.wbb';
+  let writes = 0, releases = [], nativeEffects = 0;
+  const manager = Projects.createManager({...a1.options, workspace: live,
+    getProfile: () => a1.profile,
+    setProfile() { nativeEffects++; },
+    async prepareProfile() { nativeEffects++; },
+    transport: {
+      async open() { return {handle, name, text: bytes}; },
+      async release(h) { releases.push(h); },
+      async save(h, n, text) {
+        assert.equal(h, previousHandle);
+        assert.equal(n, 'valid.wbb');
+        assert.equal(text, programs[0].text);
+        writes++;
+        return {handle: h, name: n};
+      }
+    }});
+  try {
+    await manager.openIntoCurrentActivity();
+    const before = JSON.stringify(Blockly.serialization.workspaces.save(live));
+    handle = rejectedHandle; name = 'malformed.wbb';
+    for (const angle of [999, 90.5, '90', 0]) {
+      const invalid = JSON.parse(programs[0].text);
+      const start = invalid.workspace.blocks.blocks[0];
+      start.next = {block: {type: 'webeeblocks_v2_turn', id: 'invalid-turn',
+        fields: {ANGLE: angle}, next: start.next}};
+      bytes = JSON.stringify(invalid);
+      await assert.rejects(manager.openIntoCurrentActivity(), /serialized numeric field/);
+      assert.equal(JSON.stringify(Blockly.serialization.workspaces.save(live)), before);
+      assert.deepEqual(Compiler.compileWorkspace(live), programs[0].ast);
+      assert.equal(manager.currentName(), 'valid.wbb');
+      assert.equal(nativeEffects, 0);
+      assert.equal(writes, 0);
+    }
+    assert.deepEqual(releases, Array(4).fill(rejectedHandle));
+    await manager.save();
+    assert.equal(writes, 1);
+  } finally { live.dispose(); }
 }
 
 provePortableGrandPrixCatalog().then(provePortableNonemptyMatrix).then(provePupilVocabulary).then(() => {

@@ -196,6 +196,48 @@
     return workspace;
   }
 
+  // Blockly FieldNumber may clamp or round serialized values while loading.
+  // Validate the original value, not only its normalized live representation.
+  // The portable path may restore finer source constraints, never silently
+  // repair a malformed value or change the meaning of an imported program.
+  function preservePortableNumericFields(profile, state, workspace) {
+    var definitions = profile.parameterBounds || {};
+    var roots = state.blocks && state.blocks.blocks;
+    function visit(blockState) {
+      if (!isObject(blockState)) return;
+      var block = workspace.getBlockById(blockState.id);
+      var declared = definitions[blockState.type] || {};
+      Object.keys(blockState.fields || {}).forEach(function(name) {
+        var requested = blockState.fields[name];
+        var field = block && block.type === blockState.type && block.getField(name);
+        var bounds = declared[name];
+        var actual = field && typeof field.getValue === 'function' ? field.getValue() : undefined;
+        if (!bounds && typeof actual !== 'number' && typeof requested !== 'number') return;
+        if (!field || typeof requested !== 'number' || !Number.isFinite(requested) ||
+            typeof actual !== 'number')
+          fail('invalid serialized numeric field: ' + blockState.type + '.' + name);
+        if (bounds && (requested < bounds.min || requested > bounds.max))
+          fail('serialized numeric field outside profile bounds: ' + blockState.type + '.' + name);
+        if (actual !== requested && bounds && typeof field.setConstraints === 'function' &&
+            typeof field.setValue === 'function' &&
+            Math.abs(requested / bounds.step - Math.round(requested / bounds.step)) <= 1e-7) {
+          field.setConstraints(bounds.min, bounds.max, bounds.step);
+          field.setValue(requested);
+        }
+        if (field.getValue() !== requested)
+          fail('serialized numeric field changed during Open: ' + blockState.type + '.' + name);
+      });
+      // Only active blocks exist in the loaded workspace. A dormant shadow
+      // alongside an explicit input block is not a second live block.
+      Object.keys(blockState.inputs || {}).forEach(function(name) {
+        var input = blockState.inputs[name];
+        if (isObject(input)) visit(input.block || input.shadow);
+      });
+      if (isObject(blockState.next)) visit(blockState.next.block || blockState.next.shadow);
+    }
+    if (Array.isArray(roots)) roots.forEach(visit);
+  }
+
   function validateProjectText(text, currentProfile, options, portableImport) {
     requireDependencies(options);
     var project = parseProject(text);
@@ -208,6 +250,7 @@
     var temporary = new options.Blockly.Workspace();
     try {
       loadWorkspaceWithProfile(profile, project.workspace, temporary, options);
+      if (portableImport) preservePortableNumericFields(profile, project.workspace, temporary);
       options.activityContract.preflightWorkspace(profile, temporary);
       validateWorkspaceFields(profile, temporary);
       var ast = optionalAst(profile, temporary, options);
@@ -385,6 +428,7 @@
         options.workspace.clear();
         loadWorkspaceWithProfile(validated.profile, validated.project.workspace,
                                  options.workspace, dependencies());
+        preservePortableNumericFields(validated.profile, validated.project.workspace, options.workspace);
         options.activityContract.preflightWorkspace(validated.profile, options.workspace);
         validateWorkspaceFields(validated.profile, options.workspace);
         if (validated.ast) {
@@ -404,6 +448,7 @@
           options.workspace.clear();
           loadWorkspaceWithProfile(previousSource || previous.profile, previous.workspace,
                                    options.workspace, dependencies());
+          if (previousSource) preservePortableNumericFields(previousSource, previous.workspace, options.workspace);
           if (!previousSource)
             options.activityContract.applyFieldBounds(previous.profile, options.workspace);
         }
