@@ -95,40 +95,41 @@ class PureVariableAttemptTests(unittest.TestCase):
         # A centered final descent remains authorized and is exercised by
         # the 23 positive activity traces in the preceding test.
 
-    def test_progression_pad_requires_whole_collider(self):
-        """Reproduce the native A4 border overhang; do not change A8 rules."""
+    def test_pad_permission_is_distinct_from_landing_tolerance(self):
+        for course in (progression_course(4, 1), reference_course(8)):
+            x, y = course.landing_goal()
+            for axis in (0, 1):
+                for delta, expected in ((.069, 'achieved'), (.071, 'not-achieved')):
+                    with self.subTest(course=course.identifier, axis=axis, delta=delta):
+                        state = follow_course(course)
+                        offset = (x + (delta if axis == 0 else 0.),
+                                  y + (delta if axis == 1 else 0.), .05)
+                        state = travel(state, offset)
+                        self.assertIsNone(state.result)
+                        state = dwell(state, 1504)
+                        self.assertEqual(state.result.status, expected)
+                        self.assertEqual(state.result.reason,
+                                         None if expected == 'achieved' else 'wrong-landing')
+        # A low sweep leaving the green support must still be refused.
         course = progression_course(4, 1)
         x, y = course.landing_goal()
-        for axis in (0, 1):
-            with self.subTest(axis=axis):
-                state = follow_course(course)
-                # The 28-cm green tile contains the centre but NOT the full
-                # 9-cm Grand Prix safety envelope at a 6-cm centre offset.
-                near_edge = (x + (.06 if axis == 0 else 0.),
-                             y + (.06 if axis == 1 else 0.), .05)
-                # The full-envelope low-flight veto fires before a terminal
-                # dwell can classify the overhanging pose as wrong landing.
-                state = travel(state, near_edge, stop_on_failure=True)
-                self.assertEqual(state.result.status, 'not-achieved')
-                self.assertEqual(state.result.reason, 'low-outside-zone')
+        state = travel(follow_course(course), (x - .141, y, .05),
+                       stop_on_failure=True)
+        self.assertEqual(state.result.reason, 'low-outside-zone')
 
-        # A genuinely contained circular footprint still completes the same
-        # independent native-clock dwell when the body stays inside the tile.
-        state = follow_course(course)
-        state = travel(state, (x + .04, y + .04, .05))
-        state = dwell(state, 504)
-        self.assertEqual(state.result.status, 'achieved')
-
-    def test_a5_wrong_visible_pad_fails_for_both_turn_directions(self):
-        for variant in (1, 2):
-            course = progression_course(5, variant)
-            wrong_pad, = set(course.pads) - {course.required_pad}
-            # The visible but incorrect pad is not a licensed low-flight
-            # terminal exception: reject descent before landing dwell.
-            state = follow_course(course, wrong_pad,
-                                  stop_on_landing_failure=True)
-            self.assertEqual(state.result.status, 'not-achieved')
-            self.assertEqual(state.result.reason, 'low-outside-zone')
+    def test_wrong_visible_pad_allows_descent_but_never_achieves(self):
+        courses = [progression_course(5, v) for v in range(1, 6)]
+        courses += [reference_course(i) for i in range(12)]
+        for course in courses:
+            for pad in course.pads:
+                if course.landing_position(pad) == course.landing_goal():
+                    continue
+                with self.subTest(course=course.identifier, pad=pad):
+                    state = follow_course(course, pad)
+                    self.assertIsNone(state.result)
+                    state = dwell(state, 1504)
+                    self.assertEqual(state.result.status, 'not-achieved')
+                    self.assertEqual(state.result.reason, 'wrong-landing')
 
     def test_progression_refuses_closed_h_contact_and_deadline(self):
         course = progression_course(1)
@@ -169,7 +170,7 @@ class PureVariableAttemptTests(unittest.TestCase):
         self.assertEqual(course.count, 3)
         self.assertEqual(tuple(gate.leg_index for gate in course.gates), (0, 1, 2))
         initial = start_pure_attempt(course, 4, .015, 0)
-        xy = tuple(course.route.legs[2].at(course.route.legs[2].length - .5))
+        xy = course.landing_goal()
         pose = (*xy, .75)
         leg = replace(initial.progress.leg, active_leg=2, xy=xy)
         pending = replace(initial.progress, leg=leg,

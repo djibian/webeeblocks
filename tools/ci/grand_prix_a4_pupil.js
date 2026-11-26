@@ -72,12 +72,13 @@ async function save(file) {
       'DISTANCE', typeof distance === 'number' ? number(distance) : distance);
     // One identical .wbb on three track lengths. Native R2025a measurements
     // place the front-facing H collider at 0.02 m before the geometric H:
-    // initial range reads 0.98 / 1.38 / 1.78 m respectively. Subtract 0.68 m
-    // to travel 0.30 / 0.70 / 1.10 m toward a pad 0.70 m before the H.
+    // initial range reads 0.98 / 1.38 / 1.78 m respectively. Subtract 0.28 m
+    // to travel 0.70 / 1.10 / 1.50 m toward a pad 0.30 m before the H.
+    // These are geometry targets; native convergence must be requalified.
     // No IF or comparison is available to A4 pupils.
     const approach = block('math_arithmetic', {OP: 'MINUS'});
     attach(approach, 'A', block('webeeblocks_v2_range', {DIRECTION: 'front'}));
-    attach(approach, 'B', number(.68));
+    attach(approach, 'B', number(.28));
     const program = [attach(block('webeeblocks_v2_takeoff'), 'HEIGHT', number(.9)),
       block('webeeblocks_v2_speed', {SPEED: .2}),
       move('forward', approach),
@@ -90,7 +91,7 @@ async function save(file) {
     assert.equal(original.program[2].distance_m.kind, 'arithmetic');
     assert.equal(original.program[2].distance_m.op, 'MINUS');
     assert.equal(original.program[2].distance_m.left.kind, 'range');
-    assert.equal(original.program[2].distance_m.right.value, .68);
+    assert.equal(original.program[2].distance_m.right.value, .28);
     assert(!workspace.getAllBlocks(false).some(b =>
       b.type === 'controls_if' || b.type === 'logic_compare'));
     await manager(file, workspace).saveAs(path.basename(file));
