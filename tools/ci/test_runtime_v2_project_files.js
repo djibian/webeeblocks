@@ -464,6 +464,40 @@ async function proveHistoricalVariantButton() {
     'old cached project_ui.js URL is still in the Grand Prix page');
 }
 
+// A stale cached project manager must not fall back to scene-changing Open.
+async function provePortableUiNeverFallsBack() {
+  for (const portable of [false,true]) {
+    const listeners={},elements={};
+    let oldOpen=0,newOpen=0;
+    const manager={nativeFileSystemAccess:true,hasCurrentTarget:()=>false,
+      async open(){oldOpen++;throw new Error('legacy Open called');}};
+    if(portable) manager.openIntoCurrentActivity=async()=>{
+      newOpen++;return {name:'pupil.wbb',sourceActivity:'source',activity:'current'};
+    };
+    const document={body:{dataset:{}},getElementById:id=>id==='activityVariant'?null:
+      (elements[id]||(elements[id]={dataset:{},handlers:{},
+        addEventListener(name,fn){this.handlers[name]=fn;}}))};
+    const context={
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},
+      document,workspace:{},runtimeProfile:{id:'current'},runtimeTerminal:false,
+      runtimeProjectPending:false,updateRuntimeActions(){},setRuntimeStatus(){},
+      robotWindow:{send(){},receive(){}},runtimeBackend:{ready:true,async waitUntilReady(){}},
+      Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
+        createManager:()=>manager},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush=async()=>{for(let i=0;i<16;i++)await Promise.resolve();};
+    listeners.load();await flush();
+    elements.projectOpen.handlers.click();await flush();
+    assert.strictEqual(oldOpen,0,'stale manager must not select a scene through legacy Open');
+    assert.strictEqual(newOpen,portable?1:0);
+    assert.strictEqual(elements.projectFileState.dataset.error,portable?'false':'true');
+  }
+}
+
 async function expectRejectedWithoutMutation(manager, transport, text, workspace, profileRef, label) {
   const beforeAst = ast(workspace, profileRef.value);
   const beforeState = Blockly.serialization.workspaces.save(workspace);
@@ -1348,5 +1382,6 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveSceneRollback();
   await proveProjectStartupRace();
   await proveHistoricalVariantButton();
+  await provePortableUiNeverFallsBack();
   console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });

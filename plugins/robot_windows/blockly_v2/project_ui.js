@@ -362,8 +362,9 @@
     // embedded starter bytes so it never opens the generic OS project picker.
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
-        var result = await (manager.openIntoCurrentActivity ?
-          manager.openIntoCurrentActivity() : manager.open());
+        if (typeof manager.openIntoCurrentActivity !== 'function')
+          throw new Error('Ouverture portable indisponible : vérifier la version du paquet');
+        var result = await manager.openIntoCurrentActivity();
         fileState('Projet : ' + result.name, false);
         markProjectChanged(result.sourceActivity && result.sourceActivity !== result.activity ?
           'Projet d’une autre activité ouvert : vérifiez les blocs avant le vol' : 'Projet ouvert');
