@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path -LiteralPath $Package).Path
-$home = (Resolve-Path -LiteralPath $WebotsHome).Path
+$webotsRoot = (Resolve-Path -LiteralPath $WebotsHome).Path
 $ps51 = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $front = Join-Path $root 'Lancer-Progression.ps1'
 $cmd = Join-Path $root 'Lancer-Progression.cmd'
@@ -51,22 +51,22 @@ try {
   $tested = 0
   for ($a=1; $a -le 8; $a++) {
     for ($v=1; $v -le $counts[$a-1]; $v++) {
-      Invoke-Case -Name "A$a-V$v" -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$front,'-Activite',"$a",'-Variante',"$v",'-WebotsHome',$home,'-ValidateOnly')
+      Invoke-Case -Name "A$a-V$v" -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$front,'-Activite',"$a",'-Variante',"$v",'-WebotsHome',$webotsRoot,'-ValidateOnly')
       $tested++
     }
   }
   if ($tested -ne 35) { throw 'Incomplete preflight matrix' }
   # Verify the same public .cmd entry point from a directory with spaces.
   foreach ($pair in @(@(1,1),@(8,12))) {
-    Invoke-Case -Name "CMD-A$($pair[0])-V$($pair[1])" -Exe $cmd -Arguments @('-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$home,'-ValidateOnly')
+    Invoke-Case -Name "CMD-A$($pair[0])-V$($pair[1])" -Exe $cmd -Arguments @('-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$webotsRoot,'-ValidateOnly')
   }
   foreach ($pair in @(@(1,2),@(8,13))) {
-    Invoke-Case -Name "REFUSE-A$($pair[0])-V$($pair[1])" -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$front,'-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$home,'-ValidateOnly') -Refusal 'indisponible'
+    Invoke-Case -Name "REFUSE-A$($pair[0])-V$($pair[1])" -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$front,'-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$webotsRoot,'-ValidateOnly') -Refusal 'indisponible'
   }
   $env:WEBEEBLOCKS_GP_INDEX='0'
   $env:WEBEEBLOCKS_GP_ACTIVITY='8'
   $env:WEBEEBLOCKS_GP_FPS='20'
-  Invoke-Case -Name 'REFUSE-mismatched-activity-index' -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$launch,'-WebotsHome',$home,'-ValidateOnly') -Refusal 'Association activit.*parcours incoh'
+  Invoke-Case -Name 'REFUSE-mismatched-activity-index' -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$launch,'-WebotsHome',$webotsRoot,'-ValidateOnly') -Refusal 'Association activit.*parcours incoh'
   if ((Get-FileHash -LiteralPath (Join-Path $root 'MANIFEST.sha256') -Algorithm SHA256).Hash -cne $manifest.Hash) {
     throw 'Package manifest changed during launch preflights'
   }
@@ -78,3 +78,6 @@ try {
   $env:WEBEEBLOCKS_GP_ACTIVITY=$old[1]
   $env:WEBEEBLOCKS_GP_FPS=$old[2]
 }
+
+# The final negative child exited nonzero by design; the harness succeeded.
+exit 0
