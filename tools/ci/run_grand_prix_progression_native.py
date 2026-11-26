@@ -18,7 +18,11 @@ FORCED_LAND_ATTEMPTS = {1: (2, 3, 4, 5), 2: (2, 3, 4), 3: (2, 3), 4: (2, 3), 5: 
 
 
 def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=None):
-    if rebound is not None and (activity, variant) != (7, 5):
+    phase = env.get('WEBEEBLOCKS_LATCH_PHASE') == '1'
+    if phase:
+        if activity not in (6, 7, 8) or rebound not in ('calibration', 'stop', 'liveness', 'deadline'):
+            raise ValueError('invalid latch phase experiment')
+    elif rebound is not None and (activity, variant) != (7, 5):
         raise ValueError('rebound experiments require A7/V5')
     forced_attempts = FORCED_LAND_ATTEMPTS[activity]
     last_attempt = forced_attempts[-1]
@@ -46,7 +50,10 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
         raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
     suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
-    if rebound:
+    if phase:
+        env['WEBEEBLOCKS_LATCH_COURSE'] = course.identifier
+        suffix = f'-phase-{rebound}-{env["WEBEEBLOCKS_LATCH_OFFSET"]}'
+    elif rebound:
         suffix = f'-rebound-{rebound}'
     out = OUT / ((f'route-a{activity}-v{variant}-native' if activity >= 4
                   else f'route-a{activity}-native') + suffix)
@@ -93,7 +100,11 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
             try:
                 paths = experiment.build_project(folder, out, home, env)
             except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-                experiment.finish(out, rebound, error)
+                if phase:
+                    from tools.ci.gp_native_latch_phase import finish
+                    finish(out, rebound, error, env)
+                else:
+                    experiment.finish(out, rebound, error)
         else:
             for name in ('controllers', 'plugins'):
                 (folder / name).symlink_to(ROOT / name, target_is_directory=True)
@@ -139,7 +150,15 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
             for raw in ('contacts.jsonl', 'pilot-latch', 'stop-request', 'stop-sent'):
                 if (folder / raw).is_file():
                     (out / raw).write_bytes((folder / raw).read_bytes())
-            experiment.finish(out, rebound, probe_error)
+            if phase:
+                from tools.ci.gp_native_latch_phase import finish
+                for raw in ('phase-land', 'phase-force', 'phase-tick', 'phase-land-wanted',
+                            'phase-land-send', 'phase-land-sent'):
+                    if (folder / raw).is_file():
+                        (out / raw).write_bytes((folder / raw).read_bytes())
+                finish(out, rebound, probe_error, env)
+            else:
+                experiment.finish(out, rebound, probe_error)
             return
     log = journal.read_text(errors='replace')
     if re.search(r'^ERROR:|^Traceback \(most recent call last\)', log, re.M):

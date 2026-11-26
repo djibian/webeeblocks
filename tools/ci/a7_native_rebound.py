@@ -117,6 +117,9 @@ def provenance(out, paths, home, env):
         'tracked_status': tracked_status,
         'webots': (home / 'resources/version.txt').read_text().strip(),
         'rebound_height': env.get('WEBEEBLOCKS_A7_V5_HEIGHT'),
+        'phase': {key: env.get('WEBEEBLOCKS_LATCH_' + key)
+                  for key in ('PHASE', 'OFFSET', 'DELAY', 'COURSE')},
+        'case': env.get('WEBEEBLOCKS_A7_V5_CASE'),
         'actions': {name: env.get(name) for name in (
             'GITHUB_REPOSITORY', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REF', 'GITHUB_RUN_ID',
             'GITHUB_RUN_ATTEMPT', 'TARGET_SHA', 'WEBEEBLOCKS_GP_WEBOTS_IMAGE')},
@@ -148,7 +151,13 @@ def build_project(folder, out, home, env):
     build = flight / 'build'
     prepare(build, legacy_worlds=False, route_observations=True)
     runtime = build / 'runtime_u.c'
-    runtime.write_text(instrument_pilot(runtime.read_text()))
+    product = runtime.read_text()
+    instrumented = instrument_pilot(product)
+    if env.get('WEBEEBLOCKS_LATCH_PHASE') == '1':
+        from tools.ci.gp_native_latch_phase import instrument_phase
+        (out / 'runtime_product.c').write_text(product)
+        instrumented = instrument_phase(instrumented)
+    runtime.write_text(instrumented)
     deadline = build / 'rebound_deadline.cpp'
     source = ROOT / 'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp'
     deadline.write_text(instrument_deadline(source.read_text()))
@@ -172,6 +181,9 @@ def build_project(folder, out, home, env):
     binary = flight / flight.name
     if not os.access(binary, os.X_OK):
         raise RuntimeError('missing compiled internal pilot')
+    if env.get('WEBEEBLOCKS_LATCH_PHASE') == '1':
+        shutil.copyfile(binary, out / binary.name)
+        paths['runtime_product.c'] = out / 'runtime_product.c'
     return {**paths, binary.name: binary}
 
 
@@ -199,8 +211,11 @@ class AliveDisconnection:
 
 def serve_rebound(robot, identifier):
     case = os.environ['WEBEEBLOCKS_A7_V5_CASE']
-    if identifier != COURSE or case not in CASES or robot.getBasicTimeStep() != 8:
-        raise RuntimeError('expected the canonical native A7/V5 world')
+    phase = os.environ.get('WEBEEBLOCKS_LATCH_PHASE') == '1'
+    expected = os.environ.get('WEBEEBLOCKS_LATCH_COURSE') if phase else COURSE
+    allowed = ('calibration', 'stop', 'liveness', 'deadline') if phase else CASES
+    if identifier != expected or case not in allowed or robot.getBasicTimeStep() != 8:
+        raise RuntimeError('expected the exact native route world')
     events = Path(os.environ['WEBEEBLOCKS_A7_V5_EVENTS'])
     latch = Path(os.environ['WEBEEBLOCKS_A7_V5_LATCH'])
     evaluator = NativeRouteEvaluator(robot, identifier, scene_policy='classroom-static-v1')
@@ -210,6 +225,10 @@ def serve_rebound(robot, identifier):
 
         alive = AliveDisconnection(evaluator._reply, record)
         evaluator._reply = alive
+        schedule = None
+        if phase:
+            from tools.ci.gp_native_latch_phase import PhaseSchedule
+            schedule = PhaseSchedule(case, events)
         airborne = False
         touch = None
         first_loss = None
@@ -235,7 +254,7 @@ def serve_rebound(robot, identifier):
                 first_loss = now
                 locked = latch.read_text().split() if latch.exists() else []
                 record('FIRST_SEPARATION', now, latch=locked)
-                if len(locked) == 2 and touch <= int(locked[0]) < now and velocity[2] > 0:
+                if not phase and len(locked) == 2 and touch <= int(locked[0]) < now and velocity[2] > 0:
                     if case == 'stop':
                         # Keep this observed 8-ms tick open while Node sends the
                         # genuine WWI STOP. No simulated time or physics changes.
@@ -251,6 +270,8 @@ def serve_rebound(robot, identifier):
                                    wall_monotonic_ns=str(time.monotonic_ns()))
                     else:
                         alive.cut_at = now
+            if schedule is not None:
+                schedule.tick(now, evaluator, alive, record)
             evaluator.tick()
             context = evaluator._context
             record('ODE', now, position=position, velocity=velocity, orientation=orientation,
@@ -263,7 +284,8 @@ def serve_rebound(robot, identifier):
             # Give Webots' streaming thread time to deliver WWI before the
             # next 32-ms cycle, including the pre-ACK RESET. Only wall time
             # is paced, from the first observed contact for 1.2 simulated s.
-            if touch is not None and now - touch < 1200:
+            if ((touch is not None and now - touch < 1200) or
+                    (schedule is not None and schedule.pace(now))):
                 time.sleep(.04)
 
 

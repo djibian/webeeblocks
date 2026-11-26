@@ -8,6 +8,7 @@ const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/int
 const robot = 'Crazyflie WebeeBlocks';
 const rebound = process.env.WEBEEBLOCKS_A7_V5_CASE;
 const events = process.env.WEBEEBLOCKS_A7_V5_EVENTS;
+const phase = process.env.WEBEEBLOCKS_LATCH_PHASE === '1';
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
 const send = payload => {
   socket.send('robot:' + robot + ':' + payload);
@@ -376,6 +377,7 @@ async function activitySix() {
     observations.push({direction:sample.direction,value:sample.value});
     console.log(JSON.stringify({event:'A6_SENSOR',direction:sample.direction,value:sample.value}));
   }}});
+  if (phase && rebound !== 'calibration') return;
   const front=observations.filter(x=>x.direction==='front');
   const left=observations.find(x=>x.direction==='left');
   const right=observations.find(x=>x.direction==='right');
@@ -391,6 +393,7 @@ async function activitySix() {
   }
   await backend.completeActivityMission(evaluation);
   await outcome({status:'achieved'});
+  if (phase) return;
 
   await backend.resetSimulation();
   await takeoff(.90);
@@ -426,6 +429,63 @@ async function activitySix() {
   await backend.stopSimulation();
   await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
   await waitForForcedLanding(2);
+}
+
+// Test-only transport scheduling; never modifies the production interpreter or pilot.
+async function phaseLanding(nativeLand) {
+  assert(phase && events);
+  if (rebound === 'calibration') return nativeLand();
+  const atomic = (name, data) => {
+    fs.writeFileSync(events + '/' + name + '.tmp', data);
+    fs.renameSync(events + '/' + name + '.tmp', events + '/' + name);
+  };
+  async function marker(name, timeout = 35000) {
+    const until = Date.now() + timeout;
+    while (!fs.existsSync(events + '/' + name) && Date.now() < until) await delay(2);
+    assert(fs.existsSync(events + '/' + name), 'missing native phase marker ' + name);
+    const ms = Number(fs.readFileSync(events + '/' + name, 'utf8'));
+    assert(Number.isSafeInteger(ms) && ms > 0);
+    return ms;
+  }
+  if (rebound === 'deadline') {
+    atomic('phase-land-wanted', '1');
+    const ms = await marker('phase-land-send', 240000);
+    const request = nativeLand();
+    atomic('phase-land-sent', String(ms));
+    await finishInterrupted(request);
+  } else {
+    const request = nativeLand();
+    await finishInterrupted(request);
+  }
+  async function finishInterrupted(request) {
+    const interrupted = assert.rejects(request, {
+      code: rebound === 'stop' ? 'USER_STOPPED' : 'TIME_LIMIT'
+    });
+    interrupted.catch(() => {});
+    if (rebound === 'stop') {
+      const observedMs = await marker('stop-request');
+      const id = backend.nextId;
+      const stopped = backend.stopSimulation();
+      atomic('stop-sent', JSON.stringify({id, observed_ms: observedMs}));
+      await stopped;
+    }
+    await interrupted;
+    await marker('phase-force');
+    assert.equal(forcedLandings, 0, 'independent ACK precedes late STOP/RESET probes');
+    await assert.rejects(backend._request(['STOP']), {code: 'TIME_LIMIT'});
+    await assert.rejects(backend._request(['RESET']), error =>
+      ['LANDING_UNCONFIRMED', 'TIME_LIMIT'].includes(error.code));
+    await waitForForcedLanding(1);
+    if (rebound === 'deadline')
+      await outcome({status: 'not-achieved', reason: 'time-limit'});
+    await backend.resetSimulation();
+    await backend._waitForAdmission(backend.timeObservationEpoch);
+    console.log('LATCH_PHASE_WWI_COMPLETE ' + rebound);
+  }
+}
+if (phase) {
+  const nativeLand = backend.land.bind(backend);
+  backend.land = () => phaseLanding(nativeLand);
 }
 
 async function reboundLanding() {
@@ -519,10 +579,12 @@ async function activitySeven() {
   await approachClosedH();
   await advanceWhile('back', .13, async () => await range() < .65, 8);
   await advanceWhile('forward', .05, async () => await range() > .71, 8);
-  if (rebound) return reboundLanding();
+  if (rebound && !phase) return reboundLanding();
   await backend.land();
+  if (phase && rebound !== 'calibration') return;
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  if (phase) return;
 
   await backend.resetSimulation();
   await takeoff(.40);
@@ -585,9 +647,11 @@ async function activityEight() {
   const nominal = fs.readFileSync(process.argv[4], 'utf8');
   const wrong = fs.readFileSync(process.argv[5], 'utf8');
   const result = await witness.runSaved(nominal, backend);
+  if (phase && rebound !== 'calibration') return;
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
   console.log('A8_WBB_PRODUCT_PASS ' + JSON.stringify(result));
+  if (phase) return;
 
   async function fresh() {
     await backend.resetSimulation();

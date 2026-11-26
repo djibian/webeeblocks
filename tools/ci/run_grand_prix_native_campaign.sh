@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Runs in the exact candidate checkout. The workflow supplies the harness,
-# activity and pinned external inputs independently of that checkout.
+# Dedicated manual diagnostic on this isolated branch; not CI Gate.
 set -euo pipefail
-
+[[ "$ACTIVITY" =~ ^[678]$ ]]
 if [[ "${1:-}" == --container ]]; then
   export PATH="/opt/ci-node/bin:$PATH"
   [[ "$(node --version)" == v22.* ]]
@@ -15,91 +14,30 @@ if [[ "${1:-}" == --container ]]; then
   done
   mkdir -p "$WEBOTS_HOME/projects"
   cp -a /opt/ci-webots-projects/. "$WEBOTS_HOME/projects/"
-
-  if [[ "$ACTIVITY" =~ ^[1-3]$ ]]; then
-    # Invoke the existing Runtime entry inside M2, with Node available to its
-    # exact native WWI runner. Keep the Runtime campaign's 600-second bound.
-    timeout -k 5s 600s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py \
-      --native --progression-activity "$ACTIVITY"
-    for raw in production-pilot-build.log world.wbt webots.log wwi.log; do
-      test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-native/$raw"
-    done
-    exit 0
-  fi
-
-  python3 tools/grand_prix/prepare_route_runtime.py
-  make -C controllers/grand_prix_route_flight 2>&1 | tee ci-artifacts/grand-prix-u-geometry/production-pilot-build.log
-  test -x controllers/grand_prix_route_flight/grand_prix_route_flight
-
-  case "$ACTIVITY" in
-    4) count=3 ;;
-    5|6) count=5 ;;
-    7) count=7 ;;
-    *) exit 2 ;;
-  esac
-
-  indexes=()
-  for ((variant=1; variant<=count; variant++)); do
-    indexes+=(--index "$variant")
-  done
-
-  # Preserve each independent witness even when an earlier one fails.
-  failures=0
-  if [[ "$ACTIVITY" == 7 ]]; then
-    for rebound in stop liveness; do
-      python3 -m tools.ci.run_grand_prix_progression_native \
-        --activity 7 --variant 5 --rebound "$rebound" || failures=1
-    done
-  fi
-  xvfb-run -a python3 tools/ci/run_grand_prix_v2_h_native.py --native \
-    --activity "$ACTIVITY" "${indexes[@]}" || failures=1
-  for ((variant=1; variant<=count; variant++)); do
-    python3 -m tools.ci.run_grand_prix_progression_native \
-      --activity "$ACTIVITY" --variant "$variant" || failures=1
-    for raw in world.wbt webots.log wwi.log; do
-      test -s "ci-artifacts/grand-prix-u-geometry/route-a$ACTIVITY-v$variant-native/$raw" || failures=1
-    done
-  done
-  if [[ "$ACTIVITY" == 6 ]]; then
-    for variant in 4 5; do
-      WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC=1 python3 -m tools.ci.run_grand_prix_progression_native \
-        --activity 6 --variant "$variant" || failures=1
-    done
-    python3 tools/ci/check_a6_native_evidence.py || failures=1
-  fi
-  exit "$failures"
+  python3 -u -m tools.ci.gp_native_latch_phase
+  exit 0
 fi
-
-case "$ACTIVITY" in
-  1|2|3) image="$WEBOTS_M2_IMAGE" ;;
-  4|5|6|7) image="$WEBOTS_OFFICIAL_IMAGE" ;;
-  *) exit 2 ;;
-esac
-
 test "$(git -C ../webots-assets rev-parse HEAD)" = "$PROTO_SHA"
-node_root="$(dirname "$(dirname "$(command -v node)")")"
-if [[ "$ACTIVITY" == 6 ]]; then
-  bash tools/prepare_runtime_v2.sh
-  python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission
-  node tools/grand_prix/witness_workspace_a6.js
-elif [[ "$ACTIVITY" == 7 ]]; then
-  bash tools/prepare_runtime_v2.sh
-  python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission \
-    tools.ci.test_a7_retreat tools.ci.test_a7_native_rebound
-  node tools/grand_prix/witness_workspace_a7.js
-fi
-
+bash tools/prepare_runtime_v2.sh
+python3 -m unittest tools.ci.test_grand_prix_route_v2 tools.ci.test_grand_prix_route_admission \
+  tools.ci.test_a7_native_rebound tools.ci.test_gp_native_latch_phase
+node --check tools/ci/grand_prix_progression_node_probe.js
 mkdir -p ci-artifacts/grand-prix-u-geometry ci-artifacts/grand-prix-v2-h-native
-if [[ "$ACTIVITY" == 7 ]]; then
-  export WEBEEBLOCKS_GP_GIT_HEAD="$(git rev-parse HEAD)"
-  export WEBEEBLOCKS_GP_GIT_TREE="$(git rev-parse 'HEAD^{tree}')"
-  # The candidate checkout can be shallow. Read the parents from the object.
-  export WEBEEBLOCKS_GP_GIT_PARENTS="$(git cat-file -p HEAD | sed -n '/^$/q; s/^parent //p')"
-  export WEBEEBLOCKS_GP_GIT_STATUS="$(git status --porcelain --untracked-files=no)"
-  test "$WEBEEBLOCKS_GP_GIT_HEAD" = "$TARGET_SHA"
-  test -z "$WEBEEBLOCKS_GP_GIT_STATUS"
+if [[ "$ACTIVITY" == 8 ]]; then
+  evidence=ci-artifacts/grand-prix-u-geometry/route-a8-native
+  mkdir -p "$evidence"
+  node tools/grand_prix/witness_workspace_a8.js "$evidence/pupil-project.wbb"
+  node tools/grand_prix/witness_workspace_a8.js "$evidence/wrong-landing.wbb" --wrong-landing
+  sha256sum "$evidence/"*.wbb
 fi
-printf 'webots_image=%s\nnode=%s\n' "$image" "$(node --version)"
+export WEBEEBLOCKS_GP_GIT_HEAD="$(git rev-parse HEAD)"
+export WEBEEBLOCKS_GP_GIT_TREE="$(git rev-parse HEAD^{tree})"
+export WEBEEBLOCKS_GP_GIT_PARENTS="$(git cat-file -p HEAD | sed -n '/^$/q; s/^parent //p')"
+export WEBEEBLOCKS_GP_GIT_STATUS="$(git status --porcelain --untracked-files=no)"
+test "$WEBEEBLOCKS_GP_GIT_HEAD" = "$TARGET_SHA"
+test -z "$WEBEEBLOCKS_GP_GIT_STATUS"
+node_root="$(dirname "$(dirname "$(command -v node)")")"
+image="$WEBOTS_OFFICIAL_IMAGE"
 timeout -k 5s 480s docker pull "$image"
 docker image inspect --format 'webots_image_id={{.Id}}' "$image"
 docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
@@ -110,8 +48,7 @@ docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
   -e ACTIVITY -e WEBOTS_HOME=/usr/local/webots \
   -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKFLOW_SHA -e GITHUB_REF \
   -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT -e TARGET_SHA \
-  -e WEBEEBLOCKS_GP_GIT_HEAD -e WEBEEBLOCKS_GP_GIT_TREE \
-  -e WEBEEBLOCKS_GP_GIT_PARENTS -e WEBEEBLOCKS_GP_GIT_STATUS \
+  -e WEBEEBLOCKS_GP_GIT_HEAD -e WEBEEBLOCKS_GP_GIT_TREE -e WEBEEBLOCKS_GP_GIT_PARENTS -e WEBEEBLOCKS_GP_GIT_STATUS \
   -e "WEBEEBLOCKS_GP_WEBOTS_IMAGE=$image" \
   -e LIBGL_ALWAYS_SOFTWARE=1 -e QTWEBENGINE_DISABLE_SANDBOX=1 \
   "$image" /opt/ci-campaign.sh --container
