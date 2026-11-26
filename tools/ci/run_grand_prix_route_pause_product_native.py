@@ -132,7 +132,7 @@ def prepare_project(folder, port):
     shutil.copy2(HTML.parent / 'setup.js', route / 'setup.js')
     original = (route / 'grand_prix_route_v2.html').read_text()
     if original.count('</body>') != 1 or \
-       '<script src="setup.js"></script>' not in original or \
+       original.count('<script src="setup.js?rev=20261126-portable-open"></script>') != 1 or \
        'src="../blockly_v2/main.js"' not in original:
         raise RuntimeError('Real route Blockly page no longer has canonical anchors')
     (route / 'grand_prix_route_v2.html').write_text(original.replace(
@@ -518,7 +518,7 @@ def probe_real_route_page(port, timeout=32):
                 page = response.read(180000).decode('utf8', 'replace')
             if status != 200 or 'grand_prix_pause_browser_probe.js' not in page or \
                'src="../blockly_v2/main.js"' not in page or \
-               'src="setup.js"' not in page:
+               page.count('<script src="setup.js?rev=20261126-portable-open"></script>') != 1:
                 raise RuntimeError('not the genuine test-bound Grand Prix UI')
             (OUT / 'robot-window-http-preflight.json').write_text(json.dumps({
                 'url': url, 'http_status': status, 'native_webots_port': port,
