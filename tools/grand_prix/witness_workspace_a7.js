@@ -172,7 +172,7 @@ async function runSaved(content,backend){
      astSha256:crypto.createHash('sha256').update(JSON.stringify(executed)).digest('hex')};
  }finally{ws.dispose();}
 }
-module.exports={build,runSaved,reference};
+module.exports={build,runSaved,reference,school};
 if(require.main===module){
  const first=build(),again=build();
  assert.equal(first.sha256,again.sha256,'A7 witness not byte reproducible');
