@@ -35,6 +35,9 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         last_attempt = 5 if variant in (2, 3, 7) else 4
         if last_attempt == 5:
             forced_attempts += (5,)
+        if variant == 1:
+            last_attempt = 6
+            forced_attempts += (5, 6)
     course = progression_course(activity, variant)
     label = f'A{activity} variant {variant}'
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
@@ -157,6 +160,18 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         if len(retreats) != expected_retreats or (
                 retreats and round(float(retreats[0]) * 1000) != int(deadlines[-1][0])):
             raise RuntimeError(f'{label} unexpected A7 retreat activation')
+        if variant == 1:
+            import json
+            proofs = [json.loads(line.removeprefix('A7_STUDENT_STOP_PASS '))
+                      for line in (out / 'wwi.log').read_text().splitlines()
+                      if line.startswith('A7_STUDENT_STOP_PASS ')]
+            expected = [(False, 'PROGRAM_INVALID', 3), (True, 'USER_STOPPED', 4)]
+            if len(proofs) != 2 or any(
+                    (proof.get('manual'), proof.get('code'), proof.get('forcedLandings')) != case or
+                    any(proof.get(k) != v for k, v in {'takeoffs': 1, 'stops': 1, 'moves': 0,
+                                                       'resets': 1, 'blockly': '13.2.1'}.items())
+                    for proof, case in zip(proofs, expected)):
+                raise RuntimeError('Missing exact native student-error STOP/RESET proof')
         print(f'PASS A7 product .wbb SHA256={hashlib.sha256(project.read_bytes()).hexdigest()}')
     print(f'PASS native R2025a {label} mission, refusals and confirmed LAND')
 

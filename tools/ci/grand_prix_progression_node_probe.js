@@ -560,6 +560,11 @@ async function activitySeven() {
   await outcome({status: 'achieved'});
   console.log('A7_WBB_PRODUCT_PASS ' + JSON.stringify(result));
 
+  if (variant === 1) {
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+    await require('./grand_prix_a7_student_error')(backend, waitForForcedLanding);
+  }
   if (![2, 3, 7].includes(variant)) return;
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
