@@ -37,16 +37,16 @@ class VariableLowZoneTests(unittest.TestCase):
                         a, b, route, (gate,))
                     self.assertTrue(allowed(point(leg, along-.30, 0),
                                             point(leg, along+.30, 0)))
-                    self.assertTrue(allowed(point(leg, along-.4599, 0),
-                                            point(leg, along+.4599, 0)))
-                    self.assertFalse(allowed(point(leg, along-.460001, 0),
+                    self.assertTrue(allowed(point(leg, along-.3599, 0),
+                                            point(leg, along+.3599, 0)))
+                    self.assertFalse(allowed(point(leg, along-.360001, 0),
                                              point(leg, along+.30, 0)))
                     self.assertFalse(allowed(point(leg, along-.20, .2100001),
                                              point(leg, along+.20, .2100001)))
                     self.assertTrue(allowed(point(leg, along-.20, .2099999),
                                             point(leg, along+.20, .2099999)))
                     self.assertFalse(allowed(point(leg, along-.20, 0),
-                                             point(leg, along+.460001, 0)))
+                                             point(leg, along+.360001, 0)))
                     self.assertFalse(allowed(point(leg, along-.30, .22),
                                              point(leg, along+.30, -.22)))
                     reversed_gate = Gate(leg.index, along, (leg.direction+2)%4)
@@ -89,7 +89,7 @@ class VariableLowZoneTests(unittest.TestCase):
         self.assertTrue(low_segment_allowed_v2(point(first, .7, 0, .62),
                                                 point(first, 1.4, 0, .62), route, ()))
 
-    def test_variable_beam_height_and_unchanged_yellow_envelope(self):
+    def test_variable_beam_height_and_owner_narrower_yellow_envelope(self):
         # The historical gp-u-v1 low threshold remains 0.60 m. Only the
         # variable Grand Prix matches the 0.62 m physical beam underside.
         from tools.grand_prix.oracle_low_v2 import LOW_THRESHOLD
@@ -100,6 +100,10 @@ class VariableLowZoneTests(unittest.TestCase):
         self.assertEqual(LOW_THRESHOLD, BEAM_BOTTOM)
         self.assertEqual(GATE_HEIGHT, BEAM_BOTTOM)
         self.assertEqual(LOW_THRESHOLD, .62)
+        from tools.grand_prix.route_courses_v2 import LOW_BEFORE, LOW_AFTER
+        from tools.grand_prix.oracle_u import LOW_BEFORE as U_BEFORE, LOW_AFTER as U_AFTER
+        self.assertEqual((LOW_BEFORE, LOW_AFTER), (.45, .45))
+        self.assertEqual((U_BEFORE, U_AFTER), (.55, .55))
         route = build_route(17, (2., 2.5, 3.), ('G','D'))
         leg = route.legs[0]
         gate = Gate(0, 1.0, leg.direction)
@@ -112,16 +116,16 @@ class VariableLowZoneTests(unittest.TestCase):
         for z in (.62, .620001, .80):
             self.assertTrue(low_segment_allowed_v2(
                 point(leg, .40, 0, z), point(leg, .40, 0, z), route, (gate,)))
-        # Lines remain at H +/- .55; the *whole* 9-cm-radius craft must
-        # be inside them. Moving the painted lines is not authorized.
+        # Owner H +/- .45: the whole 9-cm craft radius must be inside.
+        # The U-v1 historical zone remains H +/- .55.
         self.assertFalse(low_segment_allowed_v2(
-            point(leg, .50, 0, .5), point(leg, .50, 0, .5), route, (gate,)))
+            point(leg, .60, 0, .5), point(leg, .60, 0, .5), route, (gate,)))
         self.assertTrue(low_segment_allowed_v2(
-            point(leg, .54, 0, .5), point(leg, .54, 0, .5), route, (gate,)))
+            point(leg, .65, 0, .5), point(leg, .65, 0, .5), route, (gate,)))
         self.assertFalse(low_segment_allowed_v2(
-            point(leg, 1.50, 0, .5), point(leg, 1.50, 0, .5), route, (gate,)))
+            point(leg, 1.40, 0, .5), point(leg, 1.40, 0, .5), route, (gate,)))
         self.assertTrue(low_segment_allowed_v2(
-            point(leg, 1.46, 0, .5), point(leg, 1.46, 0, .5), route, (gate,)))
+            point(leg, 1.35, 0, .5), point(leg, 1.35, 0, .5), route, (gate,)))
         self.assertFalse(low_segment_allowed_v2(
             point(leg, 1.0, .211, .5), point(leg, 1.0, .211, .5),
             route, (gate,)))

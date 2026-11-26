@@ -28,10 +28,12 @@ function reference(){
    {kind:'if',condition:{kind:'logic',op:'AND',
      left:less(v(l),n(.45)),right:less(v(r),n(.45))},
      then:[{kind:'vertical',direction:'down',distance_m:.42},
-       {kind:'move',direction:'forward',distance_m:.60},
+       // From nominal -0.16 m to +0.34 m, inside the new +/-0.36 m centre band.
+       // Native convergence remains to be measured.
+       {kind:'move',direction:'forward',distance_m:.50},
        {kind:'vertical',direction:'up',distance_m:.42},
-       {kind:'move',direction:'forward',distance_m:minus(range('front'),n(.66))}],
-     else:[{kind:'move',direction:'back',distance_m:.54}]},
+       {kind:'move',direction:'forward',distance_m:minus(range('front'),n(.46))}],
+     else:[{kind:'move',direction:'back',distance_m:.34}]},
    {kind:'land'}
  ]};
 }

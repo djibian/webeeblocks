@@ -228,7 +228,8 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
     nativeFileSystemAccess: true,
     hasCurrentTarget: () => false,
     currentName: () => null,
-    open: async () => { openCalls += 1; return {name: 'opened.wbb'}; },
+    open: async () => { assert.fail('portable Open must never invoke legacy open'); },
+    openIntoCurrentActivity: async () => { openCalls += 1; return {name: 'opened.wbb'}; },
     saveAs: async () => ({name: 'saved.wbb'}),
     save: async () => ({name: 'saved.wbb'})
   };
@@ -300,13 +301,13 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   assert.match(elements.runtimeDetail.textContent, /réinitialisez la simulation/);
 
   let finishOpen;
-  manager.open = async () => { openCalls += 1; await new Promise(resolve => {finishOpen=resolve;}); return {name:'opened.wbb'}; };
+  manager.openIntoCurrentActivity = async () => { openCalls += 1; await new Promise(resolve => {finishOpen=resolve;}); return {name:'opened.wbb'}; };
   openHandler();
   await new Promise(resolve => setTimeout(resolve,0));
   assert.strictEqual(context.runtimeProjectPending,true,'project preparation did not hold execution gating');
-  runtimeStatusHandler({detail:{state:'PRÊT'}}); // scene ACK, project not applied yet
-  assert.strictEqual(elements.blocklyDiv.inert,true,'scene ACK unlocked edits before project application');
-  assert.strictEqual(elements.projectOpen.disabled,true,'scene ACK unlocked another Open before project application');
+  runtimeStatusHandler({detail:{state:'PRÊT'}}); // unsolicited ready status, project not applied yet
+  assert.strictEqual(elements.blocklyDiv.inert,true,'ready status unlocked edits before project application');
+  assert.strictEqual(elements.projectOpen.disabled,true,'ready status unlocked another Open before project application');
   finishOpen();
   await new Promise(resolve => setTimeout(resolve,0));
   assert.strictEqual(context.runtimeProjectPending,false,'completed project operation kept execution locked');

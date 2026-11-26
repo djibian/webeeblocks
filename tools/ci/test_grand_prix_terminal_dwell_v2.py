@@ -30,8 +30,8 @@ def _terminal_progress(course):
                           _pose(following, .42)):
                 state = advance_course_progress(state, point)
     last = course.route.legs[-1]
-    state = advance_course_progress(state, _pose(last, last.length - .70))
-    x, y = course.route.landing_target(course.count)
+    state = advance_course_progress(state, _pose(last, last.length - .50))
+    x, y = course.landing_goal()
     state = advance_course_progress(state, (x, y, .35))
     return advance_course_progress(state, (x, y, .05))
 
@@ -86,8 +86,8 @@ class VariableTerminalDwellTests(unittest.TestCase):
         state = self.contiguous(state, progress, 1099)
         self.assertEqual(state.state, 'open')
         self.assertEqual(self.step(state, progress, 1100).state, 'stable-window')
-        target = course.route.landing_target(1)
-        self.assertNotEqual(target, course.route.landing_target(course.count))
+        target = course.landing_position(1)
+        self.assertNotEqual(target, course.landing_goal())
         wrong = replace(progress, pose=(*target, .05),
                         leg=replace(progress.leg, xy=target))
         self.assertEqual(self.step(start_terminal_dwell(course, 2, 0., 0),
@@ -201,22 +201,44 @@ class VariableTerminalDwellTests(unittest.TestCase):
 
 
 
-    def test_terminal_pad_requires_entire_craft_envelope(self):
+    def test_owner_tolerance_applies_to_all_gp_courses(self):
+        from tools.grand_prix.progression_courses import progression_course
+        from tools.grand_prix.oracle_terminal_dwell_v2 import (
+            LANDING_TOL, PROGRESSION_LANDING_TOL)
+        self.assertAlmostEqual(LANDING_TOL, .07)
+        self.assertAlmostEqual(PROGRESSION_LANDING_TOL, .07)
+        course = progression_course(6, 4)  # one straight, no gate
+        x, y = course.landing_goal()
+        initial = start_course_progress(course, .35)
+        initial = advance_course_progress(initial, (x, y, .05))
+        for offset, accepted in ((.049, True), (.069, True), (.071, False),
+                                 (-.069, True), (-.071, False)):
+            with self.subTest(offset=offset):
+                shifted = replace(initial, pose=(x + offset, y, .05),
+                                  leg=replace(initial.leg, xy=(x + offset, y)))
+                witness = start_terminal_dwell(course, 73, 0., 0)
+                witness = self.step(witness, shifted, 0, completed=True)
+                witness = self.contiguous(witness, shifted, 504)
+                self.assertEqual(witness.state == 'stable-window', accepted)
+        # A8 shares the owner-approved centre tolerance.
+        self.assertAlmostEqual(LANDING_TOL, .07)
+
+    def test_owner_7cm_tile_tolerance_is_strict(self):
         """A centre on the green tile is not evidence of a full landing."""
         from tools.grand_prix.corridor_sweep_v2 import RADIUS
         from tools.grand_prix.route_terminal_v2 import LANDING_TILE
         from tools.grand_prix.oracle_terminal_dwell_v2 import LANDING_TOL
 
-        self.assertAlmostEqual(LANDING_TOL + RADIUS, LANDING_TILE / 2)
+        self.assertAlmostEqual(LANDING_TOL + RADIUS - LANDING_TILE / 2, .02)
         for index in range(12):
             course = reference_course(index)
             progress = _terminal_progress(course)
-            x, y = course.route.landing_target(course.count)
+            x, y = course.landing_goal()
             with self.subTest(course=course.identifier):
                 # All four directions: the centre remains inside the .28-m
                 # tile, but the .09-m craft envelope crosses its boundary.
-                for dx, dy in ((.06, 0.), (-.06, 0.),
-                               (0., .06), (0., -.06)):
+                for dx, dy in ((.071, 0.), (-.071, 0.),
+                               (0., .071), (0., -.071)):
                     shifted = replace(progress, pose=(x + dx, y + dy, .05),
                                       leg=replace(progress.leg, xy=(x + dx, y + dy)))
                     state = start_terminal_dwell(course, 42, 0., 0)
@@ -224,9 +246,9 @@ class VariableTerminalDwellTests(unittest.TestCase):
                     state = self.contiguous(state, shifted, 504)
                     self.assertIsNone(state.stationary_since_ms)
                     self.assertEqual(state.state, 'open')
-                # A full-envelope landing near the centre still qualifies.
-                near = replace(progress, pose=(x + .04, y + .04, .05),
-                               leg=replace(progress.leg, xy=(x + .04, y + .04)))
+                # A7/A8 within 7cm remains subject to the 500ms native dwell.
+                near = replace(progress, pose=(x + .069, y + .069, .05),
+                               leg=replace(progress.leg, xy=(x + .069, y + .069)))
                 state = start_terminal_dwell(course, 43, 0., 0)
                 state = self.step(state, near, 0, completed=True)
                 state = self.contiguous(state, near, 504)

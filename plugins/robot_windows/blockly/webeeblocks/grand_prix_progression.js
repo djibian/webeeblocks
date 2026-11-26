@@ -90,7 +90,8 @@
       id: 'progression-grand-prix-a' + activity + '-v1',
       // Stable project identity across hidden variants of the same activity.
       world: 'worlds/grand_prix_progression_a' + activity + '.wbt',
-      starterVisible: false,
+      // The host exposes this lesson's blank editable starter, never A8.
+      starterVisible: true,
       brief: {
         visible: true,
         title: activity + ' — ' + lesson.title,

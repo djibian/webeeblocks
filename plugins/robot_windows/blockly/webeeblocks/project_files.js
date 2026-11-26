@@ -147,18 +147,20 @@
 
 
   // Blockly's generic SPEED field has 0.1 precision and can round saved
-  // classroom A2/A3 values before profile-specific 0.01 bounds are installed.
-  // Restore only exact, authorized school values; the Grand Prix is unchanged.
+  // values before the source activity's finer constraints are installed.
+  // Restore only exact, authorized values; never clamp a foreign project.
   function loadWorkspaceWithProfile(profile, state, workspace, options) {
     requireDependencies(options);
     options.Blockly.serialization.workspaces.load(state, workspace);
-    if (profile.id !== 'progression-altitude-v1' &&
+    var grandPrix = /^progression-grand-prix-(?:a[1-7]-v1|route-v2)$/.test(profile.id);
+    if (!grandPrix && profile.id !== 'progression-altitude-v1' &&
         profile.id !== 'progression-orientation-3d-v1') return workspace;
-    var lesson = profile.id === 'progression-altitude-v1' ? 'Activity 2' : 'Activity 3';
-    options.activityContract.applyFieldBounds(profile, workspace);
+    var lesson = grandPrix ? 'Grand Prix' :
+      (profile.id === 'progression-altitude-v1' ? 'Activity 2' : 'Activity 3');
+    if (!grandPrix) options.activityContract.applyFieldBounds(profile, workspace);
     var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
       profile.parameterBounds.webeeblocks_v2_speed.SPEED;
-    if (!limits || limits.step !== 0.01)
+    if (!limits || limits.step !== (grandPrix ? 0.05 : 0.01))
       fail(lesson + ' speed constraints unavailable');
     var seen = Object.create(null);
     function visit(value) {
@@ -179,6 +181,11 @@
         var field = block && block.type === 'webeeblocks_v2_speed' && block.getField('SPEED');
         if (!field || typeof field.setValue !== 'function' || typeof field.getValue !== 'function')
           fail(lesson + ' speed block missing after load');
+        if (grandPrix) {
+          if (typeof field.setConstraints !== 'function')
+            fail(lesson + ' speed field constraints unavailable');
+          field.setConstraints(limits.min, limits.max, limits.step);
+        }
         field.setValue(requested);
         if (Number(field.getValue()) !== requested)
           fail(lesson + ' speed precision changed during Open');
@@ -189,11 +196,12 @@
     return workspace;
   }
 
-  function validateProjectText(text, currentProfile, options) {
+  function validateProjectText(text, currentProfile, options, portableImport) {
     requireDependencies(options);
     var project = parseProject(text);
-    var profile = options.profiles.resolveById(options.activitiesDocument, project.activity.id, options.blockCatalog);
-    if (!currentProfile || profile.world !== currentProfile.world)
+    var sourceDocument = portableImport && options.portableActivitiesDocument || options.activitiesDocument;
+    var profile = options.profiles.resolveById(sourceDocument, project.activity.id, options.blockCatalog);
+    if (!currentProfile || (!portableImport && profile.world !== currentProfile.world))
       fail('activity is incompatible with the current Webots world');
     validateSerializedFieldOptions(profile, project.workspace);
 
@@ -290,18 +298,47 @@
     var targetHandle = null;
     var targetName = null;
     var applying = false;
+    // In foreign contexts preserve the source profile as a safe Save fallback.
+    // It never selects or authorizes a native scene.
+    var importedSourceProfile = null;
 
     function dependencies() {
       return {
         Blockly: options.Blockly,
         profiles: options.profiles,
         activitiesDocument: options.activitiesDocument,
+        portableActivitiesDocument: options.portableActivitiesDocument,
         blockCatalog: options.blockCatalog,
         semanticAst: options.semanticAst,
         activityContract: options.activityContract
       };
     }
-    function currentBytes() { return encodeProject(options.getProfile(), options.workspace, dependencies()); }
+    function currentBytes() {
+      var current = options.getProfile();
+      var deps = dependencies();
+      if (!importedSourceProfile) return encodeProject(current, options.workspace, deps);
+
+      function portableBytes(profile) {
+        var text = encodeProject(profile, options.workspace, deps);
+        // Block vocabulary alone is insufficient: numeric AST limits and
+        // serialized precision can differ even when all block types match.
+        // Reopen in a scratch workspace before committing the file, and
+        // never retag an import whose executable program would change.
+        var liveAst = optionalAst(profile, options.workspace, deps);
+        var reopened = validateProjectText(text, current, deps, true);
+        if (reopened.profile.id !== profile.id || !sameJson(liveAst, reopened.ast))
+          fail('portable Save would change the program');
+        return text;
+      }
+
+      try { return portableBytes(current); }
+      catch (error) {
+        // Preserve the source only if the edited project is still valid there.
+        // Do not silently relabel a program invalid under both profiles.
+        if (importedSourceProfile.id === current.id) throw error;
+        return portableBytes(importedSourceProfile);
+      }
+    }
     function snapshot() {
       return {profile: options.getProfile(), workspace: options.Blockly.serialization.workspaces.save(options.workspace)};
     }
@@ -331,11 +368,50 @@
           options.activityContract.preflightAst(validated.profile, loadedAst);
           if (!sameJson(loadedAst, validated.ast)) fail('loaded workspace differs from validated project');
         }
+        importedSourceProfile = null;
       } catch (error) {
         try { restore(before); } catch (rollbackError) { console.error('WebeeBlocks project rollback failed', rollbackError); }
         throw error;
       } finally { applying = false; }
     }
+    function applyPortableImport(validated) {
+      // Deliberately retain the current activity and native scene. Open may
+      // accept valid foreign blocks; the flight preflight still validates
+      // against options.getProfile() and rejects incompatible blocks.
+      var previous = snapshot();
+      var previousSource = importedSourceProfile;
+      applying = true;
+      try {
+        options.workspace.clear();
+        loadWorkspaceWithProfile(validated.profile, validated.project.workspace,
+                                 options.workspace, dependencies());
+        options.activityContract.preflightWorkspace(validated.profile, options.workspace);
+        validateWorkspaceFields(validated.profile, options.workspace);
+        if (validated.ast) {
+          var loaded = options.semanticAst.compileWorkspace(options.workspace);
+          options.activityContract.preflightAst(validated.profile, loaded);
+          if (!sameJson(loaded, validated.ast)) fail('portable project changed AST');
+        }
+        if (options.getProfile() !== previous.profile)
+          fail('portable Open changed the active activity');
+        importedSourceProfile = validated.profile;
+      } catch (error) {
+        importedSourceProfile = previousSource;
+        try {
+          // Portable Open did not select a profile. Restore the foreign
+          // workspace under its own source contract, not the active toolbox.
+          if (options.getProfile() !== previous.profile) options.setProfile(previous.profile);
+          options.workspace.clear();
+          loadWorkspaceWithProfile(previousSource || previous.profile, previous.workspace,
+                                   options.workspace, dependencies());
+          if (!previousSource)
+            options.activityContract.applyFieldBounds(previous.profile, options.workspace);
+        }
+        catch (rollbackError) { error.rollbackError = rollbackError; }
+        throw error;
+      } finally { applying = false; }
+    }
+
     async function prepareAndApply(validated) {
       var previousProfile = options.getProfile();
       if (typeof options.prepareProfile === 'function') await options.prepareProfile(validated.profile);
@@ -361,6 +437,29 @@
       return {name: templateName, ast: validated.ast, mode: mode || null};
     }
     return {
+      async openIntoCurrentActivity() {
+        var opened = await options.transport.open();
+        var handle = opened.handle || null;
+        var validated, selectedName;
+        try {
+          // The file's source activity authenticates its blocks and fields;
+          // the *current* activity remains the only authority for execution.
+          validated = validateProjectText(opened.text, options.getProfile(),
+                                          dependencies(), true);
+          selectedName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+          applyPortableImport(validated);
+        } catch (error) {
+          if (handle && handle !== targetHandle) await releaseTarget(handle);
+          throw error;
+        }
+        var old = targetHandle;
+        targetHandle = handle;
+        targetName = selectedName;
+        if (old && old !== handle) await releaseTarget(old);
+        return {name: selectedName, ast: validated.ast,
+                sourceActivity: validated.profile.id,
+                activity: options.getProfile().id, mode: opened.mode || null};
+      },
       async open() {
         var opened = await options.transport.open();
         var nextHandle = opened.handle || null;
@@ -422,6 +521,7 @@
       currentName: function() { return targetName; },
       hasCurrentTarget: function() { return !!targetHandle && !!targetName; },
       isApplying: function() { return applying; },
+      hasPortableImport: function() { return importedSourceProfile !== null; },
       nativeFileSystemAccess: !!options.transport.nativeFileSystemAccess,
       encodeCurrent: currentBytes
     };
