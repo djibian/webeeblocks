@@ -63,6 +63,34 @@ def workflow_files() -> list[Path]:
     )
 
 class WorkflowTests(unittest.TestCase):
+    def test_unified_progression_delivery_uses_existing_canonical_owner(self):
+        workflow = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        release = workflow.split("\n  runtime-v2-windows-release:\n", 1)[1].split(
+            "\n  grand-prix-prototype:\n", 1)[0]
+        for required in (
+                "fetch-depth: 0",
+                "build_windows_route_controller.ps1",
+                "tools/grand_prix/package_windows_route.py",
+                "tools/grand_prix/package_windows_progression.py --include-a8",
+                "tools/ci/test_grand_prix_progression_windows_package.py --include-a8",
+                "tools/ci/test_grand_prix_progression_windows_preflight.ps1",
+                "tools/ci/run_grand_prix_progression_windows_native.py --include-a8",
+                "name: WebeeBlocks-Progression-A1-A8-Windows-R2025a",
+                "WebeeBlocks-Progression-A1-A8-Windows-R2025a.zip.sha256",
+                "if-no-files-found: error"):
+            self.assertIn(required, release)
+        self.assertLess(release.index("Falsify installed Grand Prix project closure"),
+                        release.index("Build and independently verify unified"))
+        self.assertLess(release.index("Falsify all 35 Windows PowerShell 5.1"),
+                        release.index("Smoke exact extracted A1 A6 A7 A8"))
+        self.assertLess(release.index("Smoke exact extracted A1 A6 A7 A8"),
+                        release.index("Upload verified unified Grand Prix"))
+        added = release.split("      - name: Compile exact native variable Grand Prix pilot", 1)[1]
+        self.assertNotIn("continue-on-error", added)
+        self.assertNotIn("if: ${{", added)
+        self.assertIn("python3 -m unittest -v tools.grand_prix.test_launch_progression_linux",
+                      workflow.split("\n  grand-prix-prototype:\n", 1)[1])
+
     def test_a5_canonical_native_job_is_decision_required(self):
         workflow = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
         section = workflow.split("\n  grand-prix-progression-a5-native:\n", 1)[1].split(

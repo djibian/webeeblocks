@@ -29,6 +29,13 @@ FORCE_FULL = (
     # path selection otherwise gives a green Gate with that job skipped.
     "tools/ci/run_grand_prix_windows_native.py",
     "tools/ci/test_grand_prix_windows_native.py",
+    # Unified Windows delivery is exercised in the same full-gated job.
+    "tools/ci/run_grand_prix_progression_windows_native.py",
+    "tools/ci/test_grand_prix_progression_windows_package.py",
+    "tools/ci/test_grand_prix_progression_windows_preflight.ps1",
+    "tools/ci/run_grand_prix_route_windows_native.py",
+    "tools/ci/test_grand_prix_route_windows_package.py",
+    "tools/ci/grand_prix_route_windows_node_probe.js",
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
