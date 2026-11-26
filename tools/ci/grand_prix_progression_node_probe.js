@@ -120,10 +120,11 @@ async function activityTwo() {
   await backend.vertical('down', .41);
   await backend.move('forward', .74);
   await backend.vertical('up', .41);
-  // At the first native low-altitude landing sample, the .62-m final MOVE
-  // left x=1.741255 versus the fixed x=1.800-m tile centre (#1076).
-  // Compensate that measured ~.059-m undertravel; keep the 5-cm footprint oracle.
-  await backend.move('forward', .68);
+  // The exact geometric centre is 1.80 m: .44 + .74 + .62.
+  // G2 no longer exhibits the historical ~.059-m undertravel (#1076).
+  // The former .68 compensation produced x=1.873354 at the low sweep
+  // in run 45661029630; preserve the 5-cm footprint oracle.
+  await backend.move('forward', .62);
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
@@ -276,7 +277,8 @@ async function activityFive() {
     return readings;
   }
 
-  async function reachChoice(lastMove = .51) {
+  // Last leg 2.50 m, pad 0.17 m before the terminal H: 1.85 + .48 = 2.33.
+  async function reachChoice(lastMove = .48) {
     await takeoff(.9);
     const front = await backend.readRange('front');
     // These intervals are based on rays from the fixed start. Course
@@ -290,7 +292,7 @@ async function activityFive() {
     await backend.turn(turnedLeft ? 90 : -90);
     await backend.move('forward', 1.85);
     await backend.move('forward', lastMove);
-    if (lastMove === .51) {
+    if (lastMove === .48) {
       const choice = await ranges();
       console.log(JSON.stringify({choice}));
       assert(choice.front > .11 && choice.front < .26, 'Expected the H at the choice');
