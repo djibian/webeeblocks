@@ -5,9 +5,12 @@ import itertools
 import math
 import re
 import unittest
+from unittest.mock import patch
 
 from tools.grand_prix.course_active_world_v2 import active_course_world
 from tools.grand_prix.course_static_world_v2 import course_physical_boxes, static_course_world
+import tools.grand_prix.course_static_world_v2 as static_world_module
+import tools.grand_prix.course_active_world_v2 as active_world_module
 from tools.grand_prix.oracle_attempt_v2 import _hits_mission_body
 from tools.grand_prix.oracle_gate_progress_v2 import FRAME_CLEAR
 from tools.grand_prix.oracle_low_v2 import low_segment_allowed_v2
@@ -22,12 +25,45 @@ class VariableRouteTests(unittest.TestCase):
         baseline = hashlib.sha256()
         for index in range(12):
             course = reference_course(index)
-            static = hashlib.sha256(static_course_world(course).encode()).hexdigest()
-            active = hashlib.sha256(active_course_world(course).encode()).hexdigest()
+            # Test-only old A8 reconstruction: 70-cm pad and 55-cm marks.
+            # Production canonical attestation is never monkeypatched.
+            historic = replace(course, pad_distance_from_h=.70)
+            with patch.object(static_world_module, 'LOW_BEFORE', .55), \
+                 patch.object(static_world_module, 'LOW_AFTER', .55), \
+                 patch.object(static_world_module, 'require_canonical_course_geometry',
+                              lambda value: None), \
+                 patch.object(active_world_module, 'active_course_from_identifier',
+                              lambda identifier: historic):
+                static = hashlib.sha256(static_course_world(historic).encode()).hexdigest()
+                active = hashlib.sha256(active_course_world(historic).encode()).hexdigest()
+            self.assertAlmostEqual(course.pad_distance_from_h, .50)
             baseline.update(f'{course.identifier} {static} {active}\n'.encode())
         # All twelve static and active UTF-8 outputs at 0bdac3f108d8.
         self.assertEqual(baseline.hexdigest(),
                          'ca65d0eb304889dc83bc548d2ec64675a59115d6693f7353e9c21eec5abbbe3c')
+
+    def test_owner_yellow_bands_change_visuals_and_physical_oracle_together(self):
+        from tools.grand_prix.route_courses_v2 import LOW_BEFORE, LOW_AFTER
+        from tools.grand_prix.oracle_low_v2 import LOW_BEFORE as ORACLE_BEFORE, LOW_AFTER as ORACLE_AFTER
+        self.assertEqual((LOW_BEFORE, LOW_AFTER), (.45, .45))
+        self.assertEqual((ORACLE_BEFORE, ORACLE_AFTER), (.45, .45))
+        for course in [reference_course(i) for i in range(12)] + [
+            progression_course(a, v) for a, n in ((2,1),(3,1),(6,5),(7,7))
+            for v in range(1, n+1)]:
+            if not course.gates:
+                continue
+            updated = static_course_world(course)
+            with patch.object(static_world_module, 'LOW_BEFORE', .55), \
+                 patch.object(static_world_module, 'LOW_AFTER', .55):
+                historical = static_course_world(course)
+            prefix = 'DEF GP_ROUTE_BAND_MARKS Pose '
+            self.assertIn(prefix, updated)
+            self.assertIn(prefix, historical)
+            self.assertNotEqual(updated, historical)
+            self.assertEqual(updated.split(prefix,1)[0], historical.split(prefix,1)[0])
+            # Only the decorative yellow coordinates are permitted to move.
+            self.assertEqual(updated.count('boundingObject Box { size'),
+                             historical.count('boundingObject Box { size'))
 
     def test_progression_scenes_share_physical_components_and_all_lessons_can_compose(self):
         identifiers = set()
@@ -68,13 +104,21 @@ class VariableRouteTests(unittest.TestCase):
                          ((1.4, 1.8, 1.6), ('G', 'D'), ()))
         self.assertEqual(a2.route.lengths, (2.5,))
         self.assertEqual([(g.leg_index, g.along) for g in a2.gates], [(0, .8)])
-        self.assertEqual(a3.route.lengths, (1.5, 1.5, 1.5))
+        self.assertEqual(a3.route.lengths, (2.5, 2.5, 2.8))
         self.assertEqual([leg.direction for leg in a3.route.legs], [1, 2, 3])
         self.assertEqual([(g.leg_index, g.along) for g in a3.gates],
-                         [(0, .75), (1, .75), (2, .75)])
+                         [(0, 1.25), (1, 1.25), (2, 1.25)])
         last = a3.route.legs[-1]
         pad_along, _ = last.local(a3.landing_position(a3.required_pad))
         self.assertGreater(pad_along, a3.gates[-1].along + FRAME_CLEAR)
+        self.assertAlmostEqual(pad_along, 2.5)
+        for activity, variants in ((1, 1), (2, 1), (3, 1), (4, 3), (5, 5)):
+            for variant in range(1, variants + 1):
+                course = progression_course(activity, variant)
+                self.assertAlmostEqual(course.pad_distance_from_h, .30)
+                leg = course.route.legs[-1]
+                along, _ = leg.local(course.landing_goal())
+                self.assertAlmostEqual(leg.length - along, .30)
         a4_targets = []
         for variant, length in enumerate((1., 1.4, 1.8), start=1):
             a4 = progression_course(4, variant)
@@ -95,7 +139,7 @@ class VariableRouteTests(unittest.TestCase):
             self.assertEqual(offset, -.5 if a5.route.turns == ('G',) else .5)
             # Even at 2.22 m, upstream of the lateral choice, a ray of any
             # yaw has over 2 m to the nearest longitudinal face of the L.
-            self.assertAlmostEqual(along, 2.33)
+            self.assertAlmostEqual(along, 2.20)
             for box in course_physical_boxes(a5)[:2]:
                 centre, _ = leg.local(box.position[:2])
                 half_span = box.size[leg.direction % 2] / 2
@@ -123,13 +167,13 @@ class VariableRouteTests(unittest.TestCase):
                 self.assertLessEqual(len(course.gates), 1)
                 self.assertEqual(course.pads, (1,))
                 self.assertEqual(course.required_pad, 1)
-                self.assertEqual(course.pad_distance_from_h, .70)
+                self.assertEqual(course.pad_distance_from_h, .50)
                 self.assertEqual(course.landing_goal(), course.landing_position(1))
                 for gate in course.gates:
                     leg = course.route.legs[gate.leg_index]
                     self.assertEqual(gate.position, leg.at(gate.along))
-                    self.assertGreater(gate.along, .55)
-                    self.assertLess(gate.along + .55, leg.length)
+                    self.assertGreater(gate.along, .45)
+                    self.assertLess(gate.along + .45, leg.length)
 
 
     def test_a6_owner_geometry_pad_and_initial_frontal_ambiguity(self):
@@ -145,10 +189,10 @@ class VariableRouteTests(unittest.TestCase):
             self.assertEqual(course.route.lengths, (length,))
             self.assertEqual(tuple(g.along for g in course.gates),
                              () if gate_along is None else (gate_along,))
-            self.assertEqual(course.pad_distance_from_h, .70)
+            self.assertEqual(course.pad_distance_from_h, .50)
             leg = course.route.legs[-1]
             pad_along, pad_lateral = leg.local(course.landing_position(course.required_pad))
-            self.assertAlmostEqual(length - pad_along, .70)
+            self.assertAlmostEqual(length - pad_along, .50)
             self.assertAlmostEqual(pad_lateral, 0.)
             # The whole landing tile fits inside the terminal arrival strip.
             self.assertGreaterEqual(pad_along - LANDING_TILE / 2,
@@ -202,6 +246,25 @@ class VariableRouteTests(unittest.TestCase):
                 faces.append(min(possible_faces))
             self.assertEqual(faces[0], faces[1])
 
+    def test_teacher_terminal_low_zone_is_green_tile_only(self):
+        from tools.grand_prix.oracle_attempt_v2 import _inside_landing_support_sweep
+        from tools.grand_prix.route_terminal_v2 import LANDING_TILE
+        self.assertAlmostEqual(LANDING_TILE, .28)
+        for activity, variant in ((1, 1), (3, 1), (4, 3), (5, 4), (6, 5), (7, 7)):
+            course = progression_course(activity, variant)
+            for pad in course.pads:
+                x, y = course.landing_position(pad)
+                on_tile = (x + .13, y, .05)
+                near_edge = (x + .139, y, .05)
+                outside = (x + .141, y, .05)
+                self.assertTrue(_inside_landing_support_sweep(course, on_tile, near_edge))
+                self.assertFalse(_inside_landing_support_sweep(course, near_edge, outside))
+                self.assertFalse(_inside_landing_support_sweep(
+                    course, on_tile, (x + .50, y, .05)))
+            if activity == 5:
+                self.assertEqual(len(course.pads), 2,
+                                 'both visible A5 pads must allow safe low descent')
+
     def test_a2_altitude_and_physical_collision_refute_constant_height(self):
         course = progression_course(2)
         solids = course_physical_boxes(course)
@@ -213,9 +276,17 @@ class VariableRouteTests(unittest.TestCase):
                                                     course.route, course.gates))
         for z in (.62, .9, 1.165):
             self.assertTrue(_hits_mission_body((.45, 0, z), (1.15, 0, z), solids))
-        # One admissible spatial sequence, without pilot/Blockly simulation.
-        waypoints = ((.2, 0, .75), (.4, 0, .75), (.4, 0, .4),
-                     (1.2, 0, .4), (1.2, 0, .75), (1.5, 0, .75))
+        # Owner #587 (2026-11-24): gate at .80, band +/- .45,
+        # radius .09 => admissible centre [.44, 1.16].
+        # Old .40/1.20 low waypoints must now be rejected.
+        for x in (.40, 1.20):
+            self.assertFalse(low_segment_allowed_v2((x, 0, .75), (x, 0, .4),
+                                                    course.route, course.gates))
+        # One admissible spatial sequence, without pilot/Blockly simulation:
+        # each altitude transition is .34 m from the gate plane, beyond
+        # the frame clearance of .33 m, inside the eroded band.
+        waypoints = ((.2, 0, .75), (.46, 0, .75), (.46, 0, .4),
+                     (1.14, 0, .4), (1.14, 0, .75), (1.5, 0, .75))
         for before, after in zip(waypoints, waypoints[1:]):
             self.assertTrue(low_segment_allowed_v2(before, after, course.route, course.gates))
             self.assertFalse(_hits_mission_body(before, after, solids))

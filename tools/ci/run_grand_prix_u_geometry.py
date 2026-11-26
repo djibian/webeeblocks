@@ -233,7 +233,12 @@ def run_progression_native_only(home, activity):
                        timeout=120, check=True)
     from tools.ci.run_grand_prix_progression_native import run_native as run_lesson
     if activity in (1, 2, 3):
-        run_lesson(home, env, activity)
+        project = evidence / 'pupil-reference.wbb'
+        subprocess.run(['node', str(ROOT / 'tools/ci/grand_prix_a123_pupil.js'),
+                        str(activity), str(project)], env=env, check=True, timeout=30)
+        run_lesson(home, env, activity, pupil_project=project)
+        if project.read_bytes() != (evidence / 'pupil-project.wbb').read_bytes():
+            raise RuntimeError('A1–A3 pupil project changed between Save and Open')
         return
 
     if activity == 5:
@@ -303,6 +308,12 @@ def main():
         else:
             run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
         return
+    # The canonical A1–A3 jobs previously exercised direct WWI only. Their
+    # revised nominal now reopens an actual Blockly project, so prepare the
+    # same pinned dependency already required by A4/A5 before mounting it.
+    if args.progression_activity in (1, 2, 3):
+        subprocess.run(['bash', str(ROOT / 'tools/prepare_runtime_v2.sh')],
+                       cwd=ROOT, check=True)
     if not shutil.which('docker'):
         raise RuntimeError('Docker absent; required native evidence unavailable')
     assets = ROOT/'.ci-grand-prix-u-webots'
