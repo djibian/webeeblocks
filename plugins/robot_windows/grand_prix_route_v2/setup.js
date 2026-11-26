@@ -17,14 +17,19 @@ if(A.BLOCK_CATALOG.webeeblocks_v2_elapsed){profile.toolbox.push('webeeblocks_v2_
 // The default page and its existing A8 project identity remain unchanged.
 const lesson = typeof document !== 'undefined' && document.currentScript
   ? document.currentScript.getAttribute('data-progression-activity') : null;
+const progression = window.WebeeBlocksGrandPrixProgression;
+const lessons = progression && typeof progression.profileFor === 'function'
+  ? Array.from({length: 7}, (_, index) => progression.profileFor(index + 1, profile))
+  : [];
 let selectedProfile = profile;
 if (lesson !== null) {
-  const progression = window.WebeeBlocksGrandPrixProgression;
-  if (!/^[1-7]$/.test(lesson) || !progression || typeof progression.profileFor !== 'function')
+  if (!/^[1-7]$/.test(lesson) || lessons.length !== 7)
     throw new Error('Profil pédagogique Grand Prix indisponible');
-  selectedProfile = progression.profileFor(Number(lesson), profile);
+  selectedProfile = lessons[Number(lesson) - 1];
 }
-window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[selectedProfile]},getProfile:id=>{if(id!==selectedProfile.id)throw new Error('unknown variable Grand Prix activity');return JSON.parse(JSON.stringify(selectedProfile));}};
+// Source contracts are available to portable file validation only. Native
+// execution, the toolbox and explicit activity selection keep a singleton.
+window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[selectedProfile]},PROJECT_DOCUMENT:{version:1,activities:[...lessons,profile]},getProfile:id=>{if(id!==selectedProfile.id)throw new Error('unknown variable Grand Prix activity');return JSON.parse(JSON.stringify(selectedProfile));}};
 window.WebeeBlocksInitialActivityId=selectedProfile.id;
 const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};

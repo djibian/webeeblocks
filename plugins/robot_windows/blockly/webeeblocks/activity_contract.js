@@ -55,7 +55,7 @@
     preflightFieldOptions(profile, workspace);
     return types;
   }
-  function applyFieldBounds(profile, workspace) {
+  function visitFieldBounds(profile, workspace, visit) {
     var definitions = profile.parameterBounds || {};
     workspace.getAllBlocks(false).forEach(function(block) {
       // Numeric values directly plugged into movements obey movement bounds,
@@ -78,7 +78,7 @@
           if (Number.isFinite(directional.max)) max = Math.min(max,directional.max);
         }
         if (min > max) fail('invalid movement literal bounds in profile');
-        block.getField('NUM').setConstraints(min,max,0.01);
+        visit(block.getField('NUM'), min, max, 0.01);
         return;
       }
       var fields = definitions[block.type] || {};
@@ -87,8 +87,25 @@
         if (!field || typeof field.setConstraints !== 'function')
           fail('field bound target unavailable: ' + block.type + '.' + fieldName);
         var bounds = fields[fieldName];
-        field.setConstraints(bounds.min, bounds.max, bounds.step);
+        visit(field, bounds.min, bounds.max, bounds.step);
       });
+    });
+  }
+  function fitsFieldBounds(field, min, max, step) {
+    var value = Number(field.getValue());
+    return Number.isFinite(value) && value >= min - 1e-9 && value <= max + 1e-9 &&
+      Math.abs(value / step - Math.round(value / step)) <= 1e-7;
+  }
+  function applyFieldBounds(profile, workspace, preserveValues) {
+    visitFieldBounds(profile, workspace, function(field, min, max, step) {
+      if (!preserveValues || fitsFieldBounds(field, min, max, step))
+        field.setConstraints(min, max, step);
+    });
+  }
+  function preflightPortableFieldBounds(profile, workspace) {
+    visitFieldBounds(profile, workspace, function(field, min, max, step) {
+      if (!fitsFieldBounds(field, min, max, step))
+        studentFail('numeric field outside profile bounds', 'Une valeur du programme dépasse les limites de cette activité. Modifiez-la avant de lancer.');
     });
   }
   function collectAst(ast) {
@@ -200,7 +217,8 @@
   }
   async function execute(profile, workspace, compiler, interpreter, backend, options) {
     preflightWorkspace(profile, workspace);
-    applyFieldBounds(profile, workspace);
+    if (options && options.preserveWorkspace === true) preflightPortableFieldBounds(profile, workspace);
+    else applyFieldBounds(profile, workspace);
     var ast = compiler.compileWorkspace(workspace);
     var facts = preflightAst(profile, ast);
     preflightBackend(profile, facts, backend);
@@ -208,6 +226,7 @@
     interpreterOptions.motionBounds = profile.runtime.astBounds || {};
     var onAst = interpreterOptions.onAst;
     delete interpreterOptions.onAst;
+    delete interpreterOptions.preserveWorkspace;
     if (typeof onAst === 'function') onAst(ast);
     if (backend.capabilities && backend.capabilities.simulationScenes === true) {
       if (typeof backend.prepareActivity !== 'function') fail('simulation scene preparation unavailable');
