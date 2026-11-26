@@ -147,18 +147,20 @@
 
 
   // Blockly's generic SPEED field has 0.1 precision and can round saved
-  // classroom A2/A3 values before profile-specific 0.01 bounds are installed.
-  // Restore only exact, authorized school values; the Grand Prix is unchanged.
+  // values before the source activity's finer constraints are installed.
+  // Restore only exact, authorized values; never clamp a foreign project.
   function loadWorkspaceWithProfile(profile, state, workspace, options) {
     requireDependencies(options);
     options.Blockly.serialization.workspaces.load(state, workspace);
-    if (profile.id !== 'progression-altitude-v1' &&
+    var grandPrix = /^progression-grand-prix-(?:a[1-7]-v1|route-v2)$/.test(profile.id);
+    if (!grandPrix && profile.id !== 'progression-altitude-v1' &&
         profile.id !== 'progression-orientation-3d-v1') return workspace;
-    var lesson = profile.id === 'progression-altitude-v1' ? 'Activity 2' : 'Activity 3';
-    options.activityContract.applyFieldBounds(profile, workspace);
+    var lesson = grandPrix ? 'Grand Prix' :
+      (profile.id === 'progression-altitude-v1' ? 'Activity 2' : 'Activity 3');
+    if (!grandPrix) options.activityContract.applyFieldBounds(profile, workspace);
     var limits = profile.parameterBounds && profile.parameterBounds.webeeblocks_v2_speed &&
       profile.parameterBounds.webeeblocks_v2_speed.SPEED;
-    if (!limits || limits.step !== 0.01)
+    if (!limits || limits.step !== (grandPrix ? 0.05 : 0.01))
       fail(lesson + ' speed constraints unavailable');
     var seen = Object.create(null);
     function visit(value) {
@@ -179,6 +181,11 @@
         var field = block && block.type === 'webeeblocks_v2_speed' && block.getField('SPEED');
         if (!field || typeof field.setValue !== 'function' || typeof field.getValue !== 'function')
           fail(lesson + ' speed block missing after load');
+        if (grandPrix) {
+          if (typeof field.setConstraints !== 'function')
+            fail(lesson + ' speed field constraints unavailable');
+          field.setConstraints(limits.min, limits.max, limits.step);
+        }
         field.setValue(requested);
         if (Number(field.getValue()) !== requested)
           fail(lesson + ' speed precision changed during Open');
