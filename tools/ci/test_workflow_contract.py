@@ -776,6 +776,41 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("if-no-files-found: error", upload)
 
 
+    def test_unified_grand_prix_windows_checkpoint_is_exact_and_checkpoint_only(self):
+        import ast
+        checkpoint = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        suite = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        profile = "grand-prix-progression-windows-r2025a"
+        artifact = "WebeeBlocks-Progression-A1-A8-Windows-R2025a"
+        # Inspect the actual literal maps; do not accept a comment or substring
+        # claiming a restriction while the executable map permits release.
+        profiles = ast.literal_eval(checkpoint.split("PROFILES = ", 1)[1].split("\n          }", 1)[0] + "\n}")
+        purposes = ast.literal_eval(checkpoint.split("PURPOSES = ", 1)[1].split("\n          }", 1)[0] + "\n}")
+        self.assertEqual(profiles[profile], artifact)
+        self.assertEqual(purposes[profile], {"checkpoint"})
+        self.assertEqual(profiles["grand-prix-windows"], "grand-prix-u-windows-project")
+        self.assertEqual(list(profiles.values()).count(artifact), 1)
+        runtime = checkpoint.split("\n  runtime:\n", 1)[1].split("\n  webots:\n", 1)[0]
+        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", runtime)
+        self.assertIn("target_sha: ${{ needs.validate.outputs.target_sha }}", runtime)
+        self.assertIn("full: true", runtime)
+        publish = checkpoint.split("\n  publish:\n", 1)[1]
+        self.assertIn("needs.runtime.result == 'success'", publish)
+        self.assertIn("needs.webots.result == 'success'", publish)
+        self.assertIn("matching = [a for a in artifacts if a.get('name') == required_artifact]", publish)
+        self.assertIn("if len(matching) != 1:", publish)
+        release = suite.split("\n  runtime-v2-windows-release:\n", 1)[1].split("\n  grand-prix-prototype:\n", 1)[0]
+        self.assertIn("ref: ${{ inputs.target_sha || github.sha }}", release)
+        for before, after in (
+                ("Build and independently verify unified Grand Prix", "Falsify all 35 Windows PowerShell 5.1"),
+                ("Falsify all 35 Windows PowerShell 5.1", "Smoke exact extracted A1 A6 A7 A8"),
+                ("Smoke exact extracted A1 A6 A7 A8", "Upload verified unified Grand Prix")):
+            self.assertLess(release.index(before), release.index(after))
+        upload = release.split("      - name: Upload verified unified Grand Prix", 1)[1]
+        self.assertIn("name: " + artifact, upload)
+        self.assertIn(artifact + ".zip.sha256", upload)
+        self.assertIn("if-no-files-found: error", upload)
+
     def test_grand_prix_linux_checkpoint_prepares_and_gates_exact_archive(self):
         checkpoint = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
         self.assertIn("'grand-prix-linux-r2025a': 'WebeeBlocks-Grand-Prix-Linux-R2025a',", checkpoint)

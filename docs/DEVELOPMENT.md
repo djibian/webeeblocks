@@ -199,6 +199,15 @@ Its runner installs only that local closure with `--no-index --no-deps`, rejects
 ambient package leakage, and preserves `executionAuthority:false`. cflib's normal
 close path may emit its safety-zero commander setpoint, so this profile is not a
 claim of transport-level read-only behavior and never authorizes motorized flight.
+The unified Grand Prix A1–A8 Windows teacher test uses
+`grand-prix-progression-windows-r2025a`, restricted to purpose `checkpoint`.
+It requires the `WebeeBlocks-Progression-A1-A8-Windows-R2025a` artifact built by full Runtime
+on the exact requested integrated delivery SHA, after archive verification,
+35 PowerShell 5.1 preflights and four native Windows smoke cases. Use the
+included `ACCEPTATION-WINDOWS.md` procedure; this checkpoint does not
+publish a release, grant real flight or replace the teacher verdict. The old
+`grand-prix-windows` profile remains bound to the historical U artifact.
+
 Unknown profiles fail closed until their deterministic preparation is explicitly
 implemented. A props-off checkpoint never authorizes motorized flight.
 
