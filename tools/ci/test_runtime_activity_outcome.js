@@ -46,9 +46,9 @@ assert.doesNotMatch(brokerRuntimeSource,
   'Reset recognition must not rely on sscanf assignment count before checking the RESET literal');
 
 function deferred() {
-  let resolve;
-  const promise = new Promise(r => { resolve = r; });
-  return {promise, resolve};
+  let resolve, reject;
+  const promise = new Promise((r, j) => { resolve = r; reject = j; });
+  return {promise, resolve, reject};
 }
 
 async function until(predicate, label) {
