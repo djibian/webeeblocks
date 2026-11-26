@@ -42,7 +42,10 @@ const loop=(max_iterations,condition,body)=>({kind:'while',mode:'WHILE',max_iter
 const iff=(condition,then,otherwise=[])=>Object.assign({kind:'if',condition,then},
  otherwise.length?{else:otherwise}:{});
 
-function reference(){
+// Default retains the historical witness AST for reconstruction. The
+// qualification campaign explicitly selects the revised geometry witness.
+function reference(revisedGeometry=false){
+ assert.equal(typeof revisedGeometry,'boolean');
  const definitions={};
  const call=name=>({kind:'call',name,body:structuredClone(definitions[name])});
  // The A7 profile permits AND, not OR. These two IFs implement the same
@@ -59,15 +62,15 @@ function reference(){
      [motion('forward',.04),call('scan')])];
  definitions.leg=[call('reach'),iff(and(lt(v('left'),n(.45)),lt(v('right'),n(.45))),[
    loop(12,gt(range('front'),n(.16)),[motion('forward',.04)]),
-   {kind:'vertical',direction:'down',distance_m:.42},motion('forward',.60),
+   {kind:'vertical',direction:'down',distance_m:.42},motion('forward',revisedGeometry?.49:.60),
    {kind:'vertical',direction:'up',distance_m:.42},call('reach')])];
  return {definitions,ast:{version:1,semantics:'webeeblocks-ast-v1',program:[
    {kind:'takeoff',height_m:.9},{kind:'set_speed',speed_m_s:.2},call('leg'),
    loop(10,gt(range('front'),n(.30)),[motion('forward',.06)]),
    loop(8,lt(range('front'),n(.27)),[motion('back',.04)]),
    iff(lt(v('right'),n(.45)),[{kind:'turn',angle_deg:90}],[{kind:'turn',angle_deg:-90}]),
-   call('leg'),loop(8,lt(range('front'),n(.65)),[motion('back',.13)]),
-   loop(8,gt(range('front'),n(.71)),[motion('forward',.05)]),{kind:'land'}]}};
+   call('leg'),loop(8,lt(range('front'),n(revisedGeometry?.45:.65)),[motion('back',.13)]),
+   loop(8,gt(range('front'),n(revisedGeometry?.51:.71)),[motion('forward',.05)]),{kind:'land'}]}};
 }
 function normalizeIds(project){
  const ids=new Set(Object.values(variables).map(x=>x.id));let index=0;
@@ -81,8 +84,8 @@ function normalizeIds(project){
  }
  visit(project.workspace);
 }
-function build(){
- const {profile,options}=school(),expected=reference();
+function build(revisedGeometry=false){
+ const {profile,options}=school(),expected=reference(revisedGeometry);
  const ws=new Blockly.Workspace();let index=0;
  const block=(type,fields={})=>{
    const b=ws.newBlock(type,'a7-builder-'+(++index));
@@ -174,8 +177,11 @@ async function runSaved(content,backend){
 }
 module.exports={build,runSaved,reference,school};
 if(require.main===module){
- const first=build(),again=build();
+ const args=process.argv.slice(2),revisedGeometry=args.includes('--revised-geometry');
+ const files=args.filter(arg=>arg!=='--revised-geometry');
+ assert(files.length<=1 && files.every(file=>!file.startsWith('--')),'A7 invalid witness arguments');
+ const first=build(revisedGeometry),again=build(revisedGeometry);
  assert.equal(first.sha256,again.sha256,'A7 witness not byte reproducible');
- if(process.argv[2])fs.writeFileSync(process.argv[2],first.content);
- console.log('A7_WBB_PREFLIGHT '+JSON.stringify({sha256:first.sha256,bytes:Buffer.byteLength(first.content),blockly:'13.2.1',roundtrip:true}));
+ if(files[0])fs.writeFileSync(files[0],first.content);
+ console.log('A7_WBB_PREFLIGHT '+JSON.stringify({sha256:first.sha256,bytes:Buffer.byteLength(first.content),blockly:'13.2.1',roundtrip:true,revisedGeometry}));
 }
