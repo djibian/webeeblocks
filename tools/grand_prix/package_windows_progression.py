@@ -333,7 +333,7 @@ def compose(source, output, include_a8=False):
     (output / "Lancer-Progression.ps1").write_text(all_frontend() if include_a8 else FRONTEND, encoding="utf-8-sig")
     (output / "Lancer-Progression.cmd").write_text(
         '@echo off\r\npowershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Progression.ps1" %*\r\n'
-        'exit /b %ERRORLEVEL%\r\n', encoding="utf-8")
+        'exit /b %ERRORLEVEL%\r\n', encoding="utf-8", newline="")
     activities = output / "Activites"
     shutil.rmtree(activities)
     activities.mkdir()

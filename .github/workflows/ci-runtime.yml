@@ -1849,12 +1849,15 @@ jobs:
     needs: runtime-v2-windows-assets
     if: ${{ needs.runtime-v2-windows-assets.result == 'success' && (github.event_name != 'pull_request' || inputs.full) }}
     runs-on: windows-2022
-    timeout-minutes: 40
+    # Preserve the existing release campaign and allow the additional 35-route
+    # package/preflight and four native smoke cases. Flight timeouts are unchanged.
+    timeout-minutes: 65
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_sha || github.sha }}
+          fetch-depth: 0
 
       # This native Windows test owns the passive #914 PID/metadata contract.
       # It runs with full CI; no Webots engine or hardware is required.
@@ -1872,6 +1875,12 @@ jobs:
             /projects/robots/bitcraze/crazyflie/protos/
             /projects/default/protos/textures/fast_helix.png
             /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
           sparse-checkout-cone-mode: false
           fetch-depth: 1
 
@@ -2069,6 +2078,61 @@ jobs:
           path: ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a.zip
           if-no-files-found: error
 
+      # Use the already verified classroom, embedded Python and pinned native
+      # Webots dependencies. No new workflow, release or human-test authority.
+      - name: Compile exact native variable Grand Prix pilot
+        shell: pwsh
+        run: |
+          ./tools/grand_prix/build_windows_route_controller.ps1 -WebotsHome $env:WEBOTS_HOME -PythonExe '${{ steps.gp-build-python.outputs.python-path }}' -ClassroomPackagePath 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a'
+          if ($LASTEXITCODE -ne 0) { throw 'Variable route pilot compilation failed' }
+
+      - name: Build and independently verify unified Grand Prix A1–A8 archive
+        shell: pwsh
+        run: |
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/grand_prix/package_windows_route.py --classroom 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' --python-support 'ci-artifacts/gp-windows-evaluator/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a' --webots-home $env:WEBOTS_HOME --webots-source '.ci-webots-r2025a' --output 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a'
+          if ($LASTEXITCODE -ne 0) { throw 'Exact variable support build failed' }
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/grand_prix/package_windows_progression.py --include-a8 --source 'ci-artifacts/windows-route/WebeeBlocks-Grand-Prix-Variable-Windows-R2025a' --output 'ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A8-Windows-R2025a'
+          if ($LASTEXITCODE -ne 0) { throw 'Unified progression build failed' }
+          $archive = 'ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A8-Windows-R2025a.zip'
+          $expected = ((Get-Content -LiteralPath "$archive.sha256" -Raw).Trim() -split '\s+')[0]
+          if ($expected -cnotmatch '^[0-9a-f]{64}$' -or (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) { throw 'Unified archive digest mismatch' }
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/test_grand_prix_progression_windows_package.py --include-a8 --archive $archive --extract-to 'ci-artifacts/EXTRACTED progression with spaces'
+          if ($LASTEXITCODE -ne 0) { throw 'Unified extracted package verification failed' }
+
+      - name: Falsify all 35 Windows PowerShell 5.1 launch bindings
+        shell: pwsh
+        run: |
+          ./tools/ci/test_grand_prix_progression_windows_preflight.ps1 -Package 'ci-artifacts/EXTRACTED progression with spaces' -WebotsHome $env:WEBOTS_HOME -OutputDirectory 'ci-artifacts/windows-progression-preflight'
+          if ($LASTEXITCODE -ne 0) { throw 'Progression Windows launch preflight failed' }
+
+      - name: Smoke exact extracted A1 A6 A7 A8 with native R2025a
+        shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+        run: |
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/run_grand_prix_progression_windows_native.py --include-a8 --package 'ci-artifacts/EXTRACTED progression with spaces' --webots-home $env:WEBOTS_HOME --output 'ci-artifacts/windows-progression-native'
+          if ($LASTEXITCODE -ne 0) { throw 'Unified native Windows smoke failed' }
+
+      - name: Retain unified Windows preflight and native smoke observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-progression-windows-native
+          path: |
+            ci-artifacts/windows-progression-preflight/
+            ci-artifacts/windows-progression-native/
+          if-no-files-found: warn
+
+      - name: Upload verified unified Grand Prix A1–A8 Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Progression-A1-A8-Windows-R2025a
+          path: |
+            ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A8-Windows-R2025a.zip
+            ci-artifacts/windows-progression/WebeeBlocks-Progression-A1-A8-Windows-R2025a.zip.sha256
+          if-no-files-found: error
+
   grand-prix-prototype:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
@@ -2092,6 +2156,7 @@ jobs:
           # Canonical Runtime owner: route-only composition, guarded preflights,
           # LAND contact settling, and historical U non-interference.
           python3 -m unittest -v tools.ci.test_grand_prix_route_vertical_product
+          python3 -m unittest -v tools.grand_prix.test_launch_progression_linux
           node tools/ci/test_grand_prix_u_profile.js
           node tools/ci/test_grand_prix_u_witness.js
       - name: Prove current U candidate in real Webots R2025a

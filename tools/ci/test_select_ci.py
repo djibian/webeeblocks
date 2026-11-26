@@ -7,6 +7,23 @@ from select_ci import git_changed_paths, select
 
 
 class SelectCiTests(unittest.TestCase):
+    def test_unified_windows_delivery_selects_its_full_owner(self) -> None:
+        for path in (
+            "tools/grand_prix/package_windows_progression.py",
+            "tools/grand_prix/package_windows_route.py",
+            "tools/ci/run_grand_prix_progression_windows_native.py",
+            "tools/ci/test_grand_prix_progression_windows_package.py",
+            "tools/ci/test_grand_prix_progression_windows_preflight.ps1",
+            "tools/ci/run_grand_prix_route_windows_native.py",
+            "tools/ci/test_grand_prix_route_windows_package.py",
+            "tools/ci/grand_prix_route_windows_node_probe.js",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertTrue(selection.full)
+
     def test_documentation_only(self) -> None:
         result = select(["docs/DEVELOPMENT.md", "README.md"])
         self.assertFalse(result.runtime)

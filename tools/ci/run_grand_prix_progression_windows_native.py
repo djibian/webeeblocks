@@ -12,7 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.ci.test_grand_prix_progression_windows_package import verify
-from tools.ci.run_grand_prix_route_windows_native import run_one
+from tools.ci.run_grand_prix_route_windows_native import run_one, probe_windows_entropy
 
 
 def main():
@@ -33,6 +33,7 @@ def main():
     count = 35 if args.include_a8 else 23
     smoke = f"{len(indices)}/{count}"
     output.mkdir(parents=True, exist_ok=False)
+    probe_windows_entropy(home, output)
     runs = []
     try:
         # A1/V1, A6/V5, A7/V7 and optionally A8/V12. Smoke only.

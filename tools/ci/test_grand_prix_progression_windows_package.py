@@ -43,11 +43,13 @@ def verify(root, include_a8=False):
             meta.get("delivery") != delivery or
             meta.get("scene_policy") != "classroom-static-v1" or
             meta.get("webots") != "R2025a" or
+            meta.get("webots_source_sha") != "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b" or
             meta.get("blockly") != "13.2.1" or
             "DRAFT" not in meta.get("qualification", "")):
         raise ValueError("Progression package source, Webots or policy mismatch")
     catalogue = json.loads((root / "COURSES.json").read_text(encoding="utf-8"))
-    if (catalogue.get("course_ids") != list(ids) or
+    if (catalogue.get("profile") != ("progression-grand-prix-a1-a8-v1" if include_a8 else "progression-grand-prix-a1-a7-v1") or
+            catalogue.get("course_ids") != list(ids) or
             catalogue.get("variant_counts") != list(counts) or
             catalogue.get("physics_step_ms") != 8 or
             catalogue.get("fps_default") != 20 or
@@ -132,7 +134,8 @@ def verify(root, include_a8=False):
     if 'src="progression_profile.js"' in script:
         raise ValueError("Session launcher must not reload the shared catalogue")
     front = (root / "Lancer-Progression.ps1").read_text(encoding="utf-8-sig")
-    if front != (all_frontend() if include_a8 else FRONTEND) or not (root / "Lancer-Progression.cmd").is_file():
+    cmd = b'@echo off\r\npowershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File "%~dp0Lancer-Progression.ps1" %*\r\nexit /b %ERRORLEVEL%\r\n'
+    if front != (all_frontend() if include_a8 else FRONTEND) or (root / "Lancer-Progression.cmd").read_bytes() != cmd:
         raise ValueError("Incorrect student Windows course chooser")
     if any((root / name).exists() for name in ("Lancer-Grand-Prix.cmd", "Lancer-Grand-Prix.ps1")):
         raise ValueError("A8-only entry point leaked into progression selector")
