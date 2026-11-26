@@ -21,6 +21,6 @@ CXX_SOURCES += $(wildcard ../crazyflie_runtime_v2/activity_scene.cpp)
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
-build/runtime_u.c build/file_broker_u.cpp &: $(GP_PREPARE_SCRIPT) ../../tools/grand_prix/prepare_u_runtime.py ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/file_broker_runtime.cpp
+build/runtime_u.c build/file_broker_u.cpp &: $(GP_PREPARE_SCRIPT) $(GP_PREPARE_DEPENDENCIES) ../../tools/grand_prix/prepare_u_runtime.py ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_runtime_v2/file_broker_runtime.cpp
 	python3 $(GP_PREPARE_SCRIPT)
 include $(WEBOTS_HOME_PATH)/resources/Makefile.include

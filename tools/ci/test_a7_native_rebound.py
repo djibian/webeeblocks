@@ -65,7 +65,67 @@ def fixture(case):
             '\n'.join(wwi) + '\n')
 
 
+def fixture_8ms(case):
+    # Synthetic parser-only witness, not a simulated flight.
+    journal, ode, wwi = fixture(case)
+    journal = '\n'.join(line for line in journal.splitlines()
+                        if not line.startswith('A7_V5_CYCLE ')) + '\n'
+    journal = 'GP_ROUTE_CONTROL_TIMING physics_ms=8 control_ms=8 range_ms=32\n' + journal
+    if case == 'stop':
+        journal = journal.replace('A7_V5_RX 128', 'A7_V5_RX 112').replace(
+            'A7_V5_STOP_APPLIED 128', 'A7_V5_STOP_APPLIED 112').replace(
+            'time_ms=160 command=LAND', 'time_ms=120 command=LAND')
+        transfer = 120
+    else:
+        journal = journal.replace(f'A7_V5_ALIVE 96 1 {EPOCH} 56 88 {ALIVE}88',
+                                  f'A7_V5_ALIVE 104 1 {EPOCH} 88 96 {ALIVE}96').replace(
+            f'A7_V5_ALIVE 128 1 {EPOCH} 88 -1', f'A7_V5_ALIVE 112 1 {EPOCH} 96 -1').replace(
+            'A7_V5_LIVENESS_GUARD 128', 'A7_V5_LIVENESS_GUARD 112').replace(
+            'time_ms=128 command=LAND', 'time_ms=112 command=LAND')
+        transfer = 112
+    for ms in range(96, 737, 8):
+        request = FORCED_ID if ms >= transfer else -1 if case == 'stop' and ms == 112 else 17
+        contact = 224 if ms >= 224 else 96 if ms == 96 else -1000
+        journal += (f'A7_V5_CYCLE {ms} 6 {request} 1 {int(ms < 736)} 1 '
+                    f'{int(contact >= 0)} {contact} 96 160 0 0 0 0\n')
+    return journal, ode, wwi
+
+
 class ReboundTraceOracleTest(unittest.TestCase):
+    def test_8ms_requires_every_motor_cycle(self):
+        for case in ('stop', 'liveness'):
+            journal, ode, wwi = fixture_8ms(case)
+            self.assertEqual(verify(case, journal, ode, wwi, control_ms=8)['control_ms'], 8)
+            with self.assertRaisesRegex(RuntimeError, 'period does not match'):
+                verify(case, journal, ode, wwi, control_ms=32)
+            missing = '\n'.join(line for line in journal.splitlines()
+                                if not line.startswith('A7_V5_CYCLE 136 ')) + '\n'
+            with self.assertRaisesRegex(RuntimeError, 'missing 8-ms motor sample'):
+                verify(case, missing, ode, wwi, control_ms=8)
+            pulse = journal.replace(
+                f'A7_V5_CYCLE 136 6 {FORCED_ID} 1 1 1 0 -1000 96 160 0 0 0 0',
+                f'A7_V5_CYCLE 136 6 {FORCED_ID} 1 1 1 0 -1000 96 160 0 0 0 .1')
+            self.assertNotEqual(pulse, journal)
+            with self.assertRaisesRegex(RuntimeError, 'motor cutoff'):
+                verify(case, pulse, ode, wwi, control_ms=8)
+
+    def test_8ms_period_is_bound_to_compiled_source_not_trace_density(self):
+        import hashlib
+        from tools.ci.a7_native_rebound import archived_control_period
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            source = b'  const int step = 8; /* experimental */\n'
+            (out / 'runtime_u.c').write_bytes(source)
+            (out / 'identity.json').write_text(json.dumps(
+                {'sha256': {'runtime_u.c': hashlib.sha256(source).hexdigest()}}))
+            journal, _, _ = fixture_8ms('stop')
+            self.assertEqual(archived_control_period(out, journal), 8)
+            with self.assertRaisesRegex(RuntimeError, 'startup timing'):
+                archived_control_period(out, journal.replace('control_ms=8', 'control_ms=32'))
+            (out / 'runtime_u.c').write_bytes(source.replace(b'8;', b'32;'))
+            with self.assertRaisesRegex(RuntimeError, 'digest mismatch'):
+                archived_control_period(out, journal)
+
     def test_isolated_internal_pilot_keeps_webots_qt_loader_config(self):
         def link_controller(command, **kwargs):
             flight = Path(command[2])
