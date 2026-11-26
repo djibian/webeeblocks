@@ -37,6 +37,8 @@ function harness(options = {}) {
       if (options.completeResult)
         response = options.completeResult;
       payload = 'OK';
+    } else if (command === 'STOP' && options.stopRequested) {
+      payload = 'OK';
     } else if (command === 'RESET') {
       response = 'ERR OUTCOME_UNAVAILABLE';
       payload = 'OK';
@@ -63,7 +65,8 @@ function harness(options = {}) {
     WebeeBlocksRuntimeOutcome:Outcome,
     WebeeBlocksActivityContract:{async execute(profile, workspace, compiler, interpreter, target, hooks) {
       hooks.onAst({version:1, program:[]});
-      if (options.stopRequested) context.runtimeStopRequested = true;
+      // Exercise the production STOP path, not an impossible bare intent flag.
+      if (options.stopRequested) void context.stopSimulation();
       throw Object.assign(new Error('original execution failure'), {code:options.code || 'UNSAFE_OR_TIMEOUT'});
     }},
     WebeeBlocksSemanticAst:{}, WebeeBlocksInterpreter:{}, URL, setTimeout, clearTimeout, Promise
@@ -235,7 +238,7 @@ async function proveMissionFailure() {
 
   for (const options of [
     {legacy:true}, {physical:true}, {code:'USER_STOPPED'},
-    {code:'PROGRAM_INVALID'}, {code:'UNEXPECTED_TRANSPORT_FAILURE'}, {stopRequested:true}
+    {code:'PROGRAM_INVALID'}, {code:'UNEXPECTED_TRANSPORT_FAILURE'}
   ]) {
     const excluded = harness(options);
     await excluded.context.runProgram();
@@ -243,6 +246,16 @@ async function proveMissionFailure() {
     assert.strictEqual(excluded.element('runtimeState').textContent,
       Outcome.classify({code:options.code || 'UNSAFE_OR_TIMEOUT'}).state);
   }
+
+  const stopped = harness({stopRequested:true});
+  await stopped.context.runProgram();
+  assert.strictEqual(stopped.sent.length, 1, 'voluntary STOP must not query or complete a mission');
+  assert.match(stopped.sent[0], / STOP$/);
+  assert.strictEqual(stopped.element('runtimeState').textContent, 'ARRÊTÉ');
+  assert.strictEqual(stopped.context.runtimeTerminal, true);
+  assert.strictEqual(stopped.element('submit').disabled, true);
+  assert.strictEqual(stopped.element('resetSimulation').disabled, false,
+    'RESET reopens only after the acknowledged voluntary STOP');
 
   const pending = harness({pending:true});
   const running = pending.context.runProgram();
