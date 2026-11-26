@@ -314,12 +314,29 @@
       };
     }
     function currentBytes() {
-      try { return encodeProject(options.getProfile(), options.workspace, dependencies()); }
+      var current = options.getProfile();
+      var deps = dependencies();
+      if (!importedSourceProfile) return encodeProject(current, options.workspace, deps);
+
+      function portableBytes(profile) {
+        var text = encodeProject(profile, options.workspace, deps);
+        // Block vocabulary alone is insufficient: numeric AST limits and
+        // serialized precision can differ even when all block types match.
+        // Reopen in a scratch workspace before committing the file, and
+        // never retag an import whose executable program would change.
+        var liveAst = optionalAst(profile, options.workspace, deps);
+        var reopened = validateProjectText(text, current, deps, true);
+        if (reopened.profile.id !== profile.id || !sameJson(liveAst, reopened.ast))
+          fail('portable Save would change the program');
+        return text;
+      }
+
+      try { return portableBytes(current); }
       catch (error) {
-        // If the current activity cannot express all imported blocks, keep
-        // their original (validated) source activity contract on disk.
-        if (!importedSourceProfile) throw error;
-        return encodeProject(importedSourceProfile, options.workspace, dependencies());
+        // Preserve the source only if the edited project is still valid there.
+        // Do not silently relabel a program invalid under both profiles.
+        if (importedSourceProfile.id === current.id) throw error;
+        return portableBytes(importedSourceProfile);
       }
     }
     function snapshot() {

@@ -920,6 +920,44 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   targetWorkspace.dispose();
 }
 
+// Compatible vocabulary does not imply compatible numeric motion bounds.
+async function provePortableSaveKeepsValidNumericSource() {
+  const source=activityProfile('grand-prix-a6-native-experimental-v1');
+  const current=activityProfile('progression-sequence-v1');
+  const original=buildWorkspace(.3,.90,true);
+  const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  const sourceAst=ast(original,source);
+  assert.throws(()=>ActivityContract.preflightAst(current,sourceAst), /takeoff.height_m outside profile bounds/);
+  const encoded=ProjectFiles.encodeProject(source,original,options);
+  original.dispose();
+  const w=buildWorkspace(.3,.63,true), transport=memoryTransport();
+  transport.state.openText=encoded;
+  const manager=ProjectFiles.createManager({...options,workspace:w,transport,
+    getProfile:()=>current,
+    setProfile(){assert.fail('portable operation changed the active profile');},
+    prepareProfile(){assert.fail('portable operation selected a native scene');}});
+  try {
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst);
+    await manager.save();
+    assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,source.id,
+      'Save must not relabel a source-valid height outside current bounds');
+    const saved=transport.state.currentText;
+    transport.state.openText=saved;
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst);
+    await manager.save();
+    assert.strictEqual(transport.state.currentText,saved,'portable numeric Save/Open changed the program');
+    const height=w.getBlocksByType('webeeblocks_v2_takeoff',false)[0].getInputTargetBlock('HEIGHT');
+    height.setFieldValue('1.1','NUM');
+    assert.throws(()=>ActivityContract.preflightAst(source,SemanticAst.compileWorkspace(w)), /takeoff.height_m outside profile bounds/);
+    await assert.rejects(manager.save(), /takeoff.height_m outside profile bounds/);
+    assert.strictEqual(transport.state.currentText,saved,'invalid under both profiles overwrote file');
+    assert.strictEqual(transport.state.writes.length,2);
+  } finally {w.dispose();}
+}
+
 async function proveForeignFutureBlockImportsButCannotLaunch() {
   const source=activityProfile('progression-orientation-3d-v1');
   const current=activityProfile('progression-sequence-v1');
@@ -1240,6 +1278,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveOrientationBlocklyProjectRoundTrip();
   await proveAltitudeBlocklyProjectRoundTrip();
   await provePortableOpenKeepsCurrentActivityAndFlightGate();
+  await provePortableSaveKeepsValidNumericSource();
   await proveForeignFutureBlockImportsButCannotLaunch();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
