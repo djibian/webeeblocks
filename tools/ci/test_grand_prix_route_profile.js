@@ -585,7 +585,9 @@ for (const id of ['projectActivity', 'projectOpen', 'projectSave', 'projectSaveA
   'stepMode', 'stepNext', 'stepContinue', 'resetSimulation']) {
   assert(html.includes('id="' + id + '"'), 'UI element missing: ' + id);
 }
-assert(html.includes('src="setup.js"'));
+assert.equal(html.split('<script src="setup.js?rev=20261126-portable-open"></script>').length,2,
+  'exact versioned setup script must appear once');
+assert(!html.includes('src="setup.js"'), 'stale unversioned setup must not be loaded');
 assert(html.includes('../blockly_v2/main.js'));
 assert(!html.includes('grand_prix_u'));
 Promise.all([proveSameFileAcrossHostRoutes(), proveRouteTechnicalDiagnostics(), proveRouteLiveClock(), proveRouteOnlyNativePauseBrowser(), proveBoundedRouteTakeoffReply()]).then(() => {

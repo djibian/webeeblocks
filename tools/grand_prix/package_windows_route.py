@@ -420,6 +420,9 @@ def compose(classroom, evaluated, webots_home, webots_source, output):
     for name in ("grand_prix_route_v2.html", "setup.js", "fps_settings.js", "fps_settings.css"):
         shutil.copyfile(ROOT / "plugins/robot_windows/grand_prix_route_v2" / name,
                         target_window / name)
+    # The A8 Robot Window validates A1–A7 source projects without selecting them.
+    shutil.copyfile(ROOT / "plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js",
+                    windows / "blockly/webeeblocks/grand_prix_progression.js")
     worlds = output / "worlds"
     worlds.mkdir()
     course_ids = []

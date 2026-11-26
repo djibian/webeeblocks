@@ -34,6 +34,7 @@ function page(lesson = null, progression = Progression) {
   const profile = Profiles.resolveById(activitiesDocument, context.WebeeBlocksInitialActivityId,
     Activities.BLOCK_CATALOG);
   return {profile, options: {Blockly, profiles: Profiles, activitiesDocument,
+    portableActivitiesDocument: context.WebeeBlocksActivities.PROJECT_DOCUMENT,
     blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Compiler, activityContract: Contract}};
 }
 
@@ -52,7 +53,11 @@ const pages = expectedIntroductions.map((blocks, index) => {
   const entry = page(String(activity));
   const {profile, options} = entry;
   assert.equal(profile.id, 'progression-grand-prix-a' + activity + '-v1');
-  assert.equal(profile.starterVisible, false);
+  assert.equal(profile.starterVisible, true, 'blank activity starter must be available');
+  assert.deepEqual(Array.from(options.activitiesDocument.activities).filter(candidate =>
+    candidate.id.startsWith('progression-') && candidate.starterVisible !== false &&
+    candidate.world === profile.world).map(candidate => candidate.id), [profile.id],
+  'the classroom chooser must expose only the selected lesson, never A8 or another world');
   assert.equal(profile.evaluation.oracle, 'grand-prix-route-v2');
   const previous = expectedIntroductions.slice(0, index).flat();
   assert.deepEqual(profile.toolbox.filter(type => !previous.includes(type)), blocks);
@@ -333,6 +338,222 @@ async function provePupilVocabulary() {
   assert.deepEqual(trace, ['takeoff', 'move', 'move']);
   assert.deepEqual(page().profile, a8.profile, 'A8 changed after teaching-profile tests');
 }
-provePupilVocabulary().then(() => {
+async function provePortableGrandPrixCatalog() {
+  const all = [...pages, a8];
+  for (const target of all) {
+    assert.equal(target.options.activitiesDocument.activities.length, 1);
+    assert.equal(target.options.portableActivitiesDocument.activities.length, 8);
+    for (const source of all) {
+      const workspace = new Blockly.Workspace();
+      let switches = 0, preparations = 0;
+      try {
+        const sourceText = Projects.createStarterText(source.profile.id);
+        const manager = Projects.createManager({...target.options, workspace,
+          getProfile: () => target.profile,
+          setProfile() { switches++; },
+          async prepareProfile() { preparations++; },
+          transport: {async open() { return {name: 'portable.wbb', text: sourceText}; }}
+        });
+        const opened = await manager.openIntoCurrentActivity();
+        assert.equal(opened.sourceActivity, source.profile.id);
+        assert.equal(opened.activity, target.profile.id);
+        assert.equal(switches, 0);
+        assert.equal(preparations, 0);
+        if (source !== target)
+          assert.throws(() => Projects.validateProjectText(sourceText, target.profile, target.options),
+            /activity id must resolve exactly once/);
+      } finally { workspace.dispose(); }
+    }
+  }
+}
+// Non-empty, valid source programs exercise progressively unlocked blocks.
+// The 0.25 m/s SPEED is deliberately not representable on the generic 0.1 grid.
+function portableProgram(source, level) {
+  const w = new Blockly.Workspace();
+  try {
+    const takeoff = w.newBlock('webeeblocks_v2_takeoff');
+    const speed = w.newBlock('webeeblocks_v2_speed');
+    const move = w.newBlock('webeeblocks_v2_move');
+    const land = w.newBlock('webeeblocks_v2_land');
+    takeoff.getInput('HEIGHT').connection.connect(numeric(w, .5).outputConnection);
+    move.getInput('DISTANCE').connection.connect(numeric(w, .2).outputConnection);
+    move.setFieldValue(level >= 4 ? 'left' : 'back', 'DIRECTION');
+    const nodes = [takeoff, speed];
+    if (level >= 2) {
+      const rise = w.newBlock('webeeblocks_v2_vertical');
+      rise.setFieldValue('up', 'DIRECTION');
+      rise.getInput('DISTANCE').connection.connect(numeric(w, .1).outputConnection);
+      nodes.push(rise);
+    }
+    if (level >= 3) {
+      const repeat = w.newBlock('controls_repeat_ext');
+      repeat.getInput('TIMES').connection.connect(numeric(w, 2).outputConnection);
+      repeat.getInput('DO').connection.connect(move.previousConnection);
+      nodes.push(repeat);
+    } else nodes.push(move);
+    if (level >= 5) {
+      const compare = (elapsed = false) => {
+        const c = w.newBlock('logic_compare');
+        c.setFieldValue('LT', 'OP');
+        c.getInput('A').connection.connect((elapsed ?
+          w.newBlock('webeeblocks_v2_elapsed') : numeric(w, 1)).outputConnection);
+        c.getInput('B').connection.connect(numeric(w, 2).outputConnection);
+        return c;
+      };
+      let condition = compare(level === 8);
+      if (level >= 6) {
+        const logic = w.newBlock('logic_operation');
+        logic.setFieldValue(level >= 7 ? 'OR' : 'AND', 'OP');
+        logic.getInput('A').connection.connect(condition.outputConnection);
+        logic.getInput('B').connection.connect(compare().outputConnection);
+        condition = logic;
+      }
+      const decision = w.newBlock(level >= 7 ? 'controls_whileUntil' : 'controls_if');
+      if (level >= 7) {
+        decision.setFieldValue('UNTIL', 'MODE');
+        decision.setFieldValue('2', 'MAX_ITERATIONS');
+      }
+      decision.getInput(level >= 7 ? 'BOOL' : 'IF0').connection.connect(condition.outputConnection);
+      nodes.push(decision);
+    }
+    nodes.push(land);
+    for (let i = 0; i < nodes.length - 1; i++)
+      nodes[i].nextConnection.connect(nodes[i + 1].previousConnection);
+    Contract.applyFieldBounds(source.profile, w);
+    speed.setFieldValue('0.25', 'SPEED');
+    assert.equal(Number(speed.getFieldValue('SPEED')), .25);
+    const ast = Compiler.compileWorkspace(w);
+    Contract.preflightAst(source.profile, ast);
+    return {text: Projects.encodeProject(source.profile, w, source.options), ast,
+      count: w.getAllBlocks(false).length};
+  } finally { w.dispose(); }
+}
+
+async function provePortableNonemptyMatrix() {
+  const all = [...pages, a8];
+  const programs = all.map((entry, i) => portableProgram(entry, i + 1));
+  for (const [ti, target] of all.entries()) for (const [si, source] of all.entries()) {
+    const w = new Blockly.Workspace();
+    const witness = programs[si];
+    let bytes = witness.text, writes = 0, preparations = 0, switches = 0, effects = 0;
+    const handle = {};
+    const manager = Projects.createManager({...target.options, workspace: w,
+      getProfile: () => target.profile,
+      setProfile() { switches++; },
+      async prepareProfile() { preparations++; },
+      transport: {
+        async open() { return {handle, name: 'portable.wbb', text: bytes}; },
+        async save(h, name, text) {
+          assert.equal(h, handle);
+          assert.equal(name, 'portable.wbb');
+          bytes = text; writes++;
+          return {handle, name};
+        }
+      }
+    });
+    try {
+      const opened = await manager.openIntoCurrentActivity();
+      assert.equal(opened.sourceActivity, source.profile.id);
+      assert.equal(opened.activity, target.profile.id);
+      assert.equal(writes, 0);
+      assert.deepEqual(Compiler.compileWorkspace(w), witness.ast);
+      assert.equal(w.getAllBlocks(false).length, witness.count);
+      assert.equal(Number(w.getBlocksByType('webeeblocks_v2_speed', false)[0].getFieldValue('SPEED')), .25);
+      // The progressive feature unique to a higher source is not executable
+      // in the lower target. A8's elapsed block is unavailable in A1–A7.
+      if (si > ti) {
+        await assert.rejects(Contract.execute(target.profile, w, Compiler,
+          {async run() { effects++; }},
+          {capabilities: {simulationScenes: true}, async prepareActivity() { preparations++; }}, {}),
+          /forbidden by profile|unavailable in profile/);
+        assert.equal(effects, 0);
+      } else {
+        Contract.preflightWorkspace(target.profile, w);
+        Contract.preflightAst(target.profile, Compiler.compileWorkspace(w));
+      }
+      await manager.save();
+      assert.equal(Projects.parseProject(bytes).activity.id,
+        si > ti ? source.profile.id : target.profile.id);
+      const saved = bytes;
+      await manager.openIntoCurrentActivity();
+      assert.deepEqual(Compiler.compileWorkspace(w), witness.ast);
+      assert.equal(w.getAllBlocks(false).length, witness.count);
+      await manager.save();
+      assert.equal(bytes, saved, 'same-file Save/Open changed the program');
+      assert.equal(writes, 2);
+      assert.equal(preparations, 0);
+      assert.equal(switches, 0);
+    } finally { w.dispose(); }
+  }
+  // Reject a non-grid speed rather than silently round it to a new program.
+  const malformed = JSON.parse(programs[0].text);
+  function corrupt(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'webeeblocks_v2_speed') node.fields.SPEED = .26;
+    Object.values(node).forEach(corrupt);
+  }
+  corrupt(malformed.workspace);
+  assert.throws(() => Projects.validateProjectText(JSON.stringify(malformed),
+    a1.profile, a1.options, true), /serialized speed outside profile bounds or step/);
+
+  // FieldNumber normally clamps 999 degrees to 179 before the AST exists.
+  // Reject the original malformed file without replacing the current target.
+  const live = new Blockly.Workspace(), previousHandle = {}, rejectedHandle = {};
+  let bytes = programs[0].text, handle = previousHandle, name = 'valid.wbb';
+  let writes = 0, releases = [], nativeEffects = 0;
+  const manager = Projects.createManager({...a1.options, workspace: live,
+    getProfile: () => a1.profile,
+    setProfile() { nativeEffects++; },
+    async prepareProfile() { nativeEffects++; },
+    transport: {
+      async open() { return {handle, name, text: bytes}; },
+      async release(h) { releases.push(h); },
+      async save(h, n, text) {
+        assert.equal(h, previousHandle);
+        assert.equal(n, 'valid.wbb');
+        assert.equal(text, programs[0].text);
+        writes++;
+        return {handle: h, name: n};
+      }
+    }});
+  try {
+    await manager.openIntoCurrentActivity();
+    const before = JSON.stringify(Blockly.serialization.workspaces.save(live));
+    handle = rejectedHandle; name = 'malformed.wbb';
+    for (const angle of [999, 90.5, '90', 0]) {
+      const invalid = JSON.parse(programs[0].text);
+      const start = invalid.workspace.blocks.blocks[0];
+      start.next = {block: {type: 'webeeblocks_v2_turn', id: 'invalid-turn',
+        fields: {ANGLE: angle}, next: start.next}};
+      bytes = JSON.stringify(invalid);
+      await assert.rejects(manager.openIntoCurrentActivity(), /serialized numeric field/);
+      assert.equal(JSON.stringify(Blockly.serialization.workspaces.save(live)), before);
+      assert.deepEqual(Compiler.compileWorkspace(live), programs[0].ast);
+      assert.equal(manager.currentName(), 'valid.wbb');
+      assert.equal(nativeEffects, 0);
+      assert.equal(writes, 0);
+    }
+    // The turn direction is not a profile-specific option restriction.
+    // Blockly may normalize an invalid option to its default (left).
+    for (const direction of ['bogus', 17, null]) {
+      const invalid = JSON.parse(programs[0].text);
+      const start = invalid.workspace.blocks.blocks[0];
+      start.next = {block: {type: 'webeeblocks_v2_turn', id: 'invalid-turn-direction',
+        fields: {ANGLE: 90, DIRECTION: direction}, next: start.next}};
+      bytes = JSON.stringify(invalid);
+      await assert.rejects(manager.openIntoCurrentActivity(), /serialized dropdown field/);
+      assert.equal(JSON.stringify(Blockly.serialization.workspaces.save(live)), before);
+      assert.deepEqual(Compiler.compileWorkspace(live), programs[0].ast);
+      assert.equal(manager.currentName(), 'valid.wbb');
+      assert.equal(nativeEffects, 0);
+      assert.equal(writes, 0);
+    }
+    assert.deepEqual(releases, Array(7).fill(rejectedHandle));
+    await manager.save();
+    assert.equal(writes, 1);
+  } finally { live.dispose(); }
+}
+
+provePortableGrandPrixCatalog().then(provePortableNonemptyMatrix).then(provePupilVocabulary).then(() => {
   console.log('PASS seven Grand Prix vocabulary profiles, A4 sensor arithmetic, A5 conditionals, A7 OR/UNTIL, loop safety diagnostic and A8 unchanged');
 }).catch(error => { console.error(error); process.exitCode = 1; });

@@ -22,14 +22,18 @@ function setMotionNumber(block,name,value){
   literal.setFieldValue(String(value),'NUM');
 }
 
-function buildWorkspace(distance) {
+function buildWorkspace(distance, height=1, motionShadows=false) {
   const workspace = new Blockly.Workspace();
   const takeoff = workspace.newBlock('webeeblocks_v2_takeoff');
   const move = workspace.newBlock('webeeblocks_v2_move');
   const land = workspace.newBlock('webeeblocks_v2_land');
-  setMotionNumber(takeoff,'HEIGHT',1);
+  setMotionNumber(takeoff,'HEIGHT',height);
   move.setFieldValue('forward', 'DIRECTION');
   setMotionNumber(move,'DISTANCE',distance);
+  if(motionShadows){
+    takeoff.getInputTargetBlock('HEIGHT').setShadow(true);
+    move.getInputTargetBlock('DISTANCE').setShadow(true);
+  }
   takeoff.nextConnection.connect(move.previousConnection);
   move.nextConnection.connect(land.previousConnection);
   return workspace;
@@ -367,11 +371,14 @@ async function proveSceneReattachment() {
 }
 
 async function proveProjectStartupRace() {
-  for (const failReady of [false,true]) {
+  for (const hasVariant of [false,true]) for (const failReady of [false,true]) {
     const listeners = {}, timers = [], elements = {};
     let created = 0, releaseReady, rejectReady;
     const readiness = new Promise((resolve,reject)=>{releaseReady=resolve;rejectReady=reject;});
-    const document = {body:{dataset:{}},getElementById:id=>elements[id] || (elements[id]={dataset:{},addEventListener(){}})};
+    const document = {body:{dataset:{}},getElementById:id=>
+      id === 'activityVariant' && !hasVariant ? null :
+        (elements[id] || (elements[id]={dataset:{},handlers:{},
+          addEventListener(name,fn){this.handlers[name]=fn;}}))};
     const context = {
       window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
       workspace:{},runtimeProfile:{id:'reactive-obstacle-v2'},
@@ -395,6 +402,103 @@ async function proveProjectStartupRace() {
     assert.strictEqual(created,failReady?0:1);
     assert.strictEqual(document.body.dataset.projectFileMode,failReady?'unavailable':'browser-native');
     if(failReady)assert.strictEqual(elements.projectOpen.disabled,true);
+    else {
+      for (const id of ['projectActivity','projectOpen','projectSave','projectSaveAs'])
+        assert.strictEqual(typeof elements[id].handlers.click,'function',
+          id + ' not bound when optional activityVariant is ' + (hasVariant?'present':'absent'));
+      assert.strictEqual(elements.projectOpen.disabled,false);
+      assert.strictEqual(elements.projectSaveAs.disabled,false);
+      assert.strictEqual(elements.projectSave.disabled,true,'Save without a target must remain disabled');
+      if (hasVariant) assert.strictEqual(typeof elements.activityVariant.handlers.click,'function');
+      else assert.strictEqual(elements.activityVariant,undefined);
+    }
+  }
+}
+
+// The historical A4/mini-Grand-Prix variant toggle must still work when
+// its optional button exists, without changing the current .wbb target.
+async function proveHistoricalVariantButton() {
+  for (const [id, first, second] of [
+    ['progression-decision-h-v1','decision-h-a-v1','decision-h-b-v1'],
+    ['progression-mini-grand-prix-v1','mini-grand-prix-l-v1','mini-grand-prix-r-v1']
+  ]) {
+    const listeners={}, elements={}, prepared=[];
+    const currentName='historical-pupil.wbb';
+    const manager={nativeFileSystemAccess:true,hasCurrentTarget:()=>true,
+      currentName:()=>currentName};
+    const document={body:{dataset:{}},getElementById:key=>
+      elements[key] || (elements[key]={dataset:{},handlers:{},
+        addEventListener(name,fn){this.handlers[name]=fn;}})};
+    const context={
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
+      workspace:{},Blockly:{},runtimeProfile:{id,world:'test',runtime:{scene:first}},
+      runtimeRunning:false,runtimeResetPending:false,runtimeStopPending:false,
+      runtimeScenePending:false,runtimeTerminal:false,runtimeProjectPending:false,
+      updateRuntimeActions(){},setRuntimeStatus(){},
+      robotWindow:{send(){},receive(){}},
+      runtimeBackend:{ready:true,capabilities:{simulationScenes:true},
+        async waitUntilReady(){},async prepareActivity(profile){prepared.push(profile.runtime.scene);}},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
+        createManager:()=>manager},
+      WebeeBlocksActivityProfiles:{validateProfile(profile){
+        assert.strictEqual(profile.id,id);
+        assert.strictEqual([first,second].includes(profile.runtime.scene),true);
+      }},
+      WebeeBlocksActivities:{DOCUMENT:{activities:[]},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush=async()=>{for(let i=0;i<16;i++)await Promise.resolve();};
+    listeners.load();await flush();
+    assert.strictEqual(typeof elements.activityVariant.handlers.click,'function');
+    assert.strictEqual(elements.activityVariant.disabled,false);
+    elements.activityVariant.handlers.click();await flush();
+    assert.strictEqual(context.runtimeProfile.runtime.scene,second,id+' first toggle');
+    elements.activityVariant.handlers.click();await flush();
+    assert.strictEqual(context.runtimeProfile.runtime.scene,first,id+' return toggle');
+    assert.strictEqual(context.runtimeProfile.id,id);
+    assert.strictEqual(manager.currentName(),currentName,'variant changed save target');
+    assert.strictEqual(prepared.join(','),[second,first].join(','));
+  }
+  const gpPage=fs.readFileSync(path.join(ROOT,
+    'plugins/robot_windows/grand_prix_route_v2/grand_prix_route_v2.html'),'utf8');
+  assert.strictEqual(gpPage.includes('id="activityVariant"'),false);
+  assert.strictEqual(gpPage.includes('project_ui.js?rev=20261126-portable-open'),true,
+    'old cached project_ui.js URL is still in the Grand Prix page');
+}
+
+// A stale cached project manager must not fall back to scene-changing Open.
+async function provePortableUiNeverFallsBack() {
+  for (const portable of [false,true]) {
+    const listeners={},elements={};
+    let oldOpen=0,newOpen=0;
+    const manager={nativeFileSystemAccess:true,hasCurrentTarget:()=>false,
+      async open(){oldOpen++;throw new Error('legacy Open called');}};
+    if(portable) manager.openIntoCurrentActivity=async()=>{
+      newOpen++;return {name:'pupil.wbb',sourceActivity:'source',activity:'current'};
+    };
+    const document={body:{dataset:{}},getElementById:id=>id==='activityVariant'?null:
+      (elements[id]||(elements[id]={dataset:{},handlers:{},
+        addEventListener(name,fn){this.handlers[name]=fn;}}))};
+    const context={
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},
+      document,workspace:{},runtimeProfile:{id:'current'},runtimeTerminal:false,
+      runtimeProjectPending:false,updateRuntimeActions(){},setRuntimeStatus(){},
+      robotWindow:{send(){},receive(){}},runtimeBackend:{ready:true,async waitUntilReady(){}},
+      Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
+        createManager:()=>manager},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush=async()=>{for(let i=0;i<16;i++)await Promise.resolve();};
+    listeners.load();await flush();
+    elements.projectOpen.handlers.click();await flush();
+    assert.strictEqual(oldOpen,0,'stale manager must not select a scene through legacy Open');
+    assert.strictEqual(newOpen,portable?1:0);
+    assert.strictEqual(elements.projectFileState.dataset.error,portable?'false':'true');
   }
 }
 
@@ -765,6 +869,210 @@ async function exerciseWwiBoundary() {
 // #826: real Blockly 13, .wbb manager and AST roundtrip for the stable
 // variable-course activity profile. Host route switching, native Webots and
 // OS file dialogs are NOT exercised by this test.
+async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
+  const source=activityProfile('progression-sequence-v1');
+  const current=activityProfile('grand-prix-a6-native-experimental-v1');
+  assert.notStrictEqual(source.world,current.world);
+  const sourceWorkspace=buildWorkspace(.2,.63,true);
+  // A simple shared block sequence remains valid in either environment.
+  const encoded=ProjectFiles.encodeProject(source,sourceWorkspace,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  sourceWorkspace.dispose();
+  const targetWorkspace=buildWorkspace(.3,.63);
+  const profile={value:current};
+  const transport=memoryTransport();transport.state.openText=encoded;
+  let prepared=0,switched=0;
+  const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace:targetWorkspace,
+    getProfile:()=>profile.value,setProfile:p=>{switched++;profile.value=p;},
+    transport,prepareProfile:async()=>{prepared++;}});
+  const result=await manager.openIntoCurrentActivity();
+  assert.strictEqual(result.sourceActivity,source.id);
+  assert.strictEqual(result.activity,current.id);
+  assert.strictEqual(profile.value.id,current.id);
+  assert.strictEqual(prepared,0,'portable import tried to switch native scene');
+  assert.strictEqual(switched,0,'portable import switched active profile');
+  assert.strictEqual(transport.state.writes.length,0,'Open secretly wrote source file');
+  assert.strictEqual(ast(targetWorkspace,current).program.length,3);
+  await manager.save();
+  assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,current.id);
+  assert.strictEqual(transport.state.writes.length,1);
+  const before=JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace));
+  const badHandle={name:'   '};
+  const replacement=buildWorkspace(.4,.63,true);
+  const badText=ProjectFiles.encodeProject(source,replacement,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  replacement.dispose();
+  transport.open=async()=>({handle:badHandle,name:badHandle.name,text:badText});
+  await assert.rejects(manager.openIntoCurrentActivity(), /selected file has no name/);
+  assert.strictEqual(JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace)),before,
+    'rejected Open changed live workspace while retaining previous target');
+  assert.strictEqual(profile.value,current);
+  assert.strictEqual(prepared,0);
+  assert.strictEqual(switched,0);
+  assert(transport.state.releases.includes(badHandle));
+  await manager.save();
+  assert.strictEqual(transport.state.writes.length,2);
+  assert.strictEqual(JSON.stringify(ProjectFiles.parseProject(transport.state.currentText).workspace),before);
+  targetWorkspace.dispose();
+}
+
+// Compatible vocabulary does not imply compatible numeric motion bounds.
+async function provePortableSaveKeepsValidNumericSource() {
+  const source=activityProfile('grand-prix-a6-native-experimental-v1');
+  const current=activityProfile('progression-sequence-v1');
+  const original=buildWorkspace(.3,.90,true);
+  const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  const sourceAst=ast(original,source);
+  assert.throws(()=>ActivityContract.preflightAst(current,sourceAst), /takeoff.height_m outside profile bounds/);
+  const encoded=ProjectFiles.encodeProject(source,original,options);
+  original.dispose();
+  const w=buildWorkspace(.3,.63,true), transport=memoryTransport();
+  transport.state.openText=encoded;
+  const manager=ProjectFiles.createManager({...options,workspace:w,transport,
+    getProfile:()=>current,
+    setProfile(){assert.fail('portable operation changed the active profile');},
+    prepareProfile(){assert.fail('portable operation selected a native scene');}});
+  try {
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst);
+    assert.strictEqual(manager.hasPortableImport(),true);
+    ActivityContract.applyFieldBounds(current,w,true);
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst,'editor clamp changed portable program');
+    let effects=0;
+    await assert.rejects(ActivityContract.execute(current,w,SemanticAst,
+      {run:async()=>{effects++;}},
+      {capabilities:{simulationScenes:true},prepareActivity:async()=>{effects++;}},
+      {preserveWorkspace:true}), /numeric field outside profile bounds/);
+    assert.strictEqual(effects,0,'invalid import reached native execution');
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst,'launch clamp changed portable program');
+    await manager.save();
+    assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,source.id,
+      'Save must not relabel a source-valid height outside current bounds');
+    const saved=transport.state.currentText;
+    transport.state.openText=saved;
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst);
+    await manager.save();
+    assert.strictEqual(transport.state.currentText,saved,'portable numeric Save/Open changed the program');
+    const height=w.getBlocksByType('webeeblocks_v2_takeoff',false)[0].getInputTargetBlock('HEIGHT');
+    height.setFieldValue('1.1','NUM');
+    assert.throws(()=>ActivityContract.preflightAst(source,SemanticAst.compileWorkspace(w)), /takeoff.height_m outside profile bounds/);
+    await assert.rejects(manager.save(), /takeoff.height_m outside profile bounds/);
+    assert.strictEqual(transport.state.currentText,saved,'invalid under both profiles overwrote file');
+    assert.strictEqual(transport.state.writes.length,2);
+  } finally {w.dispose();}
+}
+
+// A historical source uses a finer speed grid than generic Blockly and the
+// receiving activity. Restore its value, never round or retag it.
+async function provePortableHistoricalSpeedPrecision() {
+  const source=activityProfile('grand-prix-a6-native-experimental-v1');
+  const current=activityProfile('reactive-obstacle-v2');
+  const options={Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract};
+  const original=buildWorkspace(.3,.9), live=new Blockly.Workspace();
+  try {
+    const takeoff=original.getBlocksByType('webeeblocks_v2_takeoff',false)[0];
+    const move=original.getBlocksByType('webeeblocks_v2_move',false)[0];
+    const speed=original.newBlock('webeeblocks_v2_speed');
+    takeoff.nextConnection.disconnect();
+    takeoff.nextConnection.connect(speed.previousConnection);
+    speed.nextConnection.connect(move.previousConnection);
+    ActivityContract.applyFieldBounds(source,original);
+    speed.setFieldValue('0.23','SPEED');
+    const expected=SemanticAst.compileWorkspace(original);
+    assert.equal(expected.program[1].speed_m_s,.23);
+    const transport=memoryTransport();
+    transport.state.openText=ProjectFiles.encodeProject(source,original,options);
+    const manager=ProjectFiles.createManager({...options,workspace:live,transport,
+      getProfile:()=>current,
+      setProfile(){assert.fail('portable Open changed profile');},
+      prepareProfile(){assert.fail('portable Open prepared scene');}});
+    await manager.openIntoCurrentActivity();
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(live),expected);
+    await manager.save();
+    assert.equal(ProjectFiles.parseProject(transport.state.currentText).activity.id,source.id);
+    const saved=transport.state.currentText;
+    transport.state.openText=saved;
+    await manager.openIntoCurrentActivity();
+    await manager.save();
+    assert.equal(transport.state.currentText,saved);
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(live),expected);
+  } finally { original.dispose(); live.dispose(); }
+}
+
+async function proveForeignFutureBlockImportsButCannotLaunch() {
+  const source=activityProfile('progression-orientation-3d-v1');
+  const current=activityProfile('progression-sequence-v1');
+  const original=buildWorkspace(.3,.63);
+  const takeoff=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_takeoff');
+  const move=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_move');
+  const land=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_land');
+  const repeat=original.newBlock('controls_repeat_ext');
+  const n=original.newBlock('math_number');n.setFieldValue('2','NUM');
+  repeat.getInput('TIMES').connection.connect(n.outputConnection);
+  takeoff.nextConnection.disconnect();
+  move.nextConnection.disconnect();
+  takeoff.nextConnection.connect(repeat.previousConnection);
+  repeat.getInput('DO').connection.connect(move.previousConnection);
+  repeat.nextConnection.connect(land.previousConnection);
+  const encoded=ProjectFiles.encodeProject(source,original,{Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract});
+  original.dispose();
+  const workspace=buildWorkspace(.2,.63,true),profile={value:current},transport=memoryTransport();
+  transport.state.openText=encoded;
+  let prepared=0,switched=0,failLive=false;
+  const contract=Object.assign({},ActivityContract,{
+    preflightWorkspace(p,w){
+      if (w===workspace&&failLive) {
+        failLive=false;
+        throw new Error('injected portable live load failure');
+      }
+      return ActivityContract.preflightWorkspace(p,w);
+    }
+  });
+  const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:contract,workspace,
+    getProfile:()=>profile.value,setProfile:p=>{switched++;profile.value=p;},transport,
+    prepareProfile:async()=>{prepared++;}});
+  await manager.openIntoCurrentActivity();
+  assert.strictEqual(profile.value.id,current.id);
+  assert.strictEqual(prepared,0,'foreign blocks selected a native scene');
+  assert(workspace.getAllBlocks(false).some(b=>b.type==='controls_repeat_ext'));
+  let nativeCommands=0;
+  await assert.rejects(ActivityContract.execute(current,workspace,SemanticAst,
+    {run:async()=>{nativeCommands++;}},
+    {capabilities:{actions:['takeoff','move','land'],moveDirections:['forward','left'],
+      rangeDirections:[],verticalDirections:[]}},{}),
+    /forbidden by profile/);
+  assert.strictEqual(nativeCommands,0,'foreign future block launched an action');
+  await manager.saveAs('future-blocks.wbb');
+  assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,
+    source.id,'incompatible imported blocks must keep source profile on Save');
+  const before=JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+  const previousName=manager.currentName();
+  const previousText=transport.state.currentText;
+  failLive=true;
+  await assert.rejects(manager.openIntoCurrentActivity(), /injected portable live load failure/);
+  assert.strictEqual(switched,0,'portable rollback reapplied the active profile');
+  assert.strictEqual(prepared,0,'portable rollback selected a native scene');
+  assert.strictEqual(profile.value,current);
+  assert.strictEqual(manager.currentName(),previousName);
+  assert.strictEqual(JSON.stringify(Blockly.serialization.workspaces.save(workspace)),before,
+    'portable rollback lost foreign workspace state');
+  await manager.save();
+  assert.strictEqual(transport.state.currentText,previousText,
+    'portable rollback lost the source activity Save fallback');
+  workspace.dispose();
+}
+
 async function proveVariableProfileRealBlocklyRoundTrip() {
   const source = fs.readFileSync(path.join(ROOT,
     'plugins/robot_windows/grand_prix_route_v2/setup.js'), 'utf8');
@@ -1017,6 +1325,10 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
 (async function() {
   await proveOrientationBlocklyProjectRoundTrip();
   await proveAltitudeBlocklyProjectRoundTrip();
+  await provePortableOpenKeepsCurrentActivityAndFlightGate();
+  await provePortableSaveKeepsValidNumericSource();
+  await provePortableHistoricalSpeedPrecision();
+  await proveForeignFutureBlockImportsButCannotLaunch();
   await proveVariableProfileRealBlocklyRoundTrip();
   await exerciseBrowserBoundary();
   await exerciseBrowserWriteAtomicity();
@@ -1161,5 +1473,7 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveSceneReattachment();
   await proveSceneRollback();
   await proveProjectStartupRace();
+  await proveHistoricalVariantButton();
+  await provePortableUiNeverFallsBack();
   console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
