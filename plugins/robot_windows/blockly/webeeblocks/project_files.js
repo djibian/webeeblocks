@@ -521,6 +521,7 @@
       currentName: function() { return targetName; },
       hasCurrentTarget: function() { return !!targetHandle && !!targetName; },
       isApplying: function() { return applying; },
+      hasPortableImport: function() { return importedSourceProfile !== null; },
       nativeFileSystemAccess: !!options.transport.nativeFileSystemAccess,
       encodeCurrent: currentBytes
     };

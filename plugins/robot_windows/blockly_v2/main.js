@@ -589,6 +589,7 @@ async function runProgram() {
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
       maxSteps: runtimeProfile.runtime.maxSteps || 1000,
+      preserveWorkspace: portableProjectWorkspace(),
       hooks: hooks,
       onAst: function(ast) {
         window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
@@ -634,6 +635,10 @@ function isPureVisualWorkspaceMove(event) {
   return !!(event && event.type === Blockly.Events.BLOCK_MOVE &&
     event.oldParentId == null && event.newParentId == null);
 }
+function portableProjectWorkspace() {
+  var manager = window.WebeeBlocksProjectManager;
+  return !!(manager && typeof manager.hasPortableImport === 'function' && manager.hasPortableImport());
+}
 function onWorkspaceChange(event) {
   if (event && event.type === Blockly.Events.BLOCK_DELETE && runtimeDebug)
     runtimeDebug.pruneBreakpoints();
@@ -642,7 +647,9 @@ function onWorkspaceChange(event) {
   try {
     if (event.type === Blockly.Events.BLOCK_CREATE)
       profileFieldOptions.applyWorkspace(workspace);
-    WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace);
+    var manager = window.WebeeBlocksProjectManager;
+    WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace,
+      portableProjectWorkspace() || !!(manager && manager.isApplying && manager.isApplying()));
   } catch (error) { console.error(error); }
   if (!runtimeRunning && runtimeTerminal)
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';

@@ -940,6 +940,16 @@ async function provePortableSaveKeepsValidNumericSource() {
   try {
     await manager.openIntoCurrentActivity();
     assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst);
+    assert.strictEqual(manager.hasPortableImport(),true);
+    ActivityContract.applyFieldBounds(current,w,true);
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst,'editor clamp changed portable program');
+    let effects=0;
+    await assert.rejects(ActivityContract.execute(current,w,SemanticAst,
+      {run:async()=>{effects++;}},
+      {capabilities:{simulationScenes:true},prepareActivity:async()=>{effects++;}},
+      {preserveWorkspace:true}), /numeric field outside profile bounds/);
+    assert.strictEqual(effects,0,'invalid import reached native execution');
+    assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst,'launch clamp changed portable program');
     await manager.save();
     assert.strictEqual(ProjectFiles.parseProject(transport.state.currentText).activity.id,source.id,
       'Save must not relabel a source-valid height outside current bounds');
