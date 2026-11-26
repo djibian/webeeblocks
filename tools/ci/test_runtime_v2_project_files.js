@@ -22,12 +22,12 @@ function setMotionNumber(block,name,value){
   literal.setFieldValue(String(value),'NUM');
 }
 
-function buildWorkspace(distance) {
+function buildWorkspace(distance, height=1) {
   const workspace = new Blockly.Workspace();
   const takeoff = workspace.newBlock('webeeblocks_v2_takeoff');
   const move = workspace.newBlock('webeeblocks_v2_move');
   const land = workspace.newBlock('webeeblocks_v2_land');
-  setMotionNumber(takeoff,'HEIGHT',1);
+  setMotionNumber(takeoff,'HEIGHT',height);
   move.setFieldValue('forward', 'DIRECTION');
   setMotionNumber(move,'DISTANCE',distance);
   takeoff.nextConnection.connect(move.previousConnection);
@@ -867,15 +867,15 @@ async function exerciseWwiBoundary() {
 // OS file dialogs are NOT exercised by this test.
 async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   const source=activityProfile('progression-sequence-v1');
-  const current=activityProfile('reactive-obstacle-v2');
+  const current=activityProfile('grand-prix-a6-native-experimental-v1');
   assert.notStrictEqual(source.world,current.world);
-  const sourceWorkspace=buildWorkspace(.2);
+  const sourceWorkspace=buildWorkspace(.2,.63);
   // A simple shared block sequence remains valid in either environment.
   const encoded=ProjectFiles.encodeProject(source,sourceWorkspace,{Blockly,profiles:Profiles,
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
     semanticAst:SemanticAst,activityContract:ActivityContract});
   sourceWorkspace.dispose();
-  const targetWorkspace=buildWorkspace(.3);
+  const targetWorkspace=buildWorkspace(.3,.63);
   const profile={value:current};
   const transport=memoryTransport();transport.state.openText=encoded;
   let prepared=0,switched=0;
@@ -897,7 +897,7 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   assert.strictEqual(transport.state.writes.length,1);
   const before=JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace));
   const badHandle={name:'   '};
-  const replacement=buildWorkspace(.4);
+  const replacement=buildWorkspace(.4,.63);
   const badText=ProjectFiles.encodeProject(source,replacement,{Blockly,profiles:Profiles,
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
     semanticAst:SemanticAst,activityContract:ActivityContract});
@@ -919,7 +919,7 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
 async function proveForeignFutureBlockImportsButCannotLaunch() {
   const source=activityProfile('progression-orientation-3d-v1');
   const current=activityProfile('progression-sequence-v1');
-  const original=buildWorkspace(.3);
+  const original=buildWorkspace(.3,.63);
   const takeoff=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_takeoff');
   const move=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_move');
   const land=original.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_land');
@@ -935,7 +935,7 @@ async function proveForeignFutureBlockImportsButCannotLaunch() {
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
     semanticAst:SemanticAst,activityContract:ActivityContract});
   original.dispose();
-  const workspace=buildWorkspace(.2),profile={value:current},transport=memoryTransport();
+  const workspace=buildWorkspace(.2,.63),profile={value:current},transport=memoryTransport();
   transport.state.openText=encoded;
   let prepared=0,switched=0,failLive=false;
   const contract=Object.assign({},ActivityContract,{
