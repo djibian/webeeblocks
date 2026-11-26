@@ -81,12 +81,28 @@ async function outcome(expected) {
   assert.fail('Native mission outcome unavailable');
 }
 
+// The campaign supplies only the saved file for its lesson, not geometry to the AST.
+async function earlyPupilNominal(activity, direct) {
+  const file = process.argv[4];
+  if (!file) return direct(); // Historical direct diagnostic, not a product witness.
+  const {reopen} = require('./grand_prix_a123_pupil');
+  const {ast, sha256, maxSteps} = await reopen(file, activity);
+  await Interpreter.run(ast, backend, {maxSteps});
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A123_WBB_PRODUCT_PASS ' + JSON.stringify({activity, sha256,
+    astSha256: require('node:crypto').createHash('sha256').update(JSON.stringify(ast)).digest('hex'),
+    blockly: '13.2.1'}));
+}
+
 async function activityOne() {
+  await earlyPupilNominal(1, async () => {
   await approachLastLeg();
-  await backend.move('forward', .9);
+  await backend.move('forward', 1.30); // A1: 1.60-m leg, pad 0.30 m before H.
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
@@ -115,19 +131,20 @@ async function activityOne() {
 }
 
 async function activityTwo() {
+  await earlyPupilNominal(2, async () => {
   await takeoff(.88);
-  await backend.move('forward', .44);
+  // Owner 2026-11-24: H centre .80, centre band +/- .36,
+  // frame clears at +/- .33. Nominal endpoints .46 and 1.14.
+  // Do not carry the old native undertravel correction into this new geometry.
+  await backend.move('forward', .46);
   await backend.vertical('down', .41);
-  await backend.move('forward', .74);
+  await backend.move('forward', .68);
   await backend.vertical('up', .41);
-  // The exact geometric centre is 1.80 m: .44 + .74 + .62.
-  // G2 no longer exhibits the historical ~.059-m undertravel (#1076).
-  // The former .68 compensation produced x=1.873354 at the low sweep
-  // in run 45661029630; preserve the 5-cm footprint oracle.
-  await backend.move('forward', .62);
+  await backend.move('forward', 1.06); // Target 2.20, not yet native-qualified.
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await takeoff(.4);
@@ -151,23 +168,26 @@ async function activityTwo() {
 }
 
 async function activityThree() {
+  await earlyPupilNominal(3, async () => {
   await takeoff(.88);
   async function traverseGate() {
     await backend.turn(90);
-    await backend.move('forward', .44);
+    // New 2.50-m pupil side with H at 1.25: centre endpoints +/- .34.
+    await backend.move('forward', .91);
     await backend.vertical('down', .41);
-    await backend.move('forward', .74);
+    await backend.move('forward', .68);
     await backend.vertical('up', .41);
   }
   for (let leg = 0; leg < 2; leg++) {
     await traverseGate();
-    await backend.move('forward', .32);
+    await backend.move('forward', .91);
   }
   await traverseGate();
-  await backend.move('forward', .10);
+  await backend.move('forward', .91);
   await backend.land();
   await backend.completeActivityMission(evaluation);
   await outcome({status: 'achieved'});
+  });
 
   await backend.resetSimulation();
   await takeoff(.88);
@@ -194,7 +214,7 @@ async function activityFour() {
     // available to it, with no course identity or host coordinates.
     const front = await backend.readRange('front');
     assert(Number.isFinite(front) && front > .8 && front < 1.9, 'H must be observable');
-    const distance = front < 1.16 ? .30 : front < 1.56 ? .70 : 1.10;
+    const distance = front < 1.16 ? .70 : front < 1.56 ? 1.10 : 1.50;
     console.log(JSON.stringify({front, distance, side}));
     await backend.move('forward', distance);
     await backend.move(side, .50);
@@ -206,7 +226,7 @@ async function activityFour() {
     await outcome({status: 'achieved'});
   }
 
-  async function rejectWrongPad() {
+  async function rejectWrongPad(expectedForcedCount = 1) {
     // The whole-footprint oracle can interrupt the explicit LAND before ACK.
     // Its exact published refusal and the independent LAND are both required.
     try {
@@ -215,7 +235,7 @@ async function activityFour() {
       assert.equal(error.code, 'TIME_LIMIT');
     }
     await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
-    await waitForForcedLanding(1);
+    await waitForForcedLanding(expectedForcedCount);
   }
 
   async function freshAttempt() {
@@ -240,15 +260,20 @@ async function activityFour() {
 
   // Reuse V1's successful distance blindly. The policy receives no variant.
   await freshAttempt();
-  console.log(JSON.stringify({event: 'A4_FIXED', distance: .30, side: 'left'}));
+  console.log(JSON.stringify({event: 'A4_FIXED', distance: .70, side: 'left'}));
   await takeoff(.9);
-  await backend.move('forward', .30);
+  await backend.move('forward', .70);
   const moveLeft = backend.move('left', .50);
   if (variant === 1) {
     await moveLeft;
     await completeLanding();
+  } else if (variant === 2) {
+    // At .70 m V2 is inside the widened arrival but 40 cm short of its
+    // green support. Lateral motion is permitted; low descent is not.
+    await moveLeft;
+    await rejectWrongPad(3);
   } else {
-    // At .30 m, V2/V3 are still in the narrow leg, before the widened arrival.
+    // At .70 m V3 is still in the narrow leg, before the widened arrival.
     await assert.rejects(moveLeft, {code: 'TIME_LIMIT'});
     await outcome({status: 'not-achieved', reason: 'course-boundary'});
     await waitForForcedLanding(3);
@@ -277,8 +302,7 @@ async function activityFive() {
     return readings;
   }
 
-  // Last leg 2.50 m, pad 0.17 m before the terminal H: 1.85 + .48 = 2.33.
-  async function reachChoice(lastMove = .48) {
+  async function reachChoice(lastMove = .35) {
     await takeoff(.9);
     const front = await backend.readRange('front');
     // These intervals are based on rays from the fixed start. Course
@@ -292,10 +316,10 @@ async function activityFive() {
     await backend.turn(turnedLeft ? 90 : -90);
     await backend.move('forward', 1.85);
     await backend.move('forward', lastMove);
-    if (lastMove === .48) {
+    if (lastMove === .35) {
       const choice = await ranges();
       console.log(JSON.stringify({choice}));
-      assert(choice.front > .11 && choice.front < .26, 'Expected the H at the choice');
+      assert(choice.front > .21 && choice.front < .36, 'Expected the H at the choice');
       for (const direction of ['back', 'left', 'right'])
         assert(choice[direction] >= 1.99, direction + ' still sees the earlier corner');
     }
@@ -314,14 +338,13 @@ async function activityFive() {
   const wrongSide = turnedLeftAgain ? 'left' : 'right';
   await backend.move(wrongSide, .50);
   console.log(JSON.stringify({event: 'A5_WRONG_PAD', side: wrongSide}));
-  // The other visible pad is not a safe descent exception.  A native
-  // failure may interrupt LAND before the backend returns normally.
-  try {
-    await backend.land();
-  } catch (error) {
-    assert.equal(error.code, 'TIME_LIMIT');
-  }
-  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  // Both green supports now permit low descent, but only the correct
+  // pad can satisfy terminal dwell. Require LAND ACK and trusted COMPLETE
+  // before checking the precise wrong-landing refusal; an earlier collision
+  // or low-outside-zone is a distinct regression, not a substitute.
+  await backend.land();
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
   await waitForForcedLanding(1);
 
   // Refute any attempt to continue commanding the vehicle after STOP.
@@ -498,7 +521,9 @@ async function activitySeven() {
     if (obstacle.left < .45 && obstacle.right < .45) {
       await advanceWhile('forward', .04, async () => await range() > .16, 12);
       await backend.vertical('down', .42);
-      await backend.move('forward', .60);
+      // Revised low band: nominal -0.14..-0.18 to +0.31..+0.35 m.
+      // Real PID overshoot and clearance are still falsifiable.
+      await backend.move('forward', .49);
       await backend.vertical('up', .42);
       obstacle = await reachObstacle();
     }
@@ -515,10 +540,15 @@ async function activitySeven() {
     assert(closed.front < .19 && closed.left > .45 && closed.right > .45, 'closed H');
     return closed;
   }
-  await takeoff(.90);
+  // Phase experiment only: shift the ordinary TAKEOFF height slightly.
+  // The world, LAND implementation, and first-rebound verifier are unchanged.
+  const phaseHeight = process.env.WEBEEBLOCKS_A7_V5_HEIGHT;
+  if (phaseHeight !== undefined)
+    assert(rebound && variant === 5 && [.90, .8968, .8936, .8904].includes(Number(phaseHeight)));
+  await takeoff(phaseHeight === undefined ? .90 : Number(phaseHeight));
   await approachClosedH();
-  await advanceWhile('back', .13, async () => await range() < .65, 8);
-  await advanceWhile('forward', .05, async () => await range() > .71, 8);
+  await advanceWhile('back', .13, async () => await range() < .45, 8);
+  await advanceWhile('forward', .05, async () => await range() > .51, 8);
   if (rebound) return reboundLanding();
   await backend.land();
   await backend.completeActivityMission(evaluation);
@@ -545,10 +575,15 @@ async function activitySeven() {
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   const A7Wbb = require('../grand_prix/witness_workspace_a7.js');
   const crypto = require('node:crypto');
-  const witness = A7Wbb.build();
-  assert.equal(witness.sha256, 'ba575b02048d9f3b1bd2a3e25cd84035839c8eee60b397faae36f78b105e4c75',
-    'historical A7 .wbb bytes changed');
-  assert.equal(A7Wbb.build().sha256, witness.sha256, 'A7 source file not reproducible');
+  // The historical digest belongs to the old geometry and source HEAD.
+  // Retain the old builder and provenance, not an invalid hash constraint
+  // on the new geometry. The campaign compares actual bytes across variants.
+  const historical = A7Wbb.build();
+  const witness = A7Wbb.build(true);
+  assert.notEqual(witness.sha256, historical.sha256, 'revised A7 witness not distinct');
+  assert.equal(A7Wbb.build(true).sha256, witness.sha256, 'A7 source file not reproducible');
+  console.log(JSON.stringify({event:'A7_WBB_REVISED',sha256:witness.sha256,
+    historicalReference:'ba575b02048d9f3b1bd2a3e25cd84035839c8eee60b397faae36f78b105e4c75'}));
   const file = process.env.WEBEEBLOCKS_A7_WBB_OUT;
   assert(file, 'A7 native product witness path required');
   fs.writeFileSync(file, witness.content);
@@ -580,7 +615,60 @@ async function activitySeven() {
   await waitForForcedLanding(3);
 }
 
-const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven};
+// A8: the ordinary route profile and one saved sensor-only project. The
+// different wrong-landing project is a negative, never a nominal substitute.
+async function activityEight() {
+  const witness = require('../grand_prix/witness_workspace_a8.js');
+  const nominal = fs.readFileSync(process.argv[4], 'utf8');
+  const wrong = fs.readFileSync(process.argv[5], 'utf8');
+  const result = await witness.runSaved(nominal, backend);
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'achieved'});
+  console.log('A8_WBB_PRODUCT_PASS ' + JSON.stringify(result));
+
+  async function fresh() {
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+  }
+  await fresh();
+  const wrongResult = await witness.runSaved(wrong, backend);
+  assert.notEqual(wrongResult.sha256, result.sha256);
+  await backend.completeActivityMission(evaluation);
+  await outcome({status: 'not-achieved', reason: 'wrong-landing'});
+  // The pilot revokes evaluator liveness even when already grounded.
+  await waitForForcedLanding(1);
+  await fresh();
+  await takeoff(.4);
+  await assert.rejects(backend.move('forward', .6), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'low-outside-zone'});
+  await waitForForcedLanding(2);
+
+  await fresh();
+  await takeoff(.88);
+  let front = await backend.readRange('front');
+  for (let i = 0; i < 4 && front > .65; i++) {
+    await backend.move('forward', Math.min(1, front - .40));
+    front = await backend.readRange('front');
+  }
+  assert(front > .15 && front <= .65, 'bounded native contact approach');
+  await assert.rejects(backend.move('forward', front + .15), {code: 'TIME_LIMIT'});
+  await outcome({status: 'not-achieved', reason: 'envelope-contact'});
+  await waitForForcedLanding(3);
+
+  await fresh();
+  await takeoff(.88);
+  await backend.stopSimulation();
+  await assert.rejects(backend.move('forward', .2), {code: 'USER_STOPPED'});
+  await waitForForcedLanding(4);
+
+  await fresh();
+  await takeoff(.88);
+  await outcome({status: 'not-achieved', reason: 'time-limit'});
+  await waitForForcedLanding(5);
+  await assert.rejects(backend.move('forward', .2), {code: 'TIME_LIMIT'});
+}
+
+const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven, '8': activityEight};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
 socket.onopen = async () => {

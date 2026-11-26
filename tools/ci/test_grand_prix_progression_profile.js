@@ -34,6 +34,7 @@ function page(lesson = null, progression = Progression) {
   const profile = Profiles.resolveById(activitiesDocument, context.WebeeBlocksInitialActivityId,
     Activities.BLOCK_CATALOG);
   return {profile, options: {Blockly, profiles: Profiles, activitiesDocument,
+    portableActivitiesDocument: context.WebeeBlocksActivities.PROJECT_DOCUMENT,
     blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Compiler, activityContract: Contract}};
 }
 
@@ -52,7 +53,11 @@ const pages = expectedIntroductions.map((blocks, index) => {
   const entry = page(String(activity));
   const {profile, options} = entry;
   assert.equal(profile.id, 'progression-grand-prix-a' + activity + '-v1');
-  assert.equal(profile.starterVisible, false);
+  assert.equal(profile.starterVisible, true, 'blank activity starter must be available');
+  assert.deepEqual(Array.from(options.activitiesDocument.activities).filter(candidate =>
+    candidate.id.startsWith('progression-') && candidate.starterVisible !== false &&
+    candidate.world === profile.world).map(candidate => candidate.id), [profile.id],
+  'the classroom chooser must expose only the selected lesson, never A8 or another world');
   assert.equal(profile.evaluation.oracle, 'grand-prix-route-v2');
   const previous = expectedIntroductions.slice(0, index).flat();
   assert.deepEqual(profile.toolbox.filter(type => !previous.includes(type)), blocks);
@@ -333,6 +338,116 @@ async function provePupilVocabulary() {
   assert.deepEqual(trace, ['takeoff', 'move', 'move']);
   assert.deepEqual(page().profile, a8.profile, 'A8 changed after teaching-profile tests');
 }
-provePupilVocabulary().then(() => {
+async function provePortableGrandPrixCatalog() {
+  const all = [...pages, a8];
+  for (const target of all) {
+    assert.equal(target.options.activitiesDocument.activities.length, 1);
+    assert.equal(target.options.portableActivitiesDocument.activities.length, 8);
+    for (const source of all) {
+      const workspace = new Blockly.Workspace();
+      let switches = 0, preparations = 0;
+      try {
+        const sourceText = Projects.createStarterText(source.profile.id);
+        const manager = Projects.createManager({...target.options, workspace,
+          getProfile: () => target.profile,
+          setProfile() { switches++; },
+          async prepareProfile() { preparations++; },
+          transport: {async open() { return {name: 'portable.wbb', text: sourceText}; }}
+        });
+        const opened = await manager.openIntoCurrentActivity();
+        assert.equal(opened.sourceActivity, source.profile.id);
+        assert.equal(opened.activity, target.profile.id);
+        assert.equal(switches, 0);
+        assert.equal(preparations, 0);
+        if (source !== target)
+          assert.throws(() => Projects.validateProjectText(sourceText, target.profile, target.options),
+            /activity id must resolve exactly once/);
+      } finally { workspace.dispose(); }
+    }
+  }
+}
+provePortableGrandPrixCatalog().then(provePupilVocabulary).then(() => {
   console.log('PASS seven Grand Prix vocabulary profiles, A4 sensor arithmetic, A5 conditionals, A7 OR/UNTIL, loop safety diagnostic and A8 unchanged');
 }).catch(error => { console.error(error); process.exitCode = 1; });
+
+// Contract-level roundtrip across all lessons using the existing project-file
+// manager and actual Blockly 13.2.1. Native dialogs and Webots still require
+// separate Windows/Linux graphical acceptance.
+async function verifySameFileSaveOpen() {
+  for (const {profile, options} of pages) {
+    const live = new Blockly.Workspace();
+    const reference = {value: profile};
+    const fileHandle = {id: profile.id};
+    const state = {bytes: null, name: null, saves: 0, opens: 0};
+    const transport = {
+      nativeFileSystemAccess: true,
+      async saveAs(name, text) {
+        assert.equal(state.saves, 0, 'Save As must be the first file write');
+        state.bytes = text;
+        state.name = name;
+        state.saves++;
+        return {handle: fileHandle, name, mode: 'test'};
+      },
+      async save(handle, name, text) {
+        assert.strictEqual(handle, fileHandle, 'Save must reuse selected target');
+        assert.equal(name, state.name);
+        state.bytes = text;
+        state.saves++;
+        return {handle, name, mode: 'test'};
+      },
+      async open() {
+        assert(state.bytes && state.name, 'nothing saved for reopening');
+        state.opens++;
+        return {handle: fileHandle, name: state.name, text: state.bytes, mode: 'test'};
+      },
+      async release() {}
+    };
+    const manager = Projects.createManager({
+      ...options, workspace: live, transport,
+      getProfile: () => reference.value,
+      setProfile: next => { reference.value = next; }
+    });
+    try {
+      const starter = Projects.createStarterText(profile.id);
+      await manager.openTemplateText(profile.id + '.wbb', starter);
+      assert.equal(manager.hasCurrentTarget(), false, 'starter is never a save target');
+      const takeoff = live.newBlock('webeeblocks_v2_takeoff');
+      const move = live.newBlock('webeeblocks_v2_move');
+      const land = live.newBlock('webeeblocks_v2_land');
+      for (const [motion, input, value] of [
+        [takeoff, 'HEIGHT', .9], [move, 'DISTANCE', .2]
+      ]) {
+        const number = live.newBlock('math_number');
+        number.setFieldValue(String(value), 'NUM');
+        motion.getInput(input).connection.connect(number.outputConnection);
+      }
+      move.setFieldValue('forward', 'DIRECTION');
+      takeoff.nextConnection.connect(move.previousConnection);
+      move.nextConnection.connect(land.previousConnection);
+      const expected = manager.encodeCurrent();
+      const validated = Projects.validateProjectText(expected, profile, options);
+      assert(validated.ast && validated.ast.program.length === 3);
+      await manager.saveAs('eleve-' + profile.id + '.wbb');
+      assert.equal(manager.hasCurrentTarget(), true);
+      assert.equal(state.bytes, expected);
+      await manager.save();
+      assert.equal(state.bytes, expected, 'Save changed a clean project');
+      assert.equal(state.saves, 2);
+      live.clear(); // Simulate leaving the program before Open.
+      assert.equal(live.getAllBlocks().length, 0);
+      const opened = await manager.open();
+      assert.equal(opened.name, state.name);
+      assert.equal(state.opens, 1);
+      assert.equal(manager.encodeCurrent(), expected,
+        'Open must recover the exact editable .wbb without changing project bytes');
+      assert.deepEqual(Compiler.compileWorkspace(live), validated.ast,
+        'reopened Blockly program must preserve its executable AST');
+      assert.equal(reference.value.id, profile.id);
+    } finally {
+      live.dispose();
+    }
+  }
+}
+verifySameFileSaveOpen().then(() => {
+  console.log('PASS seven cumulative profiles, selectable blank starters, same-file Save/Open and A8 isolation');
+}, error => { console.error(error); process.exitCode = 1; });

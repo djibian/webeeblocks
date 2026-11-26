@@ -377,7 +377,7 @@ class NativePublisherTests(unittest.TestCase):
     def terminal_fixture(self):
         # Synthetic terminal history for handoff tests only. The real pure
         # oracle's full route/crossing/dwell proofs are tested independently.
-        target = self.course.route.landing_target(self.course.count)
+        target = self.course.landing_goal()
         self.pose[:] = [*target, .015]
         before = self.evaluator.observation
         self.evaluator.observation = replace(before, kinematics=replace(
