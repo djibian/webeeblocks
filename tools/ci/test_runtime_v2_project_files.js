@@ -22,7 +22,7 @@ function setMotionNumber(block,name,value){
   literal.setFieldValue(String(value),'NUM');
 }
 
-function buildWorkspace(distance, height=1) {
+function buildWorkspace(distance, height=1, motionShadows=false) {
   const workspace = new Blockly.Workspace();
   const takeoff = workspace.newBlock('webeeblocks_v2_takeoff');
   const move = workspace.newBlock('webeeblocks_v2_move');
@@ -30,6 +30,10 @@ function buildWorkspace(distance, height=1) {
   setMotionNumber(takeoff,'HEIGHT',height);
   move.setFieldValue('forward', 'DIRECTION');
   setMotionNumber(move,'DISTANCE',distance);
+  if(motionShadows){
+    takeoff.getInputTargetBlock('HEIGHT').setShadow(true);
+    move.getInputTargetBlock('DISTANCE').setShadow(true);
+  }
   takeoff.nextConnection.connect(move.previousConnection);
   move.nextConnection.connect(land.previousConnection);
   return workspace;
@@ -869,7 +873,7 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   const source=activityProfile('progression-sequence-v1');
   const current=activityProfile('grand-prix-a6-native-experimental-v1');
   assert.notStrictEqual(source.world,current.world);
-  const sourceWorkspace=buildWorkspace(.2,.63);
+  const sourceWorkspace=buildWorkspace(.2,.63,true);
   // A simple shared block sequence remains valid in either environment.
   const encoded=ProjectFiles.encodeProject(source,sourceWorkspace,{Blockly,profiles:Profiles,
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
@@ -897,7 +901,7 @@ async function provePortableOpenKeepsCurrentActivityAndFlightGate() {
   assert.strictEqual(transport.state.writes.length,1);
   const before=JSON.stringify(Blockly.serialization.workspaces.save(targetWorkspace));
   const badHandle={name:'   '};
-  const replacement=buildWorkspace(.4,.63);
+  const replacement=buildWorkspace(.4,.63,true);
   const badText=ProjectFiles.encodeProject(source,replacement,{Blockly,profiles:Profiles,
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
     semanticAst:SemanticAst,activityContract:ActivityContract});
@@ -935,7 +939,7 @@ async function proveForeignFutureBlockImportsButCannotLaunch() {
     activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
     semanticAst:SemanticAst,activityContract:ActivityContract});
   original.dispose();
-  const workspace=buildWorkspace(.2,.63),profile={value:current},transport=memoryTransport();
+  const workspace=buildWorkspace(.2,.63,true),profile={value:current},transport=memoryTransport();
   transport.state.openText=encoded;
   let prepared=0,switched=0,failLive=false;
   const contract=Object.assign({},ActivityContract,{
