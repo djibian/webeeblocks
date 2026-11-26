@@ -200,7 +200,7 @@
   // Validate the original value, not only its normalized live representation.
   // The portable path may restore finer source constraints, never silently
   // repair a malformed value or change the meaning of an imported program.
-  function preservePortableNumericFields(profile, state, workspace) {
+  function preservePortableFields(profile, state, workspace, Blockly) {
     var definitions = profile.parameterBounds || {};
     var roots = state.blocks && state.blocks.blocks;
     function visit(blockState) {
@@ -210,6 +210,16 @@
       Object.keys(blockState.fields || {}).forEach(function(name) {
         var requested = blockState.fields[name];
         var field = block && block.type === blockState.type && block.getField(name);
+        // Dropdown deserialization can silently retain its default when the
+        // serialized option is unknown. Variables use identity objects, not
+        // ordinary dropdown options, and have their own serialization contract.
+        if (field && typeof Blockly.FieldDropdown === 'function' &&
+            field instanceof Blockly.FieldDropdown &&
+            !(typeof Blockly.FieldVariable === 'function' && field instanceof Blockly.FieldVariable)) {
+          if (typeof requested !== 'string' || field.getValue() !== requested)
+            fail('serialized dropdown field changed during Open: ' + blockState.type + '.' + name);
+          return;
+        }
         var bounds = declared[name];
         var actual = field && typeof field.getValue === 'function' ? field.getValue() : undefined;
         if (!bounds && typeof actual !== 'number' && typeof requested !== 'number') return;
@@ -250,7 +260,7 @@
     var temporary = new options.Blockly.Workspace();
     try {
       loadWorkspaceWithProfile(profile, project.workspace, temporary, options);
-      if (portableImport) preservePortableNumericFields(profile, project.workspace, temporary);
+      if (portableImport) preservePortableFields(profile, project.workspace, temporary, options.Blockly);
       options.activityContract.preflightWorkspace(profile, temporary);
       validateWorkspaceFields(profile, temporary);
       var ast = optionalAst(profile, temporary, options);
@@ -428,7 +438,7 @@
         options.workspace.clear();
         loadWorkspaceWithProfile(validated.profile, validated.project.workspace,
                                  options.workspace, dependencies());
-        preservePortableNumericFields(validated.profile, validated.project.workspace, options.workspace);
+        preservePortableFields(validated.profile, validated.project.workspace, options.workspace, options.Blockly);
         options.activityContract.preflightWorkspace(validated.profile, options.workspace);
         validateWorkspaceFields(validated.profile, options.workspace);
         if (validated.ast) {
@@ -448,7 +458,7 @@
           options.workspace.clear();
           loadWorkspaceWithProfile(previousSource || previous.profile, previous.workspace,
                                    options.workspace, dependencies());
-          if (previousSource) preservePortableNumericFields(previousSource, previous.workspace, options.workspace);
+          if (previousSource) preservePortableFields(previousSource, previous.workspace, options.workspace, options.Blockly);
           if (!previousSource)
             options.activityContract.applyFieldBounds(previous.profile, options.workspace);
         }

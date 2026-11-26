@@ -529,7 +529,22 @@ async function provePortableNonemptyMatrix() {
       assert.equal(nativeEffects, 0);
       assert.equal(writes, 0);
     }
-    assert.deepEqual(releases, Array(4).fill(rejectedHandle));
+    // The turn direction is not a profile-specific option restriction.
+    // Blockly may normalize an invalid option to its default (left).
+    for (const direction of ['bogus', 17, null]) {
+      const invalid = JSON.parse(programs[0].text);
+      const start = invalid.workspace.blocks.blocks[0];
+      start.next = {block: {type: 'webeeblocks_v2_turn', id: 'invalid-turn-direction',
+        fields: {ANGLE: 90, DIRECTION: direction}, next: start.next}};
+      bytes = JSON.stringify(invalid);
+      await assert.rejects(manager.openIntoCurrentActivity(), /serialized dropdown field/);
+      assert.equal(JSON.stringify(Blockly.serialization.workspaces.save(live)), before);
+      assert.deepEqual(Compiler.compileWorkspace(live), programs[0].ast);
+      assert.equal(manager.currentName(), 'valid.wbb');
+      assert.equal(nativeEffects, 0);
+      assert.equal(writes, 0);
+    }
+    assert.deepEqual(releases, Array(7).fill(rejectedHandle));
     await manager.save();
     assert.equal(writes, 1);
   } finally { live.dispose(); }
