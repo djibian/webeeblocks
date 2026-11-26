@@ -98,7 +98,7 @@ def static_course_world(course):
                         '.95 .06 .06', 0, .004)
 
     # Teacher-visible start, direction-relative landing choices and the exact
-    # 0.55 m low-flight band edges are decorative floor marks. They grant no
+    # 0.45 m low-flight band edges are decorative floor marks. They grant no
     # sensing API, safety exception or attempt/mission authority. Keep their
     # names distinct from the reserved GP_V2 physical inventory.
     overlay = [visual('GP_ROUTE_START', 0., 0., LANDING_TILE, LANDING_TILE,
