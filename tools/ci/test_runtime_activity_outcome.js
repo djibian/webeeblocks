@@ -46,9 +46,9 @@ assert.doesNotMatch(brokerRuntimeSource,
   'Reset recognition must not rely on sscanf assignment count before checking the RESET literal');
 
 function deferred() {
-  let resolve;
-  const promise = new Promise(r => { resolve = r; });
-  return {promise, resolve};
+  let resolve, reject;
+  const promise = new Promise((r, j) => { resolve = r; reject = j; });
+  return {promise, resolve, reject};
 }
 
 async function until(predicate, label) {
@@ -278,6 +278,119 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
     terminal ? terminal.detail : 'Mission accomplie',
     'actual product main.js must display the exact authorized causal reason');
   assert.strictEqual(element('resetSimulation').disabled, false, 'Reset should reopen only after the mission outcome is presented');
+}
+
+async function provePupilErrorRequiresNativeStop() {
+  for (const scenario of ['preflight', 'stop-ok', 'stop-failure', 'manual-stop-failure',
+    'manual-stop-pupil-ok', 'manual-stop-pupil-failure']) {
+    const elements = {};
+    function element(id) {
+      if (!elements[id]) elements[id] = {id,disabled:false,hidden:false,checked:false,
+        textContent:'',setAttribute(){},addEventListener(){}};
+      return elements[id];
+    }
+    const pendingStop = deferred();
+    const pendingExecution = deferred();
+    let stops = 0, resets = 0, executions = 0;
+    const context = {
+      console:{log(){},error(){}},
+      Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},
+        Events:{UI:'ui',BLOCK_MOVE:'move',BLOCK_CREATE:'create'},Blocks:{},
+        serialization:{workspaces:{save(){return {};}}}},
+      document:{currentScript:{src:'https://example.invalid/main.js'},
+        getElementById:element,body:{dataset:{}},
+        createElement(){return{setAttribute(){},appendChild(){}};}},
+      window:{dispatchEvent(){},addEventListener(){}},
+      CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
+      WebeeBlocksRuntimeOutcome:Outcome,
+      WebeeBlocksActivityContract:{async execute(profile,workspace,compiler,interpreter,backend,options){
+        executions++;
+        options.onAst({version:1,semantics:'webeeblocks-ast-v1',program:[]});
+        if(scenario!=='preflight')
+          await options.hooks.beforeStep({role:'statement',node:{kind:'takeoff'}});
+        if(scenario.startsWith('manual-stop-')) {
+          await pendingExecution.promise;
+          if(scenario==='manual-stop-failure') {
+            const stopped=new Error('user stopped');stopped.code='USER_STOPPED';throw stopped;
+          }
+        }
+        const err=new Error('out of bounds');err.code='PROGRAM_INVALID';
+        err.studentDetail='La distance calculée dépasse les limites.';
+        throw err;
+      }},
+      WebeeBlocksSemanticAst:{},WebeeBlocksInterpreter:{},
+      WebeeBlocksExecutionObserver:{create(){return null;}},
+      WebeeBlocksActivities:{BLOCK_CATALOG:{}},WebeeBlocksActivityProfiles:{},
+      WebeeBlocksWwiBackend:function(){},URL,setTimeout,clearTimeout,Promise
+    };
+    vm.createContext(context);
+    vm.runInContext(mainSource,context);
+    context.runtimeProfile={runtime:{maxSteps:1000}};
+    context.workspace={};
+    context.runtimeBackend={ready:true,
+      capabilities:{simulationDebug:false,simulationReset:true,simulationStop:true},
+      stopSimulation(){stops++;return pendingStop.promise;},
+      async resetSimulation(){resets++;throw new Error('unexpected native RESET');}};
+    const running=context.runProgram();
+    if (scenario.startsWith('manual-stop-')) {
+      await until(()=>context.runtimeRunning,'manual STOP while running');
+      const stop=context.stopSimulation();
+      await until(()=>stops===1,'manual STOP issued');
+      const overlapping = scenario !== 'manual-stop-failure';
+      const stopFails = scenario !== 'manual-stop-pupil-ok';
+      if (overlapping) {
+        pendingExecution.resolve();
+        await until(()=>context.runtimeOutcomePending,'concurrent pupil failure');
+        await Promise.resolve();
+        assert.strictEqual(stops,1,'pupil failure must not resend pending manual STOP');
+        assert.strictEqual(element('resetSimulation').disabled,true);
+        await context.resetSimulation();
+        assert.strictEqual(resets,0,'RESET must await manual STOP');
+      }
+      if(stopFails) pendingStop.reject(new Error('STOP ACK missing'));
+      else pendingStop.resolve();
+      assert.strictEqual(await stop,!stopFails);
+      if(!overlapping) pendingExecution.resolve();
+      await running;
+      assert.strictEqual(context.runtimeSafetyUnknown,stopFails);
+      assert.strictEqual(context.runtimeTerminal,true);
+      assert.strictEqual(element('resetSimulation').disabled,stopFails);
+      assert.strictEqual(element('runtimeState').textContent,stopFails?'ERREUR':'ARRÊTÉ');
+      if(stopFails) {
+        await context.resetSimulation();
+        await context.runProgram();
+        assert.strictEqual(resets,0,'manual STOP without ACK must fence RESET');
+        assert.strictEqual(executions,1,'manual STOP without ACK must fence TAKEOFF');
+      }
+      assert.strictEqual(stops,1);
+    } else if (scenario==='preflight') {
+      await running;
+      assert.strictEqual(stops,0);
+      assert.strictEqual(context.runtimeTerminal,false);
+      assert.strictEqual(element('submit').disabled,false);
+    } else {
+      await until(()=>stops===1,'STOP on in-flight pupil error');
+      assert.strictEqual(element('resetSimulation').disabled,true);
+      assert.strictEqual(element('submit').disabled,true);
+      await context.resetSimulation();
+      assert.strictEqual(resets,0,'direct RESET while STOP pending');
+      if(scenario==='stop-failure')pendingStop.reject(new Error('STOP ACK missing'));
+      else pendingStop.resolve();
+      await running;
+      assert.strictEqual(context.runtimeTerminal,true);
+      assert.strictEqual(element('submit').disabled,true);
+      assert.strictEqual(element('resetSimulation').disabled,scenario==='stop-failure');
+      assert.strictEqual(element('runtimeState').textContent,
+        scenario==='stop-failure'?'ERREUR':'À CORRIGER');
+      if(scenario==='stop-failure') {
+        await context.resetSimulation();
+        await context.runProgram();
+        assert.strictEqual(resets,0,'direct RESET bypassed unknown STOP interlock');
+        assert.strictEqual(executions,1,'direct launch bypassed unknown STOP interlock');
+        assert.strictEqual(context.runtimeSafetyUnknown,true);
+      }
+    }
+  }
 }
 
 function proveRealWebotsOutcomeFreshness() {
@@ -549,6 +662,7 @@ function proveRealWebotsOutcomeFreshness() {
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
+  await provePupilErrorRequiresNativeStop();
   await require('./test_runtime_outcome_settling.js')();
   await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);

@@ -175,7 +175,7 @@ async function runSaved(content,backend){
      astSha256:crypto.createHash('sha256').update(JSON.stringify(executed)).digest('hex')};
  }finally{ws.dispose();}
 }
-module.exports={build,runSaved,reference};
+module.exports={build,runSaved,reference,school};
 if(require.main===module){
  const args=process.argv.slice(2),revisedGeometry=args.includes('--revised-geometry');
  const files=args.filter(arg=>arg!=='--revised-geometry');

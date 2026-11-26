@@ -11,6 +11,12 @@ GitHub commits, PRs, checks, reviews, issues and evidence describe live executio
 state. Do not duplicate agent/session state, WIP counters, ownership or queues
 here.
 
+## Décision propriétaire du 24 novembre 2026 — géométrie Grand Prix A1–A8
+
+**Autorité :** [#587, dimensions](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7136266975), [descente terminale](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7140991910) et précision propriétaire de centrage ±7 cm. Voir la [matrice en vigueur](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
+
+A3 : côtés 2,50 m jusqu'au centre du damier, dernier H fermé 0,30 m plus loin ; recul des damiers 0,30 m A1–A5 et 0,50 m A6–A8 ; bandes jaunes à ±0,45 m des H ouverts. Après progression attestée, descente basse sur un seul support vert de 28 cm ; seule la cible correcte, avec centre à ±0,07 m par axe, contact réel et stabilité continue, valide la pose. Les anciens reculs, bandes et dimensions de pose dans les décisions ci-dessous sont historiques. Conserver le rayon de sécurité pour les autres contrôles, la physique 8 ms, le délai 210 s, les protections indépendantes, les douze variantes A8 et la qualification exacte V5. Aucun PASS de livraison impliqué.
+
 ## Décision propriétaire A1–A7, 19 novembre 2026 — progression Grand Prix unifiée
 
 **Autorité :** [#587, validation du propriétaire](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309) et [matrice en vigueur](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md). **Supplante** les objectifs pédagogiques A1–A7 et l'ancienne A6 « compter 1–3 H ». **Ne modifie pas** l'activité 8, les garanties physiques, la sécurité ou les gates V5.
