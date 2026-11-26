@@ -27,6 +27,7 @@ LIBRARY_ROOTS = (Path('/lib/x86_64-linux-gnu'), Path('/usr/lib/x86_64-linux-gnu'
                  Path('/usr/local/webots/lib/webots'))
 PATTERN_FILE = Path('/proc/sys/kernel/core_pattern')
 OUT = ROOT / 'ci-artifacts/grand-prix-u'
+DEBUGGER_REF = ROOT / 'tools/ci/core_debugger/image.txt'
 
 
 def write_json(path, value):
@@ -124,12 +125,6 @@ def inventory_native_cores(directory, executable):
     return inventory
 
 
-def package_versions():
-    result = subprocess.run(['dpkg-query', '-W', '-f=${binary:Package}\t${Version}\n'],
-                            check=True, capture_output=True, text=True, timeout=10)
-    return dict(line.split('\t', 1) for line in result.stdout.splitlines())
-
-
 def digest(path):
     result = hashlib.sha256()
     with path.open('rb') as stream:
@@ -139,7 +134,7 @@ def digest(path):
 
 
 def snapshot_inputs(binary, root):
-    """Copy original ELF libraries before apt; never retain escaping symlinks."""
+    """Copy exact subject ELF libraries; never retain escaping symlinks."""
     files = {binary}
     loader = Path('/lib64/ld-linux-x86-64.so.2')
     if loader.is_file():
@@ -170,109 +165,170 @@ def snapshot_inputs(binary, root):
 
 
 def verify_snapshot(root, manifest):
+    if not isinstance(manifest, dict) or not manifest:
+        raise RuntimeError('empty or invalid original sysroot manifest')
     for relative, checksum in manifest.items():
         path = root / relative
-        if path.is_symlink() or not path.is_file() or digest(path) != checksum:
+        if (Path(relative).is_absolute() or '..' in Path(relative).parts or
+                not re.fullmatch(r'[0-9a-f]{64}', checksum) or
+                path.is_symlink() or not path.is_file() or
+                not path.resolve().is_relative_to(root.resolve()) or
+                digest(path) != checksum):
             raise RuntimeError('original debugger sysroot changed: ' + relative)
 
 
-def container_backtrace(core, binary, output):
-    """Runs in a NEW disposable copy of IMAGE, only after the subject exited.
+def export_snapshot(core, binary, root):
+    """Export only ELF inputs from the exact image, with no network or apt."""
+    cid = core.parent / (root.name + '.cid')
+    command = ['docker', 'run', '--rm', '--pull', 'never', '--network', 'none',
+               '--cidfile', str(cid), '--user', f'{os.getuid()}:{os.getgid()}',
+               '-v', f'{ROOT}:/workspace:ro',
+               '-v', f'{core.parent}:{core.parent}:ro',
+               '-v', f'{root}:{root}',
+               '--entrypoint', 'python3', IMAGE,
+               '/workspace/tools/ci/run_grand_prix_u_core_capture.py',
+               '--container-snapshot', str(binary), str(root)]
+    try:
+        subprocess.run(command, check=True, timeout=180)
+    finally:
+        retire_container(cid)
+    return load_snapshot(root)
 
-    GDB dependencies may differ from the subject, but every subject ELF input
-    is copied and hashed BEFORE apt, then verified and selected by --sysroot.
-    The subject container, native binary and its original launch are untouched.
+
+def load_snapshot(root):
+    return json.loads((root / 'manifest.json').read_text())
+
+
+def debugger_identity():
+    """GDB from the pinned, pre-provisioned debugger image."""
+    path = Path('/usr/bin/gdb').resolve(strict=True)
+    if not path.is_file() or not os.access(path, os.X_OK):
+        raise RuntimeError('pre-provisioned GDB unavailable')
+    version = subprocess.run([str(path), '--version'], check=True,
+                             capture_output=True, text=True, timeout=10)
+    if not version.stdout.splitlines():
+        raise RuntimeError('GDB version unavailable')
+    return str(path), dict(path=str(path), sha256=digest(path),
+                           version=version.stdout.splitlines()[0])
+
+
+def debugger_image():
+    ref = DEBUGGER_REF.read_text().strip()
+    if (not re.fullmatch(r'ghcr\.io/djibian/webeeblocks-qt665-r2025a@sha256:[0-9a-f]{64}', ref)
+            or ref == IMAGE):
+        raise RuntimeError('exact distinct debugger image required')
+    return ref
+
+
+def container_backtrace(core, binary, output, sysroot):
+    """Post-mortem only, in a separate pre-provisioned offline debugger container.
+
+    The subject container and its exact image remain unchanged. GDB reads
+    the original ELF snapshot exported from that image, not debugger packages.
+    The core and sysroot are read-only mounts, never uploaded.
     """
-    versions = package_versions()
-    binary_hash = digest(binary)
-    result = dict(image=IMAGE, binary_sha256=binary_hash, raw_core_uploaded=False,
-                  status='UNPROVEN', core_bytes=core.stat().st_size)
-    with tempfile.TemporaryDirectory(prefix='gp-u-sysroot-') as temporary:
-        try:
-            sysroot = Path(temporary)
-            manifest = snapshot_inputs(binary, sysroot)
-            result['sysroot_manifest_sha256'] = hashlib.sha256(
-                json.dumps(manifest, sort_keys=True).encode()).hexdigest()
-            result['sysroot_files'] = len(manifest)
-            write_json(output.with_suffix('.sysroot.json'),
-                       dict(image=IMAGE, sha256=manifest,
-                            claim='original ELF inputs before debugger preparation'))
-            with tempfile.TemporaryFile() as preparation:
-                for command in (['apt-get', 'update'],
-                                ['apt-get', 'install', '-y', '--no-install-recommends',
-                                 '--no-remove', 'gdb']):
-                    subprocess.run(command, stdout=preparation, stderr=subprocess.STDOUT,
-                                   check=True, timeout=90,
-                                   env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
-            after = package_versions()
-            changed = sorted(name for name, version in versions.items()
-                             if after.get(name) != version)
-            result['debugger_changed_packages'] = changed
-            verify_snapshot(sysroot, manifest)
-            result['original_sysroot_verified'] = True
-            # All auto-loaded scripts stay disabled. Only the matching original
-            # libthread_db from the SHA-verified private sysroot may be loaded;
-            # GDB's global "set auto-load off" would otherwise disable it too.
-            # Never print locals, arguments, environment or arbitrary memory.
-            thread_dirs = (str(sysroot / 'lib/x86_64-linux-gnu') + ':' +
-                           str(sysroot / 'usr/lib/x86_64-linux-gnu'))
-            command = ['gdb', '-q', '-nx', '-batch',
-                       '-iex', 'set auto-load off',
-                       '-iex', 'set auto-load safe-path ' + thread_dirs,
-                       '-iex', 'set auto-load libthread-db on',
-                       '-iex', 'set debuginfod enabled off',
-                       '-iex', 'set sysroot ' + str(sysroot),
-                       '-iex', 'set debug-file-directory ' + str(sysroot / 'usr/lib/debug'),
-                       '-iex', 'set libthread-db-search-path ' + thread_dirs,
-                       '-iex', 'set print frame-arguments none',
-                       '-iex', 'set print entry-values no',
-                       '-ex', 'echo WBB_PRIMARY_BEGIN\\n',
-                       '-ex', 'bt 24',
-                       '-ex', 'echo WBB_PRIMARY_END\\n',
-                       '-ex', 'thread apply all bt 24',
-                       '-ex', 'info sharedlibrary', str(sysroot / binary.relative_to('/')), str(core)]
-            with tempfile.TemporaryFile() as text:
-                proc = subprocess.run(command, stdout=text, stderr=subprocess.STDOUT,
-                                      timeout=15, check=False)
-                text.seek(0)
-                payload = text.read(TEXT_LIMIT + 1)
-            output.with_suffix('.txt').write_bytes(payload[:TEXT_LIMIT])
-            incomplete = any(marker in payload for marker in (
-                b'core file may not match', b'is truncated',
-                b'Could not load shared library symbols', b'Cannot access memory',
-                b'Unable to find libthread_db matching inferior',
-                b'thread debugging will not be available'))
-            retained = payload[:TEXT_LIMIT]
-            begin = b'WBB_PRIMARY_BEGIN\n'
-            start = retained.find(begin)
-            end = retained.find(b'WBB_PRIMARY_END\n', start + len(begin)) if start >= 0 else -1
-            primary = retained[start + len(begin):end] if end >= 0 else b''
-            result.update(gdb_returncode=proc.returncode,
-                          text_truncated=len(payload) > TEXT_LIMIT,
-                          stack_incomplete=incomplete,
-                          primary_stack_complete=end >= 0 and b'#0 ' in primary,
-                          status='CAPTURED' if proc.returncode == 0 and
-                          b'#0 ' in primary and not incomplete else 'UNPROVEN')
-        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-            result['reason'] = type(error).__name__ + ': ' + str(error)[:500]
+    result = dict(image=IMAGE, debugger_image=debugger_image(),
+                  raw_core_uploaded=False, status='UNPROVEN',
+                  core_bytes=core.stat().st_size)
+    try:
+        debugger, result['debugger'] = debugger_identity()
+        manifest = load_snapshot(sysroot)
+        result['sysroot_manifest_sha256'] = hashlib.sha256(
+            json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+        result['sysroot_files'] = len(manifest)
+        write_json(output.with_suffix('.sysroot.json'),
+                   dict(image=IMAGE, sha256=manifest,
+                        claim='original ELF inputs exported from exact subject image'))
+        verify_snapshot(sysroot, manifest)
+        relative_binary = str(binary.relative_to('/'))
+        if relative_binary not in manifest:
+            raise RuntimeError('original debugger executable absent from manifest')
+        result['binary_sha256'] = manifest[relative_binary]
+        result['original_sysroot_verified'] = True
+        result['runtime_package_installation'] = False
+        # All auto-loaded scripts stay disabled. Only the matching original
+        # libthread_db from the SHA-verified private sysroot may be loaded;
+        # GDB's global "set auto-load off" would otherwise disable it too.
+        # Never print locals, arguments, environment or arbitrary memory.
+        thread_dirs = (str(sysroot / 'lib/x86_64-linux-gnu') + ':' +
+                       str(sysroot / 'usr/lib/x86_64-linux-gnu'))
+        command = [debugger, '-q', '-nx', '-batch',
+                   '-iex', 'set auto-load off',
+                   '-iex', 'set auto-load safe-path ' + thread_dirs,
+                   '-iex', 'set auto-load libthread-db on',
+                   '-iex', 'set debuginfod enabled off',
+                   '-iex', 'set sysroot ' + str(sysroot),
+                   '-iex', 'set debug-file-directory ' + str(sysroot / 'usr/lib/debug'),
+                   '-iex', 'set libthread-db-search-path ' + thread_dirs,
+                   '-iex', 'set print frame-arguments none',
+                   '-iex', 'set print entry-values no',
+                   '-ex', 'echo WBB_PRIMARY_BEGIN\\n',
+                   '-ex', 'bt 24',
+                   '-ex', 'echo WBB_PRIMARY_END\\n',
+                   '-ex', 'thread apply all bt 24',
+                   '-ex', 'info sharedlibrary', str(sysroot / binary.relative_to('/')), str(core)]
+        with tempfile.TemporaryFile() as text:
+            proc = subprocess.run(command, stdout=text, stderr=subprocess.STDOUT,
+                                  timeout=15, check=False)
+            text.seek(0)
+            payload = text.read(TEXT_LIMIT + 1)
+        output.with_suffix('.txt').write_bytes(payload[:TEXT_LIMIT])
+        # GDB may otherwise fall back to a host libthread_db. Require any
+        # announced helper to belong to the verified original sysroot.
+        helpers = re.findall(rb'Using host libthread_db library "([^"\n]+)"', payload)
+        helper_verified = bool(helpers) and all(
+            os.fsdecode(helper) in {
+                str(sysroot / relative) for relative in manifest
+                if Path(relative).name.startswith('libthread_db.so')
+            } for helper in helpers)
+        result['thread_helper_verified'] = helper_verified
+        incomplete = (bool(helpers) and not helper_verified or
+                      b'[Thread debugging using libthread_db enabled]' in payload and
+                      not helper_verified) or any(marker in payload for marker in (
+            b'core file may not match', b'is truncated',
+            b'Could not load shared library symbols', b'Cannot access memory',
+            b'Unable to find libthread_db matching inferior',
+            b'thread debugging will not be available'))
+        retained = payload[:TEXT_LIMIT]
+        begin = b'WBB_PRIMARY_BEGIN\n'
+        start = retained.find(begin)
+        end = retained.find(b'WBB_PRIMARY_END\n', start + len(begin)) if start >= 0 else -1
+        primary = retained[start + len(begin):end] if end >= 0 else b''
+        result.update(gdb_returncode=proc.returncode,
+                      text_truncated=len(payload) > TEXT_LIMIT,
+                      stack_incomplete=incomplete,
+                      primary_stack_complete=end >= 0 and b'#0 ' in primary,
+                      status='CAPTURED' if proc.returncode == 0 and
+                      b'#0 ' in primary and not incomplete else 'UNPROVEN')
+    except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as error:
+        result['reason'] = type(error).__name__ + ': ' + str(error)[:500]
     write_json(output.with_suffix('.json'), result)
     return 0 if result['status'] == 'CAPTURED' else 1
 
 
 def analyse(core, binary, label):
-    output = OUT / label
-    cid = core.parent / (label + '.cid')
-    command = ['docker', 'run', '--rm', '--cidfile', str(cid),
-               '-v', f'{ROOT}:/workspace:ro',
-               '-v', f'{OUT}:{OUT}', '-v', f'{core.parent}:{core.parent}:ro',
-               '--entrypoint', 'python3', IMAGE,
-               '/workspace/tools/ci/run_grand_prix_u_core_capture.py',
-               '--container-backtrace', str(core), str(binary), str(output)]
-    try:
-        result = subprocess.run(command, timeout=220, check=False)
-        return result.returncode
-    finally:
-        retire_container(cid)
+    # Resolve the distinct pinned debugger before any analysis; no mutable tag.
+    debugger = debugger_image()
+    if label == 'core-capture-preflight':
+        subprocess.run(['docker', 'pull', debugger], check=True, timeout=180)
+    with tempfile.TemporaryDirectory(prefix='gp-u-sysroot-', dir='/tmp') as temporary:
+        root = Path(temporary)
+        export_snapshot(core, binary, root)
+        cid = core.parent / (label + '.cid')
+        command = ['docker', 'run', '--rm', '--pull', 'never', '--network', 'none',
+                   '--cidfile', str(cid),
+                   '-v', f'{ROOT}:/workspace:ro',
+                   '-v', f'{OUT}:{OUT}', '-v', f'{core.parent}:{core.parent}:ro',
+                   '-v', f'{root}:{root}:ro',
+                   '--entrypoint', 'python3', debugger,
+                   '/workspace/tools/ci/run_grand_prix_u_core_capture.py',
+                   '--container-backtrace', str(core), str(binary),
+                   str(OUT / label), str(root)]
+        try:
+            result = subprocess.run(command, timeout=40, check=False)
+            return result.returncode
+        finally:
+            retire_container(cid)
 
 
 def retire_container(cid):
@@ -403,7 +459,7 @@ def host_main():
             directory = Path(tmp)
             subprocess.run(['docker', 'pull', IMAGE], check=True, timeout=180)
             # The preflight uses the same private core route but a separate
-            # container; restore the host before apt/GDB post-mortem work.
+            # container; restore the host before offline GDB post-mortem work.
             with kernel_capture(directory, record):
                 core, binary = preflight(directory)
             if analyse(core, binary, 'core-capture-preflight') != 0:
@@ -424,7 +480,7 @@ def host_main():
                     record['subject_returncode'] = run.returncode
                 finally:
                     retire_container(cid)
-            # All kernel routing is restored before installing debugger packages.
+            # All kernel routing is restored before offline post-mortem analysis.
             # Persist metadata BEFORE cores() rejects empty/oversized files;
             # never let the diagnostic normalize or waive that strict guard.
             record['native_core_inventory'] = inventory_native_cores(directory, 'webots-bin')
@@ -450,7 +506,13 @@ def host_main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--container-backtrace', nargs=3, type=Path)
+    parser.add_argument('--container-snapshot', nargs=2, type=Path)
+    parser.add_argument('--container-backtrace', nargs=4, type=Path)
     args = parser.parse_args()
-    raise SystemExit(container_backtrace(*args.container_backtrace)
-                     if args.container_backtrace else host_main())
+    if args.container_snapshot:
+        binary, root = args.container_snapshot
+        write_json(root / 'manifest.json', snapshot_inputs(binary, root))
+    elif args.container_backtrace:
+        raise SystemExit(container_backtrace(*args.container_backtrace))
+    else:
+        raise SystemExit(host_main())

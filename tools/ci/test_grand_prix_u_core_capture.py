@@ -15,6 +15,11 @@ import tools.ci.run_grand_prix_u_core_capture as capture
 
 
 class CoreCaptureTests(unittest.TestCase):
+    def backtrace(self, core, binary, output):
+        with tempfile.TemporaryDirectory(prefix='gp-u-sysroot-', dir='/tmp') as tmp:
+            with patch.object(capture, 'debugger_image', return_value='pinned-test-image'):
+                return capture.container_backtrace(core, binary, output, Path(tmp))
+
     def test_no_capture_preserves_original_docker_arguments(self):
         self.assertEqual(capture.core_mount(None), [])
         self.assertEqual(capture.core_mount(''), [])
@@ -144,21 +149,17 @@ class CoreCaptureTests(unittest.TestCase):
             path = Path(tmp)
             binary, core, output = path/'binary', path/'core', path/'out'
             binary.write_bytes(b'exact binary'); core.write_bytes(b'fake core')
-            roots = []
             original_snapshot = capture.snapshot_inputs
-            def snapshot(binary, root):
-                roots.append(root)
-                return original_snapshot(binary, root)
-            def run(command, **kwargs):
-                saved = roots[0] / binary.relative_to('/')
-                saved.write_bytes(b'corrupted')
-                return subprocess.CompletedProcess(command, 0)
+            def snapshot(root):
+                manifest = original_snapshot(binary, root)
+                (root / binary.relative_to('/')).write_bytes(b'corrupted')
+                return manifest
             with (patch.object(capture, 'LIBRARY_ROOTS', ()),
-                  patch.object(capture, 'snapshot_inputs', side_effect=snapshot),
-                  patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
-                  patch.object(capture.subprocess, 'run', side_effect=run) as called):
-                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
-            self.assertEqual(called.call_count, 2)  # preparation only; never GDB
+                  patch.object(capture, 'load_snapshot', side_effect=snapshot),
+                  patch.object(capture, 'debugger_identity', return_value=('gdb', {})),
+                  patch.object(capture.subprocess, 'run') as called):
+                self.assertEqual(self.backtrace(core, binary, output), 1)
+            called.assert_not_called()  # corrupt export must never reach GDB
             self.assertFalse(output.with_suffix('.txt').exists())
             self.assertEqual(json.loads(output.with_suffix('.json').read_text())['status'], 'UNPROVEN')
 
@@ -191,12 +192,17 @@ class CoreCaptureTests(unittest.TestCase):
                     self.assertEqual(Path(command[-2]).read_bytes(), b'exact binary')
                     kwargs['stdout'].write(b'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash ()\nWBB_PRIMARY_END\n' + b'x'*70000)
                 else:
-                    binary.write_bytes(b'changed by debugger dependencies')
+                    self.fail('unexpected command: ' + repr(command))
                 return subprocess.CompletedProcess(command, 0)
+            def snapshot(root):
+                manifest = capture.snapshot_inputs(binary, root)
+                binary.write_bytes(b'changed original after export')
+                return manifest
             with (patch.object(capture, 'LIBRARY_ROOTS', ()),
-                  patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
+                  patch.object(capture, 'load_snapshot', side_effect=snapshot),
+                  patch.object(capture, 'debugger_identity', return_value=('gdb', {})),
                   patch.object(capture.subprocess, 'run', side_effect=run)):
-                self.assertEqual(capture.container_backtrace(core, binary, output), 0)
+                self.assertEqual(self.backtrace(core, binary, output), 0)
             self.assertEqual(output.with_suffix('.txt').stat().st_size, capture.TEXT_LIMIT)
             self.assertTrue(json.loads(output.with_suffix('.json').read_text())['text_truncated'])
 
@@ -213,9 +219,11 @@ class CoreCaptureTests(unittest.TestCase):
                         b"'s thread library, thread debugging will not be available\n")
                 return subprocess.CompletedProcess(command, 0)
             with (patch.object(capture, 'LIBRARY_ROOTS', ()),
-                  patch.object(capture, 'package_versions', return_value={}),
+                  patch.object(capture, 'load_snapshot',
+                               side_effect=lambda root: capture.snapshot_inputs(binary, root)),
+                  patch.object(capture, 'debugger_identity', return_value=('gdb', {})),
                   patch.object(capture.subprocess, 'run', side_effect=run)):
-                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
+                self.assertEqual(self.backtrace(core, binary, output), 1)
             result = json.loads(output.with_suffix('.json').read_text())
             self.assertTrue(result['primary_stack_complete'])
             self.assertTrue(result['stack_incomplete'])
@@ -232,12 +240,97 @@ class CoreCaptureTests(unittest.TestCase):
                         b'WBB_PRIMARY_BEGIN\n#0 actual_fault ()\nWBB_PRIMARY_END\n')
                 return subprocess.CompletedProcess(command, 0)
             with (patch.object(capture, 'LIBRARY_ROOTS', ()),
-                  patch.object(capture, 'package_versions', return_value={}),
+                  patch.object(capture, 'load_snapshot',
+                               side_effect=lambda root: capture.snapshot_inputs(binary, root)),
+                  patch.object(capture, 'debugger_identity', return_value=('gdb', {})),
                   patch.object(capture.subprocess, 'run', side_effect=run)):
-                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
+                self.assertEqual(self.backtrace(core, binary, output), 1)
             result = json.loads(output.with_suffix('.json').read_text())
             self.assertEqual(result['status'], 'UNPROVEN')
             self.assertFalse(result['primary_stack_complete'])
+
+    def test_export_runs_offline_in_exact_image_and_retires(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            directory = Path(tmp)
+            core, binary, root = directory/'core', directory/'binary', directory/'sysroot'
+            root.mkdir()
+            manifest = {'binary': 'a'*64}
+            def run(command, **kwargs):
+                self.assertEqual(command[:3], ['docker', 'run', '--rm'])
+                self.assertIn('--network', command)
+                self.assertEqual(command[command.index('--network')+1], 'none')
+                self.assertIn(capture.IMAGE, command)
+                self.assertIn(f'{directory}:{directory}:ro', command)
+                self.assertIn(f'{root}:{root}', command)
+                self.assertEqual(command[-3:], ['--container-snapshot', str(binary), str(root)])
+                self.assertEqual(kwargs['timeout'], 180)
+                capture.write_json(root/'manifest.json', manifest)
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture.subprocess, 'run', side_effect=run) as called,
+                  patch.object(capture, 'retire_container') as retired):
+                self.assertEqual(capture.export_snapshot(core, binary, root), manifest)
+            called.assert_called_once()
+            retired.assert_called_once()
+
+    def test_debugger_image_must_be_distinct_immutable_reference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = Path(tmp)/'image.txt'
+            with patch.object(capture, 'DEBUGGER_REF', ref):
+                for invalid in ('ghcr.io/djibian/webeeblocks-qt665-r2025a:latest',
+                                capture.IMAGE, 'ghcr.io/other/debugger@sha256:'+'a'*64):
+                    ref.write_text(invalid)
+                    with self.assertRaisesRegex(RuntimeError, 'exact distinct'):
+                        capture.debugger_image()
+                value = 'ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:'+'a'*64
+                ref.write_text(value + '\n')
+                self.assertEqual(capture.debugger_image(), value)
+
+    def test_analysis_uses_read_only_original_sysroot_and_offline_debugger(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            directory = Path(tmp)
+            core, binary = directory/'core', directory/'binary'
+            commands = []
+            def run(command, **kwargs):
+                commands.append(command)
+                if command[1] == 'run':
+                    self.assertEqual(command[command.index('--network')+1], 'none')
+                    self.assertEqual(command[command.index('--pull')+1], 'never')
+                    self.assertIn(f'{directory}:{directory}:ro', command)
+                    root = command[-1]
+                    self.assertIn(f'{root}:{root}:ro', command)
+                    self.assertIn('--container-backtrace', command)
+                    self.assertIn('pinned-test-image', command)
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'debugger_image', return_value='pinned-test-image'),
+                  patch.object(capture, 'export_snapshot') as exported,
+                  patch.object(capture, 'retire_container') as retired,
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(capture.analyse(core, binary, 'core-capture-preflight'), 0)
+            self.assertEqual(commands[0], ['docker', 'pull', 'pinned-test-image'])
+            self.assertEqual(len(commands), 2)
+            exported.assert_called_once()
+            retired.assert_called_once()
+
+    def test_runner_helper_fallback_is_not_a_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            binary, core, output = path/'binary', path/'core', path/'out'
+            binary.write_bytes(b'fixture'); core.write_bytes(b'fixture')
+            def run(command, **kwargs):
+                kwargs['stdout'].write(
+                    b'[Thread debugging using libthread_db enabled]\n'
+                    b'Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".\n'
+                    b'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash ()\nWBB_PRIMARY_END\n')
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'LIBRARY_ROOTS', ()),
+                  patch.object(capture, 'load_snapshot',
+                               side_effect=lambda root: capture.snapshot_inputs(binary, root)),
+                  patch.object(capture, 'debugger_identity', return_value=('gdb', {})),
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(self.backtrace(core, binary, output), 1)
+            result = json.loads(output.with_suffix('.json').read_text())
+            self.assertFalse(result['thread_helper_verified'])
+            self.assertTrue(result['stack_incomplete'])
 
     def test_absolute_library_symlink_becomes_verified_original_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
