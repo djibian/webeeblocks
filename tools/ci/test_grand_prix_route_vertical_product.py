@@ -54,7 +54,23 @@ class RouteVerticalProductTests(unittest.TestCase):
         self.assertEqual(flight.count('const double corrected_u = 55.368085898'), 1)
         self.assertNotIn("all_active_vertical_up_governed", flight)
         self.assertEqual(flight.count('GP_CEILING_PREFLIGHT_V1 command='), 2)
-        self.assertEqual(flight.count('pid_velocity_fixed_height_controller(actual,'), 1)
+        # The legacy U retains its single monolithic controller call. The
+        # route pilot now has one cascade, with one call to each PID and mixer.
+        self.assertEqual(unchanged.count('pid_velocity_fixed_height_controller(actual,'), 1)
+        self.assertNotIn('gp_multirate_pid(', unchanged)
+        self.assertNotIn('pid_velocity_fixed_height_controller(actual,', flight)
+        self.assertEqual(flight.count('gp_multirate_pid(&gp_xy,'), 1)
+        calls = (
+            'pid_horizontal_velocity_controller(actual, desired, gains, elapsed);',
+            'pid_fixed_height_controller(actual, desired, gains, dt, &commands);',
+            'pid_attitude_controller(actual, desired, gains, dt, &commands);',
+            'motor_mixing(commands, power);',
+        )
+        for call in calls:
+            self.assertEqual(flight.count(call), 1)
+        positions = [flight.index(call) for call in calls]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn('command == CMD_LAND || command == CMD_TAKEOFF || failsafe_latched, &power);', flight)
         # The TAKEOFF refusal must be truly side-effect-free, not the late
         # experimental refusal after active_id had already been assigned.
         takeoff = flight.split("if (request.kind == REQUEST_TAKEOFF) {", 1)[1].split(
@@ -66,6 +82,20 @@ class RouteVerticalProductTests(unittest.TestCase):
         self.assertLess(vertical.index('code=VERTICAL_LIMIT'),
                         vertical.index("active_id = request.id;"))
         self.assertTrue('CMD_LAND' in flight and 'land_touchdown' in flight)
+        # Inspect the complete generated control ordering, not a hand-written
+        # approximation of the route state machine.
+        early = flight.index('if (gp_land_contact_before_requests && !land_touchdown)')
+        self.assertLess(early, flight.index('if (gp_u_deadline(now, gp_pose_confirmed))'))
+        self.assertLess(early, flight.index('if (request.kind == REQUEST_STOP)'))
+        self.assertIn('if (land_touchdown) {\n      // Latch through loss of contact', flight)
+        self.assertIn('if (active_id >= 1 && now - stable_since >= STOP_WINDOW', flight)
+        self.assertIn('if (command == CMD_LAND && active_id != 2147483646)', flight)
+        self.assertIn('if (active_id >= 1) gp_route_stop_land();', flight)
+        self.assertEqual(flight.count('land_touchdown = 0;'), 3)
+        self.assertIn('land_touchdown = 0; /* Qualified RESET only. */', flight)
+        self.assertIn('land_touchdown = 0; /* New admitted TAKEOFF only. */', flight)
+        self.assertNotIn('gp_route_stop_land(', unchanged)
+        self.assertNotIn('if (land_touchdown) {\n      // Latch through loss of contact', unchanged)
 
     def test_fail_closed_on_changed_source(self):
         with self.assertRaises(RuntimeError):
