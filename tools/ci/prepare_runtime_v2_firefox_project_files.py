@@ -54,6 +54,11 @@ harness = r'''
         return promise;
       };
     }
+    function managerLegacyOpenForbidden() {
+      window.WebeeBlocksProjectManager.open = function() {
+        throw new Error('portable Open invoked legacy scene-changing API');
+      };
+    }
     async function clickAndAwait(button, method, expectError) {
       captured = null;
       click(button);
@@ -71,7 +76,7 @@ harness = r'''
       return result;
     }
     async function expectRejectedOpen(label, stableAst, stableTarget) {
-      const error = await clickAndAwait('projectOpen', 'open', true);
+      const error = await clickAndAwait('projectOpen', 'openIntoCurrentActivity', true);
       if (error && error.name === 'AbortError') throw new Error(label + ' was cancelled instead of rejected');
       if (!same(currentAst(), stableAst)) throw new Error(label + ' replaced current valid AST');
       if (window.WebeeBlocksProjectManager.currentName() !== stableTarget ||
@@ -96,7 +101,9 @@ harness = r'''
             !document.getElementById('projectSave').disabled)
           throw new Error('initial project button state is not Open/SaveAs enabled and Save disabled');
 
-        capture('open');
+        capture('openIntoCurrentActivity');
+        // Open is no longer allowed to route through the scene-changing API.
+        managerLegacyOpenForbidden();
         capture('saveAs');
         capture('save');
         loadXml(__FIXTURE__);
@@ -117,7 +124,7 @@ harness = r'''
           throw new Error('Save As cancellation changed state/target');
         await report('FIREFOX_SAVE_AS_CANCEL_OK', {target:window.WebeeBlocksProjectManager.currentName()});
 
-        const openCancel = await clickAndAwait('projectOpen', 'open', true);
+        const openCancel = await clickAndAwait('projectOpen', 'openIntoCurrentActivity', true);
         if (!openCancel || openCancel.name !== 'AbortError') throw new Error('Open cancellation was not AbortError');
         if (document.getElementById('projectFileState').textContent !== stableState ||
             window.WebeeBlocksProjectManager.currentName() !== 'roundtrip.wbb')
@@ -126,7 +133,7 @@ harness = r'''
 
         firstMove().getInputTargetBlock('DISTANCE').setFieldValue('0.8', 'NUM');
         if (same(currentAst(), initialAst)) throw new Error('fixture edit did not change AST before Open');
-        const opened = await clickAndAwait('projectOpen', 'open', false);
+        const opened = await clickAndAwait('projectOpen', 'openIntoCurrentActivity', false);
         if (opened.name !== 'roundtrip.wbb' || !same(currentAst(), initialAst))
           throw new Error('valid Firefox Open did not restore the saved project');
         await report('FIREFOX_OPEN_OK', {name:opened.name, ast:currentAst()});
