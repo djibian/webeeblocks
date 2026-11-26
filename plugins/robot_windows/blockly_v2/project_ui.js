@@ -317,7 +317,8 @@
   }
 
   function bindProjectButtons() {
-    document.getElementById('activityVariant').addEventListener('click', function() {
+    var variantButton = document.getElementById('activityVariant');
+    if (variantButton) variantButton.addEventListener('click', function() {
       operation('variant', async function() {
         // Teacher-controlled classroom variation, never program/AST metadata.
         // Keep the same .wbb ID, workspace and explicit Save/Save As target.
@@ -361,9 +362,12 @@
     // embedded starter bytes so it never opens the generic OS project picker.
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
-        var result = await manager.open();
+        if (typeof manager.openIntoCurrentActivity !== 'function')
+          throw new Error('Ouverture portable indisponible : vérifier la version du paquet');
+        var result = await manager.openIntoCurrentActivity();
         fileState('Projet : ' + result.name, false);
-        markProjectChanged('Projet ouvert');
+        markProjectChanged(result.sourceActivity && result.sourceActivity !== result.activity ?
+          'Projet d’une autre activité ouvert : vérifiez les blocs avant le vol' : 'Projet ouvert');
       });
     });
 
@@ -414,6 +418,7 @@
         Blockly: Blockly,
         profiles: WebeeBlocksActivityProfiles,
         activitiesDocument: WebeeBlocksActivities.DOCUMENT,
+        portableActivitiesDocument: WebeeBlocksActivities.PROJECT_DOCUMENT,
         blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
         semanticAst: WebeeBlocksSemanticAst,
         activityContract: WebeeBlocksActivityContract,
