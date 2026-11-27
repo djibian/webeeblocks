@@ -55,6 +55,30 @@
     preflightFieldOptions(profile, workspace);
     return types;
   }
+  var BOUND_LABELS = Object.freeze({
+    'takeoff.height_m': 'décoller : hauteur (m)',
+    'move.distance_m': 'déplacement : distance (m)',
+    'move.lateral.distance_m': 'déplacement latéral : distance (m)',
+    'move.forward.distance_m': 'déplacement longitudinal : distance (m)',
+    'vertical.distance_m': 'monter/descendre : distance (m)',
+    'turn.angle_deg_abs': 'tourner : angle (°)',
+    'wait.seconds': 'attendre : durée (s)',
+    'set_speed.speed_m_s': 'vitesse (m/s)',
+    'repeat.count': 'répéter : nombre de répétitions',
+    'while.max_iterations': 'boucle conditionnelle : limite d’itérations'
+  });
+  var FIELD_LABELS = Object.freeze({
+    'math_number.NUM': 'nombre',
+    'webeeblocks_v2_turn.ANGLE': BOUND_LABELS['turn.angle_deg_abs'],
+    'webeeblocks_v2_wait.SECONDS': BOUND_LABELS['wait.seconds'],
+    'webeeblocks_v2_speed.SPEED': BOUND_LABELS['set_speed.speed_m_s'],
+    'controls_whileUntil.MAX_ITERATIONS': BOUND_LABELS['while.max_iterations']
+  });
+  function boundDetail(label, value, min, max, step) {
+    return 'Bloc « ' + label + ' » : valeur ' + value +
+      ' incompatible avec cette activité. Choisissez une valeur de ' + min +
+      ' à ' + max + (step == null ? '.' : ', par pas de ' + step + '.');
+  }
   function visitFieldBounds(profile, workspace, visit) {
     var definitions = profile.parameterBounds || {};
     workspace.getAllBlocks(false).forEach(function(block) {
@@ -78,7 +102,7 @@
           if (Number.isFinite(directional.max)) max = Math.min(max,directional.max);
         }
         if (min > max) fail('invalid movement literal bounds in profile');
-        visit(block.getField('NUM'), min, max, 0.01);
+        visit(block.getField('NUM'), min, max, 0.01, BOUND_LABELS[key]);
         return;
       }
       var fields = definitions[block.type] || {};
@@ -87,7 +111,8 @@
         if (!field || typeof field.setConstraints !== 'function')
           fail('field bound target unavailable: ' + block.type + '.' + fieldName);
         var bounds = fields[fieldName];
-        visit(field, bounds.min, bounds.max, bounds.step);
+        visit(field, bounds.min, bounds.max, bounds.step,
+          FIELD_LABELS[block.type + '.' + fieldName] || 'paramètre numérique');
       });
     });
   }
@@ -103,9 +128,9 @@
     });
   }
   function preflightPortableFieldBounds(profile, workspace) {
-    visitFieldBounds(profile, workspace, function(field, min, max, step) {
+    visitFieldBounds(profile, workspace, function(field, min, max, step, label) {
       if (!fitsFieldBounds(field, min, max, step))
-        studentFail('numeric field outside profile bounds', 'Une valeur du programme dépasse les limites de cette activité. Modifiez-la avant de lancer.');
+        studentFail('numeric field outside profile bounds', boundDetail(label, field.getValue(), min, max, step));
     });
   }
   function collectAst(ast) {
@@ -145,7 +170,11 @@
     if (!Object.prototype.hasOwnProperty.call(bounds, name)) return;
     if (typeof value !== 'number' || !Number.isFinite(value)) fail(name + ' must be finite');
     var constraint = bounds[name];
-    if (value < constraint.min || value > constraint.max) fail(name + ' outside profile bounds: ' + value);
+    if (value < constraint.min || value > constraint.max) {
+      var message = name + ' outside profile bounds: ' + value;
+      if (!Object.prototype.hasOwnProperty.call(BOUND_LABELS, name)) fail(message);
+      studentFail(message, boundDetail(BOUND_LABELS[name], value, constraint.min, constraint.max));
+    }
   }
   function checkMotion(profile,bounds,name,value,direction) {
     if (typeof value === 'object' && value && typeof value.kind === 'string')

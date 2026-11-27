@@ -475,6 +475,16 @@ function proveProgressionProfilesAndFieldOptions() {
   mustRejectStudentValidation(() => SemanticAst.compileStatement({type:'webeeblocks_v2_takeoff',getInputTargetBlock:() => literal(2)}), /décoller.*2.*0\.2 à 1\.5/);
   assert.strictEqual(Outcome.classify(Error('semantic AST: internal failure')).state,'ERREUR');
 
+  // Profile-specific bound (generic AST accepts .6 m/s). Preserve technical
+  // failures for unknown/nonfinite AST data and the exact rejection message.
+  const restricted = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+  mustRejectStudentValidation(() => ActivityContract.preflightAst(restricted, {
+    program:[{kind:'set_speed',speed_m_s:.6}]
+  }), /vitesse.*0\.6.*0\.1 à 0\.35/);
+  assert.throws(() => ActivityContract.preflightAst(restricted, {
+    program:[{kind:'set_speed',speed_m_s:NaN}]
+  }), error => /must be finite/.test(String(error)) && !error.studentDetail);
+
   let compilerCalled = false;
   let interpreterCalled = false;
   let validationError = null;
