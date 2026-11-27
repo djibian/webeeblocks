@@ -291,6 +291,19 @@ async function activityFour() {
     }}});
     await backend.completeActivityMission(evaluation);
     await outcome({status: 'achieved'});
+
+    // D2: preserve the old witness and additionally reproduce the teacher's
+    // exact .80 m / range-.30 / left .50 sequence without reducing speed.
+    for (const speed of ['default', .35]) {
+      await freshAttempt();
+      await backend.takeoff(.80);
+      if (speed !== 'default') await backend.setSpeed(speed);
+      const front = await backend.readRange('front');
+      await backend.move('forward', front - .30);
+      await backend.move('left', .50);
+      await completeLanding();
+      console.log('D2_A4_NORMAL_SPEED_PASS ' + JSON.stringify({variant, speed}));
+    }
   }
 }
 
@@ -617,6 +630,27 @@ async function activitySeven() {
     await require('./grand_prix_a7_student_error')(backend, waitForForcedLanding);
   }
   if (![2, 3, 7].includes(variant)) return;
+  if (variant === 7) {
+    // D2: ordinary teacher prefix at default speed through two backward
+    // commands. No mission PASS is inferred; require independent STOP/LAND.
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+    await backend.takeoff(.80);
+    for (let repeat = 0; repeat < 2; repeat++) {
+      let iterations = 0;
+      let front = await backend.readRange('front');
+      while (front > .21) {
+        assert(iterations++ < 100, 'D2 teacher while bound reached');
+        await backend.move('forward', front - .20);
+        front = await backend.readRange('front');
+      }
+      await backend.move('back', 1);
+    }
+    await backend.stopSimulation();
+    await assert.rejects(backend.move('forward', .20), {code: 'USER_STOPPED'});
+    await waitForForcedLanding(3);
+    console.log('D2_A7_NORMAL_SPEED_PREFIX_PASS');
+  }
   await backend.resetSimulation();
   await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
   await takeoff(.90);
@@ -633,7 +667,7 @@ async function activitySeven() {
     await assert.rejects(backend.move('forward', .60), {code: 'TIME_LIMIT'});
     await outcome({status: 'not-achieved', reason: 'envelope-contact'});
   }
-  await waitForForcedLanding(3);
+  await waitForForcedLanding(variant === 7 ? 4 : 3);
 }
 
 // A8: the ordinary route profile and one saved sensor-only project. The

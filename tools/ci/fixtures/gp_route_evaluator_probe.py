@@ -289,6 +289,11 @@ def witness():
                 encoded = json.dumps(evidence, allow_nan=False, sort_keys=True)
                 output.write_text(encoded + '\n')
                 print('GP_ROUTE_EVALUATOR_NATIVE ' + encoded, flush=True)
+                # Same bounded stdout forwarding step as the invalid-start,
+                # world-switch and flight witnesses. No new admission, motion
+                # or oracle result; retain the host JSON/stdout/exit equality.
+                if robot.step(8) == -1:
+                    raise RuntimeError('native startup stdout grace step interrupted')
                 robot.simulationQuit(0)
 
         publisher.NativeRouteEvaluator = ObserveRealEvaluator

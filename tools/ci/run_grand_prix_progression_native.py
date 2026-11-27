@@ -28,7 +28,7 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     if activity == 4:
         if variant != 1:
             forced_attempts += (4,)
-        last_attempt = 4 + (pupil_project is not None)
+        last_attempt = 4 + (3 if pupil_project is not None else 0)
     if activity == 5:
         if pupil_project is None:
             raise ValueError('A5 needs a saved and reopened .wbb witness')
@@ -41,6 +41,9 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         if variant == 1:
             last_attempt = 6
             forced_attempts += (5, 6)
+        if variant == 7:
+            last_attempt = 6
+            forced_attempts += (6,)
     if activity == 8:
         from tools.grand_prix.route_courses_v2 import reference_course
         course = reference_course(variant - 1)
@@ -180,11 +183,23 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
                 proof[0].get('sha256') != hashlib.sha256(project_copy.read_bytes()).hexdigest() or
                 not re.fullmatch(r'[0-9a-f]{64}', proof[0].get('astSha256', ''))):
             raise RuntimeError(f'{label} missing saved Blockly product execution proof')
+    if activity == 4 and pupil_project is not None:
+        import json
+        prefix = 'D2_A4_NORMAL_SPEED_PASS '
+        proof = [json.loads(line.removeprefix(prefix))
+                 for line in (out / 'wwi.log').read_text().splitlines()
+                 if line.startswith(prefix)]
+        if proof != [{'variant': variant, 'speed': 'default'},
+                     {'variant': variant, 'speed': .35}]:
+            raise RuntimeError('Missing exact A4 teacher normal-speed regression proof')
     if activity == 5 and (out / 'wwi.log').read_text().splitlines().count(
             'D3_A5_NORMAL_SPEED_PASS') != 1:
         raise RuntimeError(f'{label} missing exact A5 normal-speed mission proof')
     if activity == 7:
         import hashlib
+        if variant == 7 and (out / 'wwi.log').read_text().splitlines().count(
+                'D2_A7_NORMAL_SPEED_PREFIX_PASS') != 1:
+            raise RuntimeError('Missing exact A7 teacher normal-speed prefix proof')
         project = out / 'a7-witness.wbb'
         if not project.is_file() or len(project.read_bytes()) < 100:
             raise RuntimeError(f'{label} product .wbb bytes absent')
