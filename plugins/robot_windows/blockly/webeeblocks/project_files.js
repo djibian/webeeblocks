@@ -22,14 +22,42 @@
     error.studentDetail = detail;
     throw error;
   }
+  // Keep the original host exception (including frozen DOM exceptions).
+  // Side metadata lives only as long as that error; no persistent status.
+  var failureNotes = new WeakMap();
+  function noteFailure(error, key, value) {
+    if (!error || (typeof error !== 'object' && typeof error !== 'function')) {
+      var original = error;
+      error = new Error(String(original));
+      error.cause = original;
+    }
+    var notes = failureNotes.get(error) || {};
+    notes[key] = value;
+    failureNotes.set(error, notes);
+    try { error[key] = value; } catch (_) { /* Immutable host exception. */ }
+    return error;
+  }
+  function hasFailureNote(error, key) {
+    var notes = error && failureNotes.get(error);
+    return !!(error && error[key] || notes && notes[key]);
+  }
+  function hasUncertainState(error) {
+    return ['rollbackError','abortError','sceneRestorationError'].some(function(key) {
+      return hasFailureNote(error, key);
+    });
+  }
+  function isCancellation(error) {
+    return !!error && (error.name === 'AbortError' || error.code === 20) &&
+      !hasUncertainState(error) && !hasFailureNote(error, 'writeFailure');
+  }
   function classifyFailure(operation, error) {
     var opening = operation === 'open' || operation === 'activity';
-    var saving = operation === 'save' || operation === 'saveAs';
+    var saving = operation === 'save' || operation === 'save-as' || operation === 'saveAs';
     var prefix = operation === 'variant' ? 'Impossible de changer de parcours' :
       opening ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet';
     var detail;
     // Uncertain rollback or write cleanup is never presented as a safe retry.
-    if (error && (error.rollbackError || error.abortError))
+    if (hasUncertainState(error))
       detail = 'Prévenez votre enseignant avant de poursuivre : l’état du projet doit être vérifié.';
     else if (error && (error.code === 'PROJECT_INVALID' || error.code === 'PROGRAM_INVALID') &&
              typeof error.studentDetail === 'string' && error.studentDetail)
@@ -345,13 +373,11 @@
         await writable.write(text);
         await writable.close();
       } catch (error) {
+        error = noteFailure(error, 'writeFailure', true);
         try { await writable.abort(); }
         catch (abortError) {
-          if (error && typeof error === 'object') {
-            // Diagnostic annotation is best-effort: DOM/host errors may be frozen.
-            try { error.abortError = abortError; }
-            catch (_) { /* Never replace the original write error. */ }
-          }
+          error = noteFailure(error, 'abortError', abortError);
+          console.error('WebeeBlocks project write abort failed', abortError);
         }
         throw error;
       }
@@ -460,7 +486,11 @@
         }
         importedSourceProfile = null;
       } catch (error) {
-        try { restore(before); } catch (rollbackError) { console.error('WebeeBlocks project rollback failed', rollbackError); }
+        try { restore(before); }
+        catch (rollbackError) {
+          error = noteFailure(error, 'rollbackError', rollbackError);
+          console.error('WebeeBlocks project rollback failed', rollbackError);
+        }
         throw error;
       } finally { applying = false; }
     }
@@ -499,7 +529,10 @@
           if (!previousSource)
             options.activityContract.applyFieldBounds(previous.profile, options.workspace);
         }
-        catch (rollbackError) { error.rollbackError = rollbackError; }
+        catch (rollbackError) {
+          error = noteFailure(error, 'rollbackError', rollbackError);
+          console.error('WebeeBlocks portable project rollback failed', rollbackError);
+        }
         throw error;
       } finally { applying = false; }
     }
@@ -513,7 +546,10 @@
         // Restore its scene as well as the profile/workspace restored above.
         if (typeof options.prepareProfile === 'function') {
           try { await options.prepareProfile(previousProfile); }
-          catch (restorationError) { error.sceneRestorationError = restorationError; }
+          catch (restorationError) {
+            error = noteFailure(error, 'sceneRestorationError', restorationError);
+            console.error('WebeeBlocks project scene restoration failed', restorationError);
+          }
         }
         throw error;
       }
@@ -633,6 +669,8 @@
     createStarterText: createStarterText,
     parseProject: parseProject,
     classifyFailure: classifyFailure,
+    isCancellation: isCancellation,
+    hasUncertainState: hasUncertainState,
     validateProjectText: validateProjectText,
     loadWorkspaceWithProfile: loadWorkspaceWithProfile,
     createBrowserTransport: createBrowserTransport,

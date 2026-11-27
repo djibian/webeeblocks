@@ -26,7 +26,10 @@
   }
 
   function isCancellation(error) {
-    return !!error && (error.name === 'AbortError' || error.code === 20);
+    if (typeof WebeeBlocksProjectFiles.isCancellation === 'function')
+      return WebeeBlocksProjectFiles.isCancellation(error);
+    return !!error && (error.name === 'AbortError' || error.code === 20) &&
+      !error.rollbackError && !error.abortError && !error.sceneRestorationError;
   }
 
   function isDecisionPupilProfile(profile) {
