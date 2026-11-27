@@ -290,6 +290,45 @@
     repeatLiteral.setFieldValue('3', 'NUM');
     assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)) === JSON.stringify(expected), 'corrected repeat did not restore AST');
 
+    // Real Blockly: remove a comparison operand, then place LAND inside the repeat.
+    // Each workspace must fail before any scene preparation, action or sensor read.
+    async function checkPupilStructure(change, pattern) {
+      var invalid = new Blockly.Workspace();
+      Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram'), invalid);
+      try {
+        change(invalid);
+        trace=[]; rangeReadCount=0;
+        var b=backendFor(Object.assign({},capabilities,{simulationScenes:true}));
+        b.prepareActivity=async function(){trace.push(['prepare']);};
+        var error=null;
+        try { await WebeeBlocksActivityContract.execute(profile,invalid,WebeeBlocksSemanticAst,WebeeBlocksInterpreter,b); }
+        catch(caught){error=caught;}
+        assert(error && error.code==='PROGRAM_INVALID','pupil structure was not classified as correctable');
+        var outcome=WebeeBlocksRuntimeOutcome.classify(error);
+        assert(outcome.state==='À CORRIGER' && pattern.test(outcome.detail),'missing pupil guidance: '+outcome.detail);
+        assert(trace.length===0 && rangeReadCount===0,'invalid pupil structure reached backend');
+      } finally { invalid.dispose(); }
+    }
+    await checkPupilStructure(function(w){
+      var compare=w.getAllBlocks(false).find(function(b){return b.type==='logic_compare';});
+      compare.getInputTargetBlock('B').dispose(false);
+    },/deux entrées/);
+    await checkPupilStructure(function(w){
+      var repeat=w.getAllBlocks(false).find(function(b){return b.type==='controls_repeat_ext';});
+      repeat.getInputTargetBlock('DO').dispose(false);
+      repeat.getInput('DO').connection.connect(w.newBlock('webeeblocks_v2_land').previousConnection);
+    },/hors des boucles/);
+    await checkPupilStructure(function(w){
+      var repeat=w.getAllBlocks(false).find(function(b){return b.type==='controls_repeat_ext';});
+      var tail=repeat.getNextBlock();
+      repeat.nextConnection.disconnect();
+      var extra=w.newBlock('webeeblocks_v2_takeoff');
+      var height=w.newBlock('math_number'); height.setFieldValue('0.5','NUM');
+      extra.getInput('HEIGHT').connection.connect(height.outputConnection);
+      repeat.nextConnection.connect(extra.previousConnection);
+      extra.nextConnection.connect(tail.previousConnection);
+    },/un seul bloc « décoller »/);
+
     // Repeat count bypassing Blockly UI constraints must be rejected before any action.
     var repeatOutOfBoundsCompiler = {
       compileWorkspace: function(ws) {

@@ -641,8 +641,8 @@ async function runProgram() {
       if (runtimeStopCompletion) await runtimeStopCompletion;
       return;
     }
-    if (retryable && takeoffRequested) {
-      // Student arithmetic may fail in flight. Never retry or RESET before STOP ACK.
+    if (WebeeBlocksRuntimeOutcome.requiresSafeStop(error) && takeoffRequested) {
+      // Student arithmetic or the execution budget may fail in flight. Never retry or RESET before STOP ACK.
       try {
         if (!runtimeBackend || !runtimeBackend.capabilities ||
             runtimeBackend.capabilities.simulationStop !== true ||

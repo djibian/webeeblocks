@@ -32,7 +32,15 @@
     if(!block||typeof block.getInputTargetBlock!=='function')
       fail('block does not expose value input '+inputName);
     var child=block.getInputTargetBlock(inputName);
-    if(!child)fail('missing value input '+inputName);
+    if(!child){
+      var detail=inputName==='HEIGHT'?'Indiquez la hauteur du décollage.':
+        inputName==='DISTANCE'?'Indiquez la distance du déplacement.':
+        inputName==='BOOL'||/^IF\d+$/.test(inputName)?'Ajoutez une condition au bloc de contrôle.':
+        inputName==='A'||inputName==='B'?'Complétez les deux entrées du calcul ou de la comparaison.':
+        inputName==='VALUE'||inputName==='DELTA'?'Indiquez la valeur à affecter ou à ajouter à la variable.':
+        'Complétez la valeur manquante dans le bloc.';
+      studentFail('missing value input '+inputName,detail);
+    }
     return compileExpression(child);
   }
   function motionArgument(block,name,limits){
@@ -103,7 +111,7 @@
     switch(block.type){
       case 'webeeblocks_takeoff':return{kind:'takeoff',height_m:1.0};
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
-      case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)fail('turn angle must be non-zero');return{kind:'turn',angle_deg:legacyAngle};}
+      case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)studentFail('turn angle must be non-zero','Bloc « tourner » : choisissez un angle différent de zéro.');return{kind:'turn',angle_deg:legacyAngle};}
       case 'webeeblocks_land':return{kind:'land'};
       case 'webeeblocks_v2_land':return{kind:'land'};
       case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:motionArgument(block,'HEIGHT',LIMITS.height_m)};
@@ -162,12 +170,12 @@
   }
 
   function compileSequence(first,procedures){
-    if(procedures&&++procedures.depth>20)fail('procedure expansion nesting too deep');
+    if(procedures&&++procedures.depth>20)studentFail('procedure expansion nesting too deep','Le programme contient trop de blocs imbriqués. Simplifiez les boucles, conditions ou appels de procédures.');
     try{
       var result=[],block=first,guard=0;
       while(block){
-        guard+=1;if(guard>200)fail('program too large');
-        if(procedures&&++procedures.nodes>2000)fail('procedure expansion too large');
+        guard+=1;if(guard>200)studentFail('program too large','Une suite contient plus de 200 blocs. Utilisez une boucle ou simplifiez le programme.');
+        if(procedures&&++procedures.nodes>2000)studentFail('procedure expansion too large','Le programme est trop volumineux une fois les procédures développées. Réduisez les appels ou simplifiez les procédures.');
         result.push(compileStatement(block,procedures));
         block=typeof block.getNextBlock==='function'?block.getNextBlock():null;
       }
@@ -178,7 +186,7 @@
   function rejectNestedFlightBoundaries(sequence){
     (sequence||[]).forEach(function(statement){
       if(statement.kind==='takeoff'||statement.kind==='land')
-        fail('takeoff and land are only allowed at top-level boundaries');
+        studentFail('takeoff and land are only allowed at top-level boundaries','Placez « décoller » au début et « atterrir » à la fin du programme principal, hors des boucles, conditions et procédures.');
       if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')
         rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){
@@ -193,8 +201,8 @@
       studentFail('program must start with takeoff and end with land','Après les initialisations, le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
-      if(statement.kind==='takeoff'&&i!==takeoffIndex)fail('takeoff is only allowed after initial assignments');
-      if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
+      if(statement.kind==='takeoff'&&i!==takeoffIndex)studentFail('takeoff is only allowed after initial assignments','Utilisez un seul bloc « décoller », au début du programme après les initialisations.');
+      if(statement.kind==='land'&&i!==program.length-1)studentFail('land is only allowed as the final top-level statement','Utilisez un seul bloc « atterrir », à la fin du programme principal.');
       if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}
     }
