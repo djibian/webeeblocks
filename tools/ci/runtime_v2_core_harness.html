@@ -324,7 +324,13 @@
     await checkPupilStructure(function(w){
       var compare=w.getAllBlocks(false).find(function(b){return b.type==='logic_compare';});
       compare.getInputTargetBlock('B').dispose(false);
+      // In Blockly 13.2.1, input B also owns the OP dropdown. Preserve
+      // the operator so the compiler reaches the missing-socket check.
+      var operator=compare.getFieldValue('OP');
       compare.removeInput('B');
+      if(compare.getFieldValue('OP')===null)
+        compare.appendDummyInput().appendField(new Blockly.FieldLabelSerializable(operator),'OP');
+      assert(compare.getFieldValue('OP')===operator,'schema counterexample lost its comparison operator');
       assert(!compare.getInput('B'),'schema counterexample not established');
     },/invalid Blockly value socket logic_compare\.B/,true);
     await checkPupilStructure(function(w){
