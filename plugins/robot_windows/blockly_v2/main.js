@@ -642,7 +642,7 @@ async function runProgram() {
       return;
     }
     if (WebeeBlocksRuntimeOutcome.requiresSafeStop(error) && takeoffRequested) {
-      // Student arithmetic or the execution budget may fail in flight. Never retry or RESET before STOP ACK.
+      // Student arithmetic or an execution limit may fail in flight. Never retry or RESET before STOP ACK.
       try {
         if (!runtimeBackend || !runtimeBackend.capabilities ||
             runtimeBackend.capabilities.simulationStop !== true ||
