@@ -1,4 +1,4 @@
-"""Host C test of the actual G1 scheduler and shared PID; not native flight."""
+"""Host C test of the actual synchronous route cascade; not native flight."""
 import pathlib
 import subprocess
 import tempfile
@@ -17,51 +17,49 @@ class MultirateTests(unittest.TestCase):
 #include <string.h>
 #include "pid_controller.h"
 ''' + CASCADE + r'''
-extern double pastVxError;
-extern double altitudeIntegrator;
-static void near(double a, double b) { assert(fabs(a-b) < 1e-6); }
-int main(void) {
+/* Compare the composed function with the real shared PID on every tick,
+ * including a perpendicular transition, reversal, variable dt and reset.
+ * No held command or skipped derivative update is admissible. */
+static void near(double a, double b) { assert(fabs(a-b) < 1e-9); }
+static void trace(int use_route, motor_power_t *powers, double (*rp)[2]) {
   gp_multirate_t s = {0};
-  actual_state_t a = {0};
-  desired_state_t d = {0};
   gains_pid_t g = {0};
-  motor_power_t p = {0}, expected = {0};
   g.kp_vel_xy = 2; g.kd_vel_xy = .5;
   g.kp_z = 10; g.ki_z = 5; g.kd_z = 5;
   g.kp_att_rp = .5; g.kd_att_rp = .1; g.kp_att_y = 1;
-  d.vx = .1; d.altitude = .1;
   init_pid_attitude_fixed_height_controller();
-  desired_state_t reference = d;
-  pid_velocity_fixed_height_controller(a, &reference, g, .008, &expected);
-  init_pid_attitude_fixed_height_controller();
-  gp_multirate_pid(&s,a,&d,g,1.008,.008,2,1,1.,0,&p);
-  assert(p.m1==expected.m1 && p.m2==expected.m2);
-  assert(p.m3==expected.m3 && p.m4==expected.m4);
-  assert(s.ticks==1 && s.updates==1); near(d.pitch,6.45);
-  d.vx=.2; d.pitch=0; d.roll=0;
-  gp_multirate_pid(&s,a,&d,g,1.016,.008,2,1,1.,0,&p);
-  assert(s.ticks==2 && s.updates==1); near(d.pitch,6.45);
-  near(pastVxError,.1); near(altitudeIntegrator,.0016);
-  d.vx=.3;
-  gp_multirate_pid(&s,a,&d,g,1.024,.008,2,1,1.,0,&p);
-  assert(s.updates==2); near(d.pitch,6.85);
-  d.vx=.31;
-  gp_multirate_pid(&s,a,&d,g,1.032,.008,2,2,1.032,0,&p);
-  assert(s.updates==3); near(d.pitch,1.245);
-  d.vx=.32;
-  gp_multirate_pid(&s,a,&d,g,1.040,.008,6,3,1.040,1,&p);
-  assert(s.updates==4); near(d.pitch,1.265);
-  d.vx=.33;
-  gp_multirate_pid(&s,a,&d,g,1.048,.008,6,3,1.040,1,&p);
-  assert(s.updates==5); near(d.pitch,1.285);
-  // An inactive gap must never supply a giant derivative interval or a held target.
-  d.vx=.34;
-  gp_multirate_pid(&s,a,&d,g,2.000,.008,2,3,1.040,0,&p);
-  assert(s.updates==6); near(d.pitch,1.305);
-  memset(&s,0,sizeof(s)); init_pid_attitude_fixed_height_controller();
-  d.vx=0; d.pitch=123;
-  gp_multirate_pid(&s,a,&d,g,3.008,.008,2,1,3.,0,&p);
-  assert(s.updates==1 && s.ticks==1); near(d.pitch,0);
+  for (int tick=0; tick<128; ++tick) {
+    if (tick==64) {
+      memset(&s,0,sizeof(s));
+      init_pid_attitude_fixed_height_controller();
+    }
+    actual_state_t a = {0};
+    desired_state_t d = {0};
+    a.vx = .20*sin(tick*.11); a.vy = .19*cos(tick*.13);
+    a.roll = .05*sin(tick*.20); a.pitch = .04*cos(tick*.23);
+    a.altitude = .80+.003*sin(tick*.10); d.altitude = .80;
+    d.vx = tick<32?.35:tick<64?0:tick<96?-.35:0;
+    d.vy = tick<32?0:tick<64?.35:tick<96?0:-.35;
+    const double dt = tick==96?.016:.008;
+    if (use_route) {
+      gp_multirate_pid(&s,a,&d,g,dt,&powers[tick]);
+      assert(s.ticks == (unsigned long long)(tick%64+1));
+      assert(s.ticks == s.updates);
+    } else {
+      pid_velocity_fixed_height_controller(a,&d,g,dt,&powers[tick]);
+    }
+    rp[tick][0]=d.roll; rp[tick][1]=d.pitch;
+  }
+}
+int main(void) {
+  motor_power_t reference[128], route[128];
+  double ref_rp[128][2], route_rp[128][2];
+  trace(0,reference,ref_rp); trace(1,route,route_rp);
+  for (int i=0;i<128;i++) {
+    near(reference[i].m1,route[i].m1); near(reference[i].m2,route[i].m2);
+    near(reference[i].m3,route[i].m3); near(reference[i].m4,route[i].m4);
+    near(ref_rp[i][0],route_rp[i][0]); near(ref_rp[i][1],route_rp[i][1]);
+  }
   return 0;
 }
 '''
