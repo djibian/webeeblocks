@@ -534,7 +534,7 @@ async function provePortableUiNeverFallsBack() {
 }
 
 async function proveSaveAsUiDiagnostics() {
-  for(const scenario of ['quota','target','unknown','abort-uncertain','picker-cancel']){
+  for(const scenario of ['quota','target','unknown','abort-uncertain','abort-empty','picker-cancel']){
     const listeners={},elements={},diagnostics=[];
     const live=buildWorkspace(.2),ref={value:activityProfile('reactive-obstacle-v2')};
     const cancelled=Object.freeze(Object.assign(Error('cancelled'),{name:'AbortError'}));
@@ -543,11 +543,12 @@ async function proveSaveAsUiDiagnostics() {
       async write(){write++;
         if(scenario==='quota')throw Object.assign(Error('quota'),{name:'QuotaExceededError'});
         if(scenario==='target')throw Object.assign(Error('target'),{name:'ProjectFileBrokerError',code:'TARGET_UNAVAILABLE'});
-        if(scenario==='abort-uncertain')throw cancelled;
+        if(scenario==='abort-uncertain'||scenario==='abort-empty')throw cancelled;
         throw Error('unknown host failure');
       },
       async close(){close++;},
-      async abort(){abort++;if(scenario==='abort-uncertain')throw Error('abort failed');}
+      async abort(){abort++;if(scenario==='abort-uncertain')throw Error('abort failed');
+        if(scenario==='abort-empty')throw null;}
     };}};
     const transport=ProjectFiles.createBrowserTransport({
       async showOpenFilePicker(){return [handle];},
@@ -586,7 +587,7 @@ async function proveSaveAsUiDiagnostics() {
         assert.strictEqual(elements.projectFileState.dataset.error,'true');
         const expected={quota:/stockage est insuffisant/,target:/Enregistrer sous/,
           unknown:/accès au dossier et l’espace disponible/,
-          'abort-uncertain':/avant de poursuivre/}[scenario];
+          'abort-uncertain':/avant de poursuivre/,'abort-empty':/avant de poursuivre/}[scenario];
         assert.match(elements.projectFileState.textContent,expected);
         assert(diagnostics.some(e=>e.type==='webeeblocks-project-file-diagnostic'&&e.detail.operation==='save-as'));
       }

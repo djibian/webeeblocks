@@ -39,7 +39,7 @@
   }
   function hasFailureNote(error, key) {
     var notes = error && failureNotes.get(error);
-    return !!(error && error[key] || notes && notes[key]);
+    return !!(error && error[key] || notes && Object.prototype.hasOwnProperty.call(notes, key));
   }
   function hasUncertainState(error) {
     return ['rollbackError','abortError','sceneRestorationError'].some(function(key) {
