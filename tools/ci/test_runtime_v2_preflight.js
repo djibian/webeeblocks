@@ -403,7 +403,7 @@ function proveProgressionProfilesAndFieldOptions() {
   };
   mustRejectStudentValidation(
     () => ActivityContract.preflightWorkspace(p1, forbiddenWorkspace),
-    /option de ce programme/
+    /Bloc « déplacement » : l’option « aller à droite » n’est pas disponible dans cette activité\. Choisissez : avancer \/ aller à gauche\./
   );
   assert.throws(
     () => ActivityContract.preflightAst(p1, {program:[{kind:'move',direction:'right',distance_m:0.5}]}),

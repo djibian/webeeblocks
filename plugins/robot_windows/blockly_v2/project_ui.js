@@ -26,7 +26,10 @@
   }
 
   function isCancellation(error) {
-    return !!error && (error.name === 'AbortError' || error.code === 20);
+    if (typeof WebeeBlocksProjectFiles.isCancellation === 'function')
+      return WebeeBlocksProjectFiles.isCancellation(error);
+    return !!error && (error.name === 'AbortError' || error.code === 20) &&
+      !error.rollbackError && !error.abortError && !error.sceneRestorationError;
   }
 
   function isDecisionPupilProfile(profile) {
@@ -110,8 +113,12 @@
     catch (error) {
       if (!isCancellation(error)) {
         diagnostic(name, error);
-        fileState(name === 'variant' ? 'Impossible de changer de parcours' :
-          ((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet'), true);
+        var detail = typeof WebeeBlocksProjectFiles.classifyFailure === 'function' ?
+          WebeeBlocksProjectFiles.classifyFailure(name, error) :
+          (name === 'variant' ? 'Impossible de changer de parcours' :
+            ((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet')) +
+            ' — Prévenez votre enseignant si le problème persiste.';
+        fileState(detail, true);
       }
       return null;
     } finally {
