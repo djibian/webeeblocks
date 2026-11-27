@@ -307,7 +307,9 @@ async function activityFive() {
     const front = await backend.readRange('front');
     // These intervals are based on rays from the fixed start. Course
     // identity and turn direction are never supplied to the witness.
-    await backend.move('forward', front < 1.38 ? 1 : front < 1.78 ? 1.4 : 1.8);
+    // Every initial face must lie strictly inside the real 2 m range.
+    assert(front > .6 && front < 1.85, 'A5 initial L face outside usable range');
+    await backend.move('forward', front < .98 ? .60 : front < 1.38 ? 1 : 1.4);
     const right = await backend.readRange('right');
     const left = await backend.readRange('left');
     assert((right < .45) !== (left < .45), 'Exactly one side must see the corner');
