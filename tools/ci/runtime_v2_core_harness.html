@@ -13,6 +13,7 @@
 <script src="../../plugins/robot_windows/blockly/webeeblocks/interpreter.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/execution_observer.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/activity_contract.js"></script>
+<script src="../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js"></script>
 </head>
 <body>
 <xml id="toolbox" style="display:none">
@@ -270,6 +271,24 @@
     );
     assert(trace.length === 0, 'unsupported AST rejection executed backend action');
     assert(rangeReadCount === 0, 'unsupported AST rejection read a sensor');
+
+    // #1114 D4: the real Blockly literal must produce a student error, before any effect.
+    var repeatBlock = workspace.getAllBlocks(false).find(function(block) { return block.type === 'controls_repeat_ext'; });
+    var repeatLiteral = repeatBlock.getInputTargetBlock('TIMES');
+    repeatLiteral.setFieldValue('30', 'NUM');
+    assert(Number(repeatLiteral.getFieldValue('NUM')) === 30, 'repeat diagnostic fixture was clamped');
+    trace = [];
+    rangeReadCount = 0;
+    var repeatError = null;
+    try {
+      await WebeeBlocksActivityContract.execute(profile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(capabilities));
+    } catch (error) { repeatError = error; }
+    assert(repeatError && repeatError.code === 'PROGRAM_INVALID', 'invalid repeat was not a student error');
+    var repeatOutcome = WebeeBlocksRuntimeOutcome.classify(repeatError);
+    assert(repeatOutcome.state === 'À CORRIGER' && /répéter.*30.*1 à 20/.test(repeatOutcome.detail), 'repeat outcome lacks pedagogical context');
+    assert(trace.length === 0 && rangeReadCount === 0, 'invalid repeat reached backend');
+    repeatLiteral.setFieldValue('3', 'NUM');
+    assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)) === JSON.stringify(expected), 'corrected repeat did not restore AST');
 
     // Repeat count bypassing Blockly UI constraints must be rejected before any action.
     var repeatOutOfBoundsCompiler = {
