@@ -29,7 +29,7 @@ _VARIANTS = {
                       required_pad=3 if turn == 'G' else 2,
                       pad_distance_from_h=.30)
              for length, turn in ((1., 'G'), (1., 'D'), (1.4, 'G'),
-                                  (1.4, 'D'), (1.8, 'G'))),
+                                  (1.4, 'D'), (.60, 'G'))),
     6: (
         # Owner-approved 2026-11-20: the initial frontal face alone must not
         # identify an open versus closed H. V2/V4 and V3/V5 share first faces.

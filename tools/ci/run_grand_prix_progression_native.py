@@ -32,8 +32,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     if activity == 5:
         if pupil_project is None:
             raise ValueError('A5 needs a saved and reopened .wbb witness')
-        forced_attempts += (5,)
-        last_attempt = 5
+        forced_attempts += (6,)
+        last_attempt = 6
     if activity == 7:
         last_attempt = 5 if variant in (2, 3, 7) else 4
         if last_attempt == 5:
@@ -192,6 +192,9 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         if proof != [{'variant': variant, 'speed': 'default'},
                      {'variant': variant, 'speed': .35}]:
             raise RuntimeError('Missing exact A4 teacher normal-speed regression proof')
+    if activity == 5 and (out / 'wwi.log').read_text().splitlines().count(
+            'D3_A5_NORMAL_SPEED_PASS') != 1:
+        raise RuntimeError(f'{label} missing exact A5 normal-speed mission proof')
     if activity == 7:
         import hashlib
         if variant == 7 and (out / 'wwi.log').read_text().splitlines().count(
