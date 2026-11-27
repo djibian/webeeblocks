@@ -69,8 +69,8 @@ function buildWorkspace(workspace) {
   sequence(
     block('webeeblocks_v2_takeoff', {}, {HEIGHT: number(.9)}),
     block('webeeblocks_v2_speed', {SPEED: .2}),
-    either(less(range('front'), 1.38), move('forward', 1),
-      either(less(range('front'), 1.78), move('forward', 1.4), move('forward', 1.8))),
+    either(less(range('front'), .98), move('forward', .60),
+      either(less(range('front'), 1.38), move('forward', 1), move('forward', 1.4))),
     either(less(range('right'), .45),
       sequence(remember(1), turn('left')), sequence(remember(0), turn('right'))),
     move('forward', 1.85),

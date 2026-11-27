@@ -225,6 +225,20 @@ class VariableRouteTests(unittest.TestCase):
         self.assertEqual(len({course.identifier for course in courses}), 5)
         self.assertEqual({course.route.turns for course in courses},
                          {('G',), ('D',)})
+        self.assertEqual([course.route.lengths[0] for course in courses],
+                         [1., 1., 1.4, 1.4, .60])
+        # The fifth track is shorter, but its terminal leg is unchanged so
+        # the late rear scan still cannot reveal the turn. Pure geometry,
+        # not a substitute for real R2025a measurements.
+        for course in courses:
+            faces = [box.position[0] - box.size[0] / 2
+                     for box in course_physical_boxes(course)
+                     if box.position[1] - box.size[1] / 2 <= 0 <=
+                        box.position[1] + box.size[1] / 2
+                     and box.position[0] + box.size[0] / 2 > 0]
+            self.assertTrue(faces)
+            self.assertAlmostEqual(min(faces), course.route.lengths[0] + .28)
+            self.assertLess(min(faces), 1.85)
         for length in (1., 1.4):
             pair = [course for course in courses
                     if course.route.lengths[0] == length]
