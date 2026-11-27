@@ -16,13 +16,75 @@
   var ACTIVITY_KEYS = ['id', 'semantics'];
 
   function fail(message) { throw new Error('project file: ' + message); }
+  function projectFail(message, detail) {
+    var error = new Error('project file: ' + message);
+    error.code = 'PROJECT_INVALID';
+    error.studentDetail = detail;
+    throw error;
+  }
+  // Keep the original host exception (including frozen DOM exceptions).
+  // Side metadata lives only as long as that error; no persistent status.
+  var failureNotes = new WeakMap();
+  function noteFailure(error, key, value) {
+    if (!error || (typeof error !== 'object' && typeof error !== 'function')) {
+      var original = error;
+      error = new Error(String(original));
+      error.cause = original;
+    }
+    var notes = failureNotes.get(error) || {};
+    notes[key] = value;
+    failureNotes.set(error, notes);
+    try { error[key] = value; } catch (_) { /* Immutable host exception. */ }
+    return error;
+  }
+  function hasFailureNote(error, key) {
+    var notes = error && failureNotes.get(error);
+    return !!(error && error[key] || notes && Object.prototype.hasOwnProperty.call(notes, key));
+  }
+  function hasUncertainState(error) {
+    return ['rollbackError','abortError','sceneRestorationError'].some(function(key) {
+      return hasFailureNote(error, key);
+    });
+  }
+  function isCancellation(error) {
+    return !!error && (error.name === 'AbortError' || error.code === 20) &&
+      !hasUncertainState(error) && !hasFailureNote(error, 'writeFailure');
+  }
+  function classifyFailure(operation, error) {
+    var opening = operation === 'open' || operation === 'activity';
+    var saving = operation === 'save' || operation === 'save-as' || operation === 'saveAs';
+    var prefix = operation === 'variant' ? 'Impossible de changer de parcours' :
+      opening ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet';
+    var detail;
+    // Uncertain rollback or write cleanup is never presented as a safe retry.
+    if (hasUncertainState(error))
+      detail = 'Prévenez votre enseignant avant de poursuivre : l’état du projet doit être vérifié.';
+    else if (error && (error.code === 'PROJECT_INVALID' || error.code === 'PROGRAM_INVALID') &&
+             typeof error.studentDetail === 'string' && error.studentDetail)
+      detail = error.studentDetail;
+    else if (error && error.name === 'ProjectFileBrokerError' && error.code === 'BUSY')
+      detail = 'Attendez la fin de l’opération en cours.';
+    else if (saving && error && error.name === 'ProjectFileBrokerError' && error.code === 'TARGET_UNAVAILABLE')
+      detail = 'Utilisez « Enregistrer sous » pour choisir un nouveau fichier.';
+    else if (error && error.name === 'NotAllowedError')
+      detail = 'Vérifiez que vous avez autorisé l’accès au fichier ou au dossier.';
+    else if (error && error.name === 'NotFoundError')
+      detail = 'Vérifiez que le fichier ou le dossier est toujours accessible.';
+    else if (saving && error && error.name === 'QuotaExceededError')
+      detail = 'L’espace de stockage est insuffisant. Choisissez un autre dossier.';
+    else if (saving)
+      detail = 'Vérifiez l’accès au dossier et l’espace disponible. Si le problème persiste, prévenez votre enseignant.';
+    else
+      detail = 'Vérifiez le fichier ou la connexion à la simulation. Si le problème persiste, prévenez votre enseignant.';
+    return prefix + ' — ' + detail;
+  }
   function isObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
   function sameJson(left, right) { return JSON.stringify(left) === JSON.stringify(right); }
   function sortedKeys(value) { return Object.keys(value).sort(); }
   function requireExactKeys(value, expected, path) {
     var actual = sortedKeys(value);
     var wanted = expected.slice().sort();
-    if (!sameJson(actual, wanted)) fail(path + ' has unsupported fields: ' + actual.join(', '));
+    if (!sameJson(actual, wanted)) projectFail(path + ' has unsupported fields: ' + actual.join(', '), 'Ce fichier ne possède pas la structure attendue d’un projet WebeeBlocks. Choisissez un fichier .wbb valide.');
   }
   function requireString(value, path) {
     if (typeof value !== 'string' || !value.trim()) fail(path + ' must be a non-empty string');
@@ -59,7 +121,7 @@
         var value = Number(field.getValue());
         var bounds = fields[fieldName];
         if (!Number.isFinite(value) || value < bounds.min || value > bounds.max)
-          fail('workspace field outside profile bounds: ' + block.type + '.' + fieldName);
+          projectFail('workspace field outside profile bounds: ' + block.type + '.' + fieldName, 'Une valeur du programme dépasse les limites de son activité. Corrigez-la avant d’enregistrer ou choisissez un projet compatible.');
       });
     });
   }
@@ -112,16 +174,17 @@
   function parseProject(text) {
     var value;
     try { value = JSON.parse(String(text)); }
-    catch (error) { fail('invalid JSON'); }
-    if (!isObject(value)) fail('root must be an object');
+    catch (error) { projectFail('invalid JSON', 'Le fichier est illisible ou incomplet. Choisissez un fichier .wbb enregistré avec WebeeBlocks.'); }
+    if (!isObject(value)) projectFail('root must be an object', 'Ce fichier n’est pas un projet WebeeBlocks. Choisissez un fichier .wbb.');
     requireExactKeys(value, ROOT_KEYS, 'root');
-    if (value.format !== FORMAT) fail('unsupported format');
-    if (value.version !== VERSION) fail('unsupported version: ' + String(value.version));
-    if (!isObject(value.activity)) fail('activity must be an object');
+    if (value.format !== FORMAT) projectFail('unsupported format', 'Ce fichier n’est pas un projet WebeeBlocks reconnu. Choisissez un fichier .wbb.');
+    if (value.version !== VERSION) projectFail('unsupported version: ' + String(value.version), 'Ce projet utilise une version non prise en charge. Demandez à votre enseignant la version de WebeeBlocks adaptée.');
+    if (!isObject(value.activity)) projectFail('activity must be an object', 'L’activité du projet est manquante ou invalide. Choisissez un fichier .wbb valide.');
     requireExactKeys(value.activity, ACTIVITY_KEYS, 'activity');
-    requireString(value.activity.id, 'activity.id');
-    if (value.activity.semantics !== SEMANTICS) fail('unsupported AST semantics: ' + String(value.activity.semantics));
-    if (!isObject(value.workspace)) fail('workspace must be an object');
+    if (typeof value.activity.id !== 'string' || !value.activity.id.trim())
+      projectFail('activity.id must be a non-empty string', 'L’activité du projet est manquante. Choisissez un fichier .wbb valide.');
+    if (value.activity.semantics !== SEMANTICS) projectFail('unsupported AST semantics: ' + String(value.activity.semantics), 'Ce programme utilise une version de blocs non prise en charge. Demandez à votre enseignant une version compatible.');
+    if (!isObject(value.workspace)) projectFail('workspace must be an object', 'Les blocs du projet sont manquants ou invalides. Choisissez un autre fichier .wbb.');
     return value;
   }
 
@@ -136,7 +199,7 @@
           if (!Object.prototype.hasOwnProperty.call(value.fields, fieldName)) return;
           var fieldValue = value.fields[fieldName];
           if (fields[fieldName].indexOf(fieldValue) < 0)
-            fail('workspace field forbidden by profile: ' + value.type + '.' + fieldName + '=' + String(fieldValue));
+            projectFail('workspace field forbidden by profile: ' + value.type + '.' + fieldName + '=' + String(fieldValue), 'Le projet contient une option de bloc incompatible avec son activité. Choisissez un projet compatible.');
         });
       }
       Object.keys(value).forEach(function(key) { visit(value[key]); });
@@ -254,7 +317,7 @@
     var sourceDocument = portableImport && options.portableActivitiesDocument || options.activitiesDocument;
     var profile = options.profiles.resolveById(sourceDocument, project.activity.id, options.blockCatalog);
     if (!currentProfile || (!portableImport && profile.world !== currentProfile.world))
-      fail('activity is incompatible with the current Webots world');
+      projectFail('activity is incompatible with the current Webots world', 'Ce projet appartient à une autre activité ou simulation. Ouvrez-le dans la simulation correspondante.');
     validateSerializedFieldOptions(profile, project.workspace);
 
     var temporary = new options.Blockly.Workspace();
@@ -267,6 +330,8 @@
       return {project: project, profile: profile, ast: ast};
     } catch (error) {
       if (String(error && error.message || error).indexOf('project file: ') === 0) throw error;
+      if (error && error.code === 'PROGRAM_INVALID' && typeof error.studentDetail === 'string' && error.studentDetail)
+        projectFail('invalid workspace: ' + String(error.message), error.studentDetail);
       fail('invalid workspace: ' + String(error && error.message || error));
     } finally {
       if (temporary && typeof temporary.dispose === 'function') temporary.dispose();
@@ -308,13 +373,11 @@
         await writable.write(text);
         await writable.close();
       } catch (error) {
+        error = noteFailure(error, 'writeFailure', true);
         try { await writable.abort(); }
         catch (abortError) {
-          if (error && typeof error === 'object') {
-            // Diagnostic annotation is best-effort: DOM/host errors may be frozen.
-            try { error.abortError = abortError; }
-            catch (_) { /* Never replace the original write error. */ }
-          }
+          error = noteFailure(error, 'abortError', abortError);
+          console.error('WebeeBlocks project write abort failed', abortError);
         }
         throw error;
       }
@@ -423,7 +486,11 @@
         }
         importedSourceProfile = null;
       } catch (error) {
-        try { restore(before); } catch (rollbackError) { console.error('WebeeBlocks project rollback failed', rollbackError); }
+        try { restore(before); }
+        catch (rollbackError) {
+          error = noteFailure(error, 'rollbackError', rollbackError);
+          console.error('WebeeBlocks project rollback failed', rollbackError);
+        }
         throw error;
       } finally { applying = false; }
     }
@@ -462,7 +529,10 @@
           if (!previousSource)
             options.activityContract.applyFieldBounds(previous.profile, options.workspace);
         }
-        catch (rollbackError) { error.rollbackError = rollbackError; }
+        catch (rollbackError) {
+          error = noteFailure(error, 'rollbackError', rollbackError);
+          console.error('WebeeBlocks portable project rollback failed', rollbackError);
+        }
         throw error;
       } finally { applying = false; }
     }
@@ -476,7 +546,10 @@
         // Restore its scene as well as the profile/workspace restored above.
         if (typeof options.prepareProfile === 'function') {
           try { await options.prepareProfile(previousProfile); }
-          catch (restorationError) { error.sceneRestorationError = restorationError; }
+          catch (restorationError) {
+            error = noteFailure(error, 'sceneRestorationError', restorationError);
+            console.error('WebeeBlocks project scene restoration failed', restorationError);
+          }
         }
         throw error;
       }
@@ -567,7 +640,7 @@
         return {name: targetName, mode: result.mode || null};
       },
       async save() {
-        if (!targetHandle || !targetName) fail('no current file; use Save As');
+        if (!targetHandle || !targetName) projectFail('no current file; use Save As', 'Utilisez « Enregistrer sous » pour choisir un fichier.');
         var result = await options.transport.save(targetHandle, targetName, currentBytes());
         targetHandle = result.handle || targetHandle;
         targetName = preserveSelectedName(result.name || targetName);
@@ -595,6 +668,9 @@
     encodeProject: encodeProject,
     createStarterText: createStarterText,
     parseProject: parseProject,
+    classifyFailure: classifyFailure,
+    isCancellation: isCancellation,
+    hasUncertainState: hasUncertainState,
     validateProjectText: validateProjectText,
     loadWorkspaceWithProfile: loadWorkspaceWithProfile,
     createBrowserTransport: createBrowserTransport,

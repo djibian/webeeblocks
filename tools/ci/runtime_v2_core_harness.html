@@ -294,8 +294,10 @@
     // Each workspace must fail before any scene preparation, action or sensor read.
     async function checkPupilStructure(change, pattern, technical) {
       var invalid = new Blockly.Workspace();
-      Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram'), invalid);
       try {
+        Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram').cloneNode(true), invalid);
+        assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(invalid)) === JSON.stringify(expected),
+          'structure counterexample baseline AST differs: '+pattern);
         change(invalid);
         trace=[]; rangeReadCount=0;
         var b=backendFor(Object.assign({},capabilities,{simulationScenes:true}));
@@ -307,10 +309,10 @@
         var outcome=WebeeBlocksRuntimeOutcome.classify(error);
         if(technical){
           assert(error.code!=='PROGRAM_INVALID' && outcome.state==='ERREUR' &&
-            pattern.test(error.message),'invalid block schema was blamed on pupil');
+            pattern.test(error.message),'invalid block schema classification: '+pattern+' / '+error.message+' / '+outcome.state);
         }else{
-          assert(error.code==='PROGRAM_INVALID','pupil structure was not classified as correctable');
-          assert(outcome.state==='À CORRIGER' && pattern.test(outcome.detail),'missing pupil guidance: '+outcome.detail);
+          assert(error.code==='PROGRAM_INVALID','pupil structure was not classified as correctable: '+pattern+' / '+error.message);
+          assert(outcome.state==='À CORRIGER' && pattern.test(outcome.detail),'missing pupil guidance: '+pattern+' / '+outcome.detail);
         }
         assert(trace.length===0 && rangeReadCount===0,'invalid pupil structure reached backend');
       } finally { invalid.dispose(); }
