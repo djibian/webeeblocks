@@ -727,9 +727,11 @@ async function teacherD2() {
         }
         await step('back-' + repeat, () => backend.move('back', 1));
       }
+      // STOP fences subsequent outcome queries in the public backend.
+      // Record only the acknowledged prefix and independent LAND; no mission verdict.
       await step('diagnostic-stop', () => backend.stopSimulation());
       await waitForForcedLanding(1);
-      actual = await readOutcome();
+      await assert.rejects(backend.readActivityOutcome(evaluation), {code:'USER_STOPPED'});
     }
   } catch (error) {
     if (!['TIME_LIMIT', 'UNSAFE_OR_TIMEOUT'].includes(error.code)) throw error;
@@ -740,7 +742,8 @@ async function teacherD2() {
   }
   console.log('D2_DIAGNOSTIC_RESULT ' + JSON.stringify({
     activity, variant, speed: diagnostic, stage, failure, actual,
-    forcedLandings, qualification: false
+    forcedLandings, prefixCompleted: activity === 7 && stage === 'diagnostic-stop' && !failure,
+    qualification: false
   }));
 }
 

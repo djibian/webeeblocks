@@ -57,7 +57,10 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         if diagnostic not in ('default', '0.20', '0.35') or (activity, variant) not in (
                 (4, 1), (4, 2), (4, 3), (7, 7)) or rebound or pupil_project is not None:
             raise ValueError('D2 diagnostic requires a bounded direct WWI teacher stimulus')
-        suffix += f'-d2-{diagnostic}'
+        intervention = env.get('WEBEEBLOCKS_D2_INTERVENTION', 'baseline')
+        if intervention not in ('baseline', 'xy8', 'xy32', 'half-kd'):
+            raise ValueError('unknown D2 intervention')
+        suffix += f'-d2-{diagnostic}-{intervention}'
     if rebound:
         suffix = f'-rebound-{rebound}'
         if rebound_height is not None:

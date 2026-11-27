@@ -42,26 +42,48 @@ def main():
     if original.count(MOTOR_ANCHOR) != 1:
         raise RuntimeError('native motor anchor drift')
     instrumented = original.replace(MOTOR_ANCHOR, TRACE + MOTOR_ANCHOR, 1)
+    # Single-factor interventions, generated source only. Neither changes
+    # velocity admission, trajectory, safety, or any vertical/attitude gains.
+    cadence = 'if (transition || fast || elapsed >= 0.015999)'
+    derivative = 'gains.kd_vel_xy = 0.5;'
+    for anchor in (cadence, derivative):
+        if instrumented.count(anchor) != 1:
+            raise RuntimeError('D2 intervention anchor drift')
+    cases = {
+        'baseline': instrumented,
+        'xy8': instrumented.replace(cadence, 'if (1)', 1),
+        'xy32': instrumented.replace(cadence, 'if (transition || fast || elapsed >= 0.031999)', 1),
+        'half-kd': instrumented.replace(derivative, 'gains.kd_vel_xy = 0.25;', 1),
+    }
     try:
-        source.write_text(instrumented)
         (evidence / 'baseline.c').write_text(original)
-        (evidence / 'instrumented.c').write_text(instrumented)
-        with (evidence / 'build.log').open('w') as log:
-            subprocess.run(['make', '-C', str(root)], check=True,
-                           stdout=log, stderr=subprocess.STDOUT, timeout=120)
-        if source.read_text() != instrumented:
-            raise RuntimeError('make replaced diagnostic source')
-        (evidence / 'source.sha256').write_text(
-            hashlib.sha256(source.read_bytes()).hexdigest() + '\n')
         failures = []
-        for variant in ((1, 2, 3) if args.activity == 4 else (7,)):
-            for speed in ('default', '0.35', '0.20'):
+        for intervention, candidate in cases.items():
+            # Paired A4/V1 and V2 are discriminating: V1 forced LAND succeeded
+            # while V2 failed in the prior baseline. A7 is a bounded regression
+            # prefix, not evidence that the Windows symptom was fixed.
+            folder = evidence / intervention
+            folder.mkdir(exist_ok=True)
+            source.write_text(candidate)
+            (folder / 'instrumented.c').write_text(candidate)
+            with (folder / 'build.log').open('w') as log:
+                subprocess.run(['make', '-C', str(root)], check=True,
+                               stdout=log, stderr=subprocess.STDOUT, timeout=120)
+            if source.read_text() != candidate:
+                raise RuntimeError('make replaced diagnostic source')
+            (folder / 'source.sha256').write_text(
+                hashlib.sha256(source.read_bytes()).hexdigest() + '\n')
+            executable = root / 'grand_prix_route_flight'
+            (folder / 'binary.sha256').write_text(
+                hashlib.sha256(executable.read_bytes()).hexdigest() + '\n')
+            for variant in ((1, 2) if args.activity == 4 else (7,)):
                 try:
-                    run_native(home, dict(os.environ, WEBEEBLOCKS_D2_DIAGNOSTIC=speed),
+                    run_native(home, dict(os.environ, WEBEEBLOCKS_D2_DIAGNOSTIC='0.35',
+                                          WEBEEBLOCKS_D2_INTERVENTION=intervention),
                                args.activity, variant)
                 except (RuntimeError, OSError, subprocess.SubprocessError) as error:
-                    failures.append((variant, speed, str(error)))
-                    print(f'D2 INCOMPLETE {variant=} {speed=} {error}', flush=True)
+                    failures.append((intervention, variant, str(error)))
+                    print(f'D2 INCOMPLETE {intervention=} {variant=} {error}', flush=True)
         if failures:
             raise RuntimeError(f'D2 incomplete observations: {failures}')
     finally:
