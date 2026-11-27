@@ -252,11 +252,41 @@ async function proveSceneRollback() {
     assert.strictEqual(ref.value.id,original.id);
     assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before);
     assert(manager.hasCurrentTarget(),'failed project application lost original save target');
-    if(restorationFails) assert.strictEqual(causal.sceneRestorationError,restoration,'restoration error lost');
+    if(restorationFails) {
+      assert.strictEqual(causal.sceneRestorationError,restoration,'restoration error lost');
+      assert.match(ProjectFiles.classifyFailure('open',causal),/avant de poursuivre/);
+      assert(ProjectFiles.hasUncertainState(causal));
+    }
     else assert.strictEqual(selected,original.id,'workspace restored but scene still selected for rejected project');
     await manager.save(); // original target remains usable
     live.dispose();
   }
+}
+
+async function proveUncertainWorkspaceRollback() {
+  const live=buildWorkspace(.2), original=activityProfile('reactive-obstacle-v2');
+  const transport=memoryTransport(), ref={value:original};
+  const primary=Object.freeze(Object.assign(new Error('application rejected'),
+    {code:'PROJECT_INVALID',studentDetail:'retry'}));
+  const secondary=Error('restore failed');
+  let armed=false, applications=0;
+  const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace:live,
+    getProfile:()=>ref.value,setProfile:p=>{
+      if(armed){applications++;throw applications===1?primary:secondary;}
+      ref.value=p;
+    },transport});
+  try {
+    await manager.saveAs('original.wbb');
+    transport.state.openText=ProjectFiles.createStarterText('progression-sequence-v1');
+    armed=true;
+    await assert.rejects(manager.open(),error=>error===primary&&
+      ProjectFiles.hasUncertainState(error)&&
+      /avant de poursuivre/.test(ProjectFiles.classifyFailure('open',error)));
+    assert.strictEqual(applications,2,'restore was not attempted');
+    assert.strictEqual(manager.currentName(),'original.wbb','failed open replaced original target');
+  } finally { live.dispose(); }
 }
 
 async function proveSceneReattachment() {
@@ -489,7 +519,7 @@ async function provePortableUiNeverFallsBack() {
       Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
       WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
       WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
-        createManager:()=>manager},
+        createManager:()=>manager,classifyFailure:ProjectFiles.classifyFailure},
       CustomEvent:function(){},console:{error(){},warn(){}},Date
     };
     vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
@@ -499,6 +529,69 @@ async function provePortableUiNeverFallsBack() {
     assert.strictEqual(oldOpen,0,'stale manager must not select a scene through legacy Open');
     assert.strictEqual(newOpen,portable?1:0);
     assert.strictEqual(elements.projectFileState.dataset.error,portable?'false':'true');
+    if(!portable)assert.match(elements.projectFileState.textContent,/prévenez votre enseignant/);
+  }
+}
+
+async function proveSaveAsUiDiagnostics() {
+  for(const scenario of ['quota','target','unknown','abort-uncertain','abort-empty','picker-cancel']){
+    const listeners={},elements={},diagnostics=[];
+    const live=buildWorkspace(.2),ref={value:activityProfile('reactive-obstacle-v2')};
+    const cancelled=Object.freeze(Object.assign(Error('cancelled'),{name:'AbortError'}));
+    let write=0,close=0,abort=0;
+    const handle={name:'eleve.wbb',async createWritable(){return {
+      async write(){write++;
+        if(scenario==='quota')throw Object.assign(Error('quota'),{name:'QuotaExceededError'});
+        if(scenario==='target')throw Object.assign(Error('target'),{name:'ProjectFileBrokerError',code:'TARGET_UNAVAILABLE'});
+        if(scenario==='abort-uncertain'||scenario==='abort-empty')throw cancelled;
+        throw Error('unknown host failure');
+      },
+      async close(){close++;},
+      async abort(){abort++;if(scenario==='abort-uncertain')throw Error('abort failed');
+        if(scenario==='abort-empty')throw null;}
+    };}};
+    const transport=ProjectFiles.createBrowserTransport({
+      async showOpenFilePicker(){return [handle];},
+      async showSaveFilePicker(){if(scenario==='picker-cancel')throw cancelled;return handle;}
+    },{});
+    const manager=managerFor(live,ref,transport);
+    const document={body:{dataset:{}},getElementById:id=>id==='activityVariant'?null:
+      (elements[id]||(elements[id]={dataset:{},handlers:{},addEventListener(name,fn){this.handlers[name]=fn;}}))};
+    const context={
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(event){diagnostics.push(event);}},
+      document,workspace:live,runtimeProfile:ref.value,runtimeTerminal:false,
+      runtimeProjectPending:false,updateRuntimeActions(){},setRuntimeStatus(){},
+      robotWindow:{send(){},receive(){}},runtimeBackend:{ready:true,async waitUntilReady(){}},
+      Blockly,WebeeBlocksActivityProfiles:Profiles,WebeeBlocksActivities:Activities,
+      WebeeBlocksSemanticAst:SemanticAst,WebeeBlocksActivityContract:ActivityContract,
+      WebeeBlocksProjectFiles:{...ProjectFiles,createBrowserTransport:()=>transport,createManager:()=>manager},
+      CustomEvent:function(type,options){this.type=type;this.detail=options.detail;},
+      console:{error(){},warn(){}},Date
+    };
+    try {
+      vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+      const flush=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
+      listeners.load();await flush();
+      const before=elements.projectFileState.textContent;
+      elements.projectSaveAs.handlers.click();await flush();
+      assert.strictEqual(context.runtimeProjectPending,false,'file transaction fence not released');
+      assert.strictEqual(manager.hasCurrentTarget(),false,'failed Save As installed a target');
+      assert.strictEqual(close,0,'failed Save As committed');
+      if(scenario==='picker-cancel'){
+        assert.strictEqual(write,0);assert.strictEqual(abort,0);
+        assert.strictEqual(elements.projectFileState.textContent,before);
+        assert.strictEqual(elements.projectFileState.dataset.error,'false');
+        assert(!diagnostics.some(e=>e.type==='webeeblocks-project-file-diagnostic'));
+      } else {
+        assert.strictEqual(write,1);assert.strictEqual(abort,1);
+        assert.strictEqual(elements.projectFileState.dataset.error,'true');
+        const expected={quota:/stockage est insuffisant/,target:/Enregistrer sous/,
+          unknown:/accès au dossier et l’espace disponible/,
+          'abort-uncertain':/avant de poursuivre/,'abort-empty':/avant de poursuivre/}[scenario];
+        assert.match(elements.projectFileState.textContent,expected);
+        assert(diagnostics.some(e=>e.type==='webeeblocks-project-file-diagnostic'&&e.detail.operation==='save-as'));
+      }
+    } finally {live.dispose();}
   }
 }
 
@@ -666,8 +759,9 @@ async function exerciseBrowserWriteAtomicity() {
     }, {});
     await assert.rejects(operation === 'saveAs'
       ? transport.saveAs('eleve.wbb', '{}')
-      : transport.save(handle, 'eleve.wbb', '{}'), error => error === primary,
-    'secondary abort failure must not mask an immutable write failure');
+      : transport.save(handle, 'eleve.wbb', '{}'), error => error === primary && ProjectFiles.hasUncertainState(error) &&
+      /avant de poursuivre/.test(ProjectFiles.classifyFailure('save-as',error)),
+    'secondary abort failure must not mask an immutable write failure or its uncertainty');
     assert.strictEqual(abortCalled, 1);
     assert.strictEqual(closeCalled, 0, 'failed immutable write closed the target');
   }
@@ -1475,8 +1569,30 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveScenePreparation();
   await proveSceneReattachment();
   await proveSceneRollback();
+  await proveUncertainWorkspaceRollback();
   await proveProjectStartupRace();
   await proveHistoricalVariantButton();
   await provePortableUiNeverFallsBack();
+  await proveSaveAsUiDiagnostics();
+  // D4 file diagnostics: exact source failures, not raw parser/host messages.
+  const validProject=JSON.parse(ProjectFiles.createStarterText('reactive-obstacle-v2'));
+  for(const [text, pattern] of [
+    ['{broken',/illisible ou incomplet.*\.wbb/],
+    [JSON.stringify({...validProject,version:99}),/version non prise en charge/],
+    [JSON.stringify({...validProject,format:'unrelated'}),/projet WebeeBlocks reconnu/],
+    [JSON.stringify({...validProject,workspace:null}),/blocs du projet/]
+  ]) assert.throws(()=>ProjectFiles.parseProject(text),error=>
+    error.code==='PROJECT_INVALID'&&pattern.test(ProjectFiles.classifyFailure('open',error)));
+  const msg=(operation,error)=>ProjectFiles.classifyFailure(operation,error);
+  assert.match(msg('save',{name:'NotAllowedError'}),/autorisé l’accès/);
+  assert.match(msg('save-as',{name:'QuotaExceededError'}),/stockage est insuffisant/);
+  assert.match(msg('save-as',Error('unknown')),/accès au dossier et l’espace disponible/);
+  assert.match(msg('save-as',{name:'ProjectFileBrokerError',code:'TARGET_UNAVAILABLE'}),/Enregistrer sous/);
+  assert.match(msg('open',{code:'PROJECT_INVALID',studentDetail:'retry',sceneRestorationError:Error('unknown')}),/avant de poursuivre/);
+  assert.match(msg('save',{name:'ProjectFileBrokerError',code:'TARGET_UNAVAILABLE'}),/Enregistrer sous/);
+  assert.match(msg('open',{name:'ProjectFileBrokerError',code:'BUSY'}),/Attendez/);
+  assert.match(msg('open',{code:'PROJECT_INVALID',studentDetail:'retry',rollbackError:Error('unknown')}),/avant de poursuivre/);
+  assert.doesNotMatch(msg('open',Error('private path /internal/secret')),/private path|\/internal\//);
+
   console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
