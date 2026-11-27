@@ -93,10 +93,15 @@ function verifyField(pageNumber, type, field, accepted, rejected) {
       const conditional = workspace.newBlock('controls_if');
       conditional.getInput('IF0').connection.connect(block.outputConnection);
     }
+    if (type === 'math_arithmetic') {
+      const takeoff = workspace.newBlock('webeeblocks_v2_takeoff');
+      takeoff.getInput('HEIGHT').connection.connect(block.outputConnection);
+    }
     const project = Projects.encodeProject(profile, workspace, options);
     const parsed = Projects.parseProject(project);
     const top = parsed.workspace.blocks.blocks[0];
-    const saved = type === 'logic_operation' ? top.inputs.IF0.block : top;
+    const saved = type === 'logic_operation' ? top.inputs.IF0.block :
+      type === 'math_arithmetic' ? top.inputs.HEIGHT.block : top;
     assert.equal(saved.fields[field], accepted);
     Projects.validateProjectText(project, profile, options);
     saved.fields[field] = rejected;
@@ -173,12 +178,15 @@ for (const type of ['logic_compare', 'controls_if']) {
   try {
     const block=workspace.newBlock('webeeblocks_v2_move');
     const field=block.getField('DIRECTION');
-    field.getValue=()=>'/internal/diagnostic';
-    assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
-      error.code==='PROGRAM_INVALID'&&!error.studentDetail.includes('/internal/'));
-    block.getField=()=>null;
-    assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
-      /field-option target unavailable/.test(error.message)&&error.code!=='PROGRAM_INVALID');
+    const getValue=field.getValue, getField=block.getField;
+    try {
+      field.getValue=()=>'/internal/diagnostic';
+      assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
+        error.code==='PROGRAM_INVALID'&&!error.studentDetail.includes('/internal/'));
+      block.getField=()=>null;
+      assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
+        /field-option target unavailable/.test(error.message)&&error.code!=='PROGRAM_INVALID');
+    } finally {field.getValue=getValue;block.getField=getField;}
   } finally {workspace.dispose();}
 }
 const a1 = pages[0];
