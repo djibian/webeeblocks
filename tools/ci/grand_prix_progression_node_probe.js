@@ -302,8 +302,9 @@ async function activityFive() {
     return readings;
   }
 
-  async function reachChoice(lastMove = .35) {
-    await takeoff(.9);
+  async function reachChoice(lastMove = .35, speed = .2) {
+    await backend.takeoff(.9);
+    await backend.setSpeed(speed);
     const front = await backend.readRange('front');
     // These intervals are based on rays from the fixed start. Course
     // identity and turn direction are never supplied to the witness.
@@ -364,6 +365,19 @@ async function activityFive() {
     await require('./grand_prix_a5_wbb').run(file, backend);
     await backend.completeActivityMission(evaluation);
     await outcome({status: 'achieved'});
+
+    // D3 changes the time/position of the approach to the L. With the D2
+    // shared-pilot instability still open, also qualify the allowed .35
+    // m/s on every variant, including the shortened V5. This does not
+    // replace the unchanged .wbb witness or any existing refusal.
+    await backend.resetSimulation();
+    await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
+    const normalSpeedTurn = await reachChoice(.35, .35);
+    await backend.move(normalSpeedTurn ? 'right' : 'left', .50);
+    await backend.land();
+    await backend.completeActivityMission(evaluation);
+    await outcome({status: 'achieved'});
+    console.log('D3_A5_NORMAL_SPEED_PASS');
 
     await backend.resetSimulation();
     await assert.rejects(backend.readActivityOutcome(evaluation), {code: 'OUTCOME_UNAVAILABLE'});
