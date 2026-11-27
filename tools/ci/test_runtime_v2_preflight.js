@@ -491,11 +491,20 @@ function proveProgressionProfilesAndFieldOptions() {
     ['controls_if','IF0',/condition/],
     ['webeeblocks_v2_until','BOOL',/condition/]
   ]) mustRejectStudentValidation(() => SemanticAst.compileStatement({
-    type,getFieldValue:()=> 'forward',getInputTargetBlock:()=>null
+    type,getFieldValue:()=> 'forward',getInputTargetBlock:()=>null,
+    getInput:name=>name===input?{connection:{type:1}}:null
   }),detail);
   mustRejectStudentValidation(() => SemanticAst.compileExpression({
-    type:'logic_compare',getFieldValue:()=> 'LT',getInputTargetBlock:()=>null
+    type:'logic_compare',getFieldValue:()=> 'LT',getInputTargetBlock:()=>null,
+    getInput:()=>({connection:{type:1}})
   }),/deux entrées/);
+  for(const socket of [null,{connection:null},{connection:{type:3}}]){
+    assert.throws(()=>SemanticAst.compileExpression({
+      type:'logic_compare',getFieldValue:()=> 'LT',getInputTargetBlock:()=>null,
+      getInput:()=>socket
+    }),error=>/invalid Blockly value socket/.test(error.message)&&
+      error.code!=='PROGRAM_INVALID'&&Outcome.classify(error).state==='ERREUR');
+  }
   let chain=null;
   for(let i=0;i<201;i++){const next=chain;chain={type:'webeeblocks_v2_land',getNextBlock:()=>next};}
   mustRejectStudentValidation(() => SemanticAst.compileSequence(chain),/plus de 200 blocs/);

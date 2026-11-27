@@ -33,6 +33,12 @@
       fail('block does not expose value input '+inputName);
     var child=block.getInputTargetBlock(inputName);
     if(!child){
+      // Blockly returns null for both an absent input and an empty socket.
+      // Only an existing value connection (Blockly INPUT_VALUE = 1) can
+      // be completed by a pupil. A broken block schema is technical.
+      var input=typeof block.getInput==='function'&&block.getInput(inputName);
+      if(!input||!input.connection||input.connection.type!==1)
+        fail('invalid Blockly value socket '+block.type+'.'+inputName);
       var detail=inputName==='HEIGHT'?'Indiquez la hauteur du décollage.':
         inputName==='DISTANCE'?'Indiquez la distance du déplacement.':
         inputName==='BOOL'||/^IF\d+$/.test(inputName)?'Ajoutez une condition au bloc de contrôle.':
