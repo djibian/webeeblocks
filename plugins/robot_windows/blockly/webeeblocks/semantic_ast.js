@@ -13,7 +13,15 @@
   function fail(message){throw new Error('semantic AST: '+message);}
   function studentFail(message,detail){var error=new Error('semantic AST: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
-  function bounded(value,name,limits){var n=finite(value,name);if(n<limits.min||n>limits.max)fail(name+' out of bounds: '+n);return n;}
+  var NUMERIC_LABELS = Object.freeze({height_m:'décoller : hauteur',HEIGHT:'décoller : hauteur',distance_m:'déplacement : distance',DISTANCE:'déplacement : distance',angle_deg:'tourner : angle',wait_s:'attendre : durée',speed_m_s:'vitesse',repeat:'répéter : nombre de répétitions'});
+  function bounded(value,name,limits){
+    var n=Number(value),label=NUMERIC_LABELS[name];
+    if(!label)fail('unknown numeric bound: '+name);
+    if(!Number.isFinite(n))studentFail(name+' must be finite','Bloc « '+label+' » : saisissez un nombre valide.');
+    if(n<limits.min||n>limits.max)
+      studentFail(name+' out of bounds: '+n,'Bloc « '+label+' » : '+n+' est hors limites. Choisissez une valeur de '+limits.min+' à '+limits.max+'.');
+    return n;
+  }
   function field(block,name){if(!block||typeof block.getFieldValue!=='function')fail('invalid Blockly block');return block.getFieldValue(name);}
   function statementChildren(block,inputName,procedures){
     if(!block||typeof block.getInputTargetBlock!=='function')
@@ -66,7 +74,7 @@
     if(typeof block.getInputTargetBlock==='function'&&block.getInputTargetBlock('TIMES')){
       var expression=valueChild(block,'TIMES');
       if(expression.kind!=='number'||Math.floor(expression.value)!==expression.value)
-        fail('repeat count must be an integer literal');
+        studentFail('repeat count must be an integer literal','Bloc « répéter » : utilisez un nombre entier de '+LIMITS.repeat.min+' à '+LIMITS.repeat.max+'.');
       return bounded(expression.value,'repeat',LIMITS.repeat);
     }
     return bounded(field(block,'TIMES'),'repeat',LIMITS.repeat);
