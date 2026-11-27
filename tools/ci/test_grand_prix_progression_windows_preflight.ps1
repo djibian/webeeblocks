@@ -60,6 +60,60 @@ try {
   foreach ($pair in @(@(1,1),@(8,12))) {
     Invoke-Case -Name "CMD-A$($pair[0])-V$($pair[1])" -Exe $cmd -Arguments @('-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$webotsRoot,'-ValidateOnly')
   }
+  # Real public launch path (not -ValidateOnly): use the packaged chooser and
+  # shared CMD, replacing only the final Webots entry point in a disposable
+  # copy. A fake local Chrome is sufficient; no browser or Webots is started.
+  $harness = (New-Item -ItemType Directory -Path (Join-Path $out 'Chrome launch with spaces')).FullName
+  foreach ($file in @('Lancer-Progression.cmd','Lancer-Progression.ps1','Launch-WebeeBlocks.cmd')) {
+    Copy-Item -LiteralPath (Join-Path $root $file) -Destination $harness
+  }
+  Set-Content -LiteralPath (Join-Path $harness 'Launch-WebeeBlocks.ps1') -Encoding UTF8 -Value @'
+param([string]$WebotsHome = $env:WEBOTS_HOME)
+@{chrome=$env:WEBEEBLOCKS_CHROME_EXE; profile=$env:WEBEEBLOCKS_CHROME_PROFILE;
+  activity=$env:WEBEEBLOCKS_GP_ACTIVITY; index=$env:WEBEEBLOCKS_GP_INDEX;
+  fps=$env:WEBEEBLOCKS_GP_FPS; webots=$WebotsHome} |
+  ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'handoff.json') -Encoding UTF8
+exit 0
+'@
+  $savedChrome = @($env:LOCALAPPDATA,$env:WEBEEBLOCKS_CHROME_EXE,$env:WEBEEBLOCKS_CHROME_PROFILE,$env:WEBOTS_HOME)
+  try {
+    $env:LOCALAPPDATA = Join-Path $harness 'Local AppData'
+    $env:WEBEEBLOCKS_CHROME_EXE = $null
+    $env:WEBEEBLOCKS_CHROME_PROFILE = $null
+    $env:WEBOTS_HOME = $null
+    $fakeChrome = Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $fakeChrome) -Force | Out-Null
+    New-Item -ItemType File -Path $fakeChrome | Out-Null
+    $expectedProfile = Join-Path $env:LOCALAPPDATA 'WebeeBlocks\Chrome-R2025a'
+    foreach ($case in @(@(1,1,0),@(8,12,34))) {
+      $handoff = Join-Path $harness 'handoff.json'
+      if (Test-Path -LiteralPath $handoff) { Remove-Item -LiteralPath $handoff }
+      $chooser = Join-Path $harness 'Lancer-Progression.cmd'
+      & $chooser -Activite "$($case[0])" -Variante "$($case[1])" -WebotsHome $webotsRoot
+      if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $handoff)) {
+        throw 'Public progression launch did not reach the final launcher'
+      }
+      $observed = Get-Content -LiteralPath $handoff -Raw | ConvertFrom-Json
+      if ([string]::IsNullOrWhiteSpace($observed.chrome) -or
+          -not (Test-Path -LiteralPath $observed.chrome -PathType Leaf) -or
+          $observed.profile -ne $expectedProfile -or
+          -not (Test-Path -LiteralPath $expectedProfile -PathType Container) -or
+          $observed.activity -ne "$($case[0])" -or $observed.index -ne "$($case[2])" -or
+          $observed.fps -ne '20' -or $observed.webots -ne $webotsRoot) {
+        throw 'Progression launch lost Chrome bootstrap or exact selection'
+      }
+      if (@(Get-ChildItem -LiteralPath $expectedProfile -Force -Filter '.webeeblocks-write-*.tmp').Count -ne 0) {
+        throw 'Chrome profile write probe leaked'
+      }
+      Copy-Item -LiteralPath $handoff -Destination (Join-Path $out "chrome-handoff-A$($case[0]).json")
+    }
+    Write-Host 'GP_PROGRESSION_CHROME_BOOTSTRAP_PASS A1/A8 (stub, not GUI)'
+  } finally {
+    $env:LOCALAPPDATA = $savedChrome[0]
+    $env:WEBEEBLOCKS_CHROME_EXE = $savedChrome[1]
+    $env:WEBEEBLOCKS_CHROME_PROFILE = $savedChrome[2]
+    $env:WEBOTS_HOME = $savedChrome[3]
+  }
   foreach ($pair in @(@(1,2),@(8,13))) {
     Invoke-Case -Name "REFUSE-A$($pair[0])-V$($pair[1])" -Exe $ps51 -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$front,'-Activite',"$($pair[0])",'-Variante',"$($pair[1])",'-WebotsHome',$webotsRoot,'-ValidateOnly') -Refusal 'indisponible'
   }
