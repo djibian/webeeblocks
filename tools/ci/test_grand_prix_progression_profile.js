@@ -103,13 +103,25 @@ function verifyField(pageNumber, type, field, accepted, rejected) {
     assert.throws(() => Projects.validateProjectText(JSON.stringify(parsed), profile, options),
       /workspace field forbidden by profile/);
     block.setFieldValue(rejected, field);
-    assert.throws(() => Contract.preflightWorkspace(profile, workspace), /field option forbidden by profile/);
+    assert.throws(() => Contract.preflightWorkspace(profile, workspace), error => {
+      assert.match(error.message, /field option forbidden by profile/);
+      assert.equal(error.code, 'PROGRAM_INVALID');
+      const detail = require(dir + 'runtime_outcome').classify(error).detail;
+      if (type === 'webeeblocks_v2_move')
+        assert.match(detail,/déplacement.*aller à gauche.*avancer \/ reculer/);
+      else if (type === 'logic_operation')
+        assert.match(detail,/opération logique.*« OU ».*Choisissez : ET\./);
+      else if (type === 'math_arithmetic')
+        assert.match(detail,/calcul.*puissance.*Choisissez : \+ \/ − \/ × \/ ÷/);
+      return true;
+    });
   } finally {
     workspace.dispose();
   }
 }
 verifyField(1, 'webeeblocks_v2_move', 'DIRECTION', 'back', 'left');
 verifyField(6, 'logic_operation', 'OP', 'AND', 'OR');
+verifyField(4, 'math_arithmetic', 'OP', 'ADD', 'POWER');
 // A7 unlocks both valid logical and conditional-loop options, not just a
 // subset of the choices already drawn on the Blockly blocks.
 function verifyAllowedField(activity, type, field, value) {
@@ -144,14 +156,31 @@ for (const type of ['logic_compare', 'controls_if']) {
   const unavailable = new Blockly.Workspace();
   try {
     unavailable.newBlock(type);
-    assert.throws(() => Contract.preflightWorkspace(pages[3].profile, unavailable),
-      /block forbidden by profile/);
+    assert.throws(() => Contract.preflightWorkspace(pages[3].profile, unavailable), error =>
+      /block forbidden by profile/.test(error.message)&&error.code==='PROGRAM_INVALID'&&
+      (type==='logic_compare'?/« comparaison »/:/« si \/ sinon »/).test(error.studentDetail));
     assert(Contract.preflightWorkspace(pages[4].profile, unavailable));
   } finally {
     unavailable.dispose();
   }
 }
 
+// Unknown data must not be echoed as a pupil option; absent field is a
+// technical failure, not an instruction to change a nonexistent control.
+{
+  const profile=pages[0].profile;
+  const workspace=new Blockly.Workspace();
+  try {
+    const block=workspace.newBlock('webeeblocks_v2_move');
+    const field=block.getField('DIRECTION');
+    field.getValue=()=>'/internal/diagnostic';
+    assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
+      error.code==='PROGRAM_INVALID'&&!error.studentDetail.includes('/internal/'));
+    block.getField=()=>null;
+    assert.throws(()=>Contract.preflightWorkspace(profile,workspace),error=>
+      /field-option target unavailable/.test(error.message)&&error.code!=='PROGRAM_INVALID');
+  } finally {workspace.dispose();}
+}
 const a1 = pages[0];
 const workspace = new Blockly.Workspace();
 try {
