@@ -220,10 +220,11 @@ strictly NOT_NEEDED.
 The only notification class is TEST_REQUIRED. CI, review, GO/NO_GO, Draft/Ready,
 merges, Controller startup/termination/blocking and relaunch are silent.
 
-## Grand Prix A1–A7 native R2025a diagnostics
+## Grand Prix A1–A8 native R2025a campaigns
 
-In Actions, select **Grand Prix A1–A7 native R2025a**, run it from `main`,
-and provide the activity number and the candidate's full GitHub HEAD SHA.
+For an independent diagnostic, in Actions select **Grand Prix A1–A8 native R2025a**,
+run it from `main`, and provide the activity number and the candidate's full
+GitHub HEAD SHA. A manually dispatched run is not CI Gate.
 The same invocation is available through the GitHub CLI:
 
 ```sh
@@ -233,11 +234,20 @@ gh workflow run grand-prix-native.yml --repo djibian/webeeblocks --ref main \
 
 Choose a HEAD that contains the activity's native campaign. An unsupported
 candidate or a missing witness fails the run. All campaigns receive Node 22
-and pinned Cyberbotics PROTOs. A1–A3 use their existing Runtime campaign entry
-point in the M2 engine. A4–A7 run the variant flight and H geometry campaigns
-with the pinned official image. A6
-also checks exact `.wbb` reuse and the original severe-contact LAND on all five
-variants. Its shallow-contact traces are retained separately.
+and pinned Cyberbotics PROTOs. A1–A5 use their existing Runtime campaign entry
+point in the pinned M2 engine. A6–A8 use the pinned official image. A6 checks
+exact `.wbb` reuse and the original severe-contact LAND on all five variants;
+its shallow-contact traces are retained separately. A7 checks seven variants,
+two independent first-rebound LAND phase witnesses, and the same saved
+program. A8 checks twelve full missions, the same nominal and wrong-pad
+projects, continuous trajectory evidence and independent LAND/deadlines.
+
+The canonical Runtime suite calls the same workflow for A6, A7 and A8 with
+the exact target SHA and no fail-fast cancellation. All three results belong
+to the existing Runtime result, not a separate decision context. A successful
+manual diagnostic, an old artifact, or the new workflow's own unreviewed
+definition cannot authorize an integration. Inspect the current-main
+obligations, exact Ready candidate, complete run and independent V5 review.
 
 Download the run's archive even if a native witness fails. It includes the two
 checkout SHAs, run attempt, campaign log and raw evidence the runners produced.

@@ -54,23 +54,15 @@ class RouteVerticalProductTests(unittest.TestCase):
         self.assertEqual(flight.count('const double corrected_u = 55.368085898'), 1)
         self.assertNotIn("all_active_vertical_up_governed", flight)
         self.assertEqual(flight.count('GP_CEILING_PREFLIGHT_V1 command='), 2)
-        # The legacy U retains its single monolithic controller call. The
-        # route pilot now has one cascade, with one call to each PID and mixer.
+        # Shared PID is invoked once on every powered 8-ms tick. G1's
+        # held horizontal output is no longer part of the route controller.
         self.assertEqual(unchanged.count('pid_velocity_fixed_height_controller(actual,'), 1)
         self.assertNotIn('gp_multirate_pid(', unchanged)
-        self.assertNotIn('pid_velocity_fixed_height_controller(actual,', flight)
-        self.assertEqual(flight.count('gp_multirate_pid(&gp_xy,'), 1)
-        calls = (
-            'pid_horizontal_velocity_controller(actual, desired, gains, elapsed);',
-            'pid_fixed_height_controller(actual, desired, gains, dt, &commands);',
-            'pid_attitude_controller(actual, desired, gains, dt, &commands);',
-            'motor_mixing(commands, power);',
-        )
-        for call in calls:
-            self.assertEqual(flight.count(call), 1)
-        positions = [flight.index(call) for call in calls]
-        self.assertEqual(positions, sorted(positions))
-        self.assertIn('command == CMD_LAND || command == CMD_TAKEOFF || failsafe_latched, &power);', flight)
+        self.assertEqual(flight.count('pid_velocity_fixed_height_controller(actual,'), 1)
+        self.assertEqual(flight.count('gp_multirate_pid(&gp_xy, actual, &desired, gains, dt, &power);'), 1)
+        self.assertNotIn('elapsed >= 0.015999', flight)
+        self.assertNotIn('desired->roll = s->roll', flight)
+        self.assertIn('++s->ticks;\n  ++s->updates;', flight)
         # The TAKEOFF refusal must be truly side-effect-free, not the late
         # experimental refusal after active_id had already been assigned.
         takeoff = flight.split("if (request.kind == REQUEST_TAKEOFF) {", 1)[1].split(
