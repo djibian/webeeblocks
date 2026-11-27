@@ -8,10 +8,12 @@ const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/int
 const robot = 'Crazyflie WebeeBlocks';
 const rebound = process.env.WEBEEBLOCKS_A7_V5_CASE;
 const events = process.env.WEBEEBLOCKS_A7_V5_EVENTS;
+const diagnostic = process.env.WEBEEBLOCKS_D2_DIAGNOSTIC;
 const socket = new WebSocket('ws://127.0.0.1:' + Number(process.argv[2]) + '/');
 const send = payload => {
   socket.send('robot:' + robot + ':' + payload);
   if (rebound) console.log('A7_V5_WWI > ' + payload);
+  if (diagnostic) console.log('D2_WWI > ' + payload);
 };
 const backend = new Backend({send}, {
   simulationStop: true, simulationReset: true, simulationAdmission: true,
@@ -28,6 +30,7 @@ socket.onmessage = event => {
       if (reply.name !== robot)
         continue;
       if (rebound) console.log('A7_V5_WWI < ' + reply.message);
+      if (diagnostic) console.log('D2_WWI < ' + reply.message);
       if (reply.message === 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK')
         forcedLandings++;
       if (typeof reply.message === 'string' &&
@@ -673,6 +676,74 @@ async function activityEight() {
   await assert.rejects(backend.move('forward', .2), {code: 'TIME_LIMIT'});
 }
 
+// Diagnostic only: teacher commands, not a complete A7 mission or canonical test.
+async function teacherD2() {
+  const activity = Number(process.argv[3]), variant = Number(process.argv[4]);
+  assert(['default', '0.20', '0.35'].includes(diagnostic));
+  assert((activity === 4 && [1,2,3].includes(variant)) ||
+    (activity === 7 && variant === 7));
+  let stage = 'takeoff', failure = null, actual = null;
+  const step = async (name, work) => {
+    stage = name;
+    console.log('D2_STAGE ' + name);
+    const value = await work();
+    console.log('D2_ACK ' + name);
+    return value;
+  };
+  async function readOutcome() {
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      try { return await backend.readActivityOutcome(evaluation); }
+      catch (error) {
+        if (error.code !== 'OUTCOME_UNAVAILABLE') throw error;
+        await delay(50);
+      }
+    }
+    throw Error('D2 native oracle result unavailable');
+  }
+  try {
+    await step('takeoff', () => backend.takeoff(.8));
+    if (diagnostic !== 'default')
+      await step('speed', () => backend.setSpeed(Number(diagnostic)));
+    if (activity === 4) {
+      const front = await step('range', () => backend.readRange('front'));
+      await step('forward', () => backend.move('forward', front - .30));
+      await step('left', () => backend.move('left', .50));
+      await step('land', () => backend.land());
+      await step('complete', () => backend.completeActivityMission(evaluation));
+      actual = await readOutcome();
+      if (actual.status !== 'achieved') await waitForForcedLanding(1);
+    } else {
+      // Reproduce the prefix through the reported second backward command.
+      // No full-course PASS is inferred from this bounded prefix.
+      for (let repeat = 1; repeat <= 2; repeat++) {
+        let front = await step('range-' + repeat, () => backend.readRange('front'));
+        let iterations = 0;
+        while (front > .21) {
+          assert(iterations++ < 100, 'teacher while limit reached');
+          await step('forward-' + repeat + '-' + iterations,
+            () => backend.move('forward', front - .20));
+          front = await step('range-' + repeat, () => backend.readRange('front'));
+        }
+        await step('back-' + repeat, () => backend.move('back', 1));
+      }
+      await step('diagnostic-stop', () => backend.stopSimulation());
+      await waitForForcedLanding(1);
+      actual = await readOutcome();
+    }
+  } catch (error) {
+    if (!['TIME_LIMIT', 'UNSAFE_OR_TIMEOUT'].includes(error.code)) throw error;
+    failure = {stage, code: error.code, message: error.message};
+    actual = await readOutcome();
+    assert.equal(actual.status, 'not-achieved', 'interruption without a native refusal');
+    await waitForForcedLanding(1);
+  }
+  console.log('D2_DIAGNOSTIC_RESULT ' + JSON.stringify({
+    activity, variant, speed: diagnostic, stage, failure, actual,
+    forcedLandings, qualification: false
+  }));
+}
+
 const scenarios = {'1': activityOne, '2': activityTwo, '3': activityThree, '4': activityFour, '5': activityFive, '6': activitySix, '7': activitySeven, '8': activityEight};
 const scenario = Object.hasOwn(scenarios, process.argv[3]) && scenarios[process.argv[3]];
 assert.equal(typeof scenario, 'function', 'Pass the bounded native activity number');
@@ -680,7 +751,8 @@ socket.onopen = async () => {
   try {
     send('init robot window');
     await backend.waitUntilReady();
-    await scenario();
+    if (diagnostic) await teacherD2();
+    else await scenario();
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

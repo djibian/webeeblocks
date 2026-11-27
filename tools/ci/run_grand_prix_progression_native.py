@@ -52,6 +52,12 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' and activity != 6:
         raise RuntimeError('Shallow diagnostic is restricted to Draft A6')
     suffix = '-shallow-diagnostic' if env.get('WEBEEBLOCKS_A6_SHALLOW_CONTACT_DIAGNOSTIC') == '1' else ''
+    diagnostic = env.get('WEBEEBLOCKS_D2_DIAGNOSTIC')
+    if diagnostic is not None:
+        if diagnostic not in ('default', '0.20', '0.35') or (activity, variant) not in (
+                (4, 1), (4, 2), (4, 3), (7, 7)) or rebound or pupil_project is not None:
+            raise ValueError('D2 diagnostic requires a bounded direct WWI teacher stimulus')
+        suffix += f'-d2-{diagnostic}'
     if rebound:
         suffix = f'-rebound-{rebound}'
         if rebound_height is not None:
@@ -155,6 +161,12 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
     log = journal.read_text(errors='replace')
     if re.search(r'^ERROR:|^Traceback \(most recent call last\)', log, re.M):
         raise RuntimeError(f'Native Webots error in {label}')
+    if diagnostic is not None:
+        if ('GP_D2_SAMPLE ' not in log or
+                'D2_DIAGNOSTIC_RESULT ' not in (out / 'wwi.log').read_text()):
+            raise RuntimeError('Incomplete D2 diagnostic evidence')
+        print(f'D2 evidence collected, NOT a qualification: {label} speed={diagnostic}')
+        return
     starts = re.findall(r'^GP_U_ADMISSION attempt=(\d+) start_ms=(\d+)$', log, re.M)
     deadlines = re.findall(r'^GP_U_DEADLINE time_ms=(\d+) command=LAND interrupted_id=(-?\d+)$',
                            log, re.M)

@@ -1,0 +1,82 @@
+# Temporary Draft-only diagnostic, not CI Gate and never a merge authority.
+name: D2 teacher native differential (Draft diagnostic)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/d2-teacher-diagnostic.yml'
+      - 'tools/ci/run_d2_native.py'
+permissions:
+  contents: read
+jobs:
+  d2:
+    if: ${{ github.event.pull_request.draft == true }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - activity: 4
+            image: ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
+          - activity: 7
+            image: cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+    env:
+      ACTIVITY: ${{ matrix.activity }}
+      IMAGE: ${{ matrix.image }}
+      TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: webots-assets
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
+            /projects/objects/backgrounds/protos/TexturedBackground.proto
+            /projects/objects/backgrounds/protos/TexturedBackgroundLight.proto
+            /projects/objects/floors/protos/Floor.proto
+            /projects/appearances/protos/Parquetry.proto
+            /projects/default/worlds/textures/cubic/mountains_*.jpg
+            /projects/default/worlds/textures/cubic/mountains_*.hdr
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact candidate and diagnostic provenance
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git -C webots-assets rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          mkdir -p ci-artifacts/grand-prix-u-geometry
+          printf '%s\n' "$TARGET_SHA" "$GITHUB_WORKFLOW_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$ACTIVITY" "$IMAGE" > ci-artifacts/grand-prix-u-geometry/d2-provenance.txt
+          python3 -m py_compile tools/ci/run_d2_native.py tools/ci/run_grand_prix_progression_native.py
+          node --check tools/ci/grand_prix_progression_node_probe.js
+          bash tools/prepare_runtime_v2.sh
+      - name: Collect native teacher stimulus traces at three speeds
+        run: |
+          set -euo pipefail
+          node_root="$(dirname "$(dirname "$(command -v node)")")"
+          docker pull "$IMAGE"
+          docker run --rm --network host --shm-size=2g --entrypoint /bin/bash \
+            -v "$PWD:/workspace" -w /workspace \
+            -v "$PWD/webots-assets/projects:/opt/ci-webots-projects:ro" \
+            -v "$node_root:/opt/ci-node:ro" \
+            -e ACTIVITY -e WEBOTS_HOME=/usr/local/webots \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e QTWEBENGINE_DISABLE_SANDBOX=1 \
+            "$IMAGE" -lc 'set -euo pipefail; export PATH="/opt/ci-node/bin:$PATH"; mkdir -p "$WEBOTS_HOME/projects"; cp -a /opt/ci-webots-projects/. "$WEBOTS_HOME/projects/"; python3 -u -m tools.ci.run_d2_native --activity "$ACTIVITY"'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d2-a${{ matrix.activity }}-native-attempt-${{ github.run_attempt }}
+          path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+          retention-days: 30
