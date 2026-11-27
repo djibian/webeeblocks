@@ -178,8 +178,15 @@ $env:WEBEEBLOCKS_GP_INDEX = [string]$index
 $env:WEBEEBLOCKS_GP_ACTIVITY = [string]$Activite
 $env:WEBEEBLOCKS_GP_FPS = '20'
 Write-Host ('Activité A{0}, parcours {1}/{2}. Enregistrez votre .wbb avant de quitter.' -f $Activite,$Variante,$counts[$Activite - 1])
-& (Join-Path $PSScriptRoot 'Launch-WebeeBlocks.ps1') -WebotsHome $WebotsHome -ValidateOnly:$ValidateOnly
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($ValidateOnly) {
+  & (Join-Path $PSScriptRoot 'Launch-WebeeBlocks.ps1') -WebotsHome $WebotsHome -ValidateOnly
+} else {
+  # Reuse the normal Windows launcher: Chrome discovery, local profile and
+  # concurrent Webots guard. The chosen activity/index/FPS remain inherited.
+  $env:WEBOTS_HOME = $WebotsHome
+  & (Join-Path $PSScriptRoot 'Launch-WebeeBlocks.cmd')
+}
+exit $LASTEXITCODE
 """
 
 
