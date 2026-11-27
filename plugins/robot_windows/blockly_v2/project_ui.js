@@ -110,8 +110,12 @@
     catch (error) {
       if (!isCancellation(error)) {
         diagnostic(name, error);
-        fileState(name === 'variant' ? 'Impossible de changer de parcours' :
-          ((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet'), true);
+        var detail = typeof WebeeBlocksProjectFiles.classifyFailure === 'function' ?
+          WebeeBlocksProjectFiles.classifyFailure(name, error) :
+          (name === 'variant' ? 'Impossible de changer de parcours' :
+            ((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet')) +
+            ' — Prévenez votre enseignant si le problème persiste.';
+        fileState(detail, true);
       }
       return null;
     } finally {

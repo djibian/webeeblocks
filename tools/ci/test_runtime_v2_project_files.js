@@ -489,7 +489,7 @@ async function provePortableUiNeverFallsBack() {
       Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
       WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
       WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true,mode:'browser-native'}),
-        createManager:()=>manager},
+        createManager:()=>manager,classifyFailure:ProjectFiles.classifyFailure},
       CustomEvent:function(){},console:{error(){},warn(){}},Date
     };
     vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
@@ -499,6 +499,7 @@ async function provePortableUiNeverFallsBack() {
     assert.strictEqual(oldOpen,0,'stale manager must not select a scene through legacy Open');
     assert.strictEqual(newOpen,portable?1:0);
     assert.strictEqual(elements.projectFileState.dataset.error,portable?'false':'true');
+    if(!portable)assert.match(elements.projectFileState.textContent,/prévenez votre enseignant/);
   }
 }
 
@@ -1478,5 +1479,22 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   await proveProjectStartupRace();
   await proveHistoricalVariantButton();
   await provePortableUiNeverFallsBack();
+  // D4 file diagnostics: exact source failures, not raw parser/host messages.
+  const validProject=JSON.parse(ProjectFiles.createStarterText('reactive-obstacle-v2'));
+  for(const [text, pattern] of [
+    ['{broken',/illisible ou incomplet.*\.wbb/],
+    [JSON.stringify({...validProject,version:99}),/version non prise en charge/],
+    [JSON.stringify({...validProject,format:'unrelated'}),/projet WebeeBlocks reconnu/],
+    [JSON.stringify({...validProject,workspace:null}),/blocs du projet/]
+  ]) assert.throws(()=>ProjectFiles.parseProject(text),error=>
+    error.code==='PROJECT_INVALID'&&pattern.test(ProjectFiles.classifyFailure('open',error)));
+  const msg=(operation,error)=>ProjectFiles.classifyFailure(operation,error);
+  assert.match(msg('save',{name:'NotAllowedError'}),/autorisé l’accès/);
+  assert.match(msg('saveAs',{name:'QuotaExceededError'}),/stockage est insuffisant/);
+  assert.match(msg('save',{name:'ProjectFileBrokerError',code:'TARGET_UNAVAILABLE'}),/Enregistrer sous/);
+  assert.match(msg('open',{name:'ProjectFileBrokerError',code:'BUSY'}),/Attendez/);
+  assert.match(msg('open',{code:'PROJECT_INVALID',studentDetail:'retry',rollbackError:Error('unknown')}),/avant de poursuivre/);
+  assert.doesNotMatch(msg('open',Error('private path /internal/secret')),/private path|\/internal\//);
+
   console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
