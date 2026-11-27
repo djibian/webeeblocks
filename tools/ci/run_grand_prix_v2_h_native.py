@@ -98,6 +98,11 @@ def check_native(result, course):
                     type(row.get("time_ms")) is not int or row["time_ms"] % 8
                     for row, pose in zip(scan, expected_poses))):
             raise RuntimeError("A5 perturbed range observations are incomplete")
+        # #1114 D3: retain an actual native first-ray witness with headroom.
+        expected_front = course.route.lengths[0] + .28
+        front = memory["at_start"]["front"]
+        if not .6 < front < 1.85 or abs(front - expected_front) > .05:
+            raise RuntimeError("A5 initial L face outside usable native range")
         at_turn, at_choice = memory["at_turn"], memory["at_choice"]
         detected, clear = ("right", "left") if course.route.turns == ("G",) else ("left", "right")
         if (not _rays(at_turn) or abs(at_turn[detected] - .38) > .02 or
