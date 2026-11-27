@@ -947,7 +947,10 @@ async function provePortableSaveKeepsValidNumericSource() {
     await assert.rejects(ActivityContract.execute(current,w,SemanticAst,
       {run:async()=>{effects++;}},
       {capabilities:{simulationScenes:true},prepareActivity:async()=>{effects++;}},
-      {preserveWorkspace:true}), /numeric field outside profile bounds/);
+      {preserveWorkspace:true}), error =>
+        /numeric field outside profile bounds/.test(String(error)) &&
+        error.code === 'PROGRAM_INVALID' &&
+        /décoller.*0\.9.*Choisissez une valeur de .* à /.test(error.studentDetail));
     assert.strictEqual(effects,0,'invalid import reached native execution');
     assert.deepStrictEqual(SemanticAst.compileWorkspace(w),sourceAst,'launch clamp changed portable program');
     await manager.save();
