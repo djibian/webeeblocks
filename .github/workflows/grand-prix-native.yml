@@ -1,4 +1,4 @@
-name: Grand Prix A1–A7 native R2025a
+name: Grand Prix A1–A8 native R2025a
 run-name: Native R2025a A${{ inputs.activity }} · ${{ inputs.target_sha }}
 
 on:
@@ -8,9 +8,19 @@ on:
         description: Grand Prix activity to exercise, including all its variants.
         required: true
         type: choice
-        options: ['1', '2', '3', '4', '5', '6', '7']
+        options: ['1', '2', '3', '4', '5', '6', '7', '8']
       target_sha:
         description: Full 40-character GitHub HEAD SHA of the candidate.
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      activity:
+        description: Grand Prix activity including all native variants.
+        required: true
+        type: string
+      target_sha:
+        description: Exact candidate Git SHA supplied by the caller.
         required: true
         type: string
 
@@ -33,7 +43,7 @@ jobs:
         shell: bash
         run: |
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$ACTIVITY" =~ ^[1-7]$ ]]
+          [[ "$ACTIVITY" =~ ^[1-8]$ ]]
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.workflow_sha }}

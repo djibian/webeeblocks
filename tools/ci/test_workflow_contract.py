@@ -39,6 +39,7 @@ EXPECTED = {
         "grand-prix-progression-a3-native",
         "grand-prix-progression-a4-native",
         "grand-prix-progression-a5-native",
+        "grand-prix-progression-late-native",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
@@ -127,12 +128,25 @@ class WorkflowTests(unittest.TestCase):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
 
-    def test_grand_prix_native_dispatch_is_exact_and_non_decision(self):
+    def test_grand_prix_native_dispatch_is_exact_and_reusable(self):
         source = (WORKFLOWS / "grand-prix-native.yml").read_text(encoding="utf-8")
         triggers = source.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
-        self.assertEqual(re.findall(r"^  (\w+):", triggers, re.M), ["workflow_dispatch"])
+        self.assertEqual(re.findall(r"^  (\w+):", triggers, re.M), ["workflow_dispatch", "workflow_call"])
         self.assertIn("permissions:\n  contents: read\n\njobs:", source)
         self.assertIn('[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]', source)
+        self.assertIn('[[ "$ACTIVITY" =~ ^[1-8]$ ]]', source)
+        self.assertIn("options: ['1', '2', '3', '4', '5', '6', '7', '8']", source)
+        # A direct dispatch is still non-decision; only the canonical Runtime
+        # caller makes the result part of the existing CI Gate needs chain.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        late = runtime.split("\n  grand-prix-progression-late-native:\n", 1)[1].split(
+            "\n  grand-prix-v2-native-matrix:\n", 1)[0]
+        for required in ("fail-fast: false", "activity: ['6', '7', '8']",
+                         "uses: ./.github/workflows/grand-prix-native.yml",
+                         "activity: ${{ matrix.activity }}",
+                         "target_sha: ${{ inputs.target_sha || github.sha }}"):
+            self.assertIn(required, late)
+        self.assertNotRegex(late, r"(?m)^    (?:if|continue-on-error):")
         self.assertIn('test "$(git -C candidate rev-parse HEAD)" = "$TARGET_SHA"', source)
         self.assertIn('test "$(git -C harness rev-parse HEAD)" = "$GITHUB_WORKFLOW_SHA"', source)
         self.assertEqual(source.count("persist-credentials: false"), 3)
