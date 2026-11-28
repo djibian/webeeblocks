@@ -130,6 +130,35 @@ async function testBackendResetContract() {
   await assert.rejects(() => physical.resetSimulation(), /simulation reset unavailable/);
 }
 
+async function testRecoveryRequiresExactAck() {
+  const prefix = 'WEBEEBLOCKS_RUNTIME_V2 ';
+  for (const wrong of ['VALUE 0', 'STATE achieved', 'STATE interrupted']) {
+    const sent = [];
+    const backend = new WwiBackend({send:m=>sent.push(m)}, {
+      timeoutMs:1000, simulationStop:true, simulationReset:true
+    });
+    backend.handleMessage(prefix + 'READY');
+    const stop = assert.rejects(backend.stopSimulation(), e=>e.code==='INVALID_RESPONSE');
+    backend.handleMessage(prefix + 'RESPONSE 1 ' + wrong);
+    await stop;
+    assert.strictEqual(backend.simulationStopped, true);
+    await assert.rejects(backend.move('forward', .2), e=>e.code==='USER_STOPPED');
+    const reset = assert.rejects(backend.resetSimulation(), e=>e.code==='INVALID_RESPONSE');
+    backend.handleMessage(prefix + 'RESPONSE 2 ' + wrong);
+    await reset;
+    assert.strictEqual(backend.simulationStopped, true);
+    assert.strictEqual(Object.keys(backend.pending).length, 0);
+    backend.handleMessage(prefix + 'RESPONSE 2 OK'); // retired request cannot reopen execution
+    await assert.rejects(backend.move('forward', .2), e=>e.code==='USER_STOPPED');
+    const retry = backend.resetSimulation(); // explicit new request, never automatic
+    backend.handleMessage(prefix + 'RESPONSE 3 OK');
+    await retry;
+    assert.strictEqual(backend.simulationStopped, false);
+    assert.strictEqual(backend.ready, true);
+    assert.deepStrictEqual(sent, ['REQUEST 1 STOP','REQUEST 2 RESET','REQUEST 3 RESET'].map(m=>prefix+m));
+  }
+}
+
 async function testProjectFileOperationsOutliveReadinessTimeout() {
   const sent = [];
   const transport = new WwiProjectFileTransport(
@@ -403,6 +432,7 @@ function testNativeResetTimeoutSourceContract() {
   await testBackendReadyHandshake();
   await testHelloReplyDoesNotForgeRestart();
   await testBackendResetContract();
+  await testRecoveryRequiresExactAck();
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testStartupHandshakeSourceContract();

@@ -128,10 +128,17 @@
       var timer = setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
-        reject(new Error('Runtime v2 request timeout id=' + id + ' command=' + parts[0]));
+        var error = new Error('Runtime v2 request timeout id=' + id + ' command=' + parts[0]);
+        // A lost reply to a flight-program command is not a native refusal.
+        // Reuse the simulation recovery STOP path; do not retry the command.
+        if (self.capabilities.simulationStop === true && self.capabilities.simulationReset === true &&
+            /^(TAKEOFF|MOVE|VERTICAL|TURN|WAIT|SPEED|LIGHT|LAND|RANGE|ELAPSED)$/.test(parts[0]))
+          error.code = 'FLIGHT_REQUEST_TIMEOUT';
+        reject(error);
       }, requestTimeout);
       self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce,
-        admission: parts[0] === 'ADMISSION'};
+        admission: parts[0] === 'ADMISSION',
+        recoveryAckOnly: parts[0] === 'STOP' || parts[0] === 'RESET'};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -210,7 +217,11 @@
       return true; // A legacy/other connection's ACK cannot confirm this scene.
     clearTimeout(pending.timer);
     delete this.pending[id];
-    if (match[2] === 'OK') {
+    // Recovery must be confirmed by an explicit native OK, not a sensor
+    // value or mission state carrying the same numerical request ID.
+    if (pending.recoveryAckOnly && match[2] !== 'OK' && match[6] === undefined) {
+      pending.reject(new RuntimeV2BackendError('INVALID_RESPONSE'));
+    } else if (match[2] === 'OK') {
       pending.resolve(null);
     } else if (match[3] !== undefined) {
       var value = Number(match[3]);

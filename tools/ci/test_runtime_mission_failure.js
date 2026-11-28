@@ -37,7 +37,11 @@ function harness(options = {}) {
       if (options.completeResult)
         response = options.completeResult;
       payload = 'OK';
-    } else if (command === 'STOP' && options.stopRequested) {
+    } else if (options.flightTimeout && (command === 'TAKEOFF' || command === 'MOVE')) {
+      if (command === options.flightTimeout) return; // missing native reply
+      payload = 'OK';
+    } else if (command === 'STOP' && (options.stopRequested || options.flightTimeout)) {
+      if (options.stopMissing) return;
       payload = 'OK';
     } else if (command === 'RESET') {
       response = 'ERR OUTCOME_UNAVAILABLE';
@@ -50,7 +54,7 @@ function harness(options = {}) {
   }}, {
     simulationReset:options.physical !== true,
     simulationStop:true,
-    timeoutMs:1000,
+    timeoutMs:options.flightTimeout ? 20 : 1000,
     outcomeSettleMs:0,
     outcomePollMs:0
   });
@@ -65,6 +69,12 @@ function harness(options = {}) {
     WebeeBlocksRuntimeOutcome:Outcome,
     WebeeBlocksActivityContract:{async execute(profile, workspace, compiler, interpreter, target, hooks) {
       hooks.onAst({version:1, program:[]});
+      if (options.flightTimeout) {
+        await hooks.hooks.beforeStep({role:'statement', node:{kind:'takeoff'}});
+        await target.takeoff(0.5);
+        await target.move('forward', 0.3);
+        throw new Error('missing reply unexpectedly resolved');
+      }
       // Exercise the production STOP path, not an impossible bare intent flag.
       if (options.stopRequested) void context.stopSimulation();
       throw Object.assign(new Error('original execution failure'), {code:options.code || 'UNSAFE_OR_TIMEOUT'});
@@ -116,7 +126,39 @@ function proveNativeBrokerRetention() {
     'native broker regression must preserve exact current terminal mission evidence and scope failure probes');
 }
 
+async function proveFlightTimeoutRecovery() {
+  for (const flightTimeout of ['TAKEOFF', 'MOVE']) {
+    for (const stopMissing of [false, true]) {
+      const h = harness({route:true, flightTimeout, stopMissing});
+      await h.context.runProgram();
+      const commands = h.sent.map(message => message.split(' ')[3]);
+      assert.deepStrictEqual(commands, flightTimeout === 'TAKEOFF' ? ['TAKEOFF', 'STOP'] : ['TAKEOFF', 'MOVE', 'STOP']);
+      assert.strictEqual(h.element('runtimeState').textContent, 'ERREUR');
+      assert.strictEqual(h.context.runtimeTerminal, true);
+      assert.strictEqual(h.context.runtimeSafetyUnknown, stopMissing);
+      assert.strictEqual(h.element('submit').disabled, true);
+      assert.strictEqual(h.element('resetSimulation').disabled, stopMissing);
+      assert.strictEqual(h.events.find(e => e.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
+        stopMissing ? null : 'FLIGHT_REQUEST_TIMEOUT');
+      await h.context.resetSimulation();
+      if (stopMissing) {
+        assert.deepStrictEqual(h.sent.map(message => message.split(' ')[3]), commands);
+      } else {
+        assert.strictEqual(h.sent.at(-1).split(' ')[3], 'RESET');
+        assert.strictEqual(h.element('runtimeState').textContent, 'PRÊT');
+        assert.strictEqual(h.context.runtimeTerminal, false);
+      }
+    }
+  }
+  // Do not opt a physical backend into simulation recovery.
+  const physical = harness({physical:true, flightTimeout:'TAKEOFF'});
+  await physical.context.runProgram();
+  assert.deepStrictEqual(physical.sent.map(message => message.split(' ')[3]), ['TAKEOFF']);
+  assert.strictEqual(physical.events.find(e => e.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode, null);
+}
+
 async function proveMissionFailure() {
+  await proveFlightTimeoutRecovery();
   proveNativeCInterpositionBoundary();
   proveNativeBrokerRetention();
 

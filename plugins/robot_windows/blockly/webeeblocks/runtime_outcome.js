@@ -19,7 +19,8 @@
 
   function requiresSafeStop(error) {
     return isRetryable(error) || !!(error &&
-      (error.code === 'EXECUTION_BUDGET_LIMIT' || error.code === 'LOOP_ITERATION_LIMIT'));
+      (error.code === 'EXECUTION_BUDGET_LIMIT' || error.code === 'LOOP_ITERATION_LIMIT' ||
+       error.code === 'FLIGHT_REQUEST_TIMEOUT'));
   }
 
   // These are technical observations/refusals, not a diagnosis of the
