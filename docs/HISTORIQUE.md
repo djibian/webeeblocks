@@ -1,0 +1,16 @@
+# Historique et preuves — point d'entrée
+
+La documentation courante décrit la progression A1–A8 publiée en v0.1.0. Les preuves, protocoles et documents d'ingénierie anciens sont conservés ; ils ne définissent pas automatiquement le produit actuel. Les instantanés ci-dessous sont des liens **au commit exact** de la première release.
+
+| Sujet | Référence conservée |
+| --- | --- |
+| Chronologie complète des décisions, ancienne vision | [PRODUCT_VISION.md à 4733e346](https://github.com/djibian/webeeblocks/blob/4733e346de4da05b680ffd7633df06bbdca13d32/docs/PRODUCT_VISION.md) |
+| Ancien graphe détaillé, preuves W1/W2, matériel et X3 | [ROADMAP.md à 4733e346](https://github.com/djibian/webeeblocks/blob/4733e346de4da05b680ffd7633df06bbdca13d32/docs/ROADMAP.md) |
+| Ancien README et carte technique | [README](https://github.com/djibian/webeeblocks/blob/4733e346de4da05b680ffd7633df06bbdca13d32/README.md), [architecture](https://github.com/djibian/webeeblocks/blob/4733e346de4da05b680ffd7633df06bbdca13d32/docs/ARCHITECTURE.md) |
+| Ancien catalogue / prototype U / paquets | [scènes](ACTIVITY_SCENES.md), [prototype U](GRAND_PRIX_U_PROTOTYPE.md), [ancien projet Windows](GRAND_PRIX_WINDOWS_PROJECT.md), [ancien déploiement](WINDOWS_DEPLOYMENT.md) |
+| Règles du Grand Prix et témoins natifs | [contrat de route](GRAND_PRIX_ROUTE_CONTRACT.md), [contrat simulation](GRAND_PRIX_SIMULATION_CONTRACT.md), [matrice originale](https://github.com/djibian/webeeblocks/blob/4733e346de4da05b680ffd7633df06bbdca13d32/docs/GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md) ; les dimensions plus anciennes y restent historiques face à la matrice courante. |
+| Performance | [#914](https://github.com/djibian/webeeblocks/issues/914) ; #970 intégré ; #910/#911/#913, #922/#923/#946, #966, #938, #967/#912 et #968 historiques/abandonnés selon les décisions. Ne pas relancer ces architectures. |
+| Campagnes humaines | [#1114 FAIL](https://github.com/djibian/webeeblocks/issues/1114#issuecomment-7223603624), [#1132 NOT_NEEDED](https://github.com/djibian/webeeblocks/issues/1132#issuecomment-7245759591), [protocole A1–A8 inchangé](GRAND_PRIX_A1_A8_WINDOWS_ACCEPTANCE.md). Son avertissement « non publiable » correspond à la règle normale de préparation, pas à une annulation de l'exception de publication déjà donnée. Les anciens checkpoints W1/W2, #481, #619, #632, #635 et #800 restent attachés à leurs sujets. |
+| Recherche et matériel | [preuves](evidence/), [méthode d'archivage](TEST_EVIDENCE.md), [#554](PHYSICAL_FAIL_554_AUDIT.md), [X3 #561](X3_FAIL_561_ANALYSIS.md), [#572](evidence/checkpoint-572/README.md), [décision #70](C_PHYSICAL_FEASIBILITY_DECISION_2026-10-10.md) |
+
+Les autres fichiers techniques sous `docs/` restent disponibles comme contrats spécialisés ou témoins datés. Lorsqu'une ancienne description de parcours, de dimensions, de catalogue, de FPS ou de phase contredit la décision propriétaire plus récente, utiliser la [vision](PRODUCT_VISION.md), la [matrice](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md) et les issues d'autorité. Ne pas effacer une observation rouge, déduire une acceptation nouvelle d'un ancien PASS ou transférer une preuve d'un paquet à un autre. Aucun changement de gouvernance.

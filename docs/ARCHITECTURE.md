@@ -5,6 +5,8 @@ identifier ses tests**. Elle décrit le code maintenu, sans remplacer la
 [vision produit](PRODUCT_VISION.md), la [roadmap](ROADMAP.md), le
 [contrat V5](../AGENTS.md) ou les oracles. Les décisions en cours restent sur GitHub.
 
+**Référence de livraison :** [Grand Prix A1–A8 v0.1.0](https://github.com/djibian/webeeblocks/releases/tag/v0.1.0). Les anciens catalogues restent des chemins techniques et de régression, pas la progression distribuée.
+
 ## Chemin d'exécution d'un projet élève
 
 ```text
@@ -63,17 +65,11 @@ Il ne s'agit **pas** d'un mécanisme déclaratif d'activités arbitraires.
 Voir [ACTIVITY_SCENES.md](ACTIVITY_SCENES.md). Les activités historiques 2–7
 restent un acquis technique, pas une acceptation pédagogique.
 
-### Grand Prix : cible pédagogique et entrée active
+### Grand Prix : parcours distribué A1–A8
 
-Le catalogue ordinaire de `main` dans
-[`activities.js`](../plugins/robot_windows/blockly/webeeblocks/activities.js)
-présente encore la livraison autonome comme activité 8. La cible officielle
-est le Grand Prix, mais son prototype U utilise une
-[fenêtre/profil dédiés](../plugins/robot_windows/grand_prix_u/setup.js)
-et un [paquet Windows isolé](GRAND_PRIX_WINDOWS_PROJECT.md), construit par
-[`package_windows_u.py`](../tools/grand_prix/package_windows_u.py).
-Aucune substitution du catalogue ordinaire ni acceptation pédagogique
-personnelle du Grand Prix n'en découle.
+Le [profil de progression](../plugins/robot_windows/blockly/webeeblocks/grand_prix_progression.js), la [Robot Window route](../plugins/robot_windows/grand_prix_route_v2/setup.js) et le [générateur](../tools/grand_prix/progression_courses.py) composent les activités A1–A7 avec le moteur partagé d'A8. Le [paquet Windows unifié](../tools/grand_prix/package_windows_progression.py) construit les 35 mondes et 8 amorces ; le choix d'activité/parcours appartient à l'hôte, pas au fichier .wbb. Le [lanceur Linux](../tools/grand_prix/launch_progression_linux.py) est une prévisualisation depuis les sources.
+
+La scène physique canonique est attestée avant READY et réputée statique durant son incarnation ; les oracles dynamiques, l'identité, les capteurs frais et le LAND indépendant restent actifs. Voir [vision](PRODUCT_VISION.md) et [matrice](GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md). Les anciens profils de `activities.js`, le prototype U et le paquet isolé restent des supports historiques/de régression. Aucun PASS enseignant ne découle du paquet actuel.
 
 ### Projet élève → navigateur / Qt
 
@@ -92,7 +88,7 @@ de fichiers. Ne pas confondre une sauvegarde réussie avec un résultat pédagog
 
 ### Distributions Windows : dépendances et preuves distinctes
 
-Le [ZIP scolaire ordinaire](WINDOWS_DEPLOYMENT.md) et le
+Le [ZIP A1–A8 publié](GUIDE_UTILISATEUR.md), l'ancien [ZIP scolaire ordinaire](WINDOWS_DEPLOYMENT.md) et le
 [ZIP Grand Prix isolé](GRAND_PRIX_WINDOWS_PROJECT.md) requièrent une
 installation externe de Webots R2025a. Le candidat privé
 [M2](../packaging/webots-r2025a-parent-safe/M2-WINDOWS-DW-ACCEPTANCE.md)
@@ -100,8 +96,7 @@ embarque, lui, son Webots R2025a B et impose son chargement depuis le
 répertoire privé, sans installation Webots séparée. Les preuves natives M2
 (READY, Qt, fermeture normale bornée) ne valent ni parcours interactif D/W
 complet ni qualification de déploiement scolaire ; [#800](https://github.com/djibian/webeeblocks/issues/800)
-reste ouvert. Les PASS Windows historiques des autres archives ne sont pas
-transférables au ZIP M2.
+est clos FAIL sur son propre candidat (démarrage scolaire non reproductible). Les PASS Windows historiques des autres archives ne sont pas transférables au ZIP M2 ni à v0.1.0.
 
 ### Runtime C / WWI / Qt / Webots
 
@@ -184,8 +179,7 @@ Aucun vol, flash ou TEST_REQUIRED automatique.
   les variantes Grand Prix sont des témoins techniques et non une acceptation
   pédagogique. La pause technique du 27 octobre a été
   [levée le 2 novembre 2026](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6588696664)
-  pour la phase 1 en simulation ; cette reprise n'est ni un PASS Grand Prix
-  ni un signal de refonte des activités 2–7.
+  pour la phase 1 en simulation ; la décision du 19 novembre a ensuite autorisé la refonte A1–A7. Ces étapes sont historiques ; la release A1–A8 ne transfère aucun PASS.
 
 ## Trouver les validations pertinentes
 
