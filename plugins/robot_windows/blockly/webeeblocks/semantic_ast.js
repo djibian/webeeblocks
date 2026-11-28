@@ -41,6 +41,7 @@
         fail('invalid Blockly value socket '+block.type+'.'+inputName);
       var detail=inputName==='HEIGHT'?'Indiquez la hauteur du décollage.':
         inputName==='DISTANCE'?'Indiquez la distance du déplacement.':
+        inputName==='TIMES'?'Indiquez un nombre entier de répétitions de '+LIMITS.repeat.min+' à '+LIMITS.repeat.max+'.':
         inputName==='BOOL'||/^IF\d+$/.test(inputName)?'Ajoutez une condition au bloc de contrôle.':
         inputName==='A'||inputName==='B'?'Complétez les deux entrées du calcul ou de la comparaison.':
         inputName==='VALUE'||inputName==='DELTA'?'Indiquez la valeur à affecter ou à ajouter à la variable.':
@@ -85,13 +86,12 @@
   }
 
   function repeatCount(block){
-    if(typeof block.getInputTargetBlock==='function'&&block.getInputTargetBlock('TIMES')){
-      var expression=valueChild(block,'TIMES');
-      if(expression.kind!=='number'||Math.floor(expression.value)!==expression.value)
-        studentFail('repeat count must be an integer literal','Bloc « répéter » : utilisez un nombre entier de '+LIMITS.repeat.min+' à '+LIMITS.repeat.max+'.');
-      return bounded(expression.value,'repeat',LIMITS.repeat);
-    }
-    return bounded(field(block,'TIMES'),'repeat',LIMITS.repeat);
+    // controls_repeat_ext has a value socket, not a TIMES field. Missing
+    // input must not be coerced from null to zero or hide a broken schema.
+    var expression=valueChild(block,'TIMES');
+    if(expression.kind!=='number'||Math.floor(expression.value)!==expression.value)
+      studentFail('repeat count must be an integer literal','Bloc « répéter » : utilisez un nombre entier de '+LIMITS.repeat.min+' à '+LIMITS.repeat.max+'.');
+    return bounded(expression.value,'repeat',LIMITS.repeat);
   }
 
   function procedureName(name){
