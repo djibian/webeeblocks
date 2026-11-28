@@ -504,5 +504,26 @@ class CoreCaptureTests(unittest.TestCase):
                 self.assertEqual(capture.attribute(core)['phase'], 'BEFORE_READY')
 
 
+    def test_startup_abort_attribution_and_ambiguous_pid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            trial = out/'timeout'
+            trial.mkdir()
+            core = Path('/tmp/core.webots-bin.330.1795864183')
+            evidence = dict(sequence_index=2,
+                core=dict(native_sigsegv_pids_in_log=[],
+                          native_sigabrt_pids_in_log=[330]))
+            capture.write_json(trial/'startup-failure.json', evidence)
+            with patch.object(capture, 'OUT', out):
+                self.assertEqual(capture.attribute(core),
+                    dict(trial='timeout', phase='BEFORE_READY', sequence_index=2))
+                self.assertEqual(capture.attribute(Path('/tmp/core.webots-bin.331.1795864183')),
+                    dict(phase='UNPROVEN', matches=0))
+                other = out/'another'
+                other.mkdir()
+                capture.write_json(other/'startup-failure.json', evidence)
+                self.assertEqual(capture.attribute(core), dict(phase='UNPROVEN', matches=2))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -401,12 +401,14 @@ def preflight(directory):
 
 
 def attribute(core):
-    """Do not call a post-READY fault a reproduction of startup SIGSEGV."""
+    """Attribute a native core's phase, without inferring the crash cause."""
     pid = int(core.name.split('.')[2])
     matches = []
     for path in OUT.glob('*/startup-failure.json'):
         data = json.loads(path.read_text())
-        if pid in data.get('core', {}).get('native_sigsegv_pids_in_log', []):
+        evidence = data.get('core', {})
+        if any(pid in evidence.get(key, []) for key in
+               ('native_sigsegv_pids_in_log', 'native_sigabrt_pids_in_log')):
             matches.append(dict(trial=path.parent.name, phase='BEFORE_READY',
                                 sequence_index=data['sequence_index']))
     if not matches:
