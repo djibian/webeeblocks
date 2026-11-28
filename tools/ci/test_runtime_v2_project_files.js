@@ -1601,7 +1601,8 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
       assert.strictEqual(portableTransport.state.writes.length,1);
       const portableSaved=ProjectFiles.parseProject(portableTransport.state.currentText);
       assert.strictEqual(portableSaved.activity.id,source.id);
-      assert.deepStrictEqual(portableSaved.workspace,saved);
+      // Persisted JSON has ordinary objects; Blockly's serializer also uses null prototypes.
+      assert.deepStrictEqual(portableSaved.workspace,JSON.parse(JSON.stringify(saved)));
       portableWorkspace.clear();
       portableTransport.state.openText=portableTransport.state.currentText;
       assert.strictEqual((await portableManager.openIntoCurrentActivity()).ast,null);
