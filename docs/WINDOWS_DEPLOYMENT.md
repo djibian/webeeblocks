@@ -1,4 +1,6 @@
-# Windows classroom deployment
+# Windows classroom deployment — historical ordinary package
+
+**For the current A1–A8 release, use the [user guide](GUIDE_UTILISATEUR.md) and [v0.1.0](https://github.com/djibian/webeeblocks/releases/tag/v0.1.0), with `Lancer-Progression.cmd`.** This document describes the distinct historical `WebeeBlocks-Windows-R2025a.zip` package and its scoped evidence, not the current release.
 
 ## Supported target
 
@@ -64,8 +66,7 @@ The teacher installs Webots R2025a, extracts
 `WebeeBlocks-Windows-R2025a.zip` into a writable folder and uses Google Chrome
 as the reference classroom browser. Firefox may also be used where the qualified
 native direct-file path is desired. The network may then be disconnected, but
-#476 remains the separate active diagnostic for Chrome Save As when a Windows
-Chrome profile/data-directory depends on unavailable network or mapped storage.
+#476 is closed under the revised school-local offline boundary (#525); its historical failures with unavailable mapped profiles remain evidence, not an active requirement to survive total LAN loss.
 
 The student double-clicks `Launch-WebeeBlocks.cmd`. The launcher finds Webots
 through `WEBOTS_HOME`, the standard Program Files location or `PATH`, starts
@@ -89,8 +90,7 @@ Those passes establish the broad Chrome low-end baseline. Separate checkpoint
 #481 establishes Windows Firefox direct `.wbb` Open / Save As / same-file Save,
 neutral cancellation and native-dialog foreground presentation on its exact
 artifact. Neither evidence proves Edge, Windows 10, every future materially
-changed release artifact, or the separate Chrome network/profile condition now
-tracked by #476.
+changed release artifact, or the historical Chrome network/profile condition documented in #476.
 
 `packaging/windows/WINDOWS-ACCEPTANCE.md` is therefore a **revalidation
 template** for a future release whose changes make renewed real-machine

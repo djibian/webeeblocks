@@ -1,6 +1,6 @@
 # Progression pédagogique approuvée — Activités 1 à 8
 
-**Contrat pédagogique ACTUEL — décision explicite du propriétaire du 19 novembre 2026 :** [#587, décision A1–A7 Grand Prix commun](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309).
+**Contrat pédagogique en vigueur — référence de la release v0.1.0.** Décision explicite du propriétaire du 19 novembre 2026 : [#587, décision A1–A7 Grand Prix commun](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309).
 Cette décision **supplante les matrices A1–A7 du 12 novembre** ([#587](https://github.com/djibian/webeeblocks/issues/587#issuecomment-6826109034)) et l'ancienne mission A6 « compter les H » du 18 novembre. **A8 reste inchangée.** L'approbation est un contrat *de conception et d'implémentation*, pas un PASS pédagogique/Windows, un GO V5, une fusion, une publication ni une autorisation de vol réel.
 
 **Mise à jour propriétaire — 23 novembre 2026 :** A4 introduit les mesures et
@@ -43,7 +43,9 @@ vocabulaire concernées dans la matrice du 19 novembre.
 
 **Décision propriétaire du 27 novembre 2026 — A5/V5 :** [rapport #1114](https://github.com/djibian/webeeblocks/issues/1114#issuecomment-7223603624). Remplacer la variante V5 longue par une variante nettement plus courte. Le choix d'implémentation est un premier segment de 0,60 m au lieu de 1,80 m ; conserver 2,50 m sur le second segment, les quatre autres variantes, la mémoire du virage et tous les oracles. La face frontale doit rester dans la portée utile du capteur de 2 m, avec marge. La nouvelle géométrie nécessite la preuve native complète ; aucun PASS enseignant n'est présumé.
 
-## Preuves de pédagogie et de comportement à produire
+**Précisions A8 :** 3 segments indépendants de 2/2,5/3 m, deux virages à 90° indépendants gauche/droite, corridor de 0,60 m, cornières physiques à deux bras de 0,60 m, ligne blanche visuelle uniquement. Un H ouvert au plus par segment, cible selon les franchissements accomplis : 1 centre, 2 gauche 0,50 m, 3 droite 0,50 m, relativement à l'arrivée. Pas de quatrième côté, ligne droite supplémentaire, tour répété, obstacle au sol, bonus ni score. À 210 s échec irréversible et LAND indépendant immédiat ; aucune pose ultérieure ne restaure la réussite.
+
+## Preuves de pédagogie et de comportement
 
 - **A1** : 3 segments/2 virages, limites de couloir, altitude hors jaune, pose ; collision contre le H fermé refusée.
 - **A2** : démontrer par tests positifs/négatifs qu'une trajectoire constante ou un franchissement sans descendre dans la zone jaune ne satisfait pas les règles ; remontée/descente utiles **sans contrôle de syntaxe**.
@@ -56,4 +58,4 @@ vocabulaire concernées dans la matrice du 19 novembre.
 
 ## Gouvernance et transition
 
-La [décision propriétaire #587 du 19/11/2026](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309) est **l'autorité de conception A1–A7**. Les anciens profils et PR (#980/#981/#1033/#1056/#1067 et autres) sont à **réévaluer** ; conserver les preuves et l'ouverture des anciens fichiers `.wbb` sans présenter les starters A5/A6 historiques comme les nouveaux cours. Le partage technique ne doit pas altérer A8 ou ses garanties. Chaque changement passe par petite PR, CI, examen V5 indépendant et validation humaine sur la version livrée. L'ancien contrat reste historique, non applicable aux nouvelles activités.
+La [décision propriétaire #587 du 19/11/2026](https://github.com/djibian/webeeblocks/issues/587#issuecomment-7016042309) est **l'autorité de conception A1–A7**. Les PR #980/#981/#1033/#1056/#1067 ont été closes sans fusion pour objectifs supplantés ; conserver leurs preuves et l'ouverture des anciens fichiers `.wbb` sans présenter les starters historiques comme les nouveaux cours. La [release v0.1.0](https://github.com/djibian/webeeblocks/releases/tag/v0.1.0) distribue les 35 parcours, sans nouveau PASS enseignant (#1132 NOT_NEEDED pour la première publication uniquement). Le partage technique ne doit pas altérer A8 ou ses garanties. Chaque changement passe par petite PR, CI, examen V5 indépendant et validation humaine sur la version livrée. L'ancien contrat reste historique, non applicable aux nouvelles activités.
