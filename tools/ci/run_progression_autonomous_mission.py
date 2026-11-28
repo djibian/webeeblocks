@@ -233,9 +233,10 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-# Activity 8 proves simulated mission state, not wall-clock pacing. Fast mode
-# preserves the same deterministic 32 ms steps while keeping the real rendered
-# Robot Window/browser lifecycle that carries Runtime-v2 commands.
+# Activity 8 proves simulated mission state, not wall-clock pacing or the
+# continuous 3D viewport. Fast mode keeps the same deterministic 32 ms steps;
+# the retirement runner disables viewport rendering for this witness only.
+# The actual Robot Window/browser and full native mission/exit proofs remain.
 xvfb-run -a python3 -u /workspace/tools/ci/progression_native_retirement.py \
   --kind autonomous --world /workspace/worlds/ci_progression_autonomous.wbt \
   --artifacts "$artifact_dir"

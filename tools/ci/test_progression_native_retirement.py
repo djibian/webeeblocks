@@ -147,6 +147,48 @@ class RetirementGuards(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     verify_native_report(root, mode)
 
+    def test_direct_early_exit_keeps_observed_status_and_rejects_even_zero(self):
+        from types import SimpleNamespace
+        import progression_native_retirement as retirement
+        for mode in ('memory', 'autonomous'):
+            for code in (0, -6, -11):
+                with self.subTest(mode=mode, code=code), tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    home = root/'webots'
+                    (home/'bin').mkdir(parents=True)
+                    (home/'resources').mkdir()
+                    (home/'bin/webots-bin').touch()
+                    (home/'resources/version.txt').write_text('R2025a\n')
+                    world = root/'world.wbt'
+                    world.touch()
+                    child = mock.Mock(pid=4242)
+                    child.poll.return_value = code
+                    before = process_inventory((1, 10), (7, 20))
+                    with mock.patch.dict('os.environ', {'WEBOTS_HOME': str(home)}), \
+                         mock.patch.object(retirement, 'cgroup_processes', return_value=before), \
+                         mock.patch.object(retirement.subprocess, 'Popen', return_value=child) as launch, \
+                         mock.patch.object(retirement, 'stop_groups') as cleanup:
+                        with self.assertRaisesRegex(RuntimeError, 'exited before administrative retirement'):
+                            retirement.native_main(SimpleNamespace(
+                                kind=mode, artifacts=str(root), world=str(world)))
+                    argv = launch.call_args.args[0]
+                    expected = [str(home/'bin/webots-bin'), '--stdout', '--stderr',
+                                '--batch', '--mode=fast', '--minimize']
+                    if mode == 'autonomous':
+                        expected.append('--no-rendering')
+                    self.assertEqual(argv, expected + [str(world.resolve())])
+                    cleanup.assert_called_once_with([child])
+                    report = json.loads((root/'normal-quit.json').read_text())
+                    self.assertEqual(report['native_exit_code'], code)
+                    self.assertFalse(report['normal_success'])
+                    self.assertFalse(report['browser_complete'])
+                    self.assertTrue(report['fallback_used'])
+                    self.assertFalse((root/'normal-quit.request').exists())
+                    incident = record_completion(root, docker_returncode=1)
+                    self.assertEqual(incident['native_report']['native_exit_code_reported'], code)
+                    with self.assertRaises(RuntimeError):
+                        verify_native_report(root, mode)
+
     def test_original_runners_do_not_synthesize_zero_after_complete(self):
         scripts = ('run_progression_memory_overwrite.py',
                    'run_progression_autonomous_mission.py')
