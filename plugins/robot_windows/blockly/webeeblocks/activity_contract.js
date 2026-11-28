@@ -19,6 +19,41 @@
       return block.type;
     });
   }
+  // Public labels only. Never echo unknown field values, arbitrary block text
+  // or internal profile/AST identifiers to a pupil.
+  var OPTION_LABELS = Object.freeze({
+    'webeeblocks_v2_move.DIRECTION': {label:'déplacement', options:{forward:'avancer',back:'reculer',left:'aller à gauche',right:'aller à droite'}},
+    'webeeblocks_v2_vertical.DIRECTION': {label:'déplacement vertical', options:{up:'monter',down:'descendre'}},
+    'webeeblocks_v2_turn.DIRECTION': {label:'tourner', options:{left:'gauche',right:'droite'}},
+    'webeeblocks_v2_range.DIRECTION': {label:'distance', options:{front:'devant',back:'derrière',left:'à gauche',right:'à droite',up:'au-dessus'}},
+    'math_arithmetic.OP': {label:'calcul', options:{ADD:'+',MINUS:'−',MULTIPLY:'×',DIVIDE:'÷',POWER:'puissance'}},
+    'logic_operation.OP': {label:'opération logique', options:{AND:'ET',OR:'OU'}},
+    'controls_whileUntil.MODE': {label:'boucle conditionnelle', options:{WHILE:'tant que',UNTIL:'jusqu’à'}}
+  });
+  var BLOCK_LABELS = Object.freeze({
+    webeeblocks_v2_takeoff:'décoller', webeeblocks_v2_land:'atterrir',
+    webeeblocks_v2_move:'déplacement', webeeblocks_v2_vertical:'monter/descendre',
+    webeeblocks_v2_turn:'tourner', webeeblocks_v2_wait:'attendre',
+    webeeblocks_v2_speed:'régler la vitesse', webeeblocks_v2_light:'lumière',
+    webeeblocks_v2_range:'distance', webeeblocks_v2_elapsed:'temps simulé',
+    procedures_defnoreturn:'définir une procédure', procedures_callnoreturn:'appeler une procédure',
+    controls_if:'si / sinon', controls_repeat_ext:'répéter',
+    controls_whileUntil:'tant que / jusqu’à', webeeblocks_v2_until:'répéter jusqu’à',
+    logic_compare:'comparaison', logic_operation:'ET / OU', math_number:'nombre',
+    math_arithmetic:'calcul', variables_set:'affecter une variable',
+    variables_get:'lire une variable', math_change:'modifier une variable'
+  });
+  function publicLabel(labels, key) {
+    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(labels,key) ? labels[key] : null;
+  }
+  function optionDetail(blockType, fieldName, value, allowedValues) {
+    var entry=publicLabel(OPTION_LABELS,blockType+'.'+fieldName);
+    var selected=entry&&publicLabel(entry.options,value);
+    var allowed=entry&&allowedValues.map(function(option){return publicLabel(entry.options,option);});
+    if(!selected||!allowed.length||allowed.some(function(label){return !label;}))
+      return 'Une option de ce programme n’est pas disponible dans cette activité. Modifiez-la avant de lancer.';
+    return 'Bloc « '+entry.label+' » : l’option « '+selected+' » n’est pas disponible dans cette activité. Choisissez : '+allowed.join(' / ')+'.';
+  }
   function preflightFieldOptions(profile, workspace) {
     var definitions = profile.fieldOptions || {};
     workspace.getAllBlocks(false).forEach(function(block) {
@@ -30,7 +65,7 @@
         var value = field.getValue();
         if (fields[fieldName].indexOf(value) < 0)
           studentFail('field option forbidden by profile: ' + block.type + '.' + fieldName + '=' + value,
-            'Une option de ce programme n’est pas disponible dans cette activité. Modifiez-la avant de lancer.');
+            optionDetail(block.type,fieldName,value,fields[fieldName]));
       });
     });
     return true;
@@ -49,8 +84,10 @@
       var input = parent && (parent.type === 'webeeblocks_v2_takeoff' ? 'HEIGHT' : 'DISTANCE');
       if (block.type === 'math_number' && motion && typeof block.isShadow === 'function' &&
           block.isShadow() && parent.getInputTargetBlock(input) === block) return;
+      var label=publicLabel(BLOCK_LABELS,block.type);
       studentFail('block forbidden by profile: ' + block.type,
-        'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
+        (label ? 'Le bloc « '+label+' »' : 'Un bloc de ce programme') +
+        ' n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
     });
     preflightFieldOptions(profile, workspace);
     return types;
