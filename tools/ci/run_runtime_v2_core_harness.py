@@ -278,7 +278,13 @@ def main():
     rendered=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',stdout)
     rendered_text=html.unescape(rendered.group(1)).strip() if rendered else None
     if rendered_text!=marker:
-        print('FAIL Runtime v2 product core',file=sys.stderr); print('browser exit:',process.returncode,file=sys.stderr); print(stderr[-4000:],file=sys.stderr); print(stdout[-8000:],file=sys.stderr); return 1
+        print('FAIL Runtime v2 product core',file=sys.stderr)
+        print('browser exit:',process.returncode,file=sys.stderr)
+        # The failure text precedes the script body in the DOM. Preserve it
+        # separately: dumping only the tail of the HTML lost the causal result.
+        diagnostic=re.search(r'<pre id="result"[^>]*>(.*?)</pre>',stdout,re.S)
+        print('RUNTIME_V2_CORE_RESULT:', html.unescape(diagnostic.group(1)).strip()[:2000] if diagnostic else '<missing result>',file=sys.stderr)
+        print(stderr[-4000:],file=sys.stderr); print(stdout[-8000:],file=sys.stderr); return 1
     if not timed_out and process.returncode:
         print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
     if timed_out: print('WARN: headless browser required forced shutdown after emitting the exact Runtime v2 PASS DOM marker.',file=sys.stderr)
