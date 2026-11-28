@@ -14,7 +14,9 @@ import sys
 import tempfile
 import time
 
-from run_webots_pause_wwi_probe import active_process_group_members, stop_native_process_group
+from run_webots_pause_wwi_probe import (
+    active_process_group_members, enable_native_subreaper, stop_native_process_group,
+)
 
 from pause_wwi_evidence import verify_native_pause_evidence
 
@@ -84,31 +86,33 @@ def check_case(label, path, records=None, console=STDOUT,
             raise AssertionError("not the exact native proof: " + label)
 
 
-def check_orphaned_launcher_cleanup():
+def check_orphaned_launcher_cleanup(detached=False):
     """Reproduce Chrome profile writes AFTER the session leader has exited.
 
     The writer ignores TERM, so cleanup must reach KILL and must not leave
     active profile writers behind before TemporaryDirectory removes Default.
     """
     orphan_writer = (
-        "import pathlib,signal,sys,time\n"
+        "import os,pathlib,signal,sys,time\n"
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
         "path=pathlib.Path(sys.argv[1])\n"
         "path.parent.mkdir(parents=True, exist_ok=True)\n"
-        "path.write_text('ready')\n"
+        "path.write_text(str(os.getpid()))\n"
         "while True:\n"
-        "    with path.open('a') as stream: stream.write('.')\n"
-        "    time.sleep(0.05)\n"
+        "    path.with_name('churn').write_text('writing')\n"
+        "    path.with_name('churn').unlink()\n"
+        "    time.sleep(0.01)\n"
     )
     launcher = (
         "import pathlib,subprocess,sys,time\n"
         f"subprocess.Popen([sys.executable, '-c', {orphan_writer!r}, sys.argv[1]], "
-        "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+        f"stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session={detached!r})\n"
         "deadline=time.monotonic()+3\n"
         "while not pathlib.Path(sys.argv[1]).exists() and time.monotonic()<deadline:\n"
         "    time.sleep(0.01)\n"
         "sys.exit(0 if pathlib.Path(sys.argv[1]).is_file() else 1)\n"
     )
+    enable_native_subreaper()
     with tempfile.TemporaryDirectory(prefix='wb-pause-orphan-') as private:
         marker = Path(private) / 'config' / 'google-chrome' / 'Default' / 'writer'
         proc = subprocess.Popen(
@@ -116,18 +120,25 @@ def check_orphaned_launcher_cleanup():
         try:
             if proc.wait(timeout=5) != 0:
                 raise AssertionError('orphan-writer fixture did not start')
-            if not active_process_group_members(proc.pid):
-                raise AssertionError('fixture missing the post-launcher Chrome-like child')
+            writer_pid = int(marker.read_text())
+            if bool(active_process_group_members(proc.pid)) != (not detached):
+                raise AssertionError('fixture did not establish the requested process group')
+            if os.waitid(os.P_PID, writer_pid,
+                         os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None:
+                raise AssertionError('fixture missing live adopted profile writer')
             stop_native_process_group(proc)
             if active_process_group_members(proc.pid):
                 raise AssertionError('Chrome-like child survived group teardown')
+            try:
+                os.waitid(os.P_ALL, 0, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            except ChildProcessError:
+                pass
+            else:
+                raise AssertionError('adopted profile writer survived teardown')
         finally:
-            if active_process_group_members(proc.pid):
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            proc.wait(timeout=2)
+            stop_native_process_group(proc)
+    if Path(private).exists():
+        raise AssertionError('private profile was not removed')
 
 
 def main():
@@ -195,6 +206,7 @@ def main():
         check_case("malformed JSON duplicate keys", path,
                    raw=b'{"stage":"A","stage":"B"}\n' * 7)
     check_orphaned_launcher_cleanup()
+    check_orphaned_launcher_cleanup(detached=True)
     print("PASS native PAUSE evidence collector: strict stage/clock/WWI/step(32), independent fsync source, adversarial negative cases")
 
 
