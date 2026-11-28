@@ -51,7 +51,7 @@ async function proveStudentStop(backend, waitForForcedLanding) {
       WebeeBlocksSemanticAst:Semantic,WebeeBlocksInterpreter:Interpreter};
     const original = Object.fromEntries(['stopSimulation','resetSimulation','readRange','move','takeoff','land'].map(k=>[k,backend[k]]));
     const started = deferred(), release = deferred();
-    let stops=0,resets=0,moves=0,takeoffs=0,lands=0,rangeValue,manualStop,nativeAck;
+    let stops=0,resets=0,moves=0,moveAcks=0,takeoffs=0,lands=0,rangeValue,manualStop,nativeAck;
     const ranges=[];
     try {
       const block=(type,fields={})=>{
@@ -130,7 +130,7 @@ async function proveStudentStop(backend, waitForForcedLanding) {
       context.runtimeProfile=profile;context.workspace=ws;context.runtimeBackend=backend;
       context.updateRuntimeActions();
       backend.takeoff=async function(...args){takeoffs++;return original.takeoff.apply(this,args);};
-      backend.move=async function(...args){const result=await original.move.apply(this,args);moves++;return result;};
+      backend.move=async function(...args){moves++;const result=await original.move.apply(this,args);moveAcks++;return result;};
       backend.land=async function(...args){lands++;return original.land.apply(this,args);};
       backend.resetSimulation=async function(...args){resets++;return original.resetSimulation.apply(this,args);};
       backend.stopSimulation=async function(...args){
@@ -156,7 +156,7 @@ async function proveStudentStop(backend, waitForForcedLanding) {
       await Promise.race([started.promise,run.then(()=>{throw Error('run ended before native STOP');})]);
       await until(()=>context.runtimeOutcomePending===true);
       const expectedMoves=kind==='arithmetic'?0:1;
-      assert.equal(takeoffs,1);assert.equal(stops,1);assert.equal(moves,expectedMoves);assert.equal(lands,0);
+      assert.equal(takeoffs,1);assert.equal(stops,1);assert.equal(moves,expectedMoves);assert.equal(moveAcks,expectedMoves);assert.equal(lands,0);
       assert.equal(ranges.length,kind==='arithmetic'?1:kind==='loop'?2:0);
       assert.equal(element('submit').disabled,true);assert.equal(element('resetSimulation').disabled,true);
       await context.resetSimulation();await context.runProgram();
@@ -166,7 +166,7 @@ async function proveStudentStop(backend, waitForForcedLanding) {
       release.resolve();
       await run;
       if(manual)assert.equal(await manualStop,true);
-      assert.equal(stops,1);assert.equal(moves,expectedMoves);assert.equal(lands,0);
+      assert.equal(stops,1);assert.equal(moves,expectedMoves);assert.equal(moveAcks,expectedMoves);assert.equal(lands,0);
       assert.equal(context.runtimeTerminal,true);assert.equal(context.runtimeSafetyUnknown,false);
       assert.equal(element('runtimeState').textContent,code==='PROGRAM_INVALID'?'À CORRIGER':'ARRÊTÉ');
       if(kind==='loop')assert.match(element('runtimeDetail').textContent,/limite de 1 itérations.*Réinitialisez/);
@@ -184,7 +184,7 @@ async function proveStudentStop(backend, waitForForcedLanding) {
         console.log('A7_STUDENT_STOP_PASS '+JSON.stringify({manual,rangeValue,takeoffs,stops,moves,resets,
           code:diagnostics[0].machineCode,blockly:Blockly.VERSION,forcedLandings:3+index}));
       else
-        console.log('A7_EXECUTION_LIMIT_STOP_PASS '+JSON.stringify({kind,ranges,takeoffs,stops,moves,lands,resets,
+        console.log('A7_EXECUTION_LIMIT_STOP_PASS '+JSON.stringify({kind,ranges,takeoffs,stops,moves,moveAcks,lands,resets,
           code:diagnostics[0].machineCode,blockly:Blockly.VERSION,forcedLandings:3+index,maxSteps:profile.runtime.maxSteps}));
     } finally {
       release.resolve();

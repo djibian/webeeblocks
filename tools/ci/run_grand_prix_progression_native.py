@@ -231,7 +231,7 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
             if len(limits) != 2 or any(
                     (proof.get('kind'), proof.get('code'), proof.get('forcedLandings')) != case or
                     any(proof.get(k) != v for k, v in {'takeoffs': 1, 'stops': 1, 'moves': 1,
-                                                       'lands': 0, 'resets': 1, 'blockly': '13.2.1',
+                                                       'moveAcks': 1, 'lands': 0, 'resets': 1, 'blockly': '13.2.1',
                                                        'maxSteps': 20000}.items()) or
                     (case[0] == 'loop' and
                      (len(proof.get('ranges', [])) != 2 or
