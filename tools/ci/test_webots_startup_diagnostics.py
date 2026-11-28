@@ -281,6 +281,21 @@ class StartupEvidenceTests(unittest.TestCase):
             self.assertEqual(evidence["sequence_index"], 16)
             self.assertEqual(evidence["core"]["native_sigsegv_pids_in_log"], [812])
 
+    def test_startup_abort_pid_is_separate_from_sigsegv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            diagnostic = StartupEvidence(out, 2, ["xvfb-run", "webots"], dict(os.environ))
+            evidence = diagnostic.core_details(out / "fake-home", (
+                "free(): corrupted unsorted chunks\n"
+                '/usr/local/webots/webots: line 105:   330 Aborted (core dumped) "$webots_home/bin/webots-bin" "$@"\n'
+                "webots: line 105: 331 Aborted\n"
+                "other: line 105: 332 Aborted (core dumped)\n"
+                "webots: line 105: 333 AbortedSomething\n"
+                "webots: line 105: 334 Segmentation fault (core dumped)\n"))
+            self.assertEqual(evidence["native_sigabrt_pids_in_log"], [330, 331])
+            self.assertEqual(evidence["native_sigsegv_pids_in_log"], [334])
+            self.assertFalse(evidence["raw_core_retained"])
+
     def test_nonfailure_has_no_diagnostic_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)

@@ -203,7 +203,12 @@ class StartupEvidence:
     def core_details(self, home, log):
         pids = [int(pid) for pid in re.findall(
             r"line \d+:\s*(\d+)\s+Segmentation fault", log)]
+        # A heap-corruption abort may generate a Webots core before READY
+        # without a SIGSEGV. Preserve the distinct shell-reported signal.
+        aborted_pids = [int(pid) for pid in re.findall(
+            r"(?m)^(?:[^ \t\r\n:]+/)?webots: line \d+:[ \t]*(\d+)[ \t]+Aborted(?:[ \t]|$)", log)]
         result = {"native_sigsegv_pids_in_log": pids,
+                  "native_sigabrt_pids_in_log": aborted_pids,
                   "raw_core_retained": False,
                   "raw_core_policy": "no raw process memory in public CI artifacts"}
         candidates = []
