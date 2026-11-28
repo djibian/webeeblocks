@@ -231,6 +231,33 @@ async function proveMissionFailure() {
   assert.match(routeUnproven.sent[1], / FAILURE grand-prix-route-v2$/);
   assert.ok(!routeUnproven.sent.some(m => / COMPLETE grand-prix-route-v2$/.test(m)));
 
+  assert.match(routeUnproven.element('runtimeDetail').textContent,/sans résultat de mission confirmé.*enseignant/);
+  assert.doesNotMatch(routeUnproven.element('runtimeDetail').textContent,/210 secondes|atterrissage imposé/);
+  // Exact technical codes are actionable without asserting a mission failure
+  // or a completed STOP. Unknown codes keep the generic teacher guidance.
+  for (const [code, expected] of [
+    ['ADMISSION_UNAVAILABLE', /départ n’a pas pu être autorisé/],
+    ['SCENE_UNAVAILABLE', /scène demandée n’est pas disponible/],
+    ['SCENE_BUSY', /changement de scène n’a pas pu être effectué/],
+    ['TIME_UNAVAILABLE', /temps de simulation n’a pas pu être confirmé/],
+    ['OUTCOME_UNAVAILABLE', /résultat de la mission n’a pas pu être confirmé/],
+    ['OUTCOME_MISMATCH', /résultat reçu ne correspond pas/],
+    ['__proto__', /erreur technique/],
+    ['constructor', /erreur technique/],
+    ['PRIVATE_UNKNOWN_CODE', /erreur technique/]
+  ]) {
+    const technical = harness({code});
+    await technical.context.runProgram();
+    assert.strictEqual(technical.element('runtimeState').textContent, 'ERREUR');
+    assert.match(technical.element('runtimeDetail').textContent,expected);
+    assert.match(technical.element('runtimeDetail').textContent,/enseignant/);
+    assert.ok(!technical.element('runtimeDetail').textContent.includes(code));
+    assert.strictEqual(technical.sent.length,0,'technical refusal must not fabricate mission evidence');
+    assert.strictEqual(technical.events.find(e=>e.type==='webeeblocks-runtime-v2-diagnostic').detail.machineCode,code);
+    assert.strictEqual(Outcome.isRetryable({code}),false);
+    assert.strictEqual(Outcome.requiresSafeStop({code}),false);
+  }
+
   const unrelatedTimeout = harness({code:'TIME_LIMIT'});
   await unrelatedTimeout.context.runProgram();
   assert.strictEqual(unrelatedTimeout.sent.length, 0);

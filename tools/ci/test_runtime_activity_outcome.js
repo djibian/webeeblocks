@@ -350,7 +350,7 @@ async function provePupilErrorRequiresNativeStop(code) {
         await context.resetSimulation();
         assert.strictEqual(resets,0,'RESET must await manual STOP');
       }
-      if(stopFails) pendingStop.reject(new Error('STOP ACK missing'));
+      if(stopFails) pendingStop.reject(Object.assign(new Error('STOP ACK missing'), {code:'UNSAFE_OR_TIMEOUT'}));
       else pendingStop.resolve();
       assert.strictEqual(await stop,!stopFails);
       if(!overlapping) pendingExecution.resolve();
@@ -360,6 +360,7 @@ async function provePupilErrorRequiresNativeStop(code) {
       assert.strictEqual(element('resetSimulation').disabled,stopFails);
       assert.strictEqual(element('runtimeState').textContent,stopFails?'ERREUR':'ARRÊTÉ');
       if(stopFails) {
+        assert.match(element('runtimeDetail').textContent,/arrêt du drone n’est pas confirmé.*enseignant.*réinitialisation est bloquée/);
         await context.resetSimulation();
         await context.runProgram();
         assert.strictEqual(resets,0,'manual STOP without ACK must fence RESET');
@@ -378,7 +379,7 @@ async function provePupilErrorRequiresNativeStop(code) {
       assert.strictEqual(element('submit').disabled,true);
       await context.resetSimulation();
       assert.strictEqual(resets,0,'direct RESET while STOP pending');
-      if(scenario==='stop-failure')pendingStop.reject(new Error('STOP ACK missing'));
+      if(scenario==='stop-failure')pendingStop.reject(Object.assign(new Error('STOP ACK missing'), {code:'UNSAFE_OR_TIMEOUT'}));
       else pendingStop.resolve();
       await running;
       assert.strictEqual(context.runtimeTerminal,true);
@@ -390,6 +391,7 @@ async function provePupilErrorRequiresNativeStop(code) {
       if(loop&&scenario==='stop-ok')assert.match(element('runtimeDetail').textContent,/limite de 3 itérations.*Réinitialisez/);
       assert.strictEqual(stops,1,'exactly one recovery STOP');
       if(scenario==='stop-failure') {
+        assert.match(element('runtimeDetail').textContent,/arrêt du drone n’est pas confirmé.*enseignant.*réinitialisation est bloquée/);
         await context.resetSimulation();
         await context.runProgram();
         assert.strictEqual(resets,0,'direct RESET bypassed unknown STOP interlock');

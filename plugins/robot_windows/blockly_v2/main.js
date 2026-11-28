@@ -96,7 +96,12 @@ function setRuntimeStatus(state, detail) {
 
 function setRuntimeFailure(error, missionOutcome) {
   var outcome = WebeeBlocksRuntimeOutcome.classify(error);
-  var presentation = missionOutcome || outcome;
+  // A lost STOP acknowledgement is an existing safety interlock, not a
+  // confirmed stop or a pupil-correctable failure. Do not invite RESET.
+  var presentation = runtimeSafetyUnknown ? {
+    state: 'ERREUR',
+    detail: 'L’arrêt du drone n’est pas confirmé. Ne relancez pas le programme. Prévenez votre enseignant : la réinitialisation est bloquée.'
+  } : (missionOutcome || outcome);
   console.error(error);
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-diagnostic', {
     detail: {
@@ -106,7 +111,7 @@ function setRuntimeFailure(error, missionOutcome) {
     }
   }));
   var detail = presentation.detail;
-  if (missionOutcome && runtimeProfile && runtimeProfile.evaluation &&
+  if (!runtimeSafetyUnknown && missionOutcome && runtimeProfile && runtimeProfile.evaluation &&
       runtimeProfile.evaluation.oracle === 'grand-prix-route-v2' &&
       error && error.code === 'TIME_LIMIT')
     detail += ' | Sécurité : atterrissage imposé';

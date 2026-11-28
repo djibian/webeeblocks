@@ -22,6 +22,18 @@
       (error.code === 'EXECUTION_BUDGET_LIMIT' || error.code === 'LOOP_ITERATION_LIMIT'));
   }
 
+  // These are technical observations/refusals, not a diagnosis of the
+  // pupil's algorithm or proof of a completed physical action.
+  var TECHNICAL_GUIDANCE = Object.freeze({
+    ADMISSION_UNAVAILABLE: 'Le départ n’a pas pu être autorisé. Prévenez votre enseignant avant de relancer.',
+    SCENE_UNAVAILABLE: 'La scène demandée n’est pas disponible. Prévenez votre enseignant.',
+    SCENE_BUSY: 'Le changement de scène n’a pas pu être effectué. Prévenez votre enseignant.',
+    TIME_UNAVAILABLE: 'Le temps de simulation n’a pas pu être confirmé. Prévenez votre enseignant avant de relancer.',
+    OUTCOME_UNAVAILABLE: 'Le résultat de la mission n’a pas pu être confirmé. Prévenez votre enseignant.',
+    OUTCOME_MISMATCH: 'Le résultat reçu ne correspond pas à la mission attendue. Prévenez votre enseignant.',
+    TIME_LIMIT: 'L’exécution a été interrompue sans résultat de mission confirmé. Prévenez votre enseignant avant de relancer.'
+  });
+
   function classify(error) {
     var machineCode = error && typeof error.code === 'string' ? error.code : null;
     if (machineCode === 'PROGRAM_INVALID') {
@@ -62,7 +74,8 @@
     }
     return {
       state: 'ERREUR',
-      detail: 'Une erreur technique a interrompu l’exécution. Prévenez votre enseignant avant de relancer.',
+      detail: Object.prototype.hasOwnProperty.call(TECHNICAL_GUIDANCE, machineCode) ?
+        TECHNICAL_GUIDANCE[machineCode] : 'Une erreur technique a interrompu l’exécution. Prévenez votre enseignant avant de relancer.',
       machineCode: machineCode
     };
   }
