@@ -161,7 +161,11 @@ def run_pose_native(home,env):
                        GP_U_FILE_OUT=str(file_record) if files else '')
             logpath=OUT/f'{identifier}.log'
             with logpath.open('w') as log:
-                subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
+                # Pose/RESET/LAND and provider evidence use native state, not
+                # viewport images. Avoid continuous software 3D rendering here
+                # without changing the worlds, steps, cases or time budgets.
+                subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',
+                                '--no-rendering',str(target)],
                                cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
             text=logpath.read_text()
             expected=('GP_U_FILE_STARTUP_PASS' if files=='startup-reset' else
