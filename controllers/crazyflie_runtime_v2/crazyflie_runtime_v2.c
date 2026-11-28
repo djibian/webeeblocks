@@ -395,6 +395,13 @@ int main(void) {
 
   const double *position = wb_gps_get_values(gps);
   const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
+#ifdef WEBEEBLOCKS_GP_U_COMPOSITION
+  if (!position || !isfinite(position[0]) || !isfinite(position[1]) ||
+      !isfinite(position[2]) || !gp_valid_attitude(rpy)) {
+    fprintf(stderr, "GP_U_PREPARE_ERROR invalid_initial_pose\n");
+    wb_robot_cleanup(); return 1;
+  }
+#endif
   const double origin_x = position[0];
   const double origin_y = position[1];
   const double origin_z = position[2];
@@ -460,6 +467,13 @@ int main(void) {
     position = wb_gps_get_values(gps);
     rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
     const double *gyro_values = wb_gyro_get_values(gyro);
+#ifdef WEBEEBLOCKS_GP_U_COMPOSITION
+    /* Unavailable native measurements must revoke confirmation, not crash. */
+    const double gp_missing[3] = {NAN, NAN, NAN};
+    if (!position) position = gp_missing;
+    if (!gp_valid_attitude(rpy)) rpy = gp_missing;
+    if (!gyro_values) gyro_values = gp_missing;
+#endif
     const double x = position[0];
     const double y = position[1];
     const double z = position[2];

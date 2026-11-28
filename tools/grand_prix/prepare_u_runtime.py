@@ -1,5 +1,5 @@
 """Bounded build-time extension of CURRENT shared simulation flight source.
-No shared controller or physical source is edited. Changed anchors refuse.
+Native Grand Prix branches are selected explicitly; remaining changed anchors refuse.
 """
 import hashlib
 import sys
@@ -38,12 +38,6 @@ static double wrap_angle(double angle) {
   if (angle <= -PI) angle += 2.0 * PI;
   return angle;
 }'''),
-      ('  const double origin_x = position[0];', '''  if (!position || !isfinite(position[0]) || !isfinite(position[1]) ||
-      !isfinite(position[2]) || !gp_valid_attitude(rpy)) {
-    fprintf(stderr, "GP_U_PREPARE_ERROR invalid_initial_pose\\n");
-    wb_robot_cleanup(); return 1;
-  }
-  const double origin_x = position[0];'''),
       ('  double land_start_z = origin_z;',
        '''  /* Native LAND contact diagnostics: observational, never decision authority. */
   double gp_land_diag_at = -1.0;
@@ -59,12 +53,6 @@ static double wrap_angle(double angle) {
        '  while (wb_robot_step(gp_u_next_step(step)) != -1) {'),
       ('    if (dt <= 0.0)\n      continue;',
        '    if (dt <= 0.0) {\n      gp_ground_since = -1.0;\n      stable_since = -1.0;\n      continue;\n    }'),
-      ('    const double x = position[0];', '''    /* Unavailable native measurements must revoke confirmation, not crash. */
-    const double gp_missing[3] = {NAN, NAN, NAN};
-    if (!position) position = gp_missing;
-    if (!gp_valid_attitude(rpy)) rpy = gp_missing;
-    if (!gyro_values) gyro_values = gp_missing;
-    const double x = position[0];'''),
       ('  send_text(PREFIX " READY");', '''  if ((long long)llround(wb_robot_get_basic_time_step()) != 8) {
     fprintf(stderr, "GP_U_PREPARE_ERROR required_basic_step_ms=8\\n");
     wb_robot_cleanup(); return 1;
@@ -198,7 +186,7 @@ static double wrap_angle(double angle) {
         if (now - stable_since >= STOP_WINDOW) {'''),
       ('          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);',
        '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();')]
-    result=source
+    result='#define WEBEEBLOCKS_GP_U_COMPOSITION 1\n'+source
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')
         result=result.replace(old,new)
