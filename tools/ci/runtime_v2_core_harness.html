@@ -335,6 +335,18 @@
     },/invalid Blockly value socket logic_compare\.B/,true);
     await checkPupilStructure(function(w){
       var repeat=w.getAllBlocks(false).find(function(b){return b.type==='controls_repeat_ext';});
+      repeat.getInputTargetBlock('TIMES').dispose(false);
+      assert(repeat.getInput('TIMES').connection.type===1 &&
+        !repeat.getInputTargetBlock('TIMES'),'empty repeat socket not established');
+    },/nombre entier de répétitions de 1 à 20/);
+    await checkPupilStructure(function(w){
+      var repeat=w.getAllBlocks(false).find(function(b){return b.type==='controls_repeat_ext';});
+      repeat.getInputTargetBlock('TIMES').dispose(false);
+      repeat.removeInput('TIMES');
+      assert(!repeat.getInput('TIMES'),'broken repeat schema not established');
+    },/invalid Blockly value socket controls_repeat_ext\.TIMES/,true);
+    await checkPupilStructure(function(w){
+      var repeat=w.getAllBlocks(false).find(function(b){return b.type==='controls_repeat_ext';});
       repeat.getInputTargetBlock('DO').dispose(false);
       repeat.getInput('DO').connection.connect(w.newBlock('webeeblocks_v2_land').previousConnection);
     },/hors des boucles/);

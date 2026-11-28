@@ -1538,6 +1538,89 @@ async function proveAltitudeBlocklyProjectRoundTrip(){
   assert.strictEqual(incomplete.getBlocksByType('webeeblocks_v2_takeoff', false).length, 1, 'incomplete workspace was not restored');
   assert.strictEqual(incompleteTransport.state.writes.length, 1, 'opening incomplete project caused a write');
 
+  // An empty TIMES socket is another ordinary unfinished pupil project.
+  // Save/Open must preserve it, not coerce the absent value to zero.
+  {
+    const ws = new Blockly.Workspace();
+    const t = ws.newBlock('webeeblocks_v2_takeoff');
+    const repeat = ws.newBlock('controls_repeat_ext');
+    const land = ws.newBlock('webeeblocks_v2_land');
+    setMotionNumber(t,'HEIGHT',0.8);
+    t.nextConnection.connect(repeat.previousConnection);
+    repeat.nextConnection.connect(land.previousConnection);
+    const count = ws.newBlock('math_number');
+    count.setFieldValue('3','NUM');
+    repeat.getInput('TIMES').connection.connect(count.outputConnection);
+    const nominal = ast(ws,incompleteProfile.value);
+    count.dispose(false);
+    assert.strictEqual(repeat.getInputTargetBlock('TIMES'),null);
+    assert.throws(()=>SemanticAst.compileWorkspace(ws),error=>
+      error.code==='PROGRAM_INVALID' && /missing value input TIMES/.test(error.message));
+    const transport=memoryTransport(), manager=managerFor(ws,incompleteProfile,transport);
+    const saved=Blockly.serialization.workspaces.save(ws);
+    await manager.saveAs('repetition-en-cours');
+    assert.strictEqual(transport.state.writes.length,1);
+    ws.clear();
+    transport.state.openText=transport.state.currentText;
+    const reopened=await manager.open();
+    assert.strictEqual(reopened.ast,null);
+    assert.deepStrictEqual(Blockly.serialization.workspaces.save(ws),saved);
+    assert.strictEqual(transport.state.writes.length,1);
+    const restored=ws.getBlocksByType('controls_repeat_ext',false)[0];
+    assert(restored.getInput('TIMES') && !restored.getInputTargetBlock('TIMES'));
+    // The public Open button uses the portable path, not legacy open().
+    // An incomplete foreign program is still a valid project, not a flight.
+    const portableWorkspace=new Blockly.Workspace();
+    const portableTransport=memoryTransport();
+    const current=activityProfile('progression-sequence-v1');
+    const source=incompleteProfile.value;
+    const portableManager=ProjectFiles.createManager({
+      Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+      blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,
+      activityContract:ActivityContract,workspace:portableWorkspace,
+      getProfile:()=>current,
+      setProfile(){assert.fail('portable incomplete Open switched activity');},
+      prepareProfile(){assert.fail('portable incomplete Open selected scene');},
+      transport:portableTransport
+    });
+    try {
+      portableTransport.state.openText=transport.state.currentText;
+      const imported=await portableManager.openIntoCurrentActivity();
+      assert.strictEqual(imported.ast,null);
+      assert.strictEqual(imported.activity,current.id);
+      assert.strictEqual(imported.sourceActivity,source.id);
+      assert.deepStrictEqual(Blockly.serialization.workspaces.save(portableWorkspace),saved);
+      assert.strictEqual(portableTransport.state.writes.length,0);
+      let effects=0;
+      await assert.rejects(ActivityContract.execute(current,portableWorkspace,SemanticAst,
+        {run:async()=>{effects++;}},
+        {capabilities:{simulationScenes:true},prepareActivity:async()=>{effects++;}},
+        {preserveWorkspace:true}),error=>error.code==='PROGRAM_INVALID');
+      assert.strictEqual(effects,0);
+      await portableManager.save();
+      assert.strictEqual(portableTransport.state.writes.length,1);
+      const portableSaved=ProjectFiles.parseProject(portableTransport.state.currentText);
+      assert.strictEqual(portableSaved.activity.id,source.id);
+      assert.deepStrictEqual(portableSaved.workspace,saved);
+      portableWorkspace.clear();
+      portableTransport.state.openText=portableTransport.state.currentText;
+      assert.strictEqual((await portableManager.openIntoCurrentActivity()).ast,null);
+      assert.strictEqual(portableTransport.state.writes.length,1);
+      assert.deepStrictEqual(Blockly.serialization.workspaces.save(portableWorkspace),saved);
+      const portableRepeat=portableWorkspace.getBlocksByType('controls_repeat_ext',false)[0];
+      assert(portableRepeat.getInput('TIMES') && !portableRepeat.getInputTargetBlock('TIMES'));
+      const portableFixed=portableWorkspace.newBlock('math_number');
+      portableFixed.setFieldValue('3','NUM');
+      portableRepeat.getInput('TIMES').connection.connect(portableFixed.outputConnection);
+      assert.deepStrictEqual(ast(portableWorkspace,source),nominal);
+    } finally {portableWorkspace.dispose();}
+    const fixed=ws.newBlock('math_number');
+    fixed.setFieldValue('3','NUM');
+    restored.getInput('TIMES').connection.connect(fixed.outputConnection);
+    assert.deepStrictEqual(ast(ws,incompleteProfile.value),nominal);
+    ws.dispose();
+  }
+
   const uiSource = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
   assert(uiSource.includes("error.name === 'AbortError'"), 'UI must treat native cancellation neutrally');
   assert(uiSource.includes('!manager.hasCurrentTarget()'), 'UI must disable Save without a current handle');
