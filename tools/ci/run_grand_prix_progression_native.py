@@ -39,8 +39,8 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
         if last_attempt == 5:
             forced_attempts += (5,)
         if variant == 1:
-            last_attempt = 6
-            forced_attempts += (5, 6)
+            last_attempt = 8
+            forced_attempts += (5, 6, 7, 8)
         if variant == 7:
             last_attempt = 6
             forced_attempts += (6,)
@@ -222,6 +222,24 @@ def run_native(home, env, activity, variant=1, pupil_project=None, *, rebound=No
                                                        'resets': 1, 'blockly': '13.2.1'}.items())
                     for proof, case in zip(proofs, expected)):
                 raise RuntimeError('Missing exact native student-error STOP/RESET proof')
+            prefix = 'A7_EXECUTION_LIMIT_STOP_PASS '
+            limits = [json.loads(line.removeprefix(prefix))
+                      for line in (out / 'wwi.log').read_text().splitlines()
+                      if line.startswith(prefix)]
+            expected_limits = [('loop', 'LOOP_ITERATION_LIMIT', 5),
+                               ('budget', 'EXECUTION_BUDGET_LIMIT', 6)]
+            if len(limits) != 2 or any(
+                    (proof.get('kind'), proof.get('code'), proof.get('forcedLandings')) != case or
+                    any(proof.get(k) != v for k, v in {'takeoffs': 1, 'stops': 1, 'moves': 1,
+                                                       'moveAcks': 1, 'lands': 0, 'resets': 1, 'blockly': '13.2.1',
+                                                       'maxSteps': 20000}.items()) or
+                    (case[0] == 'loop' and
+                     (len(proof.get('ranges', [])) != 2 or
+                      not all(isinstance(value, (int, float)) and .30 < value <= 2
+                              for value in proof['ranges']))) or
+                    (case[0] == 'budget' and proof.get('ranges') != [])
+                    for proof, case in zip(limits, expected_limits)):
+                raise RuntimeError('Missing exact native execution-limit STOP/RESET proof')
         print(f'PASS A7 product .wbb SHA256={hashlib.sha256(project.read_bytes()).hexdigest()}')
     if activity == 8:
         import csv
