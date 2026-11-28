@@ -7,6 +7,7 @@ require('../../plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js');
 delete global.Blockly;
 const Compiler = require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
+const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome');
 const Contract = require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract');
 const Observer = require('../../plugins/robot_windows/blockly/webeeblocks/execution_observer');
 const Physical = require('../../plugins/robot_windows/blockly/webeeblocks/physical_capability_contract');
@@ -192,7 +193,10 @@ async function prove() {
   assert.deepStrictEqual(zero.effects,['takeoff','land']);
 
   const unending=backend([0.2,0.2,0.2,0.2]);
-  await assert.rejects(()=>Interpreter.run(program(loop()),unending),/iteration limit exceeded/);
+  await assert.rejects(()=>Interpreter.run(program(loop()),unending),error=>
+    /iteration limit exceeded/.test(error.message)&&error.code==='LOOP_ITERATION_LIMIT'&&
+    Outcome.classify(error).state==='ARRÊTÉ'&&/limite de 3 itérations.*Réinitialisez/.test(Outcome.classify(error).detail)&&
+    !Outcome.isRetryable(error)&&Outcome.requiresSafeStop(error));
   assert.deepStrictEqual(unending.effects,['takeoff','move','move','move'],'guard exhaustion must not land normally or become success');
   const empty=backend([]);
   await assert.rejects(()=>Interpreter.run(program(loop('WHILE',number(1),[],100)),empty,{maxSteps:4}),/exceeds runtime budget before takeoff/);

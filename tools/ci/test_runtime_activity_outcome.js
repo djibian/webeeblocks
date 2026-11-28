@@ -280,7 +280,10 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
   assert.strictEqual(element('resetSimulation').disabled, false, 'Reset should reopen only after the mission outcome is presented');
 }
 
-async function provePupilErrorRequiresNativeStop() {
+async function provePupilErrorRequiresNativeStop(code) {
+  const budget = code === 'EXECUTION_BUDGET_LIMIT';
+  const loop = code === 'LOOP_ITERATION_LIMIT';
+  const terminal = budget || loop;
   for (const scenario of ['preflight', 'stop-ok', 'stop-failure', 'manual-stop-failure',
     'manual-stop-pupil-ok', 'manual-stop-pupil-failure']) {
     const elements = {};
@@ -314,8 +317,8 @@ async function provePupilErrorRequiresNativeStop() {
             const stopped=new Error('user stopped');stopped.code='USER_STOPPED';throw stopped;
           }
         }
-        const err=new Error('out of bounds');err.code='PROGRAM_INVALID';
-        err.studentDetail='La distance calculée dépasse les limites.';
+        const err=new Error(budget?'execution budget exceeded':loop?'conditional loop iteration limit exceeded':'out of bounds');err.code=code;
+        err.studentDetail=loop?'La boucle a atteint sa limite de 3 itérations. Vérifiez sa condition et ses déplacements. Réinitialisez la simulation avant de relancer.':'La distance calculée dépasse les limites.';
         throw err;
       }},
       WebeeBlocksSemanticAst:{},WebeeBlocksInterpreter:{},
@@ -366,8 +369,9 @@ async function provePupilErrorRequiresNativeStop() {
     } else if (scenario==='preflight') {
       await running;
       assert.strictEqual(stops,0);
-      assert.strictEqual(context.runtimeTerminal,false);
-      assert.strictEqual(element('submit').disabled,false);
+      assert.strictEqual(context.runtimeTerminal,terminal);
+      assert.strictEqual(element('submit').disabled,terminal);
+      assert.strictEqual(element('runtimeState').textContent,terminal?'ARRÊTÉ':'À CORRIGER');
     } else {
       await until(()=>stops===1,'STOP on in-flight pupil error');
       assert.strictEqual(element('resetSimulation').disabled,true);
@@ -381,7 +385,10 @@ async function provePupilErrorRequiresNativeStop() {
       assert.strictEqual(element('submit').disabled,true);
       assert.strictEqual(element('resetSimulation').disabled,scenario==='stop-failure');
       assert.strictEqual(element('runtimeState').textContent,
-        scenario==='stop-failure'?'ERREUR':'À CORRIGER');
+        scenario==='stop-failure'?'ERREUR':terminal?'ARRÊTÉ':'À CORRIGER');
+      if(budget&&scenario==='stop-ok')assert.match(element('runtimeDetail').textContent,/limite d’étapes.*Réinitialisez/);
+      if(loop&&scenario==='stop-ok')assert.match(element('runtimeDetail').textContent,/limite de 3 itérations.*Réinitialisez/);
+      assert.strictEqual(stops,1,'exactly one recovery STOP');
       if(scenario==='stop-failure') {
         await context.resetSimulation();
         await context.runProgram();
@@ -662,7 +669,9 @@ function proveRealWebotsOutcomeFreshness() {
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
-  await provePupilErrorRequiresNativeStop();
+  await provePupilErrorRequiresNativeStop('PROGRAM_INVALID');
+  await provePupilErrorRequiresNativeStop('EXECUTION_BUDGET_LIMIT');
+  await provePupilErrorRequiresNativeStop('LOOP_ITERATION_LIMIT');
   await require('./test_runtime_outcome_settling.js')();
   await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);

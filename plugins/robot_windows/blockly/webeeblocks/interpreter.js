@@ -14,6 +14,7 @@
   var ARITHMETIC_OPS=['ADD','MINUS','MULTIPLY','DIVIDE'];
   function fail(message){throw new Error('runtime v2: '+message);}
   function studentFail(message,detail){var error=new Error('runtime v2: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
+  function budgetLimit(){var error=new Error('runtime v2: execution budget exceeded');error.code='EXECUTION_BUDGET_LIMIT';throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
   function numeric(value,name){if(typeof value!=='number'||!Number.isFinite(value))studentFail(name+' must be a finite number','Vérifiez les valeurs utilisées dans le calcul.');return value;}
   function requireMethod(backend,name){if(!backend||typeof backend[name]!=='function')fail('backend is missing '+name+'()');return backend[name].bind(backend);}
@@ -27,7 +28,7 @@
 
   function validateExpression(expression,depth,assigned,variables){
     if(!expression||typeof expression.kind!=='string')fail('invalid expression');
-    if(depth>20)fail('expression nesting too deep');
+    if(depth>20)studentFail('expression nesting too deep','Le calcul ou la condition contient trop de blocs imbriqués. Décomposez le calcul en plusieurs étapes.');
     switch(expression.kind){
       case 'number':finite(expression.value,'number');return;
       case 'elapsed_time':if(expression.unit!=='s')fail('unsupported elapsed time unit');return;
@@ -60,15 +61,15 @@
   async function resolveMotion(value,name,kind,direction,backend,budget,depth,options,path,env){
     var result=typeof value==='number'?value:await evaluate(value,backend,budget,depth+1,options,(path||[]).concat(name),env);
     if(typeof result!=='number'||!Number.isFinite(result))
-      studentFail('invalid '+name,'La distance ou altitude calculée est invalide.');
+      studentFail('invalid '+name,'La distance ou altitude calculée est invalide. Vérifiez que le calcul fournit un nombre.');
     var bounds=motionBounds(options,kind,direction);
     if(result<bounds[0]-1e-10||result>bounds[1]+1e-10)
-      studentFail('out-of-bounds '+name+' '+result,'La distance ou altitude calculée dépasse les limites de cette activité.');
+      studentFail('out-of-bounds '+name+' '+result,'La distance ou altitude calculée ('+result+' m) dépasse les limites de cette activité : de '+bounds[0]+' à '+bounds[1]+' m. Corrigez le calcul.');
     return result;
   }
   function validateSequence(sequence,depth,nested,assigned,variables){
     if(!Array.isArray(sequence))fail('statement sequence must be an array');
-    if(depth>20)fail('statement nesting too deep');
+    if(depth>20)studentFail('statement nesting too deep','Le programme contient trop de blocs imbriqués. Simplifiez les boucles, conditions ou procédures.');
     sequence.forEach(function(statement){
       if(!statement||typeof statement.kind!=='string')fail('invalid statement');
       if(nested&&(statement.kind==='takeoff'||statement.kind==='land'))fail('takeoff and land are only allowed at top-level boundaries');
@@ -142,7 +143,7 @@
         if(node.kind==='while')cost+=(node.max_iterations+1)*expressionCost(node.condition)+node.max_iterations*(1+sequenceCost(node.body));
         if(node.kind==='repeat')cost+=node.count*sequenceCost(node.body);
         if(node.kind==='call')cost+=sequenceCost(node.body);
-        if(cost>maxSteps)fail('reachable execution exceeds runtime budget before takeoff');
+        if(cost>maxSteps)studentFail('reachable execution exceeds runtime budget before takeoff','Le programme risque d’exécuter trop d’étapes. Réduisez le nombre de répétitions ou simplifiez les boucles et procédures.');
       });
       return cost;
     }
@@ -151,7 +152,7 @@
 
   async function evaluate(expression,backend,budget,depth,options,path,env){
     env=env||environment();
-    budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+    budget.remaining-=1;if(budget.remaining<0)budgetLimit();
     var current=context(expression,path,'expression',env);
     await hook(options,'onNode',current);
     switch(expression.kind){
@@ -220,7 +221,7 @@
 
   async function executeSequence(sequence,backend,budget,depth,options,prefix,env){
     for(var i=0;i<sequence.length;i++){
-      budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+      budget.remaining-=1;if(budget.remaining<0)budgetLimit();
       var statement=sequence[i],path=(prefix||[]).concat(i),current=context(statement,path,'statement',env);
       await hook(options,'onNode',current);
       switch(statement.kind){
@@ -269,7 +270,7 @@
                 ' itérations. Vérifiez sa condition et ses déplacements. Réinitialisez la simulation avant de relancer.';
               throw loopError;
             }
-            budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+            budget.remaining-=1;if(budget.remaining<0)budgetLimit();
             await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:iteration}));
             await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);
             iteration+=1;

@@ -475,6 +475,54 @@ function proveProgressionProfilesAndFieldOptions() {
   mustRejectStudentValidation(() => SemanticAst.compileStatement({type:'webeeblocks_v2_takeoff',getInputTargetBlock:() => literal(2)}), /décoller.*2.*0\.2 à 1\.5/);
   assert.strictEqual(Outcome.classify(Error('semantic AST: internal failure')).state,'ERREUR');
 
+  // D4 follow-up: malformed pupil structures, not malformed infrastructure.
+  const takeoff = {kind:'takeoff',height_m:.5}, land = {kind:'land'};
+  const envelope = program => ({version:1,semantics:'webeeblocks-ast-v1',program});
+  for (const [program, detail] of [
+    [[takeoff,takeoff,land],/un seul bloc « décoller »/],
+    [[takeoff,land,land],/un seul bloc « atterrir »/],
+    [[takeoff,{kind:'repeat',count:1,body:[land]},land],/hors des boucles/],
+    [[takeoff,{kind:'if',then:[takeoff]},land],/hors des boucles/],
+    [[takeoff,{kind:'call',body:[land]},land],/hors des boucles/]
+  ]) mustRejectStudentValidation(() => SemanticAst.validateFlightBoundaries(program),detail);
+  for (const [type,input,detail] of [
+    ['webeeblocks_v2_takeoff','HEIGHT',/hauteur/],
+    ['webeeblocks_v2_move','DISTANCE',/distance/],
+    ['controls_if','IF0',/condition/],
+    ['webeeblocks_v2_until','BOOL',/condition/]
+  ]) mustRejectStudentValidation(() => SemanticAst.compileStatement({
+    type,getFieldValue:()=> 'forward',getInputTargetBlock:()=>null,
+    getInput:name=>name===input?{connection:{type:1}}:null
+  }),detail);
+  mustRejectStudentValidation(() => SemanticAst.compileExpression({
+    type:'logic_compare',getFieldValue:()=> 'LT',getInputTargetBlock:()=>null,
+    getInput:()=>({connection:{type:1}})
+  }),/deux entrées/);
+  for(const socket of [null,{connection:null},{connection:{type:3}}]){
+    assert.throws(()=>SemanticAst.compileExpression({
+      type:'logic_compare',getFieldValue:()=> 'LT',getInputTargetBlock:()=>null,
+      getInput:()=>socket
+    }),error=>/invalid Blockly value socket/.test(error.message)&&
+      error.code!=='PROGRAM_INVALID'&&Outcome.classify(error).state==='ERREUR');
+  }
+  let chain=null;
+  for(let i=0;i<201;i++){const next=chain;chain={type:'webeeblocks_v2_land',getNextBlock:()=>next};}
+  mustRejectStudentValidation(() => SemanticAst.compileSequence(chain),/plus de 200 blocs/);
+  let expression={kind:'number',value:1};
+  for(let i=0;i<22;i++)expression={kind:'arithmetic',op:'ADD',left:expression,right:{kind:'number',value:1}};
+  mustRejectStudentValidation(() => Interpreter.validateProgram(envelope([
+    {kind:'takeoff',height_m:expression},land
+  ])),/calcul ou la condition.*imbriqués/);
+  mustRejectStudentValidation(() => Interpreter.validateExecutionBudget(envelope([takeoff,
+    {kind:'repeat',count:20,body:[{kind:'wait',seconds:1}]},land]),10),/trop d’étapes/);
+  actions=0;
+  await assert.rejects(Interpreter.run(envelope([takeoff,{kind:'repeat',count:20,body:[{kind:'wait',seconds:1}]},land]),backend,{maxSteps:3}),
+    error=>error.code==='EXECUTION_BUDGET_LIMIT'&&Outcome.classify(error).state==='ARRÊTÉ'&&
+      /Réinitialisez/.test(Outcome.classify(error).detail)&&!Outcome.isRetryable(error)&&Outcome.requiresSafeStop(error));
+  assert(actions>0,'dynamic budget fixture did not reach takeoff');
+  assert(!Outcome.requiresSafeStop(Error('internal failure')));
+  assert(/enseignant/.test(Outcome.classify(Error('internal failure')).detail));
+
   // Profile-specific bound (generic AST accepts .6 m/s). Preserve technical
   // failures for unknown/nonfinite AST data and the exact rejection message.
   const restricted = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);

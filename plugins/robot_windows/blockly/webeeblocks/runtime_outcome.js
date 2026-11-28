@@ -17,12 +17,24 @@
     return !!(error && error.code === 'PROGRAM_INVALID');
   }
 
+  function requiresSafeStop(error) {
+    return isRetryable(error) || !!(error &&
+      (error.code === 'EXECUTION_BUDGET_LIMIT' || error.code === 'LOOP_ITERATION_LIMIT'));
+  }
+
   function classify(error) {
     var machineCode = error && typeof error.code === 'string' ? error.code : null;
     if (machineCode === 'PROGRAM_INVALID') {
       return {
         state: 'À CORRIGER',
         detail: error && typeof error.studentDetail === 'string' && error.studentDetail ? error.studentDetail : 'Le programme doit être corrigé avant de lancer.',
+        machineCode: machineCode
+      };
+    }
+    if (machineCode === 'EXECUTION_BUDGET_LIMIT') {
+      return {
+        state: 'ARRÊTÉ',
+        detail: 'Le programme a atteint sa limite d’étapes. Simplifiez les boucles ou réduisez les répétitions. Réinitialisez la simulation avant de relancer.',
         machineCode: machineCode
       };
     }
@@ -50,7 +62,7 @@
     }
     return {
       state: 'ERREUR',
-      detail: 'Une erreur technique a interrompu l’exécution',
+      detail: 'Une erreur technique a interrompu l’exécution. Prévenez votre enseignant avant de relancer.',
       machineCode: machineCode
     };
   }
@@ -211,6 +223,7 @@
   return {
     classify: classify,
     isRetryable: isRetryable,
+    requiresSafeStop: requiresSafeStop,
     MISSION_EVALUATION_TYPE: MISSION_EVALUATION_TYPE,
     supportsMissionEvaluation: supportsMissionEvaluation,
     classifyMission: classifyMission,
