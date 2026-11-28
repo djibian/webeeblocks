@@ -167,4 +167,11 @@ proof = {
 }
 trace('NATIVE_PASS', delta_ms=advanced_ms, proof=proof)
 print(PFX + 'PASS ' + json.dumps(proof, sort_keys=True), flush=True)
+# The proof above measures the FIRST positive step after RESUME. Do not
+# change that sample or the verifier: R2025a can stop forwarding stdout
+# during simulationQuit(0), even when Python has flushed it. Give the
+# isolated, already-resumed non-flight world one ordinary basic step to
+# deliver the final console mirror, just as the route evaluator probe does.
+if controller.step(32) != 0:
+    abort('console-drain-step-interrupted')
 controller.simulationQuit(0)

@@ -24,6 +24,22 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)
                 self.assertTrue(selection.full)
 
+    def test_native_pause_wwi_inputs_keep_the_runtime_owner(self) -> None:
+        for path in (
+            "controllers/ci_webots_pause_wwi/ci_webots_pause_wwi.py",
+            "worlds/ci_webots_pause_wwi.wbt",
+            "plugins/robot_windows/ci_webots_pause_wwi/ci_webots_pause_wwi.html",
+            "tools/ci/run_webots_pause_wwi_probe.py",
+            "tools/ci/pause_wwi_evidence.py",
+            "tools/ci/test_pause_wwi_evidence.py",
+        ):
+            with self.subTest(path=path):
+                result = select([path])
+                self.assertTrue(result.runtime, "native PAUSE/WWI owner skipped")
+                self.assertTrue(result.webots, "historical coverage lost")
+                self.assertFalse(result.full)
+        self.assertFalse(select(["controllers/unrelated_probe/probe.py"]).runtime)
+
     def test_documentation_only(self) -> None:
         result = select(["docs/DEVELOPMENT.md", "README.md"])
         self.assertFalse(result.runtime)

@@ -77,6 +77,14 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # The isolated native PAUSE/WWI proof belongs to runtime-v2-webots,
+    # not to the historical Webots suite. Preserve both owning selections.
+    "controllers/ci_webots_pause_wwi/**",
+    "worlds/ci_webots_pause_wwi.wbt",
+    "plugins/robot_windows/ci_webots_pause_wwi/**",
+    "tools/ci/run_webots_pause_wwi_probe.py",
+    "tools/ci/pause_wwi_evidence.py",
+    "tools/ci/test_pause_wwi_evidence.py",
     # This product Blockly source feeds the Runtime UI and Webots native paths.
     "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
     # The pre-controller observer is exercised by Runtime's outcome preflight.
