@@ -4,6 +4,7 @@
 Run inside the pinned Webots R2025a Docker container with Google Chrome.
 Never exercise this in a flight scene or claim product pause support.
 """
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,52 @@ from pause_wwi_evidence import verify_native_pause_evidence
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'ci-artifacts/runtime-v2-webots/native-pause'
+
+
+def enable_native_subreaper():
+    """This dedicated runner must own every descendant, even after setsid."""
+    try:
+        os.waitid(os.P_ALL, 0, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError:
+        pass
+    else:
+        raise RuntimeError('native probe already has children')
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def drain_adopted_native_children():
+    """Reap/stop only this dedicated runner's adopted children, not other Chrome."""
+    for signum in (signal.SIGTERM, signal.SIGKILL):
+        deadline = time.monotonic() + 3.0
+        while True:
+            try:
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                return  # Kernel proves no children, including unreaped zombies.
+            if time.monotonic() >= deadline:
+                break
+            if pid:
+                continue
+            for entry in Path('/proc').iterdir():
+                if not entry.name.isdecimal():
+                    continue
+                pid = int(entry.name)
+                try:
+                    # WNOWAIT verifies direct parentage without reaping. No
+                    # child PID can be recycled before this single-threaded
+                    # process reaps it, so the signal cannot hit a stranger.
+                    os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                except (ChildProcessError, ProcessLookupError):
+                    continue
+                try:
+                    os.kill(pid, signum)
+                except ProcessLookupError:
+                    pass
+            time.sleep(0.05)
+    raise RuntimeError('native probe descendants survived bounded teardown')
 
 
 def active_process_group_members(pgid):
@@ -62,16 +109,17 @@ def stop_native_process_group(proc):
         deadline = time.monotonic() + 3.0
         while active_process_group_members(pgid) and time.monotonic() < deadline:
             time.sleep(0.05)
-    try:
-        proc.wait(timeout=1)
-    except subprocess.TimeoutExpired:
-        pass
+    proc.wait(timeout=1)
     survivors = active_process_group_members(pgid)
     if survivors:
         report = 'pgid=' + str(pgid) + ' survivors=' + repr(survivors)
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / 'processes-surviving-teardown.txt').write_text(report + '\n', encoding='utf-8')
         raise RuntimeError('Webots/Chrome group survived bounded teardown: ' + report)
+    # Session groups alone do not contain descendants that called setsid.
+    # The launcher has been reaped; now require kernel-confirmed absence of
+    # all adopted descendants before deleting the private profile.
+    drain_adopted_native_children()
 
 
 def capture_x11_window_evidence(process_group):
@@ -230,6 +278,7 @@ print(json.dumps({
             str(home / 'webots'), '--stdout', '--stderr', '--minimize',
             '--mode=realtime', str(world),
         ]
+        enable_native_subreaper()
         proc = None
         timed_out = False
         native_pass_observed = False
