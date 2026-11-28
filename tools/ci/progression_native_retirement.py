@@ -244,7 +244,14 @@ def native_main(args):
               'native_binary': str(native), 'browser_complete': False,
               'fallback_used': False}
     command = [str(native), '--stdout', '--stderr', '--batch', '--mode=fast',
-               '--minimize', str(Path(args.world).resolve())]
+               '--minimize']
+    # The autonomous witness asserts native state and real Robot Window
+    # commands, not the continuous 3D viewport. Reduce software-renderer
+    # exposure after #665's allocator failure; keep startup and retirement
+    # gates, the memory witness and separate graphical tests unchanged.
+    if args.kind == 'autonomous':
+        command.append('--no-rendering')
+    command.append(str(Path(args.world).resolve()))
     child = None
     log = None
     try:
@@ -261,7 +268,12 @@ def native_main(args):
                 deadline = time.monotonic() + 1500
                 events = directory / 'browser-events.jsonl'
                 while True:
-                    if child.poll() is not None:
+                    code = child.poll()
+                    if code is not None:
+                        # Record the observed direct exit before fallback can
+                        # change any process observations. Even zero is failure
+                        # without the normal administrative retirement proof.
+                        report['native_exit_code'] = code
                         raise RuntimeError('webots-bin exited before administrative retirement')
                     if time.monotonic() >= deadline:
                         raise TimeoutError('native progression exceeded 1500s')

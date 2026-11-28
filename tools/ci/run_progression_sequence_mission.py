@@ -554,7 +554,9 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
+# Behavioral native witness, not viewport acceptance (same CI boundary as #1098).
+# Keep the actual Robot Window, real-time physics, complete mission oracles and wall budget.
+timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime --no-rendering /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
         inner = inner.replace('WB_ALTITUDE_NATIVE_SMOKE_ENABLED', '0' if NEUTRAL_START else '1')
         inner = inner.replace('WB_CANOPY_NATIVE_FLIGHT_ENABLED', '1' if NEUTRAL_START else '0')
