@@ -34,7 +34,7 @@ Pour chaque activité, un même programme doit pouvoir résoudre toutes ses vari
 - [Vision produit](docs/PRODUCT_VISION.md) et [roadmap](docs/ROADMAP.md).
 - [Contrat pédagogique A1–A8](docs/GRAND_PRIX_PEDAGOGICAL_PROGRESSION_1-8.md).
 - [Architecture](docs/ARCHITECTURE.md), [contrat V5](AGENTS.md) et [développement](docs/DEVELOPMENT.md).
-- [Prévisualisation Linux depuis les sources](docs/GRAND_PRIX_LINUX.md).
+- [Prévisualisation Linux depuis les sources](docs/GRAND_PRIX_A1_A8_LINUX.md).
 - [Historique et preuves](docs/HISTORIQUE.md).
 
 Les anomalies et retours de classe sont à signaler dans les [issues GitHub](https://github.com/djibian/webeeblocks/issues).
